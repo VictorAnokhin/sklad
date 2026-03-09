@@ -1,0 +1,91 @@
+version: '3.9'
+
+services:
+
+  # ── PHP + Apache ─────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sklad_app
+    restart: unless-stopped
+    ports:
+      - "8080:80"          # http://localhost:8080
+    volumes:
+      - .:/var/www/html                         # live code sync (для разработки)
+      - ./storage:/var/www/html/storage         # persist uploads & logs
+      - /var/www/html/vendor                    # не перезаписывать vendor из хоста
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - sklad
+
+  # ── MySQL 8 ───────────────────────────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: sklad_db
+    restart: unless-stopped
+    ports:
+      - "3307:3306"        # 3307 на хосте → не конфликтует с локальным MySQL
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: sklad
+      MYSQL_USER: sklad
+      MYSQL_PASSWORD: sklad
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d   # *.sql авто-импорт при первом старте
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-usklad", "-psklad"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sklad
+
+  # ── phpMyAdmin ────────────────────────────────────────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: sklad_pma
+    restart: unless-stopped
+    ports:
+      - "8081:80"          # http://localhost:8081
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: sklad
+      PMA_PASSWORD: sklad
+      UPLOAD_LIMIT: 512M
+    depends_on:
+      - db
+    networks:
+      - sklad
+
+  # ── React frontend ─────────────────────────────────────────────────────────
+  react:
+    build:
+      context: ../react-app
+      dockerfile: Dockerfile
+    container_name: sklad_react
+    restart: unless-stopped
+    ports:
+      - "3001:3001"          # http://localhost:3001
+    volumes:
+      - ../react-app:/react-app
+      - /react-app/node_modules   # не перезаписывать node_modules из хоста
+    depends_on:
+      - app
+    networks:
+      - sklad
+    command: npm run dev
+
+volumes:
+  db_data:
+
+networks:
+  sklad:
+    driver: bridge

@@ -1,44 +1,32 @@
-# Use the official PHP image with Apache
 FROM php:8.2-apache
 
-# Set the working directory
-WORKDIR /var/www/html
+# ── System deps ───────────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y \
+    git curl zip unzip libpng-dev libonig-dev libxml2-dev \
+    libzip-dev libicu-dev libpq-dev \
+    && docker-php-ext-install \
+        pdo pdo_mysql mysqli mbstring exif pcntl bcmath gd zip intl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install required extensions
-RUN apt-get update \
-    && apt-get install -y \
-        libzip-dev \
-        unzip \
-        libonig-dev \
-    && docker-php-ext-install pdo_mysql zip mbstring exif pcntl bcmath \
-    && a2enmod rewrite
+# ── Apache: enable mod_rewrite for Laravel routing ────────────────────────────
+RUN a2enmod rewrite headers
 
-# Enable Apache mod_rewrite
-RUN a2enmod rewrite
-
-# Update the default Apache site configuration
+# ── Apache config: point DocumentRoot → /var/www/html/public ─────────────────
 COPY apache-config.conf /etc/apache2/sites-available/000-default.conf
 
-# Enable Apache site configuration
-RUN a2ensite 000-default.conf
+# ── Composer ──────────────────────────────────────────────────────────────────
+COPY --from=composer:2.6 /usr/bin/composer /usr/bin/composer
 
-# Restart Apache to apply changes
-RUN service apache2 restart
+# ── App files ─────────────────────────────────────────────────────────────────
+WORKDIR /var/www/html
 
-# Copy the Laravel project files
 COPY . .
 
-# Install Composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# ── Install PHP deps ──────────────────────────────────────────────────────────
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 
-# Install project dependencies
-RUN composer install
+# ── Storage permissions ───────────────────────────────────────────────────────
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 storage bootstrap/cache
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-
-# Expose port 80
 EXPOSE 80
-
-# Start Apache
-CMD ["apache2-foreground"]
