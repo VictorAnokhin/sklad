@@ -1,49 +1,41 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width">
-  <title>Вхід — {{ config('app.name', 'av8fund') }}</title>
-  <link href="{{ asset('css/styles.css') }}" rel="stylesheet">
-</head>
-<body>
-<div class="align_center">
-<div class="wrapper">
+@extends('partials.home')
 
-  @include('partials.top_reklama')
+@section('content')
+<div class="menu_content_login" id="menu_content_login">
+  <form action="{{ route('login.post') }}" method="post">
+    @csrf
 
-  <div class="main">
-    <form action="{{ route('login.post') }}" method="post" class="login-form">
-      @csrf
+    @error('login')
+    <div class="alert-error" style="color:red;margin-bottom:8px">{{ $message }}</div>
+    @enderror
 
-      @error('login')
-        <div class="alert-error" style="color:red;margin-bottom:8px">{{ $message }}</div>
-      @enderror
+    <div>
+      <label for="login">Логін або телефон</label>
+      <input type="text" name="login" value="{{ old('login') }}" placeholder="Ваш логін або телефон" required
+        autocomplete="username" class="name1">
+    </div>
 
-      <div class="txtbox_startpage_str">
-        <input type="text"
-               name="login"
-               value="{{ old('login') }}"
-               placeholder="Ваш логін або телефон"
-               autocomplete="username"
-               class="name1">
-      </div>
+    <div>
+      <label for="pass">Пароль</label>
+      <input type="password" name="pass" placeholder="Пароль" autocomplete="current-password" required class="name1">
+    </div>
 
-      <div class="txtbox_startpage_str">
-        <input type="password"
-               name="pass"
-               placeholder="Пароль"
-               autocomplete="current-password"
-               class="name1">
-      </div>
-
-      <div class="txtbox_startpage_str">
-        <button type="submit" class="button" style="width:140px">Увійти</button>
-      </div>
-    </form>
-  </div>
-
+    <div>
+      <button type="submit">Увійти</button>
+    </div>
+  </form>
 </div>
-</div>
-</body>
-</html>
+@endsection
+
+@push('scripts')
+<script>
+  const btnMenu = document.getElementById('btn_login');
+  const Menu = document.getElementById('menu_content_login');
+  btnMenu.addEventListener('click', function () {
+    if (Menu.style.display == 'block')
+      Menu.style.display = 'none';
+    else
+      Menu.style.display = 'block';
+  });
+</script>
+@endpush
