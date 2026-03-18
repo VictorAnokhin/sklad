@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -17,10 +18,75 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
-        if (session()->has('login') && session('login') !== '') {
-            return redirect()->route('document.index');
+        if (Auth::check()) {
+            return redirect()->route('dashboard');
         }
         return view('auth.login');
+
+    }
+
+    public function dashboard()
+    {
+        return view('dashboard');
+    }
+
+    public function showRegister()
+    {
+        return view('auth.register');
+    }
+
+    public function register(Request $request)
+    {
+        $request->validate([
+            'name' => 'nullable|string|max:255',
+            'surname' => 'nullable|string|max:255',
+            'login' => 'required|string',
+            'pass' => 'required|string',
+        ]);
+
+        $login = trim($request->input('login'));
+        $pass = trim($request->input('pass'));
+        $name = trim($request->input('name', ''));
+        $surname = trim($request->input('surname', ''));
+
+
+        /** @var User|null $user */
+        $user = User::where(function ($q) use ($login) {
+            $q->where('login', $login)->orWhere('phone', $login);
+        })->first();
+
+        if ($user) {
+            return back()->withErrors(['login' => 'Користувач вже існує']);
+        }
+
+        $user = User::create([
+            'login' => $login,
+            'pass' => Hash::make($pass),
+            'name' => $name,
+            'fathername' => $surname,
+        ]);
+
+        session([
+            'id' => $user->id,
+            'fid' => $user->idfirma,
+            'userid' => $user->id,
+            'idstatus' => $user->idstatus,
+            'doc' => (int)$user->idstatus === 2 ? 'WO1' : 'ZOUT',
+            'idkassa' => $user->idkassa,
+            'idsklad' => $user->idsklad,
+            'idreestr' => $user->idreestr,
+            'domen' => $user->domen,
+            'bonus' => $user->bonus,
+            'balans' => $user->balans,
+            'name1' => convert_from_base($user->name),
+            'fname' => convert_from_base($user->fathername),
+            'login' => $user->login,
+            // navigation / filter defaults
+        ]);
+
+        Auth::login($user);
+
+        return redirect()->route('dashboard');
     }
 
     public function login(Request $request)
@@ -32,6 +98,7 @@ class AuthController extends Controller
 
         $login = trim($request->input('login'));
         $pass = trim($request->input('pass'));
+
 
         if ($login === '' || $pass === '') {
             return back()->withErrors(['login' => 'Введіть логін і пароль']);
@@ -56,6 +123,7 @@ class AuthController extends Controller
                 || $user->pass === md5(md5($pass)); // double-md5 variant
 
             if (!$valid) {
+                echo "Invalid login attempt for user: $login";
                 return back()->withErrors(['login' => 'Невірний логін або пароль']);
             }
 
@@ -65,20 +133,12 @@ class AuthController extends Controller
             }
         }
 
-        // Birthday day.month for greeting
-        $hbd = convert_from_base($user->hbd ?? '');
-        $iHbd = '';
-        if (strlen($hbd) >= 10) {
-            $iHbd = substr($hbd, 8, 2) . '.' . substr($hbd, 5, 2); // dd.mm
-        }
-
         session([
             'id' => $user->id,
-            'fid' => $user->fid,
+            'fid' => $user->idfirma,
             'userid' => $user->id,
             'idstatus' => $user->idstatus,
             'doc' => (int)$user->idstatus === 2 ? 'WO1' : 'ZOUT',
-            'i_hbd' => $iHbd,
             'idkassa' => $user->idkassa,
             'idsklad' => $user->idsklad,
             'idreestr' => $user->idreestr,
@@ -89,25 +149,19 @@ class AuthController extends Controller
             'fname' => convert_from_base($user->fathername),
             'login' => $user->login,
             // navigation / filter defaults
-            'pos' => 0,
-            'num' => '0',
-            'doc_id' => '0',
-            'numz' => '0',
-            'typez' => '',
-            'client1' => '0',
-            'client2' => '0',
-            'year' => date('Y'),
-            'sklads' => $user->idsklad,
-            'reteil' => '',
-            'reestr' => $user->idreestr,
         ]);
 
-        return redirect()->route('document.index');
+        Auth::login($user);
+
+        return redirect()->route('dashboard');
     }
 
     public function logout(Request $request)
     {
-        $request->session()->flush();
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
         return redirect()->route('login');
     }
 }
