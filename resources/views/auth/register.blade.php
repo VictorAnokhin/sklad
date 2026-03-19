@@ -1,5 +1,9 @@
 @extends('home')
 
+@section('title')
+Реєстрація
+@endsection
+
 @section('content')
 <div>
     <form action="{{ route('register.post') }}" method="post">

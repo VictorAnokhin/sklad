@@ -1,0 +1,11 @@
+ALTER TABLE users 
+MODIFY bank varchar(255),
+MODIFY pp varchar(255),
+MODIFY orgname varchar(500),
+MODIFY name2 varchar(500),
+MODIFY mfo varchar(255),
+MODIFY poshta varchar(255),
+MODIFY kod1 varchar(255),
+MODIFY kod2 varchar(255),
+MODIFY phone varchar(255),
+MODIFY email varchar(255);

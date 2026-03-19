@@ -1,5 +1,9 @@
 @extends('home')
 
+@section('title')
+Вхід — {{ config('app.name', 'av8fund') }}
+@endsection
+
 @section('content')
 <div class="pricing-header p-3 pb-md-4 mx-auto text-center">
   <h1 class="display-4 fw-normal text-body-emphasis">home page</h1>

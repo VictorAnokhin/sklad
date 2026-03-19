@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ClientController;
-use App\Http\Controllers\CompController;
+use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\MoneyController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\FilterController;
@@ -18,7 +18,7 @@ use App\Http\Controllers\KursController;
  | document/index.php        → DocumentController
  | library/doc-run.php       → DocumentController (save/provodka/delete)
  | client/index.php + run.php → ClientController
- | comp/index.php + run-comp.php → CompController
+ | comp/index.php + run-comp.php → GoodsController
  | money/index.php           → MoneyController
  | admin/                    → AdminController
  | library/filter.php        → FilterController
@@ -64,12 +64,12 @@ Route::middleware(['auth'])->group(function () {
         );
 
         // ── Products ──────────────────────────────────────────────────────────────
-        Route::prefix('comp')->name('comp.')->group(function () {
-            Route::get('/', [CompController::class , 'index'])->name('index');
-            Route::get('/show', [CompController::class , 'show'])->name('show');
-            Route::post('/save', [CompController::class , 'save'])->name('save');
-            Route::post('/delete', [CompController::class , 'destroy'])->name('destroy');
-            Route::post('/toggle-sklad', [CompController::class , 'toggleSklad'])->name('toggleSklad');
+        Route::prefix('goods')->name('goods.')->group(function () {
+            Route::get('/', [GoodsController::class , 'index'])->name('index');
+            Route::get('/show', [GoodsController::class , 'show'])->name('show');
+            Route::post('/save', [GoodsController::class , 'save'])->name('save');
+            Route::post('/delete', [GoodsController::class , 'destroy'])->name('destroy');
+            Route::post('/toggle-sklad', [GoodsController::class , 'toggleSklad'])->name('toggleSklad');
         }
         );
 

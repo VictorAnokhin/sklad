@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Money;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * MoneyController — migrated from money/ module
@@ -16,8 +16,9 @@ class MoneyController extends Controller
         $fid = session('fid', '');
         $pos = (int)$request->input('pos', 0);
 
-        $kassas  = DB::table('kassa')->where('firma', $fid)->get();
-        $reestr  = DB::table('reestr')->where('firma', $fid)->orderByDesc('id')->get();
+        $result = Money::init($fid);
+        $kassas = $result['kassas'];
+        $reestr = $result['reestr'];
 
         return view('money.index', compact('kassas', 'reestr', 'pos', 'fid'));
     }
@@ -33,11 +34,7 @@ class MoneyController extends Controller
             'firma'   => $fid,
         ];
 
-        if ($id === '') {
-            DB::table('kassa')->insert($data);
-        } else {
-            DB::table('kassa')->where('id', $id)->update($data);
-        }
+        Money::saveMoney($id, $fid, $data);
 
         return redirect()->back()->with('success', 'Збережено');
     }

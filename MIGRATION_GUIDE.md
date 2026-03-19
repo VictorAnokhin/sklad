@@ -11,9 +11,9 @@
 | `doc-index.php` (bodyAdd/del) | `DocumentController::bodyAdd/bodyDelete` |
 | `result.php` / `result2.php` | `document/index.blade.php` + `document/zakaz.blade.php` |
 | `client/index.php` + `run.php` | `ClientController` |
-| `comp/index.php` + `run-comp.php` | `CompController` |
-| `delete-comp.php` | `CompController::destroy` |
-| `toggle-sklad.php` | `CompController::toggleSklad` |
+| `comp/index.php` + `run-comp.php` | `GoodsController` |
+| `delete-comp.php` | `GoodsController::destroy` |
+| `toggle-sklad.php` | `GoodsController::toggleSklad` |
 | `money/index.php` | `MoneyController` |
 | `admin/` | `AdminController` |
 | `kurs/` | `KursController` |
@@ -120,7 +120,7 @@ workspace/
 │   │   │   ├── AuthController.php
 │   │   │   ├── DocumentController.php
 │   │   │   ├── ClientController.php
-│   │   │   ├── CompController.php
+│   │   │   ├── GoodsController.php
 │   │   │   ├── MoneyController.php
 │   │   │   ├── AdminController.php
 │   │   │   ├── KursController.php

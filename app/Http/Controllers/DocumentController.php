@@ -51,52 +51,10 @@ class DocumentController extends Controller
         $this->filter->save($request, $doc, $fid);
         $fd = $this->filter->resolve($doc, $fid);
 
-        $table    = Document::tableForType($doc);
-        $hasUserF = $fd['userSql'] !== '' || $fd['fName'] !== '';
-
-        if ($hasUserF) {
-            $base = "FROM {$table} d JOIN users u ON u.id = d.client1
-                     WHERE d.firma = ? AND d.type LIKE ?
-                     {$fd['userSql']} {$fd['docSql']}";
-            $bp   = [$fid, "%{$doc}%", ...$fd['params']];
-        } else {
-            $base = "FROM {$table} d JOIN users u ON u.id = d.client1
-                     WHERE (d.dostup <= ? OR d.manager = ? OR d.sklads = ? OR d.oplata = ?)
-                       AND d.firma = ? AND d.type LIKE ?
-                     {$fd['docSql']}";
-            $bp   = [$idstatus, $login, $idsklad, $idkassa, $fid, "%{$doc}%", ...$fd['params']];
-        }
-
-        $total = DB::selectOne("SELECT COUNT(*) AS n {$base}", $bp)->n;
-
-        $cols = "d.id, d.num, d.client1, d.time, d.data, d.data2, d.type,
-                 d.summa, d.bonus, d.status, d.content, d.ttn,
-                 d.sklads, d.reteil, d.oplata, d.reestr, d.docum,
-                 d.manager, d.provodka, d.money, d.numz, d.typez, d.client2,
-                 u.orgname, u.kod1, u.secondname, u.name, u.fathername,
-                 u.name2, u.region, u.city, u.poshta, u.phone, u.top";
-
-        $sort = 'ORDER BY d.dt DESC, d.time DESC, d.num DESC';
-        $rows = DB::select(
-            "SELECT {$cols} {$base} {$sort} LIMIT ?, ?",
-            [...$bp, $pos, 30]
-        );
-
-        // Batch-load conf (status, money, sklads, reteil) to avoid N+1
-        $confIds = [];
-        foreach ($rows as $r) {
-            if ($r->status) $confIds[] = $r->status;
-            if ($r->money)  $confIds[] = $r->money;
-            if ($r->sklads) $confIds[] = $r->sklads;
-            if ($r->reteil) $confIds[] = $r->reteil;
-        }
-        $confMap = [];
-        if (!empty($confIds)) {
-            $confMap = DB::table('conf')
-                ->whereIn('id', array_unique($confIds))
-                ->get(['id', 'name', 'color', 'status'])
-                ->keyBy('id')->toArray();
-        }
+        $result  = Document::init($doc, $pos, $fd, $fid, $login, $idstatus, $idsklad, $idkassa);
+        $rows    = $result['rows'];
+        $total   = $result['total'];
+        $confMap = $result['confMap'];
 
         $view = in_array($doc, ['ZIN', 'ZOUT'], true) ? 'document.zakaz' : 'document.index';
 

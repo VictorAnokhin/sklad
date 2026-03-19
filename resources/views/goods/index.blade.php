@@ -1,7 +1,7 @@
 @extends('home')
 
 @section('title')
-Клієнти
+Товари
 @endsection
 
 @section('content')

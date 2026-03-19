@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Kurs;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * KursController — currency rate module (migrated from kurs/)
@@ -12,8 +12,10 @@ class KursController extends Controller
 {
     public function index(Request $request)
     {
-        $fid  = session('fid', '');
-        $kurs = DB::table('kurs')->where('firma', $fid)->orderByDesc('data')->limit(30)->get();
+        $fid    = session('fid', '');
+        $result = Kurs::init($fid);
+        $kurs   = $result['kurs'];
+
         return view('money.kurs', compact('kurs', 'fid'));
     }
 
@@ -21,12 +23,13 @@ class KursController extends Controller
     {
         $fid  = session('fid', '');
         $data = [
-            'usd'   => (float)$request->input('usd', 0),
-            'eur'   => (float)$request->input('eur', 0),
-            'data'  => date('Y-m-d'),
-            'firma' => $fid,
+            'usd'  => (float)$request->input('usd', 0),
+            'eur'  => (float)$request->input('eur', 0),
+            'data' => date('Y-m-d'),
         ];
-        DB::table('kurs')->insert($data);
+
+        Kurs::saveKurs($fid, $data);
+
         return redirect()->back()->with('success', 'Збережено');
     }
 }
