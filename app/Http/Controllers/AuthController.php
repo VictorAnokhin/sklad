@@ -68,7 +68,7 @@ class AuthController extends Controller
 
         session([
             'id' => $user->id,
-            'fid' => $user->idfirma,
+            'fid' => $user->firma,
             'userid' => $user->id,
             'idstatus' => $user->idstatus,
             'doc' => (int)$user->idstatus === 2 ? 'WO1' : 'ZOUT',

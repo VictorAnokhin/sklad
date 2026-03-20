@@ -14,46 +14,57 @@ class Goods extends Model
 
     public function firmaObj()
     {
-        return $this->belongsTo(Firma::class, 'firma');
+        return $this->belongsTo(Firma::class , 'firma');
     }
 
     public function skladObj()
     {
-        return $this->belongsTo(Sklad::class, 'sklad');
+        return $this->belongsTo(Sklad::class , 'sklad');
     }
 
     // ── init: list query for index ────────────────────────────────────────────
 
-    public static function init($fid, $idagent, $idcaption, $idglava, $pos, $pos2, $sort, $filters)
+    public static function init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters)
     {
-        $fName       = $filters['fName'] ?? '';
-        $filterFirma = $filters['filterFirma'] ?? '';
+        $fName = $filters['fName'] ?? '';
         $filterBrand = $filters['filterBrand'] ?? '';
-        $skladNone   = $filters['skladNone'] ?? '';
-        $priceFrom   = $filters['priceFrom'] ?? '';
-        $priceTo     = $filters['priceTo'] ?? '';
+        $skladNone = $filters['skladNone'] ?? '';
+        $priceFrom = $filters['priceFrom'] ?? '';
+        $priceTo = $filters['priceTo'] ?? '';
 
         $query = DB::table('comp')
             ->join('price', 'price.pnum', '=', 'comp.id')
-            ->where('price.idagent', $idagent)
             ->where(function ($q) use ($fid) {
-                $q->where('comp.firma', $fid)->orWhere('comp.constanta', '1');
-            })
+            $q->where('comp.firma', $fid)->orWhere('comp.constanta', '1');
+        })
             ->select('comp.*', 'price.pay', 'price.pay1', 'price.oldpay',
-                'price.count', 'price.sklad as price_sklad', 'price.tgroup');
+            'price.count', 'price.sklad as price_sklad', 'price.tgroup');
 
-        if ($idcaption)  $query->where('comp.idcaption', $idcaption);
-        if ($idglava)    $query->where('comp.idglava', $idglava);
-        if ($fName)      $query->where('comp.htmlkeyspop', 'like', "%{$fName}%");
-        if ($filterFirma) $query->where('comp.firma', $filterFirma);
-        if ($filterBrand) $query->where('price.tgroup', $filterBrand);
-        if ($skladNone !== '1') $query->where('comp.sklad', '1');
-        if ($priceFrom)  $query->where('price.pay', '>=', $priceFrom);
-        if ($priceTo)    $query->where('price.pay', '<=', $priceTo);
+        if ($idcaption)
+            $query->where('comp.idcaption', $idcaption);
+        if ($idglava)
+            $query->where('comp.idglava', $idglava);
+        if ($fName)
+            $query->where('comp.htmlkeyspop', 'like', "%{$fName}%");
+        if ($filterBrand)
+            $query->where('price.tgroup', $filterBrand);
+        if ($skladNone !== '1')
+            $query->where('comp.sklad', '1');
+        if ($priceFrom)
+            $query->where('price.pay', '>=', $priceFrom);
+        if ($priceTo)
+            $query->where('price.pay', '<=', $priceTo);
+
 
         $total = (clone $query)->count();
-        $comps = $query->orderBy($sort === 'description' ? 'comp.name' : $sort)
+        $orderCol = match ($sort) {
+                'description' => 'comp.name',
+                'pay', 'pay1', 'oldpay', 'count' => 'price.' . $sort,
+                default => 'comp.' . $sort,
+            };
+        $comps = $query->orderBy($orderCol)
             ->offset($pos)->limit($pos2)->get();
+
 
         // Markup %
         $pers = DB::table('field')
@@ -62,13 +73,13 @@ class Goods extends Model
         // Catalog tree for navigation
         $sections = DB::table('field')
             ->where('keyfield', 'catalog')
-            ->where(fn($q) => $q->where('firma', $fid)->orWhere('constanta', '1'))
+            ->where('firma', $fid)
             ->orderBy('num')->get();
 
         return [
-            'comps'    => $comps,
-            'total'    => $total,
-            'pers'     => $pers,
+            'comps' => $comps,
+            'total' => $total,
+            'pers' => $pers,
             'sections' => $sections,
         ];
     }
@@ -77,8 +88,8 @@ class Goods extends Model
 
     public static function showGoods($pnum, $fid)
     {
-        $comp = $pnum !== '0' ? self::find($pnum) : null;
-        $descript = $pnum !== '0' ? DB::table('descript')
+        $comp = $pnum !== '0' ?self::find($pnum) : null;
+        $descript = $pnum !== '0' ?DB::table('descript')
             ->where('pnum', $pnum)->where('firma', $fid)->first() : null;
 
         // All price groups
@@ -89,18 +100,18 @@ class Goods extends Model
 
         // Prices per group for this product
         $prices = $pnum !== '0'
-            ? DB::table('price')->where('pnum', $pnum)->where('firma', $fid)
-                ->get()->keyBy('tgroup')
+            ?DB::table('price')->where('pnum', $pnum)->where('firma', $fid)
+            ->get()->keyBy('tgroup')
             : collect();
 
         // Catalog sections (two-level)
         $tops = DB::table('field')
             ->where('idkeyfield', '')->where('keyfield', 'catalog')
-            ->where(fn($q) => $q->where('firma', $fid)->orWhere('constanta', '1'))
+            ->where('firma', $fid)
             ->orderBy('num')->get();
         $subs = DB::table('field')
             ->where('idkeyfield', '<>', '')->where('keyfield', 'catalog')
-            ->where(fn($q) => $q->where('firma', $fid)->orWhere('constanta', '1'))
+            ->where('firma', $fid)
             ->orderBy('num')->get()->groupBy('idkeyfield');
 
         // News for descript 1-5
@@ -114,14 +125,14 @@ class Goods extends Model
             ->orderBy('name')->get();
 
         return [
-            'comp'        => $comp,
-            'descript'    => $descript,
+            'comp' => $comp,
+            'descript' => $descript,
             'priceGroups' => $priceGroups,
-            'prices'      => $prices,
-            'tops'        => $tops,
-            'subs'        => $subs,
-            'news'        => $news,
-            'filterTags'  => $filterTags,
+            'prices' => $prices,
+            'tops' => $tops,
+            'subs' => $subs,
+            'news' => $news,
+            'filterTags' => $filterTags,
         ];
     }
 
@@ -138,7 +149,8 @@ class Goods extends Model
                 DB::table('price')
                     ->where('tgroup', $gid)->where('pnum', $pnum)->where('firma', $fid)
                     ->update($row);
-            } else {
+            }
+            else {
                 DB::table('price')->insert(array_merge($row, [
                     'tgroup' => $gid, 'pnum' => $pnum, 'firma' => $fid,
                 ]));
@@ -152,7 +164,8 @@ class Goods extends Model
             $compData['cod'] = date('dmHis') . rand(10, 99);
             $compData['dt'] = now();
             $pnum = (string)DB::table('comp')->insertGetId($compData);
-        } else {
+        }
+        else {
             DB::table('comp')->where('id', $pnum)->update($compData);
         }
 
@@ -160,7 +173,8 @@ class Goods extends Model
         $hasDesc = DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->exists();
         if ($hasDesc) {
             DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->update($descData);
-        } else {
+        }
+        else {
             DB::table('descript')->insert(array_merge($descData, ['pnum' => $pnum, 'firma' => $fid]));
         }
 

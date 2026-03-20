@@ -69,4 +69,13 @@ Dashboard — {{ session('name1') }}
         </ul>
     </div>
 </div>
+<div>
+    user-id : {{ session('id') }} <br>
+    idfirma : {{ session('fid') }} <br>
+    doc : {{ session('doc') }} <br>
+    balans : {{ session('balans') }} <br>
+    name : {{ session('name1') }} <br>
+    login: {{ session('login') }} <br>
+
+</div>
 @endsection
