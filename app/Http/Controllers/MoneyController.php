@@ -6,8 +6,8 @@ use App\Models\Money;
 use Illuminate\Http\Request;
 
 /**
- * MoneyController — migrated from money/ module
- * Handles cash register (kassa) balances and register (reestr) entries.
+ * MoneyController — cash documents (PO / RO)
+ * All DB logic is in App\Models\Money
  */
 class MoneyController extends Controller
 {
@@ -16,26 +16,62 @@ class MoneyController extends Controller
         $fid = session('fid', '');
         $pos = (int)$request->input('pos', 0);
 
-        $result = Money::init($fid);
-        $kassas = $result['kassas'];
-        $reestr = $result['reestr'];
+        $data = Money::init($fid, $pos);
 
-        return view('money.index', compact('kassas', 'reestr', 'pos', 'fid'));
+        return view('money.index', array_merge($data, compact('pos', 'fid')));
+    }
+
+    public function show(Request $request)
+    {
+        $fid    = session('fid', '');
+        $doc_id = (int)$request->input('id', 0);
+        $type   = $request->input('type', 'PO');
+
+        if ($doc_id === 0) {
+            $document = Money::emptyDocument($type);
+        } else {
+            $document = Money::find($doc_id, $fid);
+
+            if (!$document) {
+                return redirect()->route('money.index')->with('error', 'Документ не знайдено');
+            }
+        }
+
+        $kassas = Money::kassas();
+
+        return view('money.show', compact('document', 'kassas'));
     }
 
     public function save(Request $request)
     {
-        $fid = session('fid', '');
-        $id  = $request->input('id', '');
+        $fid  = session('fid', '');
+        $id   = (int)$request->input('id', 0);
+        $type = $request->input('type', 'PO');
 
         $data = [
-            'name'    => convert_to_base($request->input('name', '')),
-            'balance' => (float)$request->input('balance', 0),
-            'firma'   => $fid,
+            'type'    => in_array($type, ['PO', 'RO']) ? $type : 'PO',
+            'summa'   => (float)$request->input('summa', 0),
+            'content' => $request->input('content', ''),
+            'data'    => $request->input('data', date('d-m-Y')),
+            'money'   => $request->input('money', ''),
+            'client1' => $request->input('client1', '') ?: null,
         ];
 
-        Money::saveMoney($id, $fid, $data);
+        Money::saveDocument($id, $fid, $data);
 
-        return redirect()->back()->with('success', 'Збережено');
+        return redirect()->route('money.index')->with('success', 'Збережено');
+    }
+
+    public function destroy(Request $request)
+    {
+        $fid = session('fid', '');
+        $id = (int)$request->input('id', 0);
+
+        if ($id > 0) {
+            Money::deleteDocument($id, $fid);
+            return redirect()->route('money.index')->with('success', 'Документ видалено');
+        }
+
+        return redirect()->route('money.index')->with('error', 'Помилка видалення');
     }
 }

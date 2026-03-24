@@ -6,7 +6,7 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\MoneyController;
-use App\Http\Controllers\AdminController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\FilterController;
 use App\Http\Controllers\KursController;
 
@@ -56,7 +56,9 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('client')->name('client.')->group(function () {
             Route::get('/', [ClientController::class , 'index'])->name('index');
             Route::get('/show', [ClientController::class , 'show'])->name('show');
+            Route::get('/search', [ClientController::class , 'search'])->name('search');
             Route::post('/save', [ClientController::class , 'save'])->name('save');
+            Route::post('/quick-store', [ClientController::class , 'storeQuick'])->name('quickStore');
             Route::post('/delete', [ClientController::class , 'destroy'])->name('destroy');
             Route::get('/saldo', [ClientController::class , 'saldo'])->name('saldo');
             Route::post('/firm', [ClientController::class , 'saveFirm'])->name('firm.save');
@@ -67,6 +69,7 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('goods')->name('goods.')->group(function () {
             Route::get('/', [GoodsController::class , 'index'])->name('index');
             Route::get('/show', [GoodsController::class , 'show'])->name('show');
+            Route::get('/search', [GoodsController::class , 'search'])->name('search');
             Route::post('/save', [GoodsController::class , 'save'])->name('save');
             Route::post('/delete', [GoodsController::class , 'destroy'])->name('destroy');
             Route::post('/toggle-sklad', [GoodsController::class , 'toggleSklad'])->name('toggleSklad');
@@ -76,14 +79,16 @@ Route::middleware(['auth'])->group(function () {
         // ── Money ─────────────────────────────────────────────────────────────────
         Route::prefix('money')->name('money.')->group(function () {
             Route::get('/', [MoneyController::class , 'index'])->name('index');
+            Route::get('/show', [MoneyController::class , 'show'])->name('show');
             Route::post('/save', [MoneyController::class , 'save'])->name('save');
+            Route::post('/delete', [MoneyController::class , 'destroy'])->name('destroy');
         }
         );
 
-        // ── Admin ─────────────────────────────────────────────────────────────────
-        Route::prefix('admin')->name('admin.')->middleware('status.min:3')->group(function () {
-            Route::get('/', [AdminController::class , 'index'])->name('index');
-            Route::post('/save', [AdminController::class , 'save'])->name('save');
+        // ── Settings ─────────────────────────────────────────────────────────────────
+        Route::prefix('settings')->name('settings.')->middleware('status.min:3')->group(function () {
+            Route::get('/', [SettingsController::class , 'index'])->name('index');
+            Route::post('/save', [SettingsController::class , 'save'])->name('save');
         }
         );
 

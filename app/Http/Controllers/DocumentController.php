@@ -21,19 +21,21 @@ use Illuminate\Support\Facades\DB;
 class DocumentController extends Controller
 {
     public function __construct(
-        private FilterService  $filter,
+        private FilterService $filter,
         private DocumentService $docService
-    ) {}
+        )
+    {
+    }
 
     // ── List view ─────────────────────────────────────────────────────────────
 
     public function index(Request $request)
     {
-        $fid      = session('fid', '');
-        $login    = session('login', '');
-        $idstatus = (int)session('idstatus', 0);
-        $idsklad  = session('idsklad', '');
-        $idkassa  = session('idkassa', '');
+        $fid = session('fid', '');
+        $login = session('login', '');
+        $status = (int)session('status', 0);
+        $idsklad = session('idsklad', '');
+        $idkassa = session('idkassa', '');
 
         $doc = $request->input('doc', session('doc', 'ZOUT'));
         $pos = (int)$request->input('pos', 0);
@@ -43,7 +45,7 @@ class DocumentController extends Controller
         }
         if ($request->input('num') === '0') {
             session(['client1' => '0', 'client2' => '0', 'num' => '0',
-                     'numz' => '0', 'typez' => '']);
+                'numz' => '0', 'typez' => '']);
         }
 
         session(['doc' => $doc, 'pos' => $pos, 'num' => '0']);
@@ -51,14 +53,18 @@ class DocumentController extends Controller
         $this->filter->save($request, $doc, $fid);
         $fd = $this->filter->resolve($doc, $fid);
 
-        $result  = Document::init($doc, $pos, $fd, $fid, $login, $idstatus, $idsklad, $idkassa);
-        $rows    = $result['rows'];
-        $total   = $result['total'];
+        $result = Document::init($doc, $pos, $fd, $fid, $login, $status, $idsklad, $idkassa);
+        $rows = $result['rows'];
+        $total = $result['total'];
         $confMap = $result['confMap'];
+
+        $listData = Document::showDocumentList($rows, $confMap, $doc);
+        $items = $listData['items'];
+        $total_sum = $listData['total_sum'];
 
         $view = in_array($doc, ['ZIN', 'ZOUT'], true) ? 'document.zakaz' : 'document.index';
 
-        return view($view, compact('rows', 'doc', 'pos', 'total', 'confMap', 'fd', 'fid'));
+        return view($view, compact('items', 'total_sum', 'rows', 'doc', 'pos', 'total', 'fd', 'fid'));
     }
 
     // ── Show single document ──────────────────────────────────────────────────
@@ -66,36 +72,49 @@ class DocumentController extends Controller
     public function show(Request $request)
     {
         $docId = $request->input('doc_id', session('doc_id', '0'));
-        $num   = $request->input('num',    session('num', '0'));
-        $year  = $request->input('year',   session('year', date('Y')));
-        $doc   = $request->input('doc',    session('doc', 'ZOUT'));
-        $fid   = session('fid', '');
+        $num = $request->input('num', session('num', '0'));
+        $year = $request->input('year', session('year', date('Y')));
+        $doc = $request->input('doc', session('doc', 'ZOUT'));
+        $fid = session('fid', '');
 
         session(['doc_id' => $docId, 'num' => $num, 'year' => $year, 'doc' => $doc]);
 
-        $table    = Document::tableForType($doc);
+        $table = Document::tableForType($doc);
         $document = DB::table($table)->where('id', $docId)->first();
 
-        if (!$document) return redirect()->route('document.index');
+        if (!$document)
+            return redirect()->route('document.index');
 
         // Populate session from doc (mirrors legacy class document constructor)
         session([
-            'numz'     => $document->numz,
-            'typez'    => $document->typez,
-            'docid'    => in_array($doc, ['ZIN', 'ZOUT'], true) ? $docId : $document->docid,
-            'client1'  => $document->client1,
-            'client2'  => $document->client2,
-            'sklads'   => $document->sklads,
-            'oplata'   => $document->oplata,
-            'reteil'   => $document->reteil,
-            'reestr'   => $document->reestr,
+            'numz' => $document->numz,
+            'typez' => $document->typez,
+            'docid' => in_array($doc, ['ZIN', 'ZOUT'], true) ? $docId : $document->docid,
+            'client1' => $document->client1,
+            'client2' => $document->client2,
+            'sklads' => $document->sklads,
+            'oplata' => $document->oplata,
+            'reteil' => $document->reteil,
+            'reestr' => $document->reestr,
         ]);
 
-        $lineItems = ZBody::where('docid', in_array($doc, ['ZIN','ZOUT']) ? $docId : $document->docid)
-                          ->orderBy('id')->get();
+        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT']) ? $docId : $document->docid;
+        $lineItems = ZBody::from('z_body as zb')
+            ->leftJoin('comp as c', function ($join) {
+            $join->on('zb.pnum', '=', 'c.id')
+                ->on('zb.firma', '=', 'c.firma');
+        })
+            ->where('zb.docid', $docIdToFind)
+            ->select('zb.*', 'c.name as name')
+            ->orderBy('zb.id')
+            ->get()
+            ->map(function ($item) {
+            $item->name = convert_from_base((string)$item->name);
+            return $item;
+        });
 
         // Client info (related docs / balance)
-        $client = $document->client1 ? DB::table('users')->where('id', $document->client1)->first() : null;
+        $client = $document->client1 ?DB::table('users')->where('id', $document->client1)->first() : null;
 
         // Load conf lookups for this doc
         $confIds = array_filter([
@@ -118,59 +137,61 @@ class DocumentController extends Controller
 
     public function save(Request $request)
     {
-        $doc   = session('doc', '');
-        $fid   = session('fid', '');
-        $year  = session('year', date('Y'));
-        $run   = $request->input('run', '');
+        $doc = session('doc', '');
+        $fid = session('fid', '');
+        $year = session('year', date('Y'));
+        $run = $request->input('run', '');
 
         // ── New document creation buttons ─────────────────────────────────────
         $docTypeMap = [
-            'Нова закупівля'   => 'ZIN',  'Новый заказ'    => 'ZOUT',
-            'Новий замовлення' => 'ZOUT', 'Новая закупка'  => 'ZIN',
-            'Пропозиція'       => 'CH',   'Предложение'    => 'CH',
-            'На виготовлення'  => 'WO1',  'На изготовление'=> 'WO1',
-            'Видача товару'    => 'RN',   'Выдача товара'  => 'RN',
-            'Отримання товару' => 'PN',   'Получение товара'=> 'PN',
-            'Отримання грошей' => 'PO',   'Получение денег'=> 'PO',
-            'Видача грошей'    => 'RO',   'Выдача денег'   => 'RO',
-            'Додати фото'      => 'RA',   'Добавить фото'  => 'RA',
+            'Нова закупівля' => 'ZIN', 'Новый заказ' => 'ZOUT',
+            'Новий замовлення' => 'ZOUT', 'Новая закупка' => 'ZIN',
+            'Пропозиція' => 'CH', 'Предложение' => 'CH',
+            'На виготовлення' => 'WO1', 'На изготовление' => 'WO1',
+            'Видача товару' => 'RN', 'Выдача товара' => 'RN',
+            'Отримання товару' => 'PN', 'Получение товара' => 'PN',
+            'Отримання грошей' => 'PO', 'Получение денег' => 'PO',
+            'Видача грошей' => 'RO', 'Выдача денег' => 'RO',
+            'Додати фото' => 'RA', 'Добавить фото' => 'RA',
         ];
 
         if (isset($docTypeMap[$run])) {
-            $docType  = $docTypeMap[$run];
-            $summaPO  = in_array($docType, ['PO', 'RO'], true) ? (float)$request->input('sumPO', 0) : 0.0;
-            $client1  = session('client1', '0');
-            $client2  = session('client2', '0');
-            $numz     = session('numz', '0');
-            $typez    = session('typez', '');
-            $docid    = session('docid', '0');
+            $docType = $docTypeMap[$run];
+            $summaPO = in_array($docType, ['PO', 'RO'], true) ? (float)$request->input('sumPO', 0) : 0.0;
+            $client1 = session('client1', '0');
+            $client2 = session('client2', '0');
+            $numz = session('numz', '0');
+            $typez = session('typez', '');
+            $docid = session('docid', '0');
 
             // Get next number
             $num = Document::nextNum($docType, $fid, $year);
 
             $table = Document::tableForType($docType);
-            $now   = now();
-            $dt    = $now->timestamp;
+            $now = now();
+            $dt = $now->timestamp;
+
 
             $id = DB::table($table)->insertGetId([
-                'num'      => $num,
-                'client1'  => $client1,
-                'client2'  => $client2,
-                'type'     => $docType,
-                'summa'    => $summaPO,
-                'status'   => 0,
-                'data'     => $now->format('d-m-Y'),
-                'data2'    => $now->format('d-m-Y'),
-                'time'     => $now->format('H:i:s'),
-                'firma'    => $fid,
-                'dt'       => $dt,
-                'numz'     => $numz,
-                'typez'    => $typez,
-                'docid'    => in_array($docType, ['ZIN','ZOUT'], true) ? 0 : $docid,
-                'manager'  => convert_to_base(session('login', '')),
-                'user'     => convert_to_base(session('login', '')),
-                'dostup'   => 1,
-                'work'     => session('work', '1'),
+                'id' => 0,
+                'num' => $num,
+                'client1' => $client1,
+                'client2' => $client2,
+                'type' => $docType,
+                'summa' => $summaPO,
+                'status' => 0,
+                'data' => $now->format('d-m-Y'),
+                'data2' => $now->format('d-m-Y'),
+                'time' => $now->format('H:i:s'),
+                'firma' => $fid,
+                'dt' => $dt,
+                'numz' => $numz,
+                'typez' => $typez,
+                'docid' => in_array($docType, ['ZIN', 'ZOUT'], true) ? 0 : $docid,
+                'manager' => convert_to_base(session('login', '')),
+                'user' => convert_to_base(session('login', '')),
+                'dostup' => 1,
+                'work' => session('work', '1'),
             ]);
 
             if (in_array($docType, ['ZIN', 'ZOUT'], true)) {
@@ -180,11 +201,11 @@ class DocumentController extends Controller
 
             session(['doc' => $docType, 'doc_id' => $id, 'num' => $num]);
 
-            // For ZIN/ZOUT just redirect to list; others go to edit form
-            if (in_array($docType, ['ZIN', 'ZOUT'], true)) {
-                return redirect()->route('document.index', ['doc' => $docType]);
-            }
-
+            /* For ZIN/ZOUT just redirect to list; others go to edit form
+             if (in_array($docType, ['ZIN', 'ZOUT'], true)) {
+             return redirect()->route('document.index', ['doc' => $docType]);
+             }
+             */
             return redirect()->route('document.show', [
                 'doc' => $docType, 'doc_id' => $id, 'num' => $num, 'year' => $year,
             ]);
@@ -214,13 +235,15 @@ class DocumentController extends Controller
     public function destroy(Request $request)
     {
         $docId = $request->input('doc_id', session('doc_id'));
-        $doc   = $request->input('doc', session('doc', ''));
+        $doc = $request->input('doc', session('doc', ''));
         $table = Document::tableForType($doc);
-        $fid   = session('fid', '');
+        $fid = session('fid', '');
 
-        // Guard: can't delete if z_body rows exist
-        if (ZBody::where('docid', $docId)->exists()) {
-            return back()->withErrors(['delete' => 'Спочатку видаліть рядки документа']);
+        // Delete related z_body rows (goods) first
+        $document = DB::table($table)->where('id', $docId)->where('firma', $fid)->first();
+        if ($document) {
+            $docIdToFind = in_array($doc, ['ZIN', 'ZOUT']) ? $docId : ($document->docid ?? $docId);
+            ZBody::where('docid', $docIdToFind)->delete();
         }
 
         DB::table($table)->where('id', $docId)->where('firma', $fid)->delete();
@@ -233,10 +256,10 @@ class DocumentController extends Controller
 
     public function bulkStatus(Request $request)
     {
-        $ids    = $request->input('ids', []);
+        $ids = $request->input('ids', []);
         $status = $request->input('status1', '');
-        $doc    = $request->input('doc', session('doc', ''));
-        $table  = Document::tableForType($doc);
+        $doc = $request->input('doc', session('doc', ''));
+        $table = Document::tableForType($doc);
 
         if ($status !== '' && !empty($ids)) {
             DB::table($table)->whereIn('id', $ids)->update(['status' => $status]);
@@ -249,30 +272,31 @@ class DocumentController extends Controller
 
     public function bodyAdd(Request $request)
     {
-        $doc    = session('doc', '');
-        $fid    = session('fid', '');
-        $docid  = session('docid', '0');
-        $typez  = session('typez', '');
-        $numz   = session('numz', '0');
+        $doc = session('doc', '');
+        $fid = session('fid', '');
+        $docid = session('docid', '0');
+        $typez = session('typez', '');
+        $numz = session('numz', '0');
 
-        $pnum   = $request->input('pnum', '');
-        $pid    = $request->input('pid', '');
+        $pnum = $request->input('pnum', '');
+        $pid = $request->input('pid', '');
         $pprice = $request->input('pprice', '0');
         $psumma = $request->input('psumma', '0');
         $pcount = $request->input('pcount', '1');
 
-        $docTypes = ['CH','PN','RN','VN','WO1','AO','ZOUT','ZIN'];
+        $docTypes = ['CH', 'PN', 'RN', 'VN', 'WO1', 'AO', 'ZOUT', 'ZIN'];
 
         if (in_array($doc, $docTypes, true)) {
             ZBody::addOrIncrement($typez, $numz, $pnum, $fid, $docid, $pid, $pprice, $psumma);
-        } elseif ($doc === 'SP') {
+        }
+        elseif ($doc === 'SP') {
             $exists = ZBody::where('type', $typez)->where('docnum', $numz)
-                            ->where('pnum', $pnum)->where('firma', $fid)->exists();
+                ->where('pnum', $pnum)->where('firma', $fid)->exists();
             if (!$exists) {
                 ZBody::create([
                     'docnum' => $numz, 'pid' => $pid, 'pnum' => $pnum,
                     'pcount' => $pcount, 'pprice' => $pprice, 'psumma' => $psumma,
-                    'type'   => $typez, 'firma' => $fid,
+                    'type' => $typez, 'firma' => $fid,
                 ]);
             }
         }
@@ -285,7 +309,8 @@ class DocumentController extends Controller
     public function bodyDelete(Request $request)
     {
         $bid = $request->input('bid', '');
-        if ($bid !== '') ZBody::where('id', $bid)->delete();
+        if ($bid !== '')
+            ZBody::where('id', $bid)->delete();
         return redirect()->back();
     }
 
@@ -293,9 +318,9 @@ class DocumentController extends Controller
 
     public function bodyUpdate(Request $request)
     {
-        $bid    = $request->input('bid', '');
-        $field  = $request->input('field', '');
-        $value  = $request->input('value', '');
+        $bid = $request->input('bid', '');
+        $field = $request->input('field', '');
+        $value = $request->input('value', '');
         $allowed = ['pcount', 'pprice', 'psumma'];
 
         if ($bid !== '' && in_array($field, $allowed, true)) {
@@ -309,11 +334,11 @@ class DocumentController extends Controller
 
     public function setClient(Request $request)
     {
-        $docId   = session('doc_id', '0');
+        $docId = session('doc_id', '0');
         $client1 = session('client1', '0');
         $client2 = session('client2', '0');
-        $doc     = session('doc', '');
-        $table   = Document::tableForType($doc);
+        $doc = session('doc', '');
+        $table = Document::tableForType($doc);
 
         DB::table($table)->where('id', $docId)
             ->update(['client1' => $client1, 'client2' => $client2]);

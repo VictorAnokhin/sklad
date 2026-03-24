@@ -1,7 +1,15 @@
-@extends('layouts.app')
+@extends('home')
 
-@section('contentbody')
+@section('content')
+<div class="row">
+  <div class="col-3">
+    @include('partials.filter')
+  </div>
 
+  <div class="col-9">
+    @include('partials.panel')
+  </div>
+</div>
 {{-- New document + year selector --}}
 <div class="ttable">
   <form action="{{ route('document.save') }}" method="post" name="dataform">
@@ -21,17 +29,11 @@
     @csrf
     <input type="hidden" name="doc" value="{{ $doc }}">
 
-    @if(empty($rows))
+    @if(empty($items))
     <div style="text-align:center;padding:20px;color:#CC0000;font-size:1.2em">
       Документи відсутні...
     </div>
     @else
-
-    @php
-        $listData = \App\Models\Document::showDocumentList($rows, $confMap, $doc);
-        $items = $listData['items'];
-        $total_sum = $listData['total_sum'];
-    @endphp
 
     @foreach ($items as $item)
     <div class="txtbox-price-docs">
@@ -59,7 +61,7 @@
     @endforeach
 
     <div class="tstr" style="padding:6px;font-weight:bold">
-      Разом: {{ count($rows) }} | Сума: {{ number_format($total_sum, 2, '.', '') }} грн
+      Разом: {{ count($items) }} | Сума: {{ number_format($total_sum, 2, '.', '') }} грн
     </div>
 
     @include('partials.navigator', ['pos' => $pos, 'pos2' => 30, 'max' => $total, 'doc' => $doc])

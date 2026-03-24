@@ -57,6 +57,48 @@ class GoodsController extends Controller
         ));
     }
 
+    // ── Search (Async) ────────────────────────────────────────────────────────
+
+    public function search(Request $request)
+    {
+        $q = $request->input('q');
+        if (!$q || mb_strlen($q) < 2)
+            return response()->json([]);
+
+        $fid = session('fid', '');
+
+        $goods = DB::table('comp')
+            ->leftJoin('price', function ($join) use ($fid) {
+            $join->on('price.pnum', '=', 'comp.id')
+                ->where('price.firma', '=', $fid)
+                ->where('price.tgroup', '=', '1'); // Default retail group
+        })
+            ->where('comp.firma', $fid)
+            ->where(function ($query) use ($q) {
+            $query->where('comp.id', 'LIKE', "%{$q}%")
+                ->orWhere('comp.name', 'LIKE', "%{$q}%")
+                ->orWhere('comp.name_ua', 'LIKE', "%{$q}%")
+                ->orWhere('comp.name_en', 'LIKE', "%{$q}%")
+                ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$q}%");
+        })
+            ->select('comp.id', 'comp.name',
+            DB::raw('COALESCE(price.pay, comp.pay, 0) as price'),
+            DB::raw('COALESCE(price.count, 0) as count'))
+            ->limit(20)
+            ->get()
+            ->map(function ($g) {
+            return [
+            'id' => $g->id,
+            'pnum' => $g->id,
+            'name' => convert_from_base($g->name),
+            'price' => (float)$g->price,
+            'count' => (float)$g->count,
+            ];
+        });
+
+        return response()->json($goods);
+    }
+
     // ── Show / edit ───────────────────────────────────────────────────────────
 
     public function show(Request $request)

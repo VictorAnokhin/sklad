@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Http\ViewComposers\PanelComposer;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +21,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        View::composer('partials.panel', PanelComposer::class);
     }
 }

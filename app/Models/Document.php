@@ -36,23 +36,25 @@ class Document extends Model
      *
      * @return array{rows: array, total: int, confMap: array}
      */
-    public static function init($doc, $pos, $fd, $fid, $login, $idstatus, $idsklad, $idkassa)
+    public static function init($doc, $pos, $fd, $fid, $login, $status, $idsklad, $idkassa)
     {
         $table = self::tableForType($doc);
-        $hasUserF = $fd['userSql'] !== '' || $fd['fName'] !== '';
+        $hasUserF = !empty($fd['userSql']) || !empty($fd['fName']);
+        $status = (int)$status ?? 0;
+
+        $userFilter = !empty($fd['userSql']) ? "AND ( {$fd['userSql']} )" : '';
+        $docFilter = !empty($fd['docSql']) ? $fd['docSql'] : '';
+
 
         if ($hasUserF) {
-            $base = "FROM {$table} d JOIN users u ON u.id = d.client1
-                     WHERE d.firma = ? AND d.type LIKE ?
-                     {$fd['userSql']} {$fd['docSql']}";
-            $bp = [$fid, "%{$doc}%", ...$fd['params']];
+            $base = "FROM {$table} d JOIN users u ON u.id = d.client1 ";
+            $base .= "WHERE d.firma = ? AND d.type = ? {$userFilter} {$docFilter}";
+            $bp = [$fid, "{$doc}", ...$fd['params']];
         }
         else {
-            $base = "FROM {$table} d JOIN users u ON u.id = d.client1
-                     WHERE (d.dostup <= ? OR d.manager = ? OR d.sklads = ? OR d.oplata = ?)
-                       AND d.firma = ? AND d.type LIKE ?
-                     {$fd['docSql']}";
-            $bp = [$idstatus, $login, $idsklad, $idkassa, $fid, "%{$doc}%", ...$fd['params']];
+            $base = "FROM {$table} d JOIN users u ON u.id = d.client1 ";
+            $base .= "WHERE d.firma = ? AND d.type LIKE ? {$docFilter}";
+            $bp = [$fid, "%{$doc}%", ...$fd['params']];
         }
 
         $total = DB::selectOne("SELECT COUNT(*) AS n {$base}", $bp)->n;
@@ -65,11 +67,8 @@ class Document extends Model
                  u.name2, u.region, u.city, u.poshta, u.phone, u.top";
 
         $sort = 'ORDER BY d.dt DESC, d.time DESC, d.num DESC';
-        $rows = DB::select(
-            "SELECT {$cols} {$base} {$sort} LIMIT ?, ?",
-        [...$bp, $pos, 30]
-        );
-        dd($rows);
+        $rows = DB::select("SELECT {$cols} {$base} {$sort} LIMIT ?, ?", [...$bp, $pos, 30]);
+        //.dd("SQL: SELECT * {$base} {$sort} LIMIT ?, ? ", "PARAMS:", $bp, "LIMIT: ", $pos, 30);
         // Batch-load conf (status, money, sklads, reteil) to avoid N+1
         $confIds = [];
         foreach ($rows as $r) {
@@ -136,6 +135,14 @@ class Document extends Model
 
             $signal = ($statusName === '' && $doc === 'ZOUT') ? "<span class='alink3'>new</span>" : '';
 
+            // sklads name (used in index view)
+            $skladsConf = $confMap[$row->sklads ?? ''] ?? null;
+            $skladsName = $skladsConf ? h(convert_from_base($skladsConf->name)) : '';
+
+            // top rating (used in index view)
+            $top = (int)($row->top ?? 0);
+            $topImg = $top >= 5 ? "⭐" : "[{$top}]";
+
             $linkUrl = route('document.show', [
                 'doc_id' => $row->id, 'num' => $row->num, 'year' => $year, 'doc' => $doc,
             ]);
@@ -157,6 +164,8 @@ class Document extends Model
                 'summaFmt' => $summaFmt,
                 'content' => $content,
                 'manager' => $manager,
+                'skladsName' => $skladsName,
+                'topImg' => $topImg,
             ];
         }
 
@@ -176,10 +185,34 @@ class Document extends Model
             ->where('provodka', 1)->sum('summa');
 
         return [
-            'debt'    => (float)$zout,
-            'paid'    => (float)$paid,
+            'debt' => (float)$zout,
+            'paid' => (float)$paid,
             'balance' => (float)$paid - (float)$zout,
         ];
+    }
+
+    /**
+     * Get the next sequence number for a document type.
+     * Field 'data' is typically saved as 'd-m-Y'.
+     *
+     * @param string $docType
+     * @param string $fid
+     * @param string|int $year
+     * @return int
+     */
+    public static function nextNum($docType, $fid, $year)
+    {
+        $table = self::tableForType($docType);
+
+        // SQL MAX() on a varchar column can sort '9' > '10'.
+        // To get numeric max, we use CAST(num AS UNSIGNED)
+        $maxNum = DB::table($table)
+            ->where('type', $docType)
+            ->where('firma', $fid)
+            ->where('data', 'LIKE', "%{$year}")
+            ->max(DB::raw('CAST(num AS UNSIGNED)'));
+
+        return $maxNum ? (int)$maxNum + 1 : 1;
     }
 
 }

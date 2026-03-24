@@ -45,6 +45,70 @@ class ClientController extends Controller
         return view('client.index', compact('clients', 'total', 'pos', 'pos2', 'filters', 'statuses', 'fid'));
     }
 
+    // ── Search (Async) ────────────────────────────────────────────────────────
+
+    public function search(Request $request)
+    {
+        $q = $request->input('q');
+        if (!$q || mb_strlen($q) < 2)
+            return response()->json([]);
+
+        $fid = session('fid', '');
+        $qBase = convert_to_base($q);
+
+        $users = DB::table('users')
+            ->where('firma', $fid)
+            ->where(function ($query) use ($q, $qBase) {
+            $query->where('orgname', 'LIKE', "%{$qBase}%")
+                ->orWhere('name', 'LIKE', "%{$qBase}%")
+                ->orWhere('secondname', 'LIKE', "%{$qBase}%")
+                ->orWhere('phone', 'LIKE', "%{$q}%");
+        })
+            ->select('id', 'orgname', 'name', 'name2', 'secondname', 'phone', 'city')
+            ->limit(20)
+            ->get()
+            ->map(function ($u) {
+            return [
+            'id' => $u->id,
+            'orgname' => convert_from_base($u->orgname),
+            'name' => convert_from_base($u->name),
+            'name2' => convert_from_base($u->name2),
+            'secondname' => convert_from_base($u->secondname),
+            'phone' => $u->phone,
+            'city' => convert_from_base($u->city),
+            ];
+        });
+
+        return response()->json($users);
+    }
+
+    // ── Quick-create client (AJAX from document.show modal) ──────────────────
+
+    public function storeQuick(Request $request)
+    {
+        $fid = session('fid', '');
+
+        $data = [
+            'name' => $request->input('name', ''),
+            'secondname' => $request->input('secondname', ''),
+            'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
+            'city' => $request->input('city', ''),
+            'firma' => $fid,
+            'idstatus' => 1,
+            'top' => 1,
+        ];
+
+        $id = User::edit('0', $data);
+
+        return response()->json([
+            'id' => $id,
+            'name' => $request->input('name', ''),
+            'secondname' => $request->input('secondname', ''),
+            'phone' => $request->input('phone', ''),
+            'city' => $request->input('city', ''),
+        ]);
+    }
+
     // ── Show / edit form ──────────────────────────────────────────────────────
 
     public function show(Request $request)
@@ -69,11 +133,11 @@ class ClientController extends Controller
         $id = $request->input('id', '0');
 
         $data = [
-            'name' => convert_to_base($request->input('name', '')),
-            'secondname' => convert_to_base($request->input('secondname', '')),
-            'fathername' => convert_to_base($request->input('fathername', '')),
-            'orgname' => convert_to_base($request->input('orgname', '')),
-            'name2' => convert_to_base($request->input('name2', '')),
+            'name' => $request->input('name', ''),
+            'secondname' => $request->input('secondname', ''),
+            'fathername' => $request->input('fathername', ''),
+            'orgname' => $request->input('orgname', ''),
+            'name2' => $request->input('name2', ''),
             'kod1' => $request->input('kod1', ''),
             'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
             'phone1' => preg_replace('/\D/', '', $request->input('phone1', '')),
@@ -83,7 +147,7 @@ class ClientController extends Controller
             'idstatus' => (int)$request->input('idstatus', 1),
             'top' => (int)$request->input('top', 1),
             'bonus' => (float)$request->input('bonus', 0),
-            'hbd' => convert_to_base($request->input('hbd', '')),
+            'hbd' => $request->input('hbd', ''),
             'firma' => $fid,
         ];
 
