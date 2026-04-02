@@ -19,6 +19,21 @@ class SettingsController extends Controller
         return view('settings.index', array_merge($data, compact('fid')));
     }
 
+    public function show(Request $request)
+    {
+        $id = $request->input('id', '');
+        $fid = session('fid', '');
+        
+        $setting = null;
+        if ($id) {
+            $setting = \Illuminate\Support\Facades\DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
+        } else {
+            $setting = (object)[];
+        }
+
+        return view('settings.show', compact('setting', 'fid'));
+    }
+
     public function save(Request $request)
     {
         $fid = session('fid', '');

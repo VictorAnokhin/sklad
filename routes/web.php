@@ -86,8 +86,9 @@ Route::middleware(['auth'])->group(function () {
         );
 
         // ── Settings ─────────────────────────────────────────────────────────────────
-        Route::prefix('settings')->name('settings.')->middleware('status.min:3')->group(function () {
+        Route::prefix('settings')->name('settings.')->group(function () {
             Route::get('/', [SettingsController::class , 'index'])->name('index');
+            Route::get('/show', [SettingsController::class , 'show'])->name('show');
             Route::post('/save', [SettingsController::class , 'save'])->name('save');
         }
         );

@@ -10,9 +10,8 @@
     <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('document.index') }}">Всі документи</a>
     <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('client.index') }}">Клієнти</a>
     <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('goods.index') }}">Товари</a>
-    <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('money.index') }}">Каси</a>
+    <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('money.index') }}">Гроші</a>
     <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('settings.index') }}">Налаштування</a>
-    <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('money.index') }}">Каси</a>
 
 
     <form method="POST" action="{{ route('logout') }}" id="logout-form">
