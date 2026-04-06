@@ -1,7 +1,9 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GoodsController;
+use App\Http\Controllers\ZakazController;
 
 /*
 |--------------------------------------------------------------------------
@@ -9,9 +11,25 @@ use App\Http\Controllers\GoodsController;
 |--------------------------------------------------------------------------
 */
 
+Route::prefix('auth')->group(function () {
+    Route::post('/login', [AuthController::class, 'apiLogin']);
+    Route::post('/web3/challenge', [AuthController::class, 'web3LoginChallenge']);
+    Route::post('/web3/login', [AuthController::class, 'web3Login']);
+    Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'apiUser']);
+    Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'apiLogout']);
+    Route::middleware('auth:sanctum')->post('/wallet/challenge', [AuthController::class, 'web3LinkChallenge']);
+    Route::middleware('auth:sanctum')->post('/wallet/link', [AuthController::class, 'linkWallet']);
+    Route::middleware('auth:sanctum')->post('/wallet/unlink', [AuthController::class, 'unlinkWallet']);
+});
+
 // ── Goods API ─────────────────────────────────────────────────────────────
 
+Route::get('/goods/search', [GoodsController::class, 'searchWeb']);
 Route::get('/goods/hits', [GoodsController::class, 'getHits']);
-Route::get('/goods/search', [GoodsController::class, 'search']);
 Route::get('/goods/sections', [GoodsController::class, 'getSections']);
 Route::get('/goods/section/{id}', [GoodsController::class, 'getBySection']);
+
+// ── Orders (Zakaz) API ─────────────────────────────────────────────────────
+
+Route::post('/order', [ZakazController::class, 'store']);
+Route::get('/orders', [ZakazController::class, 'index']);

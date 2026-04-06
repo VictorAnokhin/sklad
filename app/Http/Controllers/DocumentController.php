@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use App\Models\ZBody;
 use App\Models\Conf;
+use App\Models\Docs;
 use App\Services\FilterService;
 use App\Services\DocumentService;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class DocumentController extends Controller
     {
         $fid = session('fid', '');
         $login = session('login', '');
-        $status = (int)session('status', 0);
+        $status = (int) session('idstatus', session('status', 0));
         $idsklad = session('idsklad', '');
         $idkassa = session('idkassa', '');
 
@@ -62,6 +63,36 @@ class DocumentController extends Controller
         $items = $listData['items'];
         $total_sum = $listData['total_sum'];
 
+        // Attach clientInfo icons strip to each item
+        $viewYear = session('year', date('Y'));
+        foreach ($rows as $i => $row) {
+            $clientId = $row->client1 ?? 0;
+            $numz = $row->numz ?? '0';
+            $typez = $row->typez ?? '';
+            $rowDocid = in_array($doc, ['ZIN', 'ZOUT'], true) ? ($row->id ?? 0) : ($row->docid ?? 0);
+            $summa_ = $row->summa ?? 0;
+
+            // For ZIN/ZOUT root docs: if typez is empty, use the doc's own type
+            if (in_array($doc, ['ZIN', 'ZOUT'], true) && ($typez === '' || $typez === '0')) {
+                $typez = $doc;
+            }
+
+            // For ZIN/ZOUT: show clientInfo even if typez is empty (they ARE the root)
+            // For child docs: show only if their parent is ZIN/ZOUT
+            $showIcons = false;
+            if ($clientId > 0) {
+                if (in_array($doc, ['ZIN', 'ZOUT'], true)) {
+                    $showIcons = true;
+                } elseif (in_array($typez, ['ZIN', 'ZOUT'], true)) {
+                    $showIcons = true;
+                }
+            }
+
+            $items[$i]['clientInfoHtml'] = $showIcons
+                ? Docs::clientInfo($clientId, $numz, $typez, $viewYear, $rowDocid, $summa_)
+                : '';
+        }
+
         $view = in_array($doc, ['ZIN', 'ZOUT'], true) ? 'document.zakaz' : 'document.index';
 
         return view($view, compact('items', 'total_sum', 'rows', 'doc', 'pos', 'total', 'fd', 'fid'));
@@ -76,20 +107,161 @@ class DocumentController extends Controller
         $year = $request->input('year', session('year', date('Y')));
         $doc = $request->input('doc', session('doc', 'ZOUT'));
         $fid = session('fid', '');
+        $incomingParentDocId = (string) $request->input('parent_doc_id', $request->input('doc_id', '0'));
 
-        session(['doc_id' => $docId, 'num' => $num, 'year' => $year, 'doc' => $doc]);
+        // Fix year format: "2-28" → "2025" → detect properly
+        if (preg_match('/^\d{4}$/', $year)) {
+            // already valid
+        } elseif (preg_match('/^(\d{2})-(\d{2})$/', $year, $m)) {
+            // "2-28" → assume current year
+            $year = date('Y');
+        } else {
+            $year = date('Y');
+        }
+
+        session([
+            'doc_id' => $docId,
+            'num' => $num,
+            'year' => $year,
+            'doc' => $doc,
+            'parent_doc_id' => $incomingParentDocId,
+        ]);
+
+        // If num=0 or doc_id=0 → auto-create new document
+        if ($num == '0' || $docId == '0') {
+            $table = Document::tableForType($doc);
+            $newNum = Document::assignNextNum($doc, $fid, $year);
+            $now = now();
+            $dt = $now->timestamp;
+
+            // Resolve parent order/purchase for child docs
+            $parentDocid = session('docid', '0');
+            $parentNumz = session('numz', '0');
+            $parentTypez = session('typez', '');
+            $sumFromRequest = (float) $request->input('sumPO', 0);
+            $parentDocument = null;
+
+            if (!in_array($doc, ['ZIN', 'ZOUT'], true) && $incomingParentDocId !== '0') {
+                $parentDocid = $incomingParentDocId;
+                $parentDocument = DB::table('document')
+                    ->where('id', $parentDocid)
+                    ->where('firma', $fid)
+                    ->first();
+
+                if ($parentDocument) {
+                    $parentNumz = (string) ($parentDocument->num ?: $parentDocument->numz ?: '0');
+                    $parentTypez = (string) ($parentDocument->type ?: 'ZOUT');
+                    session([
+                        'docid' => $parentDocid,
+                        'numz' => $parentNumz,
+                        'typez' => $parentTypez,
+                        'client1' => $parentDocument->client1 ?? session('client1', '0'),
+                        'client2' => $parentDocument->client2 ?? session('client2', '0'),
+                        'sklads' => $parentDocument->sklads ?? session('sklads', ''),
+                        'oplata' => $parentDocument->oplata ?? session('oplata', ''),
+                        'reteil' => $parentDocument->reteil ?? session('reteil', ''),
+                        'reestr' => $parentDocument->reestr ?? session('reestr', ''),
+                    ]);
+                }
+            }
+
+            if (!$parentDocument && $parentDocid !== '0' && !in_array($doc, ['ZIN', 'ZOUT'], true)) {
+                $parentDocument = DB::table('document')
+                    ->where('id', $parentDocid)
+                    ->where('firma', $fid)
+                    ->first();
+            }
+
+            $newSumma = 0.0;
+            if (in_array($doc, ['PO', 'RO'], true)) {
+                $newSumma = $sumFromRequest;
+            } elseif ($parentDocument) {
+                $newSumma = (float) ($parentDocument->summa ?? 0);
+            }
+
+            $oplata = (string) ($parentDocument->oplata ?? session('oplata', '') ?? '');
+            $reteil = (string) ($parentDocument->reteil ?? session('reteil', '') ?? '');
+            $reestr = (string) ($parentDocument->reestr ?? session('reestr', '') ?? '');
+            $sklads = (string) ($parentDocument->sklads ?? session('sklads', '') ?? '');
+            $money = (string) ($parentDocument->money ?? session('money', '') ?? '');
+            $content = (string) ($parentDocument->content ?? '');
+            $ttn = (string) ($parentDocument->ttn ?? '');
+
+            $newId = DB::table($table)->insertGetId([
+                'id' => 0,
+                'num' => $newNum,
+                'client1' => session('client1', '0'),
+                'client2' => session('client2', '0'),
+                'type' => $doc,
+                'summa' => $newSumma,
+                'status' => 0,
+                'data' => $now->format('d-m-Y'),
+                'data2' => $now->format('d-m-Y'),
+                'time' => $now->format('H:i:s'),
+                'firma' => $fid,
+                'dt' => $dt,
+                'numz' => $parentNumz,
+                'typez' => $parentTypez,
+                'docid' => in_array($doc, ['ZIN', 'ZOUT'], true) ? 0 : $parentDocid,
+                'manager' => session('login', ''),
+                'user' => session('login', ''),
+                'content' => $content,
+                'ttn' => $ttn,
+                'oplata' => $oplata,
+                'reteil' => $reteil,
+                'reestr' => $reestr,
+                'sklads' => $sklads,
+                'money' => $money,
+                'dostup' => 1,
+                'work' => session('work', '1'),
+            ]);
+
+            if (in_array($doc, ['ZIN', 'ZOUT'], true)) {
+                DB::table($table)->where('id', $newId)->update(['docid' => $newId, 'numz' => $newNum]);
+                session(['docid' => $newId]);
+            }
+
+            session(['doc_id' => $newId, 'num' => $newNum]);
+
+            // Redirect with new params so reload works correctly
+            return redirect()->route('document.show', [
+                'doc' => $doc,
+                'doc_id' => $newId,
+                'parent_doc_id' => in_array($doc, ['ZIN', 'ZOUT'], true) ? $newId : $parentDocid,
+                'num' => $newNum,
+                'year' => $year,
+            ]);
+        }
 
         $table = Document::tableForType($doc);
         $document = DB::table($table)->where('id', $docId)->first();
 
-        if (!$document)
-            return redirect()->route('document.index');
+        if (!$document) {
+            // Document not found — check if we should auto-create one
+            // Only auto-create when num=0; otherwise show error
+            return redirect()->route('document.index')->with('error',
+                "Документ {$doc} (id={$docId}, num={$num}) не знайдено в таблиці {$table}");
+        }
 
         // Populate session from doc (mirrors legacy class document constructor)
+        $parentNumz = in_array($doc, ['ZIN', 'ZOUT'], true)
+            ? ($document->num ?: $document->numz)
+            : ($document->numz ?: '0');
+        $parentTypez = in_array($doc, ['ZIN', 'ZOUT'], true)
+            ? $doc
+            : ($document->typez ?: '');
+        $parentDocid = in_array($doc, ['ZIN', 'ZOUT'], true)
+            ? $docId
+            : ($document->docid ?: $docId);
+        $parentDocument = (!in_array($doc, ['ZIN', 'ZOUT'], true) && $parentDocid)
+            ? DB::table('document')->where('id', $parentDocid)->first()
+            : null;
+
         session([
-            'numz' => $document->numz,
-            'typez' => $document->typez,
-            'docid' => in_array($doc, ['ZIN', 'ZOUT'], true) ? $docId : $document->docid,
+            'numz' => $parentNumz,
+            'typez' => $parentTypez,
+            'docid' => $parentDocid,
+            'parent_doc_id' => $parentDocid,
             'client1' => $document->client1,
             'client2' => $document->client2,
             'sklads' => $document->sklads,
@@ -98,7 +270,7 @@ class DocumentController extends Controller
             'reestr' => $document->reestr,
         ]);
 
-        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT']) ? $docId : $document->docid;
+        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT']) ? $docId : $parentDocid;
         $lineItems = ZBody::from('z_body as zb')
             ->leftJoin('comp as c', function ($join) {
             $join->on('zb.pnum', '=', 'c.id')
@@ -114,7 +286,7 @@ class DocumentController extends Controller
         });
 
         // Client info (related docs / balance)
-        $client = $document->client1 ?DB::table('users')->where('id', $document->client1)->first() : null;
+        $client = $document->client1 ? DB::table('users')->where('id', $document->client1)->first() : null;
 
         // Load conf lookups for this doc
         $confIds = array_filter([
@@ -128,8 +300,59 @@ class DocumentController extends Controller
                 ->get(['id', 'name', 'color'])->keyBy('id')->toArray();
         }
 
+        // Load all oplata and reestr options for PO/RO dropdowns
+        $oplataList = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
+        $reestrList = DB::table('conf')->where('type', 'reestr')->where('firma', $fid)->orderBy('name')->get();
+        $skladsList = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
+
+        // Related documents (legacy client_info / client_info1)
+        $clientId = $document->client1 ?? 0;
+        $numz = $parentNumz;
+        $typez = $parentTypez;
+        $docid = $parentDocid;
+        $idstatus = (int)session('idstatus', 0);
+        $orderPosted = (int) (
+            in_array($doc, ['ZIN', 'ZOUT'], true)
+                ? ($document->provodka ?? 0)
+                : ($parentDocument->provodka ?? 0)
+        ) === 1;
+
+        // Show related docs for root orders/purchases and their child documents
+        $isZakazType = in_array($typez, ['ZIN', 'ZOUT'], true);
+
+        // client_info1 — full block with action buttons
+        $relatedDocs = null;
+        if ($isZakazType && $clientId > 0) {
+            $relatedDocs = Docs::clientInfo1(
+                $clientId, $numz, $typez, $doc, $idstatus, $year, $docid,
+                $document->summa ?? 0, $orderPosted
+            );
+        }
+
+        // client_info — compact icon strip: only for ZIN / ZOUT documents
+        $relatedIcons = null;
+        if (in_array($doc, ['ZIN', 'ZOUT'], true) && $clientId > 0) {
+            $relatedIcons = Docs::clientInfo(
+                $clientId, $numz, $typez, $year, $docid, $document->summa ?? 0
+            );
+        }
+
+        $documentIndexUrl = route('document.index', ['doc' => $doc]);
+        $parentDocumentUrl = $parentDocument
+            ? route('document.show', [
+                'doc' => $parentDocument->type,
+                'doc_id' => $parentDocument->id,
+                'num' => $parentDocument->num,
+                'year' => strlen((string) ($parentDocument->data ?? '')) >= 10
+                    ? substr((string) $parentDocument->data, 6, 4)
+                    : $year,
+            ])
+            : null;
+
         return view('document.show', compact(
-            'document', 'lineItems', 'doc', 'year', 'client', 'confMap', 'fid'
+            'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
+            'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'skladsList',
+            'documentIndexUrl', 'parentDocumentUrl', 'parentDocument'
         ));
     }
 
@@ -141,6 +364,7 @@ class DocumentController extends Controller
         $fid = session('fid', '');
         $year = session('year', date('Y'));
         $run = $request->input('run', '');
+        $createDocType = strtoupper((string)$request->input('create_doc_type', ''));
 
         // ── New document creation buttons ─────────────────────────────────────
         $docTypeMap = [
@@ -155,17 +379,22 @@ class DocumentController extends Controller
             'Додати фото' => 'RA', 'Добавить фото' => 'RA',
         ];
 
-        if (isset($docTypeMap[$run])) {
-            $docType = $docTypeMap[$run];
+        if ($createDocType !== '' || isset($docTypeMap[$run])) {
+            $docType = $createDocType !== '' ? $createDocType : $docTypeMap[$run];
             $summaPO = in_array($docType, ['PO', 'RO'], true) ? (float)$request->input('sumPO', 0) : 0.0;
             $client1 = session('client1', '0');
             $client2 = session('client2', '0');
             $numz = session('numz', '0');
             $typez = session('typez', '');
             $docid = session('docid', '0');
+            $oplata = (string) (session('oplata', '') ?? '');
+            $reteil = (string) (session('reteil', '') ?? '');
+            $reestr = (string) (session('reestr', '') ?? '');
+            $sklads = (string) (session('sklads', '') ?? '');
+            $money = (string) (session('money', '') ?? '');
 
-            // Get next number
-            $num = Document::nextNum($docType, $fid, $year);
+            // Get next number — max+1 for this doc type & firma
+            $num = Document::assignNextNum($docType, $fid, $year);
 
             $table = Document::tableForType($docType);
             $now = now();
@@ -190,6 +419,11 @@ class DocumentController extends Controller
                 'docid' => in_array($docType, ['ZIN', 'ZOUT'], true) ? 0 : $docid,
                 'manager' => session('login', ''),
                 'user' => session('login', ''),
+                'oplata' => $oplata,
+                'reteil' => $reteil,
+                'reestr' => $reestr,
+                'sklads' => $sklads,
+                'money' => $money,
                 'dostup' => 1,
                 'work' => session('work', '1'),
             ]);
@@ -226,8 +460,26 @@ class DocumentController extends Controller
 
     public function provodka(Request $request)
     {
-        $this->docService->provodka($request);
-        return redirect()->back()->with('success', 'Проведено');
+        $docId = $request->input('doc_id', session('doc_id', '0'));
+        $doc = $request->input('doc', session('doc', ''));
+        $table = Document::tableForType($doc);
+        $document = DB::table($table)->where('id', $docId)->first();
+        $isPosted = $this->docService->provodka($request);
+        if (!$document) {
+            return redirect()->route('document.index', ['doc' => $doc])
+                ->with('success', $isPosted ? 'Проводку виконано' : 'Проводку скасовано');
+        }
+
+        $year = strlen((string) ($document->data ?? '')) >= 10
+            ? substr((string) $document->data, 6, 4)
+            : date('Y');
+
+        return redirect()->route('document.show', [
+            'doc' => $doc,
+            'doc_id' => $docId,
+            'num' => $document->num,
+            'year' => $year,
+        ])->with('success', $isPosted ? 'Проводку виконано' : 'Проводку скасовано');
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────

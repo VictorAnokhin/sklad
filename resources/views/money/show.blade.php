@@ -38,7 +38,7 @@
                 <select name="money" class="form-control">
                     <option value="">— оберіть касу —</option>
                     @foreach($kassas as $kassa)
-                    <option value="{{ $kassa->name }}" {{ ($document->money ?? '') == $kassa->name ? 'selected' : '' }}>
+                    <option value="{{ $kassa->id }}" {{ (string)($document->money ?? '') === (string)$kassa->id ? 'selected' : '' }}>
                         {{ $kassa->name }}
                     </option>
                     @endforeach
@@ -86,23 +86,30 @@
 
         <div class="row" style="width: 100%;">
             <div style="width: 80%; align-items: left;">
-                <a href="{{ route('money.index') }}"> <button class="btn" style="width: 20%;">← Назад</button></a>
+                <a href="{{ route('money.index') }}" class="btn" style="width: 20%;">← Назад</a>
                 <button type="submit" class="btn" style="width: 30%;">💾 Зберегти</button>
 
             </div>
             <div style="width: 20%;">
                 @if(!$isNew)
-                <form action="{{ route('money.destroy') }}" method="post" style="margin-top: -38px; text-align: right;"
-                    onsubmit="return confirm('Дійсно видалити цей документ?');">
-                    @csrf
-                    <input type="hidden" name="id" value="{{ $document->id }}">
-                    <button type="submit" class="btn btn-danger">🗑</button>
-                </form>
+                <button type="button"
+                    class="btn btn-danger"
+                    style="margin-top: -38px;"
+                    onclick="if(confirm('Дійсно видалити цей документ?')) { document.getElementById('deleteMoneyForm').submit(); }">
+                    🗑
+                </button>
                 @endif
             </div>
         </div>
 
     </form>
+
+    @if(!$isNew)
+    <form id="deleteMoneyForm" action="{{ route('money.destroy') }}" method="post" style="display:none;">
+        @csrf
+        <input type="hidden" name="id" value="{{ $document->id }}">
+    </form>
+    @endif
 
 
 </div>
@@ -114,6 +121,12 @@
         const resultsContainer = document.getElementById('clientSearchResults');
         const client1Id = document.getElementById('client1_id');
         const clientDetails = document.getElementById('selectedClientDetails');
+
+        function escapeHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = value || '';
+            return div.innerHTML;
+        }
 
         function performSearch() {
             const q = searchInput.value.trim();
@@ -130,7 +143,13 @@
                             const a = document.createElement('a');
                             a.href = '#';
                             a.className = 'list-group-item list-group-item-action';
-                            a.innerHTML = `<strong>${user.orgname || ''}</strong> | ${user.name2 || ''} ${user.name || ''} ${user.secondname || ''}<br><small>${user.phone || ''} | ${user.city || ''}</sma       a.addEventListener('click', function (e) {
+                            a.innerHTML = `
+                                <strong>${escapeHtml(user.orgname || '')}</strong> |
+                                ${escapeHtml(user.name2 || '')} ${escapeHtml(user.name || '')} ${escapeHtml(user.secondname || '')}
+                                <br>
+                                <small>${escapeHtml(user.phone || '')} | ${escapeHtml(user.city || '')}</small>
+                            `;
+                            a.addEventListener('click', function (e) {
                                 e.preventDefault();
                                 client1Id.value = user.id;
 

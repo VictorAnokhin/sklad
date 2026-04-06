@@ -3,9 +3,9 @@ FROM php:8.2-apache
 # ── System deps ───────────────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y \
     git curl zip unzip libpng-dev libonig-dev libxml2-dev \
-    libzip-dev libicu-dev libpq-dev \
+    libzip-dev libicu-dev libpq-dev libgmp-dev \
     && docker-php-ext-install \
-        pdo pdo_mysql mysqli mbstring exif pcntl bcmath gd zip intl \
+        pdo pdo_mysql mysqli mbstring exif pcntl bcmath gd zip intl gmp \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ── Apache: enable mod_rewrite for Laravel routing ────────────────────────────

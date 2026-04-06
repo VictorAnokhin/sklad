@@ -65,26 +65,10 @@ services:
     networks:
       - sklad
 
-  # ── React frontend ─────────────────────────────────────────────────────────
-  react:
-    build:
-      context: ../react-app
-      dockerfile: Dockerfile
-    container_name: sklad_react
-    restart: unless-stopped
-    ports:
-      - "3001:3001"          # http://localhost:3001
-    volumes:
-      - ../react-app:/react-app
-      - /react-app/node_modules   # не перезаписывать node_modules из хоста
-    depends_on:
-      - app
-    networks:
-      - sklad
-    command: npm run dev
 
 volumes:
   db_data:
+    name: sklad_local_db_data
 
 networks:
   sklad:

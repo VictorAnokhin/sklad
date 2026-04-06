@@ -9,93 +9,151 @@
 
 <div style="position:relative;margin-top:13px">
   @if($num === '0')
-  <div onclick="filterToggle()" class="{{ $btnCls }}" style="width:70px;height:42px;margin-top:-3px;cursor:pointer">
-    <img src="/img/icon-category.png" alt="пошук" style="width:30px"><br>пошук
+  <div onclick="filterToggle()" class="{{ $btnCls }}" style="width:70px;height:70px;margin-top:-3px;cursor:pointer; background: linear-gradient(135deg, #fbbf24, #f59e0b); border: none; border-radius: 16px; box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); transition: all 0.3s ease; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <img src="/img/icon-category.png" alt="пошук" style="width:32px;filter: brightness(0);">
+    <span style="font-size: 0.7rem; font-weight: 600; color: #000; margin-top: 4px;">пошук</span>
   </div>
   @endif
 </div>
 
-<div id="divfilter" class="filter_box_center" style="display:none">
-  <div onclick="filterToggle()" class="filter_title" style="cursor:pointer">✕</div>
+<div id="filterModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:9999; justify-content:center; align-items:center;">
+  <div class="glass-card" style="width:700px; max-width:90vw; max-height:80vh; overflow-y:auto; position:relative; margin:0 auto; padding:24px;">
+    <div onclick="filterToggle()" style="position:absolute; top:12px; right:16px; cursor:pointer; font-size:1.5rem; color:var(--muted-foreground); transition:color 0.2s; z-index:10;">✕</div>
 
-  <form action="{{ route('filter.apply') }}" method="post" name="filterform">
-    @csrf
-    <input type="hidden" name="filter" value="1">
-    <input type="hidden" name="doc"    value="{{ $doc }}">
+    <h3 style="margin:0 0 16px 0; color:var(--foreground); font-family:var(--header); font-size:1.25rem;">🔍 Фільтр пошуку</h3>
 
-    @if(!in_array($doc, ['STAT','ZD','RO','PO','RPO','PP']))
-    <div class="txtbox_startpage_str2">
-      <input type="text" name="f_content" autocomplete="off"
-             placeholder="номер або примітка"
-             value="{{ $fd['fContent'] ?? '' }}">
-    </div>
-    @endif
+    <form action="{{ route('filter.apply') }}" method="post" name="filterform">
+      @csrf
+      <input type="hidden" name="filter" value="1">
+      <input type="hidden" name="doc"    value="{{ $doc }}">
 
-    @if($doc !== 'STAT')
-    <div class="txtbox_startpage_str2">
-      <input type="text" name="f_name" autocomplete="off"
-             placeholder="дані клієнта"
-             value="{{ $fd['fName'] ?? '' }}">
-    </div>
-    @endif
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        @if(!in_array($doc, ['STAT','ZD','RO','PO','RPO','PP']))
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Номер або примітка</label>
+          <input type="text" name="f_content" autocomplete="off"
+                 placeholder="номер або примітка"
+                 value="{{ $fd['fContent'] ?? '' }}" style="width:100%; padding:8px 12px; font-size:0.9rem;">
+        </div>
+        @endif
 
-    @if(!in_array($doc, ['STAT','ZD','RO','PO','RPO','PP']))
-    <div class="txtbox_startpage_str2">
-      <input type="text" name="f_operator"
-             placeholder="оператор"
-             value="{{ $fd['fOperator'] ?? '' }}">
-    </div>
-    @endif
+        @if($doc !== 'STAT')
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Дані клієнта</label>
+          <input type="text" name="f_name" autocomplete="off"
+                 placeholder="дані клієнта"
+                 value="{{ $fd['fName'] ?? '' }}" style="width:100%; padding:8px 12px; font-size:0.9rem;">
+        </div>
+        @endif
 
-    <div class="txtbox_startpage_str2">
-      @if(in_array($doc, ['ZOUT','ZIN','RN','PN','WO1','STAT']))
-        @include('partials.selects.reteil', ['selected' => $fd['fReteil'] ?? '', 'fid' => $fid])
-      @endif
+        @if(!in_array($doc, ['STAT','ZD','RO','PO','RPO','PP']))
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Оператор</label>
+          <input type="text" name="f_operator"
+                 placeholder="оператор"
+                 value="{{ $fd['fOperator'] ?? '' }}" style="width:100%; padding:8px 12px; font-size:0.9rem;">
+        </div>
+        @endif
 
-      @if(in_array($doc, ['PP','PO','RPO']))
-        @include('partials.selects.oplata', ['selected' => $fd['fOplata'] ?? '', 'fid' => $fid])
-      @elseif(in_array($doc, ['ZOUT','ZIN','WO1','PN','RN']))
-        @include('partials.selects.sklads', ['selected' => $fd['fSklads'] ?? '', 'fid' => $fid])
-      @endif
+        @if(in_array($doc, ['ZOUT','ZIN','RN','PN','WO1','STAT']))
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Проект</label>
+          <div style="width:100%;">@include('partials.selects.reteil', ['selected' => $fd['fReteil'] ?? '', 'fid' => $fid])</div>
+        </div>
+        @endif
 
-      @if($doc === 'ZOUT')
-        @include('partials.selects.status', ['selected' => $fd['fStatus'] ?? '', 'fid' => $fid])
-      @elseif(!in_array($doc, ['STAT','ZD','RO','PO','RPO','PP']))
-        @include('partials.selects.status', ['selected' => $fd['fStatus'] ?? '', 'fid' => $fid])
-      @endif
+        @if(in_array($doc, ['PP','PO','RPO']))
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Оплата</label>
+          <div style="width:100%;">@include('partials.selects.oplata', ['selected' => $fd['fOplata'] ?? '', 'fid' => $fid])</div>
+        </div>
+        @elseif(in_array($doc, ['ZOUT','ZIN','WO1','PN','RN']))
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Склад</label>
+          <div style="width:100%;">@include('partials.selects.sklads', ['selected' => $fd['fSklads'] ?? '', 'fid' => $fid])</div>
+        </div>
+        @endif
 
-      @if(in_array($doc, ['WO1','ZD']))
-        <label>
-          <input type="checkbox" name="f_provodka" value="1"
-                 {{ ($fd['fProvodka'] ?? '') ? 'checked' : '' }}>
-          Показати всі
-        </label>
-      @endif
+        @if($doc === 'ZOUT')
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Статус</label>
+          <div style="width:100%;">@include('partials.selects.status', ['selected' => $fd['fStatus'] ?? '', 'fid' => $fid])</div>
+        </div>
+        @elseif(!in_array($doc, ['STAT','ZD','RO','PO','RPO','PP']))
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Статус</label>
+          <div style="width:100%;">@include('partials.selects.status', ['selected' => $fd['fStatus'] ?? '', 'fid' => $fid])</div>
+        </div>
+        @endif
 
-      @if(in_array($doc, ['PO','RO','RPO']))
-        @include('partials.selects.reestr', ['selected' => $fd['fReestr'] ?? '', 'fid' => $fid])
-      @endif
-    </div>
+        @if(in_array($doc, ['WO1','ZD']))
+        <div style="display:flex; align-items:flex-end; padding-bottom:8px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.9rem;">
+            <input type="checkbox" name="f_provodka" value="1"
+                   {{ ($fd['fProvodka'] ?? '') ? 'checked' : '' }} style="width:auto;">
+            Показати всі
+          </label>
+        </div>
+        @endif
 
-    <div class="txtbox_startpage_str2">
-      <label style="width:55px">Дата 1</label>
-      <input type="date" name="fdata1" value="{{ $fd['fdata1'] ?? '' }}" style="width:60%"><br>
-      <label style="width:55px">Дата 2</label>
-      <input type="date" name="fdata2" value="{{ $fd['fdata2'] ?? '' }}" style="width:60%">
-    </div>
+        @if(in_array($doc, ['PO','RO','RPO']))
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Реєстр</label>
+          <div style="width:100%;">@include('partials.selects.reestr', ['selected' => $fd['fReestr'] ?? '', 'fid' => $fid])</div>
+        </div>
+        @endif
 
-    <div class="document">
-      <button type="submit" class="button" style="width:70px">Знайти</button>
-      <button type="submit" name="clear" value="1" class="button" style="width:70px">Скинути</button>
-    </div>
-  </form>
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Дата початку</label>
+          <input type="date" name="fdata1" value="{{ $fd['fdata1'] ?? '' }}" style="width:100%; padding:8px 12px; font-size:0.9rem;">
+        </div>
+
+        <div>
+          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Дата закінчення</label>
+          <input type="date" name="fdata2" value="{{ $fd['fdata2'] ?? '' }}" style="width:100%; padding:8px 12px; font-size:0.9rem;">
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button type="submit" style="flex: 1; padding: 10px 16px; background: linear-gradient(135deg, #fbbf24, #f59e0b); border: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); color: #000; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <span>🔍</span> Знайти
+        </button>
+        <button type="submit" name="clear" value="1" style="flex: 1; padding: 10px 16px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: var(--foreground); font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <span>✕</span> Скинути
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 
 @push('scripts')
 <script>
 function filterToggle() {
-  var d = document.getElementById('divfilter');
-  d.style.display = d.style.display === 'block' ? 'none' : 'block';
+  var d = document.getElementById('filterModal');
+  if (d.style.display === 'none' || d.style.display === '') {
+    d.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  } else {
+    d.style.display = 'none';
+    document.body.style.overflow = '';
+  }
 }
+
+// Закрити при кліку на фон
+document.getElementById('filterModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    filterToggle();
+  }
+});
+
+// Закрити при натисканні Escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var d = document.getElementById('filterModal');
+    if (d.style.display === 'flex') {
+      filterToggle();
+    }
+  }
+});
 </script>
 @endpush

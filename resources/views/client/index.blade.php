@@ -55,7 +55,7 @@
                     <th>ПІБ (Контактна особа)</th>
                     <th>Телефон</th>
                     <th>Місто</th>
-                    <th>Рейтинг (Top)</th>
+                    <th>Замовлення</th>
                 </tr>
             </thead>
             <tbody>
@@ -72,7 +72,16 @@
                     </td>
                     <td>{{ $client->phone }}</td>
                     <td>{{ $client->city }}</td>
-                    <td>{{ $client->top }}</td>
+                    <td>
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-outline-primary client-orders-btn"
+                            data-client-id="{{ $client->id }}"
+                            data-client-name="{{ trim(($client->orgname ?: '') . ' ' . (($client->secondname ?? '') . ' ' . ($client->name ?? ''))) }}"
+                            data-bs-toggle="modal"
+                            data-bs-target="#clientOrdersModal"
+                        >Переглянути</button>
+                    </td>
                 </tr>
                 @empty
                 <tr>
@@ -115,4 +124,102 @@
     </nav>
     @endif
 </div>
+
+<div class="modal fade" id="clientOrdersModal" tabindex="-1" aria-labelledby="clientOrdersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="clientOrdersModalLabel">Замовлення клієнта</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+            </div>
+            <div class="modal-body">
+                <div id="clientOrdersLoading" class="text-muted">Завантаження...</div>
+                <div id="clientOrdersEmpty" class="text-muted" style="display:none;">Замовлень не знайдено.</div>
+                <div class="table-responsive" id="clientOrdersTableWrap" style="display:none;">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>№</th>
+                                <th>Дата</th>
+                                <th>Сума</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientOrdersTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('clientOrdersModal');
+    const title = document.getElementById('clientOrdersModalLabel');
+    const loading = document.getElementById('clientOrdersLoading');
+    const empty = document.getElementById('clientOrdersEmpty');
+    const tableWrap = document.getElementById('clientOrdersTableWrap');
+    const tbody = document.getElementById('clientOrdersTbody');
+
+    if (!modal || !title || !loading || !empty || !tableWrap || !tbody) {
+        return;
+    }
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    modal.addEventListener('show.bs.modal', (event) => {
+        const button = event.relatedTarget;
+        if (!button) {
+            return;
+        }
+
+        const clientId = button.getAttribute('data-client-id');
+        const clientName = button.getAttribute('data-client-name') || 'клієнта';
+
+        title.textContent = `Замовлення: ${clientName}`;
+        loading.style.display = 'block';
+        empty.style.display = 'none';
+        tableWrap.style.display = 'none';
+        tbody.innerHTML = '';
+
+        fetch(`/client/${clientId}/orders`)
+            .then((response) => response.json())
+            .then((orders) => {
+                loading.style.display = 'none';
+
+                if (!orders.length) {
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                tbody.innerHTML = orders.map((order) => `
+                    <tr>
+                        <td><a href="${escapeHtml(order.link_url)}">${escapeHtml(order.num)}</a></td>
+                        <td>${escapeHtml(order.data)}</td>
+                        <td>${escapeHtml(order.summa)} грн</td>
+                        <td>
+                            <span class="badge" style="background:${escapeHtml(order.status_color || '#6b7280')}; color:#fff;">
+                                ${escapeHtml(order.status_name)}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+                tableWrap.style.display = 'block';
+            })
+            .catch(() => {
+                loading.style.display = 'none';
+                empty.textContent = 'Не вдалося завантажити замовлення.';
+                empty.style.display = 'block';
+            });
+    });
+});
+</script>
+@endpush

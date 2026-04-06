@@ -14,13 +14,13 @@
 </div>
 
 @if(session('success'))
-<div class="alert alert-success" style="color:green;padding:6px">
+<div class="alert alert-success">
   {{ session('success') }}
 </div>
 @endif
 
 @if($errors->any())
-<div class="alert-error" style="color:red;padding:6px">
+<div class="alert alert-error">
   @foreach($errors->all() as $err)
   <div>{{ $err }}</div>
   @endforeach
@@ -28,7 +28,5 @@
 @endif
 
 @yield('contentbody')
-
-
 
 @endsection

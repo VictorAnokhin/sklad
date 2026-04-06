@@ -21,4 +21,15 @@ class Price extends Model
         return $this->belongsTo(Sklad::class, 'sklad');
     }
 
+    // ── getForGoods: ціни по товару, згруповані по tgroup ─────────────────────
+
+    public static function getForGoods($pnum, $fid)
+    {
+        if (!$pnum || $pnum === '0') return collect();
+
+        return self::where('pnum', $pnum)
+            ->where('firma', $fid)
+            ->get()
+            ->keyBy('tgroup');
+    }
 }

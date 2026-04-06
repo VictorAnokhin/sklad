@@ -20,9 +20,19 @@ class PanelService
         $salesTabs = [];
         $managerTabs = [];
         $productionTabs = [];
+        $salesDocs = ['ZOUT', 'CH', 'RN', 'PO', 'RA'];
+        $managerDocs = ['ZIN', 'PN', 'RO', 'VN'];
+        $productionDocs = ['WO1', 'SP'];
 
-        // Panel 1: sales staff (idstatus ≠ 2)
-        if ($idstatus !== 2) {
+        $isSalesContext = in_array($currentDoc, $salesDocs, true);
+        $isManagerContext = in_array($currentDoc, $managerDocs, true);
+        $isProductionContext = in_array($currentDoc, $productionDocs, true);
+        $hasExplicitContext = $isSalesContext || $isManagerContext || $isProductionContext;
+
+        // If a document context is explicitly selected, render the matching panel
+        // so the corresponding tab can be highlighted immediately.
+        // Otherwise fall back to the user's current role/status.
+        if ($isSalesContext || (!$hasExplicitContext && $idstatus !== 2 && $idstatus <= 2)) {
             $salesTabs = [
                 $this->makeTab('ZOUT', 'Замовлення', 'icon-order.png', $currentDoc),
                 $this->makeTab('CH', 'Рахунки', 'icon-invoice.png', $currentDoc),
@@ -33,8 +43,7 @@ class PanelService
             ];
         }
 
-        // Panel 2: managers/admins (idstatus > 2)
-        if ($idstatus > 2) {
+        if ($isManagerContext || (!$hasExplicitContext && $idstatus > 2)) {
             $managerTabs = [
                 $this->makeTab('ZIN', 'Закупки', 'icon-order.png', $currentDoc),
                 $this->makeTab('PN', 'Прихід товару', 'icon-packing.png', $currentDoc),
@@ -43,8 +52,7 @@ class PanelService
             ];
         }
 
-        // Panel 3: production workers (idstatus == 2)
-        if ($idstatus === 2) {
+        if ($isProductionContext || (!$hasExplicitContext && $idstatus === 2)) {
             $productionTabs = [
                 $this->makeTextTab('WO1', 'Наряди', $currentDoc),
                 $this->makeTextTab('SP', 'Специфікації', $currentDoc),

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Document;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 /**
  * ClientController
@@ -118,7 +120,11 @@ class ClientController extends Controller
 
         $result = User::showClient($id, $fid);
         $client = $result['client'];
-        $statuses = $result['statuses'];
+        $statuses = DB::table('conf')
+            ->where('type', 'tclient')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->get();
 
         session(['client1' => $id]);
 
@@ -132,7 +138,23 @@ class ClientController extends Controller
         $fid = session('fid', '');
         $id = $request->input('id', '0');
 
+        $request->validate([
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($id === '0' ? null : $id),
+            ],
+            'login' => array_filter([
+                User::hasUsersColumn('login') ? 'nullable' : null,
+                User::hasUsersColumn('login') ? 'string' : null,
+                User::hasUsersColumn('login') ? 'max:255' : null,
+                User::hasUsersColumn('login') ? Rule::unique('users', 'login')->ignore($id === '0' ? null : $id) : null,
+            ]),
+        ]);
+
         $data = [
+            'login' => $request->input('login', ''),
             'name' => $request->input('name', ''),
             'secondname' => $request->input('secondname', ''),
             'fathername' => $request->input('fathername', ''),
@@ -141,15 +163,24 @@ class ClientController extends Controller
             'kod1' => $request->input('kod1', ''),
             'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
             'phone1' => preg_replace('/\D/', '', $request->input('phone1', '')),
+            'email' => trim((string) $request->input('email', '')),
             'city' => $request->input('city', ''),
             'region' => $request->input('region', ''),
             'poshta' => $request->input('poshta', ''),
             'idstatus' => (int)$request->input('idstatus', 1),
+            'ustype' => (int)$request->input('idstatus', 1),
             'top' => (int)$request->input('top', 1),
             'bonus' => (float)$request->input('bonus', 0),
             'hbd' => $request->input('hbd', ''),
             'firma' => $fid,
         ];
+
+        $password = trim((string) $request->input('pass', ''));
+        if ($password !== '') {
+            $hash = Hash::make($password);
+            $data['pass'] = $hash;
+            $data['password'] = $hash;
+        }
 
         $id = User::edit($id, $data);
 
@@ -169,6 +200,47 @@ class ClientController extends Controller
             return back()->withErrors(['delete' => 'Клієнт має документи, видалення неможливе']);
         }
         return redirect()->route('client.index');
+    }
+
+    public function orders($id)
+    {
+        $fid = session('fid', '');
+        $year = session('year', date('Y'));
+
+        $statusMap = DB::table('conf')
+            ->where('type', 'status')
+            ->where('firma', $fid)
+            ->get(['id', 'name', 'color'])
+            ->keyBy('id');
+
+        $orders = DB::table('document')
+            ->where('firma', $fid)
+            ->where('client1', $id)
+            ->where('type', 'ZOUT')
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get(['id', 'num', 'data', 'status', 'summa']);
+
+        $payload = $orders->map(function ($order) use ($statusMap, $year) {
+            $status = $statusMap->get($order->status);
+
+            return [
+                'id' => $order->id,
+                'num' => (string) $order->num,
+                'data' => (string) $order->data,
+                'summa' => number_format((float) ($order->summa ?? 0), 2, '.', ''),
+                'status_name' => $status->name ?? 'Новий',
+                'status_color' => $status->color ?? '',
+                'link_url' => route('document.show', [
+                    'doc_id' => $order->id,
+                    'num' => $order->num,
+                    'year' => $year,
+                    'doc' => 'ZOUT',
+                ]),
+            ];
+        })->values();
+
+        return response()->json($payload);
     }
 
     // ── Saldo (balance) ───────────────────────────────────────────────────────

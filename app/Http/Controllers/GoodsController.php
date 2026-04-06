@@ -15,23 +15,26 @@ use Illuminate\Support\Facades\DB;
  */
 class GoodsController extends Controller
 {
+    private function resolveApiFid(Request $request, $default = '')
+    {
+        return (string) $request->input('fid', $default !== '' ? $default : session('fid', ''));
+    }
+
     // ── List ──────────────────────────────────────────────────────────────────
 
     public function index(Request $request)
     {
         $fid = session('fid', '');
-        $idcaption = $request->input('idcapt', session('idcaption', ''));
         $idglava = $request->input('igla', session('idglava', ''));
-        $pos = (int)$request->input('pos', session('pos', 0));
-        $pos2 = (int)$request->input('pos2', 15);
+        $idcaption = $request->input('idcapt', session('idcaption', ''));
+        $pos = (int) $request->input('pos', session('pos', 0));
+        $pos2 = (int) $request->input('pos2', 20);
         $sort = $request->input('sort', session('sort', 'pay'));
 
         $filters = [
             'fName' => $request->input('fName', session('filter1', '')),
             'filterBrand' => $request->input('filterBrand', session('filter_brand', '')),
             'skladNone' => $request->input('skladNone', session('sklad_none', '')),
-            'priceFrom' => $request->input('priceFrom', session('price00', '')),
-            'priceTo' => $request->input('priceTo', session('price01', '')),
         ];
 
         session([
@@ -42,8 +45,6 @@ class GoodsController extends Controller
             'filter1' => $filters['fName'],
             'filter_brand' => $filters['filterBrand'],
             'sklad_none' => $filters['skladNone'],
-            'price00' => $filters['priceFrom'],
-            'price01' => $filters['priceTo'],
         ]);
 
         $result = Goods::init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters);
@@ -51,11 +52,89 @@ class GoodsController extends Controller
         $total = $result['total'];
         $pers = $result['pers'];
         $sections = $result['sections'];
+        $tops = $result['tops'];
+        $subs = $result['subs'];
 
         return view('goods.index', compact(
-            'comps', 'total', 'pos', 'pos2', 'fid',
-            'idcaption', 'idglava', 'pers', 'sections', 'filters', 'sort'
+            'comps',
+            'total',
+            'pos',
+            'pos2',
+            'fid',
+            'idcaption',
+            'idglava',
+            'pers',
+            'sections',
+            'tops',
+            'subs',
+            'filters',
+            'sort'
         ));
+    }
+
+    // ── Search (Web API — for Accessories page) ──────────────────────────────
+
+    public function searchWeb(Request $request)
+    {
+        $q = $request->input('q');
+        if (!$q || mb_strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $fid = $this->resolveApiFid($request, '2');
+
+        $goods = DB::table('comp')
+            ->leftJoin('descript as d', function ($join) use ($fid) {
+                $join->on('d.pnum', '=', 'comp.id')
+                    ->where('d.firma', '=', $fid);
+            })
+            ->where('comp.firma', $fid)
+            ->where(function ($query) use ($q) {
+                $query->where('d.name', 'LIKE', "%{$q}%")
+                    ->orWhere('d.name_ua', 'LIKE', "%{$q}%")
+                    ->orWhere('d.name_en', 'LIKE', "%{$q}%")
+                    ->orWhere('d.description', 'LIKE', "%{$q}%")
+                    ->orWhere('d.description_ua', 'LIKE', "%{$q}%")
+                    ->orWhere('d.description_en', 'LIKE', "%{$q}%")
+                    ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$q}%");
+            })
+            ->select(
+                'comp.id',
+                DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+                'comp.nfoto as image',
+                'comp.nfoto1 as image_thumb',
+                'comp.pay',
+                'comp.pay1',
+                'comp.firma',
+                DB::raw('COALESCE(d.description, "") as description'),
+                DB::raw('COALESCE(d.description_ua, "") as description_ua'),
+                DB::raw('COALESCE(d.description_en, "") as description_en')
+            )
+            ->limit(30)
+            ->get();
+
+        $goods = Goods::attachPreferredPricesByItemFirma($goods)
+            ->map(function ($g) {
+                $desc = $g->description_ua ?: $g->description_en ?: $g->description ?: '';
+                // Strip HTML tags from description for search results
+                $desc = strip_tags($desc);
+
+                return [
+                    'id' => (int) $g->id,
+                    'name' => $g->name ?: '',
+                    'price' => (float) ($g->price_pay ?? 0),
+                    'oldPrice' => (float) ($g->price_oldpay ?? 0),
+                    'wholesalePrice' => $g->wholesale_price !== null ? (float) $g->wholesale_price : null,
+                    'wholesaleOldPrice' => $g->wholesale_oldpay !== null ? (float) $g->wholesale_oldpay : null,
+                    'wholesaleFrom' => $g->wholesale_from !== null ? (int) $g->wholesale_from : null,
+                    'count' => (int) ($g->price_count ?? 0),
+                    'image' => $g->image ?? '',
+                    'image_thumb' => $g->image_thumb ?? '',
+                    'description' => mb_substr($desc, 0, 200),
+                ];
+            });
+
+        return response()->json($goods);
     }
 
     // ── Search (Async) ────────────────────────────────────────────────────────
@@ -66,36 +145,45 @@ class GoodsController extends Controller
         if (!$q || mb_strlen($q) < 2)
             return response()->json([]);
 
-        $fid = session('fid', '');
+        $fid = $this->resolveApiFid($request);
 
         $goods = Goods::query()
-            ->leftJoin('price', function ($join) use ($fid) {
-            $join->on('price.pnum', '=', 'comp.id')
-                ->where('price.firma', '=', $fid)
-                ->where('price.tgroup', '=', '1'); // Default retail group
-        })
+            ->leftJoin('descript as d', function ($join) use ($fid) {
+                $join->on('d.pnum', '=', 'comp.id')
+                    ->where('d.firma', '=', $fid);
+            })
             ->where('comp.firma', $fid)
             ->where(function ($query) use ($q) {
-            $query->where('comp.id', 'LIKE', "%{$q}%")
-                ->orWhere('comp.name', 'LIKE', "%{$q}%")
-                ->orWhere('comp.name_ua', 'LIKE', "%{$q}%")
-                ->orWhere('comp.name_en', 'LIKE', "%{$q}%")
-                ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$q}%");
-        })
-            ->select('comp.id', 'comp.name',
-            DB::raw('COALESCE(price.pay, comp.pay, 0) as price'),
-            DB::raw('COALESCE(price.count, 0) as count'))
+                $query->where('comp.id', 'LIKE', "%{$q}%")
+                    ->orWhere('d.name', 'LIKE', "%{$q}%")
+                    ->orWhere('d.name_ua', 'LIKE', "%{$q}%")
+                    ->orWhere('d.name_en', 'LIKE', "%{$q}%")
+                    ->orWhere('d.description', 'LIKE', "%{$q}%")
+                    ->orWhere('d.description_ua', 'LIKE', "%{$q}%")
+                    ->orWhere('d.description_en', 'LIKE', "%{$q}%")
+                    ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$q}%");
+            })
+            ->select(
+                'comp.id',
+                DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+                'comp.pay',
+                'comp.firma'
+            )
             ->limit(20)
-            ->get()
+            ->get();
+
+        $goods = Goods::attachPreferredPricesByItemFirma($goods)
             ->map(function ($g) {
-            return [
-            'id' => $g->id,
-            'pnum' => $g->id,
-            'name' => $g->name,
-            'price' => (float)$g->price,
-            'count' => (float)$g->count,
-            ];
-        });
+                return [
+                    'id' => $g->id,
+                    'pnum' => $g->id,
+                    'name' => $g->name,
+                    'price' => (float) ($g->price_pay ?? 0),
+                    'wholesalePrice' => $g->wholesale_price !== null ? (float) $g->wholesale_price : null,
+                    'wholesaleFrom' => $g->wholesale_from !== null ? (int) $g->wholesale_from : null,
+                    'count' => (float) ($g->price_count ?? 0),
+                ];
+            });
 
         return response()->json($goods);
     }
@@ -104,67 +192,26 @@ class GoodsController extends Controller
 
     public function getHits(Request $request)
     {
-        $limit = (int)$request->input('limit', 10);
-        $offset = (int)$request->input('offset', 0);
+        $limit  = (int) $request->input('limit', 10);
+        $offset = (int) $request->input('offset', 0);
 
-        $hits = Goods::query()
-            ->leftJoin('price', function ($join) {
-            $join->on('price.pnum', '=', 'comp.id')
-                ->where('price.tgroup', '=', '1'); // Default retail group
-        })
-
-            ->where('comp.web', '1')
-            ->select(
-            'comp.id',
-            'comp.name',
-            'comp.name_ua',
-            'comp.name_en',
-            'comp.description',
-            'comp.description_ua',
-            'comp.description_en',
-            'comp.nfoto',
-            'comp.nfoto1',
-            'comp.pay',
-            DB::raw('COALESCE(price.pay, comp.pay, 0) as price'),
-            DB::raw('COALESCE(price.count, 0) as count'),
-            'comp.firma'
-        )
-            ->orderBy('comp.hit', 'desc')
-            ->offset($offset)
-            ->limit($limit)
-            ->get()
-            ->map(function ($item) {
-            return [
-            'id' => $item->id,
-            'name' => $item->name,
-            'name_ua' => $item->name_ua,
-            'name_en' => $item->name_en,
-            'description' => $item->description,
-            'description_ua' => $item->description_ua,
-            'description_en' => $item->description_en,
-            'price' => (float)$item->price,
-            'oldPrice' => (float)$item->pay,
-            'count' => (int)$item->count,
-            'image' => $item->nfoto,
-            'image_thumb' => $item->nfoto1,
-            ];
-        });
+        $fid = $this->resolveApiFid($request, '2');
+        $hits = Goods::getHits($fid, $limit, $offset);
 
         return response()->json([
             'success' => true,
-            'data' => $hits,
-            'limit' => $limit,
-            'offset' => $offset,
+            'data'    => $hits,
+            'limit'   => $limit,
+            'offset'  => $offset,
         ]);
-
     }
 
     // ── Get Sections (API) ────────────────────────────────────────────────────
 
     public function getSections(Request $request)
     {
-        $tree = Field::getCatalogTree();
-
+        $fid = $this->resolveApiFid($request, '2');
+        $tree = Field::getCatalogTree($fid);
         return response()->json([
             'success' => true,
             'data' => $tree,
@@ -175,10 +222,11 @@ class GoodsController extends Controller
 
     public function getBySection(Request $request, $id)
     {
-        $limit = (int)$request->input('limit', 20);
-        $offset = (int)$request->input('offset', 0);
+        $limit = (int) $request->input('limit', 20);
+        $offset = (int) $request->input('offset', 0);
 
-        $result = Goods::getWebGoodsBySection($id, $limit, $offset);
+        $fid = $this->resolveApiFid($request, '2');
+        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset);
 
         return response()->json([
             'success' => true,
@@ -207,8 +255,16 @@ class GoodsController extends Controller
         $filterTags = $result['filterTags'];
 
         return view('goods.show', compact(
-            'comp', 'descript', 'priceGroups', 'prices',
-            'tops', 'subs', 'news', 'filterTags', 'fid', 'pnum'
+            'comp',
+            'descript',
+            'priceGroups',
+            'prices',
+            'tops',
+            'subs',
+            'news',
+            'filterTags',
+            'fid',
+            'pnum'
         ));
     }
 
@@ -240,12 +296,12 @@ class GoodsController extends Controller
 
         // ── Price groups data
         $priceRows = [];
-        foreach ((array)$request->input('tgroup', []) as $gid => $_) {
+        foreach ((array) $request->input('tgroup', []) as $gid => $_) {
             $priceRows[$gid] = [
-                'oldpay' => (float)($request->input('toldpay')[$gid] ?? 0),
-                'pay' => (float)($request->input('tpay')[$gid] ?? 0),
-                'pay1' => (float)($request->input('tpay1')[$gid] ?? 0),
-                'count' => (int)($request->input('tcount')[$gid] ?? 0),
+                'oldpay' => (float) ($request->input('toldpay')[$gid] ?? 0),
+                'pay' => (float) ($request->input('tpay')[$gid] ?? 0),
+                'pay1' => (float) ($request->input('tpay1')[$gid] ?? 0),
+                'count' => (int) ($request->input('tcount')[$gid] ?? 0),
             ];
         }
 
@@ -254,16 +310,16 @@ class GoodsController extends Controller
             'idcaption' => $idcaption,
             'idglava' => $request->input('idglava', ''),
             'idtype' => $request->input('idtype', 1),
-            'hit' => (int)$request->input('hit', 0),
-            'constanta' => (int)$request->input('constanta', 0),
-            'top' => (int)$request->input('top', 0),
+            'hit' => (int) $request->input('hit', 0),
+            'constanta' => (int) $request->input('constanta', 0),
+            'top' => (int) $request->input('top', 0),
             'firma' => $request->input('firma', $fid),
             'nickname' => $request->input('nickname', ''),
             'namedoc' => $request->input('name_doc', ''),
-            'pay1' => (float)$request->input('pay1', 0),
-            'pay' => (float)$request->input('pay', 0),
-            'profitpay' => (float)$request->input('profitpay', 0),
-            'sklad' => (int)$request->input('sklad', 0),
+            'pay1' => (float) $request->input('pay1', 0),
+            'pay' => (float) $request->input('pay', 0),
+            'profitpay' => (float) $request->input('profitpay', 0),
+            'sklad' => (int) $request->input('sklad', 0),
             'garant' => $request->input('garant', ''),
             'htmldescr' => $request->input('htmldescr', ''),
             'htmlkeys' => $request->input('htmlkeys', ''),

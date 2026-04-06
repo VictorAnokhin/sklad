@@ -18,27 +18,53 @@ class Money extends Model
 
     // ── init: дані для index ──────────────────────────────────────────────────
 
-    public static function init($fid, $pos = 0)
+    public static function init($fid, $pos = 0, array $filters = [])
     {
-        $sumPO = DB::table('z_document')
-            ->where('firma', $fid)
-            ->where('type', 'PO')
-            ->sum('summa');
-
-        $sumRO = DB::table('z_document')
-            ->where('firma', $fid)
-            ->where('type', 'RO')
-            ->sum('summa');
-
-        $total = DB::table('z_document')
-            ->where('firma', $fid)
-            ->whereIn('type', ['PO', 'RO'])
-            ->count();
-
-        $documents = DB::table('z_document as d')
+        $baseQuery = DB::table('z_document as d')
             ->leftJoin('users as u', 'u.id', '=', 'd.client1')
             ->where('d.firma', $fid)
-            ->whereIn('d.type', ['PO', 'RO'])
+            ->whereIn('d.type', ['PO', 'RO']);
+
+        if (($filters['q'] ?? '') !== '') {
+            $q = $filters['q'];
+            $baseQuery->where(function ($query) use ($q) {
+                $query->where('d.num', 'like', "%{$q}%")
+                    ->orWhere('d.content', 'like', "%{$q}%")
+                    ->orWhere('u.orgname', 'like', "%{$q}%")
+                    ->orWhere('u.name', 'like', "%{$q}%")
+                    ->orWhere('u.secondname', 'like', "%{$q}%")
+                    ->orWhere('u.phone', 'like', "%{$q}%");
+            });
+        }
+
+        if (($filters['type'] ?? '') !== '' && in_array($filters['type'], ['PO', 'RO'], true)) {
+            $baseQuery->where('d.type', $filters['type']);
+        }
+
+        if (($filters['money'] ?? '') !== '') {
+            $baseQuery->where('d.money', $filters['money']);
+        }
+
+        if (($filters['reestr'] ?? '') !== '') {
+            $baseQuery->where('d.reestr', $filters['reestr']);
+        }
+
+        if (($filters['date_from'] ?? '') !== '') {
+            $from = date('d-m-Y', strtotime($filters['date_from']));
+            $baseQuery->whereRaw("STR_TO_DATE(d.data, '%d-%m-%Y') >= STR_TO_DATE(?, '%d-%m-%Y')", [$from]);
+        }
+
+        if (($filters['date_to'] ?? '') !== '') {
+            $to = date('d-m-Y', strtotime($filters['date_to']));
+            $baseQuery->whereRaw("STR_TO_DATE(d.data, '%d-%m-%Y') <= STR_TO_DATE(?, '%d-%m-%Y')", [$to]);
+        }
+
+        $documentsQuery = clone $baseQuery;
+        $sumPO = (clone $baseQuery)->where('d.type', 'PO')->sum('d.summa');
+        $sumRO = (clone $baseQuery)->where('d.type', 'RO')->sum('d.summa');
+        $total = (clone $baseQuery)->count();
+
+        $documents = $documentsQuery
             ->orderByDesc('d.id')
             ->offset($pos)
             ->limit(30)
@@ -50,7 +76,9 @@ class Money extends Model
 
         $kassasMap = DB::table('conf')
             ->where('type', 'oplata')
-            ->pluck('name', 'name');
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->pluck('name', 'id');
 
         return compact('documents', 'sumPO', 'sumRO', 'total', 'kassasMap');
     }
@@ -83,7 +111,7 @@ class Money extends Model
             'time'       => '',
             'summa'      => 0,
             'content'    => '',
-            'money'      => '',
+            'money'      => 0,
             'provodka'   => 0,
             'client1'    => '',
             'name'       => '',
@@ -97,10 +125,11 @@ class Money extends Model
 
     // ── kassas: список кас з conf ─────────────────────────────────────────────
 
-    public static function kassas()
+    public static function kassas($fid)
     {
         return DB::table('conf')
             ->where('type', 'oplata')
+            ->where('firma', $fid)
             ->orderBy('name')
             ->get(['id', 'name']);
     }
@@ -110,6 +139,11 @@ class Money extends Model
     public static function saveDocument($id, $fid, $data)
     {
         $data['firma'] = $fid;
+        $data['money'] = (string)($data['money'] ?? '');
+        $data['content'] = (string)($data['content'] ?? '');
+        $data['client1'] = (string)($data['client1'] ?? '0');
+        $data['summa'] = (float)($data['summa'] ?? 0);
+        $data['data'] = (string)($data['data'] ?? date('d-m-Y'));
 
         if ($id === 0) {
             $maxNum = DB::table('z_document')

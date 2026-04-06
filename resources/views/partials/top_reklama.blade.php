@@ -1,28 +1,74 @@
 {{-- top_reklama.blade.php --}}
-{{-- Replace with actual logo/header HTML from your top_reklama.php --}}
 
-<div class="d-flex flex-column flex-md-row align-items-center pb-3 mb-4 border-bottom">
-  <a href="/" class="d-flex align-items-center link-body-emphasis text-decoration-none">
-    <span class="fs-4">{{ config('app.name') }}: {{ session('name1') ?? '' }}
+<div class="header-bar">
+  <a href="/" class="d-flex align-items-center text-decoration-none">
+    <span class="fs-4" style="color: #ffffff; font-weight: 600;">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
   </a>
-  <nav class="d-inline-flex mt-2 mt-md-0 ms-md-auto">
-    @if(session('name1'))
-    <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('document.index') }}">Всі документи</a>
-    <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('client.index') }}">Клієнти</a>
-    <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('goods.index') }}">Товари</a>
-    <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('money.index') }}">Гроші</a>
-    <a class="me-3 py-2 link-body-emphasis text-decoration-none" href="{{ route('settings.index') }}">Налаштування</a>
 
+  <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <nav class="header-nav-menu" id="header-nav-menu">
+    @if(session('name1'))
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">Замовлення</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('document.index', ['doc' => 'ZIN']) }}">Закупки</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('client.index') }}">Клієнти</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('goods.index') }}">Товари</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('money.index') }}">Гроші</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('settings.index') }}">Налаштування</a>
 
     <form method="POST" action="{{ route('logout') }}" id="logout-form">
       @csrf
       <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
-        class="link-body-emphasis d-inline-flex text-decoration-none rounded w-100">Вийти</a>
+        class="text-decoration-none py-2" style="color: #fbbf24; font-weight: 500;">Вийти</a>
     </form>
     @else
-    <a class="py-2 link-body-emphasis text-decoration-none" id="btn_login" style='cursor:pointer'>Увійти</a>
+    <a class="py-2 text-decoration-none" id="btn_login" style="cursor:pointer; color: #fbbf24; font-weight: 500;">Увійти</a>
     @endif
-
-
   </nav>
 </div>
+
+@push('scripts')
+<script>
+  (function () {
+    const burger = document.getElementById('header-burger');
+    const menu = document.getElementById('header-nav-menu');
+
+    if (!burger || !menu) {
+      return;
+    }
+
+    burger.addEventListener('click', function () {
+      const expanded = burger.getAttribute('aria-expanded') === 'true';
+      burger.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      menu.classList.toggle('is-open', !expanded);
+      document.body.classList.toggle('header-menu-open', !expanded);
+    });
+
+    menu.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', function () {
+        burger.setAttribute('aria-expanded', 'false');
+        menu.classList.remove('is-open');
+        document.body.classList.remove('header-menu-open');
+      });
+    });
+
+    document.addEventListener('click', function (event) {
+      if (!menu.classList.contains('is-open')) {
+        return;
+      }
+
+      if (menu.contains(event.target) || burger.contains(event.target)) {
+        return;
+      }
+
+      burger.setAttribute('aria-expanded', 'false');
+      menu.classList.remove('is-open');
+      document.body.classList.remove('header-menu-open');
+    });
+  })();
+</script>
+@endpush

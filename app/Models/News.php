@@ -16,4 +16,12 @@ class News extends Model
         return $this->belongsTo(Firma::class, 'firma');
     }
 
+    // ── getLatest: новини для вибору в описах товару ──────────────────────────
+
+    public static function getLatest($fid)
+    {
+        return self::where('firma', $fid)
+            ->orderByDesc('id')
+            ->get(['id', 'title']);
+    }
 }

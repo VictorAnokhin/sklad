@@ -4,15 +4,19 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
+
+    private static ?array $usersColumnsCache = null;
 
     /**
      * The attributes that are mass assignable.
@@ -24,8 +28,12 @@ class User extends Authenticatable
         'phone',
         'pass',
         'name',
+        'secondname',
         'fathername',
         'fid',
+        'firma',
+        'idfirma',
+        'status',
         'idstatus',
         'idkassa',
         'idsklad',
@@ -35,6 +43,9 @@ class User extends Authenticatable
         'balans',
         'hbd',
         'email',
+        'wallet_address',
+        'wallet_network',
+        'wallet_connected_at',
         'password',
     ];
 
@@ -44,6 +55,7 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $hidden = [
+        'pass',
         'password',
         'remember_token',
     ];
@@ -55,8 +67,90 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'wallet_connected_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function getAuthPassword(): string
+    {
+        return (string) ($this->password ?: $this->pass ?: '');
+    }
+
+    public function scopeForLogin(Builder $query, string $login): Builder
+    {
+        return $query->where(function (Builder $q) use ($login) {
+            $hasCondition = false;
+
+            if (self::hasUsersColumn('login')) {
+                $q->where('login', $login);
+                $hasCondition = true;
+            }
+
+            if (self::hasUsersColumn('email')) {
+                if ($hasCondition) {
+                    $q->orWhere('email', $login);
+                } else {
+                    $q->where('email', $login);
+                }
+                $hasCondition = true;
+            }
+
+            if (self::hasUsersColumn('phone')) {
+                if ($hasCondition) {
+                    $q->orWhere('phone', $login);
+                } else {
+                    $q->where('phone', $login);
+                }
+            }
+        });
+    }
+
+    public function legacyLoginValue(): string
+    {
+        return (string) ($this->login ?: $this->email ?: $this->phone ?: '');
+    }
+
+    public function passwordMatches(string $plainText): bool
+    {
+        $hash = (string) ($this->password ?: $this->pass ?: '');
+
+        if ($hash === '') {
+            return false;
+        }
+
+        return $this->supportsLaravelHash($hash) && Hash::check($plainText, $hash)
+            || $this->pass === $plainText
+            || $this->password === $plainText
+            || $this->pass === md5($plainText)
+            || $this->pass === md5(md5($plainText));
+    }
+
+    public function usesLegacyPasswordHash(): bool
+    {
+        return !$this->supportsLaravelHash((string) $this->password)
+            || !$this->supportsLaravelHash((string) $this->pass);
+    }
+
+    public function syncPasswordHash(string $plainText): void
+    {
+        $hash = Hash::make($plainText);
+
+        $this->forceFill([
+            'password' => $hash,
+            'pass' => $hash,
+        ])->save();
+    }
+
+    private function supportsLaravelHash(?string $hash): bool
+    {
+        if (!$hash) {
+            return false;
+        }
+
+        $info = password_get_info($hash);
+
+        return ($info['algo'] ?? null) !== null;
+    }
 
     public static function init()
     {
@@ -77,12 +171,12 @@ class User extends Authenticatable
         if ($search !== '') {
             $like = '%' . $search . '%';
             $query->where(function ($q) use ($like) {
-                $q->where('orgname', 'like', $like)
-                    ->orWhere('name', 'like', $like)
-                    ->orWhere('secondname', 'like', $like)
-                    ->orWhere('phone', 'like', $like)
-                    ->orWhere('city', 'like', $like)
-                    ->orWhere('name2', 'like', $like);
+                $q->where('orgname', 'like', '%' . $like . '%')
+                    ->orWhere('name', 'like', '%' . $like . '%')
+                    ->orWhere('secondname', 'like', '%' . $like . '%')
+                    ->orWhere('phone', 'like', '%' . $like . '%')
+                    ->orWhere('city', 'like', '%' . $like . '%')
+                    ->orWhere('name2', 'like', '%' . $like . '%');
             });
         }
         if ($filterCity !== '') {
@@ -118,11 +212,19 @@ class User extends Authenticatable
 
     public static function edit($id, $data)
     {
+        $data = self::filterUsersColumns($data);
+
         if ($id === '0' || $id === '') {
             // New client: generate login/pass
             $phone = $data['phone'] ?? '';
-            $data['login'] = $phone ?: uniqid('cl_');
-            $data['pass'] = Hash::make($phone ?: str_pad((string)rand(1000, 9999), 4));
+            if (self::hasUsersColumn('login')) {
+                $data['login'] = $data['login'] ?? ($phone ?: uniqid('cl_'));
+            }
+            $passwordHash = Hash::make($phone ?: str_pad((string)rand(1000, 9999), 4));
+            $data['pass'] = $passwordHash;
+            if (self::hasUsersColumn('password')) {
+                $data['password'] = $passwordHash;
+            }
             $id = (string)DB::table('users')->insertGetId($data);
         }
         else {
@@ -148,12 +250,35 @@ class User extends Authenticatable
 
     public static function saveFirm($id, $data)
     {
-        $exists = DB::table('firm')->where('id', $id)->exists();
+        $exists = DB::table('firma')->where('id', $id)->exists();
         if ($exists) {
-            DB::table('firm')->where('id', $id)->update($data);
+            DB::table('firma')->where('id', $id)->update($data);
         }
         else {
-            DB::table('firm')->insert($data);
+            DB::table('firma')->insert($data);
         }
+    }
+
+    public static function hasUsersColumn(string $column): bool
+    {
+        return in_array($column, self::usersColumns(), true);
+    }
+
+    public static function filterUsersColumns(array $data): array
+    {
+        $allowed = array_flip(self::usersColumns());
+
+        return array_intersect_key($data, $allowed);
+    }
+
+    private static function usersColumns(): array
+    {
+        if (self::$usersColumnsCache === null) {
+            self::$usersColumnsCache = Schema::hasTable('users')
+                ? Schema::getColumnListing('users')
+                : [];
+        }
+
+        return self::$usersColumnsCache;
     }
 }

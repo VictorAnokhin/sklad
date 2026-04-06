@@ -6,8 +6,7 @@
 
 @section('content')
 <div class="container mt-4">
-    <h2>{{ $client ? 'Редагування клієнта #' . $client->id : 'Новий клієнт' }}</h2>
-
+    
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
@@ -53,6 +52,10 @@
 
         <div class="row mb-3">
             <div class="col-md-4">
+                <label class="form-label">Логін</label>
+                <input type="text" name="login" class="form-control" value="{{ $client->login ?? '' }}">
+            </div>
+            <div class="col-md-4">
                 <label class="form-label">Телефон</label>
                 <input type="text" name="phone" class="form-control" value="{{ $client->phone ?? '' }}">
             </div>
@@ -68,6 +71,10 @@
 
         <div class="row mb-3">
             <div class="col-md-4">
+                <label class="form-label">Email</label>
+                <input type="email" name="email" class="form-control" value="{{ $client->email ?? '' }}" required>
+            </div>
+            <div class="col-md-4">
                 <label class="form-label">Місто</label>
                 <input type="text" name="city" class="form-control" value="{{ $client->city ?? '' }}">
             </div>
@@ -82,11 +89,18 @@
         </div>
 
         <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Пароль</label>
+                <input type="password" name="pass" class="form-control" value="" placeholder="{{ $client ? 'Залиште порожнім, щоб не змінювати' : '' }}">
+            </div>
+        </div>
+
+        <div class="row mb-3">
             <div class="col-md-3">
-                <label class="form-label">Статус</label>
+                <label class="form-label">Статус / роль контрагента</label>
                 <select name="idstatus" class="form-select">
                     @foreach($statuses as $s)
-                        <option value="{{ $s->id }}" {{ ($client->idstatus ?? '') == $s->id ? 'selected' : '' }}>
+                        <option value="{{ $s->id }}" {{ (string)($client->idstatus ?? $client->ustype ?? '') === (string)$s->id ? 'selected' : '' }}>
                             {{ $s->name }}
                         </option>
                     @endforeach
@@ -105,6 +119,16 @@
         <div class="d-flex gap-2">
             <button type="submit" class="btn btn-success">💾 Зберегти</button>
             <a href="{{ route('client.index') }}" class="btn btn-secondary">← Назад</a>
+            @if($client && !empty($client->id))
+            <button
+                type="submit"
+                class="btn btn-danger"
+                formaction="{{ route('client.destroy') }}"
+                formmethod="POST"
+                formnovalidate
+                onclick="return confirm('Ви впевнені, що хочете видалити цього клієнта?');"
+            >🗑 Видалити</button>
+            @endif
         </div>
     </form>
 </div>

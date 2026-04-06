@@ -16,4 +16,14 @@ class Descript extends Model
         return $this->belongsTo(Firma::class, 'firma');
     }
 
+    // ── getForGoods: опис товару по pnum і firma ──────────────────────────────
+
+    public static function getForGoods($pnum, $fid)
+    {
+        if (!$pnum || $pnum === '0') return null;
+
+        return self::where('pnum', $pnum)
+            ->where('firma', $fid)
+            ->first();
+    }
 }

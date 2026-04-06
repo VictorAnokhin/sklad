@@ -2,8 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Firma;
 use App\Models\Settings;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * SettingsController — migrated from admin/ module (idstatus >= 3)
@@ -13,10 +19,74 @@ class SettingsController extends Controller
     public function index(Request $request)
     {
         $fid = session('fid', '');
+        $user = $this->currentUser();
 
         $data = Settings::init($fid);
 
-        return view('settings.index', array_merge($data, compact('fid')));
+        // Projects — conf where type='reteil'
+        $projects = DB::table('conf')->where('type', 'reteil')->where('firma', $fid)->orderBy('name')->get();
+
+        // Statuses — conf where type='status'
+        $statuses = DB::table('conf')->where('type', 'status')->where('firma', $fid)->orderBy('name')->get();
+
+        // Reestr (payment types) — conf where type='reestr'
+        $reestrs = DB::table('conf')->where('type', 'reestr')->where('firma', $fid)->orderBy('name')->get();
+
+        // Client types — conf where type='tgroup'
+        $tgroups = DB::table('conf')->where('type', 'tgroup')->where('firma', $fid)->orderBy('name')->get();
+
+        // Counterparty types — conf where type='tclient'
+        $tclients = DB::table('conf')->where('type', 'tclient')->where('firma', $fid)->orderBy('name')->get();
+        $currentCounterpartyType = null;
+        if ($user) {
+            $counterpartyTypeId = (int) ($user->idstatus ?: $user->ustype ?: 0);
+            if ($counterpartyTypeId > 0) {
+                $currentCounterpartyType = $tclients->firstWhere('id', $counterpartyTypeId);
+            }
+        }
+
+        // Каса — conf where type='oplata'
+        $oplatas = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
+
+        // Офисы — conf where type='sklads'
+        $sklads = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
+
+        // Депозиты — conf where type='deposit'
+        $deposits = DB::table('conf')->where('type', 'deposit')->where('firma', $fid)->orderBy('name')->get();
+
+        $myCompanies = collect();
+        if ($user) {
+            $myCompanies = $this->companiesQuery($user)->orderBy('id')->get();
+        }
+
+        $userWallets = collect();
+        if ($user && Schema::hasTable('user_wallets')) {
+            $userWallets = DB::table('user_wallets')
+                ->where('user_id', $user->id)
+                ->orderByDesc('connected_at')
+                ->orderByDesc('id')
+                ->get();
+        } elseif ($user && !empty($user->wallet_address)) {
+            $userWallets = collect([(object) [
+                'address' => $user->wallet_address,
+                'network' => $user->wallet_network,
+                'connected_at' => $user->wallet_connected_at,
+            ]]);
+        }
+
+        $catalogTopCount = 0;
+        if (Schema::hasTable('field')) {
+            $catalogTopCount = $this->catalogBaseQuery($fid)
+                ->where(function ($query) {
+                    $query->where('idkeyfield', '0')
+                        ->orWhere('idkeyfield', 0)
+                        ->orWhereNull('idkeyfield')
+                        ->orWhere('idkeyfield', '');
+                })
+                ->count();
+        }
+
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'catalogTopCount', 'currentCounterpartyType', 'userWallets')));
     }
 
     public function show(Request $request)
@@ -61,5 +131,639 @@ class SettingsController extends Controller
         }
 
         return redirect()->route('settings.index')->with('success', 'Дані змінено!');
+    }
+
+    // ── API endpoints for async CRUD ──────────────────────────────────────────
+
+    /**
+     * GET /settings/api/{type}
+     * Return all conf records for a given type (reteil|status|reestr).
+     */
+    public function apiIndex($type)
+    {
+        $fid = session('fid', '');
+        $items = DB::table('conf')->where('type', $type)->where('firma', $fid)->orderBy('name')->get();
+        return response()->json($items);
+    }
+
+    /**
+     * GET /settings/api/{type}/{id}
+     * Return a single conf record.
+     */
+    public function apiShow($type, $id)
+    {
+        $fid = session('fid', '');
+        $item = DB::table('conf')->where('id', $id)->where('type', $type)->where('firma', $fid)->first();
+        if (!$item) return response()->json(['message' => 'Не знайдено'], 404);
+        return response()->json($item);
+    }
+
+    /**
+     * POST /settings/api
+     * Create a new conf record.
+     */
+    public function apiStore(Request $request)
+    {
+        $fid = session('fid', '');
+        $validated = $request->validate([
+            'type' => 'required|string',
+            'name' => 'required|string|max:255',
+            'color' => 'nullable|string|max:20',
+            'status' => 'nullable|string',
+        ]);
+
+        $data = [
+            'name'    => $validated['name'],
+            'type'    => $validated['type'],
+            'color'   => $validated['color'] ?? '',
+            'status'  => $validated['status'] ?? '1',
+            'vision'  => '1',
+            'hide'    => '0',
+            'constanta' => '0',
+            'firma'   => $fid,
+        ];
+
+        $id = DB::table('conf')->insertGetId($data);
+        return response()->json(['success' => true, 'id' => $id]);
+    }
+
+    /**
+     * PUT /settings/api/{id}
+     * Update an existing conf record.
+     */
+    public function apiUpdate(Request $request, $id)
+    {
+        $fid = session('fid', '');
+        $validated = $request->validate([
+            'type' => 'required|string',
+            'name' => 'required|string|max:255',
+            'color' => 'nullable|string|max:20',
+            'status' => 'nullable|string',
+        ]);
+
+        $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
+        if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+
+        DB::table('conf')->where('id', $id)->update([
+            'name'   => $validated['name'],
+            'type'   => $validated['type'],
+            'color'  => $validated['color'] ?? '',
+            'status' => $validated['status'] ?? '1',
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * DELETE /settings/api/{id}
+     * Delete a conf record.
+     */
+    public function apiDestroy($id)
+    {
+        $fid = session('fid', '');
+        $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
+        if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+
+        DB::table('conf')->where('id', $id)->delete();
+        return response()->json(['success' => true]);
+    }
+
+    // ── Profile ───────────────────────────────────────────────────────────────
+
+    public function profileUpdate(Request $request)
+    {
+        $user = $this->currentUser();
+        if (!$user) return redirect()->back()->with('error', 'Користувача не знайдено');
+
+        $request->validate([
+            'name' => 'nullable|string|max:255',
+            'secondname' => 'nullable|string|max:255',
+            'fathername' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:50',
+            'city' => 'nullable|string|max:100',
+            'hbd' => 'nullable|string|max:50',
+        ]);
+
+        $stringValue = static fn ($value): string => trim((string) ($value ?? ''));
+
+        DB::table('users')->where('id', $user->id)->update([
+            'name'       => $stringValue($request->input('name')),
+            'secondname' => $stringValue($request->input('secondname')),
+            'fathername' => $stringValue($request->input('fathername')),
+            'email'      => $stringValue($request->input('email')),
+            'phone'      => $stringValue($request->input('phone')),
+            'city'       => $stringValue($request->input('city')),
+            'hbd'        => $stringValue($request->input('hbd')),
+        ]);
+
+        return redirect()->route('settings.index')->with('success', 'Профіль оновлено');
+    }
+
+    public function passwordChange(Request $request)
+    {
+        $user = $this->currentUser();
+        if (!$user) return redirect()->back()->with('error', 'Користувача не знайдено');
+
+        $currentPassword = $request->input('current_password', '');
+        $newPassword = $request->input('new_password', '');
+        $confirmPassword = $request->input('new_password_confirmation', '');
+
+        $currentHash = ($user->pass ?? '') ?: ($user->password ?? '');
+
+        // Verify current password
+        if (
+            !Hash::check($currentPassword, $currentHash)
+            && $currentHash !== md5($currentPassword)
+            && $currentHash !== md5(md5($currentPassword))
+        ) {
+            return redirect()->back()->with('error', 'Поточний пароль введено неправильно');
+        }
+
+        if ($newPassword !== $confirmPassword) {
+            return redirect()->back()->with('error', 'Нові паролі не збігаються');
+        }
+
+        if (strlen($newPassword) < 4) {
+            return redirect()->back()->with('error', 'Пароль має бути не менше 4 символів');
+        }
+
+        $hash = Hash::make($newPassword);
+        $update = ['pass' => $hash];
+        if (Schema::hasColumn('users', 'password')) {
+            $update['password'] = $hash;
+        }
+
+        DB::table('users')->where('id', $user->id)->update($update);
+
+        return redirect()->route('settings.index')->with('success', 'Пароль змінено');
+    }
+
+    // ── Firma CRUD ───────────────────────────────────────────────────────────
+
+    public function firmsIndex()
+    {
+        $user = $this->currentUser();
+        if (!$user) {
+            return response()->json(['message' => 'Користувача не знайдено'], 404);
+        }
+
+        return response()->json(
+            $this->companiesQuery($user)->orderBy('id')->get()
+        );
+    }
+
+    public function firmsShow($id)
+    {
+        $user = $this->currentUser();
+        if (!$user) {
+            return response()->json(['message' => 'Користувача не знайдено'], 404);
+        }
+
+        $company = $this->companiesQuery($user)->where('id', $id)->first();
+        if (!$company) {
+            return response()->json(['message' => 'Компанію не знайдено'], 404);
+        }
+
+        return response()->json($company);
+    }
+
+    public function firmsStore(Request $request)
+    {
+        $user = $this->currentUser();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Користувача не знайдено'], 404);
+        }
+
+        $validated = $this->validateFirma($request);
+
+        $payload = array_merge($validated, [
+            'userid' => $user->id,
+            'firma' => ($user->firma ?? '') ?: session('fid', 0),
+        ]);
+
+        $id = Firma::query()->insertGetId($payload);
+
+        return response()->json(['success' => true, 'id' => $id]);
+    }
+
+    public function firmsUpdate(Request $request, $id)
+    {
+        $user = $this->currentUser();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Користувача не знайдено'], 404);
+        }
+
+        $company = $this->companiesQuery($user)->where('id', $id)->first();
+        if (!$company) {
+            return response()->json(['success' => false, 'message' => 'Компанію не знайдено'], 404);
+        }
+
+        Firma::query()->where('id', $id)->update($this->validateFirma($request));
+
+        return response()->json(['success' => true]);
+    }
+
+    public function firmsDestroy($id)
+    {
+        $user = $this->currentUser();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Користувача не знайдено'], 404);
+        }
+
+        $company = $this->companiesQuery($user)->where('id', $id)->first();
+        if (!$company) {
+            return response()->json(['success' => false, 'message' => 'Компанію не знайдено'], 404);
+        }
+
+        Firma::query()->where('id', $id)->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    // ── Catalog CRUD (field.keyfield = catalog) ─────────────────────────────
+
+    public function catalogIndex(Request $request)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json([
+                'items' => [],
+                'breadcrumb' => [['id' => 0, 'name' => 'Категорії']],
+                'currentParentId' => '0',
+                'currentParent' => null,
+                'total' => 0,
+            ]);
+        }
+
+        $fid = session('fid', '');
+        $parentId = (string) $request->input('parent_id', '0');
+        $parentId = $parentId === '' ? '0' : $parentId;
+        $fieldColumns = $this->fieldColumns();
+
+        $itemsQuery = $this->catalogChildrenQuery($fid, $parentId);
+        if (in_array('num', $fieldColumns, true)) {
+            $itemsQuery->orderBy('num');
+        }
+        if (in_array('val', $fieldColumns, true)) {
+            $itemsQuery->orderBy('val');
+        } else {
+            $itemsQuery->orderBy('id');
+        }
+        $items = $itemsQuery->get();
+
+        $childCounts = $this->catalogBaseQuery($fid)
+            ->selectRaw('idkeyfield, COUNT(*) as total')
+            ->groupBy('idkeyfield')
+            ->pluck('total', 'idkeyfield');
+
+        $payload = $items->map(function ($item) use ($childCounts, $fieldColumns) {
+            return $this->normalizeCatalogItem($item, $childCounts, $fieldColumns);
+        })->values();
+
+        $currentParent = $parentId !== '0' ? $this->catalogFind($fid, $parentId) : null;
+
+        return response()->json([
+            'items' => $payload,
+            'breadcrumb' => $this->catalogBreadcrumb($fid, $parentId),
+            'currentParentId' => $parentId,
+            'currentParent' => $currentParent ? $this->normalizeCatalogItem($currentParent, collect(), $fieldColumns) : null,
+            'total' => $payload->count(),
+        ]);
+    }
+
+    public function catalogShow($id)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json(['message' => 'Таблицю field не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        $item = $this->catalogFind($fid, $id);
+        if (!$item) {
+            return response()->json(['message' => 'Категорію не знайдено'], 404);
+        }
+
+        return response()->json($this->normalizeCatalogItem($item, collect(), $this->fieldColumns()));
+    }
+
+    public function catalogStore(Request $request)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        $parentId = (string) $request->input('parent_id', '0');
+        $parentId = $parentId === '' ? '0' : $parentId;
+
+        if ($parentId !== '0' && !$this->catalogFind($fid, $parentId)) {
+            return response()->json(['success' => false, 'message' => 'Батьківську категорію не знайдено'], 404);
+        }
+
+        $data = $this->validateCatalog($request, $fid, $parentId);
+        $id = DB::table('field')->insertGetId($data);
+
+        return response()->json(['success' => true, 'id' => $id]);
+    }
+
+    public function catalogUpdate(Request $request, $id)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        $item = $this->catalogFind($fid, $id);
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Категорію не знайдено'], 404);
+        }
+
+        $parentId = (string) ($request->input('parent_id', $item->idkeyfield ?? '0'));
+        $parentId = $parentId === '' ? '0' : $parentId;
+
+        if ($parentId !== '0' && !$this->catalogFind($fid, $parentId)) {
+            return response()->json(['success' => false, 'message' => 'Батьківську категорію не знайдено'], 404);
+        }
+
+        DB::table('field')
+            ->where('id', $id)
+            ->update($this->validateCatalog($request, $fid, $parentId, true, $item));
+
+        return response()->json(['success' => true]);
+    }
+
+    public function catalogDestroy($id)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        $item = $this->catalogFind($fid, $id);
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Категорію не знайдено'], 404);
+        }
+
+        $hasChildren = $this->catalogBaseQuery($fid)
+            ->where('idkeyfield', (string) $id)
+            ->exists();
+
+        if ($hasChildren) {
+            return response()->json(['success' => false, 'message' => 'Спочатку видаліть або перенесіть підкатегорії'], 422);
+        }
+
+        if (Schema::hasTable('comp')) {
+            $usedInGoods = DB::table('comp')
+                ->where('firma', $fid)
+                ->where(function ($query) use ($id) {
+                    $query->where('idcaption', (string) $id)
+                        ->orWhere('idglava', (string) $id);
+                })
+                ->exists();
+
+            if ($usedInGoods) {
+                return response()->json(['success' => false, 'message' => 'Категорія використовується в товарах'], 422);
+            }
+        }
+
+        DB::table('field')->where('id', $id)->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    private function currentUser()
+    {
+        if (Auth::check()) {
+            return Auth::user();
+        }
+
+        $login = session('login', '');
+        if ($login === '') {
+            return null;
+        }
+
+        return User::forLogin($login)->first();
+    }
+
+    private function companiesQuery(object $user)
+    {
+        return Firma::query()->where(function ($query) use ($user) {
+            $query->where('userid', $user->id);
+
+            if (!empty($user->firma ?? null)) {
+                $query->orWhere('firma', $user->firma);
+            }
+        });
+    }
+
+    private function validateFirma(Request $request): array
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'regnum' => 'nullable|string|max:12',
+            'inn' => 'nullable|string|max:15',
+            'schet' => 'nullable|string|max:30',
+            'bank' => 'nullable|string|max:50',
+            'mfo' => 'nullable|string|max:6',
+            'town' => 'nullable|string|max:25',
+            'address' => 'nullable|string|max:50',
+            'map' => 'nullable|string|max:200',
+            'view' => 'nullable|string|max:15',
+            'phone' => 'nullable|string|max:50',
+            'direktor' => 'nullable|string|max:30',
+            'pidpys' => 'nullable|string|max:30',
+            'pechat' => 'nullable|string|max:30',
+        ]);
+
+        return [
+            'name' => $validated['name'],
+            'regnum' => $validated['regnum'] ?? '',
+            'inn' => $validated['inn'] ?? '',
+            'schet' => $validated['schet'] ?? '',
+            'bank' => $validated['bank'] ?? '',
+            'mfo' => $validated['mfo'] ?? '',
+            'town' => $validated['town'] ?? '',
+            'address' => $validated['address'] ?? '',
+            'map' => $validated['map'] ?? '',
+            'view' => $validated['view'] ?? '',
+            'phone' => $validated['phone'] ?? '',
+            'direktor' => $validated['direktor'] ?? '',
+            'pidpys' => $validated['pidpys'] ?? '',
+            'pechat' => $validated['pechat'] ?? '',
+        ];
+    }
+
+    private function catalogBaseQuery($fid)
+    {
+        return DB::table('field')
+            ->where('keyfield', 'catalog')
+            ->where('firma', $fid);
+    }
+
+    private function catalogChildrenQuery($fid, string $parentId)
+    {
+        $query = $this->catalogBaseQuery($fid);
+
+        if ($parentId === '0') {
+            $query->where(function ($nested) {
+                $nested->where('idkeyfield', '0')
+                    ->orWhere('idkeyfield', 0)
+                    ->orWhereNull('idkeyfield')
+                    ->orWhere('idkeyfield', '');
+            });
+        } else {
+            $query->where('idkeyfield', $parentId);
+        }
+
+        return $query;
+    }
+
+    private function catalogFind($fid, $id)
+    {
+        return $this->catalogBaseQuery($fid)->where('id', $id)->first();
+    }
+
+    private function fieldColumns(): array
+    {
+        return Schema::hasTable('field') ? Schema::getColumnListing('field') : [];
+    }
+
+    private function validateCatalog(Request $request, $fid, string $parentId, bool $isUpdate = false, ?object $existing = null): array
+    {
+        $validated = $request->validate([
+            'name_ru' => 'required|string|max:255',
+            'name_ua' => 'nullable|string|max:255',
+            'name_en' => 'nullable|string|max:255',
+            'description_ru' => 'nullable|string|max:5000',
+            'description_ua' => 'nullable|string|max:5000',
+            'description_en' => 'nullable|string|max:5000',
+            'num' => 'nullable|integer|min:0',
+            'visible' => 'nullable|boolean',
+            'firstpage' => 'nullable|boolean',
+        ]);
+
+        $columns = $this->fieldColumns();
+        $payload = [];
+
+        if (in_array('keyfield', $columns, true)) {
+            $payload['keyfield'] = 'catalog';
+        }
+        if (in_array('firma', $columns, true)) {
+            $payload['firma'] = $fid;
+        }
+        if (in_array('idkeyfield', $columns, true)) {
+            $payload['idkeyfield'] = $parentId;
+        }
+        if (in_array('val', $columns, true)) {
+            $payload['val'] = $validated['name_ru'];
+        }
+        if (in_array('valua', $columns, true)) {
+            $payload['valua'] = $validated['name_ua'] ?? '';
+        } elseif (in_array('val_ua', $columns, true)) {
+            $payload['val_ua'] = $validated['name_ua'] ?? '';
+        }
+        if (in_array('valen', $columns, true)) {
+            $payload['valen'] = $validated['name_en'] ?? '';
+        } elseif (in_array('val_en', $columns, true)) {
+            $payload['val_en'] = $validated['name_en'] ?? '';
+        }
+        if (in_array('description', $columns, true)) {
+            $payload['description'] = $validated['description_ru'] ?? '';
+        }
+        if (in_array('descriptionua', $columns, true)) {
+            $payload['descriptionua'] = $validated['description_ua'] ?? '';
+        } elseif (in_array('description_ua', $columns, true)) {
+            $payload['description_ua'] = $validated['description_ua'] ?? '';
+        }
+        if (in_array('descriptionen', $columns, true)) {
+            $payload['descriptionen'] = $validated['description_en'] ?? '';
+        } elseif (in_array('description_en', $columns, true)) {
+            $payload['description_en'] = $validated['description_en'] ?? '';
+        }
+        if (in_array('visible', $columns, true)) {
+            $payload['visible'] = $request->boolean('visible') ? '1' : '0';
+        }
+        if (in_array('firstpage', $columns, true)) {
+            $payload['firstpage'] = $request->boolean('firstpage') ? '1' : '0';
+        }
+        if (in_array('num', $columns, true)) {
+            $payload['num'] = array_key_exists('num', $validated) && $validated['num'] !== null
+                ? (int) $validated['num']
+                : (!$isUpdate
+                    ? (int) $this->catalogChildrenQuery($fid, $parentId)->max('num') + 1
+                    : (property_exists($existing, 'num') ? (int) ($existing->num ?? 0) : 0));
+        }
+
+        if ($isUpdate && $existing) {
+            if (in_array('visible', $columns, true) && !isset($payload['visible'])) {
+                $payload['visible'] = property_exists($existing, 'visible') ? ($existing->visible ?? '1') : '1';
+            }
+            if (in_array('firstpage', $columns, true) && !isset($payload['firstpage'])) {
+                $payload['firstpage'] = property_exists($existing, 'firstpage') ? ($existing->firstpage ?? '0') : '0';
+            }
+        }
+
+        return $payload;
+    }
+
+    private function catalogBreadcrumb($fid, string $parentId): array
+    {
+        $trail = [['id' => 0, 'name' => 'Категорії']];
+        if ($parentId === '0') {
+            return $trail;
+        }
+
+        $visited = [];
+        $currentId = $parentId;
+
+        while ($currentId !== '0' && $currentId !== '' && !in_array($currentId, $visited, true)) {
+            $visited[] = $currentId;
+            $item = $this->catalogFind($fid, $currentId);
+            if (!$item) {
+                break;
+            }
+
+            array_splice($trail, 1, 0, [[
+                'id' => (int) $item->id,
+                'name' => $item->val ?? ('#' . $item->id),
+            ]]);
+
+            $currentId = (string) ($item->idkeyfield ?? '0');
+            if ($currentId === '') {
+                $currentId = '0';
+            }
+        }
+
+        return $trail;
+    }
+
+    private function normalizeCatalogItem(object $item, $childCounts, array $fieldColumns): array
+    {
+        $descriptionRu = in_array('description', $fieldColumns, true) ? ($item->description ?? '') : '';
+        $descriptionUa = in_array('descriptionua', $fieldColumns, true)
+            ? ($item->descriptionua ?? '')
+            : (in_array('description_ua', $fieldColumns, true) ? ($item->description_ua ?? '') : '');
+        $descriptionEn = in_array('descriptionen', $fieldColumns, true)
+            ? ($item->descriptionen ?? '')
+            : (in_array('description_en', $fieldColumns, true) ? ($item->description_en ?? '') : '');
+
+        return [
+            'id' => (int) $item->id,
+            'parent_id' => (string) (($item->idkeyfield ?? '0') === '' ? '0' : ($item->idkeyfield ?? '0')),
+            'name_ru' => $item->val ?? '',
+            'name_ua' => in_array('valua', $fieldColumns, true)
+                ? ($item->valua ?? '')
+                : (in_array('val_ua', $fieldColumns, true) ? ($item->val_ua ?? '') : ''),
+            'name_en' => in_array('valen', $fieldColumns, true)
+                ? ($item->valen ?? '')
+                : (in_array('val_en', $fieldColumns, true) ? ($item->val_en ?? '') : ''),
+            'description_ru' => $descriptionRu,
+            'description_ua' => $descriptionUa,
+            'description_en' => $descriptionEn,
+            'children_count' => (int) ($childCounts[(string) $item->id] ?? 0),
+            'num' => (int) (property_exists($item, 'num') ? ($item->num ?? 0) : 0),
+            'visible' => (string) (property_exists($item, 'visible') ? ($item->visible ?? '1') : '1'),
+            'firstpage' => (string) (property_exists($item, 'firstpage') ? ($item->firstpage ?? '0') : '0'),
+        ];
     }
 }

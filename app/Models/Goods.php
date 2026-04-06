@@ -14,115 +14,264 @@ class Goods extends Model
 
     public function firmaObj()
     {
-        return $this->belongsTo(Firma::class , 'firma');
+        return $this->belongsTo(Firma::class, 'firma');
     }
 
     public function skladObj()
     {
-        return $this->belongsTo(Sklad::class , 'sklad');
+        return $this->belongsTo(Sklad::class, 'sklad');
     }
 
-    // ── init: list query for index ────────────────────────────────────────────
+    // ── getListQuery: filtered comp+price query builder ───────────────────────
 
-    public static function init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters)
+    public static function getListQuery($fid, $idcaption, $idglava, $filters)
     {
         $fName = $filters['fName'] ?? '';
         $filterBrand = $filters['filterBrand'] ?? '';
         $skladNone = $filters['skladNone'] ?? '';
-        $priceFrom = $filters['priceFrom'] ?? '';
-        $priceTo = $filters['priceTo'] ?? '';
 
-        $query = DB::table('comp')
-            ->join('price', 'price.pnum', '=', 'comp.id')
+        $query = self::query()
+            ->leftJoin('descript as d', function ($join) {
+                $join->on('d.pnum', '=', 'comp.id')
+                    ->whereColumn('d.firma', 'comp.firma');
+            })
             ->where(function ($q) use ($fid) {
-            $q->where('comp.firma', $fid)->orWhere('comp.constanta', '1');
-        })
-            ->select('comp.*', 'price.pay', 'price.pay1', 'price.oldpay',
-            'price.count', 'price.sklad as price_sklad', 'price.tgroup');
+                $q->where('comp.firma', $fid)->orWhere('comp.constanta', '1');
+            })
+            ->select(
+                'comp.*',
+                DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+                DB::raw('COALESCE(d.name_ua, "") as name_ua'),
+                DB::raw('COALESCE(d.name_en, "") as name_en'),
+                DB::raw('COALESCE(d.description, "") as description'),
+                DB::raw('COALESCE(d.description_ua, "") as description_ua'),
+                DB::raw('COALESCE(d.description_en, "") as description_en')
+            );
 
-        if ($idcaption)
+        if ($idglava && $idcaption) {
+            $query->where('comp.idglava', $idglava)
+                ->where('comp.idcaption', $idcaption);
+        } elseif ($idglava) {
+            $query->where(function ($q) use ($idglava) {
+                $q->where('comp.idglava', $idglava)
+                    ->orWhere('comp.idcaption', $idglava);
+            });
+        } elseif ($idcaption) {
             $query->where('comp.idcaption', $idcaption);
-        if ($idglava)
-            $query->where('comp.idglava', $idglava);
-        if ($fName)
-            $query->where('comp.htmlkeyspop', 'like', "%{$fName}%");
+        }
+        if ($fName) {
+            $query->where(function ($search) use ($fName) {
+                $search->where('d.name', 'like', "%{$fName}%")
+                    ->orWhere('d.name_ua', 'like', "%{$fName}%")
+                    ->orWhere('d.name_en', 'like', "%{$fName}%")
+                    ->orWhere('d.description', 'like', "%{$fName}%")
+                    ->orWhere('d.description_ua', 'like', "%{$fName}%")
+                    ->orWhere('d.description_en', 'like', "%{$fName}%")
+                    ->orWhere('comp.htmlkeyspop', 'like', "%{$fName}%");
+            });
+        }
         if ($filterBrand)
-            $query->where('price.tgroup', $filterBrand);
+            $query->where('comp.idtype', $filterBrand);
         if ($skladNone !== '1')
             $query->where('comp.sklad', '1');
-        if ($priceFrom)
-            $query->where('price.pay', '>=', $priceFrom);
-        if ($priceTo)
-            $query->where('price.pay', '<=', $priceTo);
 
+        return $query;
+    }
+
+    // ── init: orchestrates list page data ────────────────────────────────────
+
+    public static function init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters)
+    {
+        $query = self::getListQuery($fid, $idcaption, $idglava, $filters);
 
         $total = (clone $query)->count();
-        $orderCol = match ($sort) {
-                'description' => 'comp.name',
-                'pay', 'pay1', 'oldpay', 'count' => 'price.' . $sort,
+        $hasCategorySelection = !empty($idcaption) || !empty($idglava);
+
+        if ($hasCategorySelection) {
+            $orderCol = match ($sort) {
+                'description' => 'name',
                 default => 'comp.' . $sort,
             };
-        $comps = $query->orderBy($orderCol)
-            ->offset($pos)->limit($pos2)->get();
 
+            $comps = $query->orderBy($orderCol)->offset($pos)->limit($pos2)->get();
+        } else {
+            $comps = $query
+                ->orderByDesc('comp.hit')
+                ->orderBy('name')
+                ->offset($pos)
+                ->limit($pos2)
+                ->get();
+        }
 
-        // Markup %
-        $pers = DB::table('field')
-            ->where('id', $idcaption ?: $idglava)->value('pers') ?? 0;
+        $comps = self::attachListPrices($comps, $fid);
 
-        // Catalog tree for navigation
-        $sections = DB::table('field')
-            ->where('keyfield', 'catalog')
-            ->where('firma', $fid)
-            ->orderBy('num')->get();
+        if ($hasCategorySelection && in_array($sort, ['pay', 'pay1', 'oldpay', 'count'], true)) {
+            $sortField = match ($sort) {
+                'pay' => 'price_pay',
+                'pay1' => 'price_pay1',
+                'oldpay' => 'price_oldpay',
+                'count' => 'price_count',
+            };
+
+            $comps = $comps->sortBy($sortField)->values();
+        }
+
+        $pers = Field::getPers($idcaption ?: $idglava);
+        $sections = Field::getSectionsList($fid);
+        $tops = Field::getCatalogTops($fid);
+        $subs = Field::getCatalogSubs($fid);
 
         return [
             'comps' => $comps,
             'total' => $total,
             'pers' => $pers,
             'sections' => $sections,
+            'tops' => $tops,
+            'subs' => $subs,
         ];
+    }
+
+    private static function attachListPrices($comps, $fid)
+    {
+        if ($comps->isEmpty()) {
+            return $comps;
+        }
+
+        $retailGroupId = DB::table('conf')
+            ->where('type', 'tgroup')
+            ->where('status', '1')
+            ->where(function ($query) use ($fid) {
+                $query->where('firma', $fid)
+                    ->orWhere('constanta', '1');
+            })
+            ->orderByDesc('constanta')
+            ->orderBy('id')
+            ->value('id');
+
+        $ids = $comps->pluck('id')->filter()->values();
+
+        $priceQuery = DB::table('price')
+            ->whereIn('pnum', $ids)
+            ->where('firma', $fid)
+            ->orderBy('pnum');
+
+        if ($retailGroupId !== null) {
+            $priceQuery->orderByRaw("CASE WHEN tgroup = ? THEN 0 ELSE 1 END", [$retailGroupId]);
+        }
+
+        $priceRows = $priceQuery
+            ->orderBy('id')
+            ->get()
+            ->groupBy('pnum');
+
+        return $comps->map(function ($comp) use ($priceRows) {
+            $price = $priceRows->get($comp->id)?->first();
+            $comp->price_pay = $price->pay ?? $comp->pay ?? 0;
+            $comp->price_pay1 = $price->pay1 ?? $comp->pay1 ?? 0;
+            $comp->price_oldpay = $price->oldpay ?? 0;
+            $comp->price_count = $price->count ?? 0;
+            $comp->price_sklad = $price->sklad ?? $comp->sklad ?? 0;
+            $comp->price_tgroup = $price->tgroup ?? null;
+            return $comp;
+        });
+    }
+
+    public static function attachPreferredPricesByItemFirma($comps)
+    {
+        if ($comps->isEmpty()) {
+            return $comps;
+        }
+
+        $pairs = $comps
+            ->map(fn($comp) => [
+                'id' => (string) ($comp->id ?? ''),
+                'firma' => (string) ($comp->firma ?? ''),
+            ])
+            ->filter(fn($pair) => $pair['id'] !== '' && $pair['firma'] !== '')
+            ->values();
+
+        if ($pairs->isEmpty()) {
+            return $comps->map(function ($comp) {
+                $comp->price_pay = $comp->pay ?? 0;
+                $comp->price_pay1 = $comp->pay1 ?? 0;
+                $comp->price_oldpay = $comp->oldpay ?? 0;
+                $comp->price_count = 0;
+                $comp->price_sklad = $comp->sklad ?? 0;
+                $comp->price_tgroup = null;
+                return $comp;
+            });
+        }
+
+        $firmaIds = $pairs->pluck('firma')->unique()->values();
+        $productIds = $pairs->pluck('id')->unique()->values();
+
+        $priceGroups = DB::table('conf')
+            ->where('type', 'tgroup')
+            ->whereIn('firma', $firmaIds)
+            ->orderBy('id')
+            ->get()
+            ->groupBy('firma');
+
+        $retailGroups = $priceGroups->map(function ($rows) {
+            $retail = $rows->first(fn($row) => (string) ($row->status ?? '0') === '1');
+            return $retail ? (string) $retail->id : null;
+        });
+
+        $wholesaleGroups = $priceGroups->map(function ($rows) {
+            $wholesale = $rows->first(fn($row) => (string) ($row->status ?? '0') !== '1');
+            return $wholesale ? (string) $wholesale->id : null;
+        });
+
+        $priceRows = DB::table('price')
+            ->whereIn('firma', $firmaIds)
+            ->whereIn('pnum', $productIds)
+            ->orderBy('firma')
+            ->orderBy('pnum')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn($row) => $row->firma . ':' . $row->pnum);
+
+        return $comps->map(function ($comp) use ($priceRows, $retailGroups, $wholesaleGroups) {
+            $key = ($comp->firma ?? '') . ':' . ($comp->id ?? '');
+            $rows = $priceRows->get($key, collect());
+            $retailGroupId = $retailGroups->get((string) ($comp->firma ?? ''));
+            $wholesaleGroupId = $wholesaleGroups->get((string) ($comp->firma ?? ''));
+
+            $price = $rows->first(function ($row) use ($retailGroupId) {
+                return $retailGroupId !== null && (string) $row->tgroup === (string) $retailGroupId;
+            }) ?: $rows->first();
+
+            $wholesalePrice = $rows->first(function ($row) use ($wholesaleGroupId) {
+                return $wholesaleGroupId !== null && (string) $row->tgroup === (string) $wholesaleGroupId;
+            });
+
+            $comp->price_pay = $price->pay ?? $comp->pay ?? 0;
+            $comp->price_pay1 = $price->pay1 ?? $comp->pay1 ?? 0;
+            $comp->price_oldpay = $price->oldpay ?? $comp->oldpay ?? 0;
+            $comp->price_count = $price->count ?? 0;
+            $comp->price_sklad = $price->sklad ?? $comp->sklad ?? 0;
+            $comp->price_tgroup = $price->tgroup ?? null;
+            $comp->wholesale_price = $wholesalePrice->pay ?? null;
+            $comp->wholesale_oldpay = $wholesalePrice->oldpay ?? null;
+            $comp->wholesale_from = $wholesalePrice->count ?? null;
+            $comp->wholesale_tgroup = $wholesalePrice->tgroup ?? null;
+            return $comp;
+        });
     }
 
     // ── show: load single product + related data ──────────────────────────────
 
     public static function showGoods($pnum, $fid)
     {
-        $comp = $pnum !== '0' ?self::find($pnum) : null;
-        $descript = $pnum !== '0' ?DB::table('descript')
-            ->where('pnum', $pnum)->where('firma', $fid)->first() : null;
+        $comp = $pnum !== '0' ? self::find($pnum) : null;
+        $descript = Descript::getForGoods($pnum, $fid);
 
-        // All price groups
-        $priceGroups = DB::table('conf')
-            ->where('type', 'tgroup')
-            ->where(fn($q) => $q->where('firma', $fid)->orWhere('constanta', '1'))
-            ->orderBy('name')->get();
-
-        // Prices per group for this product
-        $prices = $pnum !== '0'
-            ?DB::table('price')->where('pnum', $pnum)->where('firma', $fid)
-            ->get()->keyBy('tgroup')
-            : collect();
-
-        // Catalog sections (two-level)
-        $tops = DB::table('field')
-            ->where('idkeyfield', '')->where('keyfield', 'catalog')
-            ->where('firma', $fid)
-            ->orderBy('num')->get();
-        $subs = DB::table('field')
-            ->where('idkeyfield', '<>', '')->where('keyfield', 'catalog')
-            ->where('firma', $fid)
-            ->orderBy('num')->get()->groupBy('idkeyfield');
-
-        // News for descript 1-5
-        $news = DB::table('news')->where('firma', $fid)
-            ->orderByDesc('id')->get(['id', 'title']);
-
-        // Tags (filter params)
-        $filterTags = DB::table('conf')
-            ->where('type', 'filter')
-            ->where(fn($q) => $q->where('firma', $fid)->orWhere('constanta', '1'))
-            ->orderBy('name')->get();
+        $priceGroups = Conf::getPriceGroups($fid);
+        $prices = Price::getForGoods($pnum, $fid);
+        $tops = Field::getCatalogTops($fid);
+        $subs = Field::getCatalogSubs($fid);
+        $news = News::getLatest($fid);
+        $filterTags = Conf::getFilterTags($fid);
 
         return [
             'comp' => $comp,
@@ -138,39 +287,40 @@ class Goods extends Model
 
     // ── Web / API methods ─────────────────────────────────────────────────────
 
-    public static function getWebGoodsBySection($id, $limit, $offset)
+    public static function getWebGoodsBySection($fid, $id, $limit, $offset)
     {
         $query = self::query()
-            ->leftJoin('price', function ($join) {
-                $join->on('price.pnum', '=', 'comp.id')
-                    ->where('price.tgroup', '=', '1'); // Default retail group
+            ->leftJoin('descript as d', function ($join) {
+                $join->on('d.pnum', '=', 'comp.id')
+                    ->whereColumn('d.firma', '=', 'comp.firma');
             })
             ->where('comp.web', '1')
+            ->where('comp.firma', $fid)
             ->where(function ($q) use ($id) {
                 $q->where('comp.idcaption', $id)
-                  ->orWhere('comp.idglava', $id);
+                    ->orWhere('comp.idglava', $id);
             });
 
         $totalCount = $query->count();
 
         $goods = $query->select(
             'comp.id',
-            'comp.name',
-            'comp.name_ua',
-            'comp.name_en',
-            'comp.description',
-            'comp.description_ua',
-            'comp.description_en',
+            DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+            DB::raw('COALESCE(d.name_ua, "") as name_ua'),
+            DB::raw('COALESCE(d.name_en, "") as name_en'),
+            DB::raw('COALESCE(d.description, "") as description'),
+            DB::raw('COALESCE(d.description_ua, "") as description_ua'),
+            DB::raw('COALESCE(d.description_en, "") as description_en'),
             'comp.nfoto',
             'comp.nfoto1',
             'comp.pay',
-            DB::raw('COALESCE(price.pay, comp.pay, 0) as price'),
-            DB::raw('COALESCE(price.count, 0) as count'),
             'comp.firma'
         )
             ->offset($offset)
             ->limit($limit)
-            ->get()
+            ->get();
+
+        $goods = self::attachPreferredPricesByItemFirma($goods)
             ->map(function ($item) {
                 return [
                     'id' => $item->id,
@@ -180,9 +330,12 @@ class Goods extends Model
                     'description' => $item->description,
                     'description_ua' => $item->description_ua,
                     'description_en' => $item->description_en,
-                    'price' => (float)$item->price,
-                    'oldPrice' => (float)$item->pay,
-                    'count' => (int)$item->count,
+                    'price' => (float) ($item->price_pay ?? 0),
+                    'oldPrice' => (float) ($item->price_oldpay ?? 0),
+                    'wholesalePrice' => $item->wholesale_price !== null ? (float) $item->wholesale_price : null,
+                    'wholesaleOldPrice' => $item->wholesale_oldpay !== null ? (float) $item->wholesale_oldpay : null,
+                    'wholesaleFrom' => $item->wholesale_from !== null ? (int) $item->wholesale_from : null,
+                    'count' => (int) ($item->price_count ?? 0),
                     'image' => $item->nfoto,
                     'image_thumb' => $item->nfoto1,
                 ];
@@ -194,10 +347,72 @@ class Goods extends Model
         ];
     }
 
+    // ── getHits: paginated hit goods for API ─────────────────────────────────
+
+    public static function getHits($fid, $limit = 10, $offset = 0)
+    {
+        $hits = self::query()
+            ->leftJoin('descript as d', function ($join) {
+                $join->on('d.pnum', '=', 'comp.id')
+                    ->whereColumn('d.firma', '=', 'comp.firma');
+            })
+            ->where('comp.web', '1')
+            ->where('comp.firma', $fid)
+            ->select(
+                'comp.id',
+                DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+                DB::raw('COALESCE(d.name_ua, "") as name_ua'),
+                DB::raw('COALESCE(d.name_en, "") as name_en'),
+                DB::raw('COALESCE(d.description, "") as description'),
+                DB::raw('COALESCE(d.description_ua, "") as description_ua'),
+                DB::raw('COALESCE(d.description_en, "") as description_en'),
+                'comp.nfoto',
+                'comp.nfoto1',
+                'comp.pay',
+                'comp.firma'
+            )
+            ->orderBy('comp.hit', 'desc')
+            ->offset($offset)
+            ->limit($limit)
+            ->get();
+
+        return self::attachPreferredPricesByItemFirma($hits)
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'name_ua' => $item->name_ua,
+                    'name_en' => $item->name_en,
+                    'description' => $item->description,
+                    'description_ua' => $item->description_ua,
+                    'description_en' => $item->description_en,
+                    'price' => (float) ($item->price_pay ?? 0),
+                    'oldPrice' => (float) ($item->price_oldpay ?? 0),
+                    'wholesalePrice' => $item->wholesale_price !== null ? (float) $item->wholesale_price : null,
+                    'wholesaleOldPrice' => $item->wholesale_oldpay !== null ? (float) $item->wholesale_oldpay : null,
+                    'wholesaleFrom' => $item->wholesale_from !== null ? (int) $item->wholesale_from : null,
+                    'count' => (int) ($item->price_count ?? 0),
+                    'image' => $item->nfoto,
+                    'image_thumb' => $item->nfoto1,
+                ];
+            });
+    }
+
     // ── save: insert or update comp + prices + descript ────────────────────────
 
     public static function saveGoods($pnum, $fid, $compData, $priceRows, $descData, $fotoMap)
     {
+        foreach ([
+            'idcaption', 'idglava', 'idtype', 'firma', 'nickname', 'namedoc',
+            'garant', 'htmldescr', 'htmlkeys', 'htmlkeyspop', 'nvideo1', 'nvideo2'
+        ] as $stringField) {
+            if (!array_key_exists($stringField, $compData) || $compData[$stringField] === null) {
+                $compData[$stringField] = '';
+            } else {
+                $compData[$stringField] = (string) $compData[$stringField];
+            }
+        }
+
         // ── Price groups upsert
         foreach ($priceRows as $gid => $row) {
             $existing = DB::table('price')
@@ -207,10 +422,11 @@ class Goods extends Model
                 DB::table('price')
                     ->where('tgroup', $gid)->where('pnum', $pnum)->where('firma', $fid)
                     ->update($row);
-            }
-            else {
+            } else {
                 DB::table('price')->insert(array_merge($row, [
-                    'tgroup' => $gid, 'pnum' => $pnum, 'firma' => $fid,
+                    'tgroup' => $gid,
+                    'pnum' => $pnum,
+                    'firma' => $fid,
                 ]));
             }
         }
@@ -221,9 +437,8 @@ class Goods extends Model
         if ($pnum === '' || $pnum === '0') {
             $compData['cod'] = date('dmHis') . rand(10, 99);
             $compData['dt'] = now();
-            $pnum = (string)DB::table('comp')->insertGetId($compData);
-        }
-        else {
+            $pnum = (string) DB::table('comp')->insertGetId($compData);
+        } else {
             DB::table('comp')->where('id', $pnum)->update($compData);
         }
 
@@ -231,8 +446,7 @@ class Goods extends Model
         $hasDesc = DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->exists();
         if ($hasDesc) {
             DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->update($descData);
-        }
-        else {
+        } else {
             DB::table('descript')->insert(array_merge($descData, ['pnum' => $pnum, 'firma' => $fid]));
         }
 
@@ -247,7 +461,8 @@ class Goods extends Model
             return false; // used in documents
         }
 
-        DB::table('price')->where('cod', $cod)->update(['cod' => '']);
+        DB::table('price')->where('pnum', $id)->where('firma', $fid)->delete();
+        DB::table('descript')->where('pnum', $id)->where('firma', $fid)->delete();
         DB::table('comp')->where('id', $id)->where('firma', $fid)->delete();
 
         return true;

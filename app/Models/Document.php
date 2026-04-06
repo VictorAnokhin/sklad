@@ -24,6 +24,28 @@ class Document extends Model
             };
     }
 
+    /**
+     * Human-readable Ukrainian name for a document type code.
+     */
+    public static function typeName($doc): string
+    {
+        return match (strtoupper($doc)) {
+            'ZOUT' => 'Заказ',
+            'ZIN'  => 'Закупка',
+            'CH'   => 'Счёт',
+            'PN'   => 'Приход товара',
+            'RN'   => 'Отгрузка товара',
+            'PO'   => 'Получение средств',
+            'RO'   => 'Выдача средств',
+            'WO1'  => 'Наряд',
+            'VN'   => 'Внутренний',
+            'AO'   => 'Акт',
+            'SP'   => 'Списание',
+            'RA'   => 'Файл',
+            default => $doc,
+        };
+    }
+
     public function scopeFilter($query, $filters)
     {
         return $query->when($filters['year'] ?? null, function ($q) use ($filters) {
@@ -204,15 +226,41 @@ class Document extends Model
     {
         $table = self::tableForType($docType);
 
-        // SQL MAX() on a varchar column can sort '9' > '10'.
-        // To get numeric max, we use CAST(num AS UNSIGNED)
+        // Find max numeric 'num' for this type/firma/year
         $maxNum = DB::table($table)
             ->where('type', $docType)
             ->where('firma', $fid)
-            ->where('data', 'LIKE', "%{$year}")
+            ->where('data', 'like', '%' . $year)
             ->max(DB::raw('CAST(num AS UNSIGNED)'));
 
-        return $maxNum ? (int)$maxNum + 1 : 1;
+        return $maxNum ? (int) $maxNum + 1 : 1;
+    }
+
+    /**
+     * Auto-assign a sequential number for a new document.
+     * Called when creating a document with id=0 (new).
+     * Returns max(num) + 1 for the given type/firma/year.
+     */
+    public static function assignNextNum($docType, $fid, $year)
+    {
+        $table = self::tableForType($docType);
+
+        // Get all nums for this type/firma/year, find the true max
+        $nums = DB::table($table)
+            ->where('type', $docType)
+            ->where('firma', $fid)
+            ->where('data', 'like', '%' . $year)
+            ->pluck('num');
+
+        $maxNum = 0;
+        foreach ($nums as $n) {
+            $val = (int) filter_var($n, FILTER_VALIDATE_INT) ?: 0;
+            if ($val > $maxNum) {
+                $maxNum = $val;
+            }
+        }
+
+        return $maxNum + 1;
     }
 
 }

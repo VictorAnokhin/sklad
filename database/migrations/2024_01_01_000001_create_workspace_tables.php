@@ -16,35 +16,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // ── users ─────────────────────────────────────────────────────────────
-        Schema::create('users', function (Blueprint $t) {
-            $t->id();
-            $t->string('login')->unique();
-            $t->string('pass', 255);
-            $t->string('phone', 20)->default('');
-            $t->string('phone1', 20)->default('');
-            $t->text('name')->default('');
-            $t->text('secondname')->default('');
-            $t->text('fathername')->default('');
-            $t->text('orgname')->default('');
-            $t->string('kod1', 20)->default('');
-            $t->text('name2')->default('');
-            $t->string('city', 100)->default('');
-            $t->string('region', 100)->default('');
-            $t->string('poshta', 50)->default('');
-            $t->tinyInteger('idstatus')->default(1);
-            $t->string('fid', 20)->default('');
-            $t->string('idkassa', 20)->default('');
-            $t->string('idsklad', 20)->default('');
-            $t->string('idreestr', 20)->default('');
-            $t->string('domen', 100)->default('');
-            $t->decimal('bonus', 10, 2)->default(0);
-            $t->decimal('balans', 12, 2)->default(0);
-            $t->tinyInteger('top')->default(0);
-            $t->text('hbd')->nullable();
-            $t->rememberToken();
-        });
-
         // ── document (ZIN / ZOUT) ─────────────────────────────────────────────
         Schema::create('document', function (Blueprint $t) {
             $t->id();
@@ -274,6 +245,5 @@ return new class extends Migration
         Schema::dropIfExists('z_body');
         Schema::dropIfExists('z_document');
         Schema::dropIfExists('document');
-        Schema::dropIfExists('users');
     }
 };

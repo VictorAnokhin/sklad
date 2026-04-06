@@ -27,14 +27,20 @@ use App\Http\Controllers\KursController;
 
 // ── Auth (public) ─────────────────────────────────────────────────────────────
 Route::get('/', [AuthController::class , 'showLogin'])->name('login');
-Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
 Route::post('/login', [AuthController::class , 'login'])->name('login.post');
+Route::post('/web3/challenge', [AuthController::class , 'web3LoginChallenge'])->name('web3.challenge');
+Route::post('/web3/login', [AuthController::class , 'web3Login'])->name('web3.login');
+Route::post('/forgot-password', [AuthController::class , 'forgotPassword'])->name('password.forgot');
 Route::post('/logout', [AuthController::class , 'logout'])->name('logout');
 Route::get('/register', [AuthController::class , 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class , 'register'])->name('register.post');
 
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
+    Route::post('/wallet/challenge', [AuthController::class, 'web3LinkChallenge'])->name('wallet.challenge');
+    Route::post('/wallet/link', [AuthController::class, 'linkWallet'])->name('wallet.link');
+    Route::post('/wallet/unlink', [AuthController::class, 'unlinkWallet'])->name('wallet.unlink');
 
     // ── Documents ─────────────────────────────────────────────────────────────
     Route::prefix('document')->name('document.')->group(function () {
@@ -57,6 +63,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/', [ClientController::class , 'index'])->name('index');
             Route::get('/show', [ClientController::class , 'show'])->name('show');
             Route::get('/search', [ClientController::class , 'search'])->name('search');
+            Route::get('/{id}/orders', [ClientController::class , 'orders'])->name('orders');
             Route::post('/save', [ClientController::class , 'save'])->name('save');
             Route::post('/quick-store', [ClientController::class , 'storeQuick'])->name('quickStore');
             Route::post('/delete', [ClientController::class , 'destroy'])->name('destroy');
@@ -90,6 +97,25 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/', [SettingsController::class , 'index'])->name('index');
             Route::get('/show', [SettingsController::class , 'show'])->name('show');
             Route::post('/save', [SettingsController::class , 'save'])->name('save');
+            Route::post('/profile-update', [SettingsController::class , 'profileUpdate'])->name('profileUpdate');
+            Route::post('/password-change', [SettingsController::class , 'passwordChange'])->name('passwordChange');
+            Route::get('/firms', [SettingsController::class , 'firmsIndex'])->name('firms.index');
+            Route::get('/firms/{id}', [SettingsController::class , 'firmsShow'])->name('firms.show');
+            Route::post('/firms', [SettingsController::class , 'firmsStore'])->name('firms.store');
+            Route::put('/firms/{id}', [SettingsController::class , 'firmsUpdate'])->name('firms.update');
+            Route::delete('/firms/{id}', [SettingsController::class , 'firmsDestroy'])->name('firms.destroy');
+            Route::get('/catalog', [SettingsController::class , 'catalogIndex'])->name('catalog.index');
+            Route::get('/catalog/{id}', [SettingsController::class , 'catalogShow'])->name('catalog.show');
+            Route::post('/catalog', [SettingsController::class , 'catalogStore'])->name('catalog.store');
+            Route::put('/catalog/{id}', [SettingsController::class , 'catalogUpdate'])->name('catalog.update');
+            Route::delete('/catalog/{id}', [SettingsController::class , 'catalogDestroy'])->name('catalog.destroy');
+
+            // Async API
+            Route::get('/api/{type}', [SettingsController::class , 'apiIndex'])->name('api.index');
+            Route::get('/api/{type}/{id}', [SettingsController::class , 'apiShow'])->name('api.show');
+            Route::post('/api', [SettingsController::class , 'apiStore'])->name('api.store');
+            Route::put('/api/{id}', [SettingsController::class , 'apiUpdate'])->name('api.update');
+            Route::delete('/api/{id}', [SettingsController::class , 'apiDestroy'])->name('api.destroy');
         }
         );
 

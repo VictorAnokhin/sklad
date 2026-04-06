@@ -6,34 +6,49 @@
 
 @section('content')
 <div class="container mt-4">
+    @php
+        $selectedTop = (string)($idglava ?? '');
+        $selectedSub = (string)($idcaption ?? '');
+        $availableSubs = collect($subs[$selectedTop] ?? []);
+        $isCategoryFiltered = $selectedTop !== '' || $selectedSub !== '';
+    @endphp
+
     <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Товари ({{ $total ?? 0 }})</h2>
         <a href="{{ route('goods.show', ['pnum' => 0]) }}" class="btn btn-primary">➕ Додати</a>
     </div>
 
+    @if(!$isCategoryFiltered)
+    <div class="alert alert-info">
+        Категорії не вибрані. Показані перші 20 товарів, відсортовані за популярністю (`hit desc`).
+    </div>
+    @endif
+
     <form action="{{ route('goods.index') }}" method="GET" class="mb-3">
         <div class="row g-2 align-items-end">
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label">Пошук (назва, ключі)</label>
                 <input type="text" name="fName" class="form-control" placeholder="Назва товару..."
                     value="{{ $filters['fName'] ?? '' }}">
             </div>
             <div class="col-md-2">
-                <label class="form-label">Ціна від</label>
-                <input type="number" step="0.01" name="priceFrom" class="form-control" placeholder="0.00"
-                    value="{{ $filters['priceFrom'] ?? '' }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Ціна до</label>
-                <input type="number" step="0.01" name="priceTo" class="form-control" placeholder="0.00"
-                    value="{{ $filters['priceTo'] ?? '' }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Розділ</label>
-                <select name="idcapt" class="form-select">
+                <label class="form-label">Категорія</label>
+                <select name="igla" class="form-select" onchange="const sub=this.form.querySelector('[name=idcapt]'); if(sub){sub.value='';} this.form.submit();">
                     <option value="">— Всі —</option>
-                    @foreach($sections as $s)
-                    <option value="{{ $s->id }}" {{ ($idcaption ?? '' )==$s->id ? 'selected' : '' }}>
-                        {{ $s->val }}
+                    @foreach(($tops ?? []) as $top)
+                    <option value="{{ $top->id }}" {{ $selectedTop === (string)$top->id ? 'selected' : '' }}>
+                        {{ $top->val }}
+                    </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Підкатегорія</label>
+                <select name="idcapt" class="form-select" onchange="this.form.submit()" {{ $selectedTop === '' ? 'disabled' : '' }}>
+                    <option value="">— Всі —</option>
+                    @foreach($availableSubs as $sub)
+                    <option value="{{ $sub->id }}" {{ $selectedSub === (string)$sub->id ? 'selected' : '' }}>
+                        {{ $sub->val }}
                     </option>
                     @endforeach
                 </select>
@@ -49,7 +64,7 @@
         <div class="row g-2 mt-2">
             <div class="col-md-12 d-flex gap-2">
                 <button class="btn btn-outline-secondary" type="submit">🔍 Знайти</button>
-                <a href="{{ route('goods.index') }}?fName=&priceFrom=&priceTo=&idcapt=&skladNone="
+                <a href="{{ route('goods.index') }}?fName=&igla=&idcapt=&skladNone="
                     class="btn btn-outline-danger">✕ Скинути</a>
             </div>
         </div>
@@ -73,19 +88,19 @@
             <tbody>
                 @forelse($comps as $comp)
                 <tr>
-                    <td>{{ $comp->id }}</td>
+                    <td><a href="{{ route('goods.show', ['pnum' => $comp->id]) }}">{{ $comp->id }}</a></td>
                     <td>{{ $comp->cod }}</td>
                     <td>
                         <a href="{{ route('goods.show', ['pnum' => $comp->id]) }}">
                             {{ $comp->name ?? $comp->nickname }}
                         </a>
                     </td>
-                    <td>{{ $comp->pay }}</td>
-                    <td>{{ $comp->pay1 }}</td>
-                    <td>{{ $comp->oldpay }}</td>
-                    <td>{{ $comp->count }}</td>
-                    <td>{{ $comp->price_sklad }}</td>
-                    <td>{{ $comp->tgroup }}</td>
+                    <td>{{ number_format((float)($comp->price_pay ?? 0), 2, '.', ' ') }}</td>
+                    <td>{{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}</td>
+                    <td>{{ number_format((float)($comp->price_oldpay ?? 0), 2, '.', ' ') }}</td>
+                    <td>{{ rtrim(rtrim(number_format((float)($comp->price_count ?? 0), 3, '.', ''), '0'), '.') }}</td>
+                    <td>{{ (string)($comp->price_sklad ?? '0') === '1' ? 'Є' : 'Немає' }}</td>
+                    <td>{{ $comp->price_tgroup ?? '—' }}</td>
                 </tr>
                 @empty
                 <tr>
@@ -103,7 +118,7 @@
         $startPage = max(1, $currentPage - 1);
         $endPage = min($totalPages, $startPage + 2);
         $startPage = max(1, $endPage - 2);
-        $pageParams = array_merge($filters, ['idcapt' => $idcaption ?? '', 'sort' => $sort ?? '']);
+        $pageParams = array_merge($filters, ['igla' => $idglava ?? '', 'idcapt' => $idcaption ?? '', 'sort' => $sort ?? '']);
     @endphp
     @if($totalPages > 1)
     <nav class="mt-3">
