@@ -54,7 +54,7 @@ class ClientController extends Controller
             return response()->json([]);
 
         $fid = session('fid', '');
-        $qBase = convert_to_base($q);
+        $qBase = $q;
 
         $users = DB::table('users')
             ->where('firma', $fid)
@@ -70,12 +70,12 @@ class ClientController extends Controller
             ->map(function ($u) {
             return [
             'id' => $u->id,
-            'orgname' => convert_from_base($u->orgname),
-            'name' => convert_from_base($u->name),
-            'name2' => convert_from_base($u->name2),
-            'secondname' => convert_from_base($u->secondname),
+            'orgname' => $u->orgname,
+            'name' => $u->name,
+            'name2' => $u->name2,
+            'secondname' => $u->secondname,
             'phone' => $u->phone,
-            'city' => convert_from_base($u->city),
+            'city' => $u->city,
             ];
         });
 
@@ -189,14 +189,14 @@ class ClientController extends Controller
         $id = $request->input('id', '0');
 
         $data = [
-            'orgname' => convert_to_base($request->input('orgname', '')),
+            'orgname' => $request->input('orgname', ''),
             'kod1' => $request->input('kod1', ''),
             'mfo' => $request->input('mfo', ''),
             'ras_schet' => $request->input('ras_schet', ''),
-            'bank' => convert_to_base($request->input('bank', '')),
-            'address' => convert_to_base($request->input('address', '')),
-            'director' => convert_to_base($request->input('director', '')),
-            'buh' => convert_to_base($request->input('buh', '')),
+            'bank' => $request->input('bank', ''),
+            'address' => $request->input('address', ''),
+            'director' => $request->input('director', ''),
+            'buh' => $request->input('buh', ''),
             'firma' => $fid,
         ];
 

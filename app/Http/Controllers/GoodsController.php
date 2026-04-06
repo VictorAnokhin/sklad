@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Goods;
+use App\Models\Field;
 use App\Models\Price;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -67,7 +68,7 @@ class GoodsController extends Controller
 
         $fid = session('fid', '');
 
-        $goods = DB::table('comp')
+        $goods = Goods::query()
             ->leftJoin('price', function ($join) use ($fid) {
             $join->on('price.pnum', '=', 'comp.id')
                 ->where('price.firma', '=', $fid)
@@ -90,13 +91,102 @@ class GoodsController extends Controller
             return [
             'id' => $g->id,
             'pnum' => $g->id,
-            'name' => convert_from_base($g->name),
+            'name' => $g->name,
             'price' => (float)$g->price,
             'count' => (float)$g->count,
             ];
         });
 
         return response()->json($goods);
+    }
+
+    // ── Get Hit Goods (API) ───────────────────────────────────────────────────
+
+    public function getHits(Request $request)
+    {
+        $limit = (int)$request->input('limit', 10);
+        $offset = (int)$request->input('offset', 0);
+
+        $hits = Goods::query()
+            ->leftJoin('price', function ($join) {
+            $join->on('price.pnum', '=', 'comp.id')
+                ->where('price.tgroup', '=', '1'); // Default retail group
+        })
+
+            ->where('comp.web', '1')
+            ->select(
+            'comp.id',
+            'comp.name',
+            'comp.name_ua',
+            'comp.name_en',
+            'comp.description',
+            'comp.description_ua',
+            'comp.description_en',
+            'comp.nfoto',
+            'comp.nfoto1',
+            'comp.pay',
+            DB::raw('COALESCE(price.pay, comp.pay, 0) as price'),
+            DB::raw('COALESCE(price.count, 0) as count'),
+            'comp.firma'
+        )
+            ->orderBy('comp.hit', 'desc')
+            ->offset($offset)
+            ->limit($limit)
+            ->get()
+            ->map(function ($item) {
+            return [
+            'id' => $item->id,
+            'name' => $item->name,
+            'name_ua' => $item->name_ua,
+            'name_en' => $item->name_en,
+            'description' => $item->description,
+            'description_ua' => $item->description_ua,
+            'description_en' => $item->description_en,
+            'price' => (float)$item->price,
+            'oldPrice' => (float)$item->pay,
+            'count' => (int)$item->count,
+            'image' => $item->nfoto,
+            'image_thumb' => $item->nfoto1,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $hits,
+            'limit' => $limit,
+            'offset' => $offset,
+        ]);
+
+    }
+
+    // ── Get Sections (API) ────────────────────────────────────────────────────
+
+    public function getSections(Request $request)
+    {
+        $tree = Field::getCatalogTree();
+
+        return response()->json([
+            'success' => true,
+            'data' => $tree,
+        ]);
+    }
+
+    // ── Get Goods By Section (API) ────────────────────────────────────────────
+
+    public function getBySection(Request $request, $id)
+    {
+        $limit = (int)$request->input('limit', 20);
+        $offset = (int)$request->input('offset', 0);
+
+        $result = Goods::getWebGoodsBySection($id, $limit, $offset);
+
+        return response()->json([
+            'success' => true,
+            'data' => $result['goods'],
+            'total' => $result['total'],
+            'limit' => $limit,
+            'offset' => $offset,
+        ]);
     }
 
     // ── Show / edit ───────────────────────────────────────────────────────────
@@ -168,29 +258,29 @@ class GoodsController extends Controller
             'constanta' => (int)$request->input('constanta', 0),
             'top' => (int)$request->input('top', 0),
             'firma' => $request->input('firma', $fid),
-            'nickname' => convert_to_base($request->input('nickname', '')),
-            'namedoc' => convert_to_base($request->input('name_doc', '')),
+            'nickname' => $request->input('nickname', ''),
+            'namedoc' => $request->input('name_doc', ''),
             'pay1' => (float)$request->input('pay1', 0),
             'pay' => (float)$request->input('pay', 0),
             'profitpay' => (float)$request->input('profitpay', 0),
             'sklad' => (int)$request->input('sklad', 0),
             'garant' => $request->input('garant', ''),
-            'htmldescr' => convert_to_base($request->input('htmldescr', '')),
-            'htmlkeys' => convert_to_base($request->input('htmlkeys', '')),
-            'htmlkeyspop' => convert_to_base($request->input('htmlkeyspop', '')),
+            'htmldescr' => $request->input('htmldescr', ''),
+            'htmlkeys' => $request->input('htmlkeys', ''),
+            'htmlkeyspop' => $request->input('htmlkeyspop', ''),
             'nvideo1' => $request->input('video1', ''),
             'nvideo2' => $request->input('video2', ''),
         ];
 
         // ── Descript data
         $descData = [
-            'name' => convert_to_base($request->input('name_client_ru', '')),
-            'name_ua' => convert_to_base($request->input('name_client_ua', '')),
-            'name_en' => convert_to_base($request->input('name_client_en', '')),
-            'description' => convert_to_base($request->input('description_ru', '')),
-            'description_ua' => convert_to_base($request->input('description_ua', '')),
-            'description_en' => convert_to_base($request->input('description_en', '')),
-            'web' => convert_to_base($request->input('web', '0')),
+            'name' => $request->input('name_client_ru', ''),
+            'name_ua' => $request->input('name_client_ua', ''),
+            'name_en' => $request->input('name_client_en', ''),
+            'description' => $request->input('description_ru', ''),
+            'description_ua' => $request->input('description_ua', ''),
+            'description_en' => $request->input('description_en', ''),
+            'web' => $request->input('web', '0'),
             'descript' => $request->input('descript', 0),
             'descript2' => $request->input('descript2', 0),
             'descript3' => $request->input('descript3', 0),

@@ -104,7 +104,7 @@ class Document extends Model
         foreach ($rows as $row) {
             $statusId = $row->status ?? '';
             $conf = $confMap[$statusId] ?? null;
-            $statusName = $conf ? h(convert_from_base($conf->name)) : '';
+            $statusName = $conf ? h($conf->name) : '';
             $color = h($conf->color ?? '');
 
             $summa = (float)$row->summa;
@@ -113,31 +113,31 @@ class Document extends Model
 
             $year = strlen((string)($row->data ?? '')) >= 10 ? substr((string)$row->data, 6, 4) : date('Y');
 
-            $content = h(convert_from_base($row->content ?? ''));
+            $content = h($row->content ?? '');
             if ($row->ttn) {
                 $content .= '<br>НП:' . h($row->ttn);
             }
 
-            $orgname = h(convert_from_base($row->orgname ?? ''));
+            $orgname = h($row->orgname ?? '');
             $kod1 = h($row->kod1 ?? '');
             $org = $orgname ? "{$orgname}, {$kod1}" : '';
 
             $fullName = h(trim(
-                convert_from_base($row->secondname ?? '') . ' '
-                . convert_from_base($row->name ?? '') . ' '
-                . convert_from_base($row->fathername ?? '')
+                ($row->secondname ?? '') . ' '
+                . ($row->name ?? '') . ' '
+                . ($row->fathername ?? '')
             ));
 
-            $city = h(convert_from_base($row->city ?? ''));
+            $city = h($row->city ?? '');
             $poshta = $row->poshta ? 'НП ' . h($row->poshta) : '';
             $phone = h(formatPhone((string)($row->phone ?? '')));
-            $manager = h(strtolower(convert_from_base($row->manager ?? '')));
+            $manager = h(strtolower($row->manager ?? ''));
 
             $signal = ($statusName === '' && $doc === 'ZOUT') ? "<span class='alink3'>new</span>" : '';
 
             // sklads name (used in index view)
             $skladsConf = $confMap[$row->sklads ?? ''] ?? null;
-            $skladsName = $skladsConf ? h(convert_from_base($skladsConf->name)) : '';
+            $skladsName = $skladsConf ? h($skladsConf->name) : '';
 
             // top rating (used in index view)
             $top = (int)($row->top ?? 0);

@@ -136,6 +136,64 @@ class Goods extends Model
         ];
     }
 
+    // ── Web / API methods ─────────────────────────────────────────────────────
+
+    public static function getWebGoodsBySection($id, $limit, $offset)
+    {
+        $query = self::query()
+            ->leftJoin('price', function ($join) {
+                $join->on('price.pnum', '=', 'comp.id')
+                    ->where('price.tgroup', '=', '1'); // Default retail group
+            })
+            ->where('comp.web', '1')
+            ->where(function ($q) use ($id) {
+                $q->where('comp.idcaption', $id)
+                  ->orWhere('comp.idglava', $id);
+            });
+
+        $totalCount = $query->count();
+
+        $goods = $query->select(
+            'comp.id',
+            'comp.name',
+            'comp.name_ua',
+            'comp.name_en',
+            'comp.description',
+            'comp.description_ua',
+            'comp.description_en',
+            'comp.nfoto',
+            'comp.nfoto1',
+            'comp.pay',
+            DB::raw('COALESCE(price.pay, comp.pay, 0) as price'),
+            DB::raw('COALESCE(price.count, 0) as count'),
+            'comp.firma'
+        )
+            ->offset($offset)
+            ->limit($limit)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'name_ua' => $item->name_ua,
+                    'name_en' => $item->name_en,
+                    'description' => $item->description,
+                    'description_ua' => $item->description_ua,
+                    'description_en' => $item->description_en,
+                    'price' => (float)$item->price,
+                    'oldPrice' => (float)$item->pay,
+                    'count' => (int)$item->count,
+                    'image' => $item->nfoto,
+                    'image_thumb' => $item->nfoto1,
+                ];
+            });
+
+        return [
+            'goods' => $goods,
+            'total' => $totalCount,
+        ];
+    }
+
     // ── save: insert or update comp + prices + descript ────────────────────────
 
     public static function saveGoods($pnum, $fid, $compData, $priceRows, $descData, $fotoMap)

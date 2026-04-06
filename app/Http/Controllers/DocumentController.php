@@ -109,7 +109,7 @@ class DocumentController extends Controller
             ->orderBy('zb.id')
             ->get()
             ->map(function ($item) {
-            $item->name = convert_from_base((string)$item->name);
+            $item->name = (string)$item->name;
             return $item;
         });
 
@@ -188,8 +188,8 @@ class DocumentController extends Controller
                 'numz' => $numz,
                 'typez' => $typez,
                 'docid' => in_array($docType, ['ZIN', 'ZOUT'], true) ? 0 : $docid,
-                'manager' => convert_to_base(session('login', '')),
-                'user' => convert_to_base(session('login', '')),
+                'manager' => session('login', ''),
+                'user' => session('login', ''),
                 'dostup' => 1,
                 'work' => session('work', '1'),
             ]);

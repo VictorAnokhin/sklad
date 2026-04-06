@@ -38,7 +38,7 @@ class DocumentService
             'reestr' => $request->input('reestr', ''),
             'docum' => $request->input('docum', ''),
             'typeproduct' => $request->input('typeproduct', ''),
-            'manager' => convert_to_base($request->input('manager', session('login', ''))),
+            'manager' => $request->input('manager', session('login', '')),
             'money' => $request->input('money', ''),
             'bonus' => (float)$request->input('bonus', 0),
             'sms_flag' => $request->input('sms_flag', '0'),
@@ -142,7 +142,7 @@ class DocumentService
         $sklads = (string)$doc->sklads;
         $oplata = (string)$doc->oplata;
         $client1 = (string)$doc->client1;
-        $manager = convert_from_base($doc->manager ?? '');
+        $manager = $doc->manager ?? '';
         $numz = (string)$doc->numz;
         $typez = (string)$doc->typez;
 

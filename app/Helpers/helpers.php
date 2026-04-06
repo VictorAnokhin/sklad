@@ -18,28 +18,7 @@ if (!function_exists('h')) {
     }
 }
 
-// ── Encoding ──────────────────────────────────────────────────────────────────
-// Legacy DB stored strings as base64(windows-1251). New rows → UTF-8.
 
-if (!function_exists('convert_from_base')) {
-    function convert_from_base(mixed $str): string
-    {
-        if ($str === null || $str === '') return '';
-        $decoded = base64_decode((string)$str, true);
-        if ($decoded === false) return (string)$str;
-        if (mb_detect_encoding($decoded, ['UTF-8'], true) === false) {
-            return mb_convert_encoding($decoded, 'UTF-8', 'windows-1251');
-        }
-        return $decoded;
-    }
-}
-
-if (!function_exists('convert_to_base')) {
-    function convert_to_base(string $str): string
-    {
-        return base64_encode($str);
-    }
-}
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 

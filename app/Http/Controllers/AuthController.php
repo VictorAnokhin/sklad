@@ -78,8 +78,8 @@ class AuthController extends Controller
             'domen' => $user->domen,
             'bonus' => $user->bonus,
             'balans' => $user->balans,
-            'name1' => convert_from_base($user->name),
-            'fname' => convert_from_base($user->fathername),
+            'name1' => $user->name,
+            'fname' => $user->fathername,
             'login' => $user->login,
             // navigation / filter defaults
         ]);
@@ -145,8 +145,8 @@ class AuthController extends Controller
             'domen' => $user->domen,
             'bonus' => $user->bonus,
             'balans' => $user->balans,
-            'name1' => convert_from_base($user->name),
-            'fname' => convert_from_base($user->fathername),
+            'name1' => $user->name,
+            'fname' => $user->fathername,
             'login' => $user->login,
             // navigation / filter defaults
         ]);

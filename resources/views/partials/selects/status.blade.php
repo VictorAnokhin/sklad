@@ -10,7 +10,7 @@
   @foreach($rows as $row)
     <option value="{{ $row->id }}" style="background:{{ $row->color ?? '' }}"
       {{ (string)$row->id === (string)($selected ?? '') ? 'selected' : '' }}>
-      {{ convert_from_base($row->name) }}
+      {{ $row->name }}
     </option>
   @endforeach
 </select>
