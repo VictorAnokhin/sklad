@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Money — cash documents from z_document
@@ -172,5 +173,71 @@ class Money extends Model
             ->where('firma', $fid)
             ->whereIn('type', ['PO', 'RO'])
             ->delete();
+    }
+
+    // ── provodka ─────────────────────────────────────────────────────────────
+
+    public static function provodka(int $id, string $fid): array
+    {
+        $doc = DB::table('z_document')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->whereIn('type', ['PO', 'RO'])
+            ->first();
+
+        if (!$doc) {
+            return [
+                'document' => null,
+                'isPosted' => false,
+            ];
+        }
+
+        $confColumns = Schema::getColumnListing('conf');
+        $wasPosted = (int) ($doc->provodka ?? 0) === 1;
+
+        if (!in_array('value', $confColumns, true)) {
+            return [
+                'document' => $doc,
+                'isPosted' => $wasPosted,
+            ];
+        }
+
+        $sign = $doc->type === 'RO' ? -1 : 1;
+        $direction = $wasPosted ? -1 : 1;
+        $delta = $sign * (float) ($doc->summa ?? 0) * $direction;
+        $moneyId = (string) ($doc->money ?? '');
+
+        DB::transaction(function () use ($moneyId, $fid, $delta, $id, $wasPosted) {
+            if ($moneyId !== '') {
+                $currentValue = (float) DB::table('conf')
+                    ->where('id', $moneyId)
+                    ->where('type', 'oplata')
+                    ->where('firma', $fid)
+                    ->value('value');
+
+                DB::table('conf')
+                    ->where('id', $moneyId)
+                    ->where('type', 'oplata')
+                    ->where('firma', $fid)
+                    ->update(['value' => $currentValue + $delta]);
+            }
+
+            DB::table('z_document')
+                ->where('id', $id)
+                ->where('firma', $fid)
+                ->whereIn('type', ['PO', 'RO'])
+                ->update(['provodka' => $wasPosted ? 0 : 1]);
+        });
+
+        $fresh = DB::table('z_document')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->whereIn('type', ['PO', 'RO'])
+            ->first();
+
+        return [
+            'document' => $fresh,
+            'isPosted' => !$wasPosted,
+        ];
     }
 }

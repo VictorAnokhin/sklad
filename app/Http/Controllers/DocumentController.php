@@ -9,6 +9,7 @@ use App\Models\Docs;
 use App\Services\FilterService;
 use App\Services\DocumentService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -304,6 +305,30 @@ class DocumentController extends Controller
         $oplataList = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
         $reestrList = DB::table('conf')->where('type', 'reestr')->where('firma', $fid)->orderBy('name')->get();
         $skladsList = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
+        $myCompanies = collect();
+
+        if ($doc === 'CH') {
+            $authUser = Auth::user();
+            if (!$authUser) {
+                $login = session('login', '');
+                if ($login !== '') {
+                    $authUser = DB::table('users')->where('login', $login)->first();
+                }
+            }
+
+            if ($authUser) {
+                $myCompanies = DB::table('firma')
+                    ->where(function ($query) use ($authUser) {
+                        $query->where('userid', $authUser->id);
+
+                        if (!empty($authUser->firma ?? null)) {
+                            $query->orWhere('firma', $authUser->firma);
+                        }
+                    })
+                    ->orderBy('id')
+                    ->get();
+            }
+        }
 
         // Related documents (legacy client_info / client_info1)
         $clientId = $document->client1 ?? 0;
@@ -352,15 +377,92 @@ class DocumentController extends Controller
         return view('document.show', compact(
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'skladsList',
-            'documentIndexUrl', 'parentDocumentUrl', 'parentDocument'
+            'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies'
         ));
+    }
+
+    public function print(Request $request)
+    {
+        $doc = (string) $request->input('doc', session('doc', ''));
+        $docId = (string) $request->input('doc_id', session('doc_id', '0'));
+        $fid = (string) session('fid', '');
+
+        if (!in_array($doc, ['CH', 'RN'], true)) {
+            return redirect()->route('document.show', [
+                'doc' => $doc,
+                'doc_id' => $docId,
+                'num' => $request->input('num', session('num', '0')),
+                'year' => $request->input('year', session('year', date('Y'))),
+            ])->with('error', 'Печать доступна тільки для документів CH та RN');
+        }
+
+        $table = Document::tableForType($doc);
+        $document = DB::table($table)
+            ->where('id', $docId)
+            ->where('firma', $fid)
+            ->first();
+
+        if (!$document) {
+            return redirect()->route('document.index', ['doc' => $doc])
+                ->with('error', 'Документ для друку не знайдено');
+        }
+
+        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT'], true)
+            ? $docId
+            : ($document->docid ?: $docId);
+
+        $lineItems = ZBody::from('z_body as zb')
+            ->leftJoin('comp as c', function ($join) {
+                $join->on('zb.pnum', '=', 'c.id')
+                    ->on('zb.firma', '=', 'c.firma');
+            })
+            ->where('zb.docid', $docIdToFind)
+            ->select('zb.*', 'c.name as name')
+            ->orderBy('zb.id')
+            ->get();
+
+        $client = $document->client1
+            ? DB::table('users')->where('id', $document->client1)->first()
+            : null;
+
+        $firma = null;
+        $selectedFirmaId = (int) ($document->schet ?? 0);
+
+        if ($selectedFirmaId > 0) {
+            $firma = DB::table('firma')->where('id', $selectedFirmaId)->first();
+        }
+
+        if (!$firma) {
+            $firma = DB::table('firma')
+                ->where(function ($query) use ($fid) {
+                    $query->where('id', $fid)
+                        ->orWhere('firma', $fid);
+                })
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        $docTitle = $doc === 'RN'
+            ? 'Видаткова накладна'
+            : Document::typeName($doc);
+        $itemsTitle = $doc === 'RN' ? 'Позиції накладної' : 'Позиції рахунку';
+        $skladName = '';
+
+        if (!empty($document->sklads)) {
+            $skladName = (string) DB::table('conf')
+                ->where('id', $document->sklads)
+                ->where('type', 'sklads')
+                ->value('name');
+        }
+
+        return view('document.print_ch', compact('document', 'lineItems', 'client', 'firma', 'docTitle', 'itemsTitle', 'skladName'));
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────
 
     public function save(Request $request)
     {
-        $doc = session('doc', '');
+        $doc = (string) $request->input('doc', session('doc', ''));
         $fid = session('fid', '');
         $year = session('year', date('Y'));
         $run = $request->input('run', '');
@@ -447,7 +549,8 @@ class DocumentController extends Controller
 
         // ── Save / Зберегти ───────────────────────────────────────────────────
         if (in_array($run, ['Зберегти', 'Save', 'Сохранить'], true)) {
-            $docId = session('doc_id', '0');
+            $docId = (string) $request->input('doc_id', session('doc_id', '0'));
+            session(['doc' => $doc, 'doc_id' => $docId]);
             $this->docService->saveHead($request, $docId, $doc, $fid);
             $this->docService->saveBody($request, $docId, $doc, $fid);
             return redirect()->back()->with('success', 'Збережено');
@@ -462,9 +565,10 @@ class DocumentController extends Controller
     {
         $docId = $request->input('doc_id', session('doc_id', '0'));
         $doc = $request->input('doc', session('doc', ''));
-        $table = Document::tableForType($doc);
-        $document = DB::table($table)->where('id', $docId)->first();
-        $isPosted = $this->docService->provodka($request);
+        $fid = (string) session('fid', '');
+        $result = Document::provodka($docId, $doc, $fid);
+        $document = $result['document'] ?? null;
+        $isPosted = (bool) ($result['isPosted'] ?? false);
         if (!$document) {
             return redirect()->route('document.index', ['doc' => $doc])
                 ->with('success', $isPosted ? 'Проводку виконано' : 'Проводку скасовано');

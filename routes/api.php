@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GoodsController;
+use App\Http\Controllers\NewsController;
 use App\Http\Controllers\ZakazController;
 
 /*
@@ -28,6 +29,11 @@ Route::get('/goods/search', [GoodsController::class, 'searchWeb']);
 Route::get('/goods/hits', [GoodsController::class, 'getHits']);
 Route::get('/goods/sections', [GoodsController::class, 'getSections']);
 Route::get('/goods/section/{id}', [GoodsController::class, 'getBySection']);
+
+// ── News API ──────────────────────────────────────────────────────────────
+
+Route::get('/news', [NewsController::class, 'apiIndex']);
+Route::get('/news/{id}', [NewsController::class, 'apiShow']);
 
 // ── Orders (Zakaz) API ─────────────────────────────────────────────────────
 

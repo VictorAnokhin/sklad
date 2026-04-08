@@ -6,6 +6,7 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\MoneyController;
+use App\Http\Controllers\NewsController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\FilterController;
 use App\Http\Controllers\KursController;
@@ -46,6 +47,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('document')->name('document.')->group(function () {
             Route::get('/', [DocumentController::class , 'index'])->name('index');
             Route::get('/show', [DocumentController::class , 'show'])->name('show');
+            Route::get('/print', [DocumentController::class , 'print'])->name('print');
             Route::post('/save', [DocumentController::class , 'save'])->name('save');
             Route::post('/delete', [DocumentController::class , 'destroy'])->name('destroy');
             Route::post('/provodka', [DocumentController::class , 'provodka'])->name('provodka');
@@ -88,9 +90,18 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/', [MoneyController::class , 'index'])->name('index');
             Route::get('/show', [MoneyController::class , 'show'])->name('show');
             Route::post('/save', [MoneyController::class , 'save'])->name('save');
+            Route::post('/provodka', [MoneyController::class , 'provodka'])->name('provodka');
             Route::post('/delete', [MoneyController::class , 'destroy'])->name('destroy');
         }
         );
+
+        Route::prefix('news')->name('news.')->group(function () {
+            Route::get('/', [NewsController::class, 'index'])->name('index');
+            Route::get('/show', [NewsController::class, 'show'])->name('show');
+            Route::get('/edit', [NewsController::class, 'edit'])->name('edit');
+            Route::post('/save', [NewsController::class, 'save'])->name('save');
+            Route::post('/delete', [NewsController::class, 'destroy'])->name('destroy');
+        });
 
         // ── Settings ─────────────────────────────────────────────────────────────────
         Route::prefix('settings')->name('settings.')->group(function () {

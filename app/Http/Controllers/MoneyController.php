@@ -88,4 +88,27 @@ class MoneyController extends Controller
 
         return redirect()->route('money.index')->with('error', 'Помилка видалення');
     }
+
+    public function provodka(Request $request)
+    {
+        $fid = session('fid', '');
+        $id = (int) $request->input('id', 0);
+
+        if ($id <= 0) {
+            return redirect()->route('money.index')->with('error', 'Документ не знайдено');
+        }
+
+        $result = Money::provodka($id, $fid);
+        $document = $result['document'] ?? null;
+        $isPosted = (bool) ($result['isPosted'] ?? false);
+
+        if (!$document) {
+            return redirect()->route('money.index')->with('error', 'Документ не знайдено');
+        }
+
+        return redirect()->route('money.show', [
+            'id' => $document->id,
+            'type' => $document->type,
+        ])->with('success', $isPosted ? 'Проводку виконано' : 'Проводку скасовано');
+    }
 }

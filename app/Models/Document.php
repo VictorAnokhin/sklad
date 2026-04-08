@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class Document extends Model
 {
@@ -261,6 +263,242 @@ class Document extends Model
         }
 
         return $maxNum + 1;
+    }
+
+    public static function provodka(string $docId, string $docType, string $fid): array
+    {
+        $table = self::tableForType($docType);
+        $doc = DB::table($table)->where('id', $docId)->first();
+
+        if (!$doc) {
+            return [
+                'isPosted' => false,
+                'document' => null,
+            ];
+        }
+
+        $lineItems = ZBody::where('docid', $docId)->get();
+        $summa = (float) $doc->summa;
+        $oplata = (string) $doc->oplata;
+        $client1 = (string) $doc->client1;
+        $numz = (string) $doc->numz;
+        $typez = (string) $doc->typez;
+        $parentDocId = (int) ($doc->docid ?? 0);
+        $wasPosted = (int) ($doc->provodka ?? 0) === 1;
+        $direction = $wasPosted ? -1 : 1;
+
+        DB::beginTransaction();
+        try {
+            foreach ($lineItems as $item) {
+                $pnum = $item->pnum;
+                $count = (float) $item->pcount;
+
+                $priceQuery = DB::table('price')
+                    ->where('pnum', $pnum)
+                    ->where('firma', $fid);
+
+                match ($docType) {
+                    'PN' => self::applyColumnDelta(clone $priceQuery, 'count', $direction * $count),
+                    'RN', 'WO1' => self::applyColumnDelta(clone $priceQuery, 'count', -1 * $direction * $count),
+                    'ZOUT' => self::applyColumnDelta(clone $priceQuery, 'reserved', $direction * $count),
+                    'VN' => self::applyColumnDelta(clone $priceQuery, 'count', $direction * $count),
+                    'AO' => self::applyColumnDelta(clone $priceQuery, 'count', -1 * $direction * $count),
+                    default => null,
+                };
+            }
+
+            if (in_array($docType, ['PO', 'RO', 'PP'], true)) {
+                $sign = $docType === 'RO' ? -1 : 1;
+                $kasId = $oplata;
+                $confColumns = Schema::getColumnListing('conf');
+                $delta = $sign * $summa * $direction;
+
+                if (in_array($docType, ['PO', 'RO'], true) && in_array('value', $confColumns, true)) {
+                    $currentValue = (float) DB::table('conf')
+                        ->where('id', $kasId)
+                        ->where('type', 'oplata')
+                        ->where('firma', $fid)
+                        ->value('value');
+
+                    DB::table('conf')
+                        ->where('id', $kasId)
+                        ->where('type', 'oplata')
+                        ->where('firma', $fid)
+                        ->update(['value' => $currentValue + $delta]);
+                } else {
+                    self::applyColumnDelta(
+                        DB::table('kassa')->where('id', $kasId),
+                        'balance',
+                        $delta
+                    );
+                }
+            }
+
+            DB::table($table)->where('id', $docId)->update(['provodka' => $wasPosted ? 0 : 1]);
+
+            self::refreshLinkedOrderCloseState($docType, $typez, $numz, $parentDocId, $fid);
+            self::refreshLinkedOrderPostingState($docType, $typez, $numz, $parentDocId, $fid);
+            if ($client1 !== '') {
+                self::updateCache($client1, $fid);
+            }
+
+            DB::commit();
+
+            return [
+                'isPosted' => !$wasPosted,
+                'document' => DB::table($table)->where('id', $docId)->first(),
+            ];
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Provodka failed', ['docId' => $docId, 'error' => $e->getMessage()]);
+            throw $e;
+        }
+    }
+
+    private static function refreshLinkedOrderCloseState(string $docType, string $typez, string $numz, int $parentDocId, string $fid): void
+    {
+        if ($docType !== 'PO') {
+            return;
+        }
+
+        if ($parentDocId <= 0 && $typez !== 'ZOUT') {
+            return;
+        }
+
+        $zout = $parentDocId > 0
+            ? DB::table('document')
+                ->where('id', $parentDocId)
+                ->where('type', 'ZOUT')
+                ->where('firma', $fid)
+                ->first()
+            : null;
+
+        if (!$zout && $numz !== '0') {
+            $zout = DB::table('document')
+                ->where('num', $numz)
+                ->where('type', 'ZOUT')
+                ->where('firma', $fid)
+                ->first();
+        }
+
+        if (!$zout) {
+            return;
+        }
+
+        $paidQuery = DB::table('z_document')
+            ->where('type', 'PO')
+            ->where('firma', $fid)
+            ->where('provodka', 1);
+
+        if ($parentDocId > 0) {
+            $paidQuery->where('docid', $zout->id);
+        } else {
+            $paidQuery
+                ->where('numz', $numz)
+                ->where('typez', 'ZOUT');
+        }
+
+        $paid = (float) $paidQuery->sum('summa');
+
+        DB::table('document')
+            ->where('id', $zout->id)
+            ->update(['close' => $paid >= (float) $zout->summa ? 1 : 0]);
+    }
+
+    private static function refreshLinkedOrderPostingState(string $docType, string $typez, string $numz, int $parentDocId, string $fid): void
+    {
+        if (!in_array($docType, ['RN', 'PO'], true)) {
+            return;
+        }
+
+        if ($parentDocId <= 0 && $typez !== 'ZOUT') {
+            return;
+        }
+
+        $zout = $parentDocId > 0
+            ? DB::table('document')
+                ->where('id', $parentDocId)
+                ->where('type', 'ZOUT')
+                ->where('firma', $fid)
+                ->first()
+            : null;
+
+        if (!$zout && $numz !== '0') {
+            $zout = DB::table('document')
+                ->where('num', $numz)
+                ->where('type', 'ZOUT')
+                ->where('firma', $fid)
+                ->first();
+        }
+
+        if (!$zout) {
+            return;
+        }
+
+        $postedChildrenBase = DB::table('z_document')
+            ->where('firma', $fid)
+            ->where('provodka', 1);
+
+        if ($parentDocId > 0) {
+            $postedChildrenBase->where('docid', $zout->id);
+        } else {
+            $postedChildrenBase
+                ->where('numz', $numz)
+                ->where('typez', 'ZOUT');
+        }
+
+        $hasPostedRn = (clone $postedChildrenBase)
+            ->where('type', 'RN')
+            ->exists();
+
+        $hasPostedPo = (clone $postedChildrenBase)
+            ->where('type', 'PO')
+            ->exists();
+
+        if ($hasPostedRn || $hasPostedPo) {
+            DB::table('document')
+                ->where('id', $zout->id)
+                ->update(['provodka' => 1]);
+            return;
+        }
+
+        if (!$hasPostedRn && !$hasPostedPo) {
+            DB::table('document')
+                ->where('id', $zout->id)
+                ->update(['provodka' => 0]);
+        }
+    }
+
+    private static function updateCache(string $userId, string $fid): void
+    {
+        $zout = DB::table('document')
+            ->where('client1', $userId)->where('firma', $fid)
+            ->where('type', 'ZOUT')->sum('summa');
+        $paid = DB::table('z_document')
+            ->where('client1', $userId)->where('firma', $fid)
+            ->where('type', 'PO')->where('provodka', 1)->sum('summa');
+        $balance = (float) $paid - (float) $zout;
+
+        DB::table('users_cashe')->updateOrInsert(
+            ['userid' => $userId],
+            [
+                'balance' => $balance,
+                'firma' => (int) $fid,
+                'user_id' => (int) $userId,
+            ]
+        );
+    }
+
+    private static function applyColumnDelta($query, string $column, float $delta): void
+    {
+        if ($delta > 0) {
+            $query->increment($column, $delta);
+            return;
+        }
+
+        if ($delta < 0) {
+            $query->decrement($column, abs($delta));
+        }
     }
 
 }

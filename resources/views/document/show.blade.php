@@ -133,6 +133,19 @@
                             @endforeach
                         </select>
                     </div>
+                    @if($doc === 'CH')
+                    <div class="col-f">
+                        <label>Компанія</label>
+                        <select name="schet" class="form-select">
+                            <option value="">—</option>
+                            @foreach(($myCompanies ?? collect()) as $company)
+                            <option value="{{ $company->id }}" {{ (string)($document->schet ?? '') === (string)$company->id ? 'selected' : '' }}>
+                                {{ $company->name }}
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @endif
                     @endif
                 </div>
 
@@ -224,17 +237,19 @@
                                 <input type="hidden" name="name[]" value="{{ $item->name ?? '' }}">
                                 <input type="text" class="form-control form-control-sm" value="{{ $item->name ?? '' }}" readonly>
                             </td>
-                            <td><input type="number" step="0.001" name="pcount[]"
+                            <td><input type="number" step="1" name="pcount[]" style="width:80px;"
                                     class="form-control form-control-sm goods-count" value="{{ $item->pcount }}"></td>
-                            <td><input type="number" step="0.01" name="pprice[]"
+                            <td><input type="string" name="pprice[]"
                                     class="form-control form-control-sm goods-price" value="{{ $item->pprice }}"></td>
-                            <td><input type="number" step="0.01" name="psumma[]" class="form-control form-control-sm goods-sum"
+                            <td><input type="string" name="psumma[]" class="form-control form-control-sm goods-sum"
                                     value="{{ $item->psumma }}"></td>
                             <td class="text-center">
+                            @if(intval($document->provodka) === 0)
                                 <button type="submit" name="bid" value="{{ $item->id }}"
                                     formaction="{{ route('document.body.delete') }}" class="btn btn-sm btn-outline-danger"
                                     style="padding:1px 6px; font-size:0.8rem;"
                                     title="Видалити" onclick="return confirm('Видалити цей товар?');">❌</button>
+                            @endif
                             </td>
                         </tr>
                         @endforeach
@@ -249,7 +264,17 @@
 
                 {{-- Action buttons (inside form) --}}
                 <div class="doc-actions">
-                    <button type="submit" name="run" value="Зберегти" class="btn btn-primary">💾 Зберегти</button>
+                    @if(intval($document->provodka) === 0)
+                        <button type="submit"  name="run" value="Зберегти" class="btn btn-primary">💾 Зберегти</button>
+                    @endif
+                    @if(in_array($doc, ['CH', 'RN'], true))
+                    <a href="{{ route('document.print', ['doc' => $doc, 'doc_id' => $document->id, 'num' => $document->num, 'year' => $year]) }}"
+                        class="btn btn-outline-secondary"
+                        target="_blank"
+                        rel="noopener noreferrer">
+                        Печать
+                    </a>
+                    @endif
                     @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'VN', 'AO', 'WO1'], true))
                     <button type="submit"
                         formaction="{{ route('document.provodka') }}"
@@ -258,8 +283,11 @@
                         {{ (int)($document->provodka ?? 0) === 1 ? '↺ Скасувати проводку' : 'Провести' }}
                     </button>
                     @endif
+                    @if(intval($document->provodka) === 0)
                     <button type="button" class="btn btn-outline-danger"
-                        onclick="if(confirm('Видалити документ та всі товари?')) { document.getElementById('deleteDocForm').submit(); }">🗑 Видалити</button>
+                        onclick="if(confirm('Видалити документ та всі товари?')) { document.getElementById('deleteDocForm').submit(); }" >🗑 Видалити
+                        </button>
+                    @endif
                 </div>
             </div>
 

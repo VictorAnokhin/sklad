@@ -88,6 +88,15 @@
             <div style="width: 80%; align-items: left;">
                 <a href="{{ route('money.index') }}" class="btn" style="width: 20%;">← Назад</a>
                 <button type="submit" class="btn" style="width: 30%;">💾 Зберегти</button>
+                @if(!$isNew)
+                <button type="submit"
+                    formaction="{{ route('money.provodka') }}"
+                    formmethod="post"
+                    class="btn {{ (int)($document->provodka ?? 0) === 1 ? 'btn-success' : 'btn-warning' }}"
+                    style="width: 34%;">
+                    {{ (int)($document->provodka ?? 0) === 1 ? '↺ Скасувати проводку' : 'Провести' }}
+                </button>
+                @endif
 
             </div>
             <div style="width: 20%;">

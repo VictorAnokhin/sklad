@@ -17,6 +17,7 @@
     <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('document.index', ['doc' => 'ZIN']) }}">Закупки</a>
     <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('client.index') }}">Клієнти</a>
     <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('goods.index') }}">Товари</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('news.index') }}">Новини</a>
     <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('money.index') }}">Гроші</a>
     <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('settings.index') }}">Налаштування</a>
 
