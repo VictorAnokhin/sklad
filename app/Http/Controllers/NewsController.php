@@ -7,31 +7,52 @@ use Illuminate\Http\Request;
 
 class NewsController extends Controller
 {
+    private function resolveApiLocale(Request $request): string
+    {
+        $direct = (string) $request->input('lang', $request->input('locale', ''));
+        if ($direct !== '') {
+            return \App\Models\Field::normalizeLocale($direct);
+        }
+
+        $header = (string) $request->header('Accept-Language', '');
+        if ($header !== '') {
+            $primary = trim(explode(',', $header)[0] ?? '');
+            if ($primary !== '') {
+                return \App\Models\Field::normalizeLocale($primary);
+            }
+        }
+
+        return 'ru';
+    }
+
     public function apiIndex(Request $request)
     {
         $fid = (string) $request->input('fid', session('fid', '2'));
         $limit = max(1, min(50, (int) $request->input('limit', 10)));
         $offset = max(0, (int) $request->input('offset', 0));
-        $data = News::init($fid, $offset, $limit);
+        $locale = $this->resolveApiLocale($request);
+        $data = News::init($fid, $offset, $limit, $locale);
 
         return response()->json([
             'items' => $data['items'],
             'total' => $data['total'],
             'limit' => $limit,
             'offset' => $offset,
+            'locale' => $locale,
         ]);
     }
 
     public function apiShow(Request $request, int $id)
     {
         $fid = (string) $request->input('fid', session('fid', '2'));
-        $item = News::findForView($id, $fid);
+        $locale = $this->resolveApiLocale($request);
+        $item = News::findForView($id, $fid, $locale);
 
         if (!$item) {
             return response()->json(['message' => 'Новину не знайдено'], 404);
         }
 
-        return response()->json(['item' => $item]);
+        return response()->json(['item' => $item, 'locale' => $locale]);
     }
 
     public function index(Request $request)
@@ -39,8 +60,9 @@ class NewsController extends Controller
         $fid = (string) session('fid', '');
         $pos = max(0, (int) $request->input('pos', 0));
         $perPage = 20;
+        $locale = $this->resolveBackendLocale();
 
-        $data = News::init($fid, $pos, $perPage);
+        $data = News::init($fid, $pos, $perPage, $locale);
 
         return view('news.index', [
             'items' => $data['items'],
@@ -54,7 +76,8 @@ class NewsController extends Controller
     {
         $fid = (string) session('fid', '');
         $id = (int) $request->input('id', 0);
-        $item = News::findForView($id, $fid);
+        $locale = $this->resolveBackendLocale();
+        $item = News::findForView($id, $fid, $locale);
 
         if (!$item) {
             return redirect()->route('news.index')->with('error', 'Новину не знайдено');

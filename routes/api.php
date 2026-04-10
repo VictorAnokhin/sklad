@@ -31,6 +31,8 @@ Route::get('/goods/search', [GoodsController::class, 'searchWeb']);
 Route::get('/goods/hits', [GoodsController::class, 'getHits']);
 Route::get('/goods/sections', [GoodsController::class, 'getSections']);
 Route::get('/goods/section/{id}', [GoodsController::class, 'getBySection']);
+Route::get('/goods/{id}', [GoodsController::class, 'getOne']);
+Route::get('/regions', [GoodsController::class, 'getRegions']);
 
 // ── News API ──────────────────────────────────────────────────────────────
 

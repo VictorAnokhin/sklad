@@ -66,6 +66,8 @@
           'financialpnl' => 'icon-business.png',
           'balancesheet' => 'icon-wallet-income.png',
           'cashflowstmt' => 'icon-invoice.png',
+          'trialbalance' => 'icon-invoice.png',
+          'journal' => 'icon-order.png',
           default => 'icon-category.png',
         };
       @endphp

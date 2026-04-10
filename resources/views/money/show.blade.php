@@ -43,11 +43,25 @@
             </div>
             <div class="col-md-4 mb-3">
                 <label>Каса</label>
-                <select name="money" class="form-control">
+                <select name="money" class="form-control" required>
                     <option value="">— оберіть касу —</option>
                     @foreach($kassas as $kassa)
                     <option value="{{ $kassa->id }}" {{ (string)($document->money ?? '') === (string)$kassa->id ? 'selected' : '' }}>
                         {{ $kassa->name }}
+                    </option>
+                    @endforeach
+                </select>
+                @error('money')
+                <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="col-md-4 mb-3">
+                <label>Вид платежу</label>
+                <select name="reestr" class="form-control">
+                    <option value="">— оберіть вид платежу —</option>
+                    @foreach(($reestrList ?? []) as $re)
+                    <option value="{{ $re->id }}" {{ (string) old('reestr', $document->reestr ?? '') === (string) $re->id ? 'selected' : '' }}>
+                        {{ $re->name }}
                     </option>
                     @endforeach
                 </select>

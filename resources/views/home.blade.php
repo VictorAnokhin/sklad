@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="{{ $currentBackendLocale ?? 'ru' }}">
 
 <head>
     <meta charset="UTF-8">

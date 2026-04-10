@@ -215,6 +215,31 @@ class ReportController extends Controller
         return view('reports.demand_trends', $data);
     }
 
+    public function trialBalance(Request $request)
+    {
+        $fid = (string) session('fid', '');
+        $data = Report::trialBalance(
+            $fid,
+            (string) $request->input('date_from', ''),
+            (string) $request->input('date_to', '')
+        );
+
+        return view('reports.trial_balance', $data);
+    }
+
+    public function journal(Request $request)
+    {
+        $fid = (string) session('fid', '');
+        $data = Report::journal(
+            $fid,
+            (string) $request->input('date_from', ''),
+            (string) $request->input('date_to', ''),
+            (string) $request->input('account_id', '')
+        );
+
+        return view('reports.journal', $data);
+    }
+
     public function strategicExport(Request $request, string $report, string $format)
     {
         $fid = (string) session('fid', '');

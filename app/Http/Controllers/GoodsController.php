@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Goods;
 use App\Models\Field;
 use App\Models\Price;
+use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -15,6 +16,24 @@ use Illuminate\Support\Facades\DB;
  */
 class GoodsController extends Controller
 {
+    private function resolveApiLocale(Request $request): string
+    {
+        $direct = (string) $request->input('lang', $request->input('locale', ''));
+        if ($direct !== '') {
+            return Field::normalizeLocale($direct);
+        }
+
+        $header = (string) $request->header('Accept-Language', '');
+        if ($header !== '') {
+            $primary = trim(explode(',', $header)[0] ?? '');
+            if ($primary !== '') {
+                return Field::normalizeLocale($primary);
+            }
+        }
+
+        return 'ru';
+    }
+
     private function resolveApiFid(Request $request, $default = '')
     {
         return (string) $request->input('fid', $default !== '' ? $default : session('fid', ''));
@@ -25,6 +44,7 @@ class GoodsController extends Controller
     public function index(Request $request)
     {
         $fid = session('fid', '');
+        $locale = $this->resolveBackendLocale();
         $idglava = $request->input('igla', session('idglava', ''));
         $idcaption = $request->input('idcapt', session('idcaption', ''));
         $pos = (int) $request->input('pos', session('pos', 0));
@@ -47,7 +67,7 @@ class GoodsController extends Controller
             'sklad_none' => $filters['skladNone'],
         ]);
 
-        $result = Goods::init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters);
+        $result = Goods::init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters, $locale);
         $comps = $result['comps'];
         $total = $result['total'];
         $pers = $result['pers'];
@@ -82,6 +102,7 @@ class GoodsController extends Controller
         }
 
         $fid = $this->resolveApiFid($request, '2');
+        $locale = $this->resolveApiLocale($request);
 
         $goods = DB::table('comp')
             ->leftJoin('descript as d', function ($join) use ($fid) {
@@ -101,6 +122,9 @@ class GoodsController extends Controller
             ->select(
                 'comp.id',
                 DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
+                DB::raw('COALESCE(d.name, "") as name_ru'),
+                DB::raw('COALESCE(d.name_ua, "") as name_ua'),
+                DB::raw('COALESCE(d.name_en, "") as name_en'),
                 'comp.nfoto as image',
                 'comp.nfoto1 as image_thumb',
                 'comp.pay',
@@ -114,23 +138,29 @@ class GoodsController extends Controller
             ->get();
 
         $goods = Goods::attachPreferredPricesByItemFirma($goods)
-            ->map(function ($g) {
-                $desc = $g->description_ua ?: $g->description_en ?: $g->description ?: '';
+            ->map(function ($g) use ($locale) {
+                $nameView = Field::localizedValue($locale, $g->name_ru ?? '', $g->name_ua ?? '', $g->name_en ?? '');
+                $desc = Field::localizedValue($locale, $g->description ?? '', $g->description_ua ?? '', $g->description_en ?? '');
                 // Strip HTML tags from description for search results
                 $desc = strip_tags($desc);
 
                 return [
                     'id' => (int) $g->id,
-                    'name' => $g->name ?: '',
+                    'name' => $nameView ?: '',
+                    'name_ru' => $g->name_ru ?? '',
+                    'name_ua' => $g->name_ua ?? '',
+                    'name_en' => $g->name_en ?? '',
+                    'name_view' => $nameView ?: '',
                     'price' => (float) ($g->price_pay ?? 0),
                     'oldPrice' => (float) ($g->price_oldpay ?? 0),
                     'wholesalePrice' => $g->wholesale_price !== null ? (float) $g->wholesale_price : null,
                     'wholesaleOldPrice' => $g->wholesale_oldpay !== null ? (float) $g->wholesale_oldpay : null,
                     'wholesaleFrom' => $g->wholesale_from !== null ? (int) $g->wholesale_from : null,
                     'count' => (int) ($g->price_count ?? 0),
-                    'image' => $g->image ?? '',
-                    'image_thumb' => $g->image_thumb ?? '',
+                    'image' => MediaUrl::image($g->image ?? ''),
+                    'image_thumb' => MediaUrl::image($g->image_thumb ?? ''),
                     'description' => mb_substr($desc, 0, 200),
+                    'description_view' => mb_substr($desc, 0, 200),
                 ];
             });
 
@@ -146,6 +176,7 @@ class GoodsController extends Controller
             return response()->json([]);
 
         $fid = $this->resolveApiFid($request);
+        $locale = $this->resolveApiLocale($request);
         $doc = strtoupper((string) $request->input('doc', ''));
 
         $goods = Goods::query()
@@ -167,15 +198,18 @@ class GoodsController extends Controller
             ->select(
                 'comp.id',
                 DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
+                DB::raw('COALESCE(d.name, "") as name_ru'),
                 'comp.pay',
                 'comp.pay1',
-                'comp.firma'
+                'comp.firma',
+                DB::raw('COALESCE(d.name_ua, "") as name_ua'),
+                DB::raw('COALESCE(d.name_en, "") as name_en')
             )
             ->limit(20)
             ->get();
 
         $goods = Goods::attachPreferredPricesByItemFirma($goods)
-            ->map(function ($g) use ($doc) {
+            ->map(function ($g) use ($doc, $locale) {
                 // For ZIN documents (purchase/procurement), use purchase price (comp.pay)
                 // For ZOUT documents (orders), use price.pay by default,
                 // but if quantity >= price.count and price.pay1 > 0, use price.pay1
@@ -201,7 +235,10 @@ class GoodsController extends Controller
                 return [
                     'id' => $g->id,
                     'pnum' => $g->id,
-                    'name' => $g->name,
+                    'name' => Field::localizedValue($locale, $g->name_ru ?? '', $g->name_ua ?? '', $g->name_en ?? ''),
+                    'name_ru' => $g->name_ru ?? '',
+                    'name_ua' => $g->name_ua ?? '',
+                    'name_en' => $g->name_en ?? '',
                     'price' => $price,
                     'priceCompPay' => (float) ($g->pay ?? 0),
                     'priceCompPay1' => (float) ($g->pay1 ?? 0),
@@ -223,13 +260,15 @@ class GoodsController extends Controller
         $offset = (int) $request->input('offset', 0);
 
         $fid = $this->resolveApiFid($request, '2');
-        $hits = Goods::getHits($fid, $limit, $offset);
+        $locale = $this->resolveApiLocale($request);
+        $hits = Goods::getHits($fid, $limit, $offset, $locale);
 
         return response()->json([
             'success' => true,
             'data'    => $hits,
             'limit'   => $limit,
             'offset'  => $offset,
+            'locale'  => $locale,
         ]);
     }
 
@@ -238,10 +277,25 @@ class GoodsController extends Controller
     public function getSections(Request $request)
     {
         $fid = $this->resolveApiFid($request, '2');
-        $tree = Field::getCatalogTree($fid);
+        $locale = $this->resolveApiLocale($request);
+        $tree = Field::getCatalogTree($fid, $locale);
         return response()->json([
             'success' => true,
             'data' => $tree,
+            'locale' => $locale,
+        ]);
+    }
+
+    public function getRegions(Request $request)
+    {
+        $fid = $this->resolveApiFid($request, '2');
+        $locale = $this->resolveApiLocale($request);
+        $regions = Field::getRegionsList($fid, $locale);
+
+        return response()->json([
+            'success' => true,
+            'data' => $regions,
+            'locale' => $locale,
         ]);
     }
 
@@ -253,7 +307,8 @@ class GoodsController extends Controller
         $offset = (int) $request->input('offset', 0);
 
         $fid = $this->resolveApiFid($request, '2');
-        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset);
+        $locale = $this->resolveApiLocale($request);
+        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset, $locale);
 
         return response()->json([
             'success' => true,
@@ -261,6 +316,27 @@ class GoodsController extends Controller
             'total' => $result['total'],
             'limit' => $limit,
             'offset' => $offset,
+            'locale' => $locale,
+        ]);
+    }
+
+    public function getOne(Request $request, $id)
+    {
+        $fid = $this->resolveApiFid($request, '2');
+        $locale = $this->resolveApiLocale($request);
+        $item = Goods::getWebGood($fid, $id, $locale);
+
+        if (!$item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Товар не найден',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'item' => $item,
+            'locale' => $locale,
         ]);
     }
 
@@ -270,8 +346,9 @@ class GoodsController extends Controller
     {
         $pnum = $request->input('pnum', '0');
         $fid = session('fid', '');
+        $locale = $this->resolveBackendLocale();
 
-        $result = Goods::showGoods($pnum, $fid);
+        $result = Goods::showGoods($pnum, $fid, $locale);
         $comp = $result['comp'];
         $descript = $result['descript'];
         $priceGroups = $result['priceGroups'];

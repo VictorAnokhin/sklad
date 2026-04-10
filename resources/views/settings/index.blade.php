@@ -1,6 +1,6 @@
 @extends('home')
 
-@section('title', 'Налаштування')
+@section('title', __('settings.title'))
 
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -18,8 +18,8 @@
         <div class="col-md-4">
             <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalProjects">
                 <div class="card-body text-center">
-                    <h5 class="card-title">📁 Проекти</h5>
-                    <p class="card-text text-muted">Управління проектами</p>
+                    <h5 class="card-title">📁 {{ __('settings.projects') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.projects_desc') }}</p>
                     <span class="badge bg-primary" id="badge-projects">{{ count($projects ?? []) }}</span>
                 </div>
             </div>
@@ -98,9 +98,10 @@
         <div class="col-md-4">
             <div class="card shadow-sm h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog">
                 <div class="card-body text-center">
-                    <h5 class="card-title">🗂 Категорії товарів</h5>
-                    <p class="card-text text-muted">Категорії та підкатегорії каталогу</p>
-                    <span class="badge bg-info text-dark" id="badge-catalog">{{ $catalogTopCount ?? 0 }}</span>
+                    <h5 class="card-title">🌐 {{ __('settings.languages_regions') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.languages_regions_desc') }}</p>
+                    <span class="badge bg-info text-dark" id="badge-field-total">{{ $fieldTranslationsCount ?? 0 }}</span>
+                    <div class="small text-muted mt-2">catalog: <span id="badge-catalog">{{ $fieldCatalogTopCount ?? 0 }}</span> | city: <span id="badge-city">{{ $fieldCityCount ?? 0 }}</span></div>
                 </div>
             </div>
         </div>
@@ -133,6 +134,111 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100 border-success setting-card" data-bs-toggle="modal" data-bs-target="#modalAccounts">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📚 План счетов</h5>
+                    <p class="card-text text-muted">Счета и привязка к видам платежа</p>
+                    <span class="badge bg-success" id="badge-accounts">{{ $accountsCount ?? 0 }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAccounts" tabindex="-1" aria-labelledby="modalAccountsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header d-flex align-items-center">
+                <h5 class="modal-title" id="modalAccountsLabel">📚 План счетов</h5>
+                <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-account-add">+ Добавить счет</button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+            </div>
+
+            <div class="modal-body" id="account-form-area" style="display:none;">
+                <form id="account-form">
+                    <input type="hidden" id="account-id" value="">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Код <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="account-code" required>
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label">Название <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="account-name" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Тип <span class="text-danger">*</span></label>
+                            <select class="form-select" id="account-type" required>
+                                <option value="asset">Актив</option>
+                                <option value="liability">Пассив</option>
+                                <option value="equity">Капитал</option>
+                                <option value="income">Доход</option>
+                                <option value="expense">Расход</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Родительский счет</label>
+                            <select class="form-select" id="account-parent-id">
+                                <option value="">— без родителя —</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">💾 Зберегти</button>
+                        <button type="button" class="btn btn-secondary" id="btn-account-cancel">Скасувати</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-body" id="account-list-area">
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <h6 class="mb-3">Счета</h6>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Код</th>
+                                        <th>Название</th>
+                                        <th>Тип</th>
+                                        <th>Родитель</th>
+                                        <th class="text-end">Дії</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="accounts-tbody"></tbody>
+                            </table>
+                        </div>
+                        <p class="text-center text-muted" id="accounts-empty-msg" style="display:none">Счетов пока нет</p>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">Привязка к видам платежа</h6>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-payment-bindings-reload">Оновити</button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Вид платежа</th>
+                                        <th>Документы</th>
+                                        <th>Дебет</th>
+                                        <th>Кредит</th>
+                                        <th class="text-end">Дії</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="payment-bindings-tbody"></tbody>
+                            </table>
+                        </div>
+                        <p class="text-center text-muted" id="payment-bindings-empty-msg" style="display:none">Видов платежа пока нет</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -141,11 +247,15 @@
         <div class="modal-content">
             <div class="modal-header d-flex align-items-center flex-wrap gap-2">
                 <div>
-                    <h5 class="modal-title" id="modalCatalogLabel">🗂 Категорії товарів</h5>
-                    <div class="small text-muted" id="catalog-current-level">Корінь каталогу</div>
+                    <h5 class="modal-title" id="modalCatalogLabel">🌐 {{ __('settings.languages_regions') }}</h5>
+                    <div class="small text-muted" id="catalog-current-level">Категории и подписи</div>
+                </div>
+                <div class="btn-group btn-group-sm ms-md-3" role="group" aria-label="Режим справочника">
+                    <button type="button" class="btn btn-outline-primary active" id="btn-field-mode-catalog">Категории/Надписи</button>
+                    <button type="button" class="btn btn-outline-primary" id="btn-field-mode-city">Регионы</button>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary ms-md-3" id="btn-catalog-back" style="display:none;">← Назад</button>
-                <button type="button" class="btn btn-sm btn-primary" id="btn-catalog-add">+ Додати категорію</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-catalog-add">+ Добавить запись</button>
                 <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Закрити"></button>
             </div>
 
@@ -153,9 +263,10 @@
                 <form id="catalog-form">
                     <input type="hidden" id="catalog-id" value="">
                     <input type="hidden" id="catalog-parent-id" value="0">
+                    <input type="hidden" id="catalog-keyfield" value="catalog">
 
                     <div class="alert alert-secondary py-2 mb-3">
-                        <strong>Рівень:</strong> <span id="catalog-parent-label">Корінь каталогу</span>
+                        <strong>Раздел:</strong> <span id="catalog-parent-label">Категории и подписи</span>
                     </div>
 
                     <div class="row">
@@ -173,7 +284,7 @@
                         </div>
                     </div>
 
-                    <div class="row">
+                    <div class="row" id="catalog-flags-row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Порядок (num)</label>
                             <input type="number" class="form-control" id="catalog-num" min="0" value="0">
@@ -192,7 +303,7 @@
                         </div>
                     </div>
 
-                    <div class="row">
+                    <div class="row" id="catalog-description-row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Опис RU</label>
                             <textarea class="form-control" id="catalog-description-ru" rows="4"></textarea>
@@ -223,16 +334,16 @@
                                 <th>ID</th>
                                 <th>num</th>
                                 <th>Назви</th>
-                                <th>Прапори</th>
-                                <th>Опис</th>
-                                <th>Підкатегорії</th>
+                                <th id="catalog-flags-head">Прапори</th>
+                                <th id="catalog-description-head">Опис</th>
+                                <th id="catalog-children-head">Підкатегорії</th>
                                 <th class="text-end">Дії</th>
                             </tr>
                         </thead>
                         <tbody id="catalog-tbody"></tbody>
                     </table>
                 </div>
-                <p class="text-center text-muted" id="catalog-empty-msg" style="display:none">Категорій на цьому рівні ще немає</p>
+                <p class="text-center text-muted" id="catalog-empty-msg" style="display:none">Записей пока нет</p>
             </div>
         </div>
     </div>
@@ -407,6 +518,24 @@
                         </select>
                         <div class="form-text" id="form-status-help" style="display:none;"></div>
                     </div>
+                    <div class="mb-3" id="form-doc-row" style="display:none;">
+                        <label class="form-label">Показывать в документах</label>
+                        <div class="d-flex flex-column gap-2">
+                            <label class="form-check-label d-flex align-items-center gap-2">
+                                <input class="form-check-input mt-0" type="checkbox" id="form-doc-po" value="PO">
+                                <span>Получение денег</span>
+                            </label>
+                            <label class="form-check-label d-flex align-items-center gap-2">
+                                <input class="form-check-input mt-0" type="checkbox" id="form-doc-ro" value="RO">
+                                <span>Выдача денег</span>
+                            </label>
+                            <label class="form-check-label d-flex align-items-center gap-2">
+                                <input class="form-check-input mt-0" type="checkbox" id="form-doc-deposit" value="DEPOSIT">
+                                <span>Депозиты</span>
+                            </label>
+                        </div>
+                        <div class="form-text">Для яких документів доступний цей вид платежу.</div>
+                    </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-success">💾 Зберегти</button>
                         <button type="button" class="btn btn-secondary" id="btn-cancel">Скасувати</button>
@@ -422,6 +551,7 @@
                             <th>Назва</th>
                             <th>Колір</th>
                             <th id="crud-status-column">Статус</th>
+                            <th id="crud-doc-column" style="display:none;">Документ</th>
                             <th class="text-end">Дії</th>
                         </tr>
                     </thead>
@@ -784,6 +914,16 @@
         cursor: pointer;
     }
 
+    .modal .form-label,
+    .modal label,
+    .modal .form-check-label {
+        color: #000;
+    }
+
+    .modal .form-text {
+        color: #000;
+    }
+
     .form-control-color {
         width: 48px;
         height: 38px;
@@ -972,6 +1112,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initCatalogCrud(csrf);
     initFirmsCrud(csrf);
     initBannerCrud(csrf);
+    initAccountsCrud(csrf);
     initWalletLink(csrf);
 
     function initProjectsCrud(csrfToken) {
@@ -1319,6 +1460,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusSelect = document.getElementById('form-status');
         const statusHelp = document.getElementById('form-status-help');
         const statusColumn = document.getElementById('crud-status-column');
+        const docRow = document.getElementById('form-doc-row');
+        const docColumn = document.getElementById('crud-doc-column');
+        const docCheckboxes = [
+            document.getElementById('form-doc-po'),
+            document.getElementById('form-doc-ro'),
+            document.getElementById('form-doc-deposit'),
+        ];
 
         let currentType = '';
 
@@ -1343,6 +1491,7 @@ document.addEventListener('DOMContentLoaded', () => {
             colorInput.value = '';
             colorPicker.value = '#ffffff';
             document.getElementById('form-status').value = currentType === 'tclient' ? '0' : '1';
+            setDocFlags('');
             showForm();
         });
 
@@ -1381,6 +1530,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: document.getElementById('form-status').value,
                 vision: currentType === 'sklads' ? document.getElementById('form-status').value : '1',
             };
+
+            if (currentType === 'reestr') {
+                payload.doc = getDocFlags();
+            }
 
             if (!payload.name) return;
 
@@ -1427,6 +1580,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const colorHtml = item.color
                     ? `<span style="display:inline-block;width:16px;height:16px;background:${item.color};border-radius:3px;vertical-align:middle"></span> ${escapeHtml(item.color)}`
                     : '—';
+                const docHtml = currentType === 'reestr'
+                    ? escapeHtml(item.doc_label || 'Все документы')
+                    : '';
                 let statusLabel = '<span class="badge bg-secondary">Неактивний</span>';
                 if (currentType === 'tgroup') {
                     statusLabel = String(item.status) === '1'
@@ -1452,6 +1608,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${escapeHtml(item.name || '')}</td>
                     <td>${colorHtml}</td>
                     <td>${statusLabel}</td>
+                    ${currentType === 'reestr' ? `<td>${docHtml}</td>` : ''}
                     <td class="text-end">
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
                         <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
@@ -1472,6 +1629,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('form-status').value = currentType === 'sklads'
                         ? (item.vision ?? '1')
                         : (item.status ?? '1');
+                    setDocFlags(item.doc || '');
                     showForm();
                 })
                 .catch(() => alert('Помилка завантаження'));
@@ -1524,6 +1682,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function configureStatusField() {
+            const isReestr = currentType === 'reestr';
+            docRow.style.display = isReestr ? 'block' : 'none';
+            docColumn.style.display = isReestr ? '' : 'none';
+
             if (currentType === 'tgroup') {
                 statusColumn.textContent = 'Статус';
                 statusLabel.textContent = 'Тип групи';
@@ -1563,6 +1725,309 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusHelp.style.display = 'none';
                 statusHelp.textContent = '';
             }
+        }
+
+        function getDocFlags() {
+            return docCheckboxes
+                .filter((checkbox) => checkbox.checked)
+                .map((checkbox) => checkbox.value)
+                .join(',');
+        }
+
+        function setDocFlags(value) {
+            const flags = String(value || '')
+                .split(',')
+                .map((item) => item.trim().toUpperCase())
+                .filter(Boolean);
+
+            docCheckboxes.forEach((checkbox) => {
+                checkbox.checked = flags.includes(checkbox.value);
+            });
+        }
+    }
+
+    function initAccountsCrud(csrfToken) {
+        const modal = document.getElementById('modalAccounts');
+        const formArea = document.getElementById('account-form-area');
+        const listArea = document.getElementById('account-list-area');
+        const form = document.getElementById('account-form');
+        const tbody = document.getElementById('accounts-tbody');
+        const emptyMsg = document.getElementById('accounts-empty-msg');
+        const addBtn = document.getElementById('btn-account-add');
+        const cancelBtn = document.getElementById('btn-account-cancel');
+        const badge = document.getElementById('badge-accounts');
+        const parentSelect = document.getElementById('account-parent-id');
+        const bindingsTbody = document.getElementById('payment-bindings-tbody');
+        const bindingsEmptyMsg = document.getElementById('payment-bindings-empty-msg');
+        const reloadBindingsBtn = document.getElementById('btn-payment-bindings-reload');
+
+        if (!modal || !form || !tbody || !bindingsTbody || !addBtn || !cancelBtn) {
+            return;
+        }
+
+        let accountsCache = [];
+
+        modal.addEventListener('show.bs.modal', () => {
+            hideAccountForm();
+            loadAccounts();
+            loadBindings();
+        });
+
+        addBtn.addEventListener('click', () => {
+            resetAccountForm();
+            showAccountForm();
+        });
+
+        cancelBtn.addEventListener('click', hideAccountForm);
+        reloadBindingsBtn.addEventListener('click', loadBindings);
+
+        tbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('.action-btn');
+            if (!btn) return;
+            const id = btn.dataset.id;
+            if (btn.dataset.action === 'edit') {
+                editAccount(id);
+            }
+            if (btn.dataset.action === 'delete') {
+                deleteAccount(id);
+            }
+        });
+
+        bindingsTbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('.binding-save-btn');
+            if (!btn) return;
+            saveBinding(btn.dataset.id);
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const id = document.getElementById('account-id').value;
+            const payload = {
+                code: document.getElementById('account-code').value.trim(),
+                name: document.getElementById('account-name').value.trim(),
+                type: document.getElementById('account-type').value,
+                parent_id: parentSelect.value || null,
+            };
+
+            if (!payload.code || !payload.name) {
+                return;
+            }
+
+            fetch(id ? `/settings/accounts/${id}` : '/settings/accounts', {
+                method: id ? 'PUT' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify(payload),
+            })
+            .then(async (r) => {
+                const data = await r.json();
+                return { ok: r.ok, data };
+            })
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) {
+                    alert(data.message || 'Помилка збереження рахунку');
+                    return;
+                }
+
+                hideAccountForm();
+                loadAccounts();
+                loadBindings();
+            })
+            .catch(() => alert('Помилка мережі'));
+        });
+
+        function loadAccounts() {
+            fetch('/settings/accounts')
+                .then((r) => r.json())
+                .then((items) => {
+                    accountsCache = items || [];
+                    renderAccounts(accountsCache);
+                    renderParentOptions(accountsCache);
+                    badge.textContent = accountsCache.length;
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Помилка завантаження</td></tr>';
+                });
+        }
+
+        function loadBindings() {
+            fetch('/settings/payment-type-account-bindings')
+                .then((r) => r.json())
+                .then(renderBindings)
+                .catch(() => {
+                    bindingsTbody.innerHTML = '<tr><td colspan="5" class="text-danger">Помилка завантаження</td></tr>';
+                });
+        }
+
+        function renderAccounts(items) {
+            tbody.innerHTML = '';
+            if (!items.length) {
+                emptyMsg.style.display = 'block';
+                return;
+            }
+
+            emptyMsg.style.display = 'none';
+            items.forEach((item) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="fw-semibold">${escapeHtml(item.code || '')}</td>
+                    <td>${escapeHtml(item.name || '')}</td>
+                    <td>${escapeHtml(accountTypeLabel(item.type || ''))}</td>
+                    <td>${escapeHtml(item.parent_code ? `${item.parent_code} | ${item.parent_name || ''}` : '—')}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
+                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderParentOptions(items) {
+            const currentId = document.getElementById('account-id').value;
+            parentSelect.innerHTML = '<option value="">— без родителя —</option>';
+            items.forEach((item) => {
+                if (String(item.id) === String(currentId)) {
+                    return;
+                }
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.code} | ${item.name}`;
+                parentSelect.appendChild(option);
+            });
+        }
+
+        function renderBindings(items) {
+            bindingsTbody.innerHTML = '';
+            if (!items.length) {
+                bindingsEmptyMsg.style.display = 'block';
+                return;
+            }
+
+            bindingsEmptyMsg.style.display = 'none';
+            items.forEach((item) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(item.name || '')}</td>
+                    <td class="small text-muted">${escapeHtml(item.doc_label || 'Все документы')}</td>
+                    <td>${buildAccountSelect(`binding-debit-${item.id}`, item.debit_account_id)}</td>
+                    <td>${buildAccountSelect(`binding-credit-${item.id}`, item.credit_account_id)}</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-success binding-save-btn" data-id="${item.id}">💾</button>
+                    </td>
+                `;
+                bindingsTbody.appendChild(tr);
+            });
+        }
+
+        function buildAccountSelect(id, selectedId) {
+            const options = ['<option value="">—</option>'].concat(accountsCache.map((item) => {
+                const selected = String(selectedId || '') === String(item.id) ? 'selected' : '';
+                return `<option value="${item.id}" ${selected}>${escapeHtml(item.code)} | ${escapeHtml(item.name)}</option>`;
+            }));
+
+            return `<select class="form-select form-select-sm" id="${id}">${options.join('')}</select>`;
+        }
+
+        function editAccount(id) {
+            fetch(`/settings/accounts/${id}`)
+                .then((r) => r.json())
+                .then((item) => {
+                    document.getElementById('account-id').value = item.id || '';
+                    document.getElementById('account-code').value = item.code || '';
+                    document.getElementById('account-name').value = item.name || '';
+                    document.getElementById('account-type').value = item.type || 'asset';
+                    renderParentOptions(accountsCache);
+                    parentSelect.value = item.parent_id || '';
+                    showAccountForm();
+                })
+                .catch(() => alert('Помилка завантаження рахунку'));
+        }
+
+        function deleteAccount(id) {
+            if (!confirm('Видалити цей рахунок?')) return;
+
+            fetch(`/settings/accounts/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+            })
+            .then(async (r) => {
+                const data = await r.json();
+                return { ok: r.ok, data };
+            })
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) {
+                    alert(data.message || 'Помилка видалення');
+                    return;
+                }
+
+                loadAccounts();
+                loadBindings();
+            })
+            .catch(() => alert('Помилка мережі'));
+        }
+
+        function saveBinding(id) {
+            const payload = {
+                debit_account_id: document.getElementById(`binding-debit-${id}`).value || null,
+                credit_account_id: document.getElementById(`binding-credit-${id}`).value || null,
+            };
+
+            fetch(`/settings/payment-type-account-bindings/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify(payload),
+            })
+            .then(async (r) => {
+                const data = await r.json();
+                return { ok: r.ok, data };
+            })
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) {
+                    alert(data.message || 'Помилка збереження привязки');
+                    return;
+                }
+
+                loadBindings();
+            })
+            .catch(() => alert('Помилка мережі'));
+        }
+
+        function accountTypeLabel(type) {
+            return ({
+                asset: 'Актив',
+                liability: 'Пассив',
+                equity: 'Капитал',
+                income: 'Доход',
+                expense: 'Расход',
+            }[type] || type);
+        }
+
+        function resetAccountForm() {
+            form.reset();
+            document.getElementById('account-id').value = '';
+            document.getElementById('account-type').value = 'asset';
+            renderParentOptions(accountsCache);
+            parentSelect.value = '';
+        }
+
+        function showAccountForm() {
+            formArea.style.display = 'block';
+            listArea.style.display = 'none';
+        }
+
+        function hideAccountForm() {
+            formArea.style.display = 'none';
+            listArea.style.display = 'block';
         }
     }
 
@@ -1717,29 +2182,59 @@ document.addEventListener('DOMContentLoaded', () => {
         const breadcrumbBox = document.getElementById('catalog-breadcrumb');
         const parentLabel = document.getElementById('catalog-parent-label');
         const currentLevel = document.getElementById('catalog-current-level');
-        const badge = document.getElementById('badge-catalog');
+        const badgeCatalog = document.getElementById('badge-catalog');
+        const badgeCity = document.getElementById('badge-city');
+        const badgeTotal = document.getElementById('badge-field-total');
+        const modeCatalogBtn = document.getElementById('btn-field-mode-catalog');
+        const modeCityBtn = document.getElementById('btn-field-mode-city');
+        const flagsRow = document.getElementById('catalog-flags-row');
+        const descriptionRow = document.getElementById('catalog-description-row');
+        const flagsHead = document.getElementById('catalog-flags-head');
+        const descriptionHead = document.getElementById('catalog-description-head');
+        const childrenHead = document.getElementById('catalog-children-head');
 
+        let currentKeyfield = 'catalog';
         let currentParentId = '0';
-        let breadcrumb = [{ id: 0, name: 'Категорії' }];
+        let breadcrumb = [{ id: 0, name: 'Категории/Надписи' }];
+
+        const fieldModeConfig = {
+            catalog: {
+                root: 'Категории/Надписи',
+                current: 'Категории и подписи',
+                addLabel: '+ Добавить запись',
+                empty: 'Записей на этом уровне пока нет',
+                allowChildren: true,
+                showExtra: true,
+            },
+            city: {
+                root: 'Регионы',
+                current: 'Список регионов',
+                addLabel: '+ Добавить регион',
+                empty: 'Регионов пока нет',
+                allowChildren: false,
+                showExtra: false,
+            },
+        };
 
         modal.addEventListener('show.bs.modal', () => {
-            currentParentId = '0';
-            breadcrumb = [{ id: 0, name: 'Категорії' }];
-            hideCatalogForm();
-            resetCatalogForm();
-            loadCatalog('0');
+            switchFieldMode('catalog');
         });
 
         modal.addEventListener('hidden.bs.modal', () => {
             hideCatalogForm();
             resetCatalogForm();
+            currentKeyfield = 'catalog';
             currentParentId = '0';
-            breadcrumb = [{ id: 0, name: 'Категорії' }];
+            breadcrumb = [{ id: 0, name: fieldModeConfig.catalog.root }];
         });
+
+        modeCatalogBtn?.addEventListener('click', () => switchFieldMode('catalog'));
+        modeCityBtn?.addEventListener('click', () => switchFieldMode('city'));
 
         addBtn.addEventListener('click', () => {
             resetCatalogForm();
-            document.getElementById('catalog-parent-id').value = currentParentId;
+            document.getElementById('catalog-parent-id').value = currentKeyfield === 'catalog' ? currentParentId : '0';
+            document.getElementById('catalog-keyfield').value = currentKeyfield;
             parentLabel.textContent = getCurrentParentName();
             showCatalogForm();
         });
@@ -1750,7 +2245,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         backBtn.addEventListener('click', () => {
-            if (breadcrumb.length > 1) {
+            if (currentKeyfield === 'catalog' && breadcrumb.length > 1) {
                 const target = breadcrumb[breadcrumb.length - 2];
                 loadCatalog(String(target.id));
             }
@@ -1783,7 +2278,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const id = document.getElementById('catalog-id').value;
             const payload = {
-                parent_id: document.getElementById('catalog-parent-id').value || currentParentId,
+                keyfield: currentKeyfield,
+                parent_id: currentKeyfield === 'catalog'
+                    ? (document.getElementById('catalog-parent-id').value || currentParentId)
+                    : '0',
                 name_ru: document.getElementById('catalog-name-ru').value.trim(),
                 name_ua: document.getElementById('catalog-name-ua').value.trim(),
                 name_en: document.getElementById('catalog-name-en').value.trim(),
@@ -1800,7 +2298,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            fetch(id ? `/settings/catalog/${id}` : '/settings/catalog', {
+            fetch(id ? `/settings/fields/${id}` : '/settings/fields', {
                 method: id ? 'PUT' : 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1827,7 +2325,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         function loadCatalog(parentId) {
-            fetch(`/settings/catalog?parent_id=${encodeURIComponent(parentId)}`)
+            const targetParentId = currentKeyfield === 'catalog' ? parentId : '0';
+            fetch(`/settings/fields?keyfield=${encodeURIComponent(currentKeyfield)}&parent_id=${encodeURIComponent(targetParentId)}`)
                 .then(async (r) => {
                     const data = await r.json();
                     return { ok: r.ok, data };
@@ -1838,31 +2337,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    currentParentId = String(data.currentParentId ?? '0');
+                    currentParentId = currentKeyfield === 'catalog'
+                        ? String(data.currentParentId ?? '0')
+                        : '0';
                     breadcrumb = Array.isArray(data.breadcrumb) && data.breadcrumb.length
                         ? data.breadcrumb
-                        : [{ id: 0, name: 'Категорії' }];
+                        : [{ id: 0, name: fieldModeConfig[currentKeyfield].root }];
 
                     renderBreadcrumb(breadcrumb);
                     renderCatalog(data.items || []);
 
-                    const currentParentName = data.currentParent?.name_ru || 'Корінь каталогу';
-                    currentLevel.textContent = currentParentId === '0'
-                        ? 'Корінь каталогу'
-                        : `Підкатегорії: ${currentParentName}`;
-                    parentLabel.textContent = currentParentId === '0'
-                        ? 'Корінь каталогу'
-                        : currentParentName;
-                    backBtn.style.display = currentParentId === '0' ? 'none' : 'inline-block';
+                    const currentParentName = data.currentParent?.name_ru || fieldModeConfig[currentKeyfield].root;
+                    currentLevel.textContent = currentKeyfield === 'catalog'
+                        ? (currentParentId === '0' ? fieldModeConfig.catalog.current : `Подкатегории: ${currentParentName}`)
+                        : fieldModeConfig.city.current;
+                    parentLabel.textContent = currentKeyfield === 'catalog'
+                        ? (currentParentId === '0' ? fieldModeConfig.catalog.root : currentParentName)
+                        : fieldModeConfig.city.root;
+                    backBtn.style.display = currentKeyfield === 'catalog' && currentParentId !== '0' ? 'inline-block' : 'none';
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Помилка завантаження каталогу</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-danger">Помилка завантаження довідника</td></tr>';
                 });
         }
 
         function renderCatalog(items) {
             tbody.innerHTML = '';
             if (!items.length) {
+                emptyMsg.textContent = fieldModeConfig[currentKeyfield].empty;
                 emptyMsg.style.display = 'block';
                 return;
             }
@@ -1870,13 +2372,21 @@ document.addEventListener('DOMContentLoaded', () => {
             emptyMsg.style.display = 'none';
             items.forEach((item) => {
                 const tr = document.createElement('tr');
-                const childLabel = item.children_count > 0
+                const childLabel = currentKeyfield === 'catalog' && item.children_count > 0
                     ? `<span class="badge bg-info text-dark">${item.children_count}</span>`
                     : '<span class="text-muted">0</span>';
-                const flags = `
+                const flags = fieldModeConfig[currentKeyfield].showExtra ? `
                     <div>${item.visible === '1' ? '<span class="badge bg-success">Показувати</span>' : '<span class="badge bg-secondary">Приховано</span>'}</div>
                     <div class="mt-1">${item.firstpage === '1' ? '<span class="badge bg-warning text-dark">Перша сторінка</span>' : '<span class="badge bg-light text-dark">Звичайна</span>'}</div>
-                `;
+                ` : '<span class="text-muted">—</span>';
+                const description = fieldModeConfig[currentKeyfield].showExtra ? `
+                    <div>${escapeHtml(shortText(item.description_ru || '—'))}</div>
+                    <div class="catalog-meta">UA: ${escapeHtml(shortText(item.description_ua || '—'))}</div>
+                    <div class="catalog-meta">EN: ${escapeHtml(shortText(item.description_en || '—'))}</div>
+                ` : '<span class="text-muted">—</span>';
+                const openButton = currentKeyfield === 'catalog'
+                    ? `<button class="btn btn-sm btn-outline-secondary action-btn" data-action="open" data-id="${item.id}">📂</button>`
+                    : '';
                 tr.innerHTML = `
                     <td>${item.id}</td>
                     <td>${item.num ?? 0}</td>
@@ -1886,14 +2396,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="catalog-meta"><strong>EN:</strong> ${escapeHtml(item.name_en || '—')}</div>
                     </td>
                     <td>${flags}</td>
-                    <td>
-                        <div>${escapeHtml(shortText(item.description_ru || '—'))}</div>
-                        <div class="catalog-meta">UA: ${escapeHtml(shortText(item.description_ua || '—'))}</div>
-                        <div class="catalog-meta">EN: ${escapeHtml(shortText(item.description_en || '—'))}</div>
-                    </td>
+                    <td>${description}</td>
                     <td>${childLabel}</td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-secondary action-btn" data-action="open" data-id="${item.id}">📂</button>
+                        ${openButton}
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
                         <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
                     </td>
@@ -1930,7 +2436,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function editCategory(id) {
-            fetch(`/settings/catalog/${id}`)
+            fetch(`/settings/fields/${id}?keyfield=${encodeURIComponent(currentKeyfield)}`)
                 .then(async (r) => {
                     const data = await r.json();
                     return { ok: r.ok, data };
@@ -1942,6 +2448,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     document.getElementById('catalog-id').value = data.id || '';
+                    document.getElementById('catalog-keyfield').value = data.keyfield || currentKeyfield;
                     document.getElementById('catalog-parent-id').value = data.parent_id || '0';
                     document.getElementById('catalog-name-ru').value = data.name_ru || '';
                     document.getElementById('catalog-name-ua').value = data.name_ua || '';
@@ -1953,9 +2460,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('catalog-description-ua').value = data.description_ua || '';
                     document.getElementById('catalog-description-en').value = data.description_en || '';
 
-                    parentLabel.textContent = data.parent_id && data.parent_id !== '0'
+                    parentLabel.textContent = currentKeyfield === 'catalog' && data.parent_id && data.parent_id !== '0'
                         ? getCurrentParentName(data.parent_id)
-                        : 'Корінь каталогу';
+                        : fieldModeConfig[currentKeyfield].root;
 
                     showCatalogForm();
                 })
@@ -1965,7 +2472,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function deleteCategory(id) {
             if (!confirm('Видалити категорію?')) return;
 
-            fetch(`/settings/catalog/${id}`, {
+            fetch(`/settings/fields/${id}?keyfield=${encodeURIComponent(currentKeyfield)}`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1989,24 +2496,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function updateCatalogBadge() {
-            fetch('/settings/catalog?parent_id=0')
-                .then((r) => r.json())
-                .then((data) => {
-                    if (badge) {
-                        badge.textContent = (data.items || []).length;
-                    }
-                });
+            Promise.all([
+                fetch('/settings/fields?keyfield=catalog&parent_id=0').then((r) => r.json()),
+                fetch('/settings/fields?keyfield=city&parent_id=0').then((r) => r.json()),
+            ]).then(([catalogData, cityData]) => {
+                const catalogCount = (catalogData.items || []).length;
+                const cityCount = (cityData.items || []).length;
+
+                if (badgeCatalog) {
+                    badgeCatalog.textContent = String(catalogCount);
+                }
+                if (badgeCity) {
+                    badgeCity.textContent = String(cityCount);
+                }
+                if (badgeTotal) {
+                    badgeTotal.textContent = String(catalogCount + cityCount);
+                }
+            });
         }
 
         function getCurrentParentName(parentId = currentParentId) {
             const found = breadcrumb.find((item) => String(item.id) === String(parentId));
-            return found ? found.name : 'Корінь каталогу';
+            return found ? found.name : fieldModeConfig[currentKeyfield].root;
         }
 
         function resetCatalogForm() {
             form.reset();
             document.getElementById('catalog-id').value = '';
-            document.getElementById('catalog-parent-id').value = currentParentId;
+            document.getElementById('catalog-keyfield').value = currentKeyfield;
+            document.getElementById('catalog-parent-id').value = currentKeyfield === 'catalog' ? currentParentId : '0';
             document.getElementById('catalog-num').value = '0';
             document.getElementById('catalog-visible').checked = true;
             document.getElementById('catalog-firstpage').checked = false;
@@ -2025,6 +2543,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function shortText(value) {
             return value.length > 90 ? `${value.slice(0, 87)}...` : value;
+        }
+
+        function switchFieldMode(mode) {
+            currentKeyfield = mode;
+            currentParentId = '0';
+            breadcrumb = [{ id: 0, name: fieldModeConfig[mode].root }];
+            hideCatalogForm();
+            resetCatalogForm();
+            applyFieldMode();
+            loadCatalog('0');
+        }
+
+        function applyFieldMode() {
+            const config = fieldModeConfig[currentKeyfield];
+            modeCatalogBtn?.classList.toggle('active', currentKeyfield === 'catalog');
+            modeCityBtn?.classList.toggle('active', currentKeyfield === 'city');
+            addBtn.textContent = config.addLabel;
+            currentLevel.textContent = config.current;
+            parentLabel.textContent = config.root;
+            emptyMsg.textContent = config.empty;
+
+            const display = config.showExtra ? '' : 'none';
+            if (flagsRow) flagsRow.style.display = display;
+            if (descriptionRow) descriptionRow.style.display = display;
+            if (flagsHead) flagsHead.style.display = display;
+            if (descriptionHead) descriptionHead.style.display = display;
+            if (childrenHead) childrenHead.textContent = config.allowChildren ? 'Підкатегорії' : 'Записів';
+            if (breadcrumbBox) breadcrumbBox.style.display = config.allowChildren ? '' : 'none';
+            if (backBtn) backBtn.style.display = 'none';
         }
     }
 

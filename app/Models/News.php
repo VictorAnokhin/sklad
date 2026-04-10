@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use App\Support\MediaUrl;
 use Illuminate\Support\Facades\Schema;
 
 class News extends Model
@@ -12,7 +13,7 @@ class News extends Model
     public $timestamps = false;
     protected $guarded = [];
 
-    public static function getLatest(string $fid, int $limit = 5)
+    public static function getLatest(string $fid, int $limit = 5, ?string $locale = 'ru')
     {
         return DB::table('news')
             ->where(function ($query) use ($fid) {
@@ -23,10 +24,10 @@ class News extends Model
             ->orderByDesc('id')
             ->limit($limit)
             ->get()
-            ->map(fn ($item) => self::decorateItem($item));
+            ->map(fn ($item) => self::decorateItem($item, $locale));
     }
 
-    public static function init(string $fid, int $pos = 0, int $perPage = 20): array
+    public static function init(string $fid, int $pos = 0, int $perPage = 20, ?string $locale = 'ru'): array
     {
         $baseQuery = DB::table('news')
             ->where(function ($query) use ($fid) {
@@ -42,8 +43,8 @@ class News extends Model
             ->offset($pos)
             ->limit($perPage)
             ->get()
-            ->map(function ($item) {
-                $item = self::decorateItem($item);
+            ->map(function ($item) use ($locale) {
+                $item = self::decorateItem($item, $locale);
                 return $item;
             });
 
@@ -53,7 +54,7 @@ class News extends Model
         ];
     }
 
-    public static function findForView(int $id, string $fid): ?object
+    public static function findForView(int $id, string $fid, ?string $locale = 'ru'): ?object
     {
         $item = DB::table('news')
             ->where('id', $id)
@@ -63,7 +64,7 @@ class News extends Model
             })
             ->first();
 
-        return $item ? self::decorateItem($item) : null;
+        return $item ? self::decorateItem($item, $locale) : null;
     }
 
     public static function findOwned(int $id, string $fid): ?object
@@ -136,11 +137,11 @@ class News extends Model
             ->delete();
     }
 
-    private static function decorateItem(object $item): object
+    private static function decorateItem(object $item, ?string $locale = 'ru'): object
     {
-        $item->title_view = trim((string) ($item->title_ua ?: $item->title ?: $item->title_en ?: 'Новина'));
-        $item->excerpt_view = trim((string) ($item->kratko_ua ?: $item->kratko ?: $item->kratko_en ?: ''));
-        $item->body_view = (string) ($item->txt_ua ?: $item->txt ?: $item->txt_en ?: '');
+        $item->title_view = Field::localizedValue($locale, $item->title ?? '', $item->title_ua ?? '', $item->title_en ?? '') ?: 'Новина';
+        $item->excerpt_view = Field::localizedValue($locale, $item->kratko ?? '', $item->kratko_ua ?? '', $item->kratko_en ?? '');
+        $item->body_view = Field::localizedValue($locale, $item->txt ?? '', $item->txt_ua ?? '', $item->txt_en ?? '');
         $item->photo_view = self::resolvePhoto((string) ($item->foto ?? ''));
 
         return $item;
@@ -153,10 +154,6 @@ class News extends Model
             return null;
         }
 
-        if (str_starts_with($photo, 'http://') || str_starts_with($photo, 'https://') || str_starts_with($photo, '/')) {
-            return $photo;
-        }
-
-        return asset('storage/files/' . ltrim($photo, '/'));
+        return MediaUrl::storage($photo, 'storage/files');
     }
 }

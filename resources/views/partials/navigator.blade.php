@@ -39,7 +39,7 @@
   @endif
 
   <span style="line-height:32px;font-size:0.85em;color:#666">
-    {{ $pos + 1 }}–{{ min($pos + $pos2, $max) }} з {{ $max }} | стор. {{ $cur + 1 }} / {{ $pages }}
+    {{ __('document.navigator.from_to_total', ['from' => $pos + 1, 'to' => min($pos + $pos2, $max), 'total' => $max]) }} | {{ __('document.navigator.page', ['current' => $cur + 1, 'pages' => $pages]) }}
   </span>
 </div>
 @endif

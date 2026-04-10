@@ -38,29 +38,29 @@ class PanelService
         // Otherwise fall back to the user's current role/status.
         if ($isSalesContext || (!$hasExplicitContext && $idstatus !== 2 && $idstatus <= 2)) {
             $salesTabs = [
-                $this->makeTab('ZOUT', 'Замовлення', 'icon-order.png', $currentDoc),
-                $this->makeTab('CH', 'Рахунки', 'icon-invoice.png', $currentDoc),
-                $this->makeTab('RN', 'Накладні', 'icon-packing.png', $currentDoc),
-                $this->makeTab('PO', 'Гроші', 'icon-business.png', $currentDoc),
-                $this->makeTab('WO1', 'Наряди', 'icon-naryad.png', $currentDoc),
-                $this->makeTab('RA', 'Файли', 'icon-attach-file.png', $currentDoc),
+                $this->makeTab('ZOUT', __('document.tabs.orders'), 'icon-order.png', $currentDoc),
+                $this->makeTab('CH', __('document.tabs.invoices'), 'icon-invoice.png', $currentDoc),
+                $this->makeTab('RN', __('document.tabs.shipments'), 'icon-packing.png', $currentDoc),
+                $this->makeTab('PO', __('document.tabs.money'), 'icon-business.png', $currentDoc),
+                $this->makeTab('WO1', __('document.tabs.jobs'), 'icon-naryad.png', $currentDoc),
+                $this->makeTab('RA', __('document.tabs.files'), 'icon-attach-file.png', $currentDoc),
             ];
         }
 
         if ($isManagerContext || (!$hasExplicitContext && $idstatus > 2)) {
             $managerTabs = [
-                $this->makeTab('ZIN', 'Закупки', 'icon-order.png', $currentDoc),
-                $this->makeTab('PN', 'Прихід товару', 'icon-packing.png', $currentDoc),
-                $this->makeTab('RO', 'Витрата грошей', 'icon-business.png', $currentDoc),
-                $this->makeTab('PP', 'Депозити', 'icon-wallet-income.png', $currentDoc),
-                $this->makeTab('VN', 'Повернення', 'icon-naryad.png', $currentDoc),
+                $this->makeTab('ZIN', __('document.tabs.purchases'), 'icon-order.png', $currentDoc),
+                $this->makeTab('PN', __('document.tabs.goods_receipt'), 'icon-packing.png', $currentDoc),
+                $this->makeTab('RO', __('document.tabs.money_expense'), 'icon-business.png', $currentDoc),
+                $this->makeTab('PP', __('document.tabs.deposits'), 'icon-wallet-income.png', $currentDoc),
+                $this->makeTab('VN', __('document.tabs.returns'), 'icon-naryad.png', $currentDoc),
             ];
         }
 
         if ($isProductionContext || (!$hasExplicitContext && $idstatus === 2)) {
             $productionTabs = [
-                $this->makeTextTab('WO1', 'Наряди', $currentDoc),
-                $this->makeTextTab('SP', 'Специфікації', $currentDoc),
+                $this->makeTextTab('WO1', __('document.tabs.jobs'), $currentDoc),
+                $this->makeTextTab('SP', __('document.tabs.specifications'), $currentDoc),
             ];
         }
 
@@ -86,6 +86,8 @@ class PanelService
                 $this->makeReportTab('financialpnl', 'P&L', $currentReport),
                 $this->makeReportTab('balancesheet', 'Баланс', $currentReport),
                 $this->makeReportTab('cashflowstmt', 'Cash Flow', $currentReport),
+                $this->makeReportTab('trialbalance', 'Оборотка', $currentReport),
+                $this->makeReportTab('journal', 'Журнал проводок', $currentReport),
             ];
 
             $strategicReportTabs = [
@@ -145,6 +147,8 @@ class PanelService
                 'financialpnl' => route('reports.financialpnl'),
                 'balancesheet' => route('reports.balancesheet'),
                 'cashflowstmt' => route('reports.cashflowstmt'),
+                'trialbalance' => route('reports.trialbalance'),
+                'journal' => route('reports.journal'),
                 'salesforecast' => route('reports.salesforecast'),
                 'purchaseplan' => route('reports.purchaseplan'),
                 'profitplan' => route('reports.profitplan'),

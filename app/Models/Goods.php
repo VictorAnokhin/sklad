@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use App\Support\MediaUrl;
 
 class Goods extends Model
 {
@@ -33,6 +34,11 @@ class Goods extends Model
             NULLIF(comp.name, ''),
             CONCAT('Товар #', comp.id)
         )";
+    }
+
+    private static function localizedValue(?string $locale, $ruValue, $uaValue = '', $enValue = '')
+    {
+        return Field::localizedValue($locale, $ruValue, $uaValue, $enValue);
     }
 
     // ── getListQuery: filtered comp+price query builder ───────────────────────
@@ -93,7 +99,7 @@ class Goods extends Model
 
     // ── init: orchestrates list page data ────────────────────────────────────
 
-    public static function init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters)
+    public static function init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters, ?string $locale = 'ru')
     {
         $query = self::getListQuery($fid, $idcaption, $idglava, $filters);
 
@@ -116,6 +122,13 @@ class Goods extends Model
                 ->get();
         }
 
+        $comps = $comps->map(function ($comp) use ($locale) {
+            $comp->name = self::localizedValue($locale, $comp->name ?? '', $comp->name_ua ?? '', $comp->name_en ?? '');
+            $comp->description = self::localizedValue($locale, $comp->description ?? '', $comp->description_ua ?? '', $comp->description_en ?? '');
+
+            return $comp;
+        });
+
         $comps = self::attachListPrices($comps, $fid);
 
         if ($hasCategorySelection && in_array($sort, ['pay', 'pay1', 'oldpay', 'count'], true)) {
@@ -130,9 +143,10 @@ class Goods extends Model
         }
 
         $pers = Field::getPers($idcaption ?: $idglava);
-        $sections = Field::getSectionsList($fid);
-        $tops = Field::getCatalogTops($fid);
-        $subs = Field::getCatalogSubs($fid);
+        $sections = Field::applyLocaleToCatalogItems(Field::getSectionsList($fid), $locale);
+        $tops = Field::applyLocaleToCatalogItems(Field::getCatalogTops($fid), $locale);
+        $subs = Field::getCatalogSubs($fid)
+            ->map(fn ($group) => Field::applyLocaleToCatalogItems($group, $locale));
 
         return [
             'comps' => $comps,
@@ -305,16 +319,17 @@ class Goods extends Model
 
     // ── show: load single product + related data ──────────────────────────────
 
-    public static function showGoods($pnum, $fid)
+    public static function showGoods($pnum, $fid, ?string $locale = 'ru')
     {
         $comp = $pnum !== '0' ? self::find($pnum) : null;
         $descript = Descript::getForGoods($pnum, $fid);
 
         $priceGroups = Conf::getPriceGroups($fid);
         $prices = Price::getForGoods($pnum, $fid);
-        $tops = Field::getCatalogTops($fid);
-        $subs = Field::getCatalogSubs($fid);
-        $news = News::getLatest($fid);
+        $tops = Field::applyLocaleToCatalogItems(Field::getCatalogTops($fid), $locale);
+        $subs = Field::getCatalogSubs($fid)
+            ->map(fn ($group) => Field::applyLocaleToCatalogItems($group, $locale));
+        $news = News::getLatest($fid, 5, $locale);
         $filterTags = Conf::getFilterTags($fid);
 
         return [
@@ -331,7 +346,7 @@ class Goods extends Model
 
     // ── Web / API methods ─────────────────────────────────────────────────────
 
-    public static function getWebGoodsBySection($fid, $id, $limit, $offset)
+    public static function getWebGoodsBySection($fid, $id, $limit, $offset, ?string $locale = 'ru')
     {
         $query = self::query()
             ->leftJoin('descript as d', function ($join) {
@@ -350,6 +365,7 @@ class Goods extends Model
         $goods = $query->select(
             'comp.id',
             DB::raw(self::displayNameSql() . ' as name'),
+            DB::raw('COALESCE(d.name, "") as name_ru'),
             DB::raw('COALESCE(d.name_ua, "") as name_ua'),
             DB::raw('COALESCE(d.name_en, "") as name_en'),
             DB::raw('COALESCE(d.description, "") as description'),
@@ -365,23 +381,30 @@ class Goods extends Model
             ->get();
 
         $goods = self::attachPreferredPricesByItemFirma($goods)
-            ->map(function ($item) {
+            ->map(function ($item) use ($locale) {
+                $nameView = self::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '');
+                $descriptionView = self::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
+
                 return [
                     'id' => $item->id,
-                    'name' => $item->name,
+                    'name' => $nameView,
                     'name_ua' => $item->name_ua,
                     'name_en' => $item->name_en,
-                    'description' => $item->description,
+                    'name_ru' => $item->name_ru,
+                    'name_view' => $nameView,
+                    'description' => $descriptionView,
                     'description_ua' => $item->description_ua,
                     'description_en' => $item->description_en,
+                    'description_ru' => $item->description,
+                    'description_view' => $descriptionView,
                     'price' => (float) ($item->price_pay ?? 0),
                     'oldPrice' => (float) ($item->price_oldpay ?? 0),
                     'wholesalePrice' => $item->wholesale_price !== null ? (float) $item->wholesale_price : null,
                     'wholesaleOldPrice' => $item->wholesale_oldpay !== null ? (float) $item->wholesale_oldpay : null,
                     'wholesaleFrom' => $item->wholesale_from !== null ? (int) $item->wholesale_from : null,
                     'count' => (int) ($item->price_count ?? 0),
-                    'image' => $item->nfoto,
-                    'image_thumb' => $item->nfoto1,
+                    'image' => MediaUrl::image($item->nfoto),
+                    'image_thumb' => MediaUrl::image($item->nfoto1),
                 ];
             });
 
@@ -391,9 +414,137 @@ class Goods extends Model
         ];
     }
 
+    public static function getWebGood($fid, $id, ?string $locale = 'ru')
+    {
+        $item = self::query()
+            ->leftJoin('descript as d', function ($join) {
+                $join->on('d.pnum', '=', 'comp.id')
+                    ->whereColumn('d.firma', '=', 'comp.firma');
+            })
+            ->where('comp.web', '1')
+            ->where('comp.firma', $fid)
+            ->where('comp.id', $id)
+            ->select(
+                'comp.id',
+                'comp.idcaption',
+                'comp.idglava',
+                'comp.firma',
+                'comp.pay',
+                'comp.nfoto',
+                'comp.nfoto1',
+                'comp.nfoto2',
+                'comp.nfoto3',
+                'comp.nfoto4',
+                'comp.nfoto5',
+                'comp.nfoto6',
+                'comp.nfoto7',
+                'comp.nfoto8',
+                'comp.nfoto9',
+                'comp.htmlkeys',
+                'comp.htmlkeyspop',
+                'comp.htmldescr',
+                DB::raw(self::displayNameSql() . ' as name'),
+                DB::raw('COALESCE(d.name, "") as name_ru'),
+                DB::raw('COALESCE(d.name_ua, "") as name_ua'),
+                DB::raw('COALESCE(d.name_en, "") as name_en'),
+                DB::raw('COALESCE(d.description, "") as description'),
+                DB::raw('COALESCE(d.description_ua, "") as description_ua'),
+                DB::raw('COALESCE(d.description_en, "") as description_en')
+            )
+            ->first();
+
+        if (!$item) {
+            return null;
+        }
+
+        $item = self::attachPreferredPricesByItemFirma(collect([$item]))->first();
+
+        $nameView = self::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '');
+        $descriptionView = self::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
+
+        $images = collect([
+            $item->nfoto ?? '',
+            $item->nfoto1 ?? '',
+            $item->nfoto2 ?? '',
+            $item->nfoto3 ?? '',
+            $item->nfoto4 ?? '',
+            $item->nfoto5 ?? '',
+            $item->nfoto6 ?? '',
+            $item->nfoto7 ?? '',
+            $item->nfoto8 ?? '',
+            $item->nfoto9 ?? '',
+        ])
+            ->map(fn ($image) => trim((string) $image))
+            ->filter()
+            ->map(fn ($image) => MediaUrl::image($image))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $sectionIds = collect([$item->idglava ?? null, $item->idcaption ?? null])
+            ->filter(fn ($value) => !in_array((string) $value, ['', '0'], true))
+            ->map(fn ($value) => (int) $value)
+            ->unique()
+            ->values();
+
+        $sections = $sectionIds->isEmpty()
+            ? collect()
+            : Field::query()
+                ->where('keyfield', 'catalog')
+                ->where('firma', $fid)
+                ->whereIn('id', $sectionIds)
+                ->get()
+                ->keyBy('id');
+
+        $topSection = $sections->get((int) ($item->idglava ?? 0));
+        $section = $sections->get((int) ($item->idcaption ?? 0)) ?? $topSection;
+
+        $mapSection = function ($fieldItem) use ($locale) {
+            if (!$fieldItem) {
+                return null;
+            }
+
+            return [
+                'id' => (int) $fieldItem->id,
+                'name' => Field::localizedValue($locale, $fieldItem->val ?? '', $fieldItem->valua ?? '', $fieldItem->valen ?? ''),
+                'name_ru' => $fieldItem->val ?? '',
+                'name_ua' => $fieldItem->valua ?? '',
+                'name_en' => $fieldItem->valen ?? '',
+            ];
+        };
+
+        return [
+            'id' => (int) $item->id,
+            'name' => $nameView,
+            'name_ru' => $item->name_ru ?? '',
+            'name_ua' => $item->name_ua ?? '',
+            'name_en' => $item->name_en ?? '',
+            'name_view' => $nameView,
+            'description' => $descriptionView,
+            'description_ru' => $item->description ?? '',
+            'description_ua' => $item->description_ua ?? '',
+            'description_en' => $item->description_en ?? '',
+            'description_view' => $descriptionView,
+            'price' => (float) ($item->price_pay ?? 0),
+            'oldPrice' => (float) ($item->price_oldpay ?? 0),
+            'wholesalePrice' => $item->wholesale_price !== null ? (float) $item->wholesale_price : null,
+            'wholesaleOldPrice' => $item->wholesale_oldpay !== null ? (float) $item->wholesale_oldpay : null,
+            'wholesaleFrom' => $item->wholesale_from !== null ? (int) $item->wholesale_from : null,
+            'count' => (int) ($item->price_count ?? 0),
+            'image' => MediaUrl::image($item->nfoto ?? ''),
+            'image_thumb' => MediaUrl::image($item->nfoto1 ?? ''),
+            'images' => $images,
+            'section' => $mapSection($section),
+            'parent_section' => $mapSection($topSection),
+            'meta_description' => trim((string) ($item->htmldescr ?? '')),
+            'meta_keywords' => trim((string) ($item->htmlkeys ?? $item->htmlkeyspop ?? '')),
+        ];
+    }
+
     // ── getHits: paginated hit goods for API ─────────────────────────────────
 
-    public static function getHits($fid, $limit = 10, $offset = 0)
+    public static function getHits($fid, $limit = 10, $offset = 0, ?string $locale = 'ru')
     {
         $hits = self::query()
             ->leftJoin('descript as d', function ($join) {
@@ -405,6 +556,7 @@ class Goods extends Model
             ->select(
                 'comp.id',
                 DB::raw(self::displayNameSql() . ' as name'),
+                DB::raw('COALESCE(d.name, "") as name_ru'),
                 DB::raw('COALESCE(d.name_ua, "") as name_ua'),
                 DB::raw('COALESCE(d.name_en, "") as name_en'),
                 DB::raw('COALESCE(d.description, "") as description'),
@@ -421,23 +573,30 @@ class Goods extends Model
             ->get();
 
         return self::attachPreferredPricesByItemFirma($hits)
-            ->map(function ($item) {
+            ->map(function ($item) use ($locale) {
+                $nameView = self::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '');
+                $descriptionView = self::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
+
                 return [
                     'id' => $item->id,
-                    'name' => $item->name,
+                    'name' => $nameView,
                     'name_ua' => $item->name_ua,
                     'name_en' => $item->name_en,
-                    'description' => $item->description,
+                    'name_ru' => $item->name_ru,
+                    'name_view' => $nameView,
+                    'description' => $descriptionView,
                     'description_ua' => $item->description_ua,
                     'description_en' => $item->description_en,
+                    'description_ru' => $item->description,
+                    'description_view' => $descriptionView,
                     'price' => (float) ($item->price_pay ?? 0),
                     'oldPrice' => (float) ($item->price_oldpay ?? 0),
                     'wholesalePrice' => $item->wholesale_price !== null ? (float) $item->wholesale_price : null,
                     'wholesaleOldPrice' => $item->wholesale_oldpay !== null ? (float) $item->wholesale_oldpay : null,
                     'wholesaleFrom' => $item->wholesale_from !== null ? (int) $item->wholesale_from : null,
                     'count' => (int) ($item->price_count ?? 0),
-                    'image' => $item->nfoto,
-                    'image_thumb' => $item->nfoto1,
+                    'image' => MediaUrl::image($item->nfoto),
+                    'image_thumb' => MediaUrl::image($item->nfoto1),
                 ];
             });
     }

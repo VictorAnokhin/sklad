@@ -1,12 +1,12 @@
 @extends('home')
 
-@section('title', $item->title_view ?? 'Новина')
+@section('title', $item->title_view ?? __('news.title'))
 
 @section('content')
 <div class="ttable news-show-wrap">
     <div class="news-show-toolbar">
-        <a href="{{ route('news.index') }}" class="btn btn-outline-secondary">← До списку новин</a>
-        <a href="{{ route('news.edit', ['id' => $item->id]) }}" class="btn btn-outline-primary">✏ Редагувати</a>
+        <a href="{{ route('news.index') }}" class="btn btn-outline-secondary">← {{ __('news.list_title') }}</a>
+        <a href="{{ route('news.edit', ['id' => $item->id]) }}" class="btn btn-outline-primary">{{ __('news.edit') }}</a>
     </div>
 
     <article class="news-show-card">
@@ -18,7 +18,7 @@
             <span>{{ substr((string) $item->time, 0, 5) }}</span>
             @endif
             @if((int)($item->hot ?? 0) === 1)
-            <span class="news-badge">Топ</span>
+            <span class="news-badge">{{ __('news.top') }}</span>
             @endif
         </div>
 

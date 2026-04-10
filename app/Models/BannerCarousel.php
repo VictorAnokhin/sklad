@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Support\MediaUrl;
 
 class BannerCarousel extends Model
 {
@@ -23,10 +24,6 @@ class BannerCarousel extends Model
             return null;
         }
 
-        if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://') || str_starts_with($value, '/')) {
-            return $value;
-        }
-
-        return asset('storage/' . ltrim($value, '/'));
+        return MediaUrl::storage($value, 'storage');
     }
 }

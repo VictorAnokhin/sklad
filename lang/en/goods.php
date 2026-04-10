@@ -1,0 +1,28 @@
+<?php
+
+return [
+    'title' => 'Goods',
+    'add' => '➕ Add',
+    'empty_notice' => 'No categories selected. Showing the first 20 goods sorted by popularity (`hit desc`).',
+    'search_label' => 'Search (name, keywords)',
+    'search_placeholder' => 'Product name...',
+    'category' => 'Category',
+    'subcategory' => 'Subcategory',
+    'all' => '— All —',
+    'show_without_stock' => 'Show without stock',
+    'find' => '🔍 Search',
+    'reset' => '✕ Reset',
+    'table' => [
+        'id' => 'ID',
+        'code' => 'Code',
+        'image' => 'Image',
+        'name' => 'Name',
+        'price' => 'Price (Pay)',
+        'price1' => 'Price 1 (Pay1)',
+        'old_price' => 'Old price',
+        'count' => 'Qty (Count)',
+        'stock' => 'Warehouse',
+        'brand' => 'Brand (TGroup)',
+    ],
+    'empty' => 'No goods to display',
+];

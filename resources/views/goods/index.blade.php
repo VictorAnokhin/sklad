@@ -1,7 +1,7 @@
 @extends('home')
 
 @section('title')
-Товари ({{ $total ?? 0 }})
+{{ __('goods.title') }} ({{ $total ?? 0 }})
 @endsection
 
 @section('content')
@@ -14,27 +14,27 @@
     @endphp
 
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Товари ({{ $total ?? 0 }})</h2>
-        <a href="{{ route('goods.show', ['pnum' => 0]) }}" class="btn btn-primary">➕ Додати</a>
+        <h2>{{ __('goods.title') }} ({{ $total ?? 0 }})</h2>
+        <a href="{{ route('goods.show', ['pnum' => 0]) }}" class="btn btn-primary">{{ __('goods.add') }}</a>
     </div>
 
     @if(!$isCategoryFiltered)
     <div class="alert alert-info">
-        Категорії не вибрані. Показані перші 20 товарів, відсортовані за популярністю (`hit desc`).
+        {{ __('goods.empty_notice') }}
     </div>
     @endif
 
     <form action="{{ route('goods.index') }}" method="GET" class="mb-3">
         <div class="row g-2 align-items-end">
             <div class="col-md-4">
-                <label class="form-label">Пошук (назва, ключі)</label>
-                <input type="text" name="fName" class="form-control" placeholder="Назва товару..."
+                <label class="form-label">{{ __('goods.search_label') }}</label>
+                <input type="text" name="fName" class="form-control" placeholder="{{ __('goods.search_placeholder') }}"
                     value="{{ $filters['fName'] ?? '' }}">
             </div>
             <div class="col-md-2">
-                <label class="form-label">Категорія</label>
+                <label class="form-label">{{ __('goods.category') }}</label>
                 <select name="igla" class="form-select" onchange="const sub=this.form.querySelector('[name=idcapt]'); if(sub){sub.value='';} this.form.submit();">
-                    <option value="">— Всі —</option>
+                    <option value="">{{ __('goods.all') }}</option>
                     @foreach(($tops ?? []) as $top)
                     <option value="{{ $top->id }}" {{ $selectedTop === (string)$top->id ? 'selected' : '' }}>
                         {{ $top->val }}
@@ -43,9 +43,9 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Підкатегорія</label>
+                <label class="form-label">{{ __('goods.subcategory') }}</label>
                 <select name="idcapt" class="form-select" onchange="this.form.submit()" {{ $selectedTop === '' ? 'disabled' : '' }}>
-                    <option value="">— Всі —</option>
+                    <option value="">{{ __('goods.all') }}</option>
                     @foreach($availableSubs as $sub)
                     <option value="{{ $sub->id }}" {{ $selectedSub === (string)$sub->id ? 'selected' : '' }}>
                         {{ $sub->val }}
@@ -57,15 +57,15 @@
                 <div class="form-check mt-2">
                     <input class="form-check-input" type="checkbox" name="skladNone" value="1" id="skladNone" {{
                         ($filters['skladNone'] ?? '' )==='1' ? 'checked' : '' }}>
-                    <label class="form-check-label" for="skladNone">Показати без залишку</label>
+                    <label class="form-check-label" for="skladNone">{{ __('goods.show_without_stock') }}</label>
                 </div>
             </div>
         </div>
         <div class="row g-2 mt-2">
             <div class="col-md-12 d-flex gap-2">
-                <button class="btn btn-outline-secondary" type="submit">🔍 Знайти</button>
+                <button class="btn btn-outline-secondary" type="submit">{{ __('goods.find') }}</button>
                 <a href="{{ route('goods.index') }}?fName=&igla=&idcapt=&skladNone="
-                    class="btn btn-outline-danger">✕ Скинути</a>
+                    class="btn btn-outline-danger">{{ __('goods.reset') }}</a>
             </div>
         </div>
     </form>
@@ -74,22 +74,37 @@
         <table class="table table-bordered table-striped table-hover">
             <thead class="table-dark">
                 <tr>
-                    <th>ID</th>
-                    <th>Код</th>
-                    <th>Назва (Name)</th>
-                    <th>Ціна (Pay)</th>
-                    <th>Ціна 1 (Pay1)</th>
-                    <th>Стара ціна</th>
-                    <th>К-сть (Count)</th>
-                    <th>Склад</th>
-                    <th>Бренд (TGroup)</th>
+                    <th>{{ __('goods.table.id') }}</th>
+                    <th>{{ __('goods.table.image') }}</th>
+                    <th>{{ __('goods.table.name') }}</th>
+                    <th>{{ __('goods.table.price') }}</th>
+                    <th>{{ __('goods.table.price1') }}</th>
+                    <th>{{ __('goods.table.old_price') }}</th>
+                    <th>{{ __('goods.table.count') }}</th>
+                    <th>{{ __('goods.table.stock') }}</th>
+                    <th>{{ __('goods.table.brand') }}</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($comps as $comp)
                 <tr>
                     <td><a href="{{ route('goods.show', ['pnum' => $comp->id]) }}">{{ $comp->id }}</a></td>
-                    <td>{{ $comp->cod }}</td>
+                    <td class="text-center align-middle">
+                        @php
+                            $previewImage = \App\Support\MediaUrl::image($comp->nfoto ?? '');
+                        @endphp
+                        @if($previewImage)
+                            <a href="{{ route('goods.show', ['pnum' => $comp->id]) }}">
+                                <img
+                                    src="{{ $previewImage }}"
+                                    alt="{{ $comp->name ?? $comp->nickname }}"
+                                    style="width:72px;height:48px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;"
+                                >
+                            </a>
+                        @else
+                            <span class="text-muted">—</span>
+                        @endif
+                    </td>
                     <td>
                         <a href="{{ route('goods.show', ['pnum' => $comp->id]) }}">
                             {{ $comp->name ?? $comp->nickname }}
@@ -104,7 +119,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="text-center">Немає товарів для відображення</td>
+                    <td colspan="9" class="text-center">{{ __('goods.empty') }}</td>
                 </tr>
                 @endforelse
             </tbody>

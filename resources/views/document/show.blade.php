@@ -113,31 +113,40 @@
                     @if(in_array($doc, ['PO', 'RO'], true))
                     <div class="col-f">
                         <label>Касса</label>
-                        <select name="oplata" class="form-select">
+                        <select name="oplata" class="form-select" required>
                             <option value="">—</option>
                             @foreach($oplataList as $op)
-                            <option value="{{ $op->id }}" {{ $document->oplata == $op->id ? 'selected' : '' }}>{{ $op->name }}</option>
+                            <option value="{{ $op->id }}" {{ (string) old('oplata', $document->oplata) === (string) $op->id ? 'selected' : '' }}>{{ $op->name }}</option>
                             @endforeach
                         </select>
+                        @error('oplata')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
                     </div>
                     <div class="col-f">
                         <label>Вид платежа</label>
-                        <select name="reestr" class="form-select">
+                        <select name="reestr" class="form-select" required>
                             <option value="">—</option>
                             @foreach($reestrList as $re)
-                            <option value="{{ $re->id }}" {{ $document->reestr == $re->id ? 'selected' : '' }}>{{ $re->name }}</option>
+                            <option value="{{ $re->id }}" {{ (string) old('reestr', $document->reestr) === (string) $re->id ? 'selected' : '' }}>{{ $re->name }}</option>
                             @endforeach
                         </select>
+                        @error('reestr')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
                     </div>
                     @elseif(in_array($doc, ['PN', 'RN', 'WO1'], true))
                     <div class="col-f">
                         <label>Склад</label>
-                        <select name="sklads" class="form-select">
+                        <select name="sklads" class="form-select" required>
                             <option value="">—</option>
                             @foreach($skladsList as $sk)
-                            <option value="{{ $sk->id }}" {{ $document->sklads == $sk->id ? 'selected' : '' }}>{{ $sk->name }}</option>
+                            <option value="{{ $sk->id }}" {{ (string) old('sklads', $document->sklads) === (string) $sk->id ? 'selected' : '' }}>{{ $sk->name }}</option>
                             @endforeach
                         </select>
+                        @error('sklads')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
                     </div>
                     @else
                     <div class="col-f">
@@ -182,7 +191,7 @@
                     <div id="clientSearchResults" class="list-group"
                         style="display:none; max-height:180px; overflow-y:auto; position:absolute; z-index:1000; width:calc(100% - 12px); box-shadow:0 4px 6px rgba(0,0,0,0.1);">
                     </div>
-                    <input type="hidden" name="client1" id="client1_id" value="{{ $client ? $client->id : '' }}">
+                    <input type="hidden" name="client1" id="client1_id" value="{{ old('client1', $client ? $client->id : '') }}">
                     <div id="selectedClientDetails"
                         class="alert {{ $client ? 'alert-secondary' : 'alert-warning' }} py-1 mt-1"
                         style="font-size:0.85rem; {{ $client ? 'background:#f8f9fa; border:1px solid #ddd;' : '' }}">
@@ -193,6 +202,9 @@
                         Клієнт не обраний
                         @endif
                     </div>
+                    @error('client1')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
                 </div>
 
                 <!-- Row 3: Сума / Бонус -->

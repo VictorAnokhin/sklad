@@ -1,21 +1,21 @@
 @extends('home')
 
-@section('title', 'Документи')
+@section('title', __('document.title'))
 
 @section('content')
 @php
 $btnLabel = match($doc) {
-'PO' => 'Отримання грошей',
-'RO' => 'Видача грошей',
-'PP' => 'Новий депозит',
-'PN' => 'Отримання товару',
-'RN' => 'Видача товару',
-'WO1' => 'На виготовлення',
-'CH' => 'Пропозиція',
-'SP' => 'На виготовлення',
-'RA' => 'Додати фото',
-'VN' => 'Видача товару',
-default => 'Новий ' . \App\Models\Document::typeName($doc),
+'PO' => \App\Models\Document::typeName('PO'),
+'RO' => \App\Models\Document::typeName('RO'),
+'PP' => \App\Models\Document::typeName('PP'),
+'PN' => \App\Models\Document::typeName('PN'),
+'RN' => \App\Models\Document::typeName('RN'),
+'WO1' => \App\Models\Document::typeName('WO1'),
+'CH' => \App\Models\Document::typeName('CH'),
+'SP' => \App\Models\Document::typeName('SP'),
+'RA' => \App\Models\Document::typeName('RA'),
+'VN' => \App\Models\Document::typeName('VN'),
+default => __('document.create_new', ['name' => \App\Models\Document::typeName($doc)]),
 };
 @endphp
 
@@ -41,7 +41,7 @@ default => 'Новий ' . \App\Models\Document::typeName($doc),
 
   @if(empty($items))
   <div style="text-align:center;padding:20px;color:#CC0000;font-size:1.2em">
-    Документи відсутні...
+    {{ __('document.empty') }}
   </div>
   @else
 
@@ -49,7 +49,7 @@ default => 'Новий ' . \App\Models\Document::typeName($doc),
   @foreach($items as $item)
   <div class="txtbox-price-docs">
     <div class="numdoc-docs">
-      <a href="{{ $item['linkUrl'] }}" title="відкрити">{{ $item['num'] }}</a>
+      <a href="{{ $item['linkUrl'] }}" title="{{ __('document.open') }}">{{ $item['num'] }}</a>
     </div>
     <div class="status-docs4 compact-date">
       <span class="compact-date-line">{{ $item['data'] }}</span>
@@ -76,7 +76,7 @@ default => 'Новий ' . \App\Models\Document::typeName($doc),
 
   {{-- Totals row --}}
   <div class="tstr" style="padding:6px;font-weight:bold">
-    Разом: {{ count($items) }} | Сума: {{ number_format($total_sum, 2, '.', '') }} грн
+    {{ __('document.total') }}: {{ count($items) }} | {{ __('document.sum') }}: {{ number_format($total_sum, 2, '.', '') }} {{ __('document.currency') }}
   </div>
 
   {{-- Pagination --}}

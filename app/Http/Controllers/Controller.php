@@ -9,4 +9,9 @@ use Illuminate\Routing\Controller as BaseController;
 class Controller extends BaseController
 {
     use AuthorizesRequests, ValidatesRequests;
+
+    protected function resolveBackendLocale(): string
+    {
+        return \App\Models\Field::normalizeLocale((string) session('lang', app()->getLocale()));
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\AccountingService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -95,7 +96,7 @@ class Money extends Model
             ->whereIn('d.type', ['PO', 'RO'])
             ->first([
                 'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
-                'd.summa', 'd.content', 'd.money', 'd.provodka', 'd.client1',
+                'd.summa', 'd.content', 'd.money', 'd.reestr', 'd.provodka', 'd.client1',
                 'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city',
             ]);
     }
@@ -113,6 +114,7 @@ class Money extends Model
             'summa'      => 0,
             'content'    => '',
             'money'      => 0,
+            'reestr'     => '',
             'provodka'   => 0,
             'client1'    => '',
             'name'       => '',
@@ -141,6 +143,7 @@ class Money extends Model
     {
         $data['firma'] = $fid;
         $data['money'] = (string)($data['money'] ?? '');
+        $data['reestr'] = (string)($data['reestr'] ?? '');
         $data['content'] = (string)($data['content'] ?? '');
         $data['client1'] = (string)($data['client1'] ?? '0');
         $data['summa'] = (float)($data['summa'] ?? 0);
@@ -209,7 +212,7 @@ class Money extends Model
         $delta = $sign * (float) ($doc->summa ?? 0) * $direction;
         $moneyId = (string) ($doc->money ?? '');
 
-        DB::transaction(function () use ($moneyId, $fid, $delta, $id, $wasPosted) {
+        DB::transaction(function () use ($moneyId, $fid, $delta, $id, $wasPosted, $doc) {
             if ($moneyId !== '') {
                 $currentValue = (float) DB::table('conf')
                     ->where('id', $moneyId)
@@ -223,6 +226,16 @@ class Money extends Model
                     ->where('firma', $fid)
                     ->update(['value' => $currentValue + $delta]);
             }
+
+            app(AccountingService::class)->createDocumentTransaction(
+                'z_document:money_order',
+                $id,
+                (string) ($doc->type ?? ''),
+                $doc,
+                [],
+                $fid,
+                $wasPosted
+            );
 
             DB::table('z_document')
                 ->where('id', $id)

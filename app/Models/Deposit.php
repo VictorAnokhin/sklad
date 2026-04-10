@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\AccountingService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -194,7 +195,7 @@ class Deposit extends Model
         $oplata2Id = (string) ($doc->oplata2 ?? '');
         $depositId = (string) ($doc->money ?? '');
 
-        DB::transaction(function () use ($fid, $direction, $summa, $mode, $oplataId, $oplata2Id, $depositId, $id, $wasPosted): void {
+        DB::transaction(function () use ($fid, $direction, $summa, $mode, $oplataId, $oplata2Id, $depositId, $id, $wasPosted, $doc): void {
             if ($mode === 'topup' && $oplataId !== '' && $depositId !== '') {
                 self::shiftConfValue($fid, 'oplata', $oplataId, -1 * $summa * $direction);
                 self::shiftConfValue($fid, 'deposit', $depositId, $summa * $direction);
@@ -209,6 +210,16 @@ class Deposit extends Model
                 self::shiftConfValue($fid, 'oplata', $oplataId, -1 * $summa * $direction);
                 self::shiftConfValue($fid, 'oplata', $oplata2Id, $summa * $direction);
             }
+
+            app(AccountingService::class)->createDocumentTransaction(
+                'z_document:deposit_operation',
+                $id,
+                'PP',
+                $doc,
+                [],
+                $fid,
+                $wasPosted
+            );
 
             DB::table('z_document')
                 ->where('id', $id)

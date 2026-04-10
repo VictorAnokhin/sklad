@@ -1,6 +1,6 @@
 @extends('home')
 
-@section('title', 'Новини')
+@section('title', __('news.title'))
 
 @section('content')
 @php
@@ -16,7 +16,7 @@
 
 <div class="ttable news-wrap">
     <div class="news-toolbar">
-        <a href="{{ route('news.edit', ['id' => 0]) }}" class="btn btn-success">+ Додати новину</a>
+        <a href="{{ route('news.edit', ['id' => 0]) }}" class="btn btn-success">{{ __('news.add') }}</a>
     </div>
 
     @if(session('success'))
@@ -27,7 +27,7 @@
     @endif
 
     @if(($items ?? collect())->isEmpty())
-    <div class="news-empty">Новини відсутні...</div>
+    <div class="news-empty">{{ __('news.empty') }}</div>
     @else
     <div class="news-list">
         @foreach($items as $item)
@@ -40,20 +40,20 @@
                     <span>{{ $item->dt }}</span>
                     @endif
                     @if((int)($item->hot ?? 0) === 1)
-                    <span class="news-badge">Топ</span>
+                    <span class="news-badge">{{ __('news.top') }}</span>
                     @endif
                     @if((int)($item->view ?? 0) !== 1)
-                    <span class="news-hidden">Приховано</span>
+                    <span class="news-hidden">{{ __('news.hidden') }}</span>
                     @endif
                 </div>
             </div>
 
             <div class="news-row__actions">
-                <a href="{{ route('news.edit', ['id' => $item->id]) }}" class="btn btn-sm btn-outline-primary">✏ Редагувати</a>
-                <form action="{{ route('news.destroy') }}" method="post" onsubmit="return confirm('Видалити новину?');">
+                <a href="{{ route('news.edit', ['id' => $item->id]) }}" class="btn btn-sm btn-outline-primary">{{ __('news.edit') }}</a>
+                <form action="{{ route('news.destroy') }}" method="post" onsubmit="return confirm('{{ __('news.delete_confirm') }}');">
                     @csrf
                     <input type="hidden" name="id" value="{{ $item->id }}">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">🗑 Видалити</button>
+                    <button type="submit" class="btn btn-sm btn-outline-danger">{{ __('news.delete') }}</button>
                 </form>
             </div>
         </div>

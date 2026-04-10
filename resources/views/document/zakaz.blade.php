@@ -1,5 +1,7 @@
 @extends('home')
 
+@section('title', __('document.title'))
+
 @section('content')
 @php
   $docLabel = \App\Models\Document::typeName($doc);
@@ -32,7 +34,7 @@
 
     @if(empty($items))
     <div style="text-align:center;padding:20px;color:#CC0000;font-size:1.2em">
-      Документи відсутні...
+      {{ __('document.empty') }}
     </div>
     @else
 
@@ -70,7 +72,7 @@
     </div>
 
     <div class="tstr" style="padding:6px;font-weight:bold">
-      Разом: {{ count($items) }} | Сума: {{ number_format($total_sum, 2, '.', '') }} грн
+      {{ __('document.total') }}: {{ count($items) }} | {{ __('document.sum') }}: {{ number_format($total_sum, 2, '.', '') }} {{ __('document.currency') }}
     </div>
 
     @include('partials.navigator', ['pos' => $pos, 'pos2' => 30, 'max' => $total, 'doc' => $doc])

@@ -6,6 +6,7 @@ use App\Models\Document;
 use App\Models\ZBody;
 use App\Models\Conf;
 use App\Models\Docs;
+use App\Models\Conf as ConfModel;
 use App\Services\FilterService;
 use App\Services\DocumentService;
 use Illuminate\Http\Request;
@@ -356,7 +357,7 @@ class DocumentController extends Controller
 
         // Load all oplata and reestr options for PO/RO dropdowns
         $oplataList = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
-        $reestrList = DB::table('conf')->where('type', 'reestr')->where('firma', $fid)->orderBy('name')->get();
+        $reestrList = ConfModel::paymentTypesForDocument($fid, $doc);
         $skladsList = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
         $clientStatuses = DB::table('conf')->where('type', 'tclient')->where('firma', $fid)->orderBy('name')->get();
         $myCompanies = collect();
@@ -620,6 +621,29 @@ class DocumentController extends Controller
             if ($this->isRootDocumentLocked($doc, $docId, $fid)) {
                 return redirect()->back()->with('error', 'Проведений документ змінювати не можна. Спочатку зніміть проводку з пов’язаних документів.');
             }
+
+            $errors = [];
+            if (trim((string) $request->input('client1', '')) === '') {
+                $errors['client1'] = 'Оберіть клієнта';
+            }
+
+            if (in_array($doc, ['PO', 'RO'], true)) {
+                if (trim((string) $request->input('oplata', '')) === '') {
+                    $errors['oplata'] = 'Оберіть касу';
+                }
+                if (trim((string) $request->input('reestr', '')) === '') {
+                    $errors['reestr'] = 'Оберіть вид платежу';
+                }
+            }
+
+            if (in_array($doc, ['PN', 'RN', 'WO1'], true) && trim((string) $request->input('sklads', '')) === '') {
+                $errors['sklads'] = 'Оберіть склад';
+            }
+
+            if ($errors !== []) {
+                return redirect()->back()->withErrors($errors)->withInput();
+            }
+
             session(['doc' => $doc, 'doc_id' => $docId]);
             try {
                 $this->docService->saveHead($request, $docId, $doc, $fid);

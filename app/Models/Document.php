@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\AccountingService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -31,22 +32,10 @@ class Document extends Model
      */
     public static function typeName($doc): string
     {
-        return match (strtoupper($doc)) {
-            'ZOUT' => 'Заказ',
-            'ZIN'  => 'Закупка',
-            'CH'   => 'Счёт',
-            'PN'   => 'Приход товара',
-            'RN'   => 'Отгрузка товара',
-            'PO'   => 'Получение средств',
-            'RO'   => 'Выдача средств',
-            'PP'   => 'Депозит',
-            'WO1'  => 'Наряд',
-            'VN'   => 'Внутренний',
-            'AO'   => 'Акт',
-            'SP'   => 'Списание',
-            'RA'   => 'Файл',
-            default => $doc,
-        };
+        $key = strtolower((string) $doc);
+        $translated = __("document.doctypes.{$key}");
+
+        return $translated === "document.doctypes.{$key}" ? (string) $doc : $translated;
     }
 
     public function scopeFilter($query, $filters)
@@ -341,6 +330,16 @@ class Document extends Model
                     );
                 }
             }
+
+            app(AccountingService::class)->createDocumentTransaction(
+                "{$table}:{$docType}",
+                $docId,
+                $docType,
+                $doc,
+                $lineItems,
+                $fid,
+                $wasPosted
+            );
 
             DB::table($table)->where('id', $docId)->update(['provodka' => $wasPosted ? 0 : 1]);
 

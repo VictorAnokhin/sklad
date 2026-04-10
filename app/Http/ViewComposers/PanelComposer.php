@@ -36,6 +36,8 @@ class PanelComposer
             request()->routeIs('reports.financialpnl') => 'financialpnl',
             request()->routeIs('reports.balancesheet') => 'balancesheet',
             request()->routeIs('reports.cashflowstmt') => 'cashflowstmt',
+            request()->routeIs('reports.trialbalance') => 'trialbalance',
+            request()->routeIs('reports.journal') => 'journal',
             request()->routeIs('reports.salesforecast') => 'salesforecast',
             request()->routeIs('reports.purchaseplan') => 'purchaseplan',
             request()->routeIs('reports.profitplan') => 'profitplan',

@@ -6,6 +6,11 @@
 
 @section('content')
 <div class="container mt-4">
+    @php
+        $comp = $comp ?? (object) [];
+        $descript = $descript ?? (object) [];
+    @endphp
+
     <style>
         .goods-sticky-actions {
             position: sticky;
@@ -263,7 +268,7 @@
             <div class="row g-3">
                 @foreach($photoFields as $photo)
                 @php
-                    $imagePath = $comp->{$photo['column']} ?? '';
+                    $imagePath = \App\Support\MediaUrl::image($comp->{$photo['column']} ?? '');
                 @endphp
                 <div class="col-md-6 col-lg-4">
                     <div class="card h-100">
@@ -288,8 +293,11 @@
         <div class="d-flex gap-2 goods-sticky-actions">
             <button type="submit" class="btn btn-success">💾 Зберегти</button>
             <a href="{{ route('goods.index') }}" class="btn btn-secondary">← Назад</a>
-            @if($comp->id && $pnum && $pnum !== '0')
-                <input type="hidden" name="id" value="{{ $comp->id }}">
+            @php
+                $compId = $comp->id ?? null;
+            @endphp
+            @if($compId && $pnum && $pnum !== '0')
+                <input type="hidden" name="id" value="{{ $compId }}">
                 <input type="hidden" name="cod" value="{{ $comp->cod ?? '' }}">
                 <button
                     type="submit"

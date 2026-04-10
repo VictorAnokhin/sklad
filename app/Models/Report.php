@@ -198,6 +198,125 @@ class Report extends Model
         ];
     }
 
+    public static function trialBalance(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
+    {
+        [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
+
+        $accounts = collect();
+        if (DB::getSchemaBuilder()->hasTable('accounts') && DB::getSchemaBuilder()->hasTable('entries') && DB::getSchemaBuilder()->hasTable('transactions')) {
+            $accounts = DB::table('accounts as a')
+                ->leftJoin('entries as e', function ($join) use ($fid) {
+                    $join->on('a.id', '=', 'e.account_id')
+                        ->where('e.company_id', '=', (int) $fid);
+                })
+                ->leftJoin('transactions as t', 'e.transaction_id', '=', 't.id')
+                ->groupBy('a.id', 'a.code', 'a.name', 'a.type')
+                ->orderBy('a.code')
+                ->get([
+                    'a.id',
+                    'a.code',
+                    'a.name',
+                    'a.type',
+                    DB::raw("COALESCE(SUM(CASE WHEN t.date < '{$dateFromUi}' THEN e.debit ELSE 0 END), 0) as opening_debit"),
+                    DB::raw("COALESCE(SUM(CASE WHEN t.date < '{$dateFromUi}' THEN e.credit ELSE 0 END), 0) as opening_credit"),
+                    DB::raw("COALESCE(SUM(CASE WHEN t.date BETWEEN '{$dateFromUi}' AND '{$dateToUi}' THEN e.debit ELSE 0 END), 0) as period_debit"),
+                    DB::raw("COALESCE(SUM(CASE WHEN t.date BETWEEN '{$dateFromUi}' AND '{$dateToUi}' THEN e.credit ELSE 0 END), 0) as period_credit"),
+                ])
+                ->map(function ($account) {
+                    $openingNet = self::accountNet($account->type, (float) $account->opening_debit, (float) $account->opening_credit);
+                    $closingNet = self::accountNet(
+                        $account->type,
+                        (float) $account->opening_debit + (float) $account->period_debit,
+                        (float) $account->opening_credit + (float) $account->period_credit
+                    );
+
+                    $account->opening_balance_debit = $openingNet >= 0 ? $openingNet : 0.0;
+                    $account->opening_balance_credit = $openingNet < 0 ? abs($openingNet) : 0.0;
+                    $account->closing_balance_debit = $closingNet >= 0 ? $closingNet : 0.0;
+                    $account->closing_balance_credit = $closingNet < 0 ? abs($closingNet) : 0.0;
+
+                    return $account;
+                })
+                ->filter(function ($account) {
+                    return abs((float) $account->opening_balance_debit) > 0.0001
+                        || abs((float) $account->opening_balance_credit) > 0.0001
+                        || abs((float) $account->period_debit) > 0.0001
+                        || abs((float) $account->period_credit) > 0.0001
+                        || abs((float) $account->closing_balance_debit) > 0.0001
+                        || abs((float) $account->closing_balance_credit) > 0.0001;
+                })
+                ->values();
+        }
+
+        return [
+            'dateFrom' => $dateFromUi,
+            'dateTo' => $dateToUi,
+            'periodLabel' => self::periodLabel($dateFromUi, $dateToUi),
+            'rows' => $accounts,
+            'totals' => [
+                'opening_debit' => (float) $accounts->sum('opening_balance_debit'),
+                'opening_credit' => (float) $accounts->sum('opening_balance_credit'),
+                'period_debit' => (float) $accounts->sum('period_debit'),
+                'period_credit' => (float) $accounts->sum('period_credit'),
+                'closing_debit' => (float) $accounts->sum('closing_balance_debit'),
+                'closing_credit' => (float) $accounts->sum('closing_balance_credit'),
+            ],
+        ];
+    }
+
+    public static function journal(string $fid, string $dateFromInput = '', string $dateToInput = '', string $accountId = ''): array
+    {
+        [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
+        $accountId = trim($accountId);
+
+        $accounts = DB::getSchemaBuilder()->hasTable('accounts')
+            ? DB::table('accounts')->orderBy('code')->get(['id', 'code', 'name'])
+            : collect();
+
+        $rows = collect();
+        if (DB::getSchemaBuilder()->hasTable('transactions') && DB::getSchemaBuilder()->hasTable('entries') && DB::getSchemaBuilder()->hasTable('accounts')) {
+            $query = DB::table('entries as e')
+                ->join('transactions as t', 'e.transaction_id', '=', 't.id')
+                ->join('accounts as a', 'e.account_id', '=', 'a.id')
+                ->where('e.company_id', (int) $fid)
+                ->whereBetween('t.date', [$dateFromUi, $dateToUi]);
+
+            if ($accountId !== '') {
+                $query->where('e.account_id', $accountId);
+            }
+
+            $rows = $query
+                ->orderBy('t.date')
+                ->orderBy('t.id')
+                ->orderBy('e.id')
+                ->get([
+                    'e.id',
+                    'e.transaction_id',
+                    't.date',
+                    't.description',
+                    't.reference_type',
+                    't.reference_id',
+                    'a.code as account_code',
+                    'a.name as account_name',
+                    'e.debit',
+                    'e.credit',
+                    'e.currency',
+                    'e.amount',
+                ]);
+        }
+
+        return [
+            'dateFrom' => $dateFromUi,
+            'dateTo' => $dateToUi,
+            'periodLabel' => self::periodLabel($dateFromUi, $dateToUi),
+            'accountId' => $accountId,
+            'accounts' => $accounts,
+            'rows' => $rows,
+            'totalDebit' => (float) $rows->sum('debit'),
+            'totalCredit' => (float) $rows->sum('credit'),
+        ];
+    }
+
     public static function stockBalances(
         string $fid,
         string $skladId = '',
@@ -1887,5 +2006,14 @@ class Report extends Model
         }
 
         return $dateFromUi . ' - ' . $dateToUi;
+    }
+
+    private static function accountNet(string $type, float $debit, float $credit): float
+    {
+        return match ($type) {
+            'asset', 'expense' => $debit - $credit,
+            'liability', 'equity', 'income' => $credit - $debit,
+            default => 0.0,
+        };
     }
 }

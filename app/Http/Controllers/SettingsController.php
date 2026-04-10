@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BannerCarousel;
+use App\Models\Account;
 use App\Models\Firma;
 use App\Models\Project;
 use App\Models\Settings;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use App\Models\Conf;
 
 /**
  * SettingsController — migrated from admin/ module (idstatus >= 3)
@@ -36,7 +38,8 @@ class SettingsController extends Controller
         $statuses = DB::table('conf')->where('type', 'status')->where('firma', $fid)->orderBy('name')->get();
 
         // Reestr (payment types) — conf where type='reestr'
-        $reestrs = DB::table('conf')->where('type', 'reestr')->where('firma', $fid)->orderBy('name')->get();
+        $reestrs = DB::table('conf')->where('type', 'reestr')->where('firma', $fid)->orderBy('name')->get()
+            ->map(fn ($item) => Conf::decoratePaymentType($item));
 
         // Client types — conf where type='tgroup'
         $tgroups = DB::table('conf')->where('type', 'tgroup')->where('firma', $fid)->orderBy('name')->get();
@@ -80,9 +83,10 @@ class SettingsController extends Controller
             ]]);
         }
 
-        $catalogTopCount = 0;
+        $fieldCatalogTopCount = 0;
+        $fieldCityCount = 0;
         if (Schema::hasTable('field')) {
-            $catalogTopCount = $this->catalogBaseQuery($fid)
+            $fieldCatalogTopCount = $this->fieldBaseQuery($fid, 'catalog')
                 ->where(function ($query) {
                     $query->where('idkeyfield', '0')
                         ->orWhere('idkeyfield', 0)
@@ -90,13 +94,20 @@ class SettingsController extends Controller
                         ->orWhere('idkeyfield', '');
                 })
                 ->count();
+
+            $fieldCityCount = $this->fieldBaseQuery($fid, 'city')->count();
         }
 
         $bannerCarouselCount = Schema::hasTable('banner_carousels')
             ? (int) DB::table('banner_carousels')->where('firma', $fid)->count()
             : 0;
+        $accountsCount = Schema::hasTable('accounts')
+            ? (int) Account::query()->count()
+            : 0;
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'catalogTopCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount')));
+        $fieldTranslationsCount = $fieldCatalogTopCount + $fieldCityCount;
+
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount')));
     }
 
     public function show(Request $request)
@@ -174,7 +185,8 @@ class SettingsController extends Controller
     public function apiIndex($type)
     {
         $fid = session('fid', '');
-        $items = DB::table('conf')->where('type', $type)->where('firma', $fid)->orderBy('name')->get();
+        $items = DB::table('conf')->where('type', $type)->where('firma', $fid)->orderBy('name')->get()
+            ->map(fn ($item) => $type === 'reestr' ? Conf::decoratePaymentType($item) : $item);
         return response()->json($items);
     }
 
@@ -187,7 +199,7 @@ class SettingsController extends Controller
         $fid = session('fid', '');
         $item = DB::table('conf')->where('id', $id)->where('type', $type)->where('firma', $fid)->first();
         if (!$item) return response()->json(['message' => 'Не знайдено'], 404);
-        return response()->json($item);
+        return response()->json($type === 'reestr' ? Conf::decoratePaymentType($item) : $item);
     }
 
     /**
@@ -203,6 +215,7 @@ class SettingsController extends Controller
             'color' => 'nullable|string|max:20',
             'status' => 'nullable|string',
             'vision' => 'nullable|string',
+            'doc' => 'nullable|string|max:100',
         ]);
 
         $data = [
@@ -215,6 +228,12 @@ class SettingsController extends Controller
             'constanta' => '0',
             'firma'   => $fid,
         ];
+
+        if (Schema::hasColumn('conf', 'doc')) {
+            $data['doc'] = $validated['type'] === 'reestr'
+                ? Conf::normalizePaymentDocFlags($validated['doc'] ?? '')
+                : '';
+        }
 
         $id = DB::table('conf')->insertGetId($data);
         return response()->json(['success' => true, 'id' => $id]);
@@ -233,18 +252,27 @@ class SettingsController extends Controller
             'color' => 'nullable|string|max:20',
             'status' => 'nullable|string',
             'vision' => 'nullable|string',
+            'doc' => 'nullable|string|max:100',
         ]);
 
         $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
 
-        DB::table('conf')->where('id', $id)->update([
+        $update = [
             'name'   => $validated['name'],
             'type'   => $validated['type'],
             'color'  => $validated['color'] ?? '',
             'status' => $validated['status'] ?? '1',
             'vision' => $validated['vision'] ?? '1',
-        ]);
+        ];
+
+        if (Schema::hasColumn('conf', 'doc')) {
+            $update['doc'] = $validated['type'] === 'reestr'
+                ? Conf::normalizePaymentDocFlags($validated['doc'] ?? '')
+                : '';
+        }
+
+        DB::table('conf')->where('id', $id)->update($update);
 
         return response()->json(['success' => true]);
     }
@@ -260,6 +288,168 @@ class SettingsController extends Controller
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
 
         DB::table('conf')->where('id', $id)->delete();
+        return response()->json(['success' => true]);
+    }
+
+    public function accountsIndex()
+    {
+        if (!Schema::hasTable('accounts')) {
+            return response()->json([]);
+        }
+
+        $items = Account::query()
+            ->leftJoin('accounts as parent', 'accounts.parent_id', '=', 'parent.id')
+            ->orderBy('accounts.code')
+            ->get([
+                'accounts.id',
+                'accounts.code',
+                'accounts.name',
+                'accounts.type',
+                'accounts.parent_id',
+                'parent.code as parent_code',
+                'parent.name as parent_name',
+            ]);
+
+        return response()->json($items);
+    }
+
+    public function accountsShow($id)
+    {
+        if (!Schema::hasTable('accounts')) {
+            return response()->json(['message' => 'Не знайдено'], 404);
+        }
+
+        $item = Account::query()->find($id);
+        if (!$item) {
+            return response()->json(['message' => 'Не знайдено'], 404);
+        }
+
+        return response()->json($item);
+    }
+
+    public function accountsStore(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:255|unique:accounts,code',
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:asset,liability,equity,income,expense',
+            'parent_id' => 'nullable|integer|exists:accounts,id',
+        ]);
+
+        $account = Account::query()->create($validated);
+
+        return response()->json(['success' => true, 'id' => $account->id]);
+    }
+
+    public function accountsUpdate(Request $request, $id)
+    {
+        $account = Account::query()->find($id);
+        if (!$account) {
+            return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+        }
+
+        $validated = $request->validate([
+            'code' => 'required|string|max:255|unique:accounts,code,' . $account->id,
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:asset,liability,equity,income,expense',
+            'parent_id' => 'nullable|integer|exists:accounts,id',
+        ]);
+
+        if ((int) ($validated['parent_id'] ?? 0) === (int) $account->id) {
+            return response()->json(['success' => false, 'message' => 'Рахунок не може бути батьківським сам для себе'], 422);
+        }
+
+        $account->update($validated);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function accountsDestroy($id)
+    {
+        $account = Account::query()->find($id);
+        if (!$account) {
+            return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+        }
+
+        if (Account::query()->where('parent_id', $account->id)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Спочатку перенесіть або видаліть дочірні рахунки'], 422);
+        }
+
+        if (Schema::hasTable('entries') && DB::table('entries')->where('account_id', $account->id)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Рахунок уже використаний у проводках і не може бути видалений'], 422);
+        }
+
+        if (Schema::hasTable('conf') && Schema::hasColumn('conf', 'debit_account_id') && Schema::hasColumn('conf', 'credit_account_id')) {
+            DB::table('conf')
+                ->where('debit_account_id', $account->id)
+                ->orWhere('credit_account_id', $account->id)
+                ->update([
+                    'debit_account_id' => DB::raw("IF(debit_account_id = {$account->id}, NULL, debit_account_id)"),
+                    'credit_account_id' => DB::raw("IF(credit_account_id = {$account->id}, NULL, credit_account_id)"),
+                ]);
+        }
+
+        $account->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function paymentTypeAccountBindings()
+    {
+        $fid = session('fid', '');
+
+        if (!Schema::hasTable('conf')) {
+            return response()->json([]);
+        }
+
+        $paymentTypes = DB::table('conf as c')
+            ->leftJoin('accounts as da', 'c.debit_account_id', '=', 'da.id')
+            ->leftJoin('accounts as ca', 'c.credit_account_id', '=', 'ca.id')
+            ->where('c.type', 'reestr')
+            ->where('c.firma', $fid)
+            ->orderBy('c.name')
+            ->get([
+                'c.id',
+                'c.name',
+                'c.doc',
+                'c.debit_account_id',
+                'c.credit_account_id',
+                'da.code as debit_account_code',
+                'da.name as debit_account_name',
+                'ca.code as credit_account_code',
+                'ca.name as credit_account_name',
+            ])
+            ->map(fn ($item) => Conf::decoratePaymentType($item));
+
+        return response()->json($paymentTypes);
+    }
+
+    public function updatePaymentTypeAccountBinding(Request $request, $id)
+    {
+        $fid = session('fid', '');
+
+        $validated = $request->validate([
+            'debit_account_id' => 'nullable|integer|exists:accounts,id',
+            'credit_account_id' => 'nullable|integer|exists:accounts,id',
+        ]);
+
+        $paymentType = DB::table('conf')
+            ->where('id', $id)
+            ->where('type', 'reestr')
+            ->where('firma', $fid)
+            ->first();
+
+        if (!$paymentType) {
+            return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+        }
+
+        DB::table('conf')
+            ->where('id', $id)
+            ->update([
+                'debit_account_id' => $validated['debit_account_id'] ?? null,
+                'credit_account_id' => $validated['credit_account_id'] ?? null,
+            ]);
+
         return response()->json(['success' => true]);
     }
 
@@ -605,152 +795,54 @@ class SettingsController extends Controller
 
     // ── Catalog CRUD (field.keyfield = catalog) ─────────────────────────────
 
+    public function fieldIndex(Request $request)
+    {
+        return $this->fieldIndexByKeyfield($request, $this->resolveFieldKeyfield($request));
+    }
+
+    public function fieldShow(Request $request, $id)
+    {
+        return $this->fieldShowByKeyfield($request, $id, $this->resolveFieldKeyfield($request));
+    }
+
+    public function fieldStore(Request $request)
+    {
+        return $this->fieldStoreByKeyfield($request, $this->resolveFieldKeyfield($request));
+    }
+
+    public function fieldUpdate(Request $request, $id)
+    {
+        return $this->fieldUpdateByKeyfield($request, $id, $this->resolveFieldKeyfield($request));
+    }
+
+    public function fieldDestroy(Request $request, $id)
+    {
+        return $this->fieldDestroyByKeyfield($request, $id, $this->resolveFieldKeyfield($request));
+    }
+
     public function catalogIndex(Request $request)
     {
-        if (!Schema::hasTable('field')) {
-            return response()->json([
-                'items' => [],
-                'breadcrumb' => [['id' => 0, 'name' => 'Категорії']],
-                'currentParentId' => '0',
-                'currentParent' => null,
-                'total' => 0,
-            ]);
-        }
-
-        $fid = session('fid', '');
-        $parentId = (string) $request->input('parent_id', '0');
-        $parentId = $parentId === '' ? '0' : $parentId;
-        $fieldColumns = $this->fieldColumns();
-
-        $itemsQuery = $this->catalogChildrenQuery($fid, $parentId);
-        if (in_array('num', $fieldColumns, true)) {
-            $itemsQuery->orderBy('num');
-        }
-        if (in_array('val', $fieldColumns, true)) {
-            $itemsQuery->orderBy('val');
-        } else {
-            $itemsQuery->orderBy('id');
-        }
-        $items = $itemsQuery->get();
-
-        $childCounts = $this->catalogBaseQuery($fid)
-            ->selectRaw('idkeyfield, COUNT(*) as total')
-            ->groupBy('idkeyfield')
-            ->pluck('total', 'idkeyfield');
-
-        $payload = $items->map(function ($item) use ($childCounts, $fieldColumns) {
-            return $this->normalizeCatalogItem($item, $childCounts, $fieldColumns);
-        })->values();
-
-        $currentParent = $parentId !== '0' ? $this->catalogFind($fid, $parentId) : null;
-
-        return response()->json([
-            'items' => $payload,
-            'breadcrumb' => $this->catalogBreadcrumb($fid, $parentId),
-            'currentParentId' => $parentId,
-            'currentParent' => $currentParent ? $this->normalizeCatalogItem($currentParent, collect(), $fieldColumns) : null,
-            'total' => $payload->count(),
-        ]);
+        return $this->fieldIndexByKeyfield($request, 'catalog');
     }
 
     public function catalogShow($id)
     {
-        if (!Schema::hasTable('field')) {
-            return response()->json(['message' => 'Таблицю field не знайдено'], 404);
-        }
-
-        $fid = session('fid', '');
-        $item = $this->catalogFind($fid, $id);
-        if (!$item) {
-            return response()->json(['message' => 'Категорію не знайдено'], 404);
-        }
-
-        return response()->json($this->normalizeCatalogItem($item, collect(), $this->fieldColumns()));
+        return $this->fieldShowByKeyfield(request(), $id, 'catalog');
     }
 
     public function catalogStore(Request $request)
     {
-        if (!Schema::hasTable('field')) {
-            return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
-        }
-
-        $fid = session('fid', '');
-        $parentId = (string) $request->input('parent_id', '0');
-        $parentId = $parentId === '' ? '0' : $parentId;
-
-        if ($parentId !== '0' && !$this->catalogFind($fid, $parentId)) {
-            return response()->json(['success' => false, 'message' => 'Батьківську категорію не знайдено'], 404);
-        }
-
-        $data = $this->validateCatalog($request, $fid, $parentId);
-        $id = DB::table('field')->insertGetId($data);
-
-        return response()->json(['success' => true, 'id' => $id]);
+        return $this->fieldStoreByKeyfield($request, 'catalog');
     }
 
     public function catalogUpdate(Request $request, $id)
     {
-        if (!Schema::hasTable('field')) {
-            return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
-        }
-
-        $fid = session('fid', '');
-        $item = $this->catalogFind($fid, $id);
-        if (!$item) {
-            return response()->json(['success' => false, 'message' => 'Категорію не знайдено'], 404);
-        }
-
-        $parentId = (string) ($request->input('parent_id', $item->idkeyfield ?? '0'));
-        $parentId = $parentId === '' ? '0' : $parentId;
-
-        if ($parentId !== '0' && !$this->catalogFind($fid, $parentId)) {
-            return response()->json(['success' => false, 'message' => 'Батьківську категорію не знайдено'], 404);
-        }
-
-        DB::table('field')
-            ->where('id', $id)
-            ->update($this->validateCatalog($request, $fid, $parentId, true, $item));
-
-        return response()->json(['success' => true]);
+        return $this->fieldUpdateByKeyfield($request, $id, 'catalog');
     }
 
     public function catalogDestroy($id)
     {
-        if (!Schema::hasTable('field')) {
-            return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
-        }
-
-        $fid = session('fid', '');
-        $item = $this->catalogFind($fid, $id);
-        if (!$item) {
-            return response()->json(['success' => false, 'message' => 'Категорію не знайдено'], 404);
-        }
-
-        $hasChildren = $this->catalogBaseQuery($fid)
-            ->where('idkeyfield', (string) $id)
-            ->exists();
-
-        if ($hasChildren) {
-            return response()->json(['success' => false, 'message' => 'Спочатку видаліть або перенесіть підкатегорії'], 422);
-        }
-
-        if (Schema::hasTable('comp')) {
-            $usedInGoods = DB::table('comp')
-                ->where('firma', $fid)
-                ->where(function ($query) use ($id) {
-                    $query->where('idcaption', (string) $id)
-                        ->orWhere('idglava', (string) $id);
-                })
-                ->exists();
-
-            if ($usedInGoods) {
-                return response()->json(['success' => false, 'message' => 'Категорія використовується в товарах'], 422);
-            }
-        }
-
-        DB::table('field')->where('id', $id)->delete();
-
-        return response()->json(['success' => true]);
+        return $this->fieldDestroyByKeyfield(request(), $id, 'catalog');
     }
 
     private function currentUser()
@@ -971,16 +1063,20 @@ class SettingsController extends Controller
         return $payload;
     }
 
-    private function catalogBaseQuery($fid)
+    private function fieldBaseQuery($fid, string $keyfield)
     {
         return DB::table('field')
-            ->where('keyfield', 'catalog')
+            ->where('keyfield', $keyfield)
             ->where('firma', $fid);
     }
 
-    private function catalogChildrenQuery($fid, string $parentId)
+    private function fieldChildrenQuery($fid, string $keyfield, string $parentId)
     {
-        $query = $this->catalogBaseQuery($fid);
+        $query = $this->fieldBaseQuery($fid, $keyfield);
+
+        if ($keyfield !== 'catalog') {
+            return $query;
+        }
 
         if ($parentId === '0') {
             $query->where(function ($nested) {
@@ -996,9 +1092,9 @@ class SettingsController extends Controller
         return $query;
     }
 
-    private function catalogFind($fid, $id)
+    private function fieldFind($fid, string $keyfield, $id)
     {
-        return $this->catalogBaseQuery($fid)->where('id', $id)->first();
+        return $this->fieldBaseQuery($fid, $keyfield)->where('id', $id)->first();
     }
 
     private function fieldColumns(): array
@@ -1006,7 +1102,7 @@ class SettingsController extends Controller
         return Schema::hasTable('field') ? Schema::getColumnListing('field') : [];
     }
 
-    private function validateCatalog(Request $request, $fid, string $parentId, bool $isUpdate = false, ?object $existing = null): array
+    private function validateField(Request $request, $fid, string $keyfield, string $parentId, bool $isUpdate = false, ?object $existing = null): array
     {
         $validated = $request->validate([
             'name_ru' => 'required|string|max:255',
@@ -1024,13 +1120,15 @@ class SettingsController extends Controller
         $payload = [];
 
         if (in_array('keyfield', $columns, true)) {
-            $payload['keyfield'] = 'catalog';
+            $payload['keyfield'] = $keyfield;
         }
         if (in_array('firma', $columns, true)) {
             $payload['firma'] = $fid;
         }
-        if (in_array('idkeyfield', $columns, true)) {
+        if ($keyfield === 'catalog' && in_array('idkeyfield', $columns, true)) {
             $payload['idkeyfield'] = $parentId;
+        } elseif ($keyfield !== 'catalog' && in_array('idkeyfield', $columns, true)) {
+            $payload['idkeyfield'] = 0;
         }
         if (in_array('val', $columns, true)) {
             $payload['val'] = $validated['name_ru'];
@@ -1068,7 +1166,7 @@ class SettingsController extends Controller
             $payload['num'] = array_key_exists('num', $validated) && $validated['num'] !== null
                 ? (int) $validated['num']
                 : (!$isUpdate
-                    ? (int) $this->catalogChildrenQuery($fid, $parentId)->max('num') + 1
+                    ? (int) $this->fieldChildrenQuery($fid, $keyfield, $parentId)->max('num') + 1
                     : (property_exists($existing, 'num') ? (int) ($existing->num ?? 0) : 0));
         }
 
@@ -1084,9 +1182,14 @@ class SettingsController extends Controller
         return $payload;
     }
 
-    private function catalogBreadcrumb($fid, string $parentId): array
+    private function fieldBreadcrumb($fid, string $keyfield, string $parentId): array
     {
-        $trail = [['id' => 0, 'name' => 'Категорії']];
+        $rootLabel = $keyfield === 'city' ? 'Регионы' : 'Категории/Надписи';
+        $trail = [['id' => 0, 'name' => $rootLabel]];
+        if ($keyfield !== 'catalog') {
+            return $trail;
+        }
+
         if ($parentId === '0') {
             return $trail;
         }
@@ -1096,7 +1199,7 @@ class SettingsController extends Controller
 
         while ($currentId !== '0' && $currentId !== '' && !in_array($currentId, $visited, true)) {
             $visited[] = $currentId;
-            $item = $this->catalogFind($fid, $currentId);
+            $item = $this->fieldFind($fid, $keyfield, $currentId);
             if (!$item) {
                 break;
             }
@@ -1115,7 +1218,7 @@ class SettingsController extends Controller
         return $trail;
     }
 
-    private function normalizeCatalogItem(object $item, $childCounts, array $fieldColumns): array
+    private function normalizeFieldItem(object $item, $childCounts, array $fieldColumns): array
     {
         $descriptionRu = in_array('description', $fieldColumns, true) ? ($item->description ?? '') : '';
         $descriptionUa = in_array('descriptionua', $fieldColumns, true)
@@ -1127,6 +1230,7 @@ class SettingsController extends Controller
 
         return [
             'id' => (int) $item->id,
+            'keyfield' => (string) ($item->keyfield ?? ''),
             'parent_id' => (string) (($item->idkeyfield ?? '0') === '' ? '0' : ($item->idkeyfield ?? '0')),
             'name_ru' => $item->val ?? '',
             'name_ua' => in_array('valua', $fieldColumns, true)
@@ -1143,5 +1247,174 @@ class SettingsController extends Controller
             'visible' => (string) (property_exists($item, 'visible') ? ($item->visible ?? '1') : '1'),
             'firstpage' => (string) (property_exists($item, 'firstpage') ? ($item->firstpage ?? '0') : '0'),
         ];
+    }
+
+    private function resolveFieldKeyfield(Request $request): string
+    {
+        $keyfield = strtolower(trim((string) $request->input('keyfield', 'catalog')));
+
+        return in_array($keyfield, ['catalog', 'city'], true) ? $keyfield : 'catalog';
+    }
+
+    private function fieldIndexByKeyfield(Request $request, string $keyfield)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json([
+                'items' => [],
+                'breadcrumb' => $this->fieldBreadcrumb(session('fid', ''), $keyfield, '0'),
+                'currentParentId' => '0',
+                'currentParent' => null,
+                'keyfield' => $keyfield,
+                'total' => 0,
+            ]);
+        }
+
+        $fid = session('fid', '');
+        $parentId = $keyfield === 'catalog'
+            ? (string) $request->input('parent_id', '0')
+            : '0';
+        $parentId = $parentId === '' ? '0' : $parentId;
+        $fieldColumns = $this->fieldColumns();
+
+        $itemsQuery = $this->fieldChildrenQuery($fid, $keyfield, $parentId);
+        if (in_array('num', $fieldColumns, true)) {
+            $itemsQuery->orderBy('num');
+        }
+        if (in_array('val', $fieldColumns, true)) {
+            $itemsQuery->orderBy('val');
+        } else {
+            $itemsQuery->orderBy('id');
+        }
+        $items = $itemsQuery->get();
+
+        $childCounts = $keyfield === 'catalog'
+            ? $this->fieldBaseQuery($fid, $keyfield)
+                ->selectRaw('idkeyfield, COUNT(*) as total')
+                ->groupBy('idkeyfield')
+                ->pluck('total', 'idkeyfield')
+            : collect();
+
+        $payload = $items->map(function ($item) use ($childCounts, $fieldColumns) {
+            return $this->normalizeFieldItem($item, $childCounts, $fieldColumns);
+        })->values();
+
+        $currentParent = $keyfield === 'catalog' && $parentId !== '0'
+            ? $this->fieldFind($fid, $keyfield, $parentId)
+            : null;
+
+        return response()->json([
+            'items' => $payload,
+            'breadcrumb' => $this->fieldBreadcrumb($fid, $keyfield, $parentId),
+            'currentParentId' => $parentId,
+            'currentParent' => $currentParent ? $this->normalizeFieldItem($currentParent, collect(), $fieldColumns) : null,
+            'keyfield' => $keyfield,
+            'total' => $payload->count(),
+        ]);
+    }
+
+    private function fieldShowByKeyfield(Request $request, $id, string $keyfield)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json(['message' => 'Таблицю field не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        $item = $this->fieldFind($fid, $keyfield, $id);
+        if (!$item) {
+            return response()->json(['message' => 'Запис не знайдено'], 404);
+        }
+
+        return response()->json($this->normalizeFieldItem($item, collect(), $this->fieldColumns()));
+    }
+
+    private function fieldStoreByKeyfield(Request $request, string $keyfield)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        $parentId = $keyfield === 'catalog'
+            ? (string) $request->input('parent_id', '0')
+            : '0';
+        $parentId = $parentId === '' ? '0' : $parentId;
+
+        if ($keyfield === 'catalog' && $parentId !== '0' && !$this->fieldFind($fid, $keyfield, $parentId)) {
+            return response()->json(['success' => false, 'message' => 'Батьківську категорію не знайдено'], 404);
+        }
+
+        $data = $this->validateField($request, $fid, $keyfield, $parentId);
+        $id = DB::table('field')->insertGetId($data);
+
+        return response()->json(['success' => true, 'id' => $id]);
+    }
+
+    private function fieldUpdateByKeyfield(Request $request, $id, string $keyfield)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        $item = $this->fieldFind($fid, $keyfield, $id);
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Запис не знайдено'], 404);
+        }
+
+        $parentId = $keyfield === 'catalog'
+            ? (string) ($request->input('parent_id', $item->idkeyfield ?? '0'))
+            : '0';
+        $parentId = $parentId === '' ? '0' : $parentId;
+
+        if ($keyfield === 'catalog' && $parentId !== '0' && !$this->fieldFind($fid, $keyfield, $parentId)) {
+            return response()->json(['success' => false, 'message' => 'Батьківську категорію не знайдено'], 404);
+        }
+
+        DB::table('field')
+            ->where('id', $id)
+            ->update($this->validateField($request, $fid, $keyfield, $parentId, true, $item));
+
+        return response()->json(['success' => true]);
+    }
+
+    private function fieldDestroyByKeyfield(Request $request, $id, string $keyfield)
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        $item = $this->fieldFind($fid, $keyfield, $id);
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Запис не знайдено'], 404);
+        }
+
+        if ($keyfield === 'catalog') {
+            $hasChildren = $this->fieldBaseQuery($fid, $keyfield)
+                ->where('idkeyfield', (string) $id)
+                ->exists();
+
+            if ($hasChildren) {
+                return response()->json(['success' => false, 'message' => 'Спочатку видаліть або перенесіть підкатегорії'], 422);
+            }
+
+            if (Schema::hasTable('comp')) {
+                $usedInGoods = DB::table('comp')
+                    ->where('firma', $fid)
+                    ->where(function ($query) use ($id) {
+                        $query->where('idcaption', (string) $id)
+                            ->orWhere('idglava', (string) $id);
+                    })
+                    ->exists();
+
+                if ($usedInGoods) {
+                    return response()->json(['success' => false, 'message' => 'Категорія використовується в товарах'], 422);
+                }
+            }
+        }
+
+        DB::table('field')->where('id', $id)->delete();
+
+        return response()->json(['success' => true]);
     }
 }

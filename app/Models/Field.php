@@ -17,10 +17,37 @@ class Field extends Model
         return $this->belongsTo(Firma::class, 'firma');
     }
 
-    public static function getCatalogTree($firmaId = 2)
+    public static function normalizeLocale(?string $locale): string
+    {
+        $locale = strtolower(trim((string) $locale));
+
+        return match (true) {
+            str_starts_with($locale, 'ua'),
+            str_starts_with($locale, 'uk') => 'ua',
+            str_starts_with($locale, 'en') => 'en',
+            default => 'ru',
+        };
+    }
+
+    public static function localizedValue(?string $locale, $ruValue, $uaValue = '', $enValue = '')
+    {
+        $locale = self::normalizeLocale($locale);
+        $ru = trim((string) ($ruValue ?? ''));
+        $ua = trim((string) ($uaValue ?? ''));
+        $en = trim((string) ($enValue ?? ''));
+
+        return match ($locale) {
+            'ua' => $ua !== '' ? $ua : ($ru !== '' ? $ru : $en),
+            'en' => $en !== '' ? $en : ($ru !== '' ? $ru : $ua),
+            default => $ru !== '' ? $ru : ($ua !== '' ? $ua : $en),
+        };
+    }
+
+    public static function getCatalogTree($firmaId = 2, ?string $locale = 'ru')
     {
         $columns = Schema::getColumnListing('field');
         $hasColumn = fn(string $column) => in_array($column, $columns, true);
+        $locale = self::normalizeLocale($locale);
 
         $query = self::query()->where('keyfield', 'catalog');
 
@@ -55,9 +82,15 @@ class Field extends Model
                 return (string) $item->idkeyfield;
             });
 
-        $mapNode = function ($item) use (&$mapNode, $childrenByParent) {
+        $mapNode = function ($item) use (&$mapNode, $childrenByParent, $locale) {
             $visibleValue = $item->visible ?? '0';
             $firstPageValue = $item->firstpage ?? '0';
+            $nameRu = $item->val ?? '';
+            $nameUa = $item->valua ?? '';
+            $nameEn = $item->valen ?? '';
+            $descriptionRu = $item->description ?? '';
+            $descriptionUa = $item->descriptionua ?? '';
+            $descriptionEn = $item->descriptionen ?? '';
 
             $children = $childrenByParent
                 ->get((string) $item->id, collect())
@@ -67,14 +100,16 @@ class Field extends Model
 
             return [
                 'id' => (int) $item->id,
-                'name' => $item->val ?: '',
+                'name' => self::localizedValue($locale, $nameRu, $nameUa, $nameEn),
                 'id_field' => (int) $item->id,
-                'val_field' => $item->val ?: '',
-                'name_ua' => $item->valua ?? '',
-                'name_en' => $item->valen ?? '',
-                'description' => $item->description ?? '',
-                'description_ua' => $item->descriptionua ?? '',
-                'description_en' => $item->descriptionen ?? '',
+                'val_field' => $nameRu,
+                'name_ru' => $nameRu,
+                'name_ua' => $nameUa,
+                'name_en' => $nameEn,
+                'description' => self::localizedValue($locale, $descriptionRu, $descriptionUa, $descriptionEn),
+                'description_ru' => $descriptionRu,
+                'description_ua' => $descriptionUa,
+                'description_en' => $descriptionEn,
                 'num' => (int) ($item->num ?? 0),
                 'visible' => is_scalar($visibleValue) ? (string) $visibleValue === '1' : false,
                 'firstpage' => is_scalar($firstPageValue) ? (string) $firstPageValue === '1' : false,
@@ -88,6 +123,60 @@ class Field extends Model
             })
             ->map(fn($item) => $mapNode($item))
             ->values();
+    }
+
+    public static function getRegionsList($firmaId = 2, ?string $locale = 'ru')
+    {
+        $columns = Schema::getColumnListing('field');
+        $hasColumn = fn(string $column) => in_array($column, $columns, true);
+        $locale = self::normalizeLocale($locale);
+
+        $query = self::query()
+            ->where('keyfield', 'city');
+
+        if ($firmaId !== null && $firmaId !== '') {
+            $query->where('firma', $firmaId);
+        }
+
+        if ($hasColumn('num')) {
+            $query->orderBy('num');
+        }
+
+        $query->orderBy('id');
+
+        $select = ['id', 'val'];
+        foreach (['valua', 'valen', 'num'] as $column) {
+            if ($hasColumn($column)) {
+                $select[] = $column;
+            }
+        }
+
+        return $query->select($select)->get()->map(function ($item) use ($locale) {
+            $nameRu = $item->val ?? '';
+            $nameUa = $item->valua ?? '';
+            $nameEn = $item->valen ?? '';
+
+            return [
+                'id' => (int) $item->id,
+                'name' => self::localizedValue($locale, $nameRu, $nameUa, $nameEn),
+                'name_ru' => $nameRu,
+                'name_ua' => $nameUa,
+                'name_en' => $nameEn,
+                'num' => (int) ($item->num ?? 0),
+            ];
+        })->values();
+    }
+
+    public static function applyLocaleToCatalogItems($items, ?string $locale = 'ru')
+    {
+        return collect($items)->map(function ($item) use ($locale) {
+            $name = self::localizedValue($locale, $item->val ?? '', $item->valua ?? '', $item->valen ?? '');
+            $item->val = $name;
+            $item->name = $name;
+            $item->description_view = self::localizedValue($locale, $item->description ?? '', $item->descriptionua ?? '', $item->descriptionen ?? '');
+
+            return $item;
+        });
     }
 
     // ── getPers: markup % for a given section id ──────────────────────────────

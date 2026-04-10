@@ -4,6 +4,7 @@
     ? \App\Models\Project::query()->orderBy('num')->orderBy('name')->get(['id', 'num', 'name'])
     : collect();
   $activeFid = (int) session('fid', 0);
+  $activeLang = \App\Models\Field::normalizeLocale((string) ($currentBackendLocale ?? session('lang', 'ru')));
 @endphp
 
 <div class="header-bar">
@@ -14,7 +15,7 @@
   @if(session('name1') && $headerProjects->isNotEmpty())
   <form method="POST" action="{{ route('settings.switchProject') }}" class="header-project-switch" id="header-project-switch-form">
     @csrf
-    <label for="header-project-select" class="header-project-switch__label">Проєкт</label>
+    <label for="header-project-select" class="header-project-switch__label">{{ __('nav.project') }}</label>
     <select name="fid" id="header-project-select" class="header-project-switch__select" onchange="this.form.submit()">
       @foreach($headerProjects as $project)
       <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
@@ -25,6 +26,15 @@
   </form>
   @endif
 
+  <div class="header-lang-switch" aria-label="{{ __('nav.language') }}">
+    @foreach(['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'] as $langCode => $langLabel)
+      <a
+        href="{{ request()->fullUrlWithQuery(['lang' => $langCode]) }}"
+        class="header-lang-switch__link {{ $activeLang === $langCode ? 'is-active' : '' }}"
+      >{{ $langLabel }}</a>
+    @endforeach
+  </div>
+
   <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
     <span></span>
     <span></span>
@@ -33,24 +43,24 @@
 
   <nav class="header-nav-menu" id="header-nav-menu">
     @if(session('name1'))
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('dashboard') }}">Dashboard</a>
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">Замовлення</a>
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('document.index', ['doc' => 'ZIN']) }}">Закупки</a>
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('client.index') }}">Клієнти</a>
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('goods.index') }}">Товари</a>
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('reports.index') }}">Отчеты</a>
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('news.index') }}">Новини</a>
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('money.index') }}">Гроші</a>
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('deposit.index') }}">Депозити</a>
-    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('settings.index') }}">Налаштування</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">{{ __('nav.orders') }}</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('money.index') }}">{{ __('nav.money') }}</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('deposit.index') }}">{{ __('nav.deposits') }}</a>
+    <a class="py-2 text-decoration-none" style="color: #fbbf24; font-weight: 500;" href="{{ route('settings.index') }}">{{ __('nav.settings') }}</a>
 
     <form method="POST" action="{{ route('logout') }}" id="logout-form">
       @csrf
       <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
-        class="text-decoration-none py-2" style="color: #fbbf24; font-weight: 500;">Вийти</a>
+        class="text-decoration-none py-2" style="color: #fbbf24; font-weight: 500;">{{ __('nav.logout') }}</a>
     </form>
     @else
-    <a class="py-2 text-decoration-none" id="btn_login" style="cursor:pointer; color: #fbbf24; font-weight: 500;">Увійти</a>
+    <a class="py-2 text-decoration-none" id="btn_login" style="cursor:pointer; color: #fbbf24; font-weight: 500;">{{ __('nav.login') }}</a>
     @endif
   </nav>
 </div>
@@ -63,6 +73,37 @@
     margin-left: auto;
     margin-right: 0.35rem;
     min-width: 0;
+  }
+
+  .header-lang-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0.25rem;
+    margin-right: 0.5rem;
+  }
+
+  .header-lang-switch__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    height: 34px;
+    padding: 0 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--glass-border);
+    color: var(--muted-foreground);
+    text-decoration: none;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .header-lang-switch__link.is-active {
+    border-color: rgba(251, 191, 36, 0.45);
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
   }
 
   .header-project-switch__label {
@@ -100,6 +141,11 @@
       order: 3;
       width: 100%;
       margin: 0;
+    }
+
+    .header-lang-switch {
+      order: 2;
+      margin-left: auto;
     }
 
     .header-project-switch__select {

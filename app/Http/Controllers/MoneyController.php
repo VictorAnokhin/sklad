@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Money;
+use App\Models\Conf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -51,11 +52,14 @@ class MoneyController extends Controller
         ];
 
         $data = Money::init($fid, $pos, $filters);
-        $paymentTypes = DB::table('conf')
-            ->where('type', 'reestr')
-            ->where('firma', $fid)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $paymentTypes = ($filters['type'] ?? '') !== ''
+            ? Conf::paymentTypesForDocument($fid, $filters['type'])
+            : DB::table('conf')
+                ->where('type', 'reestr')
+                ->where('firma', $fid)
+                ->orderBy('name')
+                ->get()
+                ->map(fn ($item) => Conf::decoratePaymentType($item));
 
         return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes')));
     }
@@ -78,8 +82,9 @@ class MoneyController extends Controller
         }
 
         $kassas = Money::kassas($fid);
+        $reestrList = Conf::paymentTypesForDocument($fid, $type);
 
-        return view('money.show', compact('document', 'kassas', 'returnFilters'));
+        return view('money.show', compact('document', 'kassas', 'reestrList', 'returnFilters'));
     }
 
     public function save(Request $request)
@@ -90,12 +95,21 @@ class MoneyController extends Controller
         $shouldPost = $request->boolean('post_after_save');
         $returnFilters = $this->extractReturnFilters($request);
 
+        $money = trim((string) $request->input('money', ''));
+        if ($money === '') {
+            return redirect()
+                ->back()
+                ->withErrors(['money' => 'Оберіть касу'])
+                ->withInput();
+        }
+
         $data = [
             'type'    => in_array($type, ['PO', 'RO']) ? $type : 'PO',
             'summa'   => (float)$request->input('summa', 0),
             'content' => (string)$request->input('content', ''),
             'data'    => $request->input('data', date('d-m-Y')),
-            'money'   => (string)$request->input('money', ''),
+            'money'   => $money,
+            'reestr'  => (string)$request->input('reestr', ''),
             'client1' => $request->input('client1', '') ?: '0',
         ];
 
