@@ -216,9 +216,11 @@ class User extends Authenticatable
 
         if ($id === '0' || $id === '') {
             // New client: generate login/pass
-            $phone = $data['phone'] ?? '';
+            $phone = trim((string) ($data['phone'] ?? ''));
             if (self::hasUsersColumn('login')) {
-                $data['login'] = $data['login'] ?? ($phone ?: uniqid('cl_'));
+                $login = trim((string) ($data['login'] ?? ''));
+                $email = trim((string) ($data['email'] ?? ''));
+                $data['login'] = $login !== '' ? $login : ($email !== '' ? $email : ($phone ?: uniqid('cl_')));
             }
             $passwordHash = Hash::make($phone ?: str_pad((string)rand(1000, 9999), 4));
             $data['pass'] = $passwordHash;
@@ -228,6 +230,17 @@ class User extends Authenticatable
             $id = (string)DB::table('users')->insertGetId($data);
         }
         else {
+            if (self::hasUsersColumn('login')) {
+                $existingLogin = (string) (DB::table('users')->where('id', $id)->value('login') ?? '');
+                $incomingLogin = trim((string) ($data['login'] ?? ''));
+                $email = trim((string) ($data['email'] ?? ''));
+                $phone = trim((string) ($data['phone'] ?? ''));
+
+                $data['login'] = $incomingLogin !== ''
+                    ? $incomingLogin
+                    : ($existingLogin !== '' ? $existingLogin : ($email !== '' ? $email : ($phone !== '' ? $phone : uniqid('cl_'))));
+            }
+
             DB::table('users')->where('id', $id)->update($data);
         }
 

@@ -171,6 +171,7 @@ class ClientController extends Controller
     {
         $fid = session('fid', '');
         $id = $request->input('id', '0');
+        $stringValue = static fn ($value): string => trim((string) ($value ?? ''));
 
         $request->validate([
             'email' => [
@@ -188,24 +189,24 @@ class ClientController extends Controller
         ]);
 
         $data = [
-            'login' => $request->input('login', ''),
-            'name' => $request->input('name', ''),
-            'secondname' => $request->input('secondname', ''),
-            'fathername' => $request->input('fathername', ''),
-            'orgname' => $request->input('orgname', ''),
-            'name2' => $request->input('name2', ''),
-            'kod1' => $request->input('kod1', ''),
+            'login' => $stringValue($request->input('login', '')),
+            'name' => $stringValue($request->input('name', '')),
+            'secondname' => $stringValue($request->input('secondname', '')),
+            'fathername' => $stringValue($request->input('fathername', '')),
+            'orgname' => $stringValue($request->input('orgname', '')),
+            'name2' => $stringValue($request->input('name2', '')),
+            'kod1' => $stringValue($request->input('kod1', '')),
             'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
             'phone1' => preg_replace('/\D/', '', $request->input('phone1', '')),
-            'email' => trim((string) $request->input('email', '')),
-            'city' => $request->input('city', ''),
-            'region' => $request->input('region', ''),
-            'poshta' => $request->input('poshta', ''),
+            'email' => $stringValue($request->input('email', '')),
+            'city' => $stringValue($request->input('city', '')),
+            'region' => $stringValue($request->input('region', '')),
+            'poshta' => $stringValue($request->input('poshta', '')),
             'idstatus' => (int)$request->input('idstatus', 1),
             'ustype' => (int)$request->input('idstatus', 1),
             'top' => (int)$request->input('top', 1),
             'bonus' => (float)$request->input('bonus', 0),
-            'hbd' => $request->input('hbd', ''),
+            'hbd' => $stringValue($request->input('hbd', '')),
             'firma' => $fid,
         ];
 
