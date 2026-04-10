@@ -4,7 +4,8 @@
       "Bash(php *)",
       "Bash(docker compose exec *)",
       "Bash(ls *)",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(docker-compose *)"
     ]
   },
   "$version": 3
