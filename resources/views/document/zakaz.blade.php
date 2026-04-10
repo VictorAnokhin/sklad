@@ -40,7 +40,6 @@
     @foreach ($items as $item)
     <div class="txtbox-price-docs">
       <div class="numdoc-docs">
-        <input type="checkbox" name="ids[]" value="{{ $item['id'] }}" style="margin:2px">
         <a href="{!! $item['linkUrl'] !!}">{!! $item['num'] !!}</a>
       </div>
       <div class="status-docs4 compact-date">
@@ -66,7 +65,6 @@
         <span class="money">{!! $item['summaFmt'] !!}</span>
       </div>
       <div class="captionbox-docs2">{!! $item['content'] !!}</div>
-      <div class="status-docs2">{!! $item['manager'] !!}</div>
     </div>
     @endforeach
     </div>
@@ -131,10 +129,10 @@
   }
 
   .document-compact-wrap .txtbox-price-docs {
-    min-width: 1320px;
-    grid-template-columns: 60px 118px minmax(250px, 1.05fr) 170px minmax(150px, 0.8fr) 120px minmax(330px, 1.8fr) minmax(150px, 0.7fr);
-    gap: 0.6rem;
-    padding: 0.8rem 0.9rem;
+    min-width: 1120px;
+    grid-template-columns: 42px 104px minmax(220px, 1fr) 150px minmax(130px, 0.72fr) 104px minmax(320px, 1.55fr);
+    gap: 0.5rem;
+    padding: 0.72rem 0.8rem;
     margin-bottom: 0;
   }
 
@@ -143,8 +141,7 @@
   .document-compact-wrap .captionbox-docs,
   .document-compact-wrap .status-docs3,
   .document-compact-wrap .pricebox-docs1,
-  .document-compact-wrap .captionbox-docs2,
-  .document-compact-wrap .status-docs2 {
+  .document-compact-wrap .captionbox-docs2 {
     min-width: 0;
     width: auto;
     white-space: nowrap;
@@ -154,7 +151,6 @@
 
   .document-compact-wrap .captionbox-docs a,
   .document-compact-wrap .captionbox-docs2,
-  .document-compact-wrap .status-docs2,
   .document-compact-wrap .compact-date,
   .document-compact-wrap .status-docs4 {
     display: block;
@@ -176,7 +172,6 @@
 
   .document-compact-wrap .captionbox-docs a br,
   .document-compact-wrap .captionbox-docs2 br,
-  .document-compact-wrap .status-docs2 br,
   .document-compact-wrap .status-docs4 br {
     display: none;
   }

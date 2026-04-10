@@ -41,6 +41,8 @@
     /* Action buttons row */
     .doc-actions { display: flex; gap: 8px; margin-top: 10px; }
     .doc-actions .btn { font-size: 0.85rem; padding: 5px 14px; }
+    #newClientModal .form-label { color: #000; font-weight: 600; }
+    #newClientModal .is-invalid { border-color: #dc3545; }
 
     @media (max-width: 992px) {
         .doc-layout { flex-direction: column; }
@@ -66,6 +68,18 @@
         @endif
     </div>
 
+    @if(session('error'))
+    <div class="alert alert-danger py-2">
+        {{ session('error') }}
+    </div>
+    @endif
+
+    @if(session('success'))
+    <div class="alert alert-success py-2">
+        {{ session('success') }}
+    </div>
+    @endif
+
     {{-- Related icons strip (client_info) --}}
     @if(!empty($relatedIcons))
     <div class="alert alert-secondary py-2 related-icons-bar" style="font-size:0.9em;">
@@ -75,6 +89,12 @@
 
     <form action="{{ route('document.save') }}" method="post" class="compact-form">
         @csrf
+        @php
+            $documentDateValue = (string) ($document->data ?? '');
+            if (preg_match('/^\d{2}-\d{2}-\d{4}$/', $documentDateValue) === 1) {
+                $documentDateValue = \DateTimeImmutable::createFromFormat('d-m-Y', $documentDateValue)?->format('Y-m-d') ?? '';
+            }
+        @endphp
         <input type="hidden" name="doc_id" value="{{ $document->id }}">
         <input type="hidden" name="doc" value="{{ $doc }}">
 
@@ -88,7 +108,7 @@
                 <div style="display:flex; gap:6px; margin-bottom:6px;">
                     <div class="col-f">
                         <label>Дата</label>
-                        <input type="text" name="data" class="form-control" value="{{ $document->data ?? '' }}">
+                        <input type="date" name="data" class="form-control" value="{{ $documentDateValue }}">
                     </div>
                     @if(in_array($doc, ['PO', 'RO'], true))
                     <div class="col-f">
@@ -175,16 +195,14 @@
                     </div>
                 </div>
 
-                <!-- Row 3: Сума | Знижка | Бонус -->
+                <!-- Row 3: Сума / Бонус -->
                 <div style="display:flex; gap:6px; margin-bottom:6px;">
+                    @if(in_array($doc, ['PO', 'RO'], true))
                     <div class="col-f">
                         <label>Сума</label>
-                        <input type="number" step="0.01" name="summa" class="form-control" value="{{ $document->summa ?? 0 }}">
+                        <input type="number" step="0.01" name="summa" id="documentSummaInput" class="form-control" value="{{ $document->summa ?? 0 }}">
                     </div>
-                    <div class="col-f">
-                        <label>Знижка</label>
-                        <input type="number" step="0.01" name="discount" class="form-control" value="{{ $document->discount ?? 0 }}">
-                    </div>
+                    @endif
                     <div class="col-f">
                         <label>Бонус</label>
                         <input type="number" step="0.01" name="bonus" class="form-control" value="{{ $document->bonus ?? 0 }}">
@@ -237,8 +255,14 @@
                                 <input type="hidden" name="name[]" value="{{ $item->name ?? '' }}">
                                 <input type="text" class="form-control form-control-sm" value="{{ $item->name ?? '' }}" readonly>
                             </td>
-                            <td><input type="number" step="1" name="pcount[]" style="width:80px;"
-                                    class="form-control form-control-sm goods-count" value="{{ $item->pcount }}"></td>
+                            <td>
+                                <div class="input-group input-group-sm" style="width:130px;">
+                                    <button type="button" class="btn btn-outline-secondary btn-qty-decrease" style="padding:2px 6px; font-size:0.9rem; line-height:1;">−</button>
+                                    <input type="number" step="1" name="pcount[]" style="width:60px; text-align:center;"
+                                        class="form-control form-control-sm goods-count" value="{{ $item->pcount }}">
+                                    <button type="button" class="btn btn-outline-secondary btn-qty-increase" style="padding:2px 6px; font-size:0.9rem; line-height:1;">+</button>
+                                </div>
+                            </td>
                             <td><input type="string" name="pprice[]"
                                     class="form-control form-control-sm goods-price" value="{{ $item->pprice }}"></td>
                             <td><input type="string" name="psumma[]" class="form-control form-control-sm goods-sum"
@@ -260,12 +284,47 @@
                         @endif
                     </tbody>
                 </table>
+
+                <!-- Сума field below goods table, right-aligned 30% width -->
+                <div class="d-flex justify-content-end mb-3" style="width:30%; margin-left:auto;">
+                    <div style="padding:8px; background:#f0f7ff; border:2px solid #0d6efd; border-radius:6px; width:100%;">
+                        <label style="font-size:0.85rem; font-weight:700; color:#0d6efd; margin-bottom:4px;">💰 Сума</label>
+                        <input type="number" step="0.01" name="summa" id="documentSummaInput" class="form-control" 
+                            value="{{ $document->summa ?? 0 }}" 
+                            style="font-size:1rem; font-weight:700; padding:6px 10px; height:auto;">
+                    </div>
+                </div>
+
                 @endif
 
                 {{-- Action buttons (inside form) --}}
                 <div class="doc-actions">
-                    @if(intval($document->provodka) === 0)
-                        <button type="submit"  name="run" value="Зберегти" class="btn btn-primary">💾 Зберегти</button>
+                    @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'VN', 'AO', 'WO1'], true))
+                    @if((int)($document->provodka ?? 0) === 1)
+                    <button type="submit"
+                        formaction="{{ route('document.provodka') }}"
+                        formmethod="post"
+                        class="btn btn-success">
+                        ↺ Скасувати проводку
+                    </button>
+                    @else
+                    <div class="form-check d-flex align-items-center" style="margin: 0 4px 0 0;">
+                        <input type="hidden" name="post_after_save" value="0">
+                        <input
+                            type="checkbox"
+                            class="form-check-input"
+                            id="post_after_save"
+                            name="post_after_save"
+                            value="1"
+                            checked>
+                        <label class="form-check-label ms-2" for="post_after_save" style="font-size:0.85rem;">
+                            Провести документ
+                        </label>
+                    </div>
+                    <button type="submit"  name="run" value="Зберегти" class="btn btn-primary">💾 Зберегти</button>
+                    @endif
+                    @else
+                    <button type="submit"  name="run" value="Зберегти" class="btn btn-primary">💾 Зберегти</button>
                     @endif
                     @if(in_array($doc, ['CH', 'RN'], true))
                     <a href="{{ route('document.print', ['doc' => $doc, 'doc_id' => $document->id, 'num' => $document->num, 'year' => $year]) }}"
@@ -274,14 +333,6 @@
                         rel="noopener noreferrer">
                         Печать
                     </a>
-                    @endif
-                    @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'VN', 'AO', 'WO1'], true))
-                    <button type="submit"
-                        formaction="{{ route('document.provodka') }}"
-                        formmethod="post"
-                        class="btn {{ (int)($document->provodka ?? 0) === 1 ? 'btn-success' : 'btn-warning' }}">
-                        {{ (int)($document->provodka ?? 0) === 1 ? '↺ Скасувати проводку' : 'Провести' }}
-                    </button>
                     @endif
                     @if(intval($document->provodka) === 0)
                     <button type="button" class="btn btn-outline-danger"
@@ -330,11 +381,20 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Телефон</label>
-                    <input type="text" class="form-control" id="newClientPhone" placeholder="0501234567">
+                    <input type="text" class="form-control" id="newClientPhone" placeholder="+380501234567" maxlength="17" inputmode="tel">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Місто</label>
                     <input type="text" class="form-control" id="newClientCity">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Статус клієнта</label>
+                    <select class="form-select" id="newClientStatus">
+                        <option value="">Оберіть статус</option>
+                        @foreach(($clientStatuses ?? collect()) as $statusOption)
+                        <option value="{{ $statusOption->id }}">{{ $statusOption->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div id="newClientError" class="text-danger" style="display:none;"></div>
             </div>
@@ -348,11 +408,13 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const documentForm = document.querySelector('form.compact-form');
         const searchInput = document.getElementById('clientSearchInput');
         const searchBtn = document.getElementById('searchClientBtn');
         const resultsContainer = document.getElementById('clientSearchResults');
         const client1Id = document.getElementById('client1_id');
         const clientDetails = document.getElementById('selectedClientDetails');
+        const documentSummaInput = document.getElementById('documentSummaInput');
 
         function performSearch() {
             const q = searchInput.value.trim();
@@ -403,38 +465,97 @@
 
         // ================= NEW CLIENT MODAL =================
         const saveNewClientBtn = document.getElementById('saveNewClientBtn');
+        const newClientPhoneField = document.getElementById('newClientPhone');
+
+        const formatPhoneInput = (value) => {
+            const digits = value.replace(/\D/g, '').slice(0, 12);
+            if (digits.length === 0) {
+                return '';
+            }
+
+            if (digits.length <= 3) {
+                return `+${digits}`;
+            }
+
+            if (digits.length <= 5) {
+                return `+${digits.slice(0, 3)} ${digits.slice(3)}`;
+            }
+
+            if (digits.length <= 8) {
+                return `+${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5)}`;
+            }
+
+            if (digits.length <= 10) {
+                return `+${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`;
+            }
+
+            return `+${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8, 10)} ${digits.slice(10)}`;
+        };
+
+        newClientPhoneField.addEventListener('input', function () {
+            this.value = formatPhoneInput(this.value);
+        });
+
         saveNewClientBtn.addEventListener('click', function () {
-            const name = document.getElementById('newClientName').value.trim();
-            const secondname = document.getElementById('newClientSecondname').value.trim();
-            const phone = document.getElementById('newClientPhone').value.trim();
-            const city = document.getElementById('newClientCity').value.trim();
+            const nameField = document.getElementById('newClientName');
+            const secondnameField = document.getElementById('newClientSecondname');
+            const phoneField = newClientPhoneField;
+            const cityField = document.getElementById('newClientCity');
+            const statusField = document.getElementById('newClientStatus');
+            const name = nameField.value.trim();
+            const secondname = secondnameField.value.trim();
+            const phone = phoneField.value.trim();
+            const city = cityField.value.trim();
+            const idstatus = statusField.value;
             const errorDiv = document.getElementById('newClientError');
+            [nameField, secondnameField, phoneField, statusField].forEach(field => field.classList.remove('is-invalid'));
             if (!name && !secondname && !phone) {
-                errorDiv.textContent = 'Заповніть хоча б одне поле';
-                errorDiv.style.display = 'block'; return;
+                nameField.classList.add('is-invalid');
+                secondnameField.classList.add('is-invalid');
+                phoneField.classList.add('is-invalid');
+                errorDiv.textContent = 'Заповніть хоча б одне поле: імʼя, прізвище або телефон';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (!idstatus) {
+                statusField.classList.add('is-invalid');
+                errorDiv.textContent = 'Оберіть статус клієнта';
+                errorDiv.style.display = 'block';
+                return;
             }
             errorDiv.style.display = 'none';
             saveNewClientBtn.disabled = true;
             saveNewClientBtn.textContent = 'Зберігаємо...';
             fetch("{{ route('client.quickStore') }}", {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                body: JSON.stringify({ name, secondname, phone, city })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ name, secondname, phone, city, idstatus })
             })
-            .then(res => res.json())
+            .then(async res => {
+                const payload = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(payload.message || 'Не вдалося зберегти клієнта');
+                }
+                return payload;
+            })
             .then(user => {
                 client1Id.value = user.id;
                 clientDetails.className = 'alert alert-secondary py-1 mt-1';
                 clientDetails.style.background = '#f8f9fa';
                 clientDetails.style.border = '1px solid #ddd';
                 clientDetails.style.fontSize = '0.85rem';
-                clientDetails.innerHTML = `<strong>${user.secondname} ${user.name}</strong><br>${user.phone} | ${user.city}`;
+                clientDetails.innerHTML = `<strong>${user.secondname || ''} ${user.name || ''}</strong><br>${user.phone || ''} | ${user.city || ''}`;
                 const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
                 modal.hide();
-                document.getElementById('newClientName').value = '';
-                document.getElementById('newClientSecondname').value = '';
-                document.getElementById('newClientPhone').value = '';
-                document.getElementById('newClientCity').value = '';
+                nameField.value = '';
+                secondnameField.value = '';
+                phoneField.value = '';
+                cityField.value = '';
+                statusField.value = '';
             })
             .catch(err => { errorDiv.textContent = 'Помилка: ' + err.message; errorDiv.style.display = 'block'; })
             .finally(() => { saveNewClientBtn.disabled = false; saveNewClientBtn.textContent = 'Зберегти'; });
@@ -446,24 +567,115 @@
         const goodsResultsContainer = document.getElementById('goodsSearchResults');
         const tableBody = document.querySelector('#goodsTable tbody');
 
+        const updateDocumentSum = () => {
+            if (!documentSummaInput || !tableBody) {
+                return;
+            }
+
+            const total = Array.from(tableBody.querySelectorAll('.goods-sum'))
+                .reduce((carry, input) => carry + (parseFloat(input.value) || 0), 0);
+
+            documentSummaInput.value = total.toFixed(2);
+        };
+
+        const submitDocumentSave = () => {
+            if (!documentForm) {
+                return;
+            }
+
+            const runInput = document.createElement('input');
+            runInput.type = 'hidden';
+            runInput.name = 'run';
+            runInput.value = 'Зберегти';
+            documentForm.appendChild(runInput);
+            documentForm.requestSubmit();
+        };
+
+        const bindGoodsRowInputs = (countInput, priceInput, sumInput) => {
+            if (!countInput || !priceInput || !sumInput) {
+                return;
+            }
+
+            const tr = countInput.closest('tr');
+            const docType = tr?.dataset.docType || '';
+
+            const updateRowSum = () => {
+                const quantity = parseFloat(countInput.value) || 0;
+                let price = parseFloat(priceInput.value) || 0;
+
+                // For ZIN documents: use comp.pay1 (purchase price)
+                if (docType === 'ZIN' && tr) {
+                    const compPay1 = parseFloat(tr.dataset.priceCompPay1) || 0;
+                    if (compPay1 > 0) {
+                        priceInput.value = compPay1.toFixed(2);
+                        price = compPay1;
+                    }
+                }
+
+                // For ZOUT documents: recalculate price based on quantity
+                if (docType === 'ZOUT' && tr) {
+                    const basePrice = parseFloat(tr.dataset.priceBase) || 0;
+                    const wholesalePrice = parseFloat(tr.dataset.priceWholesale) || 0;
+                    const wholesaleFrom = parseInt(tr.dataset.wholesaleFrom) || 0;
+
+                    // If wholesale price is set and quantity meets threshold, use wholesale price
+                    if (wholesaleFrom > 0 && wholesalePrice > 0 && quantity >= wholesaleFrom) {
+                        priceInput.value = wholesalePrice.toFixed(2);
+                        price = wholesalePrice;
+                    } else if (basePrice > 0) {
+                        priceInput.value = basePrice.toFixed(2);
+                        price = basePrice;
+                    }
+                }
+
+                sumInput.value = (quantity * price).toFixed(2);
+                updateDocumentSum();
+            };
+
+            const updateRowPriceFromSum = () => {
+                const quantity = parseFloat(countInput.value) || 0;
+                const sum = parseFloat(sumInput.value) || 0;
+
+                if (quantity > 0) {
+                    const price = sum / quantity;
+                    priceInput.value = price.toFixed(2);
+                    updateDocumentSum();
+                }
+            };
+
+            const handleSaveOnEnter = (event) => {
+                if (event.key !== 'Enter') {
+                    return;
+                }
+
+                event.preventDefault();
+                updateRowSum();
+                submitDocumentSave();
+            };
+
+            countInput.addEventListener('input', updateRowSum);
+            priceInput.addEventListener('input', updateRowSum);
+            sumInput.addEventListener('input', updateRowPriceFromSum);
+            countInput.addEventListener('keydown', handleSaveOnEnter);
+            priceInput.addEventListener('keydown', handleSaveOnEnter);
+            sumInput.addEventListener('keydown', handleSaveOnEnter);
+        };
+
         document.querySelectorAll('table tbody tr').forEach(tr => {
             if (tr.id === 'emptyGoodsRow') return;
             const cnt = tr.querySelector('.goods-count');
             const prc = tr.querySelector('.goods-price');
             const sum = tr.querySelector('.goods-sum');
-            if (cnt && prc && sum) {
-                const updateExistingSum = () => {
-                    sum.value = ((parseFloat(cnt.value) || 0) * (parseFloat(prc.value) || 0)).toFixed(2);
-                };
-                cnt.addEventListener('input', updateExistingSum);
-                prc.addEventListener('input', updateExistingSum);
-            }
+            bindGoodsRowInputs(cnt, prc, sum);
         });
+
+        updateDocumentSum();
 
         function performGoodsSearch() {
             const q = goodsSearchInput.value.trim();
             if (q.length < 2) { goodsResultsContainer.style.display = 'none'; return; }
-            fetch("{{ route('goods.search') }}?q=" + encodeURIComponent(q))
+            const docType = '{{ $doc }}';
+            fetch("{{ route('goods.search') }}?q=" + encodeURIComponent(q) + "&doc=" + encodeURIComponent(docType))
                 .then(res => res.json())
                 .then(data => {
                     goodsResultsContainer.innerHTML = '';
@@ -482,23 +694,35 @@
                                 tr.innerHTML = `
                                     <td><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm" value="${good.pnum}" readonly style="width:55px;"></td>
                                     <td><input type="hidden" name="name[]" value="${good.name || ''}"><input type="text" class="form-control form-control-sm" value="${good.name || ''}" readonly></td>
-                                    <td><input type="number" step="0.001" name="pcount[]" class="form-control form-control-sm goods-count" value="1"></td>
+                                    <td>
+                                        <div class="input-group input-group-sm" style="width:130px;">
+                                            <button type="button" class="btn btn-outline-secondary btn-qty-decrease" style="padding:2px 6px; font-size:0.9rem; line-height:1;">−</button>
+                                            <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count" value="1" style="width:60px; text-align:center;">
+                                            <button type="button" class="btn btn-outline-secondary btn-qty-increase" style="padding:2px 6px; font-size:0.9rem; line-height:1;">+</button>
+                                        </div>
+                                    </td>
                                     <td><input type="number" step="0.01" name="pprice[]" class="form-control form-control-sm goods-price" value="${good.price}"></td>
                                     <td><input type="number" step="0.01" name="psumma[]" class="form-control form-control-sm goods-sum" value="${good.price}"></td>
                                     <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row" style="padding:1px 6px;font-size:0.8rem;">❌</button></td>`;
+                                tr.dataset.priceCompPay = good.priceCompPay || 0;
+                                tr.dataset.priceCompPay1 = good.priceCompPay1 || 0;
+                                tr.dataset.priceBase = good.priceBase || 0;
+                                tr.dataset.priceWholesale = good.priceWholesale || 0;
+                                tr.dataset.wholesaleFrom = good.wholesaleFrom || 0;
+                                tr.dataset.docType = '{{ $doc }}';
                                 tableBody.appendChild(tr);
                                 const pcount = tr.querySelector('.goods-count');
                                 const pprice = tr.querySelector('.goods-price');
                                 const psum = tr.querySelector('.goods-sum');
-                                const updateSum = () => { psum.value = ((parseFloat(pcount.value)||0)*(parseFloat(pprice.value)||0)).toFixed(2); };
-                                pcount.addEventListener('input', updateSum);
-                                pprice.addEventListener('input', updateSum);
+                                bindGoodsRowInputs(pcount, pprice, psum);
                                 tr.querySelector('.remove-new-row').addEventListener('click', () => {
                                     tr.remove();
                                     if (tableBody.querySelectorAll('tr').length === 0) {
                                         tableBody.innerHTML = '<tr id="emptyGoodsRow"><td colspan="6" class="text-center text-muted" style="font-size:0.85rem;">Немає товарів</td></tr>';
                                     }
+                                    updateDocumentSum();
                                 });
+                                updateDocumentSum();
                                 goodsResultsContainer.style.display = 'none';
                                 goodsSearchInput.value = '';
                             });
@@ -521,6 +745,34 @@
         document.addEventListener('click', function(e) {
             if (!goodsSearchInput.contains(e.target) && !goodsResultsContainer.contains(e.target) && !searchGoodsBtn.contains(e.target)) {
                 goodsResultsContainer.style.display = 'none';
+            }
+        });
+
+        // ================= QUANTITY +/- BUTTONS =================
+        document.addEventListener('click', function(e) {
+            const decreaseBtn = e.target.closest('.btn-qty-decrease');
+            const increaseBtn = e.target.closest('.btn-qty-increase');
+            
+            if (decreaseBtn) {
+                const inputGroup = decreaseBtn.closest('.input-group');
+                const countInput = inputGroup?.querySelector('.goods-count');
+                if (countInput) {
+                    const currentVal = parseFloat(countInput.value) || 0;
+                    const step = parseFloat(countInput.step) || 1;
+                    countInput.value = Math.max(0, currentVal - step).toFixed(3).replace(/\.?0+$/, '');
+                    countInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+            
+            if (increaseBtn) {
+                const inputGroup = increaseBtn.closest('.input-group');
+                const countInput = inputGroup?.querySelector('.goods-count');
+                if (countInput) {
+                    const currentVal = parseFloat(countInput.value) || 0;
+                    const step = parseFloat(countInput.step) || 1;
+                    countInput.value = (currentVal + step).toFixed(3).replace(/\.?0+$/, '');
+                    countInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
             }
         });
     });

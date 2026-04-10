@@ -41,6 +41,7 @@ class AuthController extends Controller
 
         $cashboxes = DB::table('conf')
             ->where('type', 'oplata')
+            ->where('vision', '1')
             ->where('firma', $fid)
             ->orderBy('name')
             ->get();

@@ -12,7 +12,8 @@ class SyncLegacySessionFromAuth
     {
         if (Auth::check()) {
             $user = Auth::user();
-            $firma = $user->firma ?: $user->fid ?: $user->idfirma ?: 0;
+            $defaultFirma = $user->firma ?: $user->fid ?: $user->idfirma ?: 0;
+            $firma = session()->has('fid') ? session('fid') : $defaultFirma;
             $idstatus = $user->idstatus ?: $user->ustype ?: 1;
 
             session([

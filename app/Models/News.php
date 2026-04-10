@@ -12,6 +12,20 @@ class News extends Model
     public $timestamps = false;
     protected $guarded = [];
 
+    public static function getLatest(string $fid, int $limit = 5)
+    {
+        return DB::table('news')
+            ->where(function ($query) use ($fid) {
+                $query->where('firma', (int) $fid)
+                    ->orWhere('firma', 0);
+            })
+            ->orderByDesc('hot')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($item) => self::decorateItem($item));
+    }
+
     public static function init(string $fid, int $pos = 0, int $perPage = 20): array
     {
         $baseQuery = DB::table('news')

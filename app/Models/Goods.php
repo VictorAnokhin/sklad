@@ -22,6 +22,19 @@ class Goods extends Model
         return $this->belongsTo(Sklad::class, 'sklad');
     }
 
+    private static function displayNameSql(): string
+    {
+        return "COALESCE(
+            NULLIF(d.name, ''),
+            NULLIF(d.name_ua, ''),
+            NULLIF(d.name_en, ''),
+            NULLIF(comp.nickname, ''),
+            NULLIF(comp.namedoc, ''),
+            NULLIF(comp.name, ''),
+            CONCAT('Товар #', comp.id)
+        )";
+    }
+
     // ── getListQuery: filtered comp+price query builder ───────────────────────
 
     public static function getListQuery($fid, $idcaption, $idglava, $filters)
@@ -40,7 +53,7 @@ class Goods extends Model
             })
             ->select(
                 'comp.*',
-                DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+                DB::raw(self::displayNameSql() . ' as name'),
                 DB::raw('COALESCE(d.name_ua, "") as name_ua'),
                 DB::raw('COALESCE(d.name_en, "") as name_en'),
                 DB::raw('COALESCE(d.description, "") as description'),
@@ -164,13 +177,28 @@ class Goods extends Model
             ->get()
             ->groupBy('pnum');
 
-        return $comps->map(function ($comp) use ($priceRows) {
+        $skladIds = $priceRows
+            ->flatten(1)
+            ->pluck('sklad')
+            ->filter(fn ($value) => (string) $value !== '' && (string) $value !== '0')
+            ->unique()
+            ->values();
+
+        $skladNames = $skladIds->isEmpty()
+            ? collect()
+            : DB::table('conf')
+                ->where('type', 'sklads')
+                ->whereIn('id', $skladIds)
+                ->pluck('name', 'id');
+
+        return $comps->map(function ($comp) use ($priceRows, $skladNames) {
             $price = $priceRows->get($comp->id)?->first();
             $comp->price_pay = $price->pay ?? $comp->pay ?? 0;
             $comp->price_pay1 = $price->pay1 ?? $comp->pay1 ?? 0;
             $comp->price_oldpay = $price->oldpay ?? 0;
             $comp->price_count = $price->count ?? 0;
             $comp->price_sklad = $price->sklad ?? $comp->sklad ?? 0;
+            $comp->price_sklad_name = $skladNames->get($comp->price_sklad, '—');
             $comp->price_tgroup = $price->tgroup ?? null;
             return $comp;
         });
@@ -197,6 +225,7 @@ class Goods extends Model
                 $comp->price_oldpay = $comp->oldpay ?? 0;
                 $comp->price_count = 0;
                 $comp->price_sklad = $comp->sklad ?? 0;
+                $comp->price_sklad_name = '—';
                 $comp->price_tgroup = null;
                 return $comp;
             });
@@ -231,7 +260,21 @@ class Goods extends Model
             ->get()
             ->groupBy(fn($row) => $row->firma . ':' . $row->pnum);
 
-        return $comps->map(function ($comp) use ($priceRows, $retailGroups, $wholesaleGroups) {
+        $skladIds = $priceRows
+            ->flatten(1)
+            ->pluck('sklad')
+            ->filter(fn ($value) => (string) $value !== '' && (string) $value !== '0')
+            ->unique()
+            ->values();
+
+        $skladNames = $skladIds->isEmpty()
+            ? collect()
+            : DB::table('conf')
+                ->where('type', 'sklads')
+                ->whereIn('id', $skladIds)
+                ->pluck('name', 'id');
+
+        return $comps->map(function ($comp) use ($priceRows, $retailGroups, $wholesaleGroups, $skladNames) {
             $key = ($comp->firma ?? '') . ':' . ($comp->id ?? '');
             $rows = $priceRows->get($key, collect());
             $retailGroupId = $retailGroups->get((string) ($comp->firma ?? ''));
@@ -250,6 +293,7 @@ class Goods extends Model
             $comp->price_oldpay = $price->oldpay ?? $comp->oldpay ?? 0;
             $comp->price_count = $price->count ?? 0;
             $comp->price_sklad = $price->sklad ?? $comp->sklad ?? 0;
+            $comp->price_sklad_name = $skladNames->get($comp->price_sklad, '—');
             $comp->price_tgroup = $price->tgroup ?? null;
             $comp->wholesale_price = $wholesalePrice->pay ?? null;
             $comp->wholesale_oldpay = $wholesalePrice->oldpay ?? null;
@@ -305,7 +349,7 @@ class Goods extends Model
 
         $goods = $query->select(
             'comp.id',
-            DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+            DB::raw(self::displayNameSql() . ' as name'),
             DB::raw('COALESCE(d.name_ua, "") as name_ua'),
             DB::raw('COALESCE(d.name_en, "") as name_en'),
             DB::raw('COALESCE(d.description, "") as description'),
@@ -360,7 +404,7 @@ class Goods extends Model
             ->where('comp.firma', $fid)
             ->select(
                 'comp.id',
-                DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+                DB::raw(self::displayNameSql() . ' as name'),
                 DB::raw('COALESCE(d.name_ua, "") as name_ua'),
                 DB::raw('COALESCE(d.name_en, "") as name_en'),
                 DB::raw('COALESCE(d.description, "") as description'),
@@ -443,6 +487,14 @@ class Goods extends Model
         }
 
         // ── Descript upsert
+        foreach (['name', 'name_ua', 'name_en', 'description', 'description_ua', 'description_en'] as $stringField) {
+            if (!array_key_exists($stringField, $descData) || $descData[$stringField] === null) {
+                $descData[$stringField] = '';
+            } else {
+                $descData[$stringField] = (string) $descData[$stringField];
+            }
+        }
+
         $hasDesc = DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->exists();
         if ($hasDesc) {
             DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->update($descData);

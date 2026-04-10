@@ -16,11 +16,11 @@
 
     <div class="row g-4">
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="reteil" data-title="📁 Проекти">
+            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalProjects">
                 <div class="card-body text-center">
                     <h5 class="card-title">📁 Проекти</h5>
                     <p class="card-text text-muted">Управління проектами</p>
-                    <span class="badge bg-primary" id="badge-reteil">{{ count($projects ?? []) }}</span>
+                    <span class="badge bg-primary" id="badge-projects">{{ count($projects ?? []) }}</span>
                 </div>
             </div>
         </div>
@@ -120,6 +120,16 @@
                     <h5 class="card-title">🏛 Мої компанії</h5>
                     <p class="card-text text-muted">Редагування, додавання та видалення компаній</p>
                     <span class="badge bg-warning text-dark" id="badge-firms">{{ count($myCompanies ?? []) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100 border-danger setting-card" data-bs-toggle="modal" data-bs-target="#modalBanners">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🎞 Банерна карусель</h5>
+                    <p class="card-text text-muted">Банери для першого екрана laravel-react</p>
+                    <span class="badge bg-danger" id="badge-banners">{{ $bannerCarouselCount ?? 0 }}</span>
                 </div>
             </div>
         </div>
@@ -228,6 +238,144 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalProjects" tabindex="-1" aria-labelledby="modalProjectsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header d-flex align-items-center">
+                <h5 class="modal-title" id="modalProjectsLabel">📁 Проєкти</h5>
+                <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-project-add">+ Додати</button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+            </div>
+
+            <div class="modal-body" id="project-form-area" style="display:none">
+                <form id="project-form" enctype="multipart/form-data">
+                    <input type="hidden" id="project-id" value="">
+                    <input type="hidden" id="project-foto-existing" value="">
+                    <input type="hidden" id="project-foto-header-existing" value="">
+                    <input type="hidden" id="project-foto-footer-existing" value="">
+                    <input type="hidden" id="project-num" value="0">
+
+                    <div class="row">
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">ID</label>
+                            <input type="text" class="form-control" id="project-id-display" readonly>
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label">Назва <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="project-name" maxlength="50" required>
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label">userid</label>
+                            <input type="number" class="form-control" id="project-userid" min="0" value="0">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">phone</label>
+                            <textarea class="form-control" id="project-phone" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">description</label>
+                            <textarea class="form-control" id="project-description" rows="4"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 col-lg-3 mb-3">
+                            <label class="form-label">telegram</label>
+                            <textarea class="form-control" id="project-telegram" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6 col-lg-3 mb-3">
+                            <label class="form-label">instagram</label>
+                            <textarea class="form-control" id="project-instagram" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6 col-lg-3 mb-3">
+                            <label class="form-label">twitter</label>
+                            <textarea class="form-control" id="project-twitter" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6 col-lg-3 mb-3">
+                            <label class="form-label">facebook</label>
+                            <textarea class="form-control" id="project-facebook" rows="2"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">foto</label>
+                            <input type="file" class="form-control" id="project-foto-file" accept="image/*">
+                            <div class="form-text">PNG, JPG, WEBP або GIF до 4 МБ</div>
+                            <div class="firm-media-preview mt-2" id="project-foto-preview-wrap" hidden>
+                                <img src="" alt="foto" id="project-foto-preview">
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">foto_header</label>
+                            <input type="file" class="form-control" id="project-foto-header-file" accept="image/*">
+                            <div class="form-text">PNG, JPG, WEBP або GIF до 4 МБ</div>
+                            <div class="firm-media-preview mt-2" id="project-foto-header-preview-wrap" hidden>
+                                <img src="" alt="foto_header" id="project-foto-header-preview">
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">foto_footer</label>
+                            <input type="file" class="form-control" id="project-foto-footer-file" accept="image/*">
+                            <div class="form-text">PNG, JPG, WEBP або GIF до 4 МБ</div>
+                            <div class="firm-media-preview mt-2" id="project-foto-footer-preview-wrap" hidden>
+                                <img src="" alt="foto_footer" id="project-foto-footer-preview">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">htmlkeys</label>
+                            <textarea class="form-control" id="project-htmlkeys" rows="3"></textarea>
+                        </div>
+                        <div class="col-md-3 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="project-web">
+                                <label class="form-check-label" for="project-web">web</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="project-hit">
+                                <label class="form-check-label" for="project-hit">hit</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">💾 Зберегти</button>
+                        <button type="button" class="btn btn-secondary" id="btn-project-cancel">Скасувати</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-body" id="project-list-area">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>num</th>
+                                <th>Назва</th>
+                                <th>userid</th>
+                                <th>Телефон</th>
+                                <th>Прапори</th>
+                                <th class="text-end">Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projects-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-muted" id="projects-empty-msg" style="display:none">Проєктів ще немає</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalCrud" tabindex="-1" aria-labelledby="modalCrudLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
@@ -273,7 +421,7 @@
                             <th>#</th>
                             <th>Назва</th>
                             <th>Колір</th>
-                            <th>Статус</th>
+                            <th id="crud-status-column">Статус</th>
                             <th class="text-end">Дії</th>
                         </tr>
                     </thead>
@@ -358,12 +506,20 @@
                             <input type="text" class="form-control" id="firm-direktor">
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Підписант</label>
-                            <input type="text" class="form-control" id="firm-pidpys">
+                            <label class="form-label">Фото підпису</label>
+                            <input type="file" class="form-control" id="firm-pidpys-file" accept="image/*">
+                            <div class="form-text">PNG, JPG, WEBP або GIF до 4 МБ</div>
+                            <div class="firm-media-preview mt-2" id="firm-pidpys-preview-wrap" hidden>
+                                <img src="" alt="Підпис" id="firm-pidpys-preview">
+                            </div>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Печатка</label>
-                            <input type="text" class="form-control" id="firm-pechat">
+                            <label class="form-label">Фото печатки</label>
+                            <input type="file" class="form-control" id="firm-pechat-file" accept="image/*">
+                            <div class="form-text">PNG, JPG, WEBP або GIF до 4 МБ</div>
+                            <div class="firm-media-preview mt-2" id="firm-pechat-preview-wrap" hidden>
+                                <img src="" alt="Печатка" id="firm-pechat-preview">
+                            </div>
                         </div>
                     </div>
 
@@ -392,6 +548,95 @@
                     </table>
                 </div>
                 <p class="text-center text-muted" id="firms-empty-msg" style="display:none">Компаній ще немає</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalBanners" tabindex="-1" aria-labelledby="modalBannersLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header d-flex align-items-center">
+                <h5 class="modal-title" id="modalBannersLabel">🎞 Банерна карусель</h5>
+                <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-banner-add">+ Додати банер</button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+            </div>
+
+            <div class="modal-body" id="banner-form-area" style="display:none">
+                <form id="banner-form">
+                    <input type="hidden" id="banner-id" value="">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Заголовок <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="banner-title" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Кнопка</label>
+                            <input type="text" class="form-control" id="banner-button-text" placeholder="Детальніше">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Порядок</label>
+                            <input type="number" class="form-control" id="banner-sort-order" min="0" value="0">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">Посилання</label>
+                            <input type="text" class="form-control" id="banner-link-url" placeholder="/news або https://...">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Видимість</label>
+                            <select class="form-select" id="banner-vision">
+                                <option value="1">Показувати</option>
+                                <option value="0">Приховати</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Підзаголовок</label>
+                        <textarea class="form-control" id="banner-subtitle" rows="4"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Зображення банера</label>
+                            <input type="file" class="form-control" id="banner-image-file" accept="image/*">
+                            <div class="form-text">PNG, JPG, WEBP або GIF до 6 МБ</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Попередній перегляд</label>
+                            <div class="firm-media-preview" id="banner-image-preview-wrap" hidden>
+                                <img src="" alt="Банер" id="banner-image-preview">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">💾 Зберегти</button>
+                        <button type="button" class="btn btn-secondary" id="btn-banner-cancel">Скасувати</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-body" id="banner-list-area">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Банер</th>
+                                <th>Посилання</th>
+                                <th>Порядок</th>
+                                <th>Видимість</th>
+                                <th class="text-end">Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody id="banners-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-muted" id="banners-empty-msg" style="display:none">Банерів ще немає</p>
             </div>
         </div>
     </div>
@@ -555,6 +800,24 @@
         color: #aab4c8;
     }
 
+    .firm-media-preview {
+        min-height: 96px;
+        border: 1px dashed #ced4da;
+        border-radius: 10px;
+        background: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+    }
+
+    .firm-media-preview img {
+        max-width: 100%;
+        max-height: 140px;
+        object-fit: contain;
+        display: block;
+    }
+
     .catalog-meta {
         font-size: 0.85rem;
         color: #6b7280;
@@ -574,6 +837,10 @@
         padding: 0;
         text-decoration: underline;
         cursor: pointer;
+    }
+
+    #project-form .form-label {
+        color: #000;
     }
 
     .wallet-link-card {
@@ -700,10 +967,342 @@
 document.addEventListener('DOMContentLoaded', () => {
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
 
+    initProjectsCrud(csrf);
     initConfCrud(csrf);
     initCatalogCrud(csrf);
     initFirmsCrud(csrf);
+    initBannerCrud(csrf);
     initWalletLink(csrf);
+
+    function initProjectsCrud(csrfToken) {
+        const modal = document.getElementById('modalProjects');
+        const tbody = document.getElementById('projects-tbody');
+        const formArea = document.getElementById('project-form-area');
+        const listArea = document.getElementById('project-list-area');
+        const form = document.getElementById('project-form');
+        const emptyMsg = document.getElementById('projects-empty-msg');
+        const addBtn = document.getElementById('btn-project-add');
+        const cancelBtn = document.getElementById('btn-project-cancel');
+        const badge = document.getElementById('badge-projects');
+        const fotoFileInput = document.getElementById('project-foto-file');
+        const fotoHeaderFileInput = document.getElementById('project-foto-header-file');
+        const fotoFooterFileInput = document.getElementById('project-foto-footer-file');
+
+        if (!modal || !tbody || !form || !addBtn || !cancelBtn) {
+            return;
+        }
+
+        bindProjectPreview(fotoFileInput, 'project-foto-preview-wrap', 'project-foto-preview');
+        bindProjectPreview(fotoHeaderFileInput, 'project-foto-header-preview-wrap', 'project-foto-header-preview');
+        bindProjectPreview(fotoFooterFileInput, 'project-foto-footer-preview-wrap', 'project-foto-footer-preview');
+
+        modal.addEventListener('show.bs.modal', () => {
+            hideForm();
+            loadProjects();
+        });
+
+        modal.addEventListener('hidden.bs.modal', () => {
+            hideForm();
+            resetProjectForm();
+        });
+
+        addBtn.addEventListener('click', () => {
+            resetProjectForm();
+            showForm();
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            hideForm();
+            resetProjectForm();
+        });
+
+        tbody.addEventListener('click', (event) => {
+            const btn = event.target.closest('.action-btn');
+            if (!btn) return;
+
+            const id = btn.dataset.id;
+            if (btn.dataset.action === 'edit') {
+                editProject(id);
+                return;
+            }
+
+            if (btn.dataset.action === 'delete') {
+                deleteProject(id, btn);
+            }
+        });
+
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            const id = document.getElementById('project-id').value;
+            const payload = new FormData();
+            payload.append('num', String(Number(document.getElementById('project-num').value || 0)));
+            payload.append('name', document.getElementById('project-name').value.trim());
+            payload.append('phone', document.getElementById('project-phone').value.trim());
+            payload.append('telegram', document.getElementById('project-telegram').value.trim());
+            payload.append('instagram', document.getElementById('project-instagram').value.trim());
+            payload.append('twitter', document.getElementById('project-twitter').value.trim());
+            payload.append('facebook', document.getElementById('project-facebook').value.trim());
+            payload.append('userid', String(Number(document.getElementById('project-userid').value || 0)));
+            payload.append('foto', document.getElementById('project-foto-existing').value.trim());
+            payload.append('foto_header', document.getElementById('project-foto-header-existing').value.trim());
+            payload.append('foto_footer', document.getElementById('project-foto-footer-existing').value.trim());
+            payload.append('description', document.getElementById('project-description').value.trim());
+            payload.append('web', document.getElementById('project-web').checked ? '1' : '0');
+            payload.append('hit', document.getElementById('project-hit').checked ? '1' : '0');
+            payload.append('htmlkeys', document.getElementById('project-htmlkeys').value.trim());
+
+            if (fotoFileInput?.files?.[0]) {
+                payload.append('foto_file', fotoFileInput.files[0]);
+            }
+            if (fotoHeaderFileInput?.files?.[0]) {
+                payload.append('foto_header_file', fotoHeaderFileInput.files[0]);
+            }
+            if (fotoFooterFileInput?.files?.[0]) {
+                payload.append('foto_footer_file', fotoFooterFileInput.files[0]);
+            }
+            if (id) {
+                payload.append('_method', 'PUT');
+            }
+
+            if (!String(payload.get('name') || '').trim()) {
+                alert('Вкажи назву проєкту');
+                return;
+            }
+
+            fetch(id ? `/settings/projects/${id}` : '/settings/projects', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: payload,
+            })
+            .then(async (response) => {
+                const data = await response.json();
+                return { ok: response.ok, data };
+            })
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) {
+                    alert(data.message || 'Помилка збереження');
+                    return;
+                }
+
+                hideForm();
+                resetProjectForm();
+                loadProjects();
+            })
+            .catch(() => alert('Помилка мережі'));
+        });
+
+        function loadProjects() {
+            fetch('/settings/projects')
+                .then(async (response) => {
+                    const data = await response.json();
+                    return { ok: response.ok, data };
+                })
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        throw new Error('load_failed');
+                    }
+
+                    renderProjects(Array.isArray(data) ? data : []);
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-danger">Помилка завантаження</td></tr>';
+                    emptyMsg.style.display = 'none';
+                });
+        }
+
+        function renderProjects(items) {
+            tbody.innerHTML = '';
+
+            if (!items.length) {
+                emptyMsg.style.display = 'block';
+                if (badge) {
+                    badge.textContent = '0';
+                }
+                return;
+            }
+
+            emptyMsg.style.display = 'none';
+            if (badge) {
+                badge.textContent = String(items.length);
+            }
+
+            items.forEach((item) => {
+                const flags = [];
+                if (Number(item.web) === 1) flags.push('<span class="badge bg-primary">web</span>');
+                if (Number(item.hit) === 1) flags.push('<span class="badge bg-warning text-dark">hit</span>');
+
+                const projectPhone = item.phone
+                    ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>`
+                    : '—';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.id ?? ''}</td>
+                    <td>${escapeHtml(item.num ?? 0)}</td>
+                    <td>
+                        <div class="fw-semibold">${escapeHtml(item.name || '')}</div>
+                        <div class="company-meta">${escapeHtml(item.description || '')}</div>
+                    </td>
+                    <td>${escapeHtml(item.userid ?? 0)}</td>
+                    <td>${projectPhone}</td>
+                    <td>${flags.join(' ') || '—'}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
+                        ${item.can_delete ? `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>` : '<span class="text-muted small">Без прав на видалення</span>'}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function editProject(id) {
+            fetch(`/settings/projects/${id}`)
+                .then(async (response) => {
+                    const data = await response.json();
+                    return { ok: response.ok, data };
+                })
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.message || 'Проєкт не знайдено');
+                        return;
+                    }
+
+                    fillProjectForm(data);
+                    showForm();
+                })
+                .catch(() => alert('Помилка завантаження'));
+        }
+
+        function deleteProject(id, btn) {
+            if (!confirm('Видалити цей проєкт?')) return;
+
+            fetch(`/settings/projects/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+            })
+            .then(async (response) => {
+                const data = await response.json();
+                return { ok: response.ok, data };
+            })
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) {
+                    alert(data.message || 'Помилка видалення');
+                    return;
+                }
+
+                btn.closest('tr')?.remove();
+                if (!tbody.children.length) {
+                    emptyMsg.style.display = 'block';
+                }
+                loadProjects();
+            })
+            .catch(() => alert('Помилка мережі'));
+        }
+
+        function fillProjectForm(item) {
+            document.getElementById('project-id').value = item.id ?? '';
+            document.getElementById('project-id-display').value = item.id ?? '';
+            document.getElementById('project-num').value = item.num ?? 0;
+            document.getElementById('project-name').value = item.name || '';
+            document.getElementById('project-phone').value = item.phone || '';
+            document.getElementById('project-telegram').value = item.telegram || '';
+            document.getElementById('project-instagram').value = item.instagram || '';
+            document.getElementById('project-twitter').value = item.twitter || '';
+            document.getElementById('project-facebook').value = item.facebook || '';
+            document.getElementById('project-userid').value = item.userid ?? 0;
+            document.getElementById('project-foto-existing').value = item.foto || '';
+            document.getElementById('project-foto-header-existing').value = item.foto_header || '';
+            document.getElementById('project-foto-footer-existing').value = item.foto_footer || '';
+            document.getElementById('project-description').value = item.description || '';
+            document.getElementById('project-web').checked = Number(item.web) === 1;
+            document.getElementById('project-hit').checked = Number(item.hit) === 1;
+            document.getElementById('project-htmlkeys').value = item.htmlkeys || '';
+            if (fotoFileInput) fotoFileInput.value = '';
+            if (fotoHeaderFileInput) fotoHeaderFileInput.value = '';
+            if (fotoFooterFileInput) fotoFooterFileInput.value = '';
+            setProjectPreview('project-foto-preview-wrap', 'project-foto-preview', item.foto_preview || '');
+            setProjectPreview('project-foto-header-preview-wrap', 'project-foto-header-preview', item.foto_header_preview || '');
+            setProjectPreview('project-foto-footer-preview-wrap', 'project-foto-footer-preview', item.foto_footer_preview || '');
+        }
+
+        function resetProjectForm() {
+            document.getElementById('project-id').value = '';
+            document.getElementById('project-id-display').value = '';
+            document.getElementById('project-num').value = '0';
+            document.getElementById('project-name').value = '';
+            document.getElementById('project-phone').value = '';
+            document.getElementById('project-telegram').value = '';
+            document.getElementById('project-instagram').value = '';
+            document.getElementById('project-twitter').value = '';
+            document.getElementById('project-facebook').value = '';
+            document.getElementById('project-userid').value = '0';
+            document.getElementById('project-foto-existing').value = '';
+            document.getElementById('project-foto-header-existing').value = '';
+            document.getElementById('project-foto-footer-existing').value = '';
+            document.getElementById('project-description').value = '';
+            document.getElementById('project-web').checked = false;
+            document.getElementById('project-hit').checked = false;
+            document.getElementById('project-htmlkeys').value = '';
+            if (fotoFileInput) fotoFileInput.value = '';
+            if (fotoHeaderFileInput) fotoHeaderFileInput.value = '';
+            if (fotoFooterFileInput) fotoFooterFileInput.value = '';
+            setProjectPreview('project-foto-preview-wrap', 'project-foto-preview', '');
+            setProjectPreview('project-foto-header-preview-wrap', 'project-foto-header-preview', '');
+            setProjectPreview('project-foto-footer-preview-wrap', 'project-foto-footer-preview', '');
+        }
+
+        function showForm() {
+            formArea.style.display = 'block';
+            listArea.style.display = 'none';
+        }
+
+        function hideForm() {
+            formArea.style.display = 'none';
+            listArea.style.display = 'block';
+        }
+
+        function bindProjectPreview(input, wrapId, imageId) {
+            if (!input) {
+                return;
+            }
+
+            input.addEventListener('change', () => {
+                const file = input.files?.[0];
+                if (!file) {
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = () => {
+                    setProjectPreview(wrapId, imageId, reader.result || '');
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function setProjectPreview(wrapId, imageId, source) {
+            const wrap = document.getElementById(wrapId);
+            const image = document.getElementById(imageId);
+            if (!wrap || !image) {
+                return;
+            }
+
+            if (!source) {
+                image.src = '';
+                wrap.hidden = true;
+                return;
+            }
+
+            image.src = source;
+            wrap.hidden = false;
+        }
+    }
 
     function initConfCrud(csrfToken) {
         const modal = document.getElementById('modalCrud');
@@ -719,6 +1318,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusLabel = document.getElementById('form-status-label');
         const statusSelect = document.getElementById('form-status');
         const statusHelp = document.getElementById('form-status-help');
+        const statusColumn = document.getElementById('crud-status-column');
 
         let currentType = '';
 
@@ -779,6 +1379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: document.getElementById('form-name').value.trim(),
                 color: colorInput.value.trim(),
                 status: document.getElementById('form-status').value,
+                vision: currentType === 'sklads' ? document.getElementById('form-status').value : '1',
             };
 
             if (!payload.name) return;
@@ -838,6 +1439,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         '3': '<span class="badge bg-danger">Адміністрація</span>',
                         '0': '<span class="badge bg-secondary">Прочие</span>',
                     }[String(item.status)] || '<span class="badge bg-secondary">Прочие</span>');
+                } else if (currentType === 'sklads') {
+                    statusLabel = String(item.vision) === '1'
+                        ? '<span class="badge bg-success">Видимий</span>'
+                        : '<span class="badge bg-secondary">Прихований</span>';
                 } else if (String(item.status) === '1') {
                     statusLabel = '<span class="badge bg-success">Активний</span>';
                 }
@@ -864,7 +1469,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('form-name').value = item.name || '';
                     colorInput.value = item.color || '';
                     colorPicker.value = item.color || '#ffffff';
-                    document.getElementById('form-status').value = item.status ?? '1';
+                    document.getElementById('form-status').value = currentType === 'sklads'
+                        ? (item.vision ?? '1')
+                        : (item.status ?? '1');
                     showForm();
                 })
                 .catch(() => alert('Помилка завантаження'));
@@ -918,6 +1525,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function configureStatusField() {
             if (currentType === 'tgroup') {
+                statusColumn.textContent = 'Статус';
                 statusLabel.textContent = 'Тип групи';
                 statusSelect.innerHTML = `
                     <option value="1">Роздрібна група</option>
@@ -926,6 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusHelp.style.display = 'block';
                 statusHelp.textContent = 'Для виділення роздрібної групи цін використовуй status = 1.';
             } else if (currentType === 'tclient') {
+                statusColumn.textContent = 'Статус';
                 statusLabel.textContent = 'Підрозділ';
                 statusSelect.innerHTML = `
                     <option value="0">Прочие</option>
@@ -935,7 +1544,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 statusHelp.style.display = 'block';
                 statusHelp.textContent = 'status: 1 = відділ продаж, 2 = виробництво, 3 = адміністрація, 0 = прочие.';
+            } else if (currentType === 'sklads') {
+                statusColumn.textContent = 'Видимість';
+                statusLabel.textContent = 'Видимість';
+                statusSelect.innerHTML = `
+                    <option value="1">Видимий</option>
+                    <option value="0">Прихований</option>
+                `;
+                statusHelp.style.display = 'block';
+                statusHelp.textContent = 'Для офісів використовується поле vision: 1 = видимий, 0 = прихований.';
             } else {
+                statusColumn.textContent = 'Статус';
                 statusLabel.textContent = 'Статус';
                 statusSelect.innerHTML = `
                     <option value="1">Активний</option>
@@ -1418,6 +2037,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const form = document.getElementById('firm-form');
         const addBtn = document.getElementById('btn-firm-add');
         const cancelBtn = document.getElementById('btn-firm-cancel');
+        const signatureInput = document.getElementById('firm-pidpys-file');
+        const stampInput = document.getElementById('firm-pechat-file');
 
         modal.addEventListener('show.bs.modal', () => {
             hideFirmForm();
@@ -1439,6 +2060,14 @@ document.addEventListener('DOMContentLoaded', () => {
             resetFirmForm();
         });
 
+        signatureInput.addEventListener('change', () => {
+            updateFirmImagePreview(signatureInput, 'firm-pidpys-preview', 'firm-pidpys-preview-wrap');
+        });
+
+        stampInput.addEventListener('change', () => {
+            updateFirmImagePreview(stampInput, 'firm-pechat-preview', 'firm-pechat-preview-wrap');
+        });
+
         tbody.addEventListener('click', (e) => {
             const btn = e.target.closest('.action-btn');
             if (!btn) return;
@@ -1458,18 +2087,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = document.getElementById('firm-id').value;
             const payload = collectFirmPayload();
 
-            if (!payload.name) {
+            if (!payload.get('name')) {
                 alert('Вкажіть назву компанії');
                 return;
             }
 
             fetch(id ? `/settings/firms/${id}` : '/settings/firms', {
-                method: id ? 'PUT' : 'POST',
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
-                body: JSON.stringify(payload),
+                body: payload,
             })
             .then(async (r) => {
                 const data = await r.json();
@@ -1488,22 +2116,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         function collectFirmPayload() {
-            return {
-                name: document.getElementById('firm-name').value.trim(),
-                regnum: document.getElementById('firm-regnum').value.trim(),
-                inn: document.getElementById('firm-inn').value.trim(),
-                schet: document.getElementById('firm-schet').value.trim(),
-                bank: document.getElementById('firm-bank').value.trim(),
-                mfo: document.getElementById('firm-mfo').value.trim(),
-                town: document.getElementById('firm-town').value.trim(),
-                address: document.getElementById('firm-address').value.trim(),
-                map: document.getElementById('firm-map').value.trim(),
-                view: document.getElementById('firm-view').value.trim(),
-                phone: document.getElementById('firm-phone').value.trim(),
-                direktor: document.getElementById('firm-direktor').value.trim(),
-                pidpys: document.getElementById('firm-pidpys').value.trim(),
-                pechat: document.getElementById('firm-pechat').value.trim(),
-            };
+            const payload = new FormData();
+            payload.append('name', document.getElementById('firm-name').value.trim());
+            payload.append('regnum', document.getElementById('firm-regnum').value.trim());
+            payload.append('inn', document.getElementById('firm-inn').value.trim());
+            payload.append('schet', document.getElementById('firm-schet').value.trim());
+            payload.append('bank', document.getElementById('firm-bank').value.trim());
+            payload.append('mfo', document.getElementById('firm-mfo').value.trim());
+            payload.append('town', document.getElementById('firm-town').value.trim());
+            payload.append('address', document.getElementById('firm-address').value.trim());
+            payload.append('map', document.getElementById('firm-map').value.trim());
+            payload.append('view', document.getElementById('firm-view').value.trim());
+            payload.append('phone', document.getElementById('firm-phone').value.trim());
+            payload.append('direktor', document.getElementById('firm-direktor').value.trim());
+
+            const id = document.getElementById('firm-id').value;
+            if (id) {
+                payload.append('_method', 'PUT');
+            }
+
+            if (signatureInput.files[0]) {
+                payload.append('pidpys_file', signatureInput.files[0]);
+            }
+
+            if (stampInput.files[0]) {
+                payload.append('pechat_file', stampInput.files[0]);
+            }
+
+            return payload;
         }
 
         function loadFirms() {
@@ -1575,8 +2215,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('firm-view').value = data.view || '';
                     document.getElementById('firm-phone').value = data.phone || '';
                     document.getElementById('firm-direktor').value = data.direktor || '';
-                    document.getElementById('firm-pidpys').value = data.pidpys || '';
-                    document.getElementById('firm-pechat').value = data.pechat || '';
+                    updateFirmImagePreview(null, 'firm-pidpys-preview', 'firm-pidpys-preview-wrap', data.pidpys_preview || '');
+                    updateFirmImagePreview(null, 'firm-pechat-preview', 'firm-pechat-preview-wrap', data.pechat_preview || '');
 
                     showFirmForm();
                 })
@@ -1616,6 +2256,8 @@ document.addEventListener('DOMContentLoaded', () => {
         function resetFirmForm() {
             form.reset();
             document.getElementById('firm-id').value = '';
+            updateFirmImagePreview(null, 'firm-pidpys-preview', 'firm-pidpys-preview-wrap', '');
+            updateFirmImagePreview(null, 'firm-pechat-preview', 'firm-pechat-preview-wrap', '');
         }
 
         function showFirmForm() {
@@ -1627,6 +2269,281 @@ document.addEventListener('DOMContentLoaded', () => {
             formArea.style.display = 'none';
             listArea.style.display = 'block';
         }
+
+        function updateFirmImagePreview(input, imageId, wrapId, explicitUrl = '') {
+            const image = document.getElementById(imageId);
+            const wrap = document.getElementById(wrapId);
+
+            if (explicitUrl) {
+                image.src = explicitUrl;
+                wrap.hidden = false;
+                return;
+            }
+
+            const file = input?.files?.[0];
+            if (!file) {
+                image.src = '';
+                wrap.hidden = true;
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                image.src = reader.result;
+                wrap.hidden = false;
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function initBannerCrud(csrfToken) {
+        const modal = document.getElementById('modalBanners');
+        const listArea = document.getElementById('banner-list-area');
+        const formArea = document.getElementById('banner-form-area');
+        const tbody = document.getElementById('banners-tbody');
+        const emptyMsg = document.getElementById('banners-empty-msg');
+        const form = document.getElementById('banner-form');
+        const addBtn = document.getElementById('btn-banner-add');
+        const cancelBtn = document.getElementById('btn-banner-cancel');
+        const imageInput = document.getElementById('banner-image-file');
+
+        modal.addEventListener('show.bs.modal', () => {
+            hideBannerForm();
+            loadBanners();
+        });
+
+        modal.addEventListener('hidden.bs.modal', () => {
+            hideBannerForm();
+            resetBannerForm();
+        });
+
+        addBtn.addEventListener('click', () => {
+            resetBannerForm();
+            showBannerForm();
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            hideBannerForm();
+            resetBannerForm();
+        });
+
+        imageInput.addEventListener('change', () => {
+            updateImagePreview(imageInput, 'banner-image-preview', 'banner-image-preview-wrap');
+        });
+
+        tbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('.action-btn');
+            if (!btn) return;
+
+            const id = btn.dataset.id;
+            if (btn.dataset.action === 'edit') {
+                editBanner(id);
+            }
+            if (btn.dataset.action === 'delete') {
+                deleteBanner(id, btn);
+            }
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const id = document.getElementById('banner-id').value;
+            const payload = collectBannerPayload(id);
+
+            if (!payload.get('title')) {
+                alert('Вкажіть заголовок банера');
+                return;
+            }
+
+            fetch(id ? `/settings/banners/${id}` : '/settings/banners', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: payload,
+            })
+            .then(async (r) => {
+                const data = await r.json();
+                return { ok: r.ok, data };
+            })
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) {
+                    alert(data.message || 'Помилка збереження');
+                    return;
+                }
+
+                hideBannerForm();
+                resetBannerForm();
+                loadBanners();
+            })
+            .catch(() => alert('Помилка мережі'));
+        });
+
+        function collectBannerPayload(id) {
+            const payload = new FormData();
+            payload.append('title', document.getElementById('banner-title').value.trim());
+            payload.append('subtitle', document.getElementById('banner-subtitle').value.trim());
+            payload.append('button_text', document.getElementById('banner-button-text').value.trim());
+            payload.append('link_url', document.getElementById('banner-link-url').value.trim());
+            payload.append('sort_order', document.getElementById('banner-sort-order').value.trim() || '0');
+            payload.append('vision', document.getElementById('banner-vision').value);
+
+            if (id) {
+                payload.append('_method', 'PUT');
+            }
+
+            if (imageInput.files[0]) {
+                payload.append('image_file', imageInput.files[0]);
+            }
+
+            return payload;
+        }
+
+        function loadBanners() {
+            fetch('/settings/banners')
+                .then((r) => r.json())
+                .then((items) => {
+                    renderBanners(items);
+                    const badge = document.getElementById('badge-banners');
+                    if (badge) {
+                        badge.textContent = items.length;
+                    }
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Помилка завантаження банерів</td></tr>';
+                });
+        }
+
+        function renderBanners(items) {
+            tbody.innerHTML = '';
+            if (!items.length) {
+                emptyMsg.style.display = 'block';
+                return;
+            }
+
+            emptyMsg.style.display = 'none';
+            items.forEach((item) => {
+                const tr = document.createElement('tr');
+                const preview = item.image_url
+                    ? `<img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.title || '')}" style="width:120px;height:64px;object-fit:cover;border-radius:8px;display:block;margin-bottom:8px;">`
+                    : '';
+                tr.innerHTML = `
+                    <td>${item.id}</td>
+                    <td>
+                        ${preview}
+                        <div><strong>${escapeHtml(item.title || '')}</strong></div>
+                        <div class="company-meta">${escapeHtml(item.subtitle || '—')}</div>
+                    </td>
+                    <td>${escapeHtml(item.link_url || '—')}</td>
+                    <td>${item.sort_order ?? 0}</td>
+                    <td>${String(item.vision) === '1' ? '<span class="badge bg-success">Показується</span>' : '<span class="badge bg-secondary">Прихований</span>'}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
+                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function editBanner(id) {
+            fetch(`/settings/banners/${id}`)
+                .then(async (r) => {
+                    const data = await r.json();
+                    return { ok: r.ok, data };
+                })
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.message || 'Банер не знайдено');
+                        return;
+                    }
+
+                    document.getElementById('banner-id').value = data.id || '';
+                    document.getElementById('banner-title').value = data.title || '';
+                    document.getElementById('banner-subtitle').value = data.subtitle || '';
+                    document.getElementById('banner-button-text').value = data.button_text || '';
+                    document.getElementById('banner-link-url').value = data.link_url || '';
+                    document.getElementById('banner-sort-order').value = data.sort_order ?? 0;
+                    document.getElementById('banner-vision').value = String(data.vision ?? 1);
+                    updateImagePreview(null, 'banner-image-preview', 'banner-image-preview-wrap', data.image_url || '');
+
+                    showBannerForm();
+                })
+                .catch(() => alert('Помилка завантаження банера'));
+        }
+
+        function deleteBanner(id, btn) {
+            if (!confirm('Видалити банер?')) return;
+
+            fetch(`/settings/banners/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+            })
+            .then(async (r) => {
+                const data = await r.json();
+                return { ok: r.ok, data };
+            })
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) {
+                    alert(data.message || 'Помилка видалення');
+                    return;
+                }
+
+                btn.closest('tr').remove();
+                const rest = tbody.querySelectorAll('tr').length;
+                document.getElementById('badge-banners').textContent = rest;
+                if (!rest) {
+                    emptyMsg.style.display = 'block';
+                }
+            })
+            .catch(() => alert('Помилка мережі'));
+        }
+
+        function resetBannerForm() {
+            form.reset();
+            document.getElementById('banner-id').value = '';
+            document.getElementById('banner-sort-order').value = '0';
+            document.getElementById('banner-vision').value = '1';
+            updateImagePreview(null, 'banner-image-preview', 'banner-image-preview-wrap', '');
+        }
+
+        function showBannerForm() {
+            formArea.style.display = 'block';
+            listArea.style.display = 'none';
+        }
+
+        function hideBannerForm() {
+            formArea.style.display = 'none';
+            listArea.style.display = 'block';
+        }
+    }
+
+    function updateImagePreview(input, imageId, wrapId, explicitUrl = '') {
+        const image = document.getElementById(imageId);
+        const wrap = document.getElementById(wrapId);
+
+        if (explicitUrl) {
+            image.src = explicitUrl;
+            wrap.hidden = false;
+            return;
+        }
+
+        const file = input?.files?.[0];
+        if (!file) {
+            image.src = '';
+            wrap.hidden = true;
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            image.src = reader.result;
+            wrap.hidden = false;
+        };
+        reader.readAsDataURL(file);
     }
 
     function escapeHtml(str) {

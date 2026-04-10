@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Order;
+use App\Models\Document;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 /**
  * ZakazController
@@ -18,6 +20,10 @@ class ZakazController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->boolean('quick_order')) {
+            return $this->storeQuickOrder($request);
+        }
+
         $validator = Validator::make($request->all(), [
             // Товары
             'items'              => 'required|array|min:1',
@@ -81,93 +87,91 @@ class ZakazController extends Controller
             $fullDescription .= '. Додатково: ' . $data['autonum'];
         }
 
-        // ── Ищем или создаём клиента ────────────────────────────────────
-        $client = DB::table('users')
-            ->where('phone', $data['mobile'])
-            ->where('firma', 2)
-            ->first();
+        $docId = 0;
+        $docNum = 0;
 
-        if (!$client) {
-            $clientId = DB::table('users')->insertGetId([
-                'region'      => $data['region'] ?? '',
-                'city'        => $data['city'],
-                'poshta'      => $data['poshta'] ?? '',
-                'address'     => $data['address'] ?? '',
-                'name'        => $data['firstname'],
-                'secondname'  => $data['secondname'] ?? '',
-                'phone'       => $data['mobile'],
-                'email'       => '',
-                'firma'       => 2,
-                'user'        => 'autoagent_api',
-                'description' => $deliveryDescription,
-                'domen'       => 'http://autoagent.in.ua',
-                'msg'         => '1',
-                'date'        => now()->format('d-m-Y'),
-                'time'        => now()->format('H:i:s'),
-            ]);
-        } else {
-            $clientId = $client->id;
-            // Обновим данные клиента
-            DB::table('users')
-                ->where('id', $clientId)
-                ->update([
-                    'region'      => $data['region'] ?? $client->region,
-                    'city'        => $data['city'],
-                    'poshta'      => $data['poshta'] ?? $client->poshta,
-                    'address'     => $data['address'] ?? $client->address,
-                    'name'        => $data['firstname'],
-                    'secondname'  => $data['secondname'] ?? $client->secondname,
-                    'description' => $client->description . ', ПІБ: ' . ($data['secondname'] ?? '') . ' ' . $data['firstname'],
+        DB::transaction(function () use ($data, $deliveryDescription, $fullDescription, $totalSum, &$docId, &$docNum) {
+            $year = now()->format('Y');
+            $this->withOrderNumberLock(2, $year, function () use ($data, $deliveryDescription, $fullDescription, $totalSum, $year, &$docId, &$docNum) {
+                $client = DB::table('users')
+                    ->where('phone', $data['mobile'])
+                    ->where('firma', 2)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$client) {
+                    $clientId = DB::table('users')->insertGetId([
+                        'region'      => $data['region'] ?? '',
+                        'city'        => $data['city'],
+                        'poshta'      => $data['poshta'] ?? '',
+                        'address'     => $data['address'] ?? '',
+                        'name'        => $data['firstname'],
+                        'secondname'  => $data['secondname'] ?? '',
+                        'phone'       => $data['mobile'],
+                        'email'       => $this->buildGuestEmail($data['mobile']),
+                        'password'    => Hash::make(Str::random(40)),
+                        'firma'       => 2,
+                        'user'        => 'autoagent_api',
+                        'description' => $deliveryDescription,
+                        'domen'       => 'http://autoagent.in.ua',
+                        'msg'         => '1',
+                        'date'        => now()->format('Y-m-d'),
+                        'time'        => now()->format('H:i:s'),
+                    ]);
+                } else {
+                    $clientId = $client->id;
+
+                    DB::table('users')
+                        ->where('id', $clientId)
+                        ->update([
+                            'region'      => $data['region'] ?? $client->region,
+                            'city'        => $data['city'],
+                            'poshta'      => $data['poshta'] ?? $client->poshta,
+                            'address'     => $data['address'] ?? $client->address,
+                            'name'        => $data['firstname'],
+                            'secondname'  => $data['secondname'] ?? $client->secondname,
+                            'description' => $client->description . ', ПІБ: ' . ($data['secondname'] ?? '') . ' ' . $data['firstname'],
+                        ]);
+                }
+
+                $docNum = $this->nextOrderNumber(2, $year);
+                $dt = now()->format('Y-m-d');
+                $time = now()->format('H:i:s');
+
+                $docId = DB::table('document')->insertGetId([
+                    'num'       => $docNum,
+                    'client1'   => $clientId,
+                    'client2'   => '',
+                    'content'   => $fullDescription . ' autoagent',
+                    'type'      => 'ZOUT',
+                    'summa'     => $totalSum,
+                    'schet'     => '',
+                    'data'      => now()->format('d-m-Y'),
+                    'time'      => $time,
+                    'user'      => 'autoagent_api',
+                    'firma'     => 2,
+                    'dt'        => strtotime($dt) ?: time(),
+                    'numz'      => $docNum,
+                    'typez'     => 'ZOUT',
+                    'manager'   => '',
+                    'dostup'    => '1',
                 ]);
-        }
 
-        // ── Номер документа ─────────────────────────────────────────────
-        $year = now()->format('Y');
-        $maxNum = DB::table('document')
-            ->where('client1', '<>', '0')
-            ->where('type', 'ZOUT')
-            ->where('firma', 2)
-            ->where('data', 'like', "%{$year}%")
-            ->max('num');
-
-        $docNum = ((int) $maxNum) + 1;
-        $dt = now()->format('Y-m-d');
-        $time = now()->format('H:i:s');
-
-        // ── Создаём документ (ZOUT) ─────────────────────────────────────
-        $docId = DB::table('document')->insertGetId([
-            'num'       => $docNum,
-            'client1'   => $clientId,
-            'client2'   => '',
-            'content'   => $fullDescription . ' autoagent',
-            'type'      => 'ZOUT',
-            'summa'     => $totalSum,
-            'schet'     => '',
-            'data'      => now()->format('d-m-Y'),
-            'time'      => $time,
-            'user'      => 'autoagent_api',
-            'firma'     => 2,
-            'dt'        => strtotime($dt) ?: time(),
-            'numz'      => $docNum,
-            'typez'     => 'ZOUT',
-            'manager'   => '',
-            'dostup'    => '1',
-        ]);
-
-        // ── Позиции заказа ──────────────────────────────────────────────
-        foreach ($data['items'] as $item) {
-            DB::table('z_body')->insert([
-                'docnum' => $docNum,
-                'pid'    => 1,
-                'pnum'   => $item['id'],
-                'pcount' => (int) $item['quantity'],
-                'pprice' => (float) $item['price'],
-                'psumma' => (float) $item['price'] * (int) $item['quantity'],
-                'type'   => 'ZOUT',
-                'firma'  => 2,
-                'docid'  => $docId,
-            ]);
-        }
+                foreach ($data['items'] as $item) {
+                    DB::table('z_body')->insert([
+                        'docnum' => $docNum,
+                        'pid'    => 1,
+                        'pnum'   => $item['id'],
+                        'pcount' => (int) $item['quantity'],
+                        'pprice' => (float) $item['price'],
+                        'psumma' => (float) $item['price'] * (int) $item['quantity'],
+                        'type'   => 'ZOUT',
+                        'firma'  => 2,
+                        'docid'  => $docId,
+                    ]);
+                }
+            });
+        });
 
         // ── Telegram notification ───────────────────────────────────────
         $this->sendTelegramNotification($docNum, $data['mobile'], $totalSum);
@@ -182,6 +186,105 @@ class ZakazController extends Controller
                 'id'   => $docId,
                 'num'  => $docNum,
                 'summa' => $totalSum,
+            ],
+        ]);
+    }
+
+    private function storeQuickOrder(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'firstname' => 'required|string|max:50',
+            'mobile' => ['required', 'regex:/^\+38\d{10}$/'],
+            'autonum' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $data = $validator->validated();
+
+        $docId = 0;
+        $docNum = 0;
+
+        DB::transaction(function () use ($data, &$docId, &$docNum) {
+            $year = now()->format('Y');
+            $this->withOrderNumberLock(2, $year, function () use ($data, $year, &$docId, &$docNum) {
+                $client = DB::table('users')
+                    ->where('phone', $data['mobile'])
+                    ->where('firma', 2)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$client) {
+                    $clientId = DB::table('users')->insertGetId([
+                        'region' => '',
+                        'city' => '',
+                        'poshta' => '',
+                        'address' => '',
+                        'name' => $data['firstname'],
+                        'secondname' => '',
+                        'phone' => $data['mobile'],
+                        'email' => $this->buildGuestEmail($data['mobile']),
+                        'password' => Hash::make(Str::random(40)),
+                        'firma' => 2,
+                        'user' => 'autoagent_api',
+                        'description' => 'Швидке замовлення номера з головної сторінки',
+                        'domen' => 'http://autoagent.in.ua',
+                        'msg' => '1',
+                        'date' => now()->format('Y-m-d'),
+                        'time' => now()->format('H:i:s'),
+                    ]);
+                } else {
+                    $clientId = $client->id;
+
+                    DB::table('users')
+                        ->where('id', $clientId)
+                        ->update([
+                            'name' => $data['firstname'],
+                            'description' => 'Швидке замовлення номера з головної сторінки',
+                        ]);
+                }
+
+                $docNum = $this->nextOrderNumber(2, $year);
+                $dt = now()->format('Y-m-d');
+                $time = now()->format('H:i:s');
+                $content = 'Швидке замовлення номера. Номер: ' . $data['autonum'] . '. Імʼя: ' . $data['firstname'] . '. Телефон: ' . $data['mobile'];
+
+                $docId = DB::table('document')->insertGetId([
+                    'num' => $docNum,
+                    'client1' => $clientId,
+                    'client2' => '',
+                    'content' => $content,
+                    'type' => 'ZOUT',
+                    'summa' => 0,
+                    'schet' => '',
+                    'data' => now()->format('d-m-Y'),
+                    'time' => $time,
+                    'user' => 'autoagent_api',
+                    'firma' => 2,
+                    'dt' => strtotime($dt) ?: time(),
+                    'numz' => $docNum,
+                    'typez' => 'ZOUT',
+                    'manager' => '',
+                    'dostup' => '1',
+                ]);
+            });
+        });
+
+        $this->sendTelegramNotification($docNum, $data['mobile'], 0);
+        $this->sendSmsNotification($data['mobile'], $docNum);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Замовлення успішно оформлено',
+            'order' => [
+                'id' => $docId,
+                'num' => $docNum,
+                'summa' => 0,
             ],
         ]);
     }
@@ -272,5 +375,33 @@ class ZakazController extends Controller
             'success' => true,
             'data'    => $orders,
         ]);
+    }
+
+    private function buildGuestEmail(string $mobile): string
+    {
+        $digits = preg_replace('/\D+/', '', $mobile) ?: Str::random(10);
+
+        return "order-{$digits}@autoagent.local";
+    }
+
+    private function nextOrderNumber(int|string $fid, int|string $year): int
+    {
+        return Document::nextNum('ZOUT', (string) $fid, (string) $year);
+    }
+
+    private function withOrderNumberLock(int|string $fid, int|string $year, callable $callback): mixed
+    {
+        $lockName = sprintf('zout-order-number:%s:%s', $fid, $year);
+        $lock = DB::selectOne('SELECT GET_LOCK(?, 10) AS lock_acquired', [$lockName]);
+
+        if ((int) ($lock->lock_acquired ?? 0) !== 1) {
+            abort(503, 'Не вдалося отримати блокування для номера замовлення');
+        }
+
+        try {
+            return $callback();
+        } finally {
+            DB::select('SELECT RELEASE_LOCK(?)', [$lockName]);
+        }
     }
 }

@@ -32,11 +32,23 @@ if (!function_exists('nextdate')) {
 }
 
 if (!function_exists('curdate')) {
-    /** d-m-Y → Y-m-d */
+    /** Normalize any supported date input to d-m-Y */
     function curdate(string $date): string
     {
-        $dt = DateTimeImmutable::createFromFormat('d-m-Y', $date);
-        return $dt ? $dt->format('Y-m-d') : $date;
+        $date = trim($date);
+        if ($date === '') {
+            return date('d-m-Y');
+        }
+
+        $formats = ['d-m-Y', 'Y-m-d', 'd.m.Y', 'Y/m/d'];
+        foreach ($formats as $format) {
+            $dt = DateTimeImmutable::createFromFormat($format, $date);
+            if ($dt instanceof DateTimeImmutable) {
+                return $dt->format('d-m-Y');
+            }
+        }
+
+        return $date;
     }
 }
 

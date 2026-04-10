@@ -6,7 +6,9 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\MoneyController;
+use App\Http\Controllers\DepositController;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\FilterController;
 use App\Http\Controllers\KursController;
@@ -95,6 +97,37 @@ Route::middleware(['auth'])->group(function () {
         }
         );
 
+        Route::prefix('deposit')->name('deposit.')->group(function () {
+            Route::get('/', [DepositController::class, 'index'])->name('index');
+            Route::get('/show', [DepositController::class, 'show'])->name('show');
+            Route::post('/save', [DepositController::class, 'save'])->name('save');
+            Route::post('/provodka', [DepositController::class, 'provodka'])->name('provodka');
+            Route::post('/delete', [DepositController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('reports')->name('reports.')->group(function () {
+            Route::get('/', [ReportController::class, 'index'])->name('index');
+            Route::get('/sales', [ReportController::class, 'sales'])->name('sales');
+            Route::get('/abc-xyz', [ReportController::class, 'abcXyz'])->name('abcxyz');
+            Route::get('/inventory', [ReportController::class, 'inventory'])->name('inventory');
+            Route::get('/turnover', [ReportController::class, 'turnover'])->name('turnover');
+            Route::get('/purchases', [ReportController::class, 'purchases'])->name('purchases');
+            Route::get('/stocks', [ReportController::class, 'stocks'])->name('stocks');
+            Route::get('/stocks/export', [ReportController::class, 'stocksExport'])->name('stocks.export');
+            Route::get('/pnl-segments', [ReportController::class, 'pnlSegments'])->name('pnlsegments');
+            Route::get('/unit-economics', [ReportController::class, 'unitEconomics'])->name('uniteconomics');
+            Route::get('/gross-profit', [ReportController::class, 'grossProfit'])->name('grossprofit');
+            Route::get('/financial-pnl', [ReportController::class, 'financialPnl'])->name('financialpnl');
+            Route::get('/balance-sheet', [ReportController::class, 'balanceSheet'])->name('balancesheet');
+            Route::get('/cash-flow-statement', [ReportController::class, 'cashFlowStatement'])->name('cashflowstmt');
+            Route::get('/sales-forecast', [ReportController::class, 'salesForecast'])->name('salesforecast');
+            Route::get('/purchase-plan', [ReportController::class, 'purchasePlan'])->name('purchaseplan');
+            Route::get('/profit-plan', [ReportController::class, 'profitPlan'])->name('profitplan');
+            Route::get('/demand-trends', [ReportController::class, 'demandTrends'])->name('demandtrends');
+            Route::get('/strategic-export/{report}/{format}', [ReportController::class, 'strategicExport'])->name('strategic.export');
+            Route::get('/finance', [ReportController::class, 'finance'])->name('finance');
+        });
+
         Route::prefix('news')->name('news.')->group(function () {
             Route::get('/', [NewsController::class, 'index'])->name('index');
             Route::get('/show', [NewsController::class, 'show'])->name('show');
@@ -107,9 +140,15 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('settings')->name('settings.')->group(function () {
             Route::get('/', [SettingsController::class , 'index'])->name('index');
             Route::get('/show', [SettingsController::class , 'show'])->name('show');
+            Route::post('/switch-project', [SettingsController::class , 'switchProject'])->name('switchProject');
             Route::post('/save', [SettingsController::class , 'save'])->name('save');
             Route::post('/profile-update', [SettingsController::class , 'profileUpdate'])->name('profileUpdate');
             Route::post('/password-change', [SettingsController::class , 'passwordChange'])->name('passwordChange');
+            Route::get('/projects', [SettingsController::class , 'projectsIndex'])->name('projects.index');
+            Route::get('/projects/{id}', [SettingsController::class , 'projectsShow'])->name('projects.show');
+            Route::post('/projects', [SettingsController::class , 'projectsStore'])->name('projects.store');
+            Route::put('/projects/{id}', [SettingsController::class , 'projectsUpdate'])->name('projects.update');
+            Route::delete('/projects/{id}', [SettingsController::class , 'projectsDestroy'])->name('projects.destroy');
             Route::get('/firms', [SettingsController::class , 'firmsIndex'])->name('firms.index');
             Route::get('/firms/{id}', [SettingsController::class , 'firmsShow'])->name('firms.show');
             Route::post('/firms', [SettingsController::class , 'firmsStore'])->name('firms.store');
@@ -120,6 +159,11 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/catalog', [SettingsController::class , 'catalogStore'])->name('catalog.store');
             Route::put('/catalog/{id}', [SettingsController::class , 'catalogUpdate'])->name('catalog.update');
             Route::delete('/catalog/{id}', [SettingsController::class , 'catalogDestroy'])->name('catalog.destroy');
+            Route::get('/banners', [SettingsController::class , 'bannersIndex'])->name('banners.index');
+            Route::get('/banners/{id}', [SettingsController::class , 'bannersShow'])->name('banners.show');
+            Route::post('/banners', [SettingsController::class , 'bannersStore'])->name('banners.store');
+            Route::post('/banners/{id}', [SettingsController::class , 'bannersUpdate'])->name('banners.update');
+            Route::delete('/banners/{id}', [SettingsController::class , 'bannersDestroy'])->name('banners.destroy');
 
             // Async API
             Route::get('/api/{type}', [SettingsController::class , 'apiIndex'])->name('api.index');

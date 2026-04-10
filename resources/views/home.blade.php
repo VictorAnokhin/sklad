@@ -17,12 +17,52 @@
                 @include('partials.top_reklama')
             </header>
             <div class="main">
-                <h1 class="text-white">@yield('title')</h1>
+                <div class="page-heading">
+                    <h1 class="text-white page-heading__title">@yield('title')</h1>
+                    <div class="page-heading__actions">
+                        @yield('header_actions')
+                    </div>
+                </div>
                 @yield('content')
             </div>
 
         </div>
     </div>
+
+    <style>
+        .page-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .page-heading__title {
+            margin: 0;
+        }
+
+        .page-heading__actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            flex: 1 1 auto;
+            min-width: 240px;
+        }
+
+        @media (max-width: 768px) {
+            .page-heading {
+                align-items: flex-start;
+            }
+
+            .page-heading__actions {
+                width: 100%;
+                min-width: 0;
+                justify-content: flex-start;
+            }
+        }
+    </style>
 
     <script src="{{ asset('js/bootstrap.bundle.min.js') }}" crossorigin="anonymous"></script>
     <script src="{{ asset('js/javascript.js') }}"></script>

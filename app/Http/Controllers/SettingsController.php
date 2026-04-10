@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BannerCarousel;
 use App\Models\Firma;
+use App\Models\Project;
 use App\Models\Settings;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -23,8 +25,12 @@ class SettingsController extends Controller
 
         $data = Settings::init($fid);
 
-        // Projects — conf where type='reteil'
-        $projects = DB::table('conf')->where('type', 'reteil')->where('firma', $fid)->orderBy('name')->get();
+        $projects = Schema::hasTable('project')
+            ? Project::query()
+                ->orderBy('num')
+                ->orderBy('name')
+                ->get()
+            : collect();
 
         // Statuses — conf where type='status'
         $statuses = DB::table('conf')->where('type', 'status')->where('firma', $fid)->orderBy('name')->get();
@@ -86,7 +92,11 @@ class SettingsController extends Controller
                 ->count();
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'catalogTopCount', 'currentCounterpartyType', 'userWallets')));
+        $bannerCarouselCount = Schema::hasTable('banner_carousels')
+            ? (int) DB::table('banner_carousels')->where('firma', $fid)->count()
+            : 0;
+
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'catalogTopCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount')));
     }
 
     public function show(Request $request)
@@ -102,6 +112,28 @@ class SettingsController extends Controller
         }
 
         return view('settings.show', compact('setting', 'fid'));
+    }
+
+    public function switchProject(Request $request)
+    {
+        $request->validate([
+            'fid' => 'required|integer|min:1',
+        ]);
+
+        if (!Schema::hasTable('project')) {
+            return redirect()->back()->with('error', 'Таблицю project не знайдено');
+        }
+
+        $fid = (int) $request->input('fid');
+        $project = Project::query()->find($fid);
+
+        if (!$project) {
+            return redirect()->back()->with('error', 'Проєкт не знайдено');
+        }
+
+        session(['fid' => $project->id]);
+
+        return redirect()->back()->with('success', 'Активний проєкт змінено');
     }
 
     public function save(Request $request)
@@ -170,6 +202,7 @@ class SettingsController extends Controller
             'name' => 'required|string|max:255',
             'color' => 'nullable|string|max:20',
             'status' => 'nullable|string',
+            'vision' => 'nullable|string',
         ]);
 
         $data = [
@@ -177,7 +210,7 @@ class SettingsController extends Controller
             'type'    => $validated['type'],
             'color'   => $validated['color'] ?? '',
             'status'  => $validated['status'] ?? '1',
-            'vision'  => '1',
+            'vision'  => $validated['vision'] ?? '1',
             'hide'    => '0',
             'constanta' => '0',
             'firma'   => $fid,
@@ -199,6 +232,7 @@ class SettingsController extends Controller
             'name' => 'required|string|max:255',
             'color' => 'nullable|string|max:20',
             'status' => 'nullable|string',
+            'vision' => 'nullable|string',
         ]);
 
         $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
@@ -209,6 +243,7 @@ class SettingsController extends Controller
             'type'   => $validated['type'],
             'color'  => $validated['color'] ?? '',
             'status' => $validated['status'] ?? '1',
+            'vision' => $validated['vision'] ?? '1',
         ]);
 
         return response()->json(['success' => true]);
@@ -309,7 +344,10 @@ class SettingsController extends Controller
         }
 
         return response()->json(
-            $this->companiesQuery($user)->orderBy('id')->get()
+            $this->companiesQuery($user)
+                ->orderBy('id')
+                ->get()
+                ->map(fn ($company) => Firma::decorateMedia($company))
         );
     }
 
@@ -325,7 +363,7 @@ class SettingsController extends Controller
             return response()->json(['message' => 'Компанію не знайдено'], 404);
         }
 
-        return response()->json($company);
+        return response()->json(Firma::decorateMedia($company));
     }
 
     public function firmsStore(Request $request)
@@ -359,7 +397,7 @@ class SettingsController extends Controller
             return response()->json(['success' => false, 'message' => 'Компанію не знайдено'], 404);
         }
 
-        Firma::query()->where('id', $id)->update($this->validateFirma($request));
+        Firma::query()->where('id', $id)->update($this->validateFirma($request, $company));
 
         return response()->json(['success' => true]);
     }
@@ -377,6 +415,190 @@ class SettingsController extends Controller
         }
 
         Firma::query()->where('id', $id)->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function projectsIndex()
+    {
+        $user = $this->currentUser();
+        if (!Schema::hasTable('project')) {
+            return response()->json([]);
+        }
+
+        $items = Project::query()
+            ->orderBy('num')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Project $project) => $this->normalizeProject($project, $user));
+
+        return response()->json($items);
+    }
+
+    public function projectsShow($id)
+    {
+        $user = $this->currentUser();
+        if (!Schema::hasTable('project')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю project не знайдено'], 404);
+        }
+
+        $project = Project::query()->find($id);
+
+        if (!$project) {
+            return response()->json(['success' => false, 'message' => 'Проєкт не знайдено'], 404);
+        }
+
+        return response()->json($this->normalizeProject($project, $user));
+    }
+
+    public function projectsPublicShow($id)
+    {
+        if (!Schema::hasTable('project')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю project не знайдено'], 404);
+        }
+
+        $project = Project::query()->find($id);
+        if (!$project) {
+            return response()->json(['success' => false, 'message' => 'Проєкт не знайдено'], 404);
+        }
+
+        return response()->json([
+            'item' => $this->normalizeProject($project, null),
+        ]);
+    }
+
+    public function projectsStore(Request $request)
+    {
+        if (!Schema::hasTable('project')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю project не знайдено'], 404);
+        }
+
+        $project = Project::query()->create($this->validateProject($request));
+
+        return response()->json(['success' => true, 'id' => $project->id]);
+    }
+
+    public function projectsUpdate(Request $request, $id)
+    {
+        if (!Schema::hasTable('project')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю project не знайдено'], 404);
+        }
+
+        $project = Project::query()->find($id);
+
+        if (!$project) {
+            return response()->json(['success' => false, 'message' => 'Проєкт не знайдено'], 404);
+        }
+
+        $project->fill($this->validateProject($request))->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function projectsDestroy($id)
+    {
+        $user = $this->currentUser();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Користувача не знайдено'], 404);
+        }
+
+        if (!Schema::hasTable('project')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю project не знайдено'], 404);
+        }
+
+        $project = Project::query()->find($id);
+        if (!$project) {
+            return response()->json(['success' => false, 'message' => 'Проєкт не знайдено'], 404);
+        }
+
+        if ((int) $user->id !== (int) $project->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Видалити проєкт може лише користувач, у якого users.id збігається з project.id',
+            ], 403);
+        }
+
+        $project->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function bannersIndex()
+    {
+        $fid = session('fid', '');
+
+        $items = DB::table('banner_carousels')
+            ->where('firma', $fid)
+            ->orderBy('sort_order')
+            ->orderByDesc('id')
+            ->get()
+            ->map(static fn ($item) => BannerCarousel::decorate($item));
+
+        return response()->json($items);
+    }
+
+    public function bannersShow($id)
+    {
+        $fid = session('fid', '');
+
+        $item = DB::table('banner_carousels')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->first();
+
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Банер не знайдено'], 404);
+        }
+
+        return response()->json(BannerCarousel::decorate($item));
+    }
+
+    public function bannersStore(Request $request)
+    {
+        $fid = session('fid', '');
+        $payload = $this->validateBannerCarousel($request);
+        $payload['firma'] = $fid;
+        $payload['created_at'] = now();
+        $payload['updated_at'] = now();
+
+        $id = DB::table('banner_carousels')->insertGetId($payload);
+
+        return response()->json(['success' => true, 'id' => $id]);
+    }
+
+    public function bannersUpdate(Request $request, $id)
+    {
+        $fid = session('fid', '');
+        $existing = DB::table('banner_carousels')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->first();
+
+        if (!$existing) {
+            return response()->json(['success' => false, 'message' => 'Банер не знайдено'], 404);
+        }
+
+        $payload = $this->validateBannerCarousel($request, $existing);
+        $payload['updated_at'] = now();
+
+        DB::table('banner_carousels')->where('id', $id)->update($payload);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function bannersDestroy($id)
+    {
+        $fid = session('fid', '');
+        $exists = DB::table('banner_carousels')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->exists();
+
+        if (!$exists) {
+            return response()->json(['success' => false, 'message' => 'Банер не знайдено'], 404);
+        }
+
+        DB::table('banner_carousels')->where('id', $id)->delete();
 
         return response()->json(['success' => true]);
     }
@@ -556,7 +778,7 @@ class SettingsController extends Controller
         });
     }
 
-    private function validateFirma(Request $request): array
+    private function validateFirma(Request $request, ?object $existing = null): array
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100',
@@ -571,9 +793,33 @@ class SettingsController extends Controller
             'view' => 'nullable|string|max:15',
             'phone' => 'nullable|string|max:50',
             'direktor' => 'nullable|string|max:30',
-            'pidpys' => 'nullable|string|max:30',
-            'pechat' => 'nullable|string|max:30',
+            'pidpys' => 'nullable|string|max:255',
+            'pechat' => 'nullable|string|max:255',
+            'pidpys_file' => 'nullable|image|max:4096',
+            'pechat_file' => 'nullable|image|max:4096',
         ]);
+
+        $pidpys = trim((string) ($validated['pidpys'] ?? ($existing->pidpys ?? '')));
+        if ($request->hasFile('pidpys_file')) {
+            $uploadedFile = $request->file('pidpys_file');
+            if ($uploadedFile && $uploadedFile->isValid()) {
+                $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'png');
+                $filename = 'firma_signature_' . date('Ymd_His') . '_' . uniqid() . '.' . $extension;
+                $path = $uploadedFile->storeAs('files/firma', $filename, 'public');
+                $pidpys = $path ?: $pidpys;
+            }
+        }
+
+        $pechat = trim((string) ($validated['pechat'] ?? ($existing->pechat ?? '')));
+        if ($request->hasFile('pechat_file')) {
+            $uploadedFile = $request->file('pechat_file');
+            if ($uploadedFile && $uploadedFile->isValid()) {
+                $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'png');
+                $filename = 'firma_stamp_' . date('Ymd_His') . '_' . uniqid() . '.' . $extension;
+                $path = $uploadedFile->storeAs('files/firma', $filename, 'public');
+                $pechat = $path ?: $pechat;
+            }
+        }
 
         return [
             'name' => $validated['name'],
@@ -588,9 +834,141 @@ class SettingsController extends Controller
             'view' => $validated['view'] ?? '',
             'phone' => $validated['phone'] ?? '',
             'direktor' => $validated['direktor'] ?? '',
-            'pidpys' => $validated['pidpys'] ?? '',
-            'pechat' => $validated['pechat'] ?? '',
+            'pidpys' => $pidpys,
+            'pechat' => $pechat,
         ];
+    }
+
+    private function validateBannerCarousel(Request $request, ?object $existing = null): array
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'subtitle' => 'nullable|string|max:5000',
+            'button_text' => 'nullable|string|max:120',
+            'link_url' => 'nullable|string|max:500',
+            'sort_order' => 'nullable|integer|min:0',
+            'vision' => 'nullable|boolean',
+            'image_path' => 'nullable|string|max:255',
+            'image_file' => 'nullable|image|max:6144',
+        ]);
+
+        $imagePath = trim((string) ($validated['image_path'] ?? ($existing->image_path ?? '')));
+        if ($request->hasFile('image_file')) {
+            $uploadedFile = $request->file('image_file');
+            if ($uploadedFile && $uploadedFile->isValid()) {
+                $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'jpg');
+                $filename = 'banner_' . date('Ymd_His') . '_' . uniqid() . '.' . $extension;
+                $path = $uploadedFile->storeAs('files/banners', $filename, 'public');
+                $imagePath = $path ?: $imagePath;
+            }
+        }
+
+        return [
+            'title' => trim((string) ($validated['title'] ?? '')),
+            'subtitle' => trim((string) ($validated['subtitle'] ?? '')),
+            'button_text' => trim((string) ($validated['button_text'] ?? '')),
+            'link_url' => trim((string) ($validated['link_url'] ?? '')),
+            'sort_order' => (int) ($validated['sort_order'] ?? ($existing->sort_order ?? 0)),
+            'vision' => $request->boolean('vision', (bool) ($existing->vision ?? true)) ? 1 : 0,
+            'image_path' => $imagePath,
+        ];
+    }
+
+    private function validateProject(Request $request): array
+    {
+        $validated = $request->validate([
+            'num' => 'nullable|integer|min:0',
+            'name' => 'required|string|max:50',
+            'phone' => 'nullable|string|max:65535',
+            'telegram' => 'nullable|string|max:65535',
+            'instagram' => 'nullable|string|max:65535',
+            'twitter' => 'nullable|string|max:65535',
+            'facebook' => 'nullable|string|max:65535',
+            'userid' => 'nullable|integer|min:0',
+            'foto' => 'nullable|string|max:255',
+            'foto_header' => 'nullable|string|max:255',
+            'foto_footer' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:65535',
+            'web' => 'nullable|boolean',
+            'hit' => 'nullable|boolean',
+            'htmlkeys' => 'nullable|string|max:65535',
+            'foto_file' => 'nullable|image|max:4096',
+            'foto_header_file' => 'nullable|image|max:4096',
+            'foto_footer_file' => 'nullable|image|max:4096',
+        ]);
+
+        $foto = trim((string) ($validated['foto'] ?? ''));
+        if ($request->hasFile('foto_file')) {
+            $uploadedFile = $request->file('foto_file');
+            if ($uploadedFile && $uploadedFile->isValid()) {
+                $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'png');
+                $filename = 'project_foto_' . date('Ymd_His') . '_' . uniqid() . '.' . $extension;
+                $path = $uploadedFile->storeAs('files/projects', $filename, 'public');
+                $foto = $path ?: $foto;
+            }
+        }
+
+        $fotoHeader = trim((string) ($validated['foto_header'] ?? ''));
+        if ($request->hasFile('foto_header_file')) {
+            $uploadedFile = $request->file('foto_header_file');
+            if ($uploadedFile && $uploadedFile->isValid()) {
+                $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'png');
+                $filename = 'project_header_' . date('Ymd_His') . '_' . uniqid() . '.' . $extension;
+                $path = $uploadedFile->storeAs('files/projects', $filename, 'public');
+                $fotoHeader = $path ?: $fotoHeader;
+            }
+        }
+
+        $fotoFooter = trim((string) ($validated['foto_footer'] ?? ''));
+        if ($request->hasFile('foto_footer_file')) {
+            $uploadedFile = $request->file('foto_footer_file');
+            if ($uploadedFile && $uploadedFile->isValid()) {
+                $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'png');
+                $filename = 'project_footer_' . date('Ymd_His') . '_' . uniqid() . '.' . $extension;
+                $path = $uploadedFile->storeAs('files/projects', $filename, 'public');
+                $fotoFooter = $path ?: $fotoFooter;
+            }
+        }
+
+        $projectColumns = Schema::hasTable('project')
+            ? Schema::getColumnListing('project')
+            : [];
+
+        $payload = [
+            'num' => (int) ($validated['num'] ?? 0),
+            'name' => trim((string) ($validated['name'] ?? '')),
+            'telegram' => trim((string) ($validated['telegram'] ?? '')),
+            'instagram' => trim((string) ($validated['instagram'] ?? '')),
+            'twitter' => trim((string) ($validated['twitter'] ?? '')),
+            'facebook' => trim((string) ($validated['facebook'] ?? '')),
+            'userid' => (int) ($validated['userid'] ?? 0),
+            'foto' => $foto,
+            'foto_header' => $fotoHeader,
+            'foto_footer' => $fotoFooter,
+            'description' => trim((string) ($validated['description'] ?? '')),
+            'web' => $request->boolean('web') ? 1 : 0,
+            'hit' => $request->boolean('hit') ? 1 : 0,
+            'htmlkeys' => trim((string) ($validated['htmlkeys'] ?? '')),
+        ];
+
+        $projectPhone = trim((string) ($validated['phone'] ?? ''));
+        if (in_array('phone', $projectColumns, true)) {
+            $payload['phone'] = $projectPhone;
+        }
+        if (in_array('url', $projectColumns, true)) {
+            $payload['url'] = $projectPhone;
+        }
+
+        return $payload;
+    }
+
+    private function normalizeProject(Project $project, ?object $user): array
+    {
+        $payload = Project::decorateMedia($project)->toArray();
+        $payload['phone'] = (string) ($payload['phone'] ?? $payload['url'] ?? '');
+        $payload['can_delete'] = $user ? (int) $user->id === (int) $project->id : false;
+
+        return $payload;
     }
 
     private function catalogBaseQuery($fid)

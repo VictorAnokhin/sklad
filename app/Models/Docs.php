@@ -159,6 +159,10 @@ class Docs extends Model
         $createPNUrl = route('document.show', ['doc' => 'PN', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
         $createROUrl = route('document.show', ['doc' => 'RO', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
         $createRAUrl = route('document.show', ['doc' => 'RA', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $canCreateRN = $summaZ <= 0 || $sumRN < $summaZ;
+        $canCreatePO = $summaZ <= 0 || $sumPO < $summaZ;
+        $canCreatePN = $summaZ <= 0 || $sumPN < $summaZ;
+        $canCreateRO = $summaZ <= 0 || $sumRO < $summaZ;
 
         // ── Build action HTML ────────────────────────────────────────────────
         $html = '';
@@ -183,77 +187,47 @@ class Docs extends Model
             $actions .= "<div class='ttable'><a href='{$parentOrderUrl}' class='button'>← {$orderLabel} №{$parentOrderNum}</a></div>";
         }
 
-        if ($doc === 'ZOUT') {
+        if ($parentOrderType === 'ZOUT') {
             $actions .= $strWO1;
             if ($sumWO1 < $summaZ && $sumRN < $summaZ) {
-                if ($orderPosted) {
-                    $actions .= "<div class='tstr'><span {$disabledButton}>В роботу</span></div>";
-                } else {
-                    $actions .= "<div class='tstr'><a href='{$createWO1Url}' class='button'>В роботу</a></div>";
-                }
+                $actions .= "<div class='tstr'><a href='{$createWO1Url}' class='button'>В роботу</a></div>";
             }
             if ($idstatus != 2) {
                 $actions .= "<div class='ttable'>Отгрузка";
                 $actions .= $strRN;
-                if ($sumRN < $summaZ) {
-                    if ($orderPosted) {
-                        $actions .= "<div class='tstr'><span {$disabledInline}><image src='../img/icon-truck.png' style='height:70%'> Видача товару</span></div>";
-                    } else {
-                        $actions .= "<div class='tstr'><a href='{$createRNUrl}'><image src='../img/icon-truck.png' style='height:70%'> Видача товару</a></div>";
-                    }
+                if ($canCreateRN) {
+                    $actions .= "<div class='tstr'><a href='{$createRNUrl}'><image src='../img/icon-truck.png' style='height:70%'> Видача товару</a></div>";
                 }
                 $actions .= "</div><div class='ttable'>Оплата";
                 $actions .= $strCH;
                 $actions .= $strPO;
-                if ($sumPO < $summaZ && $strCH == '') {
-                    if ($orderPosted) {
-                        $actions .= "<span {$disabledInline}><image src='../img/icon-file-invoice.png' style='height:70%'> Пропозиція</span>";
-                    } else {
-                        $actions .= "<a href='{$createCHUrl}'><image src='../img/icon-file-invoice.png' style='height:70%'> Пропозиція</a>";
-                    }
+                if ($canCreatePO && $strCH == '') {
+                    $actions .= "<a href='{$createCHUrl}'><image src='../img/icon-file-invoice.png' style='height:70%'> Пропозиція</a>";
                 }
-                if ($sumPO < $summaZ) {
-                    if ($orderPosted) {
-                        $actions .= "<span {$disabledButton}><image src='../img/icon-multitasking.png'> Отримання грошей</span>";
-                    } else {
-                        $actions .= "<a href='{$createPOUrl}' class='button'><image src='../img/icon-multitasking.png'> Отримання грошей</a>";
-                    }
+                if ($canCreatePO) {
+                    $actions .= "<a href='{$createPOUrl}' class='button'><image src='../img/icon-multitasking.png'> Отримання грошей</a>";
                 }
                 $actions .= "</div>";
             }
             $actions .= "<div class='ttable'>Файли<br>$strRA";
-            if ($orderPosted) {
-                $actions .= "<span {$disabledButton}><span style='font-size:3em'>+</span></span>";
-            } else {
-                $actions .= "<a href='{$createRAUrl}' class='button'><span style='font-size:3em'>+</span></a>";
-            }
+            $actions .= "<a href='{$createRAUrl}' class='button'><span style='font-size:3em'>+</span></a>";
             $actions .= "</div>";
         }
 
-        if ($doc === 'ZIN') {
-            $actions .= "Отримання" . $strPN;
-            if ($sumPN < $summaZ) {
-                if ($orderPosted) {
-                    $actions .= "<div class='tstr' style='width:100%; text-align:center;'><span {$disabledButton}><image src='../img/icon-warehouse.png' style='height:70%'> Отримання товару</span></div>";
-                } else {
-                    $actions .= "<div class='tstr' style='width:100%; text-align:center;'><a href='{$createPNUrl}' class='button'><image src='../img/icon-warehouse.png' style='height:70%'> Отримання товару</a></div>";
-                }
+        if ($parentOrderType === 'ZIN') {
+            $actions .= "<div class='ttable'>Отримання";
+            $actions .= $strPN;
+            if ($canCreatePN) {
+                $actions .= "<div class='tstr' style='width:100%; text-align:center;'><a href='{$createPNUrl}' class='button'><image src='../img/icon-warehouse.png' style='height:70%'> Отримання товару</a></div>";
             }
-            $actions .= "Оплата" . $strRO;
-            if ($sumRO < $summaZ) {
-                if ($orderPosted) {
-                    $actions .= "<div class='tstr'><span {$disabledButton}><image src='../img/icon-hand-bill.png'> Видача грошей</span></div>";
-                } else {
-                    $actions .= "<div class='tstr'>
+            $actions .= "</div><div class='ttable'>Оплата";
+            $actions .= $strRO;
+            if ($canCreateRO) {
+                $actions .= "<div class='tstr'>
                 <a href='{$createROUrl}' class='button'><image src='../img/icon-hand-bill.png'> Видача грошей</a></div>";
-                }
             }
-            $actions .= "<div class='ttable'>Файли<br>$strRA";
-            if ($orderPosted) {
-                $actions .= "<span {$disabledButton}><span style='font-size:3em'>+</span></span>";
-            } else {
-                $actions .= "<a href='{$createRAUrl}' class='button'><span style='font-size:3em'>+</span></a>";
-            }
+            $actions .= "</div><div class='ttable'>Файли<br>$strRA";
+            $actions .= "<a href='{$createRAUrl}' class='button'><span style='font-size:3em'>+</span></a>";
             $actions .= "</div>";
         }
 

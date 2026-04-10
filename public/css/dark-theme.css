@@ -28,16 +28,18 @@
     --accent-amber-border: rgba(251, 191, 36, 0.5);
     
     /* Typography */
-    --font-size: 16px;
+    --font-size: 15px;
+    --font-size-sm: 0.875rem;
+    --font-size-xs: 0.8125rem;
     --input-data: 'Geologica', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --header: 'Jura', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --text-docs: 'Jura', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     
     /* Layout */
     --width: 1200px;
-    --radius: 0.625rem;
-    --radius-lg: 1rem;
-    --radius-xl: 1.5rem;
+    --radius: 0.55rem;
+    --radius-lg: 0.9rem;
+    --radius-xl: 1.2rem;
     
     /* Glass morphism effects */
     --glass-bg: rgba(255, 255, 255, 0.05);
@@ -77,12 +79,12 @@ body {
 .wrapper {
     max-width: var(--width);
     margin: 0 auto;
-    padding: 0 1.5rem;
+    padding: 0 1rem;
 }
 
 .main {
     width: 100%;
-    padding: 2rem 0;
+    padding: 1.25rem 0;
     text-align: left;
 }
 
@@ -96,15 +98,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h1 {
-    font-size: 1.875rem; /* text-2xl */
+    font-size: 1.65rem;
 }
 
 h2 {
-    font-size: 1.5rem; /* text-xl */
+    font-size: 1.35rem;
 }
 
 h3 {
-    font-size: 1.25rem; /* text-lg */
+    font-size: 1.12rem;
 }
 
 p {
@@ -128,7 +130,7 @@ a:hover {
     backdrop-filter: blur(var(--glass-backdrop-blur));
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-xl);
-    padding: 2rem;
+    padding: 1.35rem;
     transition: all 0.3s ease;
 }
 
@@ -142,8 +144,8 @@ header {
     border-bottom: 1px solid var(--glass-border);
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(var(--glass-backdrop-blur));
-    padding: 1rem 0;
-    margin-bottom: 2rem;
+    padding: 0.75rem 0;
+    margin-bottom: 1.25rem;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -154,14 +156,14 @@ header {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0 1rem;
+    padding: 0 0.75rem;
     position: relative;
 }
 
 header a {
     color: var(--foreground);
     font-weight: 500;
-    padding: 0.5rem 1rem;
+    padding: 0.4rem 0.8rem;
     border-radius: var(--radius);
     transition: all 0.2s ease;
 }
@@ -270,7 +272,7 @@ button,
     font-size: var(--font-size);
     font-weight: 500;
     line-height: 1.5;
-    padding: 0.5rem 1rem;
+    padding: 0.45rem 0.9rem;
     border-radius: var(--radius);
     border: 1px solid transparent;
     cursor: pointer;
@@ -327,7 +329,7 @@ textarea,
     font-size: var(--font-size);
     font-weight: 400;
     line-height: 1.5;
-    padding: 0.625rem 1rem;
+    padding: 0.5rem 0.8rem;
     background: var(--glass-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -349,8 +351,8 @@ textarea:focus,
 /* Select elements in filter modal */
 select {
     width: 100%;
-    padding: 8px 12px;
-    font-size: 0.9rem;
+    padding: 7px 12px;
+    font-size: var(--font-size-sm);
     background: var(--glass-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -372,7 +374,7 @@ label {
     font-family: var(--input-data);
     font-weight: 500;
     color: var(--foreground);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
     display: block;
 }
 
@@ -390,7 +392,7 @@ label {
 }
 
 .table thead th {
-    padding: 0.75rem;
+    padding: 0.6rem 0.7rem;
     font-weight: 600;
     text-align: left;
     color: var(--accent-amber);
@@ -407,7 +409,7 @@ label {
 }
 
 .table tbody td {
-    padding: 0.75rem;
+    padding: 0.6rem 0.7rem;
     vertical-align: middle;
 }
 
@@ -435,11 +437,11 @@ label {
     backdrop-filter: blur(var(--glass-backdrop-blur));
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-xl);
-    padding: 1.5rem;
-    margin-bottom: 1rem;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.75rem;
     display: grid;
     grid-template-columns: auto auto 1fr auto auto auto;
-    gap: 1rem;
+    gap: 0.75rem;
     align-items: center;
     transition: all 0.3s ease;
 }
@@ -452,7 +454,7 @@ label {
 
 .numdoc-docs a {
     font-family: var(--header);
-    font-size: 1.125rem;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--accent-amber);
     text-decoration: none;
@@ -465,9 +467,9 @@ label {
 .status-docs4,
 .status-docs3,
 .status-docs2 {
-    font-size: 0.875rem;
+    font-size: var(--font-size-xs);
     color: var(--muted-foreground);
-    padding: 0.25rem 0.75rem;
+    padding: 0.2rem 0.6rem;
     border-radius: var(--radius);
     background: var(--glass-bg);
 }
@@ -489,12 +491,12 @@ label {
 .captionbox-docs .city,
 .captionbox-docs .phone {
     color: var(--muted-foreground);
-    font-size: 0.875rem;
+    font-size: var(--font-size-xs);
 }
 
 .pricebox-docs1 {
     font-family: var(--header);
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--accent-amber);
     white-space: nowrap;
@@ -509,9 +511,9 @@ label {
 
 /* Alerts */
 .alert {
-    padding: 1rem;
+    padding: 0.8rem 0.95rem;
     border-radius: var(--radius);
-    margin-bottom: 1rem;
+    margin-bottom: 0.8rem;
     border: 1px solid transparent;
 }
 
@@ -533,19 +535,19 @@ label {
     backdrop-filter: blur(var(--glass-backdrop-blur));
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-xl);
-    padding: 2rem;
+    padding: 1.4rem;
     max-width: 400px;
     margin: 2rem auto;
 }
 
 .menu_content_login input {
     width: 100%;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .menu_content_login button {
     width: 100%;
-    padding: 0.75rem;
+    padding: 0.6rem;
 }
 
 .menu_content_login a {
@@ -560,7 +562,7 @@ label {
     background: var(--card);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-lg);
-    padding: 1.5rem;
+    padding: 1rem;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
@@ -568,8 +570,8 @@ label {
 .navigator {
     display: flex;
     justify-content: center;
-    gap: 0.5rem;
-    margin-top: 2rem;
+    gap: 0.4rem;
+    margin-top: 1.25rem;
 }
 
 .navigator button,
@@ -577,7 +579,7 @@ label {
     background: var(--glass-bg);
     border: 1px solid var(--border);
     color: var(--foreground);
-    padding: 0.5rem 1rem;
+    padding: 0.4rem 0.8rem;
     border-radius: var(--radius);
     transition: all 0.2s ease;
 }
@@ -599,8 +601,8 @@ label {
 /* Badge/Status indicators */
 .badge {
     display: inline-block;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.7rem;
     font-weight: 600;
     border-radius: 9999px;
     text-transform: uppercase;
@@ -629,8 +631,8 @@ label {
     border-top: 1px solid var(--glass-border);
     background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(var(--glass-backdrop-blur));
-    padding: 2rem 0;
-    margin-top: 4rem;
+    padding: 1.4rem 0;
+    margin-top: 2.5rem;
     color: var(--muted-foreground);
 }
 
@@ -662,7 +664,7 @@ label {
 }
 
 .container.mt-4 {
-    margin-top: 2rem;
+    margin-top: 1.25rem;
 }
 
 /* Grid system compatibility */
@@ -706,11 +708,11 @@ label {
 }
 
 .mb-3 {
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .mb-4 {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .mt-2 {
@@ -718,7 +720,7 @@ label {
 }
 
 .mt-3 {
-    margin-top: 1rem;
+    margin-top: 0.75rem;
 }
 
 .py-2 {
@@ -727,7 +729,7 @@ label {
 }
 
 .p-3 {
-    padding: 1rem;
+    padding: 0.85rem;
 }
 
 .text-center {
@@ -745,6 +747,46 @@ label {
     border-radius: var(--radius-lg);
     border: 1px solid var(--border);
     background: var(--glass-bg);
+}
+
+.card,
+.modal-content,
+.ttable {
+    border-radius: var(--radius-lg);
+}
+
+.card-body,
+.modal-body,
+.modal-header,
+.modal-footer {
+    padding: 0.9rem 1rem;
+}
+
+.form-label,
+.form-text,
+small,
+.small {
+    font-size: var(--font-size-xs);
+}
+
+.fs-1,
+.fs-2,
+.fs-3,
+.fs-4,
+.fs-5 {
+    line-height: 1.2;
+}
+
+.fs-3 {
+    font-size: 1.6rem !important;
+}
+
+.fs-4 {
+    font-size: 1.3rem !important;
+}
+
+.fs-5 {
+    font-size: 1.1rem !important;
 }
 
 /* Animations */

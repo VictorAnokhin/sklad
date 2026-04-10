@@ -12,6 +12,31 @@ use Illuminate\Support\Facades\DB;
  */
 class MoneyController extends Controller
 {
+    private function extractReturnFilters(Request $request): array
+    {
+        $mapping = [
+            'q' => 'return_q',
+            'type' => 'return_filter_type',
+            'money' => 'return_money',
+            'reestr' => 'return_reestr',
+            'date_from' => 'return_date_from',
+            'date_to' => 'return_date_to',
+            'pos' => 'return_pos',
+        ];
+
+        $filters = [];
+
+        foreach ($mapping as $key => $inputName) {
+            $value = $request->input($inputName, '');
+
+            if ($value !== '' && $value !== null) {
+                $filters[$key] = (string) $value;
+            }
+        }
+
+        return $filters;
+    }
+
     public function index(Request $request)
     {
         $fid = session('fid', '');
@@ -40,6 +65,7 @@ class MoneyController extends Controller
         $fid    = session('fid', '');
         $doc_id = (int)$request->input('id', 0);
         $type   = $request->input('type', 'PO');
+        $returnFilters = $this->extractReturnFilters($request);
 
         if ($doc_id === 0) {
             $document = Money::emptyDocument($type);
@@ -47,13 +73,13 @@ class MoneyController extends Controller
             $document = Money::find($doc_id, $fid);
 
             if (!$document) {
-                return redirect()->route('money.index')->with('error', 'Документ не знайдено');
+                return redirect()->route('money.index', $returnFilters)->with('error', 'Документ не знайдено');
             }
         }
 
         $kassas = Money::kassas($fid);
 
-        return view('money.show', compact('document', 'kassas'));
+        return view('money.show', compact('document', 'kassas', 'returnFilters'));
     }
 
     public function save(Request $request)
@@ -61,6 +87,8 @@ class MoneyController extends Controller
         $fid  = session('fid', '');
         $id   = (int)$request->input('id', 0);
         $type = $request->input('type', 'PO');
+        $shouldPost = $request->boolean('post_after_save');
+        $returnFilters = $this->extractReturnFilters($request);
 
         $data = [
             'type'    => in_array($type, ['PO', 'RO']) ? $type : 'PO',
@@ -71,31 +99,61 @@ class MoneyController extends Controller
             'client1' => $request->input('client1', '') ?: '0',
         ];
 
-        Money::saveDocument($id, $fid, $data);
+        $savedId = Money::saveDocument($id, $fid, $data);
+        $savedDocument = Money::find($savedId, $fid);
 
-        return redirect()->route('money.index')->with('success', 'Збережено');
+        if (!$savedDocument) {
+            return redirect()->route('money.index', $returnFilters)->with('error', 'Документ не знайдено');
+        }
+
+        $isCurrentlyPosted = (int) ($savedDocument->provodka ?? 0) === 1;
+        $message = 'Збережено';
+
+        if ($shouldPost !== $isCurrentlyPosted) {
+            $result = Money::provodka($savedId, $fid);
+
+            if (!($result['document'] ?? null)) {
+                return redirect()->route('money.index', $returnFilters)->with('error', 'Документ не знайдено');
+            }
+
+            $message = $shouldPost ? 'Збережено та проведено' : 'Збережено, проводку скасовано';
+        }
+
+        return redirect()->route('money.show', [
+            'id' => $savedId,
+            'type' => $data['type'],
+            'return_q' => $returnFilters['q'] ?? null,
+            'return_filter_type' => $returnFilters['type'] ?? null,
+            'return_money' => $returnFilters['money'] ?? null,
+            'return_reestr' => $returnFilters['reestr'] ?? null,
+            'return_date_from' => $returnFilters['date_from'] ?? null,
+            'return_date_to' => $returnFilters['date_to'] ?? null,
+            'return_pos' => $returnFilters['pos'] ?? null,
+        ])->with('success', $message);
     }
 
     public function destroy(Request $request)
     {
         $fid = session('fid', '');
         $id = (int)$request->input('id', 0);
+        $returnFilters = $this->extractReturnFilters($request);
 
         if ($id > 0) {
             Money::deleteDocument($id, $fid);
-            return redirect()->route('money.index')->with('success', 'Документ видалено');
+            return redirect()->route('money.index', $returnFilters)->with('success', 'Документ видалено');
         }
 
-        return redirect()->route('money.index')->with('error', 'Помилка видалення');
+        return redirect()->route('money.index', $returnFilters)->with('error', 'Помилка видалення');
     }
 
     public function provodka(Request $request)
     {
         $fid = session('fid', '');
         $id = (int) $request->input('id', 0);
+        $returnFilters = $this->extractReturnFilters($request);
 
         if ($id <= 0) {
-            return redirect()->route('money.index')->with('error', 'Документ не знайдено');
+            return redirect()->route('money.index', $returnFilters)->with('error', 'Документ не знайдено');
         }
 
         $result = Money::provodka($id, $fid);
@@ -103,12 +161,19 @@ class MoneyController extends Controller
         $isPosted = (bool) ($result['isPosted'] ?? false);
 
         if (!$document) {
-            return redirect()->route('money.index')->with('error', 'Документ не знайдено');
+            return redirect()->route('money.index', $returnFilters)->with('error', 'Документ не знайдено');
         }
 
         return redirect()->route('money.show', [
             'id' => $document->id,
             'type' => $document->type,
+            'return_q' => $returnFilters['q'] ?? null,
+            'return_filter_type' => $returnFilters['type'] ?? null,
+            'return_money' => $returnFilters['money'] ?? null,
+            'return_reestr' => $returnFilters['reestr'] ?? null,
+            'return_date_from' => $returnFilters['date_from'] ?? null,
+            'return_date_to' => $returnFilters['date_to'] ?? null,
+            'return_pos' => $returnFilters['pos'] ?? null,
         ])->with('success', $isPosted ? 'Проводку виконано' : 'Проводку скасовано');
     }
 }

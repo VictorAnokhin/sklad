@@ -1,46 +1,80 @@
-@if($num === '0')
-{{-- Panel 1: sales staff (idstatus ≠ 2) --}}
-@if(!empty($salesTabs))
-<div class="tstr0" style="overflow-x: auto;">
-  <div class="tstr1" style="display: flex; gap: 8px; flex-wrap: nowrap; align-items: center;">
-    @foreach($salesTabs as $tab)
-    <a href="{{ $tab['url'] }}" title="{{ $tab['label'] }}" class="text-decoration-none">
-      <div class="{{ $tab['active'] ? 'button_active' : 'button' }}" style="min-width: 120px; {{ $tab['active'] ? 'border: 2px solid #fbbf24; box-shadow: 0 0 12px rgba(251, 191, 36, 0.3);' : '' }}">
-        <img src="/img/{{ $tab['icon'] }}" alt="{{ $tab['label'] }}" style="width: 24px; height: 24px;"><br>
-        <span style="{{ $tab['active'] ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--foreground);' }}">{{ $tab['label'] }}</span>
-      </div>
+@php
+    $tabGroups = [
+        $salesTabs ?? [],
+        $managerTabs ?? [],
+        $productionTabs ?? [],
+    ];
+@endphp
+
+<style>
+  .doc-tabs-wrap {
+    overflow-x: auto;
+    margin-bottom: 12px;
+    padding-bottom: 2px;
+  }
+
+  .doc-tabs {
+    display: inline-flex;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 100%;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .doc-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    text-decoration: none;
+    color: var(--muted-foreground, #94a3b8);
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .doc-tab:hover {
+    color: var(--foreground, #ffffff);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .doc-tab.is-active {
+    color: #fbbf24;
+    border-bottom-color: #fbbf24;
+    background: rgba(251, 191, 36, 0.08);
+  }
+
+  .doc-tab__icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex: 0 0 auto;
+  }
+
+  .doc-tab__label {
+    font-weight: 600;
+    line-height: 1.2;
+  }
+</style>
+
+@foreach($tabGroups as $tabs)
+@if(!empty($tabs))
+<div class="doc-tabs-wrap">
+  <div class="doc-tabs">
+    @foreach($tabs as $tab)
+    <a
+      href="{{ $tab['url'] }}"
+      title="{{ $tab['label'] }}"
+      class="doc-tab{{ $tab['active'] ? ' is-active' : '' }}"
+    >
+      @if(!empty($tab['icon']))
+      <img src="/img/{{ $tab['icon'] }}" alt="" class="doc-tab__icon">
+      @endif
+      <span class="doc-tab__label">{{ $tab['label'] }}</span>
     </a>
     @endforeach
   </div>
 </div>
 @endif
-
-{{-- Panel 2: managers/admins (idstatus > 2) --}}
-@if(!empty($managerTabs))
-<div class="tstr0" style="overflow-x: auto;">
-  <div class="tstr1" style="display: flex; gap: 8px; flex-wrap: nowrap; align-items: center;">
-    @foreach($managerTabs as $tab)
-    <a href="{{ $tab['url'] }}" title="{{ $tab['label'] }}" class="text-decoration-none">
-      <div class="{{ $tab['active'] ? 'button_active' : 'button' }}" style="min-width: 120px; {{ $tab['active'] ? 'border: 2px solid #fbbf24; box-shadow: 0 0 12px rgba(251, 191, 36, 0.3);' : '' }}">
-        <img src="/img/{{ $tab['icon'] }}" alt="{{ $tab['label'] }}" style="width: 24px; height: 24px;"><br>
-        <span style="{{ $tab['active'] ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--foreground);' }}">{{ $tab['label'] }}</span>
-      </div>
-    </a>
-    @endforeach
-  </div>
-</div>
-@endif
-
-{{-- Panel 3: production workers (idstatus == 2) --}}
-@if(!empty($productionTabs))
-<div class="tstr0" style="overflow-x: auto;">
-  <div class="tstr1" style="display: flex; gap: 8px; flex-wrap: nowrap; align-items: center;">
-    @foreach($productionTabs as $tab)
-    <div style="{{ $tab['active'] ? 'border-bottom: 3px solid #fbbf24; padding-bottom: 4px;' : 'border-bottom: 3px solid var(--border); padding-bottom: 4px;' }}">
-      <a href="{{ $tab['url'] }}" class="{{ $tab['active'] ? 'atmenu' : 'tmenu' }}" style="{{ $tab['active'] ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--muted-foreground);' }}">{{ $tab['label'] }}</a>
-    </div>
-    @endforeach
-  </div>
-</div>
-@endif
-@endif
+@endforeach

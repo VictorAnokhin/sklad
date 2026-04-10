@@ -13,15 +13,19 @@ class PanelService
     /**
      * Return tab groups visible for the given user status.
      *
-     * @return array{salesTabs: array, managerTabs: array, productionTabs: array}
+     * @return array{salesTabs: array, managerTabs: array, productionTabs: array, reportTabs: array, investorReportTabs: array, financialReportTabs: array, strategicReportTabs: array}
      */
-    public function getTabs(int $idstatus, string $currentDoc): array
+    public function getTabs(int $idstatus, string $currentDoc, string $currentReport = ''): array
     {
         $salesTabs = [];
         $managerTabs = [];
         $productionTabs = [];
+        $reportTabs = [];
+        $investorReportTabs = [];
+        $financialReportTabs = [];
+        $strategicReportTabs = [];
         $salesDocs = ['ZOUT', 'CH', 'RN', 'PO', 'RA'];
-        $managerDocs = ['ZIN', 'PN', 'RO', 'VN'];
+        $managerDocs = ['ZIN', 'PN', 'RO', 'PP', 'VN'];
         $productionDocs = ['WO1', 'SP'];
 
         $isSalesContext = in_array($currentDoc, $salesDocs, true);
@@ -48,6 +52,7 @@ class PanelService
                 $this->makeTab('ZIN', 'Закупки', 'icon-order.png', $currentDoc),
                 $this->makeTab('PN', 'Прихід товару', 'icon-packing.png', $currentDoc),
                 $this->makeTab('RO', 'Витрата грошей', 'icon-business.png', $currentDoc),
+                $this->makeTab('PP', 'Депозити', 'icon-wallet-income.png', $currentDoc),
                 $this->makeTab('VN', 'Повернення', 'icon-naryad.png', $currentDoc),
             ];
         }
@@ -59,7 +64,39 @@ class PanelService
             ];
         }
 
-        return compact('salesTabs', 'managerTabs', 'productionTabs');
+        if ($currentReport !== '') {
+            $reportTabs = [
+                $this->makeReportTab('summary', 'Зведення', $currentReport),
+                $this->makeReportTab('sales', 'Продажі', $currentReport),
+                $this->makeReportTab('abcxyz', 'ABC / XYZ', $currentReport),
+                $this->makeReportTab('inventory', 'Остатки', $currentReport),
+                $this->makeReportTab('turnover', 'Обіг', $currentReport),
+                $this->makeReportTab('purchases', 'Закупки', $currentReport),
+                $this->makeReportTab('stocks', 'Товарні залишки', $currentReport),
+                $this->makeReportTab('finance', 'Фінанси', $currentReport),
+            ];
+
+            $investorReportTabs = [
+                $this->makeReportTab('pnlsegments', 'P&L сегменти', $currentReport),
+                $this->makeReportTab('uniteconomics', 'Unit-економіка', $currentReport),
+                $this->makeReportTab('grossprofit', 'Валова прибуток', $currentReport),
+            ];
+
+            $financialReportTabs = [
+                $this->makeReportTab('financialpnl', 'P&L', $currentReport),
+                $this->makeReportTab('balancesheet', 'Баланс', $currentReport),
+                $this->makeReportTab('cashflowstmt', 'Cash Flow', $currentReport),
+            ];
+
+            $strategicReportTabs = [
+                $this->makeReportTab('salesforecast', 'Forecast', $currentReport),
+                $this->makeReportTab('purchaseplan', 'План закупок', $currentReport),
+                $this->makeReportTab('profitplan', 'План прибыли', $currentReport),
+                $this->makeReportTab('demandtrends', 'Тренды спроса', $currentReport),
+            ];
+        }
+
+        return compact('salesTabs', 'managerTabs', 'productionTabs', 'reportTabs', 'investorReportTabs', 'financialReportTabs', 'strategicReportTabs');
     }
 
     /**
@@ -86,6 +123,35 @@ class PanelService
             'label'  => $label,
             'url'    => route('document.index', ['doc' => $doc, 'num' => 0]),
             'active' => $doc === $currentDoc,
+        ];
+    }
+
+    private function makeReportTab(string $report, string $label, string $currentReport): array
+    {
+        return [
+            'report' => $report,
+            'label' => $label,
+            'url' => match ($report) {
+                'sales' => route('reports.sales'),
+                'abcxyz' => route('reports.abcxyz'),
+                'inventory' => route('reports.inventory'),
+                'turnover' => route('reports.turnover'),
+                'purchases' => route('reports.purchases'),
+                'stocks' => route('reports.stocks'),
+                'finance' => route('reports.finance'),
+                'pnlsegments' => route('reports.pnlsegments'),
+                'uniteconomics' => route('reports.uniteconomics'),
+                'grossprofit' => route('reports.grossprofit'),
+                'financialpnl' => route('reports.financialpnl'),
+                'balancesheet' => route('reports.balancesheet'),
+                'cashflowstmt' => route('reports.cashflowstmt'),
+                'salesforecast' => route('reports.salesforecast'),
+                'purchaseplan' => route('reports.purchaseplan'),
+                'profitplan' => route('reports.profitplan'),
+                'demandtrends' => route('reports.demandtrends'),
+                default => route('reports.index'),
+            },
+            'active' => $report === $currentReport,
         ];
     }
 }

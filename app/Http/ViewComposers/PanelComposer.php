@@ -22,8 +22,29 @@ class PanelComposer
         $idstatus = (int) session('idstatus', 0);
         $currentDoc = session('doc', '');
         $num = session('num', '0');
+        $currentReport = match (true) {
+            request()->routeIs('reports.sales') => 'sales',
+            request()->routeIs('reports.abcxyz') => 'abcxyz',
+            request()->routeIs('reports.inventory') => 'inventory',
+            request()->routeIs('reports.turnover') => 'turnover',
+            request()->routeIs('reports.purchases') => 'purchases',
+            request()->routeIs('reports.stocks') => 'stocks',
+            request()->routeIs('reports.finance') => 'finance',
+            request()->routeIs('reports.pnlsegments') => 'pnlsegments',
+            request()->routeIs('reports.uniteconomics') => 'uniteconomics',
+            request()->routeIs('reports.grossprofit') => 'grossprofit',
+            request()->routeIs('reports.financialpnl') => 'financialpnl',
+            request()->routeIs('reports.balancesheet') => 'balancesheet',
+            request()->routeIs('reports.cashflowstmt') => 'cashflowstmt',
+            request()->routeIs('reports.salesforecast') => 'salesforecast',
+            request()->routeIs('reports.purchaseplan') => 'purchaseplan',
+            request()->routeIs('reports.profitplan') => 'profitplan',
+            request()->routeIs('reports.demandtrends') => 'demandtrends',
+            request()->routeIs('reports.index') => 'summary',
+            default => '',
+        };
 
-        $tabs = $this->panelService->getTabs($idstatus, $currentDoc);
+        $tabs = $this->panelService->getTabs($idstatus, $currentDoc, $currentReport);
 
         $view->with([
             'idstatus'       => $idstatus,
@@ -31,6 +52,10 @@ class PanelComposer
             'salesTabs'      => $tabs['salesTabs'],
             'managerTabs'    => $tabs['managerTabs'],
             'productionTabs' => $tabs['productionTabs'],
+            'reportTabs'     => $tabs['reportTabs'],
+            'investorReportTabs' => $tabs['investorReportTabs'],
+            'financialReportTabs' => $tabs['financialReportTabs'],
+            'strategicReportTabs' => $tabs['strategicReportTabs'],
         ]);
     }
 }

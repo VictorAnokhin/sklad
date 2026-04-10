@@ -21,6 +21,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        View::composer('partials.panel', PanelComposer::class);
+        View::composer(['partials.panel', 'partials.report_panel'], PanelComposer::class);
     }
 }

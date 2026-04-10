@@ -7,6 +7,7 @@
 $btnLabel = match($doc) {
 'PO' => 'Отримання грошей',
 'RO' => 'Видача грошей',
+'PP' => 'Новий депозит',
 'PN' => 'Отримання товару',
 'RN' => 'Видача товару',
 'WO1' => 'На виготовлення',
@@ -68,8 +69,6 @@ default => 'Новий ' . \App\Models\Document::typeName($doc),
       <span class="money">{{ $item['summaFmt'] }}</span>
     </div>
     <div class="captionbox-docs2">{!! $item['content'] !!}</div>
-    <div class="status-docs2">{{ $item['skladsName'] }} {{ $item['manager'] }} {{ $item['topImg'] }}</div>
-    
   </div>
 
   @endforeach
@@ -140,10 +139,10 @@ default => 'Новий ' . \App\Models\Document::typeName($doc),
   }
 
   .document-compact-wrap .txtbox-price-docs {
-    min-width: 1200px;
-    grid-template-columns: 42px 118px minmax(250px, 1.1fr) 170px 120px minmax(320px, 1.7fr) minmax(170px, 0.8fr);
-    gap: 0.6rem;
-    padding: 0.8rem 0.9rem;
+    min-width: 1020px;
+    grid-template-columns: 42px 104px minmax(220px, 1.05fr) 150px 100px minmax(320px, 1.55fr);
+    gap: 0.5rem;
+    padding: 0.72rem 0.8rem;
     margin-bottom: 0;
   }
 
@@ -152,8 +151,7 @@ default => 'Новий ' . \App\Models\Document::typeName($doc),
   .document-compact-wrap .captionbox-docs,
   .document-compact-wrap .status-docs3,
   .document-compact-wrap .pricebox-docs1,
-  .document-compact-wrap .captionbox-docs2,
-  .document-compact-wrap .status-docs2 {
+  .document-compact-wrap .captionbox-docs2 {
     min-width: 0;
     width: auto;
     white-space: nowrap;
@@ -163,7 +161,6 @@ default => 'Новий ' . \App\Models\Document::typeName($doc),
 
   .document-compact-wrap .captionbox-docs a,
   .document-compact-wrap .captionbox-docs2,
-  .document-compact-wrap .status-docs2,
   .document-compact-wrap .compact-date {
     display: block;
     overflow: hidden;
@@ -184,7 +181,6 @@ default => 'Новий ' . \App\Models\Document::typeName($doc),
 
   .document-compact-wrap .captionbox-docs a br,
   .document-compact-wrap .captionbox-docs2 br,
-  .document-compact-wrap .status-docs2 br,
   .document-compact-wrap .status-docs4 br {
     display: none;
   }

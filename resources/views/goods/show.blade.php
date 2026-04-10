@@ -109,16 +109,16 @@
 
         <div class="row mb-3">
             <div class="col-md-3">
-                <label class="form-label">Ціна</label>
-                <input type="number" step="0.01" name="pay" class="form-control" value="{{ $comp->pay ?? 0 }}">
+                <label class="form-label">Ціна закупки</label>
+                <input type="text" step="0.01" id="pay1Input" name="pay1" class="form-control" value="{{ $comp->pay1 ?? 0 }}">
             </div>
             <div class="col-md-3">
-                <label class="form-label">Ціна 1</label>
-                <input type="number" step="0.01" name="pay1" class="form-control" value="{{ $comp->pay1 ?? 0 }}">
+                <label class="form-label">Ціна продажи</label>
+                <input type="text" step="0.01" id="payInput" name="pay" class="form-control" value="{{ $comp->pay ?? 0 }}">
             </div>
             <div class="col-md-3">
                 <label class="form-label">Маржа / Profit</label>
-                <input type="number" step="0.01" name="profitpay" class="form-control" value="{{ $comp->profitpay ?? 0 }}">
+                <input type="text" step="0.01" id="profitpayInput" name="profitpay" class="form-control" value="{{ $comp->profitpay ?? 0 }}" readonly style="background:#f0f7ff; font-weight:700;">
             </div>
             <div class="col-md-3">
                 <label class="form-label">Гарантія</label>
@@ -303,4 +303,32 @@
         </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const payInput = document.getElementById('payInput');
+    const pay1Input = document.getElementById('pay1Input');
+    const profitpayInput = document.getElementById('profitpayInput');
+
+    const calculateMargin = () => {
+        const purchasePrice = parseFloat(pay1Input?.value) || 0;  // pay1 = цена закупки
+        const salePrice = parseFloat(payInput?.value) || 0;        // pay = цена продажи
+        const margin = salePrice - purchasePrice;
+        
+        if (profitpayInput) {
+            profitpayInput.value = margin.toFixed(2);
+        }
+    };
+
+    if (payInput) {
+        payInput.addEventListener('input', calculateMargin);
+    }
+    if (pay1Input) {
+        pay1Input.addEventListener('input', calculateMargin);
+    }
+
+    // Calculate on page load
+    calculateMargin();
+});
+</script>
 @endsection

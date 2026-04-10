@@ -12,6 +12,7 @@
     $windowStart = max(1, min($currentPage - 1, max(1, $totalPages - 3)));
     $windowEnd = min($totalPages, $windowStart + 3);
     $activeFilters = array_filter($filters ?? [], fn($value) => $value !== '' && $value !== null);
+    $returnFilters = array_merge($filters ?? [], ['pos' => $pos ?? 0]);
 @endphp
 
 <div class="ttable" style="padding: 12px 16px; margin-bottom: 16px;">
@@ -21,8 +22,24 @@
             class="btn {{ !empty($activeFilters) ? 'btn-warning' : 'btn-outline-secondary' }}">
             🔍 Фільтр
         </button>
-        <a href="{{ route('money.show', ['id' => 0, 'type' => 'PO']) }}" class="btn btn-success">+ Прихід</a>
-        <a href="{{ route('money.show', ['id' => 0, 'type' => 'RO']) }}" class="btn btn-danger">+ Видача</a>
+        <a href="{{ route('money.show', array_merge(['id' => 0, 'type' => 'PO'], [
+            'return_q' => $returnFilters['q'] ?? null,
+            'return_filter_type' => $returnFilters['type'] ?? null,
+            'return_money' => $returnFilters['money'] ?? null,
+            'return_reestr' => $returnFilters['reestr'] ?? null,
+            'return_date_from' => $returnFilters['date_from'] ?? null,
+            'return_date_to' => $returnFilters['date_to'] ?? null,
+            'return_pos' => $returnFilters['pos'] ?? null,
+        ])) }}" class="btn btn-success">+ Прихід</a>
+        <a href="{{ route('money.show', array_merge(['id' => 0, 'type' => 'RO'], [
+            'return_q' => $returnFilters['q'] ?? null,
+            'return_filter_type' => $returnFilters['type'] ?? null,
+            'return_money' => $returnFilters['money'] ?? null,
+            'return_reestr' => $returnFilters['reestr'] ?? null,
+            'return_date_from' => $returnFilters['date_from'] ?? null,
+            'return_date_to' => $returnFilters['date_to'] ?? null,
+            'return_pos' => $returnFilters['pos'] ?? null,
+        ])) }}" class="btn btn-danger">+ Видача</a>
     </div>
 </div>
 <div class="ttable" style="padding: 16px;">
@@ -105,7 +122,15 @@
                 <td style="font-size:0.9em;">{{ $doc->content ?? '' }}</td>
                 <td style="text-align:center;">{{ $doc->provodka ? '✅' : '' }}</td>
                 <td>
-                    <a href="{{ route('money.show', ['id' => $doc->id]) }}" class="btn btn-sm btn-outline-primary">✏</a>
+                    <a href="{{ route('money.show', array_merge(['id' => $doc->id, 'type' => $doc->type], [
+                        'return_q' => $returnFilters['q'] ?? null,
+                        'return_filter_type' => $returnFilters['type'] ?? null,
+                        'return_money' => $returnFilters['money'] ?? null,
+                        'return_reestr' => $returnFilters['reestr'] ?? null,
+                        'return_date_from' => $returnFilters['date_from'] ?? null,
+                        'return_date_to' => $returnFilters['date_to'] ?? null,
+                        'return_pos' => $returnFilters['pos'] ?? null,
+                    ])) }}" class="btn btn-sm btn-outline-primary">✏</a>
                 </td>
             </tr>
             @endforeach

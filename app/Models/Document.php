@@ -39,6 +39,7 @@ class Document extends Model
             'RN'   => 'Отгрузка товара',
             'PO'   => 'Получение средств',
             'RO'   => 'Выдача средств',
+            'PP'   => 'Депозит',
             'WO1'  => 'Наряд',
             'VN'   => 'Внутренний',
             'AO'   => 'Акт',
@@ -277,7 +278,10 @@ class Document extends Model
             ];
         }
 
-        $lineItems = ZBody::where('docid', $docId)->get();
+        $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'RN', 'PN'], true)
+            ? $docId
+            : (string) ($doc->docid ?: $docId);
+        $lineItems = ZBody::where('docid', $lineDocId)->get();
         $summa = (float) $doc->summa;
         $oplata = (string) $doc->oplata;
         $client1 = (string) $doc->client1;
@@ -312,6 +316,10 @@ class Document extends Model
                 $kasId = $oplata;
                 $confColumns = Schema::getColumnListing('conf');
                 $delta = $sign * $summa * $direction;
+
+                if (trim($kasId) === '') {
+                    throw new \RuntimeException('Для проводки грошового документа потрібно вибрати касу.');
+                }
 
                 if (in_array($docType, ['PO', 'RO'], true) && in_array('value', $confColumns, true)) {
                     $currentValue = (float) DB::table('conf')

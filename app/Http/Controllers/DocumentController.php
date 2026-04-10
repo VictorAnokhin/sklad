@@ -29,6 +29,51 @@ class DocumentController extends Controller
     {
     }
 
+    private function cloneBodyRowsToChild(string $sourceDocId, string $targetDocId, string $fid, string $docType, string $docNum): void
+    {
+        if ($sourceDocId === '0' || $targetDocId === '0') {
+            return;
+        }
+
+        if (ZBody::where('docid', $targetDocId)->where('firma', $fid)->exists()) {
+            return;
+        }
+
+        $rows = ZBody::where('docid', $sourceDocId)
+            ->where('firma', $fid)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($rows as $row) {
+            ZBody::create([
+                'docnum' => $docNum,
+                'pid' => $row->pid,
+                'pnum' => $row->pnum,
+                'pcount' => $row->pcount,
+                'pprice' => $row->pprice,
+                'psumma' => $row->psumma,
+                'type' => $docType,
+                'firma' => $fid,
+                'docid' => $targetDocId,
+                'zvalue' => $row->zvalue ?? '',
+            ]);
+        }
+    }
+
+    private function isRootDocumentLocked(string $docType, string $docId, string $fid): bool
+    {
+        if (!in_array($docType, ['ZOUT', 'ZIN'], true) || $docId === '' || $docId === '0') {
+            return false;
+        }
+
+        return DB::table('document')
+            ->where('id', $docId)
+            ->where('type', $docType)
+            ->where('firma', $fid)
+            ->where('provodka', 1)
+            ->exists();
+    }
+
     // ── List view ─────────────────────────────────────────────────────────────
 
     public function index(Request $request)
@@ -224,6 +269,10 @@ class DocumentController extends Controller
 
             session(['doc_id' => $newId, 'num' => $newNum]);
 
+            if (in_array($doc, ['RN', 'PN'], true) && $parentDocid !== '0') {
+                $this->cloneBodyRowsToChild((string) $parentDocid, (string) $newId, $fid, $doc, (string) $newNum);
+            }
+
             // Redirect with new params so reload works correctly
             return redirect()->route('document.show', [
                 'doc' => $doc,
@@ -258,6 +307,10 @@ class DocumentController extends Controller
             ? DB::table('document')->where('id', $parentDocid)->first()
             : null;
 
+        if (in_array($doc, ['RN', 'PN'], true) && $parentDocid && !ZBody::where('docid', $docId)->where('firma', $fid)->exists()) {
+            $this->cloneBodyRowsToChild((string) $parentDocid, (string) $docId, $fid, $doc, (string) ($document->num ?? '0'));
+        }
+
         session([
             'numz' => $parentNumz,
             'typez' => $parentTypez,
@@ -271,7 +324,7 @@ class DocumentController extends Controller
             'reestr' => $document->reestr,
         ]);
 
-        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT']) ? $docId : $parentDocid;
+        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'RN', 'PN'], true) ? $docId : $parentDocid;
         $lineItems = ZBody::from('z_body as zb')
             ->leftJoin('comp as c', function ($join) {
             $join->on('zb.pnum', '=', 'c.id')
@@ -305,6 +358,7 @@ class DocumentController extends Controller
         $oplataList = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
         $reestrList = DB::table('conf')->where('type', 'reestr')->where('firma', $fid)->orderBy('name')->get();
         $skladsList = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
+        $clientStatuses = DB::table('conf')->where('type', 'tclient')->where('firma', $fid)->orderBy('name')->get();
         $myCompanies = collect();
 
         if ($doc === 'CH') {
@@ -335,6 +389,19 @@ class DocumentController extends Controller
         $numz = $parentNumz;
         $typez = $parentTypez;
         $docid = $parentDocid;
+        $relatedDocTotal = (float) (
+            in_array($doc, ['ZIN', 'ZOUT'], true)
+                ? ($document->summa ?? 0)
+                : ($parentDocument->summa ?? $document->summa ?? 0)
+        );
+
+        if ($relatedDocTotal <= 0 && $docid) {
+            $relatedDocTotal = (float) DB::table('z_body')
+                ->where('docid', $docid)
+                ->where('firma', $fid)
+                ->sum('psumma');
+        }
+
         $idstatus = (int)session('idstatus', 0);
         $orderPosted = (int) (
             in_array($doc, ['ZIN', 'ZOUT'], true)
@@ -350,7 +417,7 @@ class DocumentController extends Controller
         if ($isZakazType && $clientId > 0) {
             $relatedDocs = Docs::clientInfo1(
                 $clientId, $numz, $typez, $doc, $idstatus, $year, $docid,
-                $document->summa ?? 0, $orderPosted
+                $relatedDocTotal, $orderPosted
             );
         }
 
@@ -377,7 +444,7 @@ class DocumentController extends Controller
         return view('document.show', compact(
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'skladsList',
-            'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies'
+            'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses'
         ));
     }
 
@@ -407,7 +474,7 @@ class DocumentController extends Controller
                 ->with('error', 'Документ для друку не знайдено');
         }
 
-        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT'], true)
+        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'RN', 'PN'], true)
             ? $docId
             : ($document->docid ?: $docId);
 
@@ -550,10 +617,37 @@ class DocumentController extends Controller
         // ── Save / Зберегти ───────────────────────────────────────────────────
         if (in_array($run, ['Зберегти', 'Save', 'Сохранить'], true)) {
             $docId = (string) $request->input('doc_id', session('doc_id', '0'));
+            if ($this->isRootDocumentLocked($doc, $docId, $fid)) {
+                return redirect()->back()->with('error', 'Проведений документ змінювати не можна. Спочатку зніміть проводку з пов’язаних документів.');
+            }
             session(['doc' => $doc, 'doc_id' => $docId]);
-            $this->docService->saveHead($request, $docId, $doc, $fid);
-            $this->docService->saveBody($request, $docId, $doc, $fid);
-            return redirect()->back()->with('success', 'Збережено');
+            try {
+                $this->docService->saveHead($request, $docId, $doc, $fid);
+                $this->docService->saveBody($request, $docId, $doc, $fid);
+
+                $conductableDocs = ['RN', 'PN', 'PO', 'RO', 'VN', 'AO', 'WO1'];
+                $message = 'Збережено';
+
+                if (in_array($doc, $conductableDocs, true)) {
+                    $table = Document::tableForType($doc);
+                    $currentPosted = (int) DB::table($table)
+                        ->where('id', $docId)
+                        ->where('firma', $fid)
+                        ->value('provodka') === 1;
+                    $desiredPosted = $request->boolean('post_after_save');
+
+                    if ($desiredPosted !== $currentPosted) {
+                        $result = Document::provodka($docId, $doc, $fid);
+                        $message = ($result['isPosted'] ?? false)
+                            ? 'Збережено та проведено'
+                            : 'Збережено, проводку скасовано';
+                    }
+                }
+
+                return redirect()->back()->with('success', $message);
+            } catch (\Throwable $e) {
+                return redirect()->back()->with('error', $e->getMessage());
+            }
         }
 
         return redirect()->back();
@@ -566,7 +660,11 @@ class DocumentController extends Controller
         $docId = $request->input('doc_id', session('doc_id', '0'));
         $doc = $request->input('doc', session('doc', ''));
         $fid = (string) session('fid', '');
-        $result = Document::provodka($docId, $doc, $fid);
+        try {
+            $result = Document::provodka($docId, $doc, $fid);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
         $document = $result['document'] ?? null;
         $isPosted = (bool) ($result['isPosted'] ?? false);
         if (!$document) {
@@ -598,7 +696,10 @@ class DocumentController extends Controller
         // Delete related z_body rows (goods) first
         $document = DB::table($table)->where('id', $docId)->where('firma', $fid)->first();
         if ($document) {
-            $docIdToFind = in_array($doc, ['ZIN', 'ZOUT']) ? $docId : ($document->docid ?? $docId);
+            if ($this->isRootDocumentLocked($doc, (string) $docId, $fid)) {
+                return redirect()->back()->with('error', 'Проведений документ видаляти не можна. Спочатку зніміть проводку з пов’язаних документів.');
+            }
+            $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'RN', 'PN'], true) ? $docId : ($document->docid ?? $docId);
             ZBody::where('docid', $docIdToFind)->delete();
         }
 
@@ -630,9 +731,13 @@ class DocumentController extends Controller
     {
         $doc = session('doc', '');
         $fid = session('fid', '');
-        $docid = session('docid', '0');
-        $typez = session('typez', '');
+        $docid = in_array($doc, ['RN', 'PN'], true) ? session('doc_id', '0') : session('docid', '0');
+        $typez = in_array($doc, ['RN', 'PN'], true) ? $doc : session('typez', '');
         $numz = session('numz', '0');
+
+        if ($this->isRootDocumentLocked($doc, (string) $docid, $fid)) {
+            return redirect()->back()->with('error', 'Проведений документ змінювати не можна. Спочатку зніміть проводку з пов’язаних документів.');
+        }
 
         $pnum = $request->input('pnum', '');
         $pid = $request->input('pid', '');
@@ -664,6 +769,14 @@ class DocumentController extends Controller
 
     public function bodyDelete(Request $request)
     {
+        $doc = session('doc', '');
+        $fid = session('fid', '');
+        $docId = (string) session('doc_id', session('docid', '0'));
+
+        if ($this->isRootDocumentLocked($doc, $docId, $fid)) {
+            return redirect()->back()->with('error', 'Проведений документ змінювати не можна. Спочатку зніміть проводку з пов’язаних документів.');
+        }
+
         $bid = $request->input('bid', '');
         if ($bid !== '')
             ZBody::where('id', $bid)->delete();
@@ -674,6 +787,17 @@ class DocumentController extends Controller
 
     public function bodyUpdate(Request $request)
     {
+        $doc = session('doc', '');
+        $fid = session('fid', '');
+        $docId = (string) session('doc_id', session('docid', '0'));
+
+        if ($this->isRootDocumentLocked($doc, $docId, $fid)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Проведений документ змінювати не можна. Спочатку зніміть проводку з пов’язаних документів.',
+            ], 422);
+        }
+
         $bid = $request->input('bid', '');
         $field = $request->input('field', '');
         $value = $request->input('value', '');

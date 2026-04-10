@@ -11,6 +11,7 @@
     $isNew = empty($document->id);
     $type = request('type', $document->type ?? 'PO');
     $isPO = $type === 'PO';
+    $backUrl = route('money.index', $returnFilters ?? []);
     @endphp
 
     <h3 style="color:{{ $isPO ? 'green' : 'red' }};">
@@ -26,6 +27,13 @@
         @csrf
         <input type="hidden" name="id" value="{{ $document->id ?? 0 }}">
         <input type="hidden" name="type" value="{{ $type }}">
+        <input type="hidden" name="return_q" value="{{ $returnFilters['q'] ?? '' }}">
+        <input type="hidden" name="return_filter_type" value="{{ $returnFilters['type'] ?? '' }}">
+        <input type="hidden" name="return_money" value="{{ $returnFilters['money'] ?? '' }}">
+        <input type="hidden" name="return_reestr" value="{{ $returnFilters['reestr'] ?? '' }}">
+        <input type="hidden" name="return_date_from" value="{{ $returnFilters['date_from'] ?? '' }}">
+        <input type="hidden" name="return_date_to" value="{{ $returnFilters['date_to'] ?? '' }}">
+        <input type="hidden" name="return_pos" value="{{ $returnFilters['pos'] ?? '' }}">
 
         <div class="row">
             <div class="col-md-4 mb-3">
@@ -83,32 +91,41 @@
             <input type="text" name="content" class="form-control" value="{{ $document->content ?? '' }}">
         </div>
 
+        @if((int)($document->provodka ?? 0) === 0)
+        <div class="mb-3 form-check">
+            <input type="hidden" name="post_after_save" value="0">
+            <input
+                type="checkbox"
+                class="form-check-input"
+                id="post_after_save"
+                name="post_after_save"
+                value="1"
+                checked>
+            <label class="form-check-label" for="post_after_save">
+                Провести документ після збереження
+            </label>
+        </div>
+        @endif
 
-        <div class="row" style="width: 100%;">
-            <div style="width: 80%; align-items: left;">
-                <a href="{{ route('money.index') }}" class="btn" style="width: 20%;">← Назад</a>
-                <button type="submit" class="btn" style="width: 30%;">💾 Зберегти</button>
-                @if(!$isNew)
-                <button type="submit"
-                    formaction="{{ route('money.provodka') }}"
-                    formmethod="post"
-                    class="btn {{ (int)($document->provodka ?? 0) === 1 ? 'btn-success' : 'btn-warning' }}"
-                    style="width: 34%;">
-                    {{ (int)($document->provodka ?? 0) === 1 ? '↺ Скасувати проводку' : 'Провести' }}
-                </button>
-                @endif
-
-            </div>
-            <div style="width: 20%;">
-                @if(!$isNew)
-                <button type="button"
-                    class="btn btn-danger"
-                    style="margin-top: -38px;"
-                    onclick="if(confirm('Дійсно видалити цей документ?')) { document.getElementById('deleteMoneyForm').submit(); }">
-                    🗑
-                </button>
-                @endif
-            </div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <a href="{{ $backUrl }}" class="btn">← Назад</a>
+            @if((int)($document->provodka ?? 0) === 1)
+            <button type="submit"
+                formaction="{{ route('money.provodka') }}"
+                formmethod="post"
+                class="btn btn-success">
+                ↺ Скасувати проводку
+            </button>
+            @else
+            <button type="submit" class="btn">💾 Зберегти</button>
+            @endif
+            @if((int)($document->provodka ?? 0) === 0 && !$isNew)
+            <button type="button"
+                class="btn btn-danger"
+                onclick="if(confirm('Дійсно видалити цей документ?')) { document.getElementById('deleteMoneyForm').submit(); }">
+                🗑 Видалити
+            </button>
+            @endif
         </div>
 
     </form>
@@ -117,6 +134,13 @@
     <form id="deleteMoneyForm" action="{{ route('money.destroy') }}" method="post" style="display:none;">
         @csrf
         <input type="hidden" name="id" value="{{ $document->id }}">
+        <input type="hidden" name="return_q" value="{{ $returnFilters['q'] ?? '' }}">
+        <input type="hidden" name="return_filter_type" value="{{ $returnFilters['type'] ?? '' }}">
+        <input type="hidden" name="return_money" value="{{ $returnFilters['money'] ?? '' }}">
+        <input type="hidden" name="return_reestr" value="{{ $returnFilters['reestr'] ?? '' }}">
+        <input type="hidden" name="return_date_from" value="{{ $returnFilters['date_from'] ?? '' }}">
+        <input type="hidden" name="return_date_to" value="{{ $returnFilters['date_to'] ?? '' }}">
+        <input type="hidden" name="return_pos" value="{{ $returnFilters['pos'] ?? '' }}">
     </form>
     @endif
 

@@ -139,6 +139,22 @@
             border-bottom: 1px solid #111827;
         }
 
+        .signature-image {
+            max-width: 170px;
+            max-height: 70px;
+            object-fit: contain;
+            display: block;
+        }
+
+        .stamp-image {
+            margin-top: 10px;
+            max-width: 120px;
+            max-height: 120px;
+            object-fit: contain;
+            margin-left: auto;
+            display: block;
+        }
+
         .signature-name {
             margin-top: 4px;
             text-align: right;
@@ -159,6 +175,11 @@
     </style>
 </head>
 <body>
+    @php
+        $signatureImage = $firma ? \App\Models\Firma::resolveMediaUrl((string) ($firma->pidpys ?? '')) : null;
+        $stampImage = $firma ? \App\Models\Firma::resolveMediaUrl((string) ($firma->pechat ?? '')) : null;
+        $signatureName = $firma ? trim((string) ($firma->direktor ?? '')) : '';
+    @endphp
     <div class="print-page">
         <div class="print-header">
             <div>
@@ -268,12 +289,19 @@
             <div class="signature-box">
                 <div class="signature-line">
                     <div class="signature-label">Підпис</div>
-                    <div class="signature-space"></div>
+                    @if($signatureImage)
+                        <img src="{{ $signatureImage }}" alt="Підпис" class="signature-image">
+                    @else
+                        <div class="signature-space"></div>
+                    @endif
                 </div>
-                @if(!empty($firma->pidpys) || !empty($firma->direktor))
+                @if(!empty($signatureName))
                     <div class="signature-name">
-                        {{ $firma->pidpys ?: $firma->direktor }}
+                        {{ $signatureName }}
                     </div>
+                @endif
+                @if($stampImage)
+                    <img src="{{ $stampImage }}" alt="Печатка" class="stamp-image">
                 @endif
             </div>
         </div>

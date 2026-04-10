@@ -23,13 +23,22 @@ class DocumentService
     public function saveHead(Request $request, string $docId, string $docType, string $fid): void
     {
         $table = Document::tableForType($docType);
+        $summa = (float) $request->input('summa', 0);
+
+        if (!in_array($docType, ['PO', 'RO', 'PP'], true)) {
+            $summa = collect($request->input('psumma', []))
+                ->reduce(function (float $carry, $value) {
+                    return $carry + (float) $value;
+                }, 0.0);
+        }
+
         $data = [
             'data' => curdate($request->input('data', date('d-m-Y'))),
             'data2' => curdate($request->input('data2', date('d-m-Y'))),
             'content' => $request->input('content', ''),
             'ttn' => $request->input('ttn', ''),
             'status' => $request->input('status', '0'),
-            'summa' => (float)$request->input('summa', 0),
+            'summa' => $summa,
             'summa2' => (float)$request->input('summa2', 0),
             'discount' => (float)$request->input('discount', 0),
             'oplata' => $request->input('oplata', ''),
@@ -99,8 +108,11 @@ class DocumentService
         if (!$doc)
             return;
 
-        $numz = (string)$doc->numz;
-        $typez = (string)$doc->typez;
+        $numz = (string) ($docType === 'RN' || $docType === 'PN' ? $doc->num : $doc->numz);
+        $rowType = in_array($docType, ['RN', 'PN'], true) ? $docType : (string) $doc->typez;
+        $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'RN', 'PN'], true)
+            ? $docId
+            : (string) ($doc->docid ?: $docId);
 
         $pnums = $request->input('pnum', []);
         $pids = $request->input('pid', []);
@@ -112,9 +124,16 @@ class DocumentService
             if ($pnum === '' || $pnum === '0')
                 continue;
 
-            $exists = ZBody::where('docid', $docId)
+            $exists = ZBody::where('docid', $lineDocId)
                 ->where('pnum', $pnum)
-                ->exists();
+                ->first();
+
+            $costValue = '';
+            if ($docType === 'RN') {
+                $costValue = (string) ($exists->zvalue ?? '') !== ''
+                    ? (string) $exists->zvalue
+                    : \App\Models\ZBody::resolveUnitCost($pnum, $fid);
+            }
 
             $row = [
                 'docnum' => $numz,
@@ -123,14 +142,15 @@ class DocumentService
                 'pcount' => (float)($counts[$i] ?? 1),
                 'pprice' => (float)($prices[$i] ?? 0),
                 'psumma' => (float)($summas[$i] ?? 0),
-                'type' => $typez,
+                'type' => $rowType,
                 'firma' => $fid,
-                'docid' => $docId,
+                'docid' => $lineDocId,
+                'zvalue' => $costValue,
             ];
 
             if ($exists) {
                 // If it exists, update by docid + pnum
-                ZBody::where('docid', $docId)->where('pnum', $pnum)->update($row);
+                ZBody::where('docid', $lineDocId)->where('pnum', $pnum)->update($row);
             }
             else {
                 ZBody::create($row);

@@ -89,25 +89,59 @@ class ClientController extends Controller
     public function storeQuick(Request $request)
     {
         $fid = session('fid', '');
+        $name = trim((string) ($request->input('name') ?? ''));
+        $secondname = trim((string) ($request->input('secondname') ?? ''));
+        $rawPhone = trim((string) ($request->input('phone') ?? ''));
+        $phoneDigits = preg_replace('/\D/', '', $rawPhone);
+        $phone = $phoneDigits !== '' ? '+' . $phoneDigits : '';
+        $city = trim((string) ($request->input('city') ?? ''));
+        $idstatus = (int) $request->input('idstatus', 0);
+
+        if ($name === '' && $secondname === '' && $phone === '') {
+            return response()->json([
+                'message' => 'Заповніть хоча б одне поле: імʼя, прізвище або телефон.',
+            ], 422);
+        }
+
+        if ($idstatus <= 0) {
+            return response()->json([
+                'message' => 'Оберіть статус клієнта.',
+            ], 422);
+        }
 
         $data = [
-            'name' => $request->input('name', ''),
-            'secondname' => $request->input('secondname', ''),
-            'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
-            'city' => $request->input('city', ''),
+            'name' => $name,
+            'secondname' => $secondname,
+            'phone' => $phone,
+            'city' => $city,
             'firma' => $fid,
-            'idstatus' => 1,
+            'idstatus' => $idstatus,
+            'ustype' => $idstatus,
             'top' => 1,
         ];
+
+        if (\App\Models\User::hasUsersColumn('email')) {
+            $emailBase = $phoneDigits !== '' ? $phoneDigits : ('quickclient' . now()->timestamp);
+            $candidateEmail = $emailBase . '@local.client';
+            $suffix = 1;
+
+            while (DB::table('users')->where('email', $candidateEmail)->exists()) {
+                $candidateEmail = $emailBase . '+' . $suffix . '@local.client';
+                $suffix++;
+            }
+
+            $data['email'] = $candidateEmail;
+        }
 
         $id = User::edit('0', $data);
 
         return response()->json([
             'id' => $id,
-            'name' => $request->input('name', ''),
-            'secondname' => $request->input('secondname', ''),
-            'phone' => $request->input('phone', ''),
-            'city' => $request->input('city', ''),
+            'name' => $name,
+            'secondname' => $secondname,
+            'phone' => $phone,
+            'city' => $city,
+            'idstatus' => $idstatus,
         ]);
     }
 

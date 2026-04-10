@@ -99,7 +99,7 @@
                     <td>{{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}</td>
                     <td>{{ number_format((float)($comp->price_oldpay ?? 0), 2, '.', ' ') }}</td>
                     <td>{{ rtrim(rtrim(number_format((float)($comp->price_count ?? 0), 3, '.', ''), '0'), '.') }}</td>
-                    <td>{{ (string)($comp->price_sklad ?? '0') === '1' ? 'Є' : 'Немає' }}</td>
+                    <td>{{ $comp->price_sklad_name ?? '—' }}</td>
                     <td>{{ $comp->price_tgroup ?? '—' }}</td>
                 </tr>
                 @empty

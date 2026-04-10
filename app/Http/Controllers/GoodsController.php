@@ -100,7 +100,7 @@ class GoodsController extends Controller
             })
             ->select(
                 'comp.id',
-                DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+                DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
                 'comp.nfoto as image',
                 'comp.nfoto1 as image_thumb',
                 'comp.pay',
@@ -146,6 +146,7 @@ class GoodsController extends Controller
             return response()->json([]);
 
         $fid = $this->resolveApiFid($request);
+        $doc = strtoupper((string) $request->input('doc', ''));
 
         $goods = Goods::query()
             ->leftJoin('descript as d', function ($join) use ($fid) {
@@ -165,23 +166,49 @@ class GoodsController extends Controller
             })
             ->select(
                 'comp.id',
-                DB::raw('COALESCE(d.name, comp.nickname, "") as name'),
+                DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
                 'comp.pay',
+                'comp.pay1',
                 'comp.firma'
             )
             ->limit(20)
             ->get();
 
         $goods = Goods::attachPreferredPricesByItemFirma($goods)
-            ->map(function ($g) {
+            ->map(function ($g) use ($doc) {
+                // For ZIN documents (purchase/procurement), use purchase price (comp.pay)
+                // For ZOUT documents (orders), use price.pay by default,
+                // but if quantity >= price.count and price.pay1 > 0, use price.pay1
+                // For other documents, use sales price (comp.pay1 or preferred price)
+                if ($doc === 'ZIN') {
+                    $price = (float) ($g->pay1 ?? 0);
+                } elseif ($doc === 'ZOUT') {
+                    $basePrice = (float) ($g->price_pay ?? $g->pay ?? 0);
+                    $wholesalePrice = (float) ($g->price_pay1 ?? 0);
+                    $wholesaleThreshold = (int) ($g->price_count ?? 0);
+                    
+                    // For ZOUT: use wholesale price only if threshold is set and wholesale price > 0
+                    // The actual quantity check will be done on frontend
+                    if ($wholesaleThreshold > 0 && $wholesalePrice > 0) {
+                        $price = $wholesalePrice;
+                    } else {
+                        $price = $basePrice;
+                    }
+                } else {
+                    $price = (float) ($g->price_pay ?? $g->pay1 ?? 0);
+                }
+
                 return [
                     'id' => $g->id,
                     'pnum' => $g->id,
                     'name' => $g->name,
-                    'price' => (float) ($g->price_pay ?? 0),
-                    'wholesalePrice' => $g->wholesale_price !== null ? (float) $g->wholesale_price : null,
-                    'wholesaleFrom' => $g->wholesale_from !== null ? (int) $g->wholesale_from : null,
-                    'count' => (float) ($g->price_count ?? 0),
+                    'price' => $price,
+                    'priceCompPay' => (float) ($g->pay ?? 0),
+                    'priceCompPay1' => (float) ($g->pay1 ?? 0),
+                    'priceBase' => (float) ($g->price_pay ?? 0),
+                    'priceWholesale' => (float) ($g->price_pay1 ?? 0),
+                    'wholesaleFrom' => (int) ($g->price_count ?? 0),
+                    'count' => (float) ($g->sklad ?? 0),
                 ];
             });
 

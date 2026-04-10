@@ -137,14 +137,14 @@ class Money extends Model
 
     // ── save: insert або update ───────────────────────────────────────────────
 
-    public static function saveDocument($id, $fid, $data)
+    public static function saveDocument($id, $fid, $data): int
     {
         $data['firma'] = $fid;
         $data['money'] = (string)($data['money'] ?? '');
         $data['content'] = (string)($data['content'] ?? '');
         $data['client1'] = (string)($data['client1'] ?? '0');
         $data['summa'] = (float)($data['summa'] ?? 0);
-        $data['data'] = (string)($data['data'] ?? date('d-m-Y'));
+        $data['data'] = curdate((string) ($data['data'] ?? date('d-m-Y')));
 
         if ($id === 0) {
             $maxNum = DB::table('z_document')
@@ -155,12 +155,14 @@ class Money extends Model
             $data['num']  = $maxNum ? (int)$maxNum + 1 : 1;
             $data['time'] = date('H:i:s');
 
-            DB::table('z_document')->insert($data);
+            return (int) DB::table('z_document')->insertGetId($data);
         } else {
             DB::table('z_document')
                 ->where('id', $id)
                 ->where('firma', $fid)
                 ->update($data);
+
+            return (int) $id;
         }
     }
 
