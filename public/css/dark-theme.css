@@ -1414,6 +1414,11 @@ small,
     font-size: 0.85rem;
 }
 
+/* Goods name input - full width */
+#goodsTable td:nth-child(2) input[readonly] {
+    width: 100%;
+}
+
 #goodsTable .form-control-sm {
     font-size: 0.82rem;
     padding: 2px 5px;
