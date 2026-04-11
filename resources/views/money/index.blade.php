@@ -15,8 +15,8 @@
     $returnFilters = array_merge($filters ?? [], ['pos' => $pos ?? 0]);
 @endphp
 
-<div class="ttable" style="padding: 12px 16px; margin-bottom: 16px;">
-    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+<div class="ttable money-action-bar">
+    <div class="money-action-bar__actions">
         <button type="button"
             onclick="moneyFilterToggle()"
             class="btn {{ !empty($activeFilters) ? 'btn-warning' : 'btn-outline-secondary' }}">
@@ -42,7 +42,7 @@
         ])) }}" class="btn btn-danger">+ Видача</a>
     </div>
 </div>
-<div class="ttable" style="padding: 16px;">
+<div class="ttable money-table" style="padding: 16px;">
 
     @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
@@ -52,28 +52,28 @@
     @endif
 
     @if(!empty($activeFilters))
-    <div class="alert alert-warning" style="margin-bottom: 16px;">
+    <div class="alert alert-warning money-filter-active-notice">
         Увімкнено фільтр по ордерах.
         <a href="{{ route('money.index') }}" style="margin-left: 8px;">Скинути</a>
     </div>
     @endif
 
     {{-- Зведення --}}
-    <div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
-        <div class="glass-card" style="flex:1;min-width:200px;text-align:center;">
-            <div style="font-size:2rem;">📥</div>
-            <div style="font-weight:bold;font-size:1.1em;">Приход (PO)</div>
-            <div style="color:var(--accent-amber);font-size:1.25rem;font-weight:700;">{{ number_format($sumPO, 2, '.', ' ') }} грн</div>
+    <div class="money-summary">
+        <div class="glass-card money-summary__card">
+            <div class="money-summary__icon">📥</div>
+            <div class="money-summary__label">Приход (PO)</div>
+            <div class="money-summary__value money-summary__value--income">{{ number_format($sumPO, 2, '.', ' ') }} грн</div>
         </div>
-        <div class="glass-card" style="flex:1;min-width:200px;text-align:center;">
-            <div style="font-size:2rem;">📤</div>
-            <div style="font-weight:bold;font-size:1.1em;">Видача (RO)</div>
-            <div style="color:#f87171;font-size:1.25rem;font-weight:700;">{{ number_format($sumRO, 2, '.', ' ') }} грн</div>
+        <div class="glass-card money-summary__card">
+            <div class="money-summary__icon">📤</div>
+            <div class="money-summary__label">Видача (RO)</div>
+            <div class="money-summary__value money-summary__value--expense">{{ number_format($sumRO, 2, '.', ' ') }} грн</div>
         </div>
-        <div class="glass-card" style="flex:1;min-width:200px;text-align:center;">
-            <div style="font-size:2rem;">💰</div>
-            <div style="font-weight:bold;font-size:1.1em;">Баланс</div>
-            <div style="color:var(--accent-amber);font-size:1.25rem;font-weight:700;">{{ number_format($sumPO - $sumRO, 2, '.', ' ') }} грн</div>
+        <div class="glass-card money-summary__card">
+            <div class="money-summary__icon">💰</div>
+            <div class="money-summary__label">Баланс</div>
+            <div class="money-summary__value money-summary__value--income">{{ number_format($sumPO - $sumRO, 2, '.', ' ') }} грн</div>
         </div>
     </div>
 
@@ -82,10 +82,10 @@
     {{-- Список документів --}}
 
     @if($documents->isEmpty())
-    <div style="text-align:center; padding:20px; color:#CC0000;">Документи відсутні...</div>
+    <div class="money-empty">Документи відсутні...</div>
     @else
-    <table class="table table-bordered table-sm">
-        <thead style="background:#efefef;">
+    <table class="table table-bordered table-sm money-table">
+        <thead>
             <tr>
                 <th>#</th>
                 <th>Тип</th>
@@ -104,22 +104,22 @@
                 <td>{{ $doc->num }}</td>
                 <td>
                     @if($doc->type === 'PO')
-                    <span style="color:green; font-weight:bold;">📥 PO</span>
+                    <span class="money-doc-type--po">📥 PO</span>
                     @else
-                    <span style="color:red; font-weight:bold;">📤 RO</span>
+                    <span class="money-doc-type--ro">📤 RO</span>
                     @endif
                 </td>
                 <td>{{ $doc->data ?? '—' }}</td>
-                <td style="font-size:0.9em;">
+                <td class="money-table__client">
                     {{ $doc->orgname ?? '' }}
                     {{ trim(($doc->secondname ?? '') . ' ' . ($doc->name ?? '') . ' ' . ($doc->name2 ?? '')) }}
                     @if($doc->phone)<br><small>{{ $doc->phone }}</small>@endif
                 </td>
                 <td>{{ $kassasMap[$doc->money ?? ''] ?? ($doc->money ?: '—') }}</td>
-                <td style="font-weight:bold; color:{{ $doc->type === 'PO' ? 'green' : 'red' }};">
+                <td class="{{ $doc->type === 'PO' ? 'money-doc-sum--po' : 'money-doc-sum--ro' }}">
                     {{ number_format($doc->summa ?? 0, 2, '.', ' ') }}
                 </td>
-                <td style="font-size:0.9em;">{{ $doc->content ?? '' }}</td>
+                <td class="money-table__comment">{{ $doc->content ?? '' }}</td>
                 <td style="text-align:center;">{{ $doc->provodka ? '✅' : '' }}</td>
                 <td>
                     <a href="{{ route('money.show', array_merge(['id' => $doc->id, 'type' => $doc->type], [
@@ -172,20 +172,20 @@
 
 </div>
 
-<div id="moneyFilterModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:9999; justify-content:center; align-items:center;">
-    <div class="glass-card" style="width:720px; max-width:92vw; max-height:82vh; overflow-y:auto; position:relative; margin:0 auto; padding:24px;">
-        <div onclick="moneyFilterToggle()" style="position:absolute; top:12px; right:16px; cursor:pointer; font-size:1.5rem; color:var(--muted-foreground); z-index:10;">✕</div>
-        <h3 style="margin:0 0 16px 0;">🔍 Фільтр ордерів</h3>
+<div id="moneyFilterModal" class="money-filter-modal">
+    <div class="glass-card money-filter-modal__content">
+        <div onclick="moneyFilterToggle()" class="money-filter-modal__close">✕</div>
+        <h3 class="money-filter-modal__title">🔍 Фільтр ордерів</h3>
 
         <form action="{{ route('money.index') }}" method="get">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                <div>
-                    <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Номер, клієнт або коментар</label>
+            <div class="money-filter-modal__grid">
+                <div class="money-filter-modal__field">
+                    <label>Номер, клієнт або коментар</label>
                     <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" class="form-control">
                 </div>
 
-                <div>
-                    <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Тип</label>
+                <div class="money-filter-modal__field">
+                    <label>Тип</label>
                     <select name="type" class="form-control">
                         <option value="">Усі</option>
                         <option value="PO" {{ ($filters['type'] ?? '') === 'PO' ? 'selected' : '' }}>Прихід (PO)</option>
@@ -193,8 +193,8 @@
                     </select>
                 </div>
 
-                <div>
-                    <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Каса</label>
+                <div class="money-filter-modal__field">
+                    <label>Каса</label>
                     <select name="money" class="form-control">
                         <option value="">Усі</option>
                         @foreach(($kassasMap ?? []) as $moneyName => $moneyLabel)
@@ -205,8 +205,8 @@
                     </select>
                 </div>
 
-                <div>
-                    <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Вид платежу</label>
+                <div class="money-filter-modal__field">
+                    <label>Вид платежу</label>
                     <select name="reestr" class="form-control">
                         <option value="">Усі</option>
                         @foreach(($paymentTypes ?? []) as $paymentType)
@@ -217,87 +217,24 @@
                     </select>
                 </div>
 
-                <div>
-                    <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Дата початку</label>
+                <div class="money-filter-modal__field">
+                    <label>Дата початку</label>
                     <input type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}" class="form-control">
                 </div>
 
-                <div>
-                    <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Дата закінчення</label>
+                <div class="money-filter-modal__field">
+                    <label>Дата закінчення</label>
                     <input type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}" class="form-control">
                 </div>
             </div>
 
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button type="submit" class="btn btn-warning" style="flex:1;">Застосувати</button>
-                <a href="{{ route('money.index') }}" class="btn btn-outline-secondary" style="flex:1;">Скинути</a>
+            <div class="money-filter-modal__actions">
+                <button type="submit" class="btn btn-warning">Застосувати</button>
+                <a href="{{ route('money.index') }}" class="btn btn-outline-secondary">Скинути</a>
             </div>
         </form>
     </div>
 </div>
-
-<style>
-    .money-pagination {
-        margin-top: 18px;
-        padding-top: 14px;
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
-
-    .money-pagination__meta {
-        color: #9ca3af;
-        font-size: 0.92rem;
-    }
-
-    .money-pagination__controls {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-    }
-
-    .money-pagination__pages {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
-    .money-pagination__page,
-    .money-pagination__nav {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 40px;
-        height: 40px;
-        padding: 0 14px;
-        border-radius: 999px;
-        text-decoration: none;
-        color: #e5e7eb;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        transition: 0.18s ease;
-    }
-
-    .money-pagination__page:hover,
-    .money-pagination__nav:hover {
-        background: rgba(251, 191, 36, 0.12);
-        border-color: rgba(251, 191, 36, 0.4);
-        color: #fff;
-    }
-
-    .money-pagination__page.is-active {
-        background: linear-gradient(135deg, #f59e0b, #fbbf24);
-        color: #111827;
-        border-color: transparent;
-        font-weight: 700;
-        box-shadow: 0 8px 18px rgba(245, 158, 11, 0.25);
-    }
-</style>
 
 <script>
 function moneyFilterToggle() {

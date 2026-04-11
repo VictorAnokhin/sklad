@@ -3,54 +3,7 @@
 @section('content')
 @include('partials.panel')
 
-<style>
-    .doc-page { padding: 12px 20px; }
-    .doc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-    .doc-header h2 { margin: 0; font-size: 1.3rem; }
-    .related-icons-bar { margin-bottom: 10px; }
-
-    /* Two-column layout */
-    .doc-layout { display: flex; gap: 16px; align-items: flex-start; }
-    .doc-form-col { flex: 1; min-width: 0; }
-    .doc-related-col { width: 340px; flex-shrink: 0; position: sticky; top: 10px; }
-
-    /* Compact form */
-    .compact-form .row { margin: 0; }
-    .compact-form .col-f { flex: 1 1 0; min-width: 0; padding: 0 6px; }
-    .compact-form label { font-size: 0.78rem; font-weight: 600; margin-bottom: 2px; color: #555; }
-    .compact-form .form-control,
-    .compact-form .form-select,
-    .compact-form .input-group { font-size: 0.85rem; padding: 4px 8px; height: auto; }
-    .compact-form .input-group .form-control { padding: 4px 8px; }
-    .compact-form .input-group .btn { padding: 4px 8px; font-size: 0.8rem; }
-    .compact-form .client-search-row { display: flex; gap: 4px; margin-bottom: 4px; }
-    .compact-form .client-search-row input { flex: 1; }
-    .compact-form .client-search-row button { white-space: nowrap; font-size: 0.78rem; padding: 4px 10px; }
-
-    /* Goods table compact */
-    #goodsTable th, #goodsTable td { padding: 4px 6px !important; font-size: 0.85rem; }
-    #goodsTable .form-control-sm { font-size: 0.82rem; padding: 2px 5px; }
-
-    /* Related docs panel */
-    .related-panel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 10px 12px; font-size: 0.85rem; }
-    .related-panel h5 { font-size: 0.95rem; margin: 0 0 8px; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; }
-    .related-panel .tstr { padding: 3px 0; border-bottom: 1px dotted #e0e0e0; }
-    .related-panel .ttable { margin: 6px 0; padding: 6px 8px; background: #fff; border-radius: 4px; border: 1px solid #eee; }
-    .related-panel .button { font-size: 0.8rem; padding: 3px 10px; }
-
-    /* Action buttons row */
-    .doc-actions { display: flex; gap: 8px; margin-top: 10px; }
-    .doc-actions .btn { font-size: 0.85rem; padding: 5px 14px; }
-    #newClientModal .form-label { color: #000; font-weight: 600; }
-    #newClientModal .is-invalid { border-color: #dc3545; }
-
-    @media (max-width: 992px) {
-        .doc-layout { flex-direction: column; }
-        .doc-related-col { width: 100%; position: static; }
-    }
-</style>
-
-<div class="ttable doc-page" style="max-width: 1400px; margin: 0 auto; background: #fff; border-radius: 8px;">
+<div class="ttable doc-page">
 
     {{-- Header --}}
     <div class="doc-header">
@@ -82,7 +35,7 @@
 
     {{-- Related icons strip (client_info) --}}
     @if(!empty($relatedIcons))
-    <div class="alert alert-secondary py-2 related-icons-bar" style="font-size:0.9em;">
+    <div class="alert alert-secondary py-2 related-icons-bar">
         <strong>Зв'язані:</strong> {!! $relatedIcons !!}
     </div>
     @endif
@@ -105,7 +58,7 @@
                      PO/RO:  Дата | Касса | Вид платежа
                      PN/RN/WO1: Дата | Склад
                      Others: Дата | ТТН | Статус -->
-                <div style="display:flex; gap:6px; margin-bottom:6px;">
+                <div class="doc-form-row">
                     <div class="col-f">
                         <label>Дата</label>
                         <input type="date" name="data" class="form-control" value="{{ $documentDateValue }}">
@@ -179,7 +132,7 @@
                 </div>
 
                 <!-- Row 2: Клієнт -->
-                <div style="margin-bottom:6px;">
+                <div class="doc-form-row-single">
                     <label>Клієнт</label>
                     <div class="client-search-row">
                         <input type="text" id="clientSearchInput" class="form-control"
@@ -188,13 +141,11 @@
                         <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
                             data-bs-target="#newClientModal">Новий</button>
                     </div>
-                    <div id="clientSearchResults" class="list-group"
-                        style="display:none; max-height:180px; overflow-y:auto; position:absolute; z-index:1000; width:calc(100% - 12px); box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                    <div id="clientSearchResults" class="list-group client-search-results">
                     </div>
                     <input type="hidden" name="client1" id="client1_id" value="{{ old('client1', $client ? $client->id : '') }}">
                     <div id="selectedClientDetails"
-                        class="alert {{ $client ? 'alert-secondary' : 'alert-warning' }} py-1 mt-1"
-                        style="font-size:0.85rem; {{ $client ? 'background:#f8f9fa; border:1px solid #ddd;' : '' }}">
+                        class="alert {{ $client ? 'alert-secondary' : 'alert-warning' }} py-1 mt-1 selected-client-details {{ $client ? 'selected-client-details--filled' : 'selected-client-details--empty' }}">
                         @if($client)
                         <strong>{{ $client->orgname }}</strong> | {{ $client->name2 }} {{ $client->name }} {{ $client->secondname }}<br>
                         {{ $client->phone }} | {{ $client->city }}
@@ -208,49 +159,48 @@
                 </div>
 
                 <!-- Row 3: Сума / Бонус -->
-                <div style="display:flex; gap:6px; margin-bottom:6px;">
+                <div class="doc-form-row doc-form-row-numbers">
                     @if(in_array($doc, ['PO', 'RO'], true))
-                    <div class="col-f">
+                    <div class="col-f col-f-number">
                         <label>Сума</label>
-                        <input type="number" step="0.01" name="summa" id="documentSummaInput" class="form-control" value="{{ $document->summa ?? 0 }}">
+                        <input type="number" step="0.01" name="summa" id="documentSummaInput" class="form-control form-control-number" value="{{ $document->summa ?? 0 }}">
                     </div>
                     @endif
-                    <div class="col-f">
+                    <div class="col-f col-f-number">
                         <label>Бонус</label>
-                        <input type="number" step="0.01" name="bonus" class="form-control" value="{{ $document->bonus ?? 0 }}">
+                        <input type="number" step="0.01" name="bonus" class="form-control form-control-number" value="{{ $document->bonus ?? 0 }}">
                     </div>
                 </div>
 
                 <!-- Row 4: Коментар -->
-                <div style="margin-bottom:8px;">
+                <div class="doc-form-row-comment">
                     <label>Коментар</label>
                     <input type="text" name="content" class="form-control" value="{{ $document->content ?? '' }}">
                 </div>
 
                 <!-- Goods add — hidden for PO/RO (payment types) -->
                 @if(!in_array($doc, ['PO', 'RO'], true))
-                <div style="position:relative; margin-bottom:8px; padding:8px; border:1px solid #dee2e6; border-radius:4px; background:#fafafa;">
-                    <div style="display:flex; gap:4px;">
+                <div class="goods-search-container">
+                    <div class="goods-search-row">
                         <input type="text" id="goodsSearchInput" class="form-control"
-                            placeholder="Поиск товара..." autocomplete="off" style="flex:1;">
+                            placeholder="Поиск товара..." autocomplete="off">
                         <button type="button" id="searchGoodsBtn" class="btn btn-outline-secondary btn-sm">Шукати</button>
                     </div>
-                    <div id="goodsSearchResults" class="list-group"
-                        style="display:none; position:absolute; z-index:1000; width:calc(100% - 16px); max-height:220px; overflow-y:auto; box-shadow:0 4px 6px rgba(0,0,0,0.1); margin-top:4px;">
+                    <div id="goodsSearchResults" class="list-group goods-search-results">
                     </div>
                 </div>
 
                 <!-- Goods table -->
-                <h5 style="font-size:0.95rem; margin-bottom:4px;">Товари</h5>
+                <h5 class="goods-title">Товари</h5>
                 <table class="table table-bordered table-sm" id="goodsTable">
-                    <thead style="background:#efefef">
+                    <thead class="goods-table-header">
                         <tr>
-                            <th style="width:60px;">Код</th>
+                            <th class="goods-table-col-code">Код</th>
                             <th>Найменування</th>
-                            <th style="width:60px;">К-ть</th>
-                            <th style="width:70px;">Ціна</th>
-                            <th style="width:70px;">Сума</th>
-                            <th style="width:36px;"></th>
+                            <th class="goods-table-col-qty">К-ть</th>
+                            <th class="goods-table-col-price">Ціна</th>
+                            <th class="goods-table-col-sum">Сума</th>
+                            <th class="goods-table-col-actions"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -261,18 +211,18 @@
                                 <input type="hidden" name="id[]" value="{{ $item->id }}">
                                 <input type="hidden" name="pid[]" value="{{ $item->pid }}">
                                 <input type="hidden" name="pnum[]" value="{{ $item->pnum }}">
-                                <input type="text" class="form-control form-control-sm" value="{{ $item->pnum }}" readonly style="width:55px;">
+                                <input type="text" class="form-control form-control-sm" value="{{ $item->pnum }}" readonly>
                             </td>
                             <td>
                                 <input type="hidden" name="name[]" value="{{ $item->name ?? '' }}">
                                 <input type="text" class="form-control form-control-sm" value="{{ $item->name ?? '' }}" readonly>
                             </td>
                             <td>
-                                <div class="input-group input-group-sm" style="width:130px;">
-                                    <button type="button" class="btn btn-outline-secondary btn-qty-decrease" style="padding:2px 6px; font-size:0.9rem; line-height:1;">−</button>
-                                    <input type="number" step="1" name="pcount[]" style="width:60px; text-align:center;"
+                                <div class="input-group input-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
+                                    <input type="number" step="1" name="pcount[]"
                                         class="form-control form-control-sm goods-count" value="{{ $item->pcount }}">
-                                    <button type="button" class="btn btn-outline-secondary btn-qty-increase" style="padding:2px 6px; font-size:0.9rem; line-height:1;">+</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                 </div>
                             </td>
                             <td><input type="string" name="pprice[]"
@@ -282,8 +232,7 @@
                             <td class="text-center">
                             @if(intval($document->provodka) === 0)
                                 <button type="submit" name="bid" value="{{ $item->id }}"
-                                    formaction="{{ route('document.body.delete') }}" class="btn btn-sm btn-outline-danger"
-                                    style="padding:1px 6px; font-size:0.8rem;"
+                                    formaction="{{ route('document.body.delete') }}" class="btn btn-sm btn-outline-danger remove-btn"
                                     title="Видалити" onclick="return confirm('Видалити цей товар?');">❌</button>
                             @endif
                             </td>
@@ -291,19 +240,18 @@
                         @endforeach
                         @else
                         <tr id="emptyGoodsRow">
-                            <td colspan="6" class="text-center text-muted" style="font-size:0.85rem;">Немає товарів</td>
+                            <td colspan="6" class="text-center text-muted">Немає товарів</td>
                         </tr>
                         @endif
                     </tbody>
                 </table>
 
                 <!-- Сума field below goods table, right-aligned 30% width -->
-                <div class="d-flex justify-content-end mb-3" style="width:30%; margin-left:auto;">
-                    <div style="padding:8px; background:#f0f7ff; border:2px solid #0d6efd; border-radius:6px; width:100%;">
-                        <label style="font-size:0.85rem; font-weight:700; color:#0d6efd; margin-bottom:4px;">💰 Сума</label>
-                        <input type="number" step="0.01" name="summa" id="documentSummaInput" class="form-control" 
-                            value="{{ $document->summa ?? 0 }}" 
-                            style="font-size:1rem; font-weight:700; padding:6px 10px; height:auto;">
+                <div class="d-flex justify-content-end mb-3 doc-sum-box">
+                    <div class="doc-sum-box-inner">
+                        <label class="doc-sum-box-label">💰 Сума</label>
+                        <input type="number" step="0.01" name="summa" id="documentSummaInput" class="form-control doc-sum-box-input"
+                            value="{{ $document->summa ?? 0 }}">
                     </div>
                 </div>
 
@@ -320,7 +268,7 @@
                         ↺ Скасувати проводку
                     </button>
                     @else
-                    <div class="form-check d-flex align-items-center" style="margin: 0 4px 0 0;">
+                    <div class="form-check d-flex align-items-center post-checkbox">
                         <input type="hidden" name="post_after_save" value="0">
                         <input
                             type="checkbox"
@@ -329,7 +277,7 @@
                             name="post_after_save"
                             value="1"
                             checked>
-                        <label class="form-check-label ms-2" for="post_after_save" style="font-size:0.85rem;">
+                        <label class="form-check-label ms-2 post-checkbox-label" for="post_after_save">
                             Провести документ
                         </label>
                     </div>
@@ -367,7 +315,7 @@
     </form>
 
     {{-- Hidden form for document deletion --}}
-    <form id="deleteDocForm" action="{{ route('document.destroy') }}" method="post" style="display:none;">
+    <form id="deleteDocForm" action="{{ route('document.destroy') }}" method="post" class="delete-form">
         @csrf
         <input type="hidden" name="doc_id" value="{{ $document->id }}">
         <input type="hidden" name="doc" value="{{ $doc }}">
@@ -408,7 +356,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div id="newClientError" class="text-danger" style="display:none;"></div>
+                <div id="newClientError" class="text-danger" style="display: none;"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
@@ -704,18 +652,18 @@
                                 if (emptyRow) emptyRow.remove();
                                 const tr = document.createElement('tr');
                                 tr.innerHTML = `
-                                    <td><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm" value="${good.pnum}" readonly style="width:55px;"></td>
+                                    <td><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm" value="${good.pnum}" readonly></td>
                                     <td><input type="hidden" name="name[]" value="${good.name || ''}"><input type="text" class="form-control form-control-sm" value="${good.name || ''}" readonly></td>
                                     <td>
-                                        <div class="input-group input-group-sm" style="width:130px;">
-                                            <button type="button" class="btn btn-outline-secondary btn-qty-decrease" style="padding:2px 6px; font-size:0.9rem; line-height:1;">−</button>
-                                            <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count" value="1" style="width:60px; text-align:center;">
-                                            <button type="button" class="btn btn-outline-secondary btn-qty-increase" style="padding:2px 6px; font-size:0.9rem; line-height:1;">+</button>
+                                        <div class="input-group input-group-sm">
+                                            <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
+                                            <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count" value="1">
+                                            <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                         </div>
                                     </td>
                                     <td><input type="number" step="0.01" name="pprice[]" class="form-control form-control-sm goods-price" value="${good.price}"></td>
                                     <td><input type="number" step="0.01" name="psumma[]" class="form-control form-control-sm goods-sum" value="${good.price}"></td>
-                                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row" style="padding:1px 6px;font-size:0.8rem;">❌</button></td>`;
+                                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row remove-btn">❌</button></td>`;
                                 tr.dataset.priceCompPay = good.priceCompPay || 0;
                                 tr.dataset.priceCompPay1 = good.priceCompPay1 || 0;
                                 tr.dataset.priceBase = good.priceBase || 0;
@@ -730,7 +678,7 @@
                                 tr.querySelector('.remove-new-row').addEventListener('click', () => {
                                     tr.remove();
                                     if (tableBody.querySelectorAll('tr').length === 0) {
-                                        tableBody.innerHTML = '<tr id="emptyGoodsRow"><td colspan="6" class="text-center text-muted" style="font-size:0.85rem;">Немає товарів</td></tr>';
+                                        tableBody.innerHTML = '<tr id="emptyGoodsRow"><td colspan="6" class="text-center text-muted">Немає товарів</td></tr>';
                                     }
                                     updateDocumentSum();
                                 });

@@ -280,6 +280,7 @@ button,
     text-decoration: none;
     display: inline-block;
     text-align: center;
+    color: #ffffff;
 }
 
 /* Primary button - amber gradient */
@@ -864,9 +865,14 @@ small,
 /* Responsive design */
 @media (max-width: 768px) {
     .wrapper {
-        padding: 0 1rem;
+        padding: 0;
     }
-    
+
+    .main {
+        width: 100%;
+        padding: 1rem 0;
+    }
+
     h1 { font-size: 1.5rem; }
     h2 { font-size: 1.25rem; }
     h3 { font-size: 1.125rem; }
@@ -909,10 +915,1147 @@ small,
     .wrapper {
         padding: 0 0.75rem;
     }
-    
+
     h1 { font-size: 1.25rem; }
-    
+
     .glass-card {
         padding: 1rem;
+    }
+}
+
+/* Document compact layout - top action bar */
+.top-action-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.top-action-filter {
+    flex: 0 0 auto;
+}
+
+.top-action-create {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.top-action-create-btn {
+    width: auto !important;
+    min-width: 150px;
+    margin: 6px 0 !important;
+    white-space: nowrap;
+}
+
+.top-action-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.top-action-panel .tstr0 {
+    margin-bottom: 0;
+}
+
+/* Document compact list */
+.document-compact-wrap {
+    overflow: hidden;
+}
+
+.document-compact-list {
+    display: grid;
+    gap: 0.55rem;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+}
+
+.document-compact-wrap .txtbox-price-docs {
+    min-width: 1020px;
+    grid-template-columns: 42px 104px minmax(220px, 1.05fr) 150px 100px minmax(320px, 1.55fr);
+    gap: 0.5rem;
+    padding: 0.72rem 0.8rem;
+    margin-bottom: 0;
+}
+
+.document-compact-wrap .numdoc-docs,
+.document-compact-wrap .status-docs4,
+.document-compact-wrap .captionbox-docs,
+.document-compact-wrap .status-docs3,
+.document-compact-wrap .pricebox-docs1,
+.document-compact-wrap .captionbox-docs2 {
+    min-width: 0;
+    width: auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.document-compact-wrap .captionbox-docs a,
+.document-compact-wrap .captionbox-docs2,
+.document-compact-wrap .compact-date {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.document-compact-wrap .compact-date {
+    white-space: normal;
+    line-height: 1.1;
+}
+
+.document-compact-wrap .compact-date-line {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.document-compact-wrap .captionbox-docs a br,
+.document-compact-wrap .captionbox-docs2 br,
+.document-compact-wrap .status-docs4 br {
+    display: none;
+}
+
+.document-compact-wrap .status-docs3 {
+    padding: 0.45rem 0.65rem;
+    height: auto;
+    margin-top: 0;
+}
+
+.document-compact-wrap .pricebox-docs1 {
+    text-align: right;
+}
+
+.document-compact-wrap .captionbox-docs2 {
+    font-size: 0.76rem;
+    color: rgba(255, 255, 255, 0.78);
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.18;
+    word-break: break-word;
+}
+
+.document-compact-wrap .compact-sep {
+    color: rgba(255, 255, 255, 0.32);
+    margin: 0 0.35rem;
+}
+
+.document-compact-wrap .compact-main {
+    font-weight: 600;
+}
+
+.document-compact-wrap .captionbox-docs a {
+    white-space: normal;
+    line-height: 1.15;
+}
+
+.document-compact-wrap .compact-client-line,
+.document-compact-wrap .phone {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.document-compact-wrap .compact-client-line + .compact-client-line,
+.document-compact-wrap .compact-client-line + .phone {
+    margin-top: 0.12rem;
+}
+
+/* Zakaz variant with extra client info column */
+.document-compact-wrap.zakaz .txtbox-price-docs,
+.txtbox-price-docs.zakaz {
+    min-width: 1120px;
+    grid-template-columns: 42px 104px minmax(220px, 1fr) 150px minmax(130px, 0.72fr) 104px minmax(320px, 1.55fr);
+}
+
+/* Money index - summary cards */
+.money-summary {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.money-summary__card {
+    flex: 1;
+    min-width: 200px;
+    text-align: center;
+}
+
+.money-summary__icon {
+    font-size: 2rem;
+}
+
+.money-summary__label {
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.money-summary__value {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.money-summary__value--income {
+    color: var(--accent-amber);
+}
+
+.money-summary__value--expense {
+    color: #f87171;
+}
+
+/* Money index - document type badges */
+.money-doc-type--po {
+    color: green;
+    font-weight: bold;
+}
+
+.money-doc-type--ro {
+    color: red;
+    font-weight: bold;
+}
+
+.money-doc-sum--po {
+    font-weight: bold;
+    color: green;
+}
+
+.money-doc-sum--ro {
+    font-weight: bold;
+    color: red;
+}
+
+/* Money index - filter modal */
+.money-filter-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+.money-filter-modal.is-open {
+    display: flex;
+}
+
+.money-filter-modal__content {
+    width: 720px;
+    max-width: 92vw;
+    max-height: 82vh;
+    overflow-y: auto;
+    position: relative;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.money-filter-modal__close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: var(--muted-foreground);
+    z-index: 10;
+}
+
+.money-filter-modal__title {
+    margin: 0 0 16px 0;
+}
+
+.money-filter-modal__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.money-filter-modal__field {
+    display: block;
+}
+
+.money-filter-modal__field label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.85rem;
+}
+
+.money-filter-modal__actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.money-filter-modal__actions .btn {
+    flex: 1;
+}
+
+/* Money index - table header */
+.money-table thead {
+    background: #efefef;
+}
+
+.money-table__client {
+    font-size: 0.9em;
+}
+
+.money-table__comment {
+    font-size: 0.9em;
+}
+
+/* Money index - pagination */
+.money-pagination {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.money-pagination__meta {
+    color: #9ca3af;
+    font-size: 0.92rem;
+}
+
+.money-pagination__controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.money-pagination__pages {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.money-pagination__page,
+.money-pagination__nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    text-decoration: none;
+    color: #e5e7eb;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: 0.18s ease;
+}
+
+.money-pagination__page:hover,
+.money-pagination__nav:hover {
+    background: rgba(251, 191, 36, 0.12);
+    border-color: rgba(251, 191, 36, 0.4);
+    color: #fff;
+}
+
+.money-pagination__page.is-active {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #111827;
+    border-color: transparent;
+    font-weight: 700;
+    box-shadow: 0 8px 18px rgba(245, 158, 11, 0.25);
+}
+
+/* Money index - action bar */
+.money-action-bar {
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+
+.money-action-bar__actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.money-action-bar__filter-btn {
+    /* inherits .btn styles */
+    padding: 12px 16px;
+}
+
+.money-action-bar__filter-btn--active {
+    /* inherits .btn-warning styles */
+    padding: 12px 16px;
+}
+
+.money-empty {
+    text-align: center;
+    padding: 20px;
+    color: #CC0000;
+}
+
+.money-filter-active-notice {
+    margin-bottom: 16px;
+}
+
+/* Document show page */
+.doc-page {
+    padding: 12px 20px;
+}
+
+.doc-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.doc-header h2 {
+    margin: 0;
+    font-size: 1.3rem;
+}
+
+.related-icons-bar {
+    margin-bottom: 10px;
+    font-size: 0.9em;
+}
+
+.doc-layout {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.doc-form-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.doc-related-col {
+    width: 340px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 10px;
+}
+
+.compact-form .row {
+    margin: 0;
+}
+
+.compact-form .col-f {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 6px;
+}
+
+.compact-form label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+    color: #fbbf24;
+}
+
+.compact-form .form-control,
+.compact-form .form-select,
+.compact-form .input-group {
+    font-size: 0.85rem;
+    padding: 4px 8px;
+    height: auto;
+}
+
+.compact-form .input-group .form-control {
+    padding: 4px 8px;
+}
+
+.compact-form .input-group .btn {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+}
+
+.compact-form .client-search-row {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.compact-form .client-search-row input {
+    flex: 1;
+}
+
+.compact-form .client-search-row button {
+    white-space: nowrap;
+    font-size: 0.78rem;
+    padding: 4px 10px;
+}
+
+/* Number fields - shorter width */
+.doc-form-row-numbers {
+    max-width: 400px;
+}
+
+.col-f-number {
+    max-width: 140px;
+}
+
+.form-control-number {
+    max-width: 120px;
+    text-align: right;
+}
+
+/* Goods table compact */
+#goodsTable th,
+#goodsTable td {
+    padding: 4px 6px !important;
+    font-size: 0.85rem;
+}
+
+#goodsTable .form-control-sm {
+    font-size: 0.82rem;
+    padding: 2px 5px;
+}
+
+/* Related docs panel */
+.related-panel {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+}
+
+.related-panel h5 {
+    font-size: 0.95rem;
+    margin: 0 0 8px;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 6px;
+}
+
+.related-panel .tstr {
+    padding: 3px 0;
+    border-bottom: 1px dotted #e0e0e0;
+}
+
+.related-panel .ttable {
+    margin: 6px 0;
+    padding: 6px 8px;
+    background: #fff;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+.related-panel .button {
+    font-size: 0.8rem;
+    padding: 3px 10px;
+}
+
+/* Action buttons row */
+.doc-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.doc-actions .btn {
+    font-size: 0.85rem;
+    padding: 5px 14px;
+}
+
+#newClientModal .form-label {
+    color: #000;
+    font-weight: 600;
+}
+
+#newClientModal .is-invalid {
+    border-color: #dc3545;
+}
+
+/* Document show - form rows */
+.doc-form-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.doc-form-row-single {
+    margin-bottom: 6px;
+}
+
+.doc-form-row-comment {
+    margin-bottom: 8px;
+}
+
+/* Client search results dropdown */
+.client-search-results {
+    display: none;
+    max-height: 180px;
+    overflow-y: auto;
+    position: absolute;
+    z-index: 1000;
+    width: calc(100% - 12px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.client-search-results.is-open {
+    display: block;
+}
+
+/* Selected client details */
+.selected-client-details {
+    font-size: 0.85rem;
+}
+
+.selected-client-details--filled {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+}
+
+.selected-client-details--empty {
+    /* inherits alert-warning styles */
+    font-size: 0.85rem;
+}
+
+/* Goods search container */
+.goods-search-container {
+    position: relative;
+    margin-bottom: 8px;
+    padding: 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #fafafa;
+}
+
+.goods-search-row {
+    display: flex;
+    gap: 4px;
+}
+
+.goods-search-row input {
+    flex: 1;
+}
+
+.goods-search-results {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    width: calc(100% - 16px);
+    max-height: 220px;
+    overflow-y: auto;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-top: 4px;
+}
+
+.goods-search-results.is-open {
+    display: block;
+}
+
+/* Goods table header */
+.goods-table-header {
+    background: #efefef;
+}
+
+.goods-table-col-code {
+    width: 60px;
+}
+
+.goods-table-col-qty {
+    width: 60px;
+}
+
+.goods-table-col-price {
+    width: 70px;
+}
+
+.goods-table-col-sum {
+    width: 70px;
+}
+
+.goods-table-col-actions {
+    width: 36px;
+}
+
+#goodsTable input[readonly] {
+    width: 55px;
+}
+
+#goodsTable .input-group-sm {
+    width: 130px;
+}
+
+#goodsTable .goods-count {
+    width: 60px;
+    text-align: center;
+}
+
+#goodsTable .btn-qty-decrease,
+#goodsTable .btn-qty-increase {
+    padding: 2px 6px;
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+#goodsTable .remove-btn {
+    padding: 1px 6px;
+    font-size: 0.8rem;
+}
+
+/* Document sum box */
+.doc-sum-box {
+    width: 30%;
+    margin-left: auto;
+}
+
+.doc-sum-box-inner {
+    padding: 8px;
+    background: #f0f7ff;
+    border: 2px solid #0d6efd;
+    border-radius: 6px;
+    width: 100%;
+}
+
+.doc-sum-box-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #0d6efd;
+    margin-bottom: 4px;
+}
+
+.doc-sum-box-input {
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 6px 10px;
+    height: auto;
+}
+
+/* Post checkbox */
+.post-checkbox {
+    margin: 0 4px 0 0;
+}
+
+.post-checkbox-label {
+    font-size: 0.85rem;
+}
+
+/* Goods title */
+.goods-title {
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+}
+
+/* Delete form hidden */
+.delete-form {
+    display: none;
+}
+
+/* Document tabs (panel) */
+.doc-tabs-wrap {
+    overflow-x: auto;
+    margin-bottom: 12px;
+    padding-bottom: 2px;
+}
+
+.doc-tabs {
+    display: inline-flex;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 100%;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.doc-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    text-decoration: none;
+    color: var(--muted-foreground, #94a3b8);
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+    border-radius: 12px 12px 0 0;
+}
+
+.doc-tab:hover {
+    color: var(--foreground, #ffffff);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-tab.is-active {
+    color: #fbbf24;
+    border-bottom-color: #fbbf24;
+    background: rgba(251, 191, 36, 0.08);
+}
+
+.doc-tab__icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+
+.doc-tab__label {
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+@media (max-width: 992px) {
+    .doc-layout {
+        flex-direction: column;
+    }
+
+    .doc-related-col {
+        width: 100%;
+        position: static;
+    }
+}
+
+@media (max-width: 721px) {
+    .top-action-bar {
+        flex-wrap: wrap;
+    }
+
+    /* Mobile: switch to card layout without horizontal scroll */
+    .document-compact-wrap {
+        overflow: visible;
+    }
+
+    .document-compact-list {
+        overflow-x: visible;
+    }
+
+    .document-compact-wrap .txtbox-price-docs {
+        min-width: 0;
+        grid-template-columns: 1fr;
+        gap: 0.6rem;
+        padding: 0.85rem;
+        position: relative;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .document-compact-wrap.zakaz .txtbox-price-docs,
+    .txtbox-price-docs.zakaz {
+        min-width: 0;
+        grid-template-columns: 1fr;
+    }
+
+    /* Top bar: Order number + Price */
+    .document-compact-wrap .numdoc-docs {
+        white-space: nowrap;
+        overflow: visible;
+        text-overflow: unset;
+        display: flex;
+        align-items: center;
+        font-size: 1.05rem;
+    }
+
+    .document-compact-wrap .numdoc-docs a {
+        font-size: 1.1rem;
+    }
+
+    .document-compact-wrap .pricebox-docs1 {
+        text-align: right;
+        position: absolute;
+        top: 0.85rem;
+        right: 0.85rem;
+    }
+
+    .document-compact-wrap .pricebox-docs1 .money {
+        font-size: 1.15rem;
+    }
+
+    /* Date/time row */
+    .document-compact-wrap .status-docs4.compact-date {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        font-size: 0.82rem;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .document-compact-wrap .compact-date-line {
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+
+    /* Client info */
+    .document-compact-wrap .captionbox-docs {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+    }
+
+    .document-compact-wrap .captionbox-docs a {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+    }
+
+    .document-compact-wrap .compact-client-line,
+    .document-compact-wrap .phone {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+    }
+
+    .document-compact-wrap .compact-client-line.city {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.65);
+    }
+
+    .document-compact-wrap .phone {
+        font-size: 0.88rem;
+    }
+
+    /* Status badge */
+    .document-compact-wrap .status-docs3 {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        text-align: center;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    /* Client info panel (zakaz) */
+    .document-compact-wrap .status-docs4:not(.compact-date) {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        font-size: 0.82rem;
+    }
+
+    /* Content/details */
+    .document-compact-wrap .captionbox-docs2 {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        font-size: 0.82rem;
+        padding-top: 0.4rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    /* Hide line breaks in mobile */
+    .document-compact-wrap .captionbox-docs a br,
+    .document-compact-wrap .captionbox-docs2 br,
+    .document-compact-wrap .status-docs4 br {
+        display: none;
+    }
+
+    .doc-tabs {
+        display: flex;
+        align-items: stretch;
+        gap: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    /* Goods table mobile: card-based layout without horizontal scroll */
+    #goodsTable {
+        display: block;
+        overflow-x: visible;
+    }
+
+    #goodsTable thead {
+        display: none;
+    }
+
+    #goodsTable tbody {
+        display: block;
+    }
+
+    #goodsTable tr {
+        display: block;
+        margin-bottom: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 0.5rem;
+    }
+
+    #goodsTable td {
+        display: block;
+        padding: 0.4rem 0 !important;
+        border: none !important;
+        text-align: left !important;
+    }
+
+    /* Goods code */
+    #goodsTable td:first-child {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    #goodsTable td:first-child input[readonly] {
+        width: auto;
+        flex: 0 0 auto;
+        font-size: 0.82rem;
+        padding: 2px 6px;
+    }
+
+    /* Goods name */
+    #goodsTable td:nth-child(2) input[readonly] {
+        width: 100%;
+        font-size: 0.88rem;
+        font-weight: 500;
+        background: transparent;
+        border: none;
+        padding: 0;
+    }
+
+    /* Quantity, Price, Sum in one row on mobile */
+    #goodsTable tr td:nth-child(3),
+    #goodsTable tr td:nth-child(4),
+    #goodsTable tr td:nth-child(5) {
+        display: inline-block;
+        vertical-align: middle;
+        padding: 0.3rem 0.25rem !important;
+        white-space: nowrap;
+    }
+
+    /* Quantity column */
+    #goodsTable td:nth-child(3) {
+        width: 100%;
+    }
+
+    #goodsTable td:nth-child(3) .input-group-sm {
+        width: 100%;
+        max-width: 140px;
+    }
+
+    #goodsTable .goods-count {
+        width: 60px;
+        text-align: center;
+        font-size: 0.85rem;
+    }
+
+    #goodsTable .btn-qty-decrease,
+    #goodsTable .btn-qty-increase {
+        padding: 4px 6px;
+        font-size: 0.95rem;
+    }
+
+    /* Price column */
+    #goodsTable td:nth-child(4) {
+        width: 50%;
+    }
+
+    #goodsTable td:nth-child(4)::before {
+        content: 'Ціна:';
+        display: block;
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.5);
+        margin-bottom: 2px;
+    }
+
+    /* Sum column */
+    #goodsTable td:nth-child(5) {
+        width: 48%;
+    }
+
+    #goodsTable td:nth-child(5)::before {
+        content: 'Сума:';
+        display: block;
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.5);
+        margin-bottom: 2px;
+    }
+
+    #goodsTable .goods-price,
+    #goodsTable .goods-sum {
+        width: 100%;
+        font-size: 0.85rem;
+        padding: 3px 6px;
+    }
+
+    /* Delete button */
+    #goodsTable td:last-child {
+        text-align: right !important;
+        padding-top: 0.5rem !important;
+    }
+
+    #goodsTable .remove-btn {
+        padding: 4px 10px;
+        font-size: 0.85rem;
+    }
+
+    /* Empty row */
+    #emptyGoodsRow td {
+        text-align: center !important;
+        font-size: 0.88rem;
+        padding: 1rem 0 !important;
+    }
+
+    /* Document sum box mobile */
+    .doc-sum-box {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .doc-sum-box-inner {
+        background: rgba(240, 247, 255, 0.08);
+        border: 2px solid rgba(13, 110, 253, 0.5);
+    }
+
+    .doc-sum-box-label {
+        color: rgba(13, 110, 253, 0.9);
+    }
+
+    .doc-sum-box-input {
+        font-size: 1.1rem;
+        padding: 8px 12px;
+    }
+
+    /* Action buttons mobile */
+    .doc-actions {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .doc-actions .btn {
+        flex: 1 1 auto;
+        min-width: 120px;
+        font-size: 0.85rem;
+        padding: 8px 12px;
+        text-align: center;
+    }
+
+    /* Form inputs mobile */
+    .compact-form .form-control,
+    .compact-form .form-select {
+        font-size: 0.9rem;
+        padding: 8px 10px;
+    }
+
+    .compact-form .client-search-row {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .compact-form .client-search-row button {
+        width: 100%;
+        padding: 8px 12px;
+    }
+
+    .client-search-results {
+        width: 100% !important;
+        position: relative !important;
+        margin-top: 0.5rem;
+    }
+
+    /* Goods search mobile */
+    .goods-search-row {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .goods-search-results {
+        width: 100% !important;
+        position: relative !important;
+        margin-top: 0.5rem;
     }
 }
