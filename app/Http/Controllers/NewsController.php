@@ -7,24 +7,6 @@ use Illuminate\Http\Request;
 
 class NewsController extends Controller
 {
-    private function resolveApiLocale(Request $request): string
-    {
-        $direct = (string) $request->input('lang', $request->input('locale', ''));
-        if ($direct !== '') {
-            return \App\Models\Field::normalizeLocale($direct);
-        }
-
-        $header = (string) $request->header('Accept-Language', '');
-        if ($header !== '') {
-            $primary = trim(explode(',', $header)[0] ?? '');
-            if ($primary !== '') {
-                return \App\Models\Field::normalizeLocale($primary);
-            }
-        }
-
-        return 'ru';
-    }
-
     public function apiIndex(Request $request)
     {
         $fid = (string) $request->input('fid', session('fid', '2'));
@@ -60,7 +42,7 @@ class NewsController extends Controller
         $fid = (string) session('fid', '');
         $pos = max(0, (int) $request->input('pos', 0));
         $perPage = 20;
-        $locale = $this->resolveBackendLocale();
+        $locale = $this->resolveBackendLocale($request);
 
         $data = News::init($fid, $pos, $perPage, $locale);
 
@@ -76,7 +58,7 @@ class NewsController extends Controller
     {
         $fid = (string) session('fid', '');
         $id = (int) $request->input('id', 0);
-        $locale = $this->resolveBackendLocale();
+        $locale = $this->resolveBackendLocale($request);
         $item = News::findForView($id, $fid, $locale);
 
         if (!$item) {

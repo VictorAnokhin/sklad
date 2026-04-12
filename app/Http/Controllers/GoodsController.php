@@ -16,24 +16,6 @@ use Illuminate\Support\Facades\DB;
  */
 class GoodsController extends Controller
 {
-    private function resolveApiLocale(Request $request): string
-    {
-        $direct = (string) $request->input('lang', $request->input('locale', ''));
-        if ($direct !== '') {
-            return Field::normalizeLocale($direct);
-        }
-
-        $header = (string) $request->header('Accept-Language', '');
-        if ($header !== '') {
-            $primary = trim(explode(',', $header)[0] ?? '');
-            if ($primary !== '') {
-                return Field::normalizeLocale($primary);
-            }
-        }
-
-        return 'ru';
-    }
-
     private function resolveApiFid(Request $request, $default = '')
     {
         return (string) $request->input('fid', $default !== '' ? $default : session('fid', ''));
@@ -44,7 +26,7 @@ class GoodsController extends Controller
     public function index(Request $request)
     {
         $fid = session('fid', '');
-        $locale = $this->resolveBackendLocale();
+        $locale = $this->resolveBackendLocale($request);
         $idglava = $request->input('igla', session('idglava', ''));
         $idcaption = $request->input('idcapt', session('idcaption', ''));
         $pos = (int) $request->input('pos', session('pos', 0));
@@ -346,7 +328,7 @@ class GoodsController extends Controller
     {
         $pnum = $request->input('pnum', '0');
         $fid = session('fid', '');
-        $locale = $this->resolveBackendLocale();
+        $locale = $this->resolveBackendLocale($request);
 
         $result = Goods::showGoods($pnum, $fid, $locale);
         $comp = $result['comp'];
