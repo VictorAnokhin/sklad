@@ -4,7 +4,7 @@
     ? \App\Models\Project::query()->orderBy('num')->orderBy('name')->get(['id', 'num', 'name'])
     : collect();
   $activeFid = (int) session('fid', 0);
-  $activeLang = \App\Models\Field::normalizeLocale((string) ($currentBackendLocale ?? session('lang', 'ru')));
+  $activeLang = \App\Models\Field::normalizeLocale(app()->getLocale());
 @endphp
 
 <div class="header-bar">

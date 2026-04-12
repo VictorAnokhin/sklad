@@ -1137,6 +1137,40 @@ document.addEventListener('DOMContentLoaded', () => {
         bindProjectPreview(fotoHeaderFileInput, 'project-foto-header-preview-wrap', 'project-foto-header-preview');
         bindProjectPreview(fotoFooterFileInput, 'project-foto-footer-preview-wrap', 'project-foto-footer-preview');
 
+        const parseResponseData = async (response) => {
+            const raw = await response.text().catch(() => '');
+            if (!raw) {
+                return {};
+            }
+
+            try {
+                return JSON.parse(raw);
+            } catch (_) {
+                return { message: raw };
+            }
+        };
+
+        const extractErrorMessage = (payload, fallback = 'Помилка запиту') => {
+            if (payload && typeof payload.message === 'string' && payload.message.trim()) {
+                return payload.message.trim();
+            }
+
+            const errors = payload && typeof payload.errors === 'object' && payload.errors ? payload.errors : null;
+            if (errors) {
+                for (const key of Object.keys(errors)) {
+                    const value = errors[key];
+                    if (Array.isArray(value) && value[0]) {
+                        return String(value[0]);
+                    }
+                    if (typeof value === 'string' && value.trim()) {
+                        return value.trim();
+                    }
+                }
+            }
+
+            return fallback;
+        };
+
         modal.addEventListener('show.bs.modal', () => {
             hideForm();
             loadProjects();
@@ -1214,17 +1248,20 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(id ? `/settings/projects/${id}` : '/settings/projects', {
                 method: 'POST',
                 headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': csrfToken,
                 },
+                credentials: 'same-origin',
                 body: payload,
             })
             .then(async (response) => {
-                const data = await response.json();
+                const data = await parseResponseData(response);
                 return { ok: response.ok, data };
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка збереження');
+                    alert(extractErrorMessage(data, 'Помилка збереження'));
                     return;
                 }
 
@@ -1232,24 +1269,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 resetProjectForm();
                 loadProjects();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch((error) => alert(error?.message || 'Помилка мережі'));
         });
 
         function loadProjects() {
             fetch('/settings/projects')
                 .then(async (response) => {
-                    const data = await response.json();
+                    const data = await parseResponseData(response);
                     return { ok: response.ok, data };
                 })
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        throw new Error('load_failed');
+                        throw new Error(extractErrorMessage(data, 'Помилка завантаження'));
                     }
 
                     renderProjects(Array.isArray(data) ? data : []);
                 })
-                .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-danger">Помилка завантаження</td></tr>';
+                .catch((error) => {
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-danger">${escapeHtml(error?.message || 'Помилка завантаження')}</td></tr>`;
                     emptyMsg.style.display = 'none';
                 });
         }
@@ -1302,19 +1339,19 @@ document.addEventListener('DOMContentLoaded', () => {
         function editProject(id) {
             fetch(`/settings/projects/${id}`)
                 .then(async (response) => {
-                    const data = await response.json();
+                    const data = await parseResponseData(response);
                     return { ok: response.ok, data };
                 })
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        alert(data.message || 'Проєкт не знайдено');
+                        alert(extractErrorMessage(data, 'Проєкт не знайдено'));
                         return;
                     }
 
                     fillProjectForm(data);
                     showForm();
                 })
-                .catch(() => alert('Помилка завантаження'));
+                .catch((error) => alert(error?.message || 'Помилка завантаження'));
         }
 
         function deleteProject(id, btn) {
@@ -1323,17 +1360,19 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(`/settings/projects/${id}`, {
                 method: 'DELETE',
                 headers: {
+                    'Accept': 'application/json',
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
+                credentials: 'same-origin',
             })
             .then(async (response) => {
-                const data = await response.json();
+                const data = await parseResponseData(response);
                 return { ok: response.ok, data };
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка видалення');
+                    alert(extractErrorMessage(data, 'Помилка видалення'));
                     return;
                 }
 
@@ -1343,7 +1382,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 loadProjects();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch((error) => alert(error?.message || 'Помилка мережі'));
         }
 
         function fillProjectForm(item) {

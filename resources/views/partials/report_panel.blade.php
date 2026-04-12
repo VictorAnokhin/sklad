@@ -2,7 +2,7 @@
 <div class="doc-tabs-wrap report-tabs-wrap">
   @if(!empty($reportTabs))
   <div class="report-tabs-section">
-    <div class="report-tabs-title">Операційні звіти</div>
+    <div class="report-tabs-title">{{ __('reports.section_operational') }}</div>
     <div class="doc-tabs report-tabs">
       @foreach($reportTabs as $tab)
       @php
@@ -32,7 +32,7 @@
 
   @if(!empty($investorReportTabs))
   <div class="report-tabs-section report-tabs-section--secondary">
-    <div class="report-tabs-title">Управлінська звітність</div>
+    <div class="report-tabs-title">{{ __('reports.section_management') }}</div>
     <div class="doc-tabs report-tabs">
       @foreach($investorReportTabs as $tab)
       @php
@@ -58,7 +58,7 @@
 
   @if(!empty($financialReportTabs))
   <div class="report-tabs-section report-tabs-section--tertiary">
-    <div class="report-tabs-title">Фінансова звітність</div>
+    <div class="report-tabs-title">{{ __('reports.section_financial') }}</div>
     <div class="doc-tabs report-tabs">
       @foreach($financialReportTabs as $tab)
       @php
@@ -86,7 +86,7 @@
 
   @if(!empty($strategicReportTabs))
   <div class="report-tabs-section report-tabs-section--quaternary">
-    <div class="report-tabs-title">Стратегічні звіти</div>
+    <div class="report-tabs-title">{{ __('reports.section_strategic') }}</div>
     <div class="doc-tabs report-tabs">
       @foreach($strategicReportTabs as $tab)
       @php

@@ -1,6 +1,6 @@
 @extends('home')
 
-@section('title', 'Гроші')
+@section('title', __('money.title'))
 
 @section('content')
 @php
@@ -20,7 +20,7 @@
         <button type="button"
             onclick="moneyFilterToggle()"
             class="btn {{ !empty($activeFilters) ? 'btn-warning' : 'btn-outline-secondary' }}">
-            🔍 Фільтр
+            🔍 {{ __('money.filter') }}
         </button>
         <a href="{{ route('money.show', array_merge(['id' => 0, 'type' => 'PO'], [
             'return_q' => $returnFilters['q'] ?? null,
@@ -30,7 +30,7 @@
             'return_date_from' => $returnFilters['date_from'] ?? null,
             'return_date_to' => $returnFilters['date_to'] ?? null,
             'return_pos' => $returnFilters['pos'] ?? null,
-        ])) }}" class="btn btn-success">+ Прихід</a>
+        ])) }}" class="btn btn-success">{{ __('money.add_income') }}</a>
         <a href="{{ route('money.show', array_merge(['id' => 0, 'type' => 'RO'], [
             'return_q' => $returnFilters['q'] ?? null,
             'return_filter_type' => $returnFilters['type'] ?? null,
@@ -39,7 +39,7 @@
             'return_date_from' => $returnFilters['date_from'] ?? null,
             'return_date_to' => $returnFilters['date_to'] ?? null,
             'return_pos' => $returnFilters['pos'] ?? null,
-        ])) }}" class="btn btn-danger">+ Видача</a>
+        ])) }}" class="btn btn-danger">{{ __('money.add_outcome') }}</a>
     </div>
 </div>
 <div class="ttable money-table" style="padding: 16px;">
@@ -53,8 +53,8 @@
 
     @if(!empty($activeFilters))
     <div class="alert alert-warning money-filter-active-notice">
-        Увімкнено фільтр по ордерах.
-        <a href="{{ route('money.index') }}" style="margin-left: 8px;">Скинути</a>
+        {{ __('money.filter_active') }}
+        <a href="{{ route('money.index') }}" style="margin-left: 8px;">{{ __('money.reset') }}</a>
     </div>
     @endif
 
@@ -62,17 +62,17 @@
     <div class="money-summary">
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">📥</div>
-            <div class="money-summary__label">Приход (PO)</div>
+            <div class="money-summary__label">{{ __('money.summary_income') }}</div>
             <div class="money-summary__value money-summary__value--income">{{ number_format($sumPO, 2, '.', ' ') }} грн</div>
         </div>
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">📤</div>
-            <div class="money-summary__label">Видача (RO)</div>
+            <div class="money-summary__label">{{ __('money.summary_outcome') }}</div>
             <div class="money-summary__value money-summary__value--expense">{{ number_format($sumRO, 2, '.', ' ') }} грн</div>
         </div>
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">💰</div>
-            <div class="money-summary__label">Баланс</div>
+            <div class="money-summary__label">{{ __('money.summary_balance') }}</div>
             <div class="money-summary__value money-summary__value--income">{{ number_format($sumPO - $sumRO, 2, '.', ' ') }} грн</div>
         </div>
     </div>
@@ -82,19 +82,19 @@
     {{-- Список документів --}}
 
     @if($documents->isEmpty())
-    <div class="money-empty">Документи відсутні...</div>
+    <div class="money-empty">{{ __('money.no_documents') }}</div>
     @else
     <table class="table table-bordered table-sm money-table">
         <thead>
             <tr>
                 <th>#</th>
-                <th>Тип</th>
-                <th>Дата</th>
-                <th>Клієнт</th>
-                <th>Каса</th>
-                <th>Сума (грн)</th>
-                <th>Коментар</th>
-                <th>Пров.</th>
+                <th>{{ __('money.table_type') }}</th>
+                <th>{{ __('money.table_date') }}</th>
+                <th>{{ __('money.table_client') }}</th>
+                <th>{{ __('money.table_cashbox') }}</th>
+                <th>{{ __('money.table_sum') }}</th>
+                <th>{{ __('money.table_comment') }}</th>
+                <th>{{ __('money.table_posted') }}</th>
                 <th></th>
             </tr>
         </thead>
@@ -140,13 +140,13 @@
     @if(($total ?? 0) > $perPage)
     <div class="money-pagination">
         <div class="money-pagination__meta">
-            Показано {{ $from }}-{{ $to }} з {{ $total }}
+            {{ __('money.pagination_showing', ['from' => $from, 'to' => $to, 'total' => $total]) }}
         </div>
 
         <div class="money-pagination__controls">
             @if(($pos ?? 0) > 0)
             <a href="{{ route('money.index', array_merge($filters ?? [], ['pos' => max(0, ($pos ?? 0) - $perPage)])) }}" class="money-pagination__nav">
-                ← Назад
+                ← {{ __('money.pagination_prev') }}
             </a>
             @endif
 
@@ -162,7 +162,7 @@
 
             @if((($pos ?? 0) + $perPage) < ($total ?? 0))
             <a href="{{ route('money.index', array_merge($filters ?? [], ['pos' => ($pos ?? 0) + $perPage])) }}" class="money-pagination__nav">
-                Вперед →
+                {{ __('money.pagination_next') }} →
             </a>
             @endif
         </div>
@@ -175,28 +175,28 @@
 <div id="moneyFilterModal" class="money-filter-modal">
     <div class="glass-card money-filter-modal__content">
         <div onclick="moneyFilterToggle()" class="money-filter-modal__close">✕</div>
-        <h3 class="money-filter-modal__title">🔍 Фільтр ордерів</h3>
+        <h3 class="money-filter-modal__title">🔍 {{ __('money.filter_title') }}</h3>
 
         <form action="{{ route('money.index') }}" method="get">
             <div class="money-filter-modal__grid">
                 <div class="money-filter-modal__field">
-                    <label>Номер, клієнт або коментар</label>
+                    <label>{{ __('money.filter_search') }}</label>
                     <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" class="form-control">
                 </div>
 
                 <div class="money-filter-modal__field">
-                    <label>Тип</label>
+                    <label>{{ __('money.filter_type') }}</label>
                     <select name="type" class="form-control">
-                        <option value="">Усі</option>
-                        <option value="PO" {{ ($filters['type'] ?? '') === 'PO' ? 'selected' : '' }}>Прихід (PO)</option>
-                        <option value="RO" {{ ($filters['type'] ?? '') === 'RO' ? 'selected' : '' }}>Видача (RO)</option>
+                        <option value="">{{ __('money.filter_all_types') }}</option>
+                        <option value="PO" {{ ($filters['type'] ?? '') === 'PO' ? 'selected' : '' }}>{{ __('money.filter_income') }}</option>
+                        <option value="RO" {{ ($filters['type'] ?? '') === 'RO' ? 'selected' : '' }}>{{ __('money.filter_outcome') }}</option>
                     </select>
                 </div>
 
                 <div class="money-filter-modal__field">
-                    <label>Каса</label>
+                    <label>{{ __('money.filter_cashbox') }}</label>
                     <select name="money" class="form-control">
-                        <option value="">Усі</option>
+                        <option value="">{{ __('money.filter_all_types') }}</option>
                         @foreach(($kassasMap ?? []) as $moneyName => $moneyLabel)
                         <option value="{{ $moneyName }}" {{ ($filters['money'] ?? '') === (string)$moneyName ? 'selected' : '' }}>
                             {{ $moneyLabel }}
@@ -206,9 +206,9 @@
                 </div>
 
                 <div class="money-filter-modal__field">
-                    <label>Вид платежу</label>
+                    <label>{{ __('money.filter_payment_type') }}</label>
                     <select name="reestr" class="form-control">
-                        <option value="">Усі</option>
+                        <option value="">{{ __('money.filter_all_types') }}</option>
                         @foreach(($paymentTypes ?? []) as $paymentType)
                         <option value="{{ $paymentType->id }}" {{ ($filters['reestr'] ?? '') === (string)$paymentType->id ? 'selected' : '' }}>
                             {{ $paymentType->name }}
@@ -218,19 +218,19 @@
                 </div>
 
                 <div class="money-filter-modal__field">
-                    <label>Дата початку</label>
+                    <label>{{ __('money.filter_date_from') }}</label>
                     <input type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}" class="form-control">
                 </div>
 
                 <div class="money-filter-modal__field">
-                    <label>Дата закінчення</label>
+                    <label>{{ __('money.filter_date_to') }}</label>
                     <input type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}" class="form-control">
                 </div>
             </div>
 
             <div class="money-filter-modal__actions">
-                <button type="submit" class="btn btn-warning">Застосувати</button>
-                <a href="{{ route('money.index') }}" class="btn btn-outline-secondary">Скинути</a>
+                <button type="submit" class="btn btn-warning">{{ __('money.filter_apply') }}</button>
+                <a href="{{ route('money.index') }}" class="btn btn-outline-secondary">{{ __('money.filter_reset') }}</a>
             </div>
         </form>
     </div>

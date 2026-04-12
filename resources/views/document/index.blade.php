@@ -1,6 +1,6 @@
 @extends('home')
 
-@section('title', __('document.title'))
+@section('title', \App\Models\Document::typeName($doc))
 
 @section('content')
 @php

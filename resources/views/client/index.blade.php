@@ -1,37 +1,37 @@
 @extends('home')
 
 @section('title')
-Клієнти
+{{ __('client.title') }}
 @endsection
 
 @section('content')
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Клієнти ({{ $total ?? 0 }})</h2>
-        <a href="{{ route('client.show', ['id' => 0]) }}" class="btn btn-primary">➕ Додати</a>
+        <h2>{{ __('client.title_with_count', ['total' => $total ?? 0]) }}</h2>
+        <a href="{{ route('client.show', ['id' => 0]) }}" class="btn btn-primary">➕ {{ __('client.add') }}</a>
     </div>
 
     <form action="{{ route('client.index') }}" method="GET" class="mb-3">
         <div class="row g-2 align-items-end">
             <div class="col-md-3">
-                <label class="form-label">Пошук (ПІБ, організація...)</label>
-                <input type="text" name="search" class="form-control" placeholder="Пошук..."
+                <label class="form-label">{{ __('client.search_label') }}</label>
+                <input type="text" name="search" class="form-control" placeholder="{{ __('client.search_placeholder') }}"
                        value="{{ $filters['search'] ?? '' }}">
             </div>
             <div class="col-md-2">
-                <label class="form-label">Місто</label>
-                <input type="text" name="city" class="form-control" placeholder="Місто"
+                <label class="form-label">{{ __('client.city') }}</label>
+                <input type="text" name="city" class="form-control" placeholder="{{ __('client.city') }}"
                        value="{{ $filters['city'] ?? '' }}">
             </div>
             <div class="col-md-2">
-                <label class="form-label">Телефон</label>
-                <input type="text" name="phone" class="form-control" placeholder="Телефон"
+                <label class="form-label">{{ __('client.phone') }}</label>
+                <input type="text" name="phone" class="form-control" placeholder="{{ __('client.phone') }}"
                        value="{{ $filters['phone'] ?? '' }}">
             </div>
             <div class="col-md-2">
-                <label class="form-label">Статус</label>
+                <label class="form-label">{{ __('client.status') }}</label>
                 <select name="idstatus" class="form-select">
-                    <option value="">— Всі —</option>
+                    <option value="">{{ __('client.all_statuses') }}</option>
                     @foreach($statuses as $s)
                         <option value="{{ $s->id }}" {{ ($filters['idstatus'] ?? '') == $s->id ? 'selected' : '' }}>
                             {{ $s->name }}
@@ -40,8 +40,8 @@
                 </select>
             </div>
             <div class="col-md-3 d-flex gap-2">
-                <button class="btn btn-outline-secondary" type="submit">🔍 Знайти</button>
-                <a href="{{ route('client.index') }}?search=&city=&phone=&idstatus=" class="btn btn-outline-danger">✕ Скинути</a>
+                <button class="btn btn-outline-secondary" type="submit">🔍 {{ __('client.find') }}</button>
+                <a href="{{ route('client.index') }}?search=&city=&phone=&idstatus=" class="btn btn-outline-danger">✕ {{ __('client.reset') }}</a>
             </div>
         </div>
     </form>
@@ -50,12 +50,12 @@
         <table class="table table-bordered table-striped table-hover">
             <thead class="table-dark">
                 <tr>
-                    <th>ID</th>
-                    <th>Організація</th>
-                    <th>ПІБ (Контактна особа)</th>
-                    <th>Телефон</th>
-                    <th>Місто</th>
-                    <th>Замовлення</th>
+                    <th>{{ __('client.table_id') }}</th>
+                    <th>{{ __('client.table_organization') }}</th>
+                    <th>{{ __('client.table_contact') }}</th>
+                    <th>{{ __('client.table_phone') }}</th>
+                    <th>{{ __('client.table_city') }}</th>
+                    <th>{{ __('client.table_orders') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -80,12 +80,12 @@
                             data-client-name="{{ trim(($client->orgname ?: '') . ' ' . (($client->secondname ?? '') . ' ' . ($client->name ?? ''))) }}"
                             data-bs-toggle="modal"
                             data-bs-target="#clientOrdersModal"
-                        >Переглянути</button>
+                        >{{ __('client.view_orders') }}</button>
                     </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" class="text-center">Немає клієнтів для відображення</td>
+                    <td colspan="6" class="text-center">{{ __('client.no_clients') }}</td>
                 </tr>
                 @endforelse
             </tbody>
@@ -129,20 +129,20 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="clientOrdersModalLabel">Замовлення клієнта</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+                <h5 class="modal-title" id="clientOrdersModalLabel">{{ __('client.modal_title') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('client.modal_close') }}"></button>
             </div>
             <div class="modal-body">
-                <div id="clientOrdersLoading" class="text-muted">Завантаження...</div>
-                <div id="clientOrdersEmpty" class="text-muted" style="display:none;">Замовлень не знайдено.</div>
+                <div id="clientOrdersLoading" class="text-muted">{{ __('client.modal_loading') }}</div>
+                <div id="clientOrdersEmpty" class="text-muted" style="display:none;">{{ __('client.modal_no_orders') }}</div>
                 <div class="table-responsive" id="clientOrdersTableWrap" style="display:none;">
                     <table class="table table-sm table-hover align-middle">
                         <thead>
                             <tr>
-                                <th>№</th>
-                                <th>Дата</th>
-                                <th>Сума</th>
-                                <th>Статус</th>
+                                <th>{{ __('client.modal_table_no') }}</th>
+                                <th>{{ __('client.modal_table_date') }}</th>
+                                <th>{{ __('client.modal_table_sum') }}</th>
+                                <th>{{ __('client.modal_table_status') }}</th>
                             </tr>
                         </thead>
                         <tbody id="clientOrdersTbody"></tbody>
@@ -182,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const clientId = button.getAttribute('data-client-id');
-        const clientName = button.getAttribute('data-client-name') || 'клієнта';
+        const clientName = button.getAttribute('data-client-name') || '{{ __('client.client_not_selected') }}';
 
         title.textContent = `Замовлення: ${clientName}`;
         loading.style.display = 'block';
@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(() => {
                 loading.style.display = 'none';
-                empty.textContent = 'Не вдалося завантажити замовлення.';
+                empty.textContent = '{{ __('client.modal_error') }}';
                 empty.style.display = 'block';
             });
     });

@@ -5,7 +5,9 @@
       "Bash(docker compose exec *)",
       "Bash(ls *)",
       "Bash(grep *)",
-      "Bash(docker-compose *)"
+      "Bash(docker-compose *)",
+      "Bash(mkdir *)",
+      "Bash(rm *)"
     ]
   },
   "$version": 3

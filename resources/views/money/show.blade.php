@@ -1,6 +1,6 @@
 @extends('home')
 
-@section('title', $document->id ? ('Документ №' . $document->num . ' — ' . $document->type) : 'Новий документ')
+@section('title', $document->id ? __('money.edit_title', ['num' => $document->num]) . ' — ' . $document->type : __('money.create_title'))
 
 @section('content')
 @include('partials.panel')
@@ -15,7 +15,7 @@
     @endphp
 
     <h3 style="color:{{ $isPO ? 'green' : 'red' }};">
-        {{ $isPO ? '📥 Прихід грошей (PO)' : '📤 Видача грошей (RO)' }}
+        {{ $isPO ? '📥 ' . __('money.heading_income') : '📤 ' . __('money.heading_outcome') }}
         @if(!$isNew) № {{ $document->num }} @endif
     </h3>
 
@@ -37,14 +37,14 @@
 
         <div class="row">
             <div class="col-md-4 mb-3">
-                <label>Дата</label>
+                <label>{{ __('money.field_date') }}</label>
                 <input type="text" name="data" class="form-control" value="{{ $document->data ?? date('d-m-Y') }}"
                     placeholder="дд-мм-рррр">
             </div>
             <div class="col-md-4 mb-3">
-                <label>Каса</label>
+                <label>{{ __('money.field_cashbox') }}</label>
                 <select name="money" class="form-control" required>
-                    <option value="">— оберіть касу —</option>
+                    <option value="">{{ __('money.select_cashbox') }}</option>
                     @foreach($kassas as $kassa)
                     <option value="{{ $kassa->id }}" {{ (string)($document->money ?? '') === (string)$kassa->id ? 'selected' : '' }}>
                         {{ $kassa->name }}
@@ -56,9 +56,9 @@
                 @enderror
             </div>
             <div class="col-md-4 mb-3">
-                <label>Вид платежу</label>
+                <label>{{ __('money.field_payment_type') }}</label>
                 <select name="reestr" class="form-control">
-                    <option value="">— оберіть вид платежу —</option>
+                    <option value="">{{ __('money.select_payment_type') }}</option>
                     @foreach(($reestrList ?? []) as $re)
                     <option value="{{ $re->id }}" {{ (string) old('reestr', $document->reestr ?? '') === (string) $re->id ? 'selected' : '' }}>
                         {{ $re->name }}
@@ -67,14 +67,14 @@
                 </select>
             </div>
             <div class="col-md-4 mb-3">
-                <label>Сума (грн)</label>
+                <label>{{ __('money.field_sum') }}</label>
                 <input type="number" step="0.01" name="summa" class="form-control" value="{{ $document->summa ?? 0 }}">
             </div>
         </div>
 
         {{-- Клієнт --}}
         <div class="mb-3">
-            <label>Клієнт</label>
+            <label>{{ __('money.field_client') }}</label>
             <div id="selectedClientDetails"
                 class="alert {{ (!$isNew && !empty($document->id) && !empty($document->client1)) ? 'alert-secondary' : 'alert-warning' }} py-2 mt-2"
                 style="{{ (!$isNew && !empty($document->id) && !empty($document->client1)) ? 'background:#f8f9fa; border:1px solid #ddd;' : '' }}">
@@ -84,15 +84,15 @@
                 }}<br>
                 {{ $document->phone ?? '' }} | {{ $document->city ?? '' }}
                 @else
-                Клієнт не обраний
+                {{ __('money.client_not_selected') }}
                 @endif
             </div>
 
             {{-- Пошук клієнта --}}
             <div class="input-group mb-2">
-                <input type="text" id="clientSearchInput" class="form-control" placeholder="Пошук клієнта..."
+                <input type="text" id="clientSearchInput" class="form-control" placeholder="{{ __('money.search_client') }}"
                     autocomplete="off" style="width:70%;">
-                <button type="button" class="btn" id="searchClientBtn" style="width:15%;">Шукати</button>
+                <button type="button" class="btn" id="searchClientBtn" style="width:15%;">{{ __('money.search') }}</button>
             </div>
             <div id="clientSearchResults" class="list-group mb-2"
                 style="display:none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000; width:60%; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
@@ -101,7 +101,7 @@
         </div>
 
         <div class="mb-3">
-            <label>Коментар</label>
+            <label>{{ __('money.field_comment') }}</label>
             <input type="text" name="content" class="form-control" value="{{ $document->content ?? '' }}">
         </div>
 
@@ -116,28 +116,28 @@
                 value="1"
                 checked>
             <label class="form-check-label" for="post_after_save">
-                Провести документ після збереження
+                {{ __('money.checkbox_post') }}
             </label>
         </div>
         @endif
 
         <div class="d-flex gap-2 align-items-center flex-wrap">
-            <a href="{{ $backUrl }}" class="btn">← Назад</a>
+            <a href="{{ $backUrl }}" class="btn">← {{ __('money.btn_back') }}</a>
             @if((int)($document->provodka ?? 0) === 1)
             <button type="submit"
                 formaction="{{ route('money.provodka') }}"
                 formmethod="post"
                 class="btn btn-success">
-                ↺ Скасувати проводку
+                ↺ {{ __('money.btn_unpost') }}
             </button>
             @else
-            <button type="submit" class="btn">💾 Зберегти</button>
+            <button type="submit" class="btn">💾 {{ __('money.btn_save') }}</button>
             @endif
             @if((int)($document->provodka ?? 0) === 0 && !$isNew)
             <button type="button"
                 class="btn btn-danger"
-                onclick="if(confirm('Дійсно видалити цей документ?')) { document.getElementById('deleteMoneyForm').submit(); }">
-                🗑 Видалити
+                onclick="if(confirm('{{ __('money.confirm_delete') }}')) { document.getElementById('deleteMoneyForm').submit(); }">
+                🗑 {{ __('money.btn_delete') }}
             </button>
             @endif
         </div>
@@ -184,7 +184,7 @@
                 .then(data => {
                     resultsContainer.innerHTML = '';
                     if (!data.length) {
-                        resultsContainer.innerHTML = '<div class="list-group-item text-muted">Нічого не знайдено</div>';
+                        resultsContainer.innerHTML = '<div class="list-group-item text-muted">{{ addslashes(__('money.search_no_results')) }}</div>';
                     } else {
                         data.forEach(user => {
                             const a = document.createElement('a');

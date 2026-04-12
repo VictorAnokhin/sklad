@@ -35,6 +35,7 @@ class Kernel extends HttpKernel
             \Illuminate\Session\Middleware\StartSession::class,
             \App\Http\Middleware\SyncLegacySessionFromAuth::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \App\Http\Middleware\SetLocale::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
@@ -66,5 +67,6 @@ class Kernel extends HttpKernel
         'status.min' => \App\Http\Middleware\StatusMin::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+        'setlocale' => \App\Http\Middleware\SetLocale::class,
     ];
 }

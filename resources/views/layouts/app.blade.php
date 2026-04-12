@@ -1,6 +1,6 @@
 @extends('home')
 
-@section('title', $doc === 'ZOUT' ? 'Замовлення' : 'Закупки');
+@section('title', $doc === 'ZOUT' ? __('document.doctypes.zout') : __('document.doctypes.zin'));
 
 @section('content')
 

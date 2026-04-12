@@ -1,13 +1,13 @@
 @extends('home')
 
-@section('title', 'Депозиты')
+@section('title', __('deposit.title'))
 
 @section('content')
 <div class="ttable" style="padding: 12px 16px; margin-bottom: 16px;">
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'topup']) }}" class="btn btn-warning">+ Пополнить депозит</a>
-        <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'withdraw']) }}" class="btn btn-danger">+ Снять с депозита</a>
-        <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'exchange']) }}" class="btn btn-outline-primary">+ Обмен между кассами</a>
+        <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'topup']) }}" class="btn btn-warning">{{ __('deposit.add_deposit') }}</a>
+        <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'withdraw']) }}" class="btn btn-danger">{{ __('deposit.add_withdraw') }}</a>
+        <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'exchange']) }}" class="btn btn-outline-primary">{{ __('deposit.add_transfer') }}</a>
     </div>
 </div>
 
@@ -22,30 +22,30 @@
     <div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
         <div class="glass-card" style="flex:1;min-width:220px;text-align:center;">
             <div style="font-size:2rem;">🏦</div>
-            <div style="font-weight:bold;font-size:1.1em;">Операции по депозитам</div>
+            <div style="font-weight:bold;font-size:1.1em;">{{ __('deposit.deposit_operations') }}</div>
             <div style="color:var(--accent-amber);font-size:1.25rem;font-weight:700;">{{ number_format($sumPP ?? 0, 2, '.', ' ') }} грн</div>
         </div>
         <div class="glass-card" style="flex:1;min-width:220px;text-align:center;">
             <div style="font-size:2rem;">📄</div>
-            <div style="font-weight:bold;font-size:1.1em;">Документів</div>
+            <div style="font-weight:bold;font-size:1.1em;">{{ __('deposit.documents_count') }}</div>
             <div style="color:var(--accent-amber);font-size:1.25rem;font-weight:700;">{{ $total ?? 0 }}</div>
         </div>
     </div>
 
     @if(($documents ?? collect())->isEmpty())
-    <div style="text-align:center; padding:20px; color:#CC0000;">Документы PP отсутствуют...</div>
+    <div style="text-align:center; padding:20px; color:#CC0000;">{{ __('deposit.no_documents') }}</div>
     @else
     <table class="table table-bordered table-sm">
         <thead style="background:#efefef;">
             <tr>
                 <th>#</th>
-                <th>Операція</th>
-                <th>Дата</th>
-                <th>Звідки</th>
-                <th>Куди</th>
-                <th>Сума</th>
-                <th>Коментар</th>
-                <th>Пров.</th>
+                <th>{{ __('deposit.field_operation') }}</th>
+                <th>{{ __('deposit.field_date') }}</th>
+                <th>{{ __('deposit.field_from') }}</th>
+                <th>{{ __('deposit.field_to') }}</th>
+                <th>{{ __('deposit.field_sum') }}</th>
+                <th>{{ __('deposit.comment') }}</th>
+                <th>{{ __('deposit.field_posted') }}</th>
                 <th></th>
             </tr>
         </thead>
@@ -54,9 +54,9 @@
             @php
                 $mode = $doc->docum ?? 'topup';
                 $modeLabel = match ($mode) {
-                    'withdraw' => 'Снять с депозита',
-                    'exchange' => 'Обмен между кассами',
-                    default => 'Пополнить депозит',
+                    'withdraw' => __('deposit.op_withdraw'),
+                    'exchange' => __('deposit.op_exchange'),
+                    default => __('deposit.op_topup'),
                 };
                 $fromLabel = match ($mode) {
                     'withdraw' => $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—'),

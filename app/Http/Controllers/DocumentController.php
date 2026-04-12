@@ -358,7 +358,23 @@ class DocumentController extends Controller
         // Load all oplata and reestr options for PO/RO dropdowns
         $oplataList = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
         $reestrList = ConfModel::paymentTypesForDocument($fid, $doc);
-        $skladsList = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
+        $statusList = DB::table('conf')
+            ->where('type', 'status')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->get(['id', 'name', 'color']);
+        $savedSkladId = trim((string) ($document->sklads ?? ''));
+        $skladsList = DB::table('conf')
+            ->where('type', 'sklads')
+            ->where(function ($query) use ($fid, $savedSkladId) {
+                $query->where('firma', $fid);
+
+                if ($savedSkladId !== '') {
+                    $query->orWhere('id', $savedSkladId);
+                }
+            })
+            ->orderBy('name')
+            ->get();
         $clientStatuses = DB::table('conf')->where('type', 'tclient')->where('firma', $fid)->orderBy('name')->get();
         $myCompanies = collect();
 
@@ -444,7 +460,7 @@ class DocumentController extends Controller
 
         return view('document.show', compact(
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
-            'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'skladsList',
+            'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses'
         ));
     }

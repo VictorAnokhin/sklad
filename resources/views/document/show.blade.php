@@ -93,8 +93,11 @@
                         <label>Склад</label>
                         <select name="sklads" class="form-select" required>
                             <option value="">—</option>
+                            @php
+                                $selectedSklad = trim((string) old('sklads', $document->sklads ?? ''));
+                            @endphp
                             @foreach($skladsList as $sk)
-                            <option value="{{ $sk->id }}" {{ (string) old('sklads', $document->sklads) === (string) $sk->id ? 'selected' : '' }}>{{ $sk->name }}</option>
+                            <option value="{{ $sk->id }}" {{ $selectedSklad === trim((string) $sk->id) ? 'selected' : '' }}>{{ $sk->name }}</option>
                             @endforeach
                         </select>
                         @error('sklads')
@@ -110,8 +113,10 @@
                         <label>Статус</label>
                         <select name="status" class="form-select">
                             <option value="0">0 - Новий</option>
-                            @foreach($confMap as $id => $conf)
-                            <option value="{{ $id }}" {{ $document->status == $id ? 'selected' : '' }}>{{ $conf->name }}</option>
+                            @foreach(($statusList ?? collect()) as $statusOption)
+                            <option value="{{ $statusOption->id }}" {{ (string) $document->status === (string) $statusOption->id ? 'selected' : '' }}>
+                                {{ $statusOption->name }}
+                            </option>
                             @endforeach
                         </select>
                     </div>

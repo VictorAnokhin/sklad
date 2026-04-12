@@ -2,16 +2,17 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ClientController;
-use App\Http\Controllers\GoodsController;
-use App\Http\Controllers\MoneyController;
 use App\Http\Controllers\DepositController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\FilterController;
+use App\Http\Controllers\GoodsController;
+use App\Http\Controllers\KursController;
+use App\Http\Controllers\LanguageController;
+use App\Http\Controllers\MoneyController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\FilterController;
-use App\Http\Controllers\KursController;
 
 /*
  |--------------------------------------------------------------------------
@@ -37,6 +38,10 @@ Route::post('/forgot-password', [AuthController::class , 'forgotPassword'])->nam
 Route::post('/logout', [AuthController::class , 'logout'])->name('logout');
 Route::get('/register', [AuthController::class , 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class , 'register'])->name('register.post');
+
+// ── Language switching ────────────────────────────────────────────────────────
+Route::post('/language/switch', [LanguageController::class, 'switch'])->name('language.switch');
+Route::get('/language/current', [LanguageController::class, 'current'])->name('language.current');
 
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {

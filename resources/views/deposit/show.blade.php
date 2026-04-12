@@ -1,6 +1,6 @@
 @extends('home')
 
-@section('title', $document->id ? ('Депозит №' . $document->num) : 'Операция по депозиту')
+@section('title', $document->id ? (__('deposit.deposit_no') . $document->num) : __('deposit.deposit_operation'))
 
 @section('content')
 <div class="ttable" style="padding: 20px; max-width: 760px; margin: 0 auto; background: #fff; border-radius: 8px;">
@@ -9,18 +9,18 @@
     $mode = $document->docum ?? request('mode', 'topup');
     $mode = in_array($mode, ['topup', 'withdraw', 'exchange'], true) ? $mode : 'topup';
     $heading = match ($mode) {
-        'withdraw' => 'Снять с депозита',
-        'exchange' => 'Обмен между кассами',
-        default => 'Пополнить депозит',
+        'withdraw' => __('deposit.op_withdraw'),
+        'exchange' => __('deposit.op_exchange'),
+        default => __('deposit.op_topup'),
     };
     $topLabel = match ($mode) {
-        'withdraw' => 'Верхний счет: депозит',
-        default => 'Верхний счет: касса',
+        'withdraw' => __('deposit.top_account_deposit'),
+        default => __('deposit.top_account_cash'),
     };
     $bottomLabel = match ($mode) {
-        'withdraw' => 'Нижний счет: касса',
-        'exchange' => 'Нижний счет: касса',
-        default => 'Нижний счет: депозит',
+        'withdraw' => __('deposit.bottom_account_cash'),
+        'exchange' => __('deposit.bottom_account_cash'),
+        default => __('deposit.bottom_account_deposit'),
     };
     @endphp
 
@@ -40,16 +40,16 @@
 
         <div class="row">
             <div class="col-md-4 mb-3">
-                <label>Дата</label>
+                <label>{{ __('deposit.field_date') }}</label>
                 <input type="text" name="data" class="form-control" value="{{ old('data', $document->data ?? date('d-m-Y')) }}" placeholder="дд-мм-рррр">
             </div>
             <div class="col-md-4 mb-3">
-                <label>Сума</label>
+                <label>{{ __('deposit.field_sum') }}</label>
                 <input type="number" step="0.01" min="0" name="summa" class="form-control" value="{{ old('summa', $document->summa ?? 0) }}">
             </div>
             <div class="col-md-4 mb-3">
-                <label>Статус</label>
-                <input type="text" class="form-control" value="{{ (int)($document->provodka ?? 0) === 1 ? 'Проведено' : 'Чернетка' }}" disabled>
+                <label>{{ __('deposit.field_status') }}</label>
+                <input type="text" class="form-control" value="{{ (int)($document->provodka ?? 0) === 1 ? __('deposit.status_posted') : __('deposit.status_draft') }}" disabled>
             </div>
         </div>
 
@@ -57,7 +57,7 @@
             <div style="font-size:0.82rem; text-transform:uppercase; letter-spacing:0.08em; color:#92400e; margin-bottom:8px;">{{ $topLabel }}</div>
             @if($mode === 'withdraw')
             <select name="money" class="form-control" required>
-                <option value="">— оберіть депозит —</option>
+                <option value="">{{ __('deposit.select_deposit') }}</option>
                 @foreach($deposits as $deposit)
                 <option value="{{ $deposit->id }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
                     {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} @endif
@@ -66,7 +66,7 @@
             </select>
             @else
             <select name="oplata" class="form-control" required>
-                <option value="">— оберіть касу —</option>
+                <option value="">{{ __('deposit.select_cash') }}</option>
                 @foreach($oplatas as $oplata)
                 <option value="{{ $oplata->id }}" {{ (string) old('oplata', $document->oplata ?? '') === (string) $oplata->id ? 'selected' : '' }}>
                     {{ $oplata->name }} @if(isset($oplata->value)) | {{ number_format((float) $oplata->value, 2, '.', ' ') }} @endif
@@ -82,7 +82,7 @@
             <div style="font-size:0.82rem; text-transform:uppercase; letter-spacing:0.08em; color:#92400e; margin-bottom:8px;">{{ $bottomLabel }}</div>
             @if($mode === 'topup')
             <select name="money" class="form-control" required>
-                <option value="">— оберіть депозит —</option>
+                <option value="">{{ __('deposit.select_deposit') }}</option>
                 @foreach($deposits as $deposit)
                 <option value="{{ $deposit->id }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
                     {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} @endif
@@ -91,7 +91,7 @@
             </select>
             @else
             <select name="oplata2" class="form-control" required>
-                <option value="">— оберіть касу —</option>
+                <option value="">{{ __('deposit.select_cash') }}</option>
                 @foreach($oplatas as $oplata)
                 <option value="{{ $oplata->id }}" {{ (string) old('oplata2', $document->oplata2 ?? '') === (string) $oplata->id ? 'selected' : '' }}>
                     {{ $oplata->name }} @if(isset($oplata->value)) | {{ number_format((float) $oplata->value, 2, '.', ' ') }} @endif
@@ -102,30 +102,30 @@
         </div>
 
         <div class="mb-3">
-            <label>Коментар</label>
+            <label>{{ __('deposit.comment') }}</label>
             <input type="text" name="content" class="form-control" value="{{ old('content', $document->content ?? '') }}">
         </div>
 
         @if((int)($document->provodka ?? 0) === 0)
         <div class="mb-3 form-check">
             <input type="checkbox" class="form-check-input" id="post_after_save" name="post_after_save" value="1" checked>
-            <label class="form-check-label" for="post_after_save">Провести документ після збереження</label>
+            <label class="form-check-label" for="post_after_save">{{ __('deposit.post_after_save') }}</label>
         </div>
         @endif
 
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('deposit.index') }}" class="btn">← Назад</a>
+            <a href="{{ route('deposit.index') }}" class="btn">{{ __('deposit.btn_back') }}</a>
             @if((int)($document->provodka ?? 0) === 0)
-            <button type="submit" class="btn">💾 Зберегти</button>
+            <button type="submit" class="btn">{{ __('deposit.btn_save') }}</button>
             @endif
             @if(!$isNew && (int)($document->provodka ?? 0) === 1)
             <button type="submit" formaction="{{ route('deposit.provodka') }}" formmethod="post" class="btn btn-success">
-                ↺ Скасувати проводку
+                {{ __('deposit.btn_cancel_posting') }}
             </button>
             @endif
             @if(!$isNew && (int)($document->provodka ?? 0) === 0)
-            <button type="button" class="btn btn-danger" onclick="if(confirm('Дійсно видалити цей документ?')) { document.getElementById('deleteDepositForm').submit(); }">
-                🗑 Видалити
+            <button type="button" class="btn btn-danger" onclick="if(confirm('{{ __('deposit.confirm_delete') }}')) { document.getElementById('deleteDepositForm').submit(); }">
+                {{ __('deposit.btn_delete') }}
             </button>
             @endif
         </div>
