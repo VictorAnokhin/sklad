@@ -194,7 +194,9 @@ class User extends Authenticatable
 
         // Data for filter dropdowns
         $statuses = DB::table('conf')
-            ->where('type', 'idstatus')->where('firma', $fid)->orderBy('name')->get();
+            ->where('type', 'tclient')
+            ->where('firma', $fid)
+            ->orderBy('name')->get();
 
         return compact('clients', 'total', 'statuses');
     }
@@ -205,7 +207,9 @@ class User extends Authenticatable
 
         // Selects needed for form
         $statuses = DB::table('conf')
-            ->where('type', 'idstatus')->where('firma', $fid)->orderBy('name')->get();
+            ->where('type', 'tclient')
+            ->where('firma', $fid)
+            ->orderBy('name')->get();
 
         return compact('client', 'statuses');
     }

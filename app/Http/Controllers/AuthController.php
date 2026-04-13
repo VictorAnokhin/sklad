@@ -292,6 +292,85 @@ class AuthController extends Controller
         ]);
     }
 
+    public function apiRegister(Request $request)
+    {
+        $validationRules = [
+            'name' => 'required|string|max:255',
+            'surname' => 'nullable|string|max:255',
+            'email' => 'required|email|max:255',
+            'phone' => 'nullable|string|max:50',
+            'password' => 'required|string|min:6|confirmed',
+        ];
+
+        if (User::hasUsersColumn('login')) {
+            $validationRules['login'] = 'required|string|max:255';
+        }
+
+        $validated = $request->validate($validationRules);
+
+        $login = trim((string) ($validated['login'] ?? $validated['email']));
+        $pass = trim($validated['password']);
+        $name = trim($validated['name']);
+        $surname = trim($validated['surname'] ?? '');
+        $email = trim($validated['email']);
+        $phone = trim($validated['phone'] ?? '');
+
+        /** @var User|null $user */
+        $user = User::forLogin($login)->first();
+
+        if ($user) {
+            return response()->json(['message' => 'Користувач вже існує'], 422);
+        }
+
+        if (User::where('email', $email)->exists()) {
+            return response()->json(['message' => 'Користувач з таким email вже існує'], 422);
+        }
+
+        if ($phone !== '' && User::where('phone', $phone)->exists()) {
+            return response()->json(['message' => 'Користувач з таким телефоном вже існує'], 422);
+        }
+
+        $passwordHash = Hash::make($pass);
+
+        $userData = [
+            'login' => $login,
+            'email' => $email,
+            'phone' => $phone,
+            'pass' => $passwordHash,
+            'password' => $passwordHash,
+            'name' => $name,
+            'secondname' => $surname,
+            'fathername' => $surname,
+            'idstatus' => 1,
+            'ustype' => 1,
+        ];
+
+        $nextFirma = $this->nextFirma();
+
+        if (Schema::hasColumn('users', 'firma')) {
+            $userData['firma'] = $nextFirma;
+        }
+
+        if (Schema::hasColumn('users', 'idfirma')) {
+            $userData['idfirma'] = $nextFirma;
+        }
+
+        if (Schema::hasColumn('users', 'status')) {
+            $userData['status'] = 1;
+        }
+
+        $user = User::create(User::filterUsersColumns($userData));
+
+        // Auto login after registration
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return response()->json([
+            'message' => 'Реєстрація успішна',
+            'user' => $this->serializeUser($user->fresh()),
+        ], 201);
+    }
+
     public function linkWallet(Request $request)
     {
         /** @var User|null $user */

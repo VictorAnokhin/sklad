@@ -15,6 +15,7 @@ use App\Http\Controllers\ZakazController;
 */
 
 Route::prefix('auth')->group(function () {
+    Route::post('/register', [AuthController::class, 'apiRegister']);
     Route::post('/login', [AuthController::class, 'apiLogin']);
     Route::post('/web3/challenge', [AuthController::class, 'web3LoginChallenge']);
     Route::post('/web3/login', [AuthController::class, 'web3Login']);

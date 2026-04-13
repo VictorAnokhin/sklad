@@ -72,6 +72,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/', [ClientController::class , 'index'])->name('index');
             Route::get('/show', [ClientController::class , 'show'])->name('show');
             Route::get('/search', [ClientController::class , 'search'])->name('search');
+            Route::post('/check-email', [ClientController::class , 'checkEmail'])->name('checkEmail');
             Route::get('/{id}/orders', [ClientController::class , 'orders'])->name('orders');
             Route::post('/save', [ClientController::class , 'save'])->name('save');
             Route::post('/quick-store', [ClientController::class , 'storeQuick'])->name('quickStore');

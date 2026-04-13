@@ -84,6 +84,46 @@ class ClientController extends Controller
         return response()->json($users);
     }
 
+    // ── Check email uniqueness (Async) ────────────────────────────────────────
+
+    public function checkEmail(Request $request)
+    {
+        $email = trim((string) $request->input('email'));
+        $clientId = $request->input('client_id', '0');
+
+        if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return response()->json([
+                'valid' => false,
+                'message' => 'Некоректний формат email',
+            ]);
+        }
+
+        $fid = session('fid', '');
+
+        $query = DB::table('users')
+            ->where('email', $email)
+            ->where('firma', $fid);
+
+        // Exclude current client when editing
+        if ($clientId !== '0' && $clientId !== '') {
+            $query->where('id', '!=', $clientId);
+        }
+
+        $exists = $query->exists();
+
+        if ($exists) {
+            return response()->json([
+                'valid' => false,
+                'message' => 'Клієнт з таким email вже існує',
+            ]);
+        }
+
+        return response()->json([
+            'valid' => true,
+            'message' => 'Email доступний',
+        ]);
+    }
+
     // ── Quick-create client (AJAX from document.show modal) ──────────────────
 
     public function storeQuick(Request $request)
@@ -173,54 +213,60 @@ class ClientController extends Controller
         $id = $request->input('id', '0');
         $stringValue = static fn ($value): string => trim((string) ($value ?? ''));
 
-        $request->validate([
-            'email' => [
-                'required',
-                'email',
-                'max:255',
-                Rule::unique('users', 'email')->ignore($id === '0' ? null : $id),
-            ],
-            'login' => array_filter([
-                User::hasUsersColumn('login') ? 'nullable' : null,
-                User::hasUsersColumn('login') ? 'string' : null,
-                User::hasUsersColumn('login') ? 'max:255' : null,
-                User::hasUsersColumn('login') ? Rule::unique('users', 'login')->ignore($id === '0' ? null : $id) : null,
-            ]),
-        ]);
+        try {
+            $request->validate([
+                'email' => [
+                    'required',
+                    'email',
+                    'max:255',
+                    Rule::unique('users', 'email')->ignore($id === '0' ? null : $id),
+                ],
+                'login' => array_filter([
+                    User::hasUsersColumn('login') ? 'nullable' : null,
+                    User::hasUsersColumn('login') ? 'string' : null,
+                    User::hasUsersColumn('login') ? 'max:255' : null,
+                    User::hasUsersColumn('login') ? Rule::unique('users', 'login')->ignore($id === '0' ? null : $id) : null,
+                ]),
+            ]);
 
-        $data = [
-            'login' => $stringValue($request->input('login', '')),
-            'name' => $stringValue($request->input('name', '')),
-            'secondname' => $stringValue($request->input('secondname', '')),
-            'fathername' => $stringValue($request->input('fathername', '')),
-            'orgname' => $stringValue($request->input('orgname', '')),
-            'name2' => $stringValue($request->input('name2', '')),
-            'kod1' => $stringValue($request->input('kod1', '')),
-            'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
-            'phone1' => preg_replace('/\D/', '', $request->input('phone1', '')),
-            'email' => $stringValue($request->input('email', '')),
-            'city' => $stringValue($request->input('city', '')),
-            'region' => $stringValue($request->input('region', '')),
-            'poshta' => $stringValue($request->input('poshta', '')),
-            'idstatus' => (int)$request->input('idstatus', 1),
-            'ustype' => (int)$request->input('idstatus', 1),
-            'top' => (int)$request->input('top', 1),
-            'bonus' => (float)$request->input('bonus', 0),
-            'hbd' => $stringValue($request->input('hbd', '')),
-            'firma' => $fid,
-        ];
+            $data = [
+                'login' => $stringValue($request->input('login', '')),
+                'name' => $stringValue($request->input('name', '')),
+                'secondname' => $stringValue($request->input('secondname', '')),
+                'fathername' => $stringValue($request->input('fathername', '')),
+                'orgname' => $stringValue($request->input('orgname', '')),
+                'name2' => $stringValue($request->input('name2', '')),
+                'kod1' => $stringValue($request->input('kod1', '')),
+                'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
+                'phone1' => preg_replace('/\D/', '', $request->input('phone1', '')),
+                'email' => $stringValue($request->input('email', '')),
+                'city' => $stringValue($request->input('city', '')),
+                'region' => $stringValue($request->input('region', '')),
+                'poshta' => $stringValue($request->input('poshta', '')),
+                'idstatus' => (int)$request->input('idstatus', 1),
+                'ustype' => (int)$request->input('idstatus', 1),
+                'top' => (int)$request->input('top', 1),
+                'bonus' => (float)$request->input('bonus', 0),
+                'hbd' => $stringValue($request->input('hbd', '')),
+                'firma' => $fid,
+            ];
 
-        $password = trim((string) $request->input('pass', ''));
-        if ($password !== '') {
-            $hash = Hash::make($password);
-            $data['pass'] = $hash;
-            $data['password'] = $hash;
+            $password = trim((string) $request->input('pass', ''));
+            if ($password !== '') {
+                $hash = Hash::make($password);
+                $data['pass'] = $hash;
+                $data['password'] = $hash;
+            }
+
+            $id = User::edit($id, $data);
+
+            session(['client1' => $id]);
+            return redirect()->route('client.show', ['id' => $id])->with('success', 'Збережено');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            return back()->withErrors(['save' => 'Помилка збереження: ' . $e->getMessage()])->withInput();
         }
-
-        $id = User::edit($id, $data);
-
-        session(['client1' => $id]);
-        return redirect()->route('client.show', ['id' => $id])->with('success', 'Збережено');
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
