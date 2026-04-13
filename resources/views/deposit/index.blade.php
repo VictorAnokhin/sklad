@@ -32,6 +32,8 @@
         </div>
     </div>
 
+    {{-- Desktop: table --}}
+    <div class="deposit-table--desktop">
     @if(($documents ?? collect())->isEmpty())
     <div style="text-align:center; padding:20px; color:#CC0000;">{{ __('deposit.no_documents') }}</div>
     @else
@@ -86,5 +88,63 @@
         </tbody>
     </table>
     @endif
+    </div>
+
+    {{-- Mobile: card list --}}
+    <div class="deposit-list--mobile">
+    @if(($documents ?? collect())->isEmpty())
+    <div class="deposit-empty">{{ __('deposit.no_documents') }}</div>
+    @else
+    @foreach($documents as $doc)
+    @php
+        $mode = $doc->docum ?? 'topup';
+        $modeLabel = match ($mode) {
+            'withdraw' => __('deposit.op_withdraw'),
+            'exchange' => __('deposit.op_exchange'),
+            default => __('deposit.op_topup'),
+        };
+        $fromLabel = match ($mode) {
+            'withdraw' => $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—'),
+            'exchange' => $oplataMap[$doc->oplata ?? ''] ?? ($doc->oplata ?: '—'),
+            default => $oplataMap[$doc->oplata ?? ''] ?? ($doc->oplata ?: '—'),
+        };
+        $toLabel = match ($mode) {
+            'withdraw' => $oplataMap[$doc->oplata2 ?? ''] ?? ($doc->oplata2 ?: '—'),
+            'exchange' => $oplataMap[$doc->oplata2 ?? ''] ?? ($doc->oplata2 ?: '—'),
+            default => $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—'),
+        };
+    @endphp
+    <div class="deposit-card deposit-card--{{ $mode }}">
+        <div class="deposit-card__header">
+            <span class="deposit-card__type">
+                @if($mode === 'topup')
+                📥 {{ $modeLabel }}
+                @elseif($mode === 'withdraw')
+                📤 {{ $modeLabel }}
+                @else
+                🔄 {{ $modeLabel }}
+                @endif
+            </span>
+            <span class="deposit-card__num">#{{ $doc->num }}</span>
+            <span class="deposit-card__posted">{{ $doc->provodka ? '✅' : '⏳' }}</span>
+        </div>
+        <div class="deposit-card__date">{{ $doc->data ?? '—' }}</div>
+        <div class="deposit-card__route">
+            <span class="deposit-card__from">{{ $fromLabel }}</span>
+            <span class="deposit-card__arrow">→</span>
+            <span class="deposit-card__to">{{ $toLabel }}</span>
+        </div>
+        <div class="deposit-card__sum">{{ number_format($doc->summa ?? 0, 2, '.', ' ') }} грн</div>
+        @if($doc->content)
+        <div class="deposit-card__comment">{{ $doc->content }}</div>
+        @endif
+        <div class="deposit-card__actions">
+            <a href="{{ route('deposit.show', ['id' => $doc->id]) }}" class="btn btn-sm btn-outline-primary">{{ __('deposit.edit') ?? '✏️ Редагувати' }}</a>
+        </div>
+    </div>
+    @endforeach
+    @endif
+    </div>
+
 </div>
 @endsection

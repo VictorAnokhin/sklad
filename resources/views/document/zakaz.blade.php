@@ -41,12 +41,17 @@
     <div class="document-compact-list">
     @foreach ($items as $item)
     <div class="txtbox-price-docs">
-      <div class="numdoc-docs">
-        <a href="{!! $item['linkUrl'] !!}">{!! $item['num'] !!}</a>
-      </div>
-      <div class="status-docs4 compact-date">
-        <span class="compact-date-line">{!! $item['data'] !!}</span>
-        <span class="compact-date-line">{!! $item['time'] !!}</span>
+      <div class="order-card__header">
+        <div class="numdoc-docs">
+          <a href="{!! $item['linkUrl'] !!}">{!! $item['num'] !!}</a>
+        </div>
+        <div class="status-docs-icons--mobile">
+          {!! $item['signalIcons'] !!}
+        </div>
+        <div class="status-docs4 compact-date">
+          <span class="compact-date-line">{!! $item['data'] !!}</span>
+          <span class="compact-date-line">{!! $item['time'] !!}</span>
+        </div>
       </div>
       <div class="captionbox-docs">
         <a href="{!! $item['linkUrl'] !!}" class="title">
@@ -55,18 +60,22 @@
           <span class="phone">{!! $item['phone'] !!}</span>
         </a>
       </div>
+      
       <div class="status-docs3" style="background:{!! $item['color'] !!}">
-        {!! $item['statusName'] !!} {!! $item['signal'] !!}
+        {!! $item['statusName'] !!}
       </div>
-      @if(!empty($item['clientInfoHtml']))
-    <div class="status-docs4" style="font-size:0.85em; min-width:120px;">
-      {!! $item['clientInfoHtml'] !!}
-    </div>
-    @endif
       <div class="pricebox-docs1">
         <span class="money">{!! $item['summaFmt'] !!}</span>
       </div>
       <div class="captionbox-docs2">{!! $item['content'] !!}</div>
+      <div class="status-docs-icons">
+        {!! $item['signalIcons'] !!}
+      </div>
+      @if(!empty($item['clientInfoHtml']))
+      <div class="status-docs4" style="min-width:140px;">
+      {!! $item['clientInfoHtml'] !!}
+    </div>
+    @endif
     </div>
     @endforeach
     </div>

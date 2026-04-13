@@ -36,6 +36,7 @@ return [
     'filter_reset' => 'Скинути',
     'edit_title' => 'Документ №:num',
     'create_title' => 'Новий документ',
+    'edit' => 'Просмотр',
     'heading_income' => 'Прихід грошей (PO)',
     'heading_outcome' => 'Видача грошей (RO)',
     'field_date' => 'Дата',

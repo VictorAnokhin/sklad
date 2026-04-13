@@ -2,6 +2,16 @@
 
 return [
     'title' => 'Депозити',
+    'edit' => 'Просмотр',
+    'op_exchange' => 'Обмін',
+    'op_withdraw' => 'Зняття',
+    'op_topup' => 'Поповнення',
+    'deposit_no' => 'Депозит #',
+    'top_account_deposit' => 'Верхній рахунок: депозит',
+    'bottom_account_cash' => 'Нижній рахунок: каса',
+    'top_account_cash' => 'Верхній рахунок: каса',
+    'bottom_account_deposit' => 'Нижній рахунок: депозит',
+    'btn_cancel_posting' => 'Скасувати проводку',
     'add_deposit' => '+ Поповнити депозит',
     'add_withdraw' => '+ Зняти з депозита',
     'add_transfer' => '+ Обмін між касами',

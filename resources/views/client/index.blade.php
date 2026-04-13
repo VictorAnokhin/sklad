@@ -46,7 +46,8 @@
         </div>
     </form>
 
-    <div class="table-responsive">
+    <!-- Desktop: table -->
+    <div class="table-responsive client-table--desktop">
         <table class="table table-bordered table-striped table-hover">
             <thead class="table-dark">
                 <tr>
@@ -90,6 +91,41 @@
                 @endforelse
             </tbody>
         </table>
+    </div>
+
+    <!-- Mobile: card list -->
+    <div class="client-list--mobile">
+        @forelse($clients as $client)
+        <div class="client-card">
+            <div class="client-card__header">
+                <a href="{{ route('client.show', ['id' => $client->id]) }}" class="client-card__org">
+                    {{ $client->orgname ?: '—' }}
+                </a>
+                <span class="client-card__id">#{{ $client->id }}</span>
+            </div>
+            <div class="client-card__name">
+                {{ trim(($client->secondname ?? '') . ' ' . ($client->name ?? '') . ' ' . ($client->fathername ?? '')) ?: ($client->name2 ?? '—') }}
+            </div>
+            <div class="client-card__info">
+                <span class="client-card__phone">📞 {{ $client->phone }}</span>
+                <span class="client-card__city">📍 {{ $client->city }}</span>
+            </div>
+            <div class="client-card__actions">
+                <button
+                    type="button"
+                    class="btn btn-outline-primary btn-sm client-orders-btn"
+                    data-client-id="{{ $client->id }}"
+                    data-client-name="{{ trim(($client->orgname ?: '') . ' ' . (($client->secondname ?? '') . ' ' . ($client->name ?? ''))) }}"
+                    data-bs-toggle="modal"
+                    data-bs-target="#clientOrdersModal"
+                >{{ __('client.view_orders') }}</button>
+            </div>
+        </div>
+        @empty
+        <div class="client-card client-card--empty">
+            <div class="text-center text-muted">{{ __('client.no_clients') }}</div>
+        </div>
+        @endforelse
     </div>
 
     {{-- Pagination --}}

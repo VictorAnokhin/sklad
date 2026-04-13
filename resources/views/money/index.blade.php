@@ -77,10 +77,8 @@
         </div>
     </div>
 
-
-
-    {{-- Список документів --}}
-
+    {{-- Desktop: table --}}
+    <div class="money-table--desktop">
     @if($documents->isEmpty())
     <div class="money-empty">{{ __('money.no_documents') }}</div>
     @else
@@ -136,6 +134,57 @@
             @endforeach
         </tbody>
     </table>
+    @endif
+    </div>
+
+    {{-- Mobile: card list --}}
+    <div class="money-list--mobile">
+    @if($documents->isEmpty())
+    <div class="money-empty">{{ __('money.no_documents') }}</div>
+    @else
+    @foreach($documents as $doc)
+    <div class="money-card money-card--{{ $doc->type === 'PO' ? 'income' : 'outcome' }}">
+        <div class="money-card__header">
+            <span class="money-card__type">
+                @if($doc->type === 'PO')
+                📥 PO
+                @else
+                📤 RO
+                @endif
+            </span>
+            <span class="money-card__num">#{{ $doc->num }}</span>
+            <span class="money-card__posted">{{ $doc->provodka ? '✅' : '⏳' }}</span>
+        </div>
+        <div class="money-card__date">{{ $doc->data ?? '—' }}</div>
+        <div class="money-card__client">
+            {{ $doc->orgname ?? '' }}
+            {{ trim(($doc->secondname ?? '') . ' ' . ($doc->name ?? '') . ' ' . ($doc->name2 ?? '')) }}
+            @if($doc->phone)<br><small>{{ $doc->phone }}</small>@endif
+        </div>
+        <div class="money-card__cashbox">
+            {{ $kassasMap[$doc->money ?? ''] ?? ($doc->money ?: '—') }}
+        </div>
+        <div class="money-card__sum {{ $doc->type === 'PO' ? 'money-card__sum--income' : 'money-card__sum--outcome' }}">
+            {{ number_format($doc->summa ?? 0, 2, '.', ' ') }} грн
+        </div>
+        @if($doc->content)
+        <div class="money-card__comment">{{ $doc->content }}</div>
+        @endif
+        <div class="money-card__actions">
+            <a href="{{ route('money.show', array_merge(['id' => $doc->id, 'type' => $doc->type], [
+                'return_q' => $returnFilters['q'] ?? null,
+                'return_filter_type' => $returnFilters['type'] ?? null,
+                'return_money' => $returnFilters['money'] ?? null,
+                'return_reestr' => $returnFilters['reestr'] ?? null,
+                'return_date_from' => $returnFilters['date_from'] ?? null,
+                'return_date_to' => $returnFilters['date_to'] ?? null,
+                'return_pos' => $returnFilters['pos'] ?? null,
+            ])) }}" class="btn btn-sm btn-outline-primary">{{ __('money.edit') ?? '✏️ Редагувати' }}</a>
+        </div>
+    </div>
+    @endforeach
+    @endif
+    </div>
 
     @if(($total ?? 0) > $perPage)
     <div class="money-pagination">
@@ -167,7 +216,6 @@
             @endif
         </div>
     </div>
-    @endif
     @endif
 
 </div>

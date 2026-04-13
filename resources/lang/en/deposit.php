@@ -2,6 +2,16 @@
 
 return [
     'title' => 'Deposits',
+    'edit' => 'View',
+    'op_exchange' => 'Exchange',
+    'op_withdraw' => 'Withdraw',
+    'op_topup' => 'Top Up',
+    'deposit_no' => 'Deposit #',
+    'top_account_deposit' => 'Top Account: Deposit',
+    'bottom_account_cash' => 'Bottom Account: Cash',
+    'top_account_cash' => 'Top Account: Cash',
+    'bottom_account_deposit' => 'Bottom Account: Deposit',
+    'btn_cancel_posting' => 'Cancel Posting',
     'add_deposit' => '+ Top Up Deposit',
     'add_withdraw' => '+ Withdraw from Deposit',
     'add_transfer' => '+ Transfer Between Cashboxes',

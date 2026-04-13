@@ -48,12 +48,17 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
   <div class="document-compact-list">
   @foreach($items as $item)
   <div class="txtbox-price-docs">
-    <div class="numdoc-docs">
-      <a href="{{ $item['linkUrl'] }}" title="{{ __('document.open') }}">{{ $item['num'] }}</a>
-    </div>
-    <div class="status-docs4 compact-date">
-      <span class="compact-date-line">{{ $item['data'] }}</span>
-      <span class="compact-date-line">{{ $item['time'] }}</span>
+    <div class="order-card__header">
+      <div class="numdoc-docs">
+        <a href="{{ $item['linkUrl'] }}" title="{{ __('document.open') }}">{{ $item['num'] }}</a>
+      </div>
+      <div class="status-docs-icons--mobile">
+        {!! $item['signalIcons'] !!}
+      </div>
+      <div class="status-docs4 compact-date">
+        <span class="compact-date-line">{{ $item['data'] }}</span>
+        <span class="compact-date-line">{{ $item['time'] }}</span>
+      </div>
     </div>
     <div class="captionbox-docs">
       <a href="{{ $item['linkUrl'] }}" class="title">
@@ -63,12 +68,15 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
       </a>
     </div>
     <div class="status-docs3" style="background:{{ $item['color'] }}">
-      {{ $item['statusName'] }} {!! $item['signal'] !!}
+      {{ $item['statusName'] }}
     </div>
     <div class="pricebox-docs1">
       <span class="money">{{ $item['summaFmt'] }}</span>
     </div>
     <div class="captionbox-docs2">{!! $item['content'] !!}</div>
+    <div class="status-docs-icons">
+      {!! $item['signalIcons'] !!}
+    </div>
   </div>
 
   @endforeach

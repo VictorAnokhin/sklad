@@ -36,6 +36,7 @@ return [
     'filter_reset' => 'Reset',
     'edit_title' => 'Document #:num',
     'create_title' => 'New Document',
+    'edit' => 'View',
     'heading_income' => 'Money Income (PO)',
     'heading_outcome' => 'Money Outcome (RO)',
     'field_date' => 'Date',

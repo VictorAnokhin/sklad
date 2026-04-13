@@ -149,6 +149,25 @@ class Document extends Model
 
             $signal = ($statusName === '' && $doc === 'ZOUT') ? "<span class='alink3'>new</span>" : '';
 
+            // Status icons based on conf.status field
+            $statusIcons = [];
+            if ($conf) {
+                $confStatus = (int)($conf->status ?? 0);
+                // status=2: shipping/delivery icon
+                if ($confStatus == 2) {
+                    $statusIcons[] = '<img src="' . asset('img/icon-truck.png') . '" alt="Доставка" title="Доставка" class="status-icon status-icon-truck">';
+                }
+                // status=3: payment icon
+                if ($confStatus == 3) {
+                    $statusIcons[] = '<img src="' . asset('img/icon-coins.png') . '" alt="Оплата" title="Оплата" class="status-icon status-icon-payment">';
+                }
+            }
+            // Additional: if order has ttn (tracking number), show delivery icon
+            if (!empty($row->ttn) && !in_array(2, array_map(function($icon) { return strpos($icon, 'truck') !== false; }, $statusIcons), true)) {
+                $statusIcons[] = '<img src="' . asset('img/icon-truck.png') . '" alt="НП" title="Новая Почта" class="status-icon status-icon-truck">';
+            }
+            $signalIcons = implode('', $statusIcons);
+
             // sklads name (used in index view)
             $skladsConf = $confMap[$row->sklads ?? ''] ?? null;
             $skladsName = $skladsConf ? h($skladsConf->name) : '';
@@ -175,6 +194,7 @@ class Document extends Model
                 'color' => $color,
                 'statusName' => $statusName,
                 'signal' => $signal,
+                'signalIcons' => $signalIcons,
                 'summaFmt' => $summaFmt,
                 'content' => $content,
                 'manager' => $manager,
