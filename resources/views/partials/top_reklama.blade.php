@@ -8,44 +8,39 @@
 @endphp
 
 <div class="header-bar">
-  <!-- Level 1: App name + burger -->
-  <div class="header-bar__top">
-    <a href="/" class="header-bar__logo text-decoration-none">
-      <span class="header-bar__title">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
-    </a>
+  <!-- Desktop: single row -->
+  <a href="/" class="header-bar__logo text-decoration-none">
+    <span class="header-bar__title">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
+  </a>
 
-    <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
-      <span></span>
-      <span></span>
-      <span></span>
-    </button>
-  </div>
-
-  <!-- Level 2: Projects (left) + Languages (right) -->
-  <div class="header-bar__bottom">
-    @if(session('name1') && $headerProjects->isNotEmpty())
-    <form method="POST" action="{{ route('settings.switchProject') }}" class="header-project-switch" id="header-project-switch-form">
-      @csrf
-      <label for="header-project-select" class="header-project-switch__label">{{ __('nav.project') }}</label>
-      <select name="fid" id="header-project-select" class="header-project-switch__select" onchange="this.form.submit()">
-        @foreach($headerProjects as $project)
-        <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
-          #{{ $project->id }}{{ !empty($project->num) ? ' / ' . $project->num : '' }} {{ $project->name }}
-        </option>
-        @endforeach
-      </select>
-    </form>
-    @endif
-
-    <div class="header-lang-switch" aria-label="{{ __('nav.language') }}">
-      @foreach(['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'] as $langCode => $langLabel)
-        <a
-          href="{{ request()->fullUrlWithQuery(['lang' => $langCode]) }}"
-          class="header-lang-switch__link {{ $activeLang === $langCode ? 'is-active' : '' }}"
-        >{{ $langLabel }}</a>
+  @if(session('name1') && $headerProjects->isNotEmpty())
+  <form method="POST" action="{{ route('settings.switchProject') }}" class="header-project-switch" id="header-project-switch-form">
+    @csrf
+    <label for="header-project-select" class="header-project-switch__label">{{ __('nav.project') }}</label>
+    <select name="fid" id="header-project-select" class="header-project-switch__select" onchange="this.form.submit()">
+      @foreach($headerProjects as $project)
+      <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
+        #{{ $project->id }}{{ !empty($project->num) ? ' / ' . $project->num : '' }} {{ $project->name }}
+      </option>
       @endforeach
-    </div>
+    </select>
+  </form>
+  @endif
+
+  <div class="header-lang-switch" aria-label="{{ __('nav.language') }}">
+    @foreach(['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'] as $langCode => $langLabel)
+      <a
+        href="{{ request()->fullUrlWithQuery(['lang' => $langCode]) }}"
+        class="header-lang-switch__link {{ $activeLang === $langCode ? 'is-active' : '' }}"
+      >{{ $langLabel }}</a>
+    @endforeach
   </div>
+
+  <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
 
   <nav class="header-nav-menu" id="header-nav-menu">
     @if(session('name1'))
@@ -76,21 +71,33 @@
   @media (max-width: 900px) {
     .header-bar {
       padding: 0 0.5rem;
-    }
-
-    .header-bar__bottom {
       flex-wrap: wrap;
     }
 
+    .header-bar__logo {
+      order: 1;
+    }
+
+    .header-burger {
+      order: 10;
+      margin-left: auto;
+    }
+
     .header-project-switch {
-      flex: 1 1 auto;
-      min-width: 0;
+      order: 2;
+      width: 100%;
+      margin: 0;
     }
 
     .header-project-switch__select {
       min-width: 0;
       max-width: none;
       width: 100%;
+    }
+
+    .header-lang-switch {
+      order: 3;
+      margin-left: auto;
     }
 
     .header-nav-menu {
@@ -101,6 +108,10 @@
   }
 
   @media (min-width: 901px) {
+    .header-bar {
+      flex-wrap: nowrap;
+    }
+
     .header-bar__bottom {
       flex-wrap: nowrap;
     }
