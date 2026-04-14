@@ -20,14 +20,16 @@
         class="header-lang-switch__link {{ $activeLang === $langCode ? 'is-active' : '' }}"
       >{{ $langLabel }}</a>
     @endforeach
+
+    <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
   </div>
 
 
-  <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
-    <span></span>
-    <span></span>
-    <span></span>
-  </button>
+  
 
   <nav class="header-nav-menu" id="header-nav-menu">
     @if(session('name1'))

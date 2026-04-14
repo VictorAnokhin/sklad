@@ -70,15 +70,34 @@
                     </div>
                 </div>
 
-                <!-- Row 2: ТТН | Статус -->
+                <!-- Row 2: Склад (only for RN, PN, WO1) -->
+                @if(in_array($doc, ['RN', 'PN', 'WO1'], true))
+                <div class="doc-form-row-single">
+                    <label>Склад</label>
+                    <select name="sklads" class="form-select">
+                        <option value="">— Оберіть склад —</option>
+                        @foreach(($skladsList ?? collect()) as $skladOption)
+                        <option value="{{ $skladOption->id }}" {{ (string) ($document->sklads ?? '') === (string) $skladOption->id ? 'selected' : '' }}>
+                            {{ $skladOption->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                    @error('sklads')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
+                </div>
+                @endif
+
+                <!-- Row 3: ТТН | Статус (only for ZOUT and ZIN) -->
+                @if(in_array($doc, ['ZOUT', 'ZIN'], true))
                 <div class="doc-form-row doc-form-row-two-cols">
                     <div class="col-f">
                         <label>ТТН Нова Пошта</label>
                         <input type="text" name="ttn" class="form-control" value="{{ $document->ttn ?? '' }}">
                     </div>
                     <div class="col-f">
-                        <label>Статус <span class="text-danger">*</span></label>
-                        <select name="status" class="form-select" required>
+                        <label>Статус</label>
+                        <select name="status" class="form-select">
                             <option value="">— Оберіть статус —</option>
                             <option value="0" {{ (string) $document->status === '0' ? 'selected' : '' }}>0 - Новий</option>
                             @foreach(($statusList ?? collect()) as $statusOption)
@@ -92,6 +111,41 @@
                         @enderror
                     </div>
                 </div>
+                @endif
+
+                <!-- Row 3b: Каса | Вид платежу (only for PO/RO) -->
+                @if(in_array($doc, ['PO', 'RO'], true))
+                <div class="doc-form-row doc-form-row-two-cols">
+                    <div class="col-f">
+                        <label>Каса</label>
+                        <select name="oplata" class="form-select">
+                            <option value="">— Оберіть касу —</option>
+                            @foreach(($oplataList ?? collect()) as $oplataOption)
+                            <option value="{{ $oplataOption->id }}" {{ (string) ($document->oplata ?? '') === (string) $oplataOption->id ? 'selected' : '' }}>
+                                {{ $oplataOption->name }}
+                            </option>
+                            @endforeach
+                        </select>
+                        @error('oplata')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-f">
+                        <label>Вид платежу</label>
+                        <select name="reestr" class="form-select">
+                            <option value="">— Оберіть вид платежу —</option>
+                            @foreach(($reestrList ?? collect()) as $reestrOption)
+                            <option value="{{ $reestrOption->id }}" {{ (string) ($document->reestr ?? '') === (string) $reestrOption->id ? 'selected' : '' }}>
+                                {{ $reestrOption->name }}
+                            </option>
+                            @endforeach
+                        </select>
+                        @error('reestr')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+                @endif
 
                 <!-- Row 2: Клієнт -->
                 <div class="doc-form-row-single">
@@ -182,7 +236,7 @@
                             <td>
                                 <div class="input-group input-group-sm">
                                     <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
-                                    <input type="number" step="1" name="pcount[]"
+                                    <input type="text" step="1" name="pcount[]"
                                         class="form-control form-control-sm goods-count" value="{{ $item->pcount }}">
                                     <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                 </div>
@@ -231,7 +285,7 @@
                     </button>
                     @else
                     <div class="form-check d-flex align-items-center post-checkbox">
-                        <input type="hidden" name="post_after_save" value="0">
+                        <!-- <input type="hidden" name="post_after_save" value="0"> -->
                         <input
                             type="checkbox"
                             class="form-check-input"

@@ -22,6 +22,12 @@ class DocumentService
 
     public function saveHead(Request $request, string $docId, string $docType, string $fid): void
     {
+        Log::info('saveHead called', [
+            'docType' => $docType,
+            'docId' => $docId,
+            'fid' => $fid,
+        ]);
+        
         $table = Document::tableForType($docType);
         $summa = (float) $request->input('summa', 0);
 
@@ -58,6 +64,12 @@ class DocumentService
         ];
 
         $existingColumns = Schema::getColumnListing($table);
+        Log::info('saveHead columns info', [
+            'table' => $table,
+            'existingColumns' => $existingColumns,
+            'dataKeys' => array_keys($data),
+        ]);
+        
         $data = array_intersect_key($data, array_flip($existingColumns));
         foreach (['content', 'ttn', 'status', 'oplata', 'oplata2', 'sklads', 'reteil', 'reestr', 'docum', 'typeproduct', 'manager', 'money', 'sms_flag', 'schet', 'num', 'time'] as $stringField) {
             if (array_key_exists($stringField, $data) && $data[$stringField] === null) {
@@ -83,7 +95,17 @@ class DocumentService
             $data['numdoc'] = $request->input('numdoc');
         }
 
-        DB::table($table)->where('id', $docId)->update($data);
+        Log::info('saveHead about to update', [
+            'table' => $table,
+            'docId' => $docId,
+            'data' => $data,
+        ]);
+        
+        $affectedRows = DB::table($table)->where('id', $docId)->update($data);
+        
+        Log::info('saveHead update completed', [
+            'affectedRows' => $affectedRows,
+        ]);
 
         // ── Update users_cashe (balance cache) ────────────────────────────────
         $client1 = DB::table($table)->where('id', $docId)->value('client1');

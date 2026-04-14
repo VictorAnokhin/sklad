@@ -356,8 +356,12 @@ class DocumentController extends Controller
         }
 
         // Load all oplata and reestr options for PO/RO dropdowns
-        $oplataList = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
-        $reestrList = ConfModel::paymentTypesForDocument($fid, $doc);
+        $oplataList = collect();
+        $reestrList = collect();
+        if (in_array($doc, ['PO', 'RO'], true)) {
+            $oplataList = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
+            $reestrList = ConfModel::paymentTypesForDocument($fid, $doc);
+        }
         $statusList = DB::table('conf')
             ->where('type', 'status')
             ->where('firma', $fid)
@@ -546,10 +550,25 @@ class DocumentController extends Controller
 
     public function save(Request $request)
     {
+        \Illuminate\Support\Facades\Log::info('save() method called', [
+            'method' => $request->method(),
+            'path' => $request->path(),
+            'allInputs' => $request->all(),
+            'session_doc' => session('doc', ''),
+            'session_doc_id' => session('doc_id', '0'),
+        ]);
+        
         $doc = (string) $request->input('doc', session('doc', ''));
         $fid = session('fid', '');
         $year = session('year', date('Y'));
         $run = $request->input('run', '');
+        
+        \Illuminate\Support\Facades\Log::info('save() variables', [
+            'doc' => $doc,
+            'run' => $run,
+            'fid' => $fid,
+        ]);
+        
         $createDocType = strtoupper((string)$request->input('create_doc_type', ''));
 
         // ── New document creation buttons ─────────────────────────────────────
@@ -631,6 +650,11 @@ class DocumentController extends Controller
             ]);
         }
 
+        \Illuminate\Support\Facades\Log::info('About to check save block', [
+            'run' => $run,
+            'willCheckSave' => in_array($run, ['Зберегти', 'Save', 'Сохранить'], true),
+        ]);
+
         // ── Save / Зберегти ───────────────────────────────────────────────────
         if (in_array($run, ['Зберегти', 'Save', 'Сохранить'], true)) {
             $docId = (string) $request->input('doc_id', session('doc_id', '0'));
@@ -643,7 +667,7 @@ class DocumentController extends Controller
                 $errors['client1'] = 'Оберіть клієнта';
             }
 
-            if (trim((string) $request->input('status', '')) === '') {
+            if (in_array($doc, ['ZOUT', 'ZIN'], true) && trim((string) $request->input('status', '')) === '') {
                 $errors['status'] = 'Оберіть статус';
             }
 
@@ -660,14 +684,33 @@ class DocumentController extends Controller
                 $errors['sklads'] = 'Оберіть склад';
             }
 
+            \Illuminate\Support\Facades\Log::info('Validation errors check', [
+                'doc' => $doc,
+                'errors' => $errors,
+                'skladsFromRequest' => $request->input('sklads', ''),
+            ]);
+
             if ($errors !== []) {
                 return redirect()->back()->withErrors($errors)->withInput();
             }
 
             session(['doc' => $doc, 'doc_id' => $docId]);
+            
+            \Illuminate\Support\Facades\Log::info('Document save started', [
+                'doc' => $doc,
+                'docId' => $docId,
+                'fid' => $fid,
+                'run' => $run,
+            ]);
+            
             try {
                 $this->docService->saveHead($request, $docId, $doc, $fid);
                 $this->docService->saveBody($request, $docId, $doc, $fid);
+
+                \Illuminate\Support\Facades\Log::info('Document head and body saved', [
+                    'doc' => $doc,
+                    'docId' => $docId,
+                ]);
 
                 $conductableDocs = ['RN', 'PN', 'PO', 'RO', 'VN', 'AO', 'WO1'];
                 $message = 'Збережено';
@@ -680,16 +723,40 @@ class DocumentController extends Controller
                         ->value('provodka') === 1;
                     $desiredPosted = $request->boolean('post_after_save');
 
+                    \Illuminate\Support\Facades\Log::info('Checking provodka state', [
+                        'doc' => $doc,
+                        'docId' => $docId,
+                        'currentPosted' => $currentPosted,
+                        'desiredPosted' => $desiredPosted,
+                    ]);
+
                     if ($desiredPosted !== $currentPosted) {
                         $result = Document::provodka($docId, $doc, $fid);
                         $message = ($result['isPosted'] ?? false)
                             ? 'Збережено та проведено'
                             : 'Збережено, проводку скасовано';
+                        
+                        \Illuminate\Support\Facades\Log::info('Provodka executed', [
+                            'doc' => $doc,
+                            'docId' => $docId,
+                            'result' => $result,
+                        ]);
                     }
                 }
 
+                \Illuminate\Support\Facades\Log::info('Document save completed', [
+                    'doc' => $doc,
+                    'docId' => $docId,
+                    'message' => $message,
+                ]);
                 return redirect()->back()->with('success', $message);
             } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Document save failed', [
+                    'doc' => $doc,
+                    'docId' => $docId,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
                 return redirect()->back()->with('error', $e->getMessage());
             }
         }
