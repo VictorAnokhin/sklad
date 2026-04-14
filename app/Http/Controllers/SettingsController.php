@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use App\Models\Conf;
 
 /**
@@ -872,6 +873,10 @@ class SettingsController extends Controller
 
     private function validateFirma(Request $request, ?object $existing = null): array
     {
+        $firmaId = $existing?->id;
+        $user = $this->currentUser();
+        $userId = $user?->id;
+        
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'regnum' => 'nullable|string|max:12',
@@ -883,12 +888,21 @@ class SettingsController extends Controller
             'address' => 'nullable|string|max:50',
             'map' => 'nullable|string|max:200',
             'view' => 'nullable|string|max:15',
-            'phone' => 'nullable|string|max:50',
+            'phone' => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('firma', 'phone')
+                    ->where('userid', $userId)
+                    ->ignore($firmaId),
+            ],
             'direktor' => 'nullable|string|max:30',
             'pidpys' => 'nullable|string|max:255',
             'pechat' => 'nullable|string|max:255',
             'pidpys_file' => 'nullable|image|max:4096',
             'pechat_file' => 'nullable|image|max:4096',
+        ], [
+            'phone.unique' => 'Компанія з таким телефоном вже існує',
         ]);
 
         $pidpys = trim((string) ($validated['pidpys'] ?? ($existing->pidpys ?? '')));

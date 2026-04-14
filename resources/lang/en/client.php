@@ -57,4 +57,9 @@ return [
     'search_client' => 'Search client...',
     'search' => 'Search',
     'client_not_selected' => 'Client not selected',
+    'validation' => [
+        'phone_unique' => 'A client with this phone already exists',
+        'phone1_unique' => 'A client with this additional phone already exists',
+        'email_unique' => 'A client with this email already exists',
+    ],
 ];

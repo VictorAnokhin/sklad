@@ -2672,4 +2672,186 @@ small,
         padding: 2rem;
         color: #CC0000;
     }
+
+    /* ==================== Goods Mobile Cards ==================== */
+    .goods-mobile-grid {
+        display: grid !important;
+        gap: 1rem;
+        padding: 0.5rem 0;
+    }
+
+    .goods-mobile-card {
+        background: var(--card, #ffffff);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .goods-mobile-card:active {
+        transform: scale(0.98);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    }
+
+    .goods-mobile-card-link {
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+
+    .goods-mobile-image {
+        width: 100%;
+        height: 180px;
+        overflow: hidden;
+        background: var(--muted, #f8f9fa);
+        position: relative;
+    }
+
+    .goods-mobile-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s ease;
+    }
+
+    .goods-mobile-content {
+        padding: 0.875rem;
+    }
+
+    .goods-mobile-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .goods-mobile-name {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--foreground, #212529);
+        margin: 0;
+        line-height: 1.3;
+        flex: 1;
+    }
+
+    .goods-stock-badge {
+        padding: 0.25rem 0.625rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .goods-stock-badge.in-stock {
+        background: rgba(40, 167, 69, 0.1);
+        color: #28a745;
+    }
+
+    .goods-stock-badge.out-of-stock {
+        background: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+    }
+
+    .goods-mobile-prices {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+        padding: 0.75rem;
+        background: var(--muted, #f8f9fa);
+        border-radius: 8px;
+    }
+
+    .goods-price-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .goods-price-item.old-price {
+        opacity: 0.7;
+    }
+
+    .goods-price-item.old-price .price-value {
+        text-decoration: line-through;
+        color: #6c757d;
+    }
+
+    .price-label {
+        font-size: 0.8125rem;
+        color: var(--muted-foreground, #6c757d);
+        font-weight: 500;
+    }
+
+    .price-value {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--foreground, #212529);
+    }
+
+    .goods-mobile-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+    }
+
+    .meta-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.375rem 0;
+        border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+    }
+
+    .meta-item:last-child {
+        border-bottom: none;
+    }
+
+    .meta-label {
+        font-size: 0.8125rem;
+        color: var(--muted-foreground, #6c757d);
+        font-weight: 500;
+    }
+
+    .meta-value {
+        font-size: 0.875rem;
+        color: var(--foreground, #212529);
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .goods-mobile-empty {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--muted-foreground, #6c757d);
+    }
+
+    .goods-mobile-empty p {
+        font-size: 1rem;
+        margin: 0;
+    }
+}
+
+/* Desktop/Tablet: Show table, hide mobile cards */
+@media (min-width: 769px) {
+    .goods-mobile-grid {
+        display: none !important;
+    }
+    
+    .goods-desktop-table {
+        display: block !important;
+    }
+}
+
+/* Mobile: Hide table, show mobile cards */
+@media (max-width: 768px) {
+    .goods-desktop-table {
+        display: none !important;
+    }
+    
+    .goods-mobile-grid {
+        display: grid !important;
+    }
 }

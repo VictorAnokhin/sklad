@@ -253,9 +253,11 @@ class User extends Authenticatable
 
     public static function deleteClient($id, $fid)
     {
-        // Guard: has documents
+        // Guard: has documents (check both client1 and client2)
         $hasDoc = DB::table('document')->where('client1', $id)->exists()
-            || DB::table('z_document')->where('client1', $id)->exists();
+            || DB::table('document')->where('client2', $id)->exists()
+            || DB::table('z_document')->where('client1', $id)->exists()
+            || DB::table('z_document')->where('client2', $id)->exists();
 
         if ($hasDoc) {
             return false;

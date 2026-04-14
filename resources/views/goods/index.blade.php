@@ -70,7 +70,8 @@
         </div>
     </form>
 
-    <div class="table-responsive">
+    {{-- Desktop: Table View --}}
+    <div class="table-responsive goods-desktop-table">
         <table class="table table-bordered table-striped table-hover">
             <thead class="table-dark">
                 <tr>
@@ -124,6 +125,79 @@
                 @endforelse
             </tbody>
         </table>
+    </div>
+
+    {{-- Mobile: Card View --}}
+    <div class="d-md-none goods-mobile-grid">
+        @forelse($comps as $comp)
+        @php
+            $previewImage = \App\Support\MediaUrl::image($comp->nfoto ?? '');
+            $hasStock = ($comp->price_count ?? 0) > 0;
+        @endphp
+        <div class="goods-mobile-card">
+            <a href="{{ route('goods.show', ['pnum' => $comp->id]) }}" class="goods-mobile-card-link">
+                @if($previewImage)
+                <div class="goods-mobile-image">
+                    <img src="{{ $previewImage }}" alt="{{ $comp->name ?? $comp->nickname }}" loading="lazy">
+                </div>
+                @endif
+                <div class="goods-mobile-content">
+                    <div class="goods-mobile-header">
+                        <h3 class="goods-mobile-name">{{ $comp->name ?? $comp->nickname }}</h3>
+                        @if($hasStock)
+                        <span class="goods-stock-badge in-stock">{{ __('goods.table.stock') }}</span>
+                        @else
+                        <span class="goods-stock-badge out-of-stock">{{ __('goods.out_of_stock') }}</span>
+                        @endif
+                    </div>
+                    
+                    <div class="goods-mobile-prices">
+                        <div class="goods-price-item">
+                            <span class="price-label">{{ __('goods.table.price') }}</span>
+                            <span class="price-value">{{ number_format((float)($comp->price_pay ?? 0), 2, '.', ' ') }}</span>
+                        </div>
+                        @if(($comp->price_pay1 ?? 0) > 0)
+                        <div class="goods-price-item">
+                            <span class="price-label">{{ __('goods.table.price1') }}</span>
+                            <span class="price-value">{{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}</span>
+                        </div>
+                        @endif
+                        @if(($comp->price_oldpay ?? 0) > 0)
+                        <div class="goods-price-item old-price">
+                            <span class="price-label">{{ __('goods.table.old_price') }}</span>
+                            <span class="price-value">{{ number_format((float)($comp->price_oldpay ?? 0), 2, '.', ' ') }}</span>
+                        </div>
+                        @endif
+                    </div>
+
+                    <div class="goods-mobile-meta">
+                        @if(($comp->price_count ?? 0) > 0)
+                        <div class="meta-item">
+                            <span class="meta-label">{{ __('goods.table.count') }}</span>
+                            <span class="meta-value">{{ rtrim(rtrim(number_format((float)($comp->price_count ?? 0), 3, '.', ''), '0'), '.') }}</span>
+                        </div>
+                        @endif
+                        @if($comp->price_sklad_name)
+                        <div class="meta-item">
+                            <span class="meta-label">{{ __('goods.table.stock') }}</span>
+                            <span class="meta-value">{{ $comp->price_sklad_name }}</span>
+                        </div>
+                        @endif
+                        @if($comp->price_tgroup)
+                        <div class="meta-item">
+                            <span class="meta-label">{{ __('goods.table.brand') }}</span>
+                            <span class="meta-value">{{ $comp->price_tgroup }}</span>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+            </a>
+        </div>
+        @empty
+        <div class="goods-mobile-empty">
+            <p>{{ __('goods.empty') }}</p>
+        </div>
+        @endforelse
     </div>
 
     {{-- Pagination --}}

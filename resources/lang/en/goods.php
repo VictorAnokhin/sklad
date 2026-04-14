@@ -25,4 +25,5 @@ return [
         'brand' => 'Brand (TGroup)',
     ],
     'empty' => 'No goods to display',
+    'out_of_stock' => 'Out of stock',
 ];

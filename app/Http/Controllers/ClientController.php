@@ -149,6 +149,23 @@ class ClientController extends Controller
             ], 422);
         }
 
+        // Check for unique phone if provided
+        if ($phone !== '') {
+            $phoneExists = DB::table('users')
+                ->where('firma', $fid)
+                ->where(function ($query) use ($phone) {
+                    $query->where('phone', $phone)
+                          ->orWhere('phone1', $phone);
+                })
+                ->exists();
+
+            if ($phoneExists) {
+                return response()->json([
+                    'message' => 'Клієнт з таким телефоном вже існує',
+                ], 422);
+            }
+        }
+
         $data = [
             'name' => $name,
             'secondname' => $secondname,
@@ -214,12 +231,33 @@ class ClientController extends Controller
         $stringValue = static fn ($value): string => trim((string) ($value ?? ''));
 
         try {
+            $phoneDigits = preg_replace('/\D/', '', $request->input('phone', ''));
+            $phone1Digits = preg_replace('/\D/', '', $request->input('phone1', ''));
+            
             $request->validate([
                 'email' => [
                     'required',
                     'email',
                     'max:255',
-                    Rule::unique('users', 'email')->ignore($id === '0' ? null : $id),
+                    Rule::unique('users', 'email')
+                        ->where('firma', $fid)
+                        ->ignore($id === '0' ? null : $id),
+                ],
+                'phone' => [
+                    'nullable',
+                    'string',
+                    'max:50',
+                    Rule::unique('users', 'phone')
+                        ->where('firma', $fid)
+                        ->ignore($id === '0' ? null : $id),
+                ],
+                'phone1' => [
+                    'nullable',
+                    'string',
+                    'max:50',
+                    Rule::unique('users', 'phone1')
+                        ->where('firma', $fid)
+                        ->ignore($id === '0' ? null : $id),
                 ],
                 'login' => array_filter([
                     User::hasUsersColumn('login') ? 'nullable' : null,
@@ -227,6 +265,9 @@ class ClientController extends Controller
                     User::hasUsersColumn('login') ? 'max:255' : null,
                     User::hasUsersColumn('login') ? Rule::unique('users', 'login')->ignore($id === '0' ? null : $id) : null,
                 ]),
+            ], [
+                'phone.unique' => 'Клієнт з таким телефоном вже існує',
+                'phone1.unique' => 'Клієнт з таким додатковим телефоном вже існує',
             ]);
 
             $data = [
@@ -276,11 +317,42 @@ class ClientController extends Controller
         $id = $request->input('id', '');
         $fid = session('fid', '');
 
-        // Guard: has documents
-        if (!User::deleteClient($id, $fid)) {
-            return back()->withErrors(['delete' => 'Клієнт має документи, видалення неможливе']);
+        // Detailed check: what's blocking deletion
+        $documentCount1 = DB::table('document')->where('client1', $id)->count();
+        $documentCount2 = DB::table('document')->where('client2', $id)->count();
+        $zDocumentCount1 = DB::table('z_document')->where('client1', $id)->count();
+        $zDocumentCount2 = DB::table('z_document')->where('client2', $id)->count();
+        
+        $totalDocuments = $documentCount1 + $documentCount2;
+        $totalZDocuments = $zDocumentCount1 + $zDocumentCount2;
+        
+        if ($totalDocuments > 0 || $totalZDocuments > 0) {
+            $message = 'Клієнт має документи, видалення неможливе. ';
+            $details = [];
+            if ($totalDocuments > 0) {
+                $parts = [];
+                if ($documentCount1 > 0) $parts[] = "client1: {$documentCount1}";
+                if ($documentCount2 > 0) $parts[] = "client2: {$documentCount2}";
+                $details[] = "document (" . implode(', ', $parts) . ")";
+            }
+            if ($totalZDocuments > 0) {
+                $parts = [];
+                if ($zDocumentCount1 > 0) $parts[] = "client1: {$zDocumentCount1}";
+                if ($zDocumentCount2 > 0) $parts[] = "client2: {$zDocumentCount2}";
+                $details[] = "z_document (" . implode(', ', $parts) . ")";
+            }
+            $message .= '(' . implode('; ', $details) . ')';
+            return back()->withErrors(['delete' => $message]);
         }
-        return redirect()->route('client.index');
+
+        // Check if client exists and belongs to current firma
+        $client = DB::table('users')->where('id', $id)->where('firma', $fid)->first();
+        if (!$client) {
+            return back()->withErrors(['delete' => 'Клієнта не знайдено або він не належить поточній компанії']);
+        }
+
+        User::deleteClient($id, $fid);
+        return redirect()->route('client.index')->with('success', 'Клієнта видалено');
     }
 
     public function orders($id)
