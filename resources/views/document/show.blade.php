@@ -54,86 +54,43 @@
         <div class="doc-layout">
             {{-- LEFT: Document form --}}
             <div class="doc-form-col">
-                <!-- Row 1 varies by doc type:
-                     PO/RO:  Дата | Касса | Вид платежа
-                     PN/RN/WO1: Дата | Склад
-                     Others: Дата | ТТН | Статус -->
-                <div class="doc-form-row">
+                <!-- Row 1: Номер | Дата | Время -->
+                <div class="doc-form-row doc-form-row-three-cols">
+                    <div class="col-f">
+                        <label>Номер</label>
+                        <input type="text" name="num" class="form-control" value="{{ $document->num ?? '' }}" placeholder="Номер документа">
+                    </div>
                     <div class="col-f">
                         <label>Дата</label>
                         <input type="date" name="data" class="form-control" value="{{ $documentDateValue }}">
                     </div>
-                    @if(in_array($doc, ['PO', 'RO'], true))
                     <div class="col-f">
-                        <label>Касса</label>
-                        <select name="oplata" class="form-select" required>
-                            <option value="">—</option>
-                            @foreach($oplataList as $op)
-                            <option value="{{ $op->id }}" {{ (string) old('oplata', $document->oplata) === (string) $op->id ? 'selected' : '' }}>{{ $op->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('oplata')
-                        <div class="text-danger small mt-1">{{ $message }}</div>
-                        @enderror
+                        <label>Время</label>
+                        <input type="time" name="time" class="form-control" value="{{ $document->time ?? '' }}">
                     </div>
-                    <div class="col-f">
-                        <label>Вид платежа</label>
-                        <select name="reestr" class="form-select" required>
-                            <option value="">—</option>
-                            @foreach($reestrList as $re)
-                            <option value="{{ $re->id }}" {{ (string) old('reestr', $document->reestr) === (string) $re->id ? 'selected' : '' }}>{{ $re->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('reestr')
-                        <div class="text-danger small mt-1">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    @elseif(in_array($doc, ['PN', 'RN', 'WO1'], true))
-                    <div class="col-f">
-                        <label>Склад</label>
-                        <select name="sklads" class="form-select" required>
-                            <option value="">—</option>
-                            @php
-                                $selectedSklad = trim((string) old('sklads', $document->sklads ?? ''));
-                            @endphp
-                            @foreach($skladsList as $sk)
-                            <option value="{{ $sk->id }}" {{ $selectedSklad === trim((string) $sk->id) ? 'selected' : '' }}>{{ $sk->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('sklads')
-                        <div class="text-danger small mt-1">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    @else
+                </div>
+
+                <!-- Row 2: ТТН | Статус -->
+                <div class="doc-form-row doc-form-row-two-cols">
                     <div class="col-f">
                         <label>ТТН Нова Пошта</label>
                         <input type="text" name="ttn" class="form-control" value="{{ $document->ttn ?? '' }}">
                     </div>
                     <div class="col-f">
-                        <label>Статус</label>
-                        <select name="status" class="form-select">
-                            <option value="0">0 - Новий</option>
+                        <label>Статус <span class="text-danger">*</span></label>
+                        <select name="status" class="form-select" required>
+                            <option value="">— Оберіть статус —</option>
+                            <option value="0" {{ (string) $document->status === '0' ? 'selected' : '' }}>0 - Новий</option>
                             @foreach(($statusList ?? collect()) as $statusOption)
                             <option value="{{ $statusOption->id }}" {{ (string) $document->status === (string) $statusOption->id ? 'selected' : '' }}>
                                 {{ $statusOption->name }}
                             </option>
                             @endforeach
                         </select>
+                        @error('status')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
                     </div>
-                    @if($doc === 'CH')
-                    <div class="col-f">
-                        <label>Компанія</label>
-                        <select name="schet" class="form-select">
-                            <option value="">—</option>
-                            @foreach(($myCompanies ?? collect()) as $company)
-                            <option value="{{ $company->id }}" {{ (string)($document->schet ?? '') === (string)$company->id ? 'selected' : '' }}>
-                                {{ $company->name }}
-                            </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    @endif
-                    @endif
                 </div>
 
                 <!-- Row 2: Клієнт -->

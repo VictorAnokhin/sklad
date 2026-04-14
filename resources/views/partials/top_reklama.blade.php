@@ -176,41 +176,62 @@
     /* Burger button */
     .header-burger {
       order: 4;
-      margin-left: 0.25rem;
-      width: 44px;
-      height: 44px;
-      min-width: 44px;
-      padding: 10px;
-      border-radius: 12px;
+      margin-left: 0.15rem;
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
+      padding: 8px;
+      border-radius: 10px;
     }
 
     .header-burger span {
-      width: 22px;
+      width: 20px;
       height: 2.5px;
-      margin: 3px 0;
+      margin: 2.5px 0;
     }
 
     .header-nav-menu {
       right: 0.5rem;
       left: 0.5rem;
       min-width: 0;
+      padding: 0.4rem;
+    }
+
+    .header-nav-menu__link {
+      padding: 0.55rem 0.75rem;
+      font-size: 1.1rem;
+    }
+
+    .header-nav-menu__section {
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .header-nav-menu__label {
+      font-size: 0.7rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .header-nav-menu__project-select {
+      height: 38px;
+      font-size: 0.95rem;
     }
   }
 
   /* Project selector in mobile menu */
   .header-nav-menu__section {
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.35rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .header-nav-menu__label {
     display: block;
     color: var(--muted-foreground);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
   }
 
   .header-nav-menu__project-form {

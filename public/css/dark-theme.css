@@ -186,13 +186,13 @@ header .fs-4,
 /* Navigation links in header */
 .header-nav-menu {
     position: absolute;
-    top: calc(100% + 0.85rem);
+    top: calc(100% + 0.5rem);
     right: 1rem;
-    min-width: 280px;
+    min-width: 260px;
     display: none;
     flex-direction: column;
     gap: 0;
-    padding: 0.75rem;
+    padding: 0.5rem;
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-lg);
     background: rgba(0, 0, 0, 0.92);
@@ -208,10 +208,10 @@ header .fs-4,
 .header-nav-menu__link {
     display: block;
     text-align: center;
-    padding: 0.85rem 1rem;
+    padding: 0.6rem 0.85rem;
     color: #fbbf24;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.95rem;
     text-decoration: none;
     border-radius: var(--radius);
     transition: all 0.2s ease;
@@ -298,16 +298,16 @@ header .fs-4,
 
 /* Burger button */
 .header-burger {
-    width: 46px;
-    height: 46px;
+    width: 42px;
+    height: 42px;
     padding: 0;
     display: inline-flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     border: 1px solid rgba(251, 191, 36, 0.22);
-    border-radius: 14px;
+    border-radius: 12px;
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
@@ -323,7 +323,7 @@ header .fs-4,
 }
 
 .header-burger[aria-expanded="true"] span:nth-child(1) {
-    transform: translateY(7px) rotate(45deg);
+    transform: translateY(6px) rotate(45deg);
 }
 
 .header-burger[aria-expanded="true"] span:nth-child(2) {
@@ -331,7 +331,7 @@ header .fs-4,
 }
 
 .header-burger[aria-expanded="true"] span:nth-child(3) {
-    transform: translateY(-7px) rotate(-45deg);
+    transform: translateY(-6px) rotate(-45deg);
 }
 
 /* Button styles - matching React design */
@@ -1052,6 +1052,29 @@ small,
     .row {
         flex-direction: column;
     }
+
+    .doc-form-row-three-cols {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .doc-form-row-three-cols .col-f:nth-child(1) {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    .doc-form-row-three-cols .col-f:nth-child(2),
+    .doc-form-row-three-cols .col-f:nth-child(3) {
+        flex: 0 0 auto;
+    }
+
+    .doc-form-row-three-cols .col-f:nth-child(2) {
+        max-width: 60%;
+    }
+
+    .doc-form-row-three-cols .col-f:nth-child(3) {
+        max-width: 35%;
+    }
 }
 
 @media (max-width: 576px) {
@@ -1569,18 +1592,22 @@ small,
 
 .compact-form .client-search-row {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     margin-bottom: 4px;
+    align-items: stretch;
 }
 
 .compact-form .client-search-row input {
-    flex: 1;
+    flex: 0 0 80%;
+    max-width: 80%;
 }
 
 .compact-form .client-search-row button {
     white-space: nowrap;
+    flex: 0 0 10%;
+    min-width: 0;
+    padding: 4px 8px;
     font-size: 0.78rem;
-    padding: 4px 10px;
 }
 
 /* Number fields - shorter width */
@@ -1674,6 +1701,28 @@ small,
     display: flex;
     gap: 6px;
     margin-bottom: 6px;
+}
+
+.doc-form-row-three-cols {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.doc-form-row-three-cols .col-f {
+    flex: 0 0 33.33%;
+    max-width: 33.33%;
+}
+
+.doc-form-row-two-cols {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.doc-form-row-two-cols .col-f {
+    flex: 0 0 50%;
+    max-width: 50%;
 }
 
 .doc-form-row-single {
@@ -2294,13 +2343,33 @@ small,
     }
 
     .compact-form .client-search-row {
-        flex-direction: column;
-        gap: 0.5rem;
+        flex-direction: row;
+        gap: 0.4rem;
+        flex-wrap: nowrap;
+    }
+
+    .compact-form .client-search-row input {
+        flex: 0 0 80%;
+        max-width: 80%;
+        min-width: 0;
     }
 
     .compact-form .client-search-row button {
-        width: 100%;
-        padding: 8px 12px;
+        flex: 0 0 10%;
+        min-width: 0;
+        padding: 6px 4px;
+        font-size: 0.85rem;
+    }
+
+    @media (max-width: 480px) {
+        .compact-form .client-search-row {
+            gap: 0.3rem;
+        }
+
+        .compact-form .client-search-row button {
+            padding: 6px 2px;
+            font-size: 0.75rem;
+        }
     }
 
     .client-search-results {
@@ -2852,8 +2921,18 @@ small,
     .goods-desktop-table {
         display: none !important;
     }
-    
+
     .goods-mobile-grid {
         display: grid !important;
+    }
+
+    .doc-form-row-two-cols {
+        flex-direction: column !important;
+        gap: 4px !important;
+    }
+
+    .doc-form-row-two-cols .col-f {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
     }
 }

@@ -53,11 +53,13 @@ class DocumentService
             'bonus' => (float)$request->input('bonus', 0),
             'sms_flag' => $request->input('sms_flag', '0'),
             'schet' => $request->input('schet', ''),
+            'num' => $request->input('num', ''),
+            'time' => $request->input('time', ''),
         ];
 
         $existingColumns = Schema::getColumnListing($table);
         $data = array_intersect_key($data, array_flip($existingColumns));
-        foreach (['content', 'ttn', 'status', 'oplata', 'oplata2', 'sklads', 'reteil', 'reestr', 'docum', 'typeproduct', 'manager', 'money', 'sms_flag', 'schet'] as $stringField) {
+        foreach (['content', 'ttn', 'status', 'oplata', 'oplata2', 'sklads', 'reteil', 'reestr', 'docum', 'typeproduct', 'manager', 'money', 'sms_flag', 'schet', 'num', 'time'] as $stringField) {
             if (array_key_exists($stringField, $data) && $data[$stringField] === null) {
                 $data[$stringField] = '';
             }

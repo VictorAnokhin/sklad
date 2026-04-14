@@ -643,6 +643,10 @@ class DocumentController extends Controller
                 $errors['client1'] = 'Оберіть клієнта';
             }
 
+            if (trim((string) $request->input('status', '')) === '') {
+                $errors['status'] = 'Оберіть статус';
+            }
+
             if (in_array($doc, ['PO', 'RO'], true)) {
                 if (trim((string) $request->input('oplata', '')) === '') {
                     $errors['oplata'] = 'Оберіть касу';
