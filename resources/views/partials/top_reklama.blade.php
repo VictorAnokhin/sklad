@@ -13,20 +13,6 @@
     <span class="header-bar__title">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
   </a>
 
-  @if(session('name1') && $headerProjects->isNotEmpty())
-  <form method="POST" action="{{ route('settings.switchProject') }}" class="header-project-switch" id="header-project-switch-form">
-    @csrf
-    <label for="header-project-select" class="header-project-switch__label">{{ __('nav.project') }}</label>
-    <select name="fid" id="header-project-select" class="header-project-switch__select" onchange="this.form.submit()">
-      @foreach($headerProjects as $project)
-      <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
-        #{{ $project->id }}{{ !empty($project->num) ? ' / ' . $project->num : '' }} {{ $project->name }}
-      </option>
-      @endforeach
-    </select>
-  </form>
-  @endif
-
   <div class="header-lang-switch" aria-label="{{ __('nav.language') }}">
     @foreach(['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'] as $langCode => $langLabel)
       <a
@@ -36,6 +22,7 @@
     @endforeach
   </div>
 
+
   <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
     <span></span>
     <span></span>
@@ -44,6 +31,22 @@
 
   <nav class="header-nav-menu" id="header-nav-menu">
     @if(session('name1'))
+    @if($headerProjects->isNotEmpty())
+    <div class="header-nav-menu__section">
+      <label class="header-nav-menu__label">{{ __('nav.project') }}</label>
+      <form method="POST" action="{{ route('settings.switchProject') }}" class="header-nav-menu__project-form">
+        @csrf
+        <select name="fid" class="header-nav-menu__project-select" onchange="this.form.submit()">
+          @foreach($headerProjects as $project)
+          <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
+            #{{ $project->id }}{{ !empty($project->num) ? ' / ' . $project->num : '' }} {{ $project->name }}
+          </option>
+          @endforeach
+        </select>
+      </form>
+    </div>
+    @endif
+
     <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
     <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">{{ __('nav.orders') }}</a>
     <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
@@ -67,37 +70,124 @@
 </div>
 
 <style>
+  /* Desktop: project selector is compact and on the right */
+  @media (min-width: 901px) {
+    .header-bar {
+      flex-wrap: nowrap;
+    }
+
+    .header-bar__bottom {
+      flex-wrap: nowrap;
+    }
+
+    .header-project-switch {
+      margin-left: auto;
+      order: 3;
+    }
+
+    .header-project-switch__select {
+      min-width: 140px;
+      max-width: 200px;
+    }
+
+    .header-project-switch__label {
+      display: block;
+    }
+
+    .header-project-name {
+      display: none;
+    }
+
+    .header-lang-switch {
+      order: 2;
+      margin-left: 0;
+    }
+
+    .header-burger {
+      order: 4;
+    }
+  }
+
   /* Mobile overrides */
   @media (max-width: 900px) {
     .header-bar {
-      padding: 0 0.5rem;
-      flex-wrap: wrap;
+      padding: 0.25rem 0.5rem;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 0.35rem;
     }
 
     .header-bar__logo {
       order: 1;
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
-    .header-burger {
-      order: 10;
-      margin-left: auto;
+    .header-bar__logo .header-bar__title {
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
+    /* Project selector on mobile - compact dropdown */
     .header-project-switch {
       order: 2;
-      width: 100%;
-      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-left: auto;
     }
 
     .header-project-switch__select {
       min-width: 0;
-      max-width: none;
-      width: 100%;
+      width: auto;
+      max-width: 150px;
+      height: 36px;
+      padding: 0 1.5rem 0 0.5rem;
+      font-size: 0.75rem;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
     }
 
+    .header-project-switch__label {
+      display: none;
+    }
+
+    .header-project-name {
+      display: none;
+    }
+
+    /* Language switcher - consistent sizing */
     .header-lang-switch {
       order: 3;
-      margin-left: auto;
+      margin-left: 0;
+    }
+
+    .header-lang-switch__link {
+      min-width: 32px;
+      height: 30px;
+      padding: 0 0.5rem;
+      font-size: 0.7rem;
+      border-radius: 8px;
+      border-width: 1px;
+    }
+
+    /* Burger button */
+    .header-burger {
+      order: 4;
+      margin-left: 0.25rem;
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      padding: 10px;
+      border-radius: 12px;
+    }
+
+    .header-burger span {
+      width: 22px;
+      height: 2.5px;
+      margin: 3px 0;
     }
 
     .header-nav-menu {
@@ -107,14 +197,46 @@
     }
   }
 
-  @media (min-width: 901px) {
-    .header-bar {
-      flex-wrap: nowrap;
-    }
+  /* Project selector in mobile menu */
+  .header-nav-menu__section {
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
 
-    .header-bar__bottom {
-      flex-wrap: nowrap;
-    }
+  .header-nav-menu__label {
+    display: block;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5rem;
+  }
+
+  .header-nav-menu__project-form {
+    margin: 0;
+  }
+
+  .header-nav-menu__project-select {
+    width: 100%;
+    height: 42px;
+    padding: 0 2.25rem 0 0.85rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--foreground);
+    font: inherit;
+    font-size: 0.9rem;
+    outline: none;
+  }
+
+  .header-nav-menu__project-select:focus {
+    border-color: var(--accent-amber-border);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12);
+  }
+
+  .header-nav-menu__project-select option {
+    color: #111827;
   }
 </style>
 
