@@ -15,7 +15,15 @@ class MediaUrl
             return $path;
         }
 
-        return self::join((string) config('media.image_base_url', ''), $path);
+        // If path starts with ../files => use MEDIA_IMAGE_URL
+        if (str_starts_with($path, '../files') || str_starts_with($path, '..\\files')) {
+            $base = (string) config('media.image_base_url', '');
+            $cleanPath = ltrim(substr($path, 2), '/\\');
+            return self::join($base, $cleanPath);
+        }
+
+        // Default => use MEDIA_ASSET_URL
+        return self::join((string) config('media.asset_base_url', config('app.url', 'http://localhost')), $path);
     }
 
     public static function storage(?string $path, string $prefix = 'storage'): ?string
