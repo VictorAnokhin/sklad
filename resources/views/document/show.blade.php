@@ -179,12 +179,12 @@
                     @if(in_array($doc, ['PO', 'RO'], true))
                     <div class="col-f col-f-number">
                         <label>Сума</label>
-                        <input type="number" step="0.01" name="summa" id="documentSummaInput" class="form-control form-control-number" value="{{ $document->summa ?? 0 }}">
+                        <input type="text" name="summa" id="documentSummaInput" class="form-control form-control-number" value="{{ $document->summa ?? 0 }}">
                     </div>
                     @endif
                     <div class="col-f col-f-number">
                         <label>Бонус</label>
-                        <input type="number" step="0.01" name="bonus" class="form-control form-control-number" value="{{ $document->bonus ?? 0 }}">
+                        <input type="text" name="bonus" class="form-control form-control-number" value="{{ $document->bonus ?? 0 }}">
                     </div>
                 </div>
 
@@ -241,9 +241,9 @@
                                     <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                 </div>
                             </td>
-                            <td><input type="string" name="pprice[]"
+                            <td><input type="text" name="pprice[]"
                                     class="form-control form-control-sm goods-price" value="{{ $item->pprice }}"></td>
-                            <td><input type="string" name="psumma[]" class="form-control form-control-sm goods-sum"
+                            <td><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum"
                                     value="{{ $item->psumma }}"></td>
                             <td class="text-center">
                             @if(intval($document->provodka) === 0)
@@ -564,7 +564,11 @@
             runInput.name = 'run';
             runInput.value = 'Зберегти';
             documentForm.appendChild(runInput);
-            documentForm.requestSubmit();
+            if (documentForm.requestSubmit) {
+                    documentForm.requestSubmit();
+                } else {
+                    documentForm.submit();
+                }
         };
 
         const bindGoodsRowInputs = (countInput, priceInput, sumInput) => {
