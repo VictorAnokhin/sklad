@@ -46,40 +46,19 @@
         </div>
         @endif
 
-        @if(!in_array($doc, ['STAT','ZD','RO','PO','RPO','PP']))
-        <div>
-          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">{{ __('document.filter.operator') }}</label>
-          <input type="text" name="f_operator"
-                 placeholder="{{ __('document.filter.operator_placeholder') }}"
-                 value="{{ $fd['fOperator'] ?? '' }}" style="width:100%; padding:8px 12px; font-size:0.9rem;">
-        </div>
-        @endif
-
-        @if(in_array($doc, ['ZOUT','ZIN','RN','PN','WO1','STAT']))
-        <div>
-          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">{{ __('document.filter.project') }}</label>
-          <div style="width:100%;">@include('partials.selects.reteil', ['selected' => $fd['fReteil'] ?? '', 'fid' => $fid])</div>
-        </div>
-        @endif
-
         @if(in_array($doc, ['PP','PO','RPO']))
         <div>
           <label style="display:block; margin-bottom:4px; font-size:0.85rem;">{{ __('document.filter.payment') }}</label>
           <div style="width:100%;">@include('partials.selects.oplata', ['selected' => $fd['fOplata'] ?? '', 'fid' => $fid])</div>
         </div>
-        @elseif(in_array($doc, ['ZOUT','ZIN','WO1','PN','RN']))
+        @elseif(in_array($doc, ['WO1','PN','RN']))
         <div>
           <label style="display:block; margin-bottom:4px; font-size:0.85rem;">{{ __('document.filter.warehouse') }}</label>
           <div style="width:100%;">@include('partials.selects.sklads', ['selected' => $fd['fSklads'] ?? '', 'fid' => $fid])</div>
         </div>
         @endif
 
-        @if($doc === 'ZOUT')
-        <div>
-          <label style="display:block; margin-bottom:4px; font-size:0.85rem;">{{ __('document.filter.status') }}</label>
-          <div style="width:100%;">@include('partials.selects.status', ['selected' => $fd['fStatus'] ?? '', 'fid' => $fid])</div>
-        </div>
-        @elseif(!in_array($doc, ['STAT','ZD','RO','PO','RPO','PP']))
+        @if(in_array($doc, ['ZOUT','ZIN']))
         <div>
           <label style="display:block; margin-bottom:4px; font-size:0.85rem;">{{ __('document.filter.status') }}</label>
           <div style="width:100%;">@include('partials.selects.status', ['selected' => $fd['fStatus'] ?? '', 'fid' => $fid])</div>

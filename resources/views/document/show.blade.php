@@ -390,7 +390,7 @@
         const resultsContainer = document.getElementById('clientSearchResults');
         const client1Id = document.getElementById('client1_id');
         const clientDetails = document.getElementById('selectedClientDetails');
-        const documentSummaInput = document.getElementById('documentSummaInput');
+        const documentSummaInput1 = document.getElementById('documentSummaInput');
 
         function performSearch() {
             const q = searchInput.value.trim();
@@ -544,14 +544,14 @@
         const tableBody = document.querySelector('#goodsTable tbody');
 
         const updateDocumentSum = () => {
-            if (!documentSummaInput || !tableBody) {
+            if (!documentSummaInput1 || !tableBody) {
                 return;
             }
 
             const total = Array.from(tableBody.querySelectorAll('.goods-sum'))
                 .reduce((carry, input) => carry + (parseFloat(input.value) || 0), 0);
 
-            documentSummaInput.value = total.toFixed(2);
+            documentSummaInput1.value = total.toFixed(2);
         };
 
         const submitDocumentSave = () => {
