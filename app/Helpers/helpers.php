@@ -26,7 +26,7 @@ if (!function_exists('nextdate')) {
     /** Y-m-d → unix timestamp */
     function nextdate(string $date): int
     {
-        $dt = DateTimeImmutable::createFromFormat('Y-m-d', $date);
+        $dt = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
         return $dt ? $dt->getTimestamp() : 0;
     }
 }
