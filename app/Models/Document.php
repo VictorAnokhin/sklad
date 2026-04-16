@@ -94,6 +94,8 @@ class Document extends Model
                 $confIds[] = $r->sklads;
             if ($r->reteil)
                 $confIds[] = $r->reteil;
+            if ($r->reestr)
+                $confIds[] = $r->reestr;
         }
         $confMap = [];
         if (!empty($confIds)) {
@@ -199,6 +201,8 @@ class Document extends Model
                 'content' => $content,
                 'manager' => $manager,
                 'skladsName' => $skladsName,
+                'moneyName' => $confMap[$row->money ?? '']->name ?? '',
+                'reestrName' => $confMap[$row->reestr ?? '']->name ?? '',
                 'topImg' => $topImg,
             ];
         }

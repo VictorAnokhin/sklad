@@ -3,7 +3,9 @@
 @section('title', $document->id ? (__('deposit.deposit_no') . $document->num) : __('deposit.deposit_operation'))
 
 @section('content')
-<div class="ttable" style="padding: 20px; max-width: 760px; margin: 0 auto; background: #fff; border-radius: 8px;">
+@include('deposit.partials.top-actions')
+
+<div class="ttable deposit-show-page" style="padding: 20px; max-width: 760px; margin: 0 auto; border-radius: 8px;">
     @php
     $isNew = empty($document->id);
     $mode = $document->docum ?? request('mode', 'topup');
@@ -41,7 +43,7 @@
         <div class="row">
             <div class="col-md-4 mb-3">
                 <label>{{ __('deposit.field_date') }}</label>
-                <input type="text" name="data" class="form-control" value="{{ old('data', $document->data ?? date('d-m-Y')) }}" placeholder="дд-мм-рррр">
+                <input type="text" name="data" class="form-control" value="{{ old('data', $document->data ?? date('d-m-Y')) }}" placeholder="{{ __('deposit.date_placeholder') }}">
             </div>
             <div class="col-md-4 mb-3">
                 <label>{{ __('deposit.field_sum') }}</label>
@@ -114,7 +116,7 @@
         @endif
 
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('deposit.index') }}" class="btn">{{ __('deposit.btn_back') }}</a>
+            <a href="{{ route('deposit.index') }}" class="btn btn-outline-secondary">{{ __('deposit.btn_back') }}</a>
             @if((int)($document->provodka ?? 0) === 0)
             <button type="submit" class="btn">{{ __('deposit.btn_save') }}</button>
             @endif

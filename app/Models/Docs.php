@@ -44,6 +44,19 @@ class Docs extends Model
         $sumPO = $sumRO = $sumWO1 = $sumPN = $sumRN = 0;
         $sum = $summaZ;
 
+        // Icon mapping per document type
+        $typeIcons = [
+            'ZIN'  => '📦',
+            'ZOUT' => '🛒',
+            'CH'   => '📄',
+            'RN'   => '🚚',
+            'PN'   => '📥',
+            'WO1'  => '🔧',
+            'PO'   => '💰',
+            'RO'   => '💸',
+            'RA'   => '📎',
+        ];
+
         // ── document table (ZIN / ZOUT) ──────────────────────────────────────
         if ($idstatus != 2) {
             $query = DB::table('document')->where('client1', $client);
@@ -55,34 +68,32 @@ class Docs extends Model
             $docs = $query->get();
 
             foreach ($docs as $row) {
-                $id = $row->id; 
+                $id = $row->id;
                 $type = $row->type;
                 $data = $row->data;
                 $num = $row->num;
                 $summaZrow = $row->summa;
                 $provodka = $row->provodka ?? 0;
                 $postedLabel = $type === 'ZOUT'
-                    ? ($orderPosted ? ' | Проведен' : '')
-                    : ($provodka > 0 ? ' | Проведен' : '');
+                    ? ($orderPosted ? ' ✅ Проведено' : '')
+                    : ($provodka > 0 ? ' ✅ Проведено' : '');
                 $year_ = substr($data, 6, 4);
                 $typeName = Document::typeName($type);
+                $icon = $typeIcons[$type] ?? '📋';
                 $isCurrentDoc = ($doc === $type);
                 $showUrl = route('document.show', [
-                    'doc' => $type,
-                    'doc_id' => $id,
+                    'doc'           => $type,
+                    'doc_id'        => $id,
                     'parent_doc_id' => $docid,
-                    'num' => $num,
-                    'year' => $year_,
+                    'num'           => $num,
+                    'year'          => $year_,
                 ]);
                 $link = $isCurrentDoc
-                    ? "<span>{$typeName} № $num от $data : $summaZrow грн{$postedLabel}</span>"
-                    : "<a href='{$showUrl}'>{$typeName} № $num от $data : $summaZrow грн{$postedLabel}</a>";
+                    ? "<span class='rel-doc-link rel-doc-link--current'>{$icon} {$typeName} №{$num} от {$data} : {$summaZrow} грн{$postedLabel}</span>"
+                    : "<a href='{$showUrl}' class='rel-doc-link rel-doc-link--{$type}'>{$icon} {$typeName} №{$num} от {$data} : {$summaZrow} грн{$postedLabel}</a>";
 
                 if (in_array($type, ['ZIN', 'ZOUT'])) {
-                    if ($type === 'ZIN')
-                        $strWO1 .= "<div class='tstr'>$link</div>";
-                    else
-                        $strWO1 .= "<div class='tstr'>$link</div>";
+                    $strWO1 .= "<div class='tstr'>$link</div>";
                 }
             }
         }
@@ -97,27 +108,28 @@ class Docs extends Model
         $zdocs = $query->get();
 
         foreach ($zdocs as $row) {
-            $id = $row->id;
-            $type = $row->type;
-            $data = $row->data;
-            $num = $row->num;
-            $summa = $row->summa;
-            $content = $row->content;
+            $id       = $row->id;
+            $type     = $row->type;
+            $data     = $row->data;
+            $num      = $row->num;
+            $summa    = $row->summa;
+            $content  = $row->content;
             $provodka = $row->provodka ?? 0;
-            $provText = $provodka == 1 ? "style='color:red;'" : '';
-            $year_ = substr($data, 6, 4);
+            $year_    = substr($data, 6, 4);
             $typeName = Document::typeName($type);
+            $icon     = $typeIcons[$type] ?? '📋';
             $isCurrentDoc = ($doc === $type);
+            $postedClass  = $provodka == 1 ? ' rel-doc-link--posted' : '';
             $showUrl = route('document.show', [
-                'doc' => $type,
-                'doc_id' => $id,
+                'doc'           => $type,
+                'doc_id'        => $id,
                 'parent_doc_id' => $docid,
-                'num' => $num,
-                'year' => $year_,
+                'num'           => $num,
+                'year'          => $year_,
             ]);
             $link = $isCurrentDoc
-                ? "<span $provText>{$typeName} №$num от $data : $summa грн</span>"
-                : "<a href='{$showUrl}' $provText>{$typeName} №$num от $data : $summa грн</a>";
+                ? "<span class='rel-doc-link rel-doc-link--current{$postedClass}'>{$icon} {$typeName} №{$num} от {$data} : {$summa} грн</span>"
+                : "<a href='{$showUrl}' class='rel-doc-link rel-doc-link--{$type}{$postedClass}'>{$icon} {$typeName} №{$num} от {$data} : {$summa} грн</a>";
 
             switch ($type) {
                 case 'CH':
@@ -146,26 +158,26 @@ class Docs extends Model
                     $strRO .= "<div class='tstr'>$link</div>";
                     break;
                 case 'RA':
-                    $strRA .= "<a class='button' href='../document/show?doc={$type}&doc_id={$id}&num={$num}&year={$year}'>Файл №$num от $data : $content</a>";
+                    $strRA .= "<div class='tstr'><a class='rel-doc-link rel-doc-link--RA' href='../document/show?doc={$type}&doc_id={$id}&num={$num}&year={$year}'>📎 Файл №{$num} від {$data} : {$content}</a></div>";
                     break;
             }
         }
 
         $remainingPayment = max(0, (float)$sum);
         $createWO1Url = route('document.show', ['doc' => 'WO1', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createRNUrl = route('document.show', ['doc' => 'RN', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createCHUrl = route('document.show', ['doc' => 'CH', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createPOUrl = route('document.show', ['doc' => 'PO', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
-        $createPNUrl = route('document.show', ['doc' => 'PN', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createROUrl = route('document.show', ['doc' => 'RO', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
-        $createRAUrl = route('document.show', ['doc' => 'RA', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $canCreateRN = $summaZ <= 0 || $sumRN < $summaZ;
-        $canCreatePO = $summaZ <= 0 || $sumPO < $summaZ;
-        $canCreatePN = $summaZ <= 0 || $sumPN < $summaZ;
-        $canCreateRO = $summaZ <= 0 || $sumRO < $summaZ;
+        $createRNUrl  = route('document.show', ['doc' => 'RN',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createCHUrl  = route('document.show', ['doc' => 'CH',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createPOUrl  = route('document.show', ['doc' => 'PO',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
+        $createPNUrl  = route('document.show', ['doc' => 'PN',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createROUrl  = route('document.show', ['doc' => 'RO',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
+        $createRAUrl  = route('document.show', ['doc' => 'RA',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $canCreateRN  = $summaZ <= 0 || $sumRN < $summaZ;
+        $canCreatePO  = $summaZ <= 0 || $sumPO < $summaZ;
+        $canCreatePN  = $summaZ <= 0 || $sumPN < $summaZ;
+        $canCreateRO  = $summaZ <= 0 || $sumRO < $summaZ;
 
         // ── Build action HTML ────────────────────────────────────────────────
-        $html = '';
+        $html    = '';
         $actions = '';
         $parentOrder = null;
         if ($docid) {
@@ -175,63 +187,60 @@ class Docs extends Model
         }
 
         $parentOrderType = (string) ($parentOrder->type ?? $typez);
-        $parentOrderNum = (string) ($parentOrder->num ?? $numz);
-        $orderLabel = $parentOrderType === 'ZIN' ? 'Закупка' : 'Заказ';
-        $parentOrderUrl = $docid
+        $parentOrderNum  = (string) ($parentOrder->num  ?? $numz);
+        $orderLabel      = $parentOrderType === 'ZIN' ? '📦 Закупка' : '🛒 Заказ';
+        $parentOrderUrl  = $docid
             ? route('document.show', ['doc' => $parentOrderType, 'doc_id' => $docid, 'num' => $parentOrderNum, 'year' => $year])
             : null;
-        $disabledButton = "class='button' style='pointer-events:none; opacity:0.55;'";
-        $disabledInline = "style='pointer-events:none; opacity:0.55;'";
 
         if (!in_array($doc, ['ZIN', 'ZOUT'], true) && $parentOrderUrl) {
-            $actions .= "<div class='ttable'><a href='{$parentOrderUrl}' class='button'>← {$orderLabel} №{$parentOrderNum}</a></div>";
+            $actions .= "<div class='ttable'><a href='{$parentOrderUrl}' class='rel-doc-action-btn'>← {$orderLabel} №{$parentOrderNum}</a></div>";
         }
 
         if ($parentOrderType === 'ZOUT') {
             $actions .= $strWO1;
             if ($sumWO1 < $summaZ && $sumRN < $summaZ) {
-                $actions .= "<div class='tstr'><a href='{$createWO1Url}' class='button'>В роботу</a></div>";
+                $actions .= "<div class='tstr'><a href='{$createWO1Url}' class='rel-doc-action-btn'>🔧 В роботу</a></div>";
             }
             if ($idstatus != 2) {
-                $actions .= "<div class='ttable'>Отгрузка";
+                $actions .= "<div class='ttable rel-doc-section'><span class='rel-doc-section__title'>🚚 Відвантаження</span>";
                 $actions .= $strRN;
                 if ($canCreateRN) {
-                    $actions .= "<div class='tstr'><a href='{$createRNUrl}'><image src='../img/icon-truck.png' style='height:70%'> Видача товару</a></div>";
+                    $actions .= "<div class='tstr'><a href='{$createRNUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Видача товару</a></div>";
                 }
-                $actions .= "</div><div class='ttable'>Оплата";
+                $actions .= "</div><div class='ttable rel-doc-section'><span class='rel-doc-section__title'>💰 Оплата</span>";
                 $actions .= $strCH;
                 $actions .= $strPO;
                 if ($canCreatePO && $strCH == '') {
-                    $actions .= "<a href='{$createCHUrl}'><image src='../img/icon-file-invoice.png' style='height:70%'> Пропозиція</a>";
+                    $actions .= "<div class='tstr'><a href='{$createCHUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Пропозиція</a></div>";
                 }
                 if ($canCreatePO) {
-                    $actions .= "<a href='{$createPOUrl}' class='button'><image src='../img/icon-multitasking.png'> Отримання грошей</a>";
+                    $actions .= "<div class='tstr'><a href='{$createPOUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Отримання грошей</a></div>";
                 }
                 $actions .= "</div>";
             }
-            $actions .= "<div class='ttable'>Файли<br>$strRA";
-            $actions .= "<a href='{$createRAUrl}' class='button'><span style='font-size:3em'>+</span></a>";
+            $actions .= "<div class='ttable rel-doc-section'><span class='rel-doc-section__title'>📎 Файли</span>{$strRA}";
+            $actions .= "<div class='tstr'><a href='{$createRAUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Додати файл</a></div>";
             $actions .= "</div>";
         }
 
         if ($parentOrderType === 'ZIN') {
-            $actions .= "<div class='ttable'>Отримання";
+            $actions .= "<div class='ttable rel-doc-section'><span class='rel-doc-section__title'>📥 Отримання</span>";
             $actions .= $strPN;
             if ($canCreatePN) {
-                $actions .= "<div class='tstr' style='width:100%; text-align:center;'><a href='{$createPNUrl}' class='button'><image src='../img/icon-warehouse.png' style='height:70%'> Отримання товару</a></div>";
+                $actions .= "<div class='tstr'><a href='{$createPNUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Отримання товару</a></div>";
             }
-            $actions .= "</div><div class='ttable'>Оплата";
+            $actions .= "</div><div class='ttable rel-doc-section'><span class='rel-doc-section__title'>💸 Оплата</span>";
             $actions .= $strRO;
             if ($canCreateRO) {
-                $actions .= "<div class='tstr'>
-                <a href='{$createROUrl}' class='button'><image src='../img/icon-hand-bill.png'> Видача грошей</a></div>";
+                $actions .= "<div class='tstr'><a href='{$createROUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Видача грошей</a></div>";
             }
-            $actions .= "</div><div class='ttable'>Файли<br>$strRA";
-            $actions .= "<a href='{$createRAUrl}' class='button'><span style='font-size:3em'>+</span></a>";
+            $actions .= "</div><div class='ttable rel-doc-section'><span class='rel-doc-section__title'>📎 Файли</span>{$strRA}";
+            $actions .= "<div class='tstr'><a href='{$createRAUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Додати файл</a></div>";
             $actions .= "</div>";
         }
 
-        $html = "<div class='ttable'>Документи:<br>$actions<br>На рахунку: $balance грн</div>";
+        $html = "<div class='ttable'><div class='rel-doc-balance'>💳 На рахунку: <strong>{$balance} грн</strong></div>{$actions}</div>";
 
         return [
             'html' => $html,

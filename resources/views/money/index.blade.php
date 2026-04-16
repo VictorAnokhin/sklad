@@ -15,35 +15,13 @@
     $returnFilters = array_merge($filters ?? [], ['pos' => $pos ?? 0]);
 @endphp
 
-<div class="ttable money-action-bar">
-    <div class="money-action-bar__actions">
-        <button type="button"
-            onclick="moneyFilterToggle()"
-            class="btn {{ !empty($activeFilters) ? 'btn-warning' : 'btn-outline-secondary' }}">
-            🔍 {{ __('money.filter') }}
-        </button>
-        <a href="{{ route('money.show', array_merge(['id' => 0, 'type' => 'PO'], [
-            'return_q' => $returnFilters['q'] ?? null,
-            'return_filter_type' => $returnFilters['type'] ?? null,
-            'return_money' => $returnFilters['money'] ?? null,
-            'return_reestr' => $returnFilters['reestr'] ?? null,
-            'return_date_from' => $returnFilters['date_from'] ?? null,
-            'return_date_to' => $returnFilters['date_to'] ?? null,
-            'return_pos' => $returnFilters['pos'] ?? null,
-        ])) }}" class="btn btn-success">{{ __('money.add_income') }}</a>
-        <a href="{{ route('money.show', array_merge(['id' => 0, 'type' => 'RO'], [
-            'return_q' => $returnFilters['q'] ?? null,
-            'return_filter_type' => $returnFilters['type'] ?? null,
-            'return_money' => $returnFilters['money'] ?? null,
-            'return_reestr' => $returnFilters['reestr'] ?? null,
-            'return_date_from' => $returnFilters['date_from'] ?? null,
-            'return_date_to' => $returnFilters['date_to'] ?? null,
-            'return_pos' => $returnFilters['pos'] ?? null,
-        ])) }}" class="btn btn-danger">{{ __('money.add_outcome') }}</a>
-    </div>
-</div>
-<div class="ttable money-table" style="padding: 16px;">
+@include('money.partials.top-actions', [
+    'returnFilters' => $returnFilters,
+    'showMoneyFilter' => true,
+    'activeFilters' => $activeFilters,
+])
 
+<div class="ttable document-compact-wrap">
     @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
     @endif
@@ -77,101 +55,15 @@
         </div>
     </div>
 
-    {{-- Desktop: table --}}
-    <div class="money-table--desktop">
     @if($documents->isEmpty())
-    <div class="money-empty">{{ __('money.no_documents') }}</div>
-    @else
-    <table class="table table-bordered table-sm money-table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>{{ __('money.table_type') }}</th>
-                <th>{{ __('money.table_date') }}</th>
-                <th>{{ __('money.table_client') }}</th>
-                <th>{{ __('money.table_cashbox') }}</th>
-                <th>{{ __('money.table_sum') }}</th>
-                <th>{{ __('money.table_comment') }}</th>
-                <th>{{ __('money.table_posted') }}</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($documents as $doc)
-            <tr>
-                <td>{{ $doc->num }}</td>
-                <td>
-                    @if($doc->type === 'PO')
-                    <span class="money-doc-type--po">📥 PO</span>
-                    @else
-                    <span class="money-doc-type--ro">📤 RO</span>
-                    @endif
-                </td>
-                <td>{{ $doc->data ?? '—' }}</td>
-                <td class="money-table__client">
-                    {{ $doc->orgname ?? '' }}
-                    {{ trim(($doc->secondname ?? '') . ' ' . ($doc->name ?? '') . ' ' . ($doc->name2 ?? '')) }}
-                    @if($doc->phone)<br><small>{{ $doc->phone }}</small>@endif
-                </td>
-                <td>{{ $kassasMap[$doc->money ?? ''] ?? ($doc->money ?: '—') }}</td>
-                <td class="{{ $doc->type === 'PO' ? 'money-doc-sum--po' : 'money-doc-sum--ro' }}">
-                    {{ number_format($doc->summa ?? 0, 2, '.', ' ') }}
-                </td>
-                <td class="money-table__comment">{{ $doc->content ?? '' }}</td>
-                <td style="text-align:center;">{{ $doc->provodka ? '✅' : '' }}</td>
-                <td>
-                    <a href="{{ route('money.show', array_merge(['id' => $doc->id, 'type' => $doc->type], [
-                        'return_q' => $returnFilters['q'] ?? null,
-                        'return_filter_type' => $returnFilters['type'] ?? null,
-                        'return_money' => $returnFilters['money'] ?? null,
-                        'return_reestr' => $returnFilters['reestr'] ?? null,
-                        'return_date_from' => $returnFilters['date_from'] ?? null,
-                        'return_date_to' => $returnFilters['date_to'] ?? null,
-                        'return_pos' => $returnFilters['pos'] ?? null,
-                    ])) }}" class="btn btn-sm btn-outline-primary">✏</a>
-                </td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
-    @endif
+    <div style="text-align:center;padding:20px;color:#CC0000;font-size:1.2em">
+        {{ __('money.no_documents') }}
     </div>
-
-    {{-- Mobile: card list --}}
-    <div class="money-list--mobile">
-    @if($documents->isEmpty())
-    <div class="money-empty">{{ __('money.no_documents') }}</div>
     @else
-    @foreach($documents as $doc)
-    <div class="money-card money-card--{{ $doc->type === 'PO' ? 'income' : 'outcome' }}">
-        <div class="money-card__header">
-            <span class="money-card__type">
-                @if($doc->type === 'PO')
-                📥 PO
-                @else
-                📤 RO
-                @endif
-            </span>
-            <span class="money-card__num">#{{ $doc->num }}</span>
-            <span class="money-card__posted">{{ $doc->provodka ? '✅' : '⏳' }}</span>
-        </div>
-        <div class="money-card__date">{{ $doc->data ?? '—' }}</div>
-        <div class="money-card__client">
-            {{ $doc->orgname ?? '' }}
-            {{ trim(($doc->secondname ?? '') . ' ' . ($doc->name ?? '') . ' ' . ($doc->name2 ?? '')) }}
-            @if($doc->phone)<br><small>{{ $doc->phone }}</small>@endif
-        </div>
-        <div class="money-card__cashbox">
-            {{ $kassasMap[$doc->money ?? ''] ?? ($doc->money ?: '—') }}
-        </div>
-        <div class="money-card__sum {{ $doc->type === 'PO' ? 'money-card__sum--income' : 'money-card__sum--outcome' }}">
-            {{ number_format($doc->summa ?? 0, 2, '.', ' ') }} грн
-        </div>
-        @if($doc->content)
-        <div class="money-card__comment">{{ $doc->content }}</div>
-        @endif
-        <div class="money-card__actions">
-            <a href="{{ route('money.show', array_merge(['id' => $doc->id, 'type' => $doc->type], [
+    <div class="document-compact-list">
+        @foreach($documents as $doc)
+        @php
+            $linkUrl = route('money.show', array_merge(['id' => $doc->id, 'type' => $doc->type], [
                 'return_q' => $returnFilters['q'] ?? null,
                 'return_filter_type' => $returnFilters['type'] ?? null,
                 'return_money' => $returnFilters['money'] ?? null,
@@ -179,46 +71,71 @@
                 'return_date_from' => $returnFilters['date_from'] ?? null,
                 'return_date_to' => $returnFilters['date_to'] ?? null,
                 'return_pos' => $returnFilters['pos'] ?? null,
-            ])) }}" class="btn btn-sm btn-outline-primary">{{ __('money.edit') ?? '✏️ Редагувати' }}</a>
-        </div>
-    </div>
-    @endforeach
-    @endif
-    </div>
-
-    @if(($total ?? 0) > $perPage)
-    <div class="money-pagination">
-        <div class="money-pagination__meta">
-            {{ __('money.pagination_showing', ['from' => $from, 'to' => $to, 'total' => $total]) }}
-        </div>
-
-        <div class="money-pagination__controls">
-            @if(($pos ?? 0) > 0)
-            <a href="{{ route('money.index', array_merge($filters ?? [], ['pos' => max(0, ($pos ?? 0) - $perPage)])) }}" class="money-pagination__nav">
-                ← {{ __('money.pagination_prev') }}
-            </a>
-            @endif
-
-            <div class="money-pagination__pages">
-                @for($page = $windowStart; $page <= $windowEnd; $page++)
-                    @php $pagePos = ($page - 1) * $perPage; @endphp
-                    <a href="{{ route('money.index', array_merge($filters ?? [], ['pos' => $pagePos])) }}"
-                        class="money-pagination__page {{ $page === $currentPage ? 'is-active' : '' }}">
-                        {{ $page }}
-                    </a>
-                @endfor
+            ]));
+            $isIncome = $doc->type === 'PO';
+            $typeBg = $isIncome ? '#28a745' : '#dc3545';
+            $typeIcon = $isIncome ? '📥' : '📤';
+            $typeLabel = $isIncome ? __('money.filter_income') : __('money.filter_outcome');
+            $cashboxId = $doc->effective_cashbox_id ?? $doc->money ?? $doc->oplata ?? '';
+            $cashboxName = $doc->cashbox_name ?? ($kassasMap[$cashboxId] ?? ($cashboxId ?: '—'));
+            $paymentTypeName = $doc->payment_type_name ?? ($reestrMap[$doc->reestr ?? ''] ?? ($doc->reestr ?: '—'));
+            $clientName = trim(
+                ($doc->orgname ?? '') . ' ' .
+                ($doc->secondname ?? '') . ' ' .
+                ($doc->name ?? '') . ' ' .
+                ($doc->name2 ?? '')
+            );
+        @endphp
+        <div class="txtbox-price-docs">
+            <div class="order-card__header">
+                <div class="numdoc-docs">
+                    <a href="{{ $linkUrl }}" title="{{ __('document.open') }}">#{{ $doc->num }}</a>
+                </div>
+                <div class="status-docs-icons--mobile">
+                    {{ $typeIcon }}
+                </div>
+                <div class="status-docs4 compact-date">
+                    <span class="compact-date-line">{{ $doc->data ?? '—' }}</span>
+                    <span class="compact-date-line">{{ $doc->time ?? '' }}</span>
+                </div>
             </div>
-
-            @if((($pos ?? 0) + $perPage) < ($total ?? 0))
-            <a href="{{ route('money.index', array_merge($filters ?? [], ['pos' => ($pos ?? 0) + $perPage])) }}" class="money-pagination__nav">
-                {{ __('money.pagination_next') }} →
-            </a>
-            @endif
+            <div class="captionbox-docs">
+                <a href="{{ $linkUrl }}" class="title">
+                    <span class="compact-client-line compact-main">{{ $clientName !== '' ? $clientName : '—' }}</span>
+                    <span class="compact-client-line city text-muted">
+                        {{ __('money.filter_cashbox') }}: {{ $cashboxName }}
+                        | {{ __('money.filter_payment_type') }}: {{ $paymentTypeName }}
+                    </span>
+                    @if($doc->phone)<span class="phone">{{ $doc->phone }}</span>@endif
+                </a>
+            </div>
+            <div class="status-docs3" style="background:{{ $typeBg }}; color: #fff;">
+                {{ $typeIcon }} {{ $typeLabel }}
+            </div>
+            <div class="pricebox-docs1">
+                <span class="money">{{ number_format($doc->summa ?? 0, 2, '.', ' ') }}</span>
+            </div>
+            <div class="captionbox-docs2">{{ $doc->content ?? '' }}</div>
+            <div class="status-docs-icons">
+                {!! $doc->provodka ? '✅' : '<span style="color:#999">⏳</span>' !!}
+            </div>
         </div>
+        @endforeach
     </div>
     @endif
 
+    {{-- Pagination --}}
+    @if(($total ?? 0) > $perPage)
+    @include('partials.navigator', [
+      'pos' => $pos,
+      'pos2' => $perPage,
+      'max' => $total,
+      'doc' => 'money',
+      'query' => http_build_query($filters ?? [])
+    ])
+    @endif
 </div>
+
 
 <div id="moneyFilterModal" class="money-filter-modal">
     <div class="glass-card money-filter-modal__content">

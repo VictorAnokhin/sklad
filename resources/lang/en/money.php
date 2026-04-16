@@ -40,6 +40,7 @@ return [
     'heading_income' => 'Money Income (PO)',
     'heading_outcome' => 'Money Outcome (RO)',
     'field_date' => 'Date',
+    'date_placeholder' => 'dd-mm-yyyy',
     'field_cashbox' => 'Cashbox',
     'field_payment_type' => 'Payment Type',
     'field_sum' => 'Sum (UAH)',

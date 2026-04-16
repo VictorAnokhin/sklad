@@ -24,6 +24,10 @@ class Money extends Model
     {
         $baseQuery = DB::table('z_document as d')
             ->leftJoin('users as u', 'u.id', '=', 'd.client1')
+            ->leftJoin('conf as cashbox', function ($join) {
+                $join->on('cashbox.id', '=', DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, ''))"));
+            })
+            ->leftJoin('conf as payment_type', 'payment_type.id', '=', 'd.reestr')
             ->where('d.firma', $fid)
             ->whereIn('d.type', ['PO', 'RO']);
 
@@ -44,7 +48,7 @@ class Money extends Model
         }
 
         if (($filters['money'] ?? '') !== '') {
-            $baseQuery->where('d.money', $filters['money']);
+            $baseQuery->whereRaw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) = ?", [$filters['money']]);
         }
 
         if (($filters['reestr'] ?? '') !== '') {
@@ -72,17 +76,28 @@ class Money extends Model
             ->limit(30)
             ->get([
                 'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
-                'd.summa', 'd.content', 'd.money', 'd.provodka',
-                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone',
+                'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka',
+                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta',
+                DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as effective_cashbox_id"),
+                'cashbox.name as cashbox_name',
+                'payment_type.name as payment_type_name',
             ]);
 
         $kassasMap = DB::table('conf')
             ->where('type', 'oplata')
             ->where('firma', $fid)
             ->orderBy('name')
-            ->pluck('name', 'id');
+            ->pluck('name', 'id')
+            ->all();
 
-        return compact('documents', 'sumPO', 'sumRO', 'total', 'kassasMap');
+        $reestrMap = DB::table('conf')
+            ->where('type', 'reestr')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+
+        return compact('documents', 'sumPO', 'sumRO', 'total', 'kassasMap', 'reestrMap');
     }
 
     // ── find: один документ + дані клієнта ───────────────────────────────────
@@ -96,8 +111,9 @@ class Money extends Model
             ->whereIn('d.type', ['PO', 'RO'])
             ->first([
                 'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
-                'd.summa', 'd.content', 'd.money', 'd.reestr', 'd.provodka', 'd.client1',
-                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city',
+                'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka', 'd.client1',
+                DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as effective_cashbox_id"),
+                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta',
             ]);
     }
 
@@ -114,6 +130,8 @@ class Money extends Model
             'summa'      => 0,
             'content'    => '',
             'money'      => 0,
+            'oplata'     => '',
+            'effective_cashbox_id' => '',
             'reestr'     => '',
             'provodka'   => 0,
             'client1'    => '',
@@ -128,11 +146,19 @@ class Money extends Model
 
     // ── kassas: список кас з conf ─────────────────────────────────────────────
 
-    public static function kassas($fid)
+    public static function kassas($fid, ?string $selectedId = null)
     {
         return DB::table('conf')
-            ->where('type', 'oplata')
-            ->where('firma', $fid)
+            ->where(function ($query) use ($fid, $selectedId) {
+                $query->where(function ($cashboxQuery) use ($fid) {
+                    $cashboxQuery->where('type', 'oplata')
+                        ->where('firma', $fid);
+                });
+
+                if (trim((string) $selectedId) !== '') {
+                    $query->orWhere('id', $selectedId);
+                }
+            })
             ->orderBy('name')
             ->get(['id', 'name']);
     }
@@ -143,6 +169,7 @@ class Money extends Model
     {
         $data['firma'] = $fid;
         $data['money'] = (string)($data['money'] ?? '');
+        $data['oplata'] = (string)($data['oplata'] ?? $data['money']);
         $data['reestr'] = (string)($data['reestr'] ?? '');
         $data['content'] = (string)($data['content'] ?? '');
         $data['client1'] = (string)($data['client1'] ?? '0');

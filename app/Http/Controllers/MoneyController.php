@@ -81,7 +81,7 @@ class MoneyController extends Controller
             }
         }
 
-        $kassas = Money::kassas($fid);
+        $kassas = Money::kassas($fid, (string) ($document->effective_cashbox_id ?? $document->money ?? ''));
         $reestrList = Conf::paymentTypesForDocument($fid, $type);
 
         return view('money.show', compact('document', 'kassas', 'reestrList', 'returnFilters'));
@@ -109,6 +109,7 @@ class MoneyController extends Controller
             'content' => (string)$request->input('content', ''),
             'data'    => $request->input('data', date('d-m-Y')),
             'money'   => $money,
+            'oplata'  => $money,
             'reestr'  => (string)$request->input('reestr', ''),
             'client1' => $request->input('client1', '') ?: '0',
         ];

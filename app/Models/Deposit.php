@@ -13,11 +13,33 @@ class Deposit extends Model
     public $timestamps = false;
     protected $guarded = [];
 
-    public static function init(string $fid, int $pos = 0): array
+    public static function init(string $fid, int $pos = 0, array $filters = []): array
     {
         $baseQuery = DB::table('z_document as d')
             ->where('d.firma', $fid)
             ->where('d.type', 'PP');
+
+        if (($filters['q'] ?? '') !== '') {
+            $q = $filters['q'];
+            $baseQuery->where(function ($query) use ($q) {
+                $query->where('d.num', 'like', "%{$q}%")
+                    ->orWhere('d.content', 'like', "%{$q}%");
+            });
+        }
+
+        if (($filters['mode'] ?? '') !== '' && in_array($filters['mode'], ['topup', 'withdraw', 'exchange'], true)) {
+            $baseQuery->where('d.docum', $filters['mode']);
+        }
+
+        if (($filters['date_from'] ?? '') !== '') {
+            $from = date('d-m-Y', strtotime($filters['date_from']));
+            $baseQuery->whereRaw("STR_TO_DATE(d.data, '%d-%m-%Y') >= STR_TO_DATE(?, '%d-%m-%Y')", [$from]);
+        }
+
+        if (($filters['date_to'] ?? '') !== '') {
+            $to = date('d-m-Y', strtotime($filters['date_to']));
+            $baseQuery->whereRaw("STR_TO_DATE(d.data, '%d-%m-%Y') <= STR_TO_DATE(?, '%d-%m-%Y')", [$to]);
+        }
 
         $total = (clone $baseQuery)->count();
         $sumPP = (clone $baseQuery)->sum('d.summa');

@@ -164,7 +164,7 @@
                         class="alert {{ $client ? 'alert-secondary' : 'alert-warning' }} py-1 mt-1 selected-client-details {{ $client ? 'selected-client-details--filled' : 'selected-client-details--empty' }}">
                         @if($client)
                         <strong>{{ $client->orgname }}</strong> | {{ $client->name2 }} {{ $client->name }} {{ $client->secondname }}<br>
-                        {{ $client->phone }} | {{ $client->city }}
+                        {{ $client->phone }} | {{ $client->region ? $client->region . ' | ' : '' }}{{ $client->city }}{{ $client->poshta ? ' | ' . $client->poshta : '' }}
                         @else
                         Клієнт не обраний
                         @endif
@@ -346,33 +346,47 @@
                 <h5 class="modal-title" id="newClientModalLabel">Новий клієнт</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
             </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label">Ім'я</label>
-                    <input type="text" class="form-control" id="newClientName">
+            <div class="modal-body py-2">
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Ім'я</label>
+                        <input type="text" class="form-control form-control-sm" id="newClientName">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Прізвище</label>
+                        <input type="text" class="form-control form-control-sm" id="newClientSecondname">
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Прізвище</label>
-                    <input type="text" class="form-control" id="newClientSecondname">
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Телефон</label>
+                        <input type="text" class="form-control form-control-sm" id="newClientPhone" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Місто</label>
+                        <input type="text" class="form-control form-control-sm" id="newClientCity">
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Телефон</label>
-                    <input type="text" class="form-control" id="newClientPhone" placeholder="+380501234567" maxlength="17" inputmode="tel">
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Область</label>
+                        <input type="text" class="form-control form-control-sm" id="newClientRegion">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Отделение НП</label>
+                        <input type="text" class="form-control form-control-sm" id="newClientPoshta">
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Місто</label>
-                    <input type="text" class="form-control" id="newClientCity">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Статус клієнта</label>
-                    <select class="form-select" id="newClientStatus">
+                <div class="mb-2">
+                    <label class="form-label small mb-0">Статус клієнта</label>
+                    <select class="form-select form-select-sm" id="newClientStatus">
                         <option value="">Оберіть статус</option>
                         @foreach(($clientStatuses ?? collect()) as $statusOption)
                         <option value="{{ $statusOption->id }}">{{ $statusOption->name }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div id="newClientError" class="text-danger" style="display: none;"></div>
+                <div id="newClientError" class="text-danger small" style="display: none;"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
@@ -405,7 +419,9 @@
                         data.forEach(user => {
                             const a = document.createElement('a');
                             a.href = '#'; a.className = 'list-group-item list-group-item-action';
-                            a.innerHTML = `<strong>${user.orgname || ''}</strong> | ${user.name2 || ''} ${user.name || ''} ${user.secondname || ''} <br> <small>${user.phone || ''} | ${user.city || ''}</small>`;
+                            const regionPart = user.region ? user.region + ' | ' : '';
+                            const poshtaPart = user.poshta ? ' | ' + user.poshta : '';
+                            a.innerHTML = `<strong>${user.orgname || ''}</strong> | ${user.name2 || ''} ${user.name || ''} ${user.secondname || ''} <br> <small>${user.phone || ''} | ${regionPart}${user.city || ''}${poshtaPart}</small>`;
                             a.addEventListener('click', function (e) {
                                 e.preventDefault();
                                 client1Id.value = user.id;
@@ -454,18 +470,18 @@
             }
 
             if (digits.length <= 5) {
-                return `+${digits.slice(0, 3)} ${digits.slice(3)}`;
+                return `+${digits.slice(0, 3)} (${digits.slice(3)}`;
             }
 
             if (digits.length <= 8) {
-                return `+${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5)}`;
+                return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5)}`;
             }
 
             if (digits.length <= 10) {
-                return `+${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`;
+                return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8)}`;
             }
 
-            return `+${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8, 10)} ${digits.slice(10)}`;
+            return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8, 10)}-${digits.slice(10)}`;
         };
 
         newClientPhoneField.addEventListener('input', function () {
@@ -477,11 +493,15 @@
             const secondnameField = document.getElementById('newClientSecondname');
             const phoneField = newClientPhoneField;
             const cityField = document.getElementById('newClientCity');
+            const regionField = document.getElementById('newClientRegion');
+            const poshtaField = document.getElementById('newClientPoshta');
             const statusField = document.getElementById('newClientStatus');
             const name = nameField.value.trim();
             const secondname = secondnameField.value.trim();
             const phone = phoneField.value.trim();
             const city = cityField.value.trim();
+            const region = regionField.value.trim();
+            const poshta = poshtaField.value.trim();
             const idstatus = statusField.value;
             const errorDiv = document.getElementById('newClientError');
             [nameField, secondnameField, phoneField, statusField].forEach(field => field.classList.remove('is-invalid'));
@@ -509,7 +529,7 @@
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': '{{ csrf_token() }}'
                 },
-                body: JSON.stringify({ name, secondname, phone, city, idstatus })
+                body: JSON.stringify({ name, secondname, phone, city, region, poshta, idstatus })
             })
             .then(async res => {
                 const payload = await res.json().catch(() => ({}));
@@ -524,13 +544,17 @@
                 clientDetails.style.background = '#f8f9fa';
                 clientDetails.style.border = '1px solid #ddd';
                 clientDetails.style.fontSize = '0.85rem';
-                clientDetails.innerHTML = `<strong>${user.secondname || ''} ${user.name || ''}</strong><br>${user.phone || ''} | ${user.city || ''}`;
+                const regionPart = user.region ? user.region + ' | ' : '';
+                const poshtaPart = user.poshta ? ' | ' + user.poshta : '';
+                clientDetails.innerHTML = `<strong>${user.secondname || ''} ${user.name || ''}</strong><br>${user.phone || ''} | ${regionPart}${user.city || ''}${poshtaPart}`;
                 const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
                 modal.hide();
                 nameField.value = '';
                 secondnameField.value = '';
                 phoneField.value = '';
                 cityField.value = '';
+                regionField.value = '';
+                poshtaField.value = '';
                 statusField.value = '';
             })
             .catch(err => { errorDiv.textContent = 'Помилка: ' + err.message; errorDiv.style.display = 'block'; })

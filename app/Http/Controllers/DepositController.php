@@ -11,9 +11,15 @@ class DepositController extends Controller
     {
         $fid = session('fid', '');
         $pos = (int) $request->input('pos', 0);
-        $data = Deposit::init($fid, $pos);
+        $filters = [
+            'q' => trim((string) $request->input('q', '')),
+            'mode' => trim((string) $request->input('mode', '')),
+            'date_from' => trim((string) $request->input('date_from', '')),
+            'date_to' => trim((string) $request->input('date_to', '')),
+        ];
+        $data = Deposit::init($fid, $pos, $filters);
 
-        return view('deposit.index', array_merge($data, compact('pos')));
+        return view('deposit.index', array_merge($data, compact('pos', 'filters')));
     }
 
     public function show(Request $request)

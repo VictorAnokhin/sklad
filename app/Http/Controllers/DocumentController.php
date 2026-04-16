@@ -658,9 +658,6 @@ class DocumentController extends Controller
         // ── Save / Зберегти ───────────────────────────────────────────────────
         if (in_array($run, ['Зберегти', 'Save', 'Сохранить'], true)) {
             $docId = (string) $request->input('doc_id', session('doc_id', '0'));
-            if ($this->isRootDocumentLocked($doc, $docId, $fid)) {
-                return redirect()->back()->with('error', 'Проведений документ змінювати не можна. Спочатку зніміть проводку з пов’язаних документів.');
-            }
 
             $errors = [];
             if (trim((string) $request->input('client1', '')) === '') {

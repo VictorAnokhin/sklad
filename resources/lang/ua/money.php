@@ -40,6 +40,7 @@ return [
     'heading_income' => 'Прихід грошей (PO)',
     'heading_outcome' => 'Видача грошей (RO)',
     'field_date' => 'Дата',
+    'date_placeholder' => 'дд-мм-рррр',
     'field_cashbox' => 'Каса',
     'field_payment_type' => 'Вид платежу',
     'field_sum' => 'Сума (грн)',

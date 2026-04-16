@@ -66,7 +66,7 @@ class ClientController extends Controller
                 ->orWhere('secondname', 'LIKE', "%{$qBase}%")
                 ->orWhere('phone', 'LIKE', "%{$q}%");
         })
-            ->select('id', 'orgname', 'name', 'name2', 'secondname', 'phone', 'city')
+            ->select('id', 'orgname', 'name', 'name2', 'secondname', 'phone', 'city', 'region', 'poshta')
             ->limit(20)
             ->get()
             ->map(function ($u) {
@@ -78,6 +78,8 @@ class ClientController extends Controller
             'secondname' => $u->secondname,
             'phone' => $u->phone,
             'city' => $u->city,
+            'region' => $u->region,
+            'poshta' => $u->poshta,
             ];
         });
 
@@ -135,6 +137,8 @@ class ClientController extends Controller
         $phoneDigits = preg_replace('/\D/', '', $rawPhone);
         $phone = $phoneDigits !== '' ? '+' . $phoneDigits : '';
         $city = trim((string) ($request->input('city') ?? ''));
+        $region = trim((string) ($request->input('region') ?? ''));
+        $poshta = trim((string) ($request->input('poshta') ?? ''));
         $idstatus = (int) $request->input('idstatus', 0);
 
         if ($name === '' && $secondname === '' && $phone === '') {
@@ -171,6 +175,8 @@ class ClientController extends Controller
             'secondname' => $secondname,
             'phone' => $phone,
             'city' => $city,
+            'region' => $region,
+            'poshta' => $poshta,
             'firma' => $fid,
             'idstatus' => $idstatus,
             'ustype' => $idstatus,

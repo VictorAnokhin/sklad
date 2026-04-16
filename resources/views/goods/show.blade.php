@@ -5,45 +5,359 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-2">
     @php
         $comp = $comp ?? (object) [];
         $descript = $descript ?? (object) [];
     @endphp
 
     <style>
-        .goods-sticky-actions {
+        /* ---- Compact dark form ---- */
+        .gs-form label {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: rgba(251,191,36,0.75);
+            margin-bottom: 3px;
+        }
+
+        .gs-form .form-control,
+        .gs-form .form-select {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 1rem;
+            padding: 9px 12px;
+            height: auto;
+            min-height: 42px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .gs-form .form-control:focus,
+        .gs-form .form-select:focus {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(251,191,36,0.55);
+            box-shadow: 0 0 0 3px rgba(251,191,36,0.1);
+            color: #fff;
+            outline: none;
+        }
+
+        .gs-form .form-control[readonly] {
+            background: rgba(255,255,255,0.03);
+            color: rgba(255,255,255,0.45);
+            cursor: default;
+        }
+
+        .gs-form .form-control.profit-field {
+            background: rgba(251,191,36,0.08);
+            border-color: rgba(251,191,36,0.3);
+            color: #fbbf24;
+            font-weight: 700;
+        }
+
+        .gs-form select option {
+            background: #1e2130;
+            color: #e2e8f0;
+        }
+
+        .gs-form textarea.form-control {
+            min-height: 90px;
+            resize: vertical;
+        }
+
+        /* Row spacing */
+        .gs-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .gs-col { flex: 1 1 0; min-width: 140px; }
+        .gs-col-2 { flex: 2 2 0; min-width: 200px; }
+        .gs-col-3 { flex: 3 3 0; min-width: 240px; }
+
+        /* Section divider */
+        .gs-section {
+            padding: 12px 0 4px;
+            margin-bottom: 6px;
+            border-top: 1px solid rgba(255,255,255,0.07);
+        }
+
+        .gs-section-title {
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.3);
+            margin-bottom: 8px;
+        }
+
+        /* Price table */
+        .gs-price-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+
+        .gs-price-table thead tr {
+            background: linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.06));
+            border-bottom: 1px solid rgba(251,191,36,0.25);
+        }
+
+        .gs-price-table thead th {
+            padding: 7px 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: rgba(251,191,36,0.8);
+            border: none;
+            white-space: nowrap;
+        }
+
+        .gs-price-table tbody tr {
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .gs-price-table tbody tr:hover {
+            background: rgba(251,191,36,0.04);
+        }
+
+        .gs-price-table tbody td {
+            padding: 5px 8px;
+            border: none;
+            color: #e2e8f0;
+        }
+
+        .gs-price-table .form-control,
+        .gs-price-table .form-control-sm {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 5px;
+            color: #e2e8f0;
+            font-size: 0.88rem;
+            padding: 5px 8px;
+            min-height: 34px;
+        }
+
+        .gs-price-table .form-control:focus,
+        .gs-price-table .form-control-sm:focus {
+            border-color: rgba(251,191,36,0.4);
+            outline: none;
+            box-shadow: none;
+        }
+
+        .gs-price-table .input-group-text {
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.5);
+            font-size: 0.8rem;
+            padding: 4px 8px;
+        }
+
+        /* Photo cards */
+        .gs-photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .gs-photo-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 10px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .gs-photo-card:hover {
+            border-color: rgba(251,191,36,0.25);
+        }
+
+        .gs-photo-card__img {
+            width: 100%;
+            height: auto;
+            max-height: 220px;
+            object-fit: contain;
+            background: #0d0f18;
+            display: block;
+        }
+
+        .gs-photo-card__empty {
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.02);
+        }
+
+        .gs-photo-card__body {
+            padding: 8px 10px;
+        }
+
+        .gs-photo-card__meta {
+            font-size: 0.68rem;
+            color: rgba(255,255,255,0.3);
+            margin-bottom: 4px;
+        }
+
+        .gs-photo-card label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: rgba(251,191,36,0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 4px;
+        }
+
+        .gs-photo-card .form-control {
+            font-size: 0.82rem;
+            padding: 5px 8px;
+            min-height: 34px;
+        }
+
+        /* Input group */
+        .gs-form .input-group .input-group-text {
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: rgba(255,255,255,0.5);
+            font-size: 0.85rem;
+        }
+
+        .gs-form .input-group .form-control {
+            border-left: none;
+            border-right: none;
+        }
+
+        .gs-form .input-group .form-control:first-child {
+            border-left: 1px solid rgba(255,255,255,0.12);
+            border-right: none;
+        }
+
+        .gs-form .input-group .form-control:last-child {
+            border-right: 1px solid rgba(255,255,255,0.12);
+        }
+
+        /* Checkboxes */
+        .gs-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            color: #e2e8f0;
+            padding: 9px 12px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            min-height: 42px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .gs-check:hover {
+            border-color: rgba(251,191,36,0.3);
+            background: rgba(251,191,36,0.05);
+        }
+
+        .gs-check input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #fbbf24;
+            cursor: pointer;
+        }
+
+        /* Sticky actions */
+        .gs-sticky-actions {
             position: sticky;
             bottom: 0;
             z-index: 20;
-            margin-top: 24px;
-            padding: 12px 16px;
-            border-top: 1px solid #dee2e6;
-            background: rgba(255, 255, 255, 0.96);
-            backdrop-filter: blur(8px);
-            box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.08);
+            margin-top: 16px;
+            padding: 10px 0;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            background: rgba(15,17,26,0.92);
+            backdrop-filter: blur(12px);
+            display: flex;
+            gap: 8px;
         }
 
-        @media (max-width: 768px) {
-            .goods-sticky-actions {
-                left: 0;
-                right: 0;
-                margin-left: -12px;
-                margin-right: -12px;
-                padding-left: 12px;
-                padding-right: 12px;
-            }
+        .gs-btn-save {
+            padding: 9px 24px;
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .gs-btn-save:hover { opacity: 0.88; }
+
+        .gs-btn-back {
+            padding: 9px 20px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: background 0.2s;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .gs-btn-back:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+        .gs-btn-delete {
+            padding: 9px 20px;
+            background: rgba(239,68,68,0.12);
+            border: 1px solid rgba(239,68,68,0.35);
+            border-radius: 8px;
+            color: #ef4444;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .gs-btn-delete:hover { background: rgba(239,68,68,0.22); }
+
+        /* Alert */
+        .gs-alert-success {
+            padding: 8px 14px;
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: 7px;
+            color: #22c55e;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .gs-alert-danger {
+            padding: 8px 14px;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 7px;
+            color: #ef4444;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
         }
     </style>
 
     @if(session('success'))
-    <div class="alert alert-success">{{ session('success') }}</div>
+    <div class="gs-alert-success">{{ session('success') }}</div>
     @endif
     @if($errors->any())
-    <div class="alert alert-danger">
-        @foreach($errors->all() as $e)
-        <div>{{ $e }}</div>
-        @endforeach
+    <div class="gs-alert-danger">
+        @foreach($errors->all() as $e)<div>{{ $e }}</div>@endforeach
     </div>
     @endif
 
@@ -53,117 +367,132 @@
         $availableSubs = collect($subs[$selectedTop] ?? []);
     @endphp
 
-    <form method="POST" action="{{ route('goods.save') }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ route('goods.save') }}" enctype="multipart/form-data" class="gs-form">
         @csrf
         <input type="hidden" name="id1" value="{{ $pnum ?? '0' }}">
 
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <label class="form-label">Категорія</label>
-                <select name="idglava" class="form-select" onchange="const sub=this.form.querySelector('[name=idcaption]'); if(sub){sub.value='';} this.form.submit();">
-                    <option value="">— Оберіть категорію —</option>
-                    @foreach(($tops ?? []) as $top)
-                    <option value="{{ $top->id }}" {{ $selectedTop === (string)$top->id ? 'selected' : '' }}>
-                        {{ $top->val }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Підкатегорія</label>
-                <select name="idcaption" class="form-select" {{ $selectedTop === '' ? 'disabled' : '' }}>
-                    <option value="">— Оберіть підкатегорію —</option>
-                    @foreach($availableSubs as $sub)
-                    <option value="{{ $sub->id }}" {{ $selectedSub === (string)$sub->id ? 'selected' : '' }}>
-                        {{ $sub->val }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-        </div>
-
-        <div class="row mb-3">
-            <div class="col-md-4">
-                <label class="form-label">Назва RU</label>
-                <input type="text" name="name_client_ru" class="form-control" value="{{ $descript->name ?? '' }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Назва UA</label>
-                <input type="text" name="name_client_ua" class="form-control" value="{{ $descript->name_ua ?? '' }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Назва EN</label>
-                <input type="text" name="name_client_en" class="form-control" value="{{ $descript->name_en ?? '' }}">
+        {{-- Категорії --}}
+        <div class="gs-section">
+            <div class="gs-section-title">Категорія</div>
+            <div class="gs-row">
+                <div class="gs-col">
+                    <label>Категорія</label>
+                    <select name="idglava" id="goodsShowTopSelect" class="form-select" onchange="goodsShowFillSubs(this.value)">
+                        <option value="">— Оберіть категорію —</option>
+                        @foreach(($tops ?? []) as $top)
+                        <option value="{{ $top->id }}" {{ $selectedTop === (string)$top->id ? 'selected' : '' }}>
+                            {{ $top->val }}
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="gs-col">
+                    <label>Підкатегорія</label>
+                    <select name="idcaption" id="goodsShowSubSelect" class="form-select" {{ $selectedTop === '' ? 'disabled' : '' }}>
+                        <option value="">— Оберіть підкатегорію —</option>
+                        @foreach($availableSubs as $sub)
+                        <option value="{{ $sub->id }}" {{ $selectedSub === (string)$sub->id ? 'selected' : '' }}>
+                            {{ $sub->val }}
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <div class="col-md-4">
-                <label class="form-label">Код</label>
-                <input type="text" name="nickname" class="form-control" value="{{ $comp->nickname ?? '' }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Артикул / Cod</label>
-                <input type="text" class="form-control" value="{{ $comp->cod ?? '' }}" readonly>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Назва документа</label>
-                <input type="text" name="name_doc" class="form-control" value="{{ $comp->namedoc ?? '' }}">
-            </div>
-        </div>
-
-        <div class="row mb-3">
-            <div class="col-md-3">
-                <label class="form-label">Ціна закупки</label>
-                <input type="text" step="0.01" id="pay1Input" name="pay1" class="form-control" value="{{ $comp->pay1 ?? 0 }}">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Ціна продажи</label>
-                <input type="text" step="0.01" id="payInput" name="pay" class="form-control" value="{{ $comp->pay ?? 0 }}">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Маржа / Profit</label>
-                <input type="text" step="0.01" id="profitpayInput" name="profitpay" class="form-control" value="{{ $comp->profitpay ?? 0 }}" readonly style="background:#f0f7ff; font-weight:700;">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Гарантія</label>
-                <input type="text" name="garant" class="form-control" value="{{ $comp->garant ?? '' }}">
+        {{-- Назви --}}
+        <div class="gs-section">
+            <div class="gs-section-title">Назва</div>
+            <div class="gs-row">
+                <div class="gs-col">
+                    <label>Назва RU</label>
+                    <input type="text" name="name_client_ru" class="form-control" value="{{ $descript->name ?? '' }}">
+                </div>
+                <div class="gs-col">
+                    <label>Назва UA</label>
+                    <input type="text" name="name_client_ua" class="form-control" value="{{ $descript->name_ua ?? '' }}">
+                </div>
+                <div class="gs-col">
+                    <label>Назва EN</label>
+                    <input type="text" name="name_client_en" class="form-control" value="{{ $descript->name_en ?? '' }}">
+                </div>
             </div>
         </div>
 
-        <div class="mb-4">
-            <label class="form-label d-block">Ціни продажу з таблиці `price`</label>
+        {{-- Коди --}}
+        <div class="gs-section">
+            <div class="gs-section-title">Коди та документ</div>
+            <div class="gs-row">
+                <div class="gs-col">
+                    <label>Код</label>
+                    <input type="text" name="nickname" class="form-control" value="{{ $comp->nickname ?? '' }}">
+                </div>
+                <div class="gs-col">
+                    <label>Артикул / Cod</label>
+                    <input type="text" class="form-control" value="{{ $comp->cod ?? '' }}" readonly>
+                </div>
+                <div class="gs-col">
+                    <label>Назва документа</label>
+                    <input type="text" name="name_doc" class="form-control" value="{{ $comp->namedoc ?? '' }}">
+                </div>
+            </div>
+        </div>
+
+        {{-- Ціни основні --}}
+        <div class="gs-section">
+            <div class="gs-section-title">Ціни та гарантія</div>
+            <div class="gs-row">
+                <div class="gs-col">
+                    <label>Ціна закупки</label>
+                    <input type="text" step="0.01" id="pay1Input" name="pay1" class="form-control" value="{{ $comp->pay1 ?? 0 }}">
+                </div>
+                <div class="gs-col">
+                    <label>Ціна продажу</label>
+                    <input type="text" step="0.01" id="payInput" name="pay" class="form-control" value="{{ $comp->pay ?? 0 }}">
+                </div>
+                <div class="gs-col">
+                    <label>Маржа / Profit</label>
+                    <input type="text" step="0.01" id="profitpayInput" name="profitpay" class="form-control profit-field" value="{{ $comp->profitpay ?? 0 }}" readonly>
+                </div>
+                <div class="gs-col">
+                    <label>Гарантія</label>
+                    <input type="text" name="garant" class="form-control" value="{{ $comp->garant ?? '' }}">
+                </div>
+            </div>
+        </div>
+
+        {{-- Ціни з таблиці price --}}
+        <div class="gs-section">
+            <div class="gs-section-title">Ціни продажу з таблиці `price`</div>
             <div class="table-responsive">
-                <table class="table table-bordered table-sm align-middle">
-                    <thead class="table-light">
+                <table class="gs-price-table">
+                    <thead>
                         <tr>
                             <th>Група</th>
-                            <th>Ціна продажу (`pay`)</th>
-                            <th>Ціна зі знижкою (`pay1`)</th>
-                            <th>Стара ціна (`oldpay`)</th>
+                            <th>Ціна продажу (pay)</th>
+                            <th>Ціна зі знижкою (pay1)</th>
+                            <th>Стара ціна (oldpay)</th>
                             <th>Умова знижки</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach(($priceGroups ?? []) as $group)
-                        @php
-                            $row = $prices[$group->id] ?? null;
-                        @endphp
+                        @php $row = $prices[$group->id] ?? null; @endphp
                         <tr>
                             <td>
                                 {{ $group->name ?? ('#' . $group->id) }}
                                 <input type="hidden" name="tgroup[{{ $group->id }}]" value="1">
                             </td>
                             <td>
-                                <input type="number" step="0.01" name="tpay[{{ $group->id }}]" class="form-control form-control-sm"
+                                <input type="number" step="0.01" name="tpay[{{ $group->id }}]" class="form-control"
                                     value="{{ $row->pay ?? $comp->pay ?? 0 }}">
                             </td>
                             <td>
-                                <input type="number" step="0.01" name="tpay1[{{ $group->id }}]" class="form-control form-control-sm"
+                                <input type="number" step="0.01" name="tpay1[{{ $group->id }}]" class="form-control"
                                     value="{{ $row->pay1 ?? $comp->pay1 ?? 0 }}">
                             </td>
                             <td>
-                                <input type="number" step="0.01" name="toldpay[{{ $group->id }}]" class="form-control form-control-sm"
+                                <input type="number" step="0.01" name="toldpay[{{ $group->id }}]" class="form-control"
                                     value="{{ $row->oldpay ?? 0 }}">
                             </td>
                             <td>
@@ -181,127 +510,137 @@
             </div>
         </div>
 
-        <div class="row mb-3">
-            <div class="col-md-3">
-                <label class="form-label">Hit</label>
-                <input type="number" name="hit" class="form-control" value="{{ $comp->hit ?? 0 }}">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Склад</label>
-                <select name="sklad" class="form-select">
-                    <option value="1" {{ (string)($comp->sklad ?? '0') === '1' ? 'selected' : '' }}>Є в наявності</option>
-                    <option value="0" {{ (string)($comp->sklad ?? '0') === '0' ? 'selected' : '' }}>Немає</option>
-                </select>
-            </div>
-            <div class="col-md-3 d-flex align-items-end">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="constanta" value="1" id="constanta" {{ (string)($comp->constanta ?? '0') === '1' ? 'checked' : '' }}>
-                    <label class="form-check-label" for="constanta">Constanta</label>
+        {{-- Склад та флаги --}}
+        <div class="gs-section">
+            <div class="gs-section-title">Склад та атрибути</div>
+            <div class="gs-row">
+                <div class="gs-col">
+                    <label>Hit</label>
+                    <input type="number" name="hit" class="form-control" value="{{ $comp->hit ?? 0 }}">
+                </div>
+                <div class="gs-col">
+                    <label>Склад</label>
+                    <select name="sklad" class="form-select">
+                        <option value="1" {{ (string)($comp->sklad ?? '0') === '1' ? 'selected' : '' }}>Є в наявності</option>
+                        <option value="0" {{ (string)($comp->sklad ?? '0') === '0' ? 'selected' : '' }}>Немає</option>
+                    </select>
+                </div>
+                <div class="gs-col" style="display:flex;align-items:flex-end;">
+                    <label class="gs-check" style="min-height:42px;width:100%;">
+                        <input type="checkbox" name="constanta" value="1" id="constanta" {{ (string)($comp->constanta ?? '0') === '1' ? 'checked' : '' }}>
+                        Constanta
+                    </label>
+                </div>
+                <div class="gs-col" style="display:flex;align-items:flex-end;">
+                    <label class="gs-check" style="min-height:42px;width:100%;">
+                        <input type="checkbox" name="top" value="1" id="top" {{ (string)($comp->top ?? '0') === '1' ? 'checked' : '' }}>
+                        Top
+                    </label>
                 </div>
             </div>
-            <div class="col-md-3 d-flex align-items-end">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="top" value="1" id="top" {{ (string)($comp->top ?? '0') === '1' ? 'checked' : '' }}>
-                    <label class="form-check-label" for="top">Top</label>
+        </div>
+
+        {{-- Описи --}}
+        <div class="gs-section">
+            <div class="gs-section-title">Описи</div>
+            <div class="gs-row">
+                <div class="gs-col">
+                    <label>Опис RU</label>
+                    <textarea name="description_ru" class="form-control">{{ $descript->description ?? '' }}</textarea>
+                </div>
+                <div class="gs-col">
+                    <label>Опис UA</label>
+                    <textarea name="description_ua" class="form-control">{{ $descript->description_ua ?? '' }}</textarea>
+                </div>
+                <div class="gs-col">
+                    <label>Опис EN</label>
+                    <textarea name="description_en" class="form-control">{{ $descript->description_en ?? '' }}</textarea>
                 </div>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <div class="col-md-4">
-                <label class="form-label">Опис RU</label>
-                <textarea name="description_ru" class="form-control" rows="4">{{ $descript->description ?? '' }}</textarea>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Опис UA</label>
-                <textarea name="description_ua" class="form-control" rows="4">{{ $descript->description_ua ?? '' }}</textarea>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Опис EN</label>
-                <textarea name="description_en" class="form-control" rows="4">{{ $descript->description_en ?? '' }}</textarea>
-            </div>
-        </div>
-
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <label class="form-label">HTML description</label>
-                <textarea name="htmldescr" class="form-control" rows="3">{{ $comp->htmldescr ?? '' }}</textarea>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">HTML keys</label>
-                <textarea name="htmlkeys" class="form-control" rows="3">{{ $comp->htmlkeys ?? '' }}</textarea>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">HTML keys pop</label>
-                <textarea name="htmlkeyspop" class="form-control" rows="3">{{ $comp->htmlkeyspop ?? '' }}</textarea>
+        {{-- HTML / SEO --}}
+        <div class="gs-section">
+            <div class="gs-section-title">HTML / SEO</div>
+            <div class="gs-row">
+                <div class="gs-col-2">
+                    <label>HTML description</label>
+                    <textarea name="htmldescr" class="form-control">{{ $comp->htmldescr ?? '' }}</textarea>
+                </div>
+                <div class="gs-col">
+                    <label>HTML keys</label>
+                    <textarea name="htmlkeys" class="form-control">{{ $comp->htmlkeys ?? '' }}</textarea>
+                </div>
+                <div class="gs-col">
+                    <label>HTML keys pop</label>
+                    <textarea name="htmlkeyspop" class="form-control">{{ $comp->htmlkeyspop ?? '' }}</textarea>
+                </div>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <label class="form-label">Video 1</label>
-                <input type="text" name="video1" class="form-control" value="{{ $comp->nvideo1 ?? '' }}">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Video 2</label>
-                <input type="text" name="video2" class="form-control" value="{{ $comp->nvideo2 ?? '' }}">
+        {{-- Відео --}}
+        <div class="gs-section">
+            <div class="gs-section-title">Відео</div>
+            <div class="gs-row">
+                <div class="gs-col">
+                    <label>Video 1</label>
+                    <input type="text" name="video1" class="form-control" value="{{ $comp->nvideo1 ?? '' }}">
+                </div>
+                <div class="gs-col">
+                    <label>Video 2</label>
+                    <input type="text" name="video2" class="form-control" value="{{ $comp->nvideo2 ?? '' }}">
+                </div>
             </div>
         </div>
 
+        {{-- Фотографії --}}
         @php
             $photoFields = [
-                ['column' => 'nfoto', 'input' => 'foto1', 'label' => 'Фото 1'],
-                ['column' => 'nfoto1', 'input' => 'foto2', 'label' => 'Фото 2'],
-                ['column' => 'nfoto2', 'input' => 'foto3', 'label' => 'Фото 3'],
-                ['column' => 'nfoto3', 'input' => 'foto4', 'label' => 'Фото 4'],
-                ['column' => 'nfoto4', 'input' => 'foto5', 'label' => 'Фото 5'],
-                ['column' => 'nfoto5', 'input' => 'foto6', 'label' => 'Фото 6'],
-                ['column' => 'nfoto6', 'input' => 'foto7', 'label' => 'Фото 7'],
-                ['column' => 'nfoto7', 'input' => 'foto8', 'label' => 'Фото 8'],
-                ['column' => 'nfoto8', 'input' => 'foto9', 'label' => 'Фото 9'],
+                ['column' => 'nfoto',  'input' => 'foto1',  'label' => 'Фото 1'],
+                ['column' => 'nfoto1', 'input' => 'foto2',  'label' => 'Фото 2'],
+                ['column' => 'nfoto2', 'input' => 'foto3',  'label' => 'Фото 3'],
+                ['column' => 'nfoto3', 'input' => 'foto4',  'label' => 'Фото 4'],
+                ['column' => 'nfoto4', 'input' => 'foto5',  'label' => 'Фото 5'],
+                ['column' => 'nfoto5', 'input' => 'foto6',  'label' => 'Фото 6'],
+                ['column' => 'nfoto6', 'input' => 'foto7',  'label' => 'Фото 7'],
+                ['column' => 'nfoto7', 'input' => 'foto8',  'label' => 'Фото 8'],
+                ['column' => 'nfoto8', 'input' => 'foto9',  'label' => 'Фото 9'],
                 ['column' => 'nfoto9', 'input' => 'foto10', 'label' => 'Фото 10'],
             ];
         @endphp
 
-        <div class="mb-4">
-            <label class="form-label d-block">Фотографії товару</label>
-            <div class="row g-3">
+        <div class="gs-section">
+            <div class="gs-section-title">Фотографії товару</div>
+            <div class="gs-photo-grid">
                 @foreach($photoFields as $photo)
-                @php
-                    $imagePath = \App\Support\MediaUrl::image($comp->{$photo['column']} ?? '');
-                @endphp
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100">
-                        @if($imagePath)
-                        <img src="{{ $imagePath }}" alt="{{ $photo['label'] }}" class="card-img-top" style="height: 180px; object-fit: cover;">
-                        @else
-                        <div class="d-flex align-items-center justify-content-center text-muted" style="height: 180px; background: #f8f9fa;">
-                            Немає зображення
-                        </div>
-                        @endif
-                        <div class="card-body">
-                            <div class="small text-muted mb-2">{{ $photo['column'] }}</div>
-                            <label class="form-label">{{ $photo['label'] }}</label>
-                            <input type="file" name="{{ $photo['input'] }}" class="form-control" accept="image/*">
-                        </div>
+                @php $imagePath = \App\Support\MediaUrl::image($comp->{$photo['column']} ?? ''); @endphp
+                <div class="gs-photo-card">
+                    @if($imagePath)
+                        <img src="{{ $imagePath }}" alt="{{ $photo['label'] }}" class="gs-photo-card__img">
+                    @else
+                        <div class="gs-photo-card__empty">Немає зображення</div>
+                    @endif
+                    <div class="gs-photo-card__body">
+                        <div class="gs-photo-card__meta">{{ $photo['column'] }}</div>
+                        <label>{{ $photo['label'] }}</label>
+                        <input type="file" name="{{ $photo['input'] }}" class="form-control" accept="image/*">
                     </div>
                 </div>
                 @endforeach
             </div>
         </div>
 
-        <div class="d-flex gap-2 goods-sticky-actions">
-            <button type="submit" class="btn btn-success">💾 Зберегти</button>
-            <a href="{{ route('goods.index') }}" class="btn btn-secondary">← Назад</a>
-            @php
-                $compId = $comp->id ?? null;
-            @endphp
+        {{-- Actions --}}
+        <div class="gs-sticky-actions">
+            <button type="submit" class="gs-btn-save">💾 Зберегти</button>
+            <a href="{{ route('goods.index') }}" class="gs-btn-back">← Назад</a>
+            @php $compId = $comp->id ?? null; @endphp
             @if($compId && $pnum && $pnum !== '0')
                 <input type="hidden" name="id" value="{{ $compId }}">
                 <input type="hidden" name="cod" value="{{ $comp->cod ?? '' }}">
                 <button
                     type="submit"
-                    class="btn btn-danger"
+                    class="gs-btn-delete"
                     formaction="{{ route('goods.destroy') }}"
                     formmethod="POST"
                     formnovalidate
@@ -313,30 +652,47 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const payInput = document.getElementById('payInput');
-    const pay1Input = document.getElementById('pay1Input');
-    const profitpayInput = document.getElementById('profitpayInput');
+var goodsShowAllSubs = @json(
+    collect($subs ?? [])->map(fn($items) =>
+        collect($items)->map(fn($s) => ['id' => $s->id, 'val' => $s->val])->values()
+    )
+);
 
-    const calculateMargin = () => {
-        const purchasePrice = parseFloat(pay1Input?.value) || 0;  // pay1 = цена закупки
-        const salePrice = parseFloat(payInput?.value) || 0;        // pay = цена продажи
-        const margin = salePrice - purchasePrice;
-        
-        if (profitpayInput) {
-            profitpayInput.value = margin.toFixed(2);
-        }
+function goodsShowFillSubs(topId) {
+    var sub = document.getElementById('goodsShowSubSelect');
+    if (!sub) return;
+    sub.innerHTML = '';
+    var allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = '— Оберіть підкатегорію —';
+    sub.appendChild(allOpt);
+    if (topId && goodsShowAllSubs[topId]) {
+        goodsShowAllSubs[topId].forEach(function(item) {
+            var opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.val;
+            sub.appendChild(opt);
+        });
+        sub.disabled = false;
+    } else {
+        sub.disabled = true;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const payInput     = document.getElementById('payInput');
+    const pay1Input    = document.getElementById('pay1Input');
+    const profitInput  = document.getElementById('profitpayInput');
+
+    const calcMargin = () => {
+        const buy  = parseFloat(pay1Input?.value)  || 0;
+        const sell = parseFloat(payInput?.value)   || 0;
+        if (profitInput) profitInput.value = (sell - buy).toFixed(2);
     };
 
-    if (payInput) {
-        payInput.addEventListener('input', calculateMargin);
-    }
-    if (pay1Input) {
-        pay1Input.addEventListener('input', calculateMargin);
-    }
-
-    // Calculate on page load
-    calculateMargin();
+    payInput?.addEventListener('input',  calcMargin);
+    pay1Input?.addEventListener('input', calcMargin);
+    calcMargin();
 });
 </script>
 @endsection

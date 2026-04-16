@@ -64,6 +64,13 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
       <a href="{{ $item['linkUrl'] }}" class="title">
         <span class="compact-client-line compact-main">{!! $item['org'] !!}{{ $item['fullName'] }}</span>
         <span class="compact-client-line city">{{ $item['city'] }} {{ $item['poshta'] }}</span>
+        @if(in_array($doc, ['PO', 'RO', 'PP']))
+          <span class="compact-client-line city text-muted">
+            <strong>{{ __('money.filter_cashbox') }}:</strong> {{ $item['moneyName'] ?: '—' }}
+            | 
+            <strong>{{ __('money.filter_payment_type') }}:</strong> {{ $item['reestrName'] ?: '—' }}
+          </span>
+        @endif
         <span class="phone">{{ $item['phone'] }}</span>
       </a>
     </div>

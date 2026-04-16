@@ -11,69 +11,152 @@
         $selectedSub = (string)($idcaption ?? '');
         $availableSubs = collect($subs[$selectedTop] ?? []);
         $isCategoryFiltered = $selectedTop !== '' || $selectedSub !== '';
+        $isFilterActive = $isCategoryFiltered
+            || !empty($filters['fName'])
+            || ($filters['skladNone'] ?? '') === '1';
+        $goodsFilterBtnCls = $isFilterActive ? 'button_submit_start' : 'button_submit_start0';
     @endphp
 
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>{{ __('goods.title') }} ({{ $total ?? 0 }})</h2>
+        <div class="d-flex align-items-center gap-3">
+            {{-- Кнопка фильтра в стиле document --}}
+            <div onclick="goodsFilterToggle()"
+                 class="{{ $goodsFilterBtnCls }}"
+                 style="width:70px;height:70px;cursor:pointer;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:16px;box-shadow:0 4px 12px rgba(251,191,36,0.3);transition:all 0.3s ease;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <img src="/img/icon-category.png" alt="{{ __('document.filter.icon_alt') }}" style="width:32px;filter:brightness(0);">
+                <span style="font-size:0.7rem;font-weight:600;color:#000;margin-top:4px;">{{ __('document.filter.search') }}</span>
+            </div>
+        </div>
         <a href="{{ route('goods.show', ['pnum' => 0]) }}" class="btn btn-primary">{{ __('goods.add') }}</a>
     </div>
 
-    @if(!$isCategoryFiltered)
+    @if(!$isCategoryFiltered && !$isFilterActive)
     <div class="alert alert-info">
         {{ __('goods.empty_notice') }}
     </div>
     @endif
 
-    <form action="{{ route('goods.index') }}" method="GET" class="mb-3">
-        <div class="row g-2 align-items-end">
-            <div class="col-md-4">
-                <label class="form-label">{{ __('goods.search_label') }}</label>
-                <input type="text" name="fName" class="form-control" placeholder="{{ __('goods.search_placeholder') }}"
-                    value="{{ $filters['fName'] ?? '' }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">{{ __('goods.category') }}</label>
-                <select name="igla" class="form-select" onchange="const sub=this.form.querySelector('[name=idcapt]'); if(sub){sub.value='';} this.form.submit();">
-                    <option value="">{{ __('goods.all') }}</option>
-                    @foreach(($tops ?? []) as $top)
-                    <option value="{{ $top->id }}" {{ $selectedTop === (string)$top->id ? 'selected' : '' }}>
-                        {{ $top->val }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">{{ __('goods.subcategory') }}</label>
-                <select name="idcapt" class="form-select" onchange="this.form.submit()" {{ $selectedTop === '' ? 'disabled' : '' }}>
-                    <option value="">{{ __('goods.all') }}</option>
-                    @foreach($availableSubs as $sub)
-                    <option value="{{ $sub->id }}" {{ $selectedSub === (string)$sub->id ? 'selected' : '' }}>
-                        {{ $sub->val }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-3 d-flex gap-2 flex-wrap">
-                <div class="form-check mt-2">
-                    <input class="form-check-input" type="checkbox" name="skladNone" value="1" id="skladNone" {{
-                        ($filters['skladNone'] ?? '' )==='1' ? 'checked' : '' }}>
-                    <label class="form-check-label" for="skladNone">{{ __('goods.show_without_stock') }}</label>
+    {{-- Модальное окно фильтра --}}
+    <div id="goodsFilterModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);z-index:9999;justify-content:center;align-items:center;">
+        <div class="glass-card" style="width:700px;max-width:90vw;max-height:80vh;overflow-y:auto;position:relative;margin:0 auto;padding:24px;">
+            <div onclick="goodsFilterToggle()" style="position:absolute;top:12px;right:16px;cursor:pointer;font-size:1.5rem;color:var(--muted-foreground);transition:color 0.2s;z-index:10;">✕</div>
+
+            <h3 style="margin:0 0 16px 0;color:var(--foreground);font-family:var(--header);font-size:1.25rem;">🔍 {{ __('document.filter.title') }}</h3>
+
+            <form action="{{ route('goods.index') }}" method="GET" id="goodsFilterForm">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+
+                    <div style="grid-column: 1 / -1;">
+                        <label style="display:block;margin-bottom:4px;font-size:0.85rem;">{{ __('goods.search_label') }}</label>
+                        <input type="text" name="fName" autocomplete="off"
+                               placeholder="{{ __('goods.search_placeholder') }}"
+                               value="{{ $filters['fName'] ?? '' }}"
+                               style="width:100%;padding:8px 12px;font-size:0.9rem;">
+                    </div>
+
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-size:0.85rem;">{{ __('goods.category') }}</label>
+                        <select name="igla" id="goodsModalTopSelect" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="goodsModalFillSubs(this.value)">
+                            <option value="">{{ __('goods.all') }}</option>
+                            @foreach(($tops ?? []) as $top)
+                            <option value="{{ $top->id }}" {{ $selectedTop === (string)$top->id ? 'selected' : '' }}>
+                                {{ $top->val }}
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="display:block;margin-bottom:4px;font-size:0.85rem;">{{ __('goods.subcategory') }}</label>
+                        <select name="idcapt" id="goodsModalSubSelect" style="width:100%;padding:8px 12px;font-size:0.9rem;" {{ $selectedTop === '' ? 'disabled' : '' }}>
+                            <option value="">{{ __('goods.all') }}</option>
+                            @foreach($availableSubs as $sub)
+                            <option value="{{ $sub->id }}" {{ $selectedSub === (string)$sub->id ? 'selected' : '' }}>
+                                {{ $sub->val }}
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div style="display:flex;align-items:flex-end;padding-bottom:8px;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;">
+                            <input type="checkbox" name="skladNone" value="1" style="width:auto;"
+                                   {{ ($filters['skladNone'] ?? '') === '1' ? 'checked' : '' }}>
+                            {{ __('goods.show_without_stock') }}
+                        </label>
+                    </div>
+
                 </div>
-            </div>
+
+                <div style="display:flex;gap:10px;margin-top:20px;">
+                    <button type="submit" style="flex:1;padding:10px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:8px;box-shadow:0 4px 12px rgba(251,191,36,0.3);color:#000;font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;justify-content:center;gap:6px;">
+                        <span>🔍</span> {{ __('document.filter.find') }}
+                    </button>
+                    <a href="{{ route('goods.index') }}?fName=&igla=&idcapt=&skladNone="
+                       style="flex:1;padding:10px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:var(--foreground);font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;">
+                        <span>✕</span> {{ __('document.filter.reset') }}
+                    </a>
+                </div>
+            </form>
         </div>
-        <div class="row g-2 mt-2">
-            <div class="col-md-12 d-flex gap-2">
-                <button class="btn btn-outline-secondary" type="submit">{{ __('goods.find') }}</button>
-                <a href="{{ route('goods.index') }}?fName=&igla=&idcapt=&skladNone="
-                    class="btn btn-outline-danger">{{ __('goods.reset') }}</a>
-            </div>
-        </div>
-    </form>
+    </div>
+
+    @push('scripts')
+    <script>
+    var goodsAllSubs = @json(
+        collect($subs ?? [])->map(fn($items) =>
+            collect($items)->map(fn($s) => ['id' => $s->id, 'val' => $s->val])->values()
+        )
+    );
+
+    function goodsFilterToggle() {
+        var d = document.getElementById('goodsFilterModal');
+        if (d.style.display === 'none' || d.style.display === '') {
+            d.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        } else {
+            d.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    }
+
+    function goodsModalFillSubs(topId) {
+        var sub = document.getElementById('goodsModalSubSelect');
+        if (!sub) return;
+        sub.innerHTML = '';
+        var allOpt = document.createElement('option');
+        allOpt.value = '';
+        allOpt.textContent = '{{ __('goods.all') }}';
+        sub.appendChild(allOpt);
+        if (topId && goodsAllSubs[topId]) {
+            goodsAllSubs[topId].forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.val;
+                sub.appendChild(opt);
+            });
+            sub.disabled = false;
+        } else {
+            sub.disabled = true;
+        }
+    }
+
+    document.getElementById('goodsFilterModal').addEventListener('click', function(e) {
+        if (e.target === this) goodsFilterToggle();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var d = document.getElementById('goodsFilterModal');
+            if (d && d.style.display === 'flex') goodsFilterToggle();
+        }
+    });
+    </script>
+    @endpush
 
     {{-- Desktop: Table View --}}
     <div class="table-responsive goods-desktop-table">
-        <table class="table table-bordered table-striped table-hover">
-            <thead class="table-dark">
+        <table class="goods-index-table">
+            <thead>
                 <tr>
                     <th>{{ __('goods.table.id') }}</th>
                     <th>{{ __('goods.table.image') }}</th>

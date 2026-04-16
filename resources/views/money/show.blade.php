@@ -3,15 +3,16 @@
 @section('title', $document->id ? __('money.edit_title', ['num' => $document->num]) . ' — ' . $document->type : __('money.create_title'))
 
 @section('content')
-@include('partials.panel')
+@include('money.partials.top-actions', ['returnFilters' => $returnFilters ?? []])
 
-<div class="ttable" style="padding: 20px; max-width: 700px; margin: 0 auto; background: #fff; border-radius: 8px;">
+<div class="ttable money-show-page" style="padding: 20px; max-width: 700px; margin: 0 auto; border-radius: 8px;">
 
     @php
     $isNew = empty($document->id);
     $type = request('type', $document->type ?? 'PO');
     $isPO = $type === 'PO';
     $backUrl = route('money.index', $returnFilters ?? []);
+    $selectedCashboxId = old('money', $document->effective_cashbox_id ?? $document->money ?? $document->oplata ?? '');
     @endphp
 
     <h3 style="color:{{ $isPO ? 'green' : 'red' }};">
@@ -39,14 +40,14 @@
             <div class="col-md-4 mb-3">
                 <label>{{ __('money.field_date') }}</label>
                 <input type="text" name="data" class="form-control" value="{{ $document->data ?? date('d-m-Y') }}"
-                    placeholder="дд-мм-рррр">
+                    placeholder="{{ __('money.date_placeholder') }}">
             </div>
             <div class="col-md-4 mb-3">
                 <label>{{ __('money.field_cashbox') }}</label>
                 <select name="money" class="form-control" required>
                     <option value="">{{ __('money.select_cashbox') }}</option>
                     @foreach($kassas as $kassa)
-                    <option value="{{ $kassa->id }}" {{ (string)($document->money ?? '') === (string)$kassa->id ? 'selected' : '' }}>
+                    <option value="{{ $kassa->id }}" {{ (string)$selectedCashboxId === (string)$kassa->id ? 'selected' : '' }}>
                         {{ $kassa->name }}
                     </option>
                     @endforeach
@@ -77,12 +78,11 @@
             <label>{{ __('money.field_client') }}</label>
             <div id="selectedClientDetails"
                 class="alert {{ (!$isNew && !empty($document->id) && !empty($document->client1)) ? 'alert-secondary' : 'alert-warning' }} py-2 mt-2"
-                style="{{ (!$isNew && !empty($document->id) && !empty($document->client1)) ? 'background:#f8f9fa; border:1px solid #ddd;' : '' }}">
+                style="{{ (!$isNew && !empty($document->id) && !empty($document->client1)) ? 'border:1px solid var(--border);' : '' }}">
                 @if(!$isNew && !empty($document->id) && !empty($document->client1))
                 <strong>{{ $document->orgname ?? '' }}</strong> |
-                {{ trim(($document->secondname ?? '') . ' ' . ($document->name ?? '') . ' ' . ($document->name2 ?? ''))
-                }}<br>
-                {{ $document->phone ?? '' }} | {{ $document->city ?? '' }}
+                {{ trim(($document->secondname ?? '') . ' ' . ($document->name ?? '') . ' ' . ($document->name2 ?? '')) }}<br>
+                {{ $document->phone ?? '' }} | {{ $document->region ? $document->region . ' | ' : '' }}{{ $document->city ?? '' }}{{ $document->poshta ? ' | ' . $document->poshta : '' }}
                 @else
                 {{ __('money.client_not_selected') }}
                 @endif
@@ -122,7 +122,7 @@
         @endif
 
         <div class="d-flex gap-2 align-items-center flex-wrap">
-            <a href="{{ $backUrl }}" class="btn">← {{ __('money.btn_back') }}</a>
+            <a href="{{ $backUrl }}" class="btn btn-outline-secondary">← {{ __('money.btn_back') }}</a>
             @if((int)($document->provodka ?? 0) === 1)
             <button type="submit"
                 formaction="{{ route('money.provodka') }}"
@@ -194,7 +194,7 @@
                                 <strong>${escapeHtml(user.orgname || '')}</strong> |
                                 ${escapeHtml(user.name2 || '')} ${escapeHtml(user.name || '')} ${escapeHtml(user.secondname || '')}
                                 <br>
-                                <small>${escapeHtml(user.phone || '')} | ${escapeHtml(user.city || '')}</small>
+                                <small>${escapeHtml(user.phone || '')} | ${user.region ? escapeHtml(user.region) + ' | ' : ''}${escapeHtml(user.city || '')}${user.poshta ? ' | ' + escapeHtml(user.poshta) : ''}</small>
                             `;
                             a.addEventListener('click', function (e) {
                                 e.preventDefault();
@@ -202,8 +202,7 @@
 
                                 // Update visually
                                 clientDetails.className = 'alert alert-secondary py-2 mt-2';
-                                clientDetails.style.background = '#f8f9fa';
-                                clientDetails.style.border = '1px solid #ddd';
+                                clientDetails.style.border = '1px solid var(--border)';
                                 clientDetails.innerHTML = a.innerHTML;
 
                                 // Hide dropdown and clear input
