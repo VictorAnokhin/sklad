@@ -28,8 +28,8 @@ class FilterService
         else
             $month--;
         return [
-            'fdata1' => $year . '-' . str_pad((string)$month, 2, '0', STR_PAD_LEFT) . '-' . date('d'),
-            'fdata2' => date('Y-m-d'),
+            'fdata1' =>  date('d'). '-' . str_pad((string)$month, 2, '0', STR_PAD_LEFT) . '-' . $year,
+            'fdata2' => date('d-m-Y'),
         ];
     }
 
