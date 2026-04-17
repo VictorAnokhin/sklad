@@ -322,6 +322,38 @@ class Document extends Model
                     'AO' => self::applyColumnDelta(clone $priceQuery, 'count', -1 * $direction * $count),
                     default => null,
                 };
+
+                // Fix count in price_sklad for RN and PN
+                if (in_array($docType, ['RN', 'PN'], true)) {
+                    $skladId = (int) ($doc->sklads ?? 0);
+                    if ($skladId > 0) {
+                        $deltaCount = ($docType === 'PN' ? 1 : -1) * $direction * $count;
+                        
+                        if ($deltaCount != 0) {
+                            $existsSklad = DB::table('price_sklad')
+                                ->where('pnum', $pnum)
+                                ->where('firma', $fid)
+                                ->where('sklad', $skladId)
+                                ->exists();
+
+                            if (!$existsSklad) {
+                                DB::table('price_sklad')->insert([
+                                    'pnum' => $pnum,
+                                    'firma' => $fid,
+                                    'sklad' => $skladId,
+                                    'count' => 0,
+                                ]);
+                            }
+
+                            $priceSkladQuery = DB::table('price_sklad')
+                                ->where('pnum', $pnum)
+                                ->where('firma', $fid)
+                                ->where('sklad', $skladId);
+
+                            self::applyColumnDelta($priceSkladQuery, 'count', $deltaCount);
+                        }
+                    }
+                }
             }
 
             if (in_array($docType, ['PO', 'RO', 'PP'], true)) {
