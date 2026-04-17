@@ -6,13 +6,13 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', ['periodFormAction' => route('reports.profitplan'), 'periodResetUrl' => route('reports.profitplan')])
 
     <div class="card shadow-sm border-dark-subtle">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <div><h3 class="mb-1">План прибыли</h3><div class="text-muted small">Період: {{ $monthLabel }}</div></div>
+                <div><h3 class="mb-1 text-light">План прибыли</h3><div class="text-muted small">Період: {{ $monthLabel }}</div></div>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <div class="text-muted small">Побудовано від forecast виручки, поточної маржі та питомих OPEX</div>
                     <a href="{{ route('reports.strategic.export', ['report' => 'profitplan', 'format' => 'csv', 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="btn btn-sm btn-outline-primary">CSV</a>
@@ -30,7 +30,7 @@
                 <div class="col-md-6"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Норматив OPEX</div><div class="fs-5 fw-bold">{{ number_format((float) $opexRate, 1, '.', ' ') }}%</div></div></div>
             </div>
             <div class="row g-3 mt-1">
-                <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Факт виручки</div><div class="fs-5 fw-bold text-dark">{{ number_format((float) $actualRevenue, 2, '.', ' ') }} грн</div></div></div>
+                <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Факт виручки</div><div class="fs-5 fw-bold text-light">{{ number_format((float) $actualRevenue, 2, '.', ' ') }} грн</div></div></div>
                 <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Факт валової прибутку</div><div class="fs-5 fw-bold text-success">{{ number_format((float) $actualGrossProfit, 2, '.', ' ') }} грн</div></div></div>
                 <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Факт OPEX</div><div class="fs-5 fw-bold text-warning">{{ number_format((float) $actualOpex, 2, '.', ' ') }} грн</div></div></div>
                 <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Факт чистої прибутку</div><div class="fs-5 fw-bold {{ $actualNetProfit >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $actualNetProfit, 2, '.', ' ') }} грн</div></div></div>

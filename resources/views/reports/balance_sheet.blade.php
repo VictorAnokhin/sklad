@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.balancesheet'),
         'periodResetUrl' => route('reports.balancesheet'),
     ])
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">Balance Sheet</h3>
+                    <h3 class="mb-1 text-light">Balance Sheet</h3>
                     <div class="text-muted small">Дата зрізу: {{ $monthLabel }}</div>
                 </div>
                 <div class="text-muted small">Ліквідність, стійкість і структура капіталу</div>
@@ -32,10 +32,10 @@
 
     <div class="row g-4">
         <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
-                    <h4 class="card-title mb-3">Активи</h4>
-                    <table class="table table-sm align-middle mb-0">
+                    <h4 class="card-title mb-3 text-light">Активи</h4>
+                    <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                         <tbody>
                             <tr><td>Товари / запаси</td><td class="text-end fw-semibold">{{ number_format((float) $inventoryValue, 2, '.', ' ') }}</td></tr>
                             <tr><td>Гроші</td><td class="text-end fw-semibold">{{ number_format((float) $cashBalance, 2, '.', ' ') }}</td></tr>
@@ -49,10 +49,10 @@
         </div>
 
         <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
-                    <h4 class="card-title mb-3">Зобов’язання і капітал</h4>
-                    <table class="table table-sm align-middle mb-0">
+                    <h4 class="card-title mb-3 text-light">Зобов’язання і капітал</h4>
+                    <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                         <tbody>
                             <tr><td>Кредиторка</td><td class="text-end fw-semibold">{{ number_format((float) $payables, 2, '.', ' ') }}</td></tr>
                             <tr><td>Кредити / фінансування</td><td class="text-end fw-semibold">{{ number_format((float) $loans, 2, '.', ' ') }}</td></tr>

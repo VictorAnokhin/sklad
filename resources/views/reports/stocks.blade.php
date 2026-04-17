@@ -6,7 +6,7 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.stocks'),
         'periodResetUrl' => route('reports.stocks'),
@@ -19,7 +19,7 @@
         ],
     ])
 
-    <div class="card shadow-sm mb-4">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary">
         <div class="card-body">
             <form method="get" action="{{ route('reports.stocks') }}" class="row g-3 align-items-end">
                 <input type="hidden" name="date_from" value="{{ $dateFrom }}">
@@ -47,10 +47,10 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Аналітика запасів та продажів</h4>
+                <h4 class="card-title mb-0 text-light">Аналітика запасів та продажів</h4>
                 <div class="text-muted small">Період: {{ $monthLabel }}</div>
             </div>
 
@@ -82,7 +82,7 @@
                 <div class="col-md-2">
                     <div class="rounded border p-3 h-100">
                         <div class="text-muted small mb-1">Виручка</div>
-                        <div class="fs-5 fw-bold text-dark">{{ number_format((float) $revenueTotal, 2, '.', ' ') }} грн</div>
+                        <div class="fs-5 fw-bold text-light">{{ number_format((float) $revenueTotal, 2, '.', ' ') }} грн</div>
                     </div>
                 </div>
                 <div class="col-md-2">
@@ -123,13 +123,13 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mt-4">
+    <div class="card shadow-sm mt-4 bg-transparent border-secondary">
         <div class="card-body">
             @if(($items ?? collect())->isEmpty())
             <div class="text-muted">Залишків за вибраними умовами не знайдено.</div>
             @else
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Товарний звіт торгової організації</h4>
+                <h4 class="card-title mb-0 text-light">Товарний звіт торгової організації</h4>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <div class="text-muted small">Поточні запаси + реалізація за вибраний період</div>
                     <a href="{{ route('reports.stocks.export', ['sklad' => $skladId, 'q' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'sort' => $sort, 'direction' => $direction]) }}" class="btn btn-sm btn-outline-primary">
@@ -138,8 +138,8 @@
                 </div>
             </div>
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>
                                 <a href="{{ route('reports.stocks', ['sklad' => $skladId, 'q' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'sort' => 'product_name', 'direction' => ($sort === 'product_name' && $direction === 'asc') ? 'desc' : 'asc']) }}" class="text-decoration-none text-reset">
@@ -191,7 +191,7 @@
                             <td>{{ $item->sklad_name }}</td>
                             <td class="text-end fw-semibold">{{ number_format((float) $item->count, 3, '.', ' ') }}</td>
                             <td class="text-end">{{ number_format((float) ($item->sold_qty ?? 0), 3, '.', ' ') }}</td>
-                            <td class="text-end fw-semibold text-dark">{{ number_format((float) ($item->sold_sum ?? 0), 2, '.', ' ') }}</td>
+                            <td class="text-end fw-semibold text-light">{{ number_format((float) ($item->sold_sum ?? 0), 2, '.', ' ') }}</td>
                             <td class="text-end fw-semibold {{ ($item->gross_profit ?? 0) >= 0 ? 'text-primary' : 'text-danger' }}">{{ number_format((float) ($item->gross_profit ?? 0), 2, '.', ' ') }}</td>
                             <td class="text-end {{ ($item->gross_margin ?? 0) < 0 ? 'text-danger fw-semibold' : '' }}">{{ number_format((float) ($item->gross_margin ?? 0), 1, '.', ' ') }}%</td>
                             <td>{{ $item->garant ?: '—' }}</td>

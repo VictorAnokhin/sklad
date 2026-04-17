@@ -6,7 +6,7 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.finance'),
         'periodResetUrl' => route('reports.finance'),
@@ -14,7 +14,7 @@
         'periodHiddenFields' => ['oplata' => $oplataId],
     ])
 
-    <div class="card shadow-sm mb-4">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary">
         <div class="card-body">
             <form method="get" action="{{ route('reports.finance') }}" class="row g-3 align-items-end">
                 <input type="hidden" name="date_from" value="{{ $dateFrom }}">
@@ -77,7 +77,7 @@
     <div class="card shadow-sm mt-4 border-dark-subtle">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Фінансова позиція</h4>
+                <h4 class="card-title mb-0 text-light">Фінансова позиція</h4>
                 <div class="text-muted small">Формат наближений до казначейського / treasury звіту фінансових організацій</div>
             </div>
 
@@ -97,7 +97,7 @@
                 <div class="col-md-3">
                     <div class="rounded border p-3 h-100">
                         <div class="text-muted small mb-1">Сукупна казна</div>
-                        <div class="fs-5 fw-bold text-dark">{{ number_format((float) $treasuryTotal, 2, '.', ' ') }} грн</div>
+                        <div class="fs-5 fw-bold text-light">{{ number_format((float) $treasuryTotal, 2, '.', ' ') }} грн</div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -110,10 +110,10 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mt-4">
+    <div class="card shadow-sm mt-4 bg-transparent border-secondary">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Рух коштів у депозитах</h4>
+                <h4 class="card-title mb-0 text-light">Рух коштів у депозитах</h4>
                 <div class="text-muted small">Враховані тільки проведені документи `PP`</div>
             </div>
 
@@ -148,8 +148,8 @@
             <div class="text-muted">За вибраний період рухів по депозитах не знайдено.</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Депозит</th>
                             <th class="text-end">Поповнення</th>
@@ -175,16 +175,16 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mt-4">
+    <div class="card shadow-sm mt-4 bg-transparent border-secondary">
         <div class="card-body">
-            <h4 class="card-title mb-3">Структура депозитного портфеля</h4>
+            <h4 class="card-title mb-3 text-light">Структура депозитного портфеля</h4>
 
             @if(($depositPortfolio ?? collect())->isEmpty())
             <div class="text-muted">Депозити не налаштовані.</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Депозит</th>
                             <th class="text-end">Поточний баланс</th>
@@ -206,16 +206,16 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mt-4">
+    <div class="card shadow-sm mt-4 bg-transparent border-secondary">
         <div class="card-body">
-            <h4 class="card-title mb-3">Види платежів</h4>
+            <h4 class="card-title mb-3 text-light">Види платежів</h4>
 
             @if(($paymentTypes ?? collect())->isEmpty())
             <div class="text-muted">За вибраний період види платежів не знайдено.</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Вид платежу</th>
                             <th class="text-end">Прихід</th>
@@ -243,10 +243,10 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mt-4">
+    <div class="card shadow-sm mt-4 bg-transparent border-secondary">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Проведені платежі за {{ $monthLabel }}</h4>
+                <h4 class="card-title mb-0 text-light">Проведені платежі за {{ $monthLabel }}</h4>
                 <div class="text-muted small">У таблиці показані тільки проведені документи PO та RO</div>
             </div>
 
@@ -254,8 +254,8 @@
             <div class="text-muted">За вибраний період проведених платежів не знайдено.</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Дата</th>
                             <th>№</th>
@@ -324,10 +324,10 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mt-4">
+    <div class="card shadow-sm mt-4 bg-transparent border-secondary">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Проведені операції по депозитах</h4>
+                <h4 class="card-title mb-0 text-light">Проведені операції по депозитах</h4>
                 <div class="text-muted small">Поповнення, зняття і внутрішні обміни за {{ $monthLabel }}</div>
             </div>
 
@@ -335,8 +335,8 @@
             <div class="text-muted">За вибраний період депозитних операцій не знайдено.</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Дата</th>
                             <th>№</th>

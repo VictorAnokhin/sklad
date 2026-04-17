@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.turnover'),
         'periodResetUrl' => route('reports.turnover'),
     ])
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">Звіт по оборачуваності товарів</h3>
+                    <h3 class="mb-1 text-light">Звіт по оборачуваності товарів</h3>
                     <div class="text-muted small">Період: {{ $monthLabel }}</div>
                 </div>
                 <div class="text-muted small">Контроль неликвіду та повільного товару</div>
@@ -48,7 +48,7 @@
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Реєстр неликвіду та повільної оборачуваності</h4>
+                <h4 class="card-title mb-0 text-light">Реєстр неликвіду та повільної оборачуваності</h4>
                 <div class="text-muted small">Понад 90 днів покриття віднесено до slow moving</div>
             </div>
 
@@ -56,8 +56,8 @@
             <div class="text-muted">Даних для аналізу немає.</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Товар</th>
                             <th>Код</th>
@@ -90,7 +90,7 @@
                             </td>
                             <td class="text-center">
                                 @if(($item->slow_moving ?? false) && !($item->dead_stock ?? false))
-                                <span class="badge bg-warning text-dark">Так</span>
+                                <span class="badge bg-warning text-light">Так</span>
                                 @else
                                 <span class="text-muted">—</span>
                                 @endif

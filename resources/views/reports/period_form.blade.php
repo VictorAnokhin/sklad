@@ -5,7 +5,7 @@
     $periodHiddenFields = $periodHiddenFields ?? [];
 @endphp
 
-<div class="card shadow-sm mb-4">
+<div class="card shadow-sm mb-4 bg-transparent border-secondary">
     <div class="card-body">
         <form method="get" action="{{ $periodFormAction }}" class="row g-3 align-items-end">
             @foreach($periodHiddenFields as $fieldName => $fieldValue)

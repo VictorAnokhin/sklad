@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.uniteconomics'),
         'periodResetUrl' => route('reports.uniteconomics'),
     ])
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">Unit-економіка</h3>
+                    <h3 class="mb-1 text-light">Unit-економіка</h3>
                     <div class="text-muted small">Період: {{ $monthLabel }}</div>
                 </div>
                 <div class="text-muted small">SKU-маржа, CAC, LTV та ROI маркетингу</div>
@@ -32,20 +32,20 @@
     </div>
 
     <div class="row g-4 mb-4">
-        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small mb-1">Нові клієнти</div><div class="fs-3 fw-bold text-dark">{{ (int) $newCustomersCount }}</div></div></div></div>
-        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small mb-1">Активні клієнти</div><div class="fs-3 fw-bold text-secondary">{{ (int) $activeCustomersCount }}</div></div></div></div>
-        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small mb-1">Валова прибуток періоду</div><div class="fs-3 fw-bold {{ $periodGrossProfit >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $periodGrossProfit, 2, '.', ' ') }} грн</div></div></div></div>
+        <div class="col-md-4"><div class="card shadow-sm h-100 bg-transparent border-secondary"><div class="card-body"><div class="text-muted small mb-1">Нові клієнти</div><div class="fs-3 fw-bold text-light">{{ (int) $newCustomersCount }}</div></div></div></div>
+        <div class="col-md-4"><div class="card shadow-sm h-100 bg-transparent border-secondary"><div class="card-body"><div class="text-muted small mb-1">Активні клієнти</div><div class="fs-3 fw-bold text-secondary">{{ (int) $activeCustomersCount }}</div></div></div></div>
+        <div class="col-md-4"><div class="card shadow-sm h-100 bg-transparent border-secondary"><div class="card-body"><div class="text-muted small mb-1">Валова прибуток періоду</div><div class="fs-3 fw-bold {{ $periodGrossProfit >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $periodGrossProfit, 2, '.', ' ') }} грн</div></div></div></div>
     </div>
 
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Маржа по SKU</h4>
+                <h4 class="card-title mb-0 text-light">Маржа по SKU</h4>
                 <div class="text-muted small">{{ $marketingAssumption }}</div>
             </div>
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Товар</th>
                             <th>Код</th>

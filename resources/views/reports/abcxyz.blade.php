@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.abcxyz'),
         'periodResetUrl' => route('reports.abcxyz'),
     ])
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">ABC / XYZ аналіз асортименту</h3>
+                    <h3 class="mb-1 text-light">ABC / XYZ аналіз асортименту</h3>
                     <div class="text-muted small">Період: {{ $monthLabel }}</div>
                 </div>
                 <div class="text-muted small">Пріоритетні SKU за виручкою та стабільністю попиту</div>
@@ -46,7 +46,7 @@
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Матриця управління асортиментом</h4>
+                <h4 class="card-title mb-0 text-light">Матриця управління асортиментом</h4>
                 <div class="text-muted small">A = драйвер виручки, X = стабільний попит</div>
             </div>
 
@@ -54,8 +54,8 @@
             <div class="text-muted">Даних для аналізу за вибраний період немає.</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Товар</th>
                             <th>Код</th>

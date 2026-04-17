@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.sales'),
         'periodResetUrl' => route('reports.sales'),
     ])
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">Операційний звіт по продажах</h3>
+                    <h3 class="mb-1 text-light">Операційний звіт по продажах</h3>
                     <div class="text-muted small">Період: {{ $monthLabel }}</div>
                 </div>
                 <div class="text-muted small">Виручка, кількість продажів, середній чек та конверсія</div>
@@ -32,7 +32,7 @@
                 <div class="col-md-3">
                     <div class="rounded border p-3 h-100">
                         <div class="text-muted small mb-1">Кількість продажів</div>
-                        <div class="fs-4 fw-bold text-dark">{{ (int) $salesDocsCount }}</div>
+                        <div class="fs-4 fw-bold text-light">{{ (int) $salesDocsCount }}</div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -54,7 +54,7 @@
 
     <div class="row g-4 mb-4">
         <div class="col-md-4">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="text-muted small mb-1">Продано одиниць</div>
                     <div class="fs-3 fw-bold text-secondary">{{ number_format((float) $soldUnitsTotal, 3, '.', ' ') }}</div>
@@ -62,15 +62,15 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="text-muted small mb-1">Замовлень у періоді</div>
-                    <div class="fs-3 fw-bold text-dark">{{ (int) $salesOrdersCount }}</div>
+                    <div class="fs-3 fw-bold text-light">{{ (int) $salesOrdersCount }}</div>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="text-muted small mb-1">Середня виручка на день</div>
                     <div class="fs-3 fw-bold text-primary">
@@ -83,18 +83,18 @@
 
     <div class="row g-4">
         <div class="col-lg-4">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <h4 class="card-title mb-0">По днях</h4>
+                        <h4 class="card-title mb-0 text-light">По днях</h4>
                         <div class="text-muted small">Оперативний зріз</div>
                     </div>
                     @if(($salesByDay ?? collect())->isEmpty())
                     <div class="text-muted">Продажів за період не знайдено.</div>
                     @else
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead>
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                            <thead class="table-dark">
                                 <tr>
                                     <th>Період</th>
                                     <th class="text-end">Продажів</th>
@@ -118,18 +118,18 @@
         </div>
 
         <div class="col-lg-4">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <h4 class="card-title mb-0">По тижнях</h4>
+                        <h4 class="card-title mb-0 text-light">По тижнях</h4>
                         <div class="text-muted small">Ритм продажів</div>
                     </div>
                     @if(($salesByWeek ?? collect())->isEmpty())
                     <div class="text-muted">Тижневих даних за період немає.</div>
                     @else
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead>
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                            <thead class="table-dark">
                                 <tr>
                                     <th>Період</th>
                                     <th class="text-end">Продажів</th>
@@ -155,18 +155,18 @@
         </div>
 
         <div class="col-lg-4">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <h4 class="card-title mb-0">По місяцях</h4>
+                        <h4 class="card-title mb-0 text-light">По місяцях</h4>
                         <div class="text-muted small">План-факт динаміка</div>
                     </div>
                     @if(($salesByMonth ?? collect())->isEmpty())
                     <div class="text-muted">Місячних даних за період немає.</div>
                     @else
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead>
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                            <thead class="table-dark">
                                 <tr>
                                     <th>Період</th>
                                     <th class="text-end">Продажів</th>

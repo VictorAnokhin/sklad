@@ -6,14 +6,14 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.journal'),
         'periodResetUrl' => route('reports.journal'),
         'periodHiddenFields' => ['account_id' => $accountId ?? ''],
     ])
 
-    <div class="card shadow-sm mb-4">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary">
         <div class="card-body">
             <form method="get" action="{{ route('reports.journal') }}" class="row g-3 align-items-end">
                 <input type="hidden" name="date_from" value="{{ $dateFrom }}">
@@ -41,7 +41,7 @@
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">Журнал проводок</h3>
+                    <h3 class="mb-1 text-light">Журнал проводок</h3>
                     <div class="text-muted small">{{ $periodLabel }}</div>
                 </div>
                 <div class="small text-muted">
@@ -55,7 +55,7 @@
             @else
             <div class="table-responsive">
                 <table class="table table-sm table-bordered align-middle">
-                    <thead>
+                    <thead class="table-dark">
                         <tr>
                             <th>Дата</th>
                             <th>Транзакция</th>

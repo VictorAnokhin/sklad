@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.purchases'),
         'periodResetUrl' => route('reports.purchases'),
     ])
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">Операційний звіт по закупках</h3>
+                    <h3 class="mb-1 text-light">Операційний звіт по закупках</h3>
                     <div class="text-muted small">Період: {{ $monthLabel }}</div>
                 </div>
                 <div class="text-muted small">Постачальники, закупівельні ціни та виконання замовлень</div>
@@ -32,7 +32,7 @@
                 <div class="col-md-4">
                     <div class="rounded border p-3 h-100">
                         <div class="text-muted small mb-1">Замовлено</div>
-                        <div class="fs-4 fw-bold text-dark">{{ number_format((float) $purchaseOrderedTotal, 2, '.', ' ') }} грн</div>
+                        <div class="fs-4 fw-bold text-light">{{ number_format((float) $purchaseOrderedTotal, 2, '.', ' ') }} грн</div>
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -47,18 +47,18 @@
 
     <div class="row g-4">
         <div class="col-lg-4">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <h4 class="card-title mb-0">Постачальники</h4>
+                        <h4 class="card-title mb-0 text-light">Постачальники</h4>
                         <div class="text-muted small">Обсяг закупок</div>
                     </div>
                     @if(($supplierSummary ?? collect())->isEmpty())
                     <div class="text-muted">Закупок за період немає.</div>
                     @else
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead>
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                            <thead class="table-dark">
                                 <tr>
                                     <th>Постачальник</th>
                                     <th class="text-end">Замовлень</th>
@@ -82,18 +82,18 @@
         </div>
 
         <div class="col-lg-8">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <h4 class="card-title mb-0">Закупівельні ціни</h4>
+                        <h4 class="card-title mb-0 text-light">Закупівельні ціни</h4>
                         <div class="text-muted small">Фактично отримані товари через PN</div>
                     </div>
                     @if(($purchasePrices ?? collect())->isEmpty())
                     <div class="text-muted">Отримань товару за період немає.</div>
                     @else
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead>
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                            <thead class="table-dark">
                                 <tr>
                                     <th>Товар</th>
                                     <th>Код</th>
@@ -121,10 +121,10 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mt-4">
+    <div class="card shadow-sm mt-4 bg-transparent border-secondary">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Виконання замовлень постачальникам</h4>
+                <h4 class="card-title mb-0 text-light">Виконання замовлень постачальникам</h4>
                 <div class="text-muted small">Строки поставок та повнота отримання</div>
             </div>
 
@@ -132,8 +132,8 @@
             <div class="text-muted">Замовлень постачальникам за період немає.</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Дата</th>
                             <th>№</th>

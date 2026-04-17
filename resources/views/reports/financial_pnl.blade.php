@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.financialpnl'),
         'periodResetUrl' => route('reports.financialpnl'),
     ])
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">Отчет о прибылях и убытках</h3>
+                    <h3 class="mb-1 text-light">Отчет о прибылях и убытках</h3>
                     <div class="text-muted small">Період: {{ $monthLabel }}</div>
                 </div>
                 <div class="text-muted small">Прибутковість бізнесу для власника, банку та інвестора</div>
@@ -24,7 +24,7 @@
 
             <div class="row g-3">
                 <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Виручка</div><div class="fs-5 fw-bold text-primary">{{ number_format((float) $revenueTotal, 2, '.', ' ') }} грн</div></div></div>
-                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">COGS</div><div class="fs-5 fw-bold text-dark">{{ number_format((float) $cogsTotal, 2, '.', ' ') }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">COGS</div><div class="fs-5 fw-bold text-light">{{ number_format((float) $cogsTotal, 2, '.', ' ') }} грн</div></div></div>
                 <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Валова прибуток</div><div class="fs-5 fw-bold {{ $grossProfitTotal >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $grossProfitTotal, 2, '.', ' ') }} грн</div></div></div>
                 <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Маржа</div><div class="fs-5 fw-bold">{{ number_format((float) $grossMarginTotal, 1, '.', ' ') }}%</div></div></div>
                 <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">OPEX</div><div class="fs-5 fw-bold text-warning">{{ number_format((float) $operatingExpensesTotal, 2, '.', ' ') }} грн</div></div></div>
@@ -35,10 +35,10 @@
 
     <div class="card shadow-sm">
         <div class="card-body">
-            <h4 class="card-title mb-3">Структура операційних витрат</h4>
+            <h4 class="card-title mb-3 text-light">Структура операційних витрат</h4>
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Стаття витрат</th>
                             <th class="text-end">Документів</th>

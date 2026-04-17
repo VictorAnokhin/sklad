@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.grossprofit'),
         'periodResetUrl' => route('reports.grossprofit'),
     ])
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">Звіт по валовій прибутку</h3>
+                    <h3 class="mb-1 text-light">Звіт по валовій прибутку</h3>
                     <div class="text-muted small">Період: {{ $monthLabel }}</div>
                 </div>
                 <div class="text-muted small">Маржа по товарах, націнка та вплив знижок</div>
@@ -24,19 +24,19 @@
 
             <div class="row g-3">
                 <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Виручка</div><div class="fs-4 fw-bold text-primary">{{ number_format((float) $revenueTotal, 2, '.', ' ') }} грн</div></div></div>
-                <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Собівартість</div><div class="fs-4 fw-bold text-dark">{{ number_format((float) $costTotal, 2, '.', ' ') }} грн</div></div></div>
+                <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Собівартість</div><div class="fs-4 fw-bold text-light">{{ number_format((float) $costTotal, 2, '.', ' ') }} грн</div></div></div>
                 <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Валова прибуток</div><div class="fs-4 fw-bold {{ $grossProfitTotal >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $grossProfitTotal, 2, '.', ' ') }} грн</div></div></div>
                 <div class="col-md-3"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Знижки по замовленнях</div><div class="fs-4 fw-bold text-warning">{{ number_format((float) $discountDocsTotal, 2, '.', ' ') }} грн</div></div></div>
             </div>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-4">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary">
         <div class="card-body">
-            <h4 class="card-title mb-3">Маржа по товарах</h4>
+            <h4 class="card-title mb-3 text-light">Маржа по товарах</h4>
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Товар</th>
                             <th>Код</th>
@@ -72,12 +72,12 @@
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Вплив знижок</h4>
+                <h4 class="card-title mb-0 text-light">Вплив знижок</h4>
                 <div class="text-muted small">Проведені продажі з прив’язаними замовленнями ZOUT</div>
             </div>
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Дата</th>
                             <th>№ замовлення</th>

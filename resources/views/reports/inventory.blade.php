@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.inventory'),
         'periodResetUrl' => route('reports.inventory'),
     ])
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">Операційний звіт по залишках</h3>
+                    <h3 class="mb-1 text-light">Операційний звіт по залишках</h3>
                     <div class="text-muted small">Період: {{ $monthLabel }}</div>
                 </div>
                 <div class="text-muted small">Контроль наявності, дефіциту та швидкості вибуття</div>
@@ -54,7 +54,7 @@
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">Залишки по SKU</h4>
+                <h4 class="card-title mb-0 text-light">Залишки по SKU</h4>
                 <div class="text-muted small">Days inventory розраховано від продажів за вибраний період</div>
             </div>
 
@@ -62,8 +62,8 @@
             <div class="text-muted">Даних по залишках немає.</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>Товар</th>
                             <th>Код</th>
@@ -93,7 +93,7 @@
                                 @if($status === 'out_of_stock')
                                 <span class="badge bg-danger">Дефіцит</span>
                                 @elseif($status === 'low_stock')
-                                <span class="badge bg-warning text-dark">Мінімум</span>
+                                <span class="badge bg-warning text-light">Мінімум</span>
                                 @else
                                 <span class="badge bg-success">Норма</span>
                                 @endif

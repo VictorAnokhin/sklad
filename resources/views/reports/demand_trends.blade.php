@@ -6,17 +6,17 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form', ['periodFormAction' => route('reports.demandtrends'), 'periodResetUrl' => route('reports.demandtrends')])
 
     <div class="row g-4">
         <div class="col-lg-4">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
-                    <h4 class="card-title mb-3">Сезонність</h4>
+                    <h4 class="card-title mb-3 text-light">Сезонність</h4>
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead><tr><th>Місяць</th><th class="text-end">Одиниць</th><th class="text-end">Виручка</th></tr></thead>
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                            <thead class="table-dark"><tr><th>Місяць</th><th class="text-end">Одиниць</th><th class="text-end">Виручка</th></tr></thead>
                             <tbody>
                                 @forelse($seasonality as $item)
                                 <tr>
@@ -34,10 +34,10 @@
             </div>
         </div>
         <div class="col-lg-8">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <div><h3 class="mb-1">Аналіз трендів попиту</h3><div class="text-muted small">Період: {{ $monthLabel }}</div></div>
+                        <div><h3 class="mb-1 text-light">Аналіз трендів попиту</h3><div class="text-muted small">Період: {{ $monthLabel }}</div></div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <div class="text-muted small">Зростання/падіння попиту та стабільність по SKU</div>
                             <a href="{{ route('reports.strategic.export', ['report' => 'demandtrends', 'format' => 'csv', 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="btn btn-sm btn-outline-primary">CSV</a>
@@ -45,8 +45,8 @@
                         </div>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead><tr><th>Товар</th><th>Код</th><th class="text-end">Сер. попит</th><th class="text-end">Зміна</th><th class="text-end">CV</th><th class="text-center">Тренд</th></tr></thead>
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                            <thead class="table-dark"><tr><th>Товар</th><th>Код</th><th class="text-end">Сер. попит</th><th class="text-end">Зміна</th><th class="text-end">CV</th><th class="text-center">Тренд</th></tr></thead>
                             <tbody>
                                 @forelse($items as $item)
                                 <tr class="{{ $item->trend_growth > 15 ? 'table-success' : ($item->trend_growth < -15 ? 'table-danger' : '') }}">
