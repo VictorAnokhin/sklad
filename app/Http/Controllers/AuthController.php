@@ -30,7 +30,7 @@ class AuthController extends Controller
         if (Auth::check()) {
             return redirect()->route('document.index');
         }
-        return view('auth.login');
+        return view('start');
 
     }
 

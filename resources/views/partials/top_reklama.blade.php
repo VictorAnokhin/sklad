@@ -13,6 +13,16 @@
     <span class="header-bar__title">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
   </a>
 
+  @if(!session('name1'))
+  <div class="header-public-links">
+    <a href="{{ route('micro-business') }}" class="header-public-link">Для микро-бизнеса</a>
+    <a href="{{ route('individuals') }}" class="header-public-link">Для физических лиц</a>
+    <a href="{{ route('about') }}" class="header-public-link">О проекте</a>
+    <a href="{{ route('login') }}" class="header-public-link header-btn-login">Войти</a>
+    <a href="{{ route('register') }}" class="header-public-link header-btn-register">Регистрация</a>
+  </div>
+  @endif
+
   <div class="header-lang-switch" aria-label="{{ __('nav.language') }}">
     @foreach(['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'] as $langCode => $langLabel)
       <a
@@ -58,6 +68,7 @@
     <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
     <a class="header-nav-menu__link" href="{{ route('money.index') }}">{{ __('nav.money') }}</a>
     <a class="header-nav-menu__link" href="{{ route('deposit.index') }}">{{ __('nav.deposits') }}</a>
+    <a class="header-nav-menu__link" href="{{ route('wallet') }}">Кошелек</a>
     <a class="header-nav-menu__link" href="{{ route('settings.index') }}">{{ __('nav.settings') }}</a>
 
     <form method="POST" action="{{ route('logout') }}" id="logout-form">
@@ -66,7 +77,8 @@
         class="header-nav-menu__link">{{ __('nav.logout') }}</a>
     </form>
     @else
-    <a class="header-nav-menu__link" id="btn_login" style="cursor:pointer;">{{ __('nav.login') }}</a>
+    <a class="header-nav-menu__link" href="{{ route('login') }}">Войти</a>
+    <a class="header-nav-menu__link" href="{{ route('register') }}">Регистрация</a>
     @endif
   </nav>
 </div>
@@ -80,6 +92,31 @@
 
     .header-bar__bottom {
       flex-wrap: nowrap;
+    }
+
+    .header-public-links {
+      display: flex;
+      gap: 1.5rem;
+      margin-left: 1.5rem;
+      align-items: center;
+      flex: 1 1 auto;
+    }
+
+    .header-public-link {
+      color: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+
+    .header-public-link:hover {
+      color: #fff;
+    }
+
+    .header-btn-login, .header-btn-register {
+      color: #fbbf24;
+      font-weight: 600;
     }
 
     .header-project-switch {
@@ -130,6 +167,34 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .header-public-links {
+      display: flex;
+      gap: 0.75rem;
+      margin-left: 0.5rem;
+      margin-right: 0.5rem;
+      align-items: center;
+      overflow-x: auto;
+      white-space: nowrap;
+      flex: 1 1 auto;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE/Edge */
+    }
+
+    .header-public-links::-webkit-scrollbar {
+      display: none; /* Chrome/Safari */
+    }
+
+    .header-public-link {
+      font-size: 0.85rem;
+      color: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+    }
+
+    .header-btn-login, .header-btn-register {
+      color: #fbbf24;
+      font-weight: 600;
     }
 
     /* Project selector on mobile - compact dropdown */

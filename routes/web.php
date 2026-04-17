@@ -30,7 +30,7 @@ use App\Http\Controllers\SettingsController;
  */
 
 // ── Auth (public) ─────────────────────────────────────────────────────────────
-Route::get('/', [AuthController::class , 'showLogin'])->name('login');
+Route::get('/start', [AuthController::class , 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class , 'login'])->name('login.post');
 Route::post('/web3/challenge', [AuthController::class , 'web3LoginChallenge'])->name('web3.challenge');
 Route::post('/web3/login', [AuthController::class , 'web3Login'])->name('web3.login');
@@ -42,6 +42,12 @@ Route::post('/register', [AuthController::class , 'register'])->name('register.p
 // ── Language switching ────────────────────────────────────────────────────────
 Route::post('/language/switch', [LanguageController::class, 'switch'])->name('language.switch');
 Route::get('/language/current', [LanguageController::class, 'current'])->name('language.current');
+
+// ── Public Pages ──────────────────────────────────────────────────────────────
+Route::view('/', 'pages.micro_business')->name('micro-business');
+Route::view('/individuals', 'pages.individuals')->name('individuals');
+Route::view('/about', 'pages.about')->name('about');
+Route::view('/wallet', 'pages.wallet')->name('wallet');
 
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
