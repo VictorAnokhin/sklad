@@ -6,14 +6,14 @@
 @endsection
 
 @section('content')
-<div class="container mt-4">
+<div class="container mt-4" data-bs-theme="dark">
     @include('reports.period_form')
 
-    <div class="card shadow-sm mb-4 border-dark-subtle">
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                    <h3 class="mb-1">{{ __('reports.heading') }}</h3>
+                    <h3 class="mb-1 text-light">{{ __('reports.heading') }}</h3>
                     <div class="text-muted small">{{ __('reports.period', ['month' => $monthLabel]) }}</div>
                 </div>
                 <div class="text-muted small">{{ __('reports.subtitle') }}</div>
@@ -54,14 +54,14 @@
 
     <div class="row g-4">
         <div class="col-lg-8">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
-                    <h4 class="card-title mb-3">{{ __('reports.sales_title') }}</h4>
+                    <h4 class="card-title mb-3 text-light">{{ __('reports.sales_title') }}</h4>
                     <div class="row g-3">
                         <div class="col-md-4">
-                            <div class="rounded border p-3 h-100">
+                            <div class="rounded border border-secondary p-3 h-100">
                                 <div class="text-muted small mb-1">{{ __('reports.sales_documents') }}</div>
-                                <div class="fs-4 fw-bold text-dark">{{ $salesDocsCount }}</div>
+                                <div class="fs-4 fw-bold text-light">{{ $salesDocsCount }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -101,9 +101,9 @@
         </div>
 
         <div class="col-lg-4">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
-                    <h4 class="card-title mb-3">{{ __('reports.cash_position_title') }}</h4>
+                    <h4 class="card-title mb-3 text-light">{{ __('reports.cash_position_title') }}</h4>
                     <div class="rounded border p-3 mb-3">
                         <div class="text-muted small mb-1">{{ __('reports.cash_position_balance') }}</div>
                         <div class="fs-4 fw-bold text-primary">{{ number_format((float) $cashBalanceTotal, 2, '.', ' ') }} грн</div>
@@ -111,8 +111,8 @@
                     <div class="rounded border p-3">
                         <div class="text-muted small mb-1">{{ __('reports.cash_position_largest') }}</div>
                         @if($largestCashbox)
-                        <div class="fw-semibold">{{ $largestCashbox->name }}</div>
-                        <div class="fs-5 fw-bold text-dark mt-1">{{ number_format((float) ($largestCashbox->value ?? 0), 2, '.', ' ') }} грн</div>
+                        <div class="fw-semibold text-light">{{ $largestCashbox->name }}</div>
+                        <div class="fs-5 fw-bold text-light mt-1">{{ number_format((float) ($largestCashbox->value ?? 0), 2, '.', ' ') }} грн</div>
                         @else
                         <div class="text-muted">{{ __('reports.cash_position_not_configured') }}</div>
                         @endif
@@ -124,10 +124,10 @@
 
     <div class="row g-4 mt-1">
         <div class="col-lg-5">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <h4 class="card-title mb-0">{{ __('reports.cash_structure_title') }}</h4>
+                        <h4 class="card-title mb-0 text-light">{{ __('reports.cash_structure_title') }}</h4>
                         <div class="text-muted small">{{ __('reports.cash_current_balances') }}</div>
                     </div>
 
@@ -135,8 +135,8 @@
                     <div class="text-muted">{{ __('reports.cash_position_not_configured') }}</div>
                     @else
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead>
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                            <thead class="table-dark">
                                 <tr>
                                     <th>{{ __('reports.cash_table_cashbox') }}</th>
                                     <th class="text-end">{{ __('reports.cash_table_balance') }}</th>
@@ -164,10 +164,10 @@
         </div>
 
         <div class="col-lg-7">
-            <div class="card shadow-sm h-100">
+            <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <h4 class="card-title mb-0">{{ __('reports.top_sales_title') }}</h4>
+                        <h4 class="card-title mb-0 text-light">{{ __('reports.top_sales_title') }}</h4>
                         <div class="text-muted small">{{ __('reports.top_sales_rn_posted') }}</div>
                     </div>
 
@@ -175,8 +175,8 @@
                     <div class="text-muted">{{ __('reports.top_sales_no_data') }}</div>
                     @else
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead>
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                            <thead class="table-dark">
                                 <tr>
                                     <th>{{ __('reports.top_sales_table_product') }}</th>
                                     <th>{{ __('reports.top_sales_table_code') }}</th>
@@ -204,10 +204,10 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mt-4">
+    <div class="card shadow-sm mt-4 bg-transparent border-secondary">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="card-title mb-0">{{ __('reports.orders_journal_title') }}</h4>
+                <h4 class="card-title mb-0 text-light">{{ __('reports.orders_journal_title') }}</h4>
                 <div class="text-muted small">{{ __('reports.orders_journal_subtitle') }}</div>
             </div>
 
@@ -215,8 +215,8 @@
             <div class="text-muted">{{ __('reports.orders_journal_no_data') }}</div>
             @else
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                    <thead class="table-dark">
                         <tr>
                             <th>{{ __('reports.orders_journal_table_date') }}</th>
                             <th>{{ __('reports.orders_journal_table_number') }}</th>

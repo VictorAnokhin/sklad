@@ -114,6 +114,57 @@ p {
     color: var(--muted-foreground);
 }
 
+/* Global Bootstrap Component Overrides for Dark Theme (Cards, Tables, etc.) */
+.dark-theme .card {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+    color: var(--foreground) !important;
+}
+
+.dark-theme .card-title,
+.dark-theme .card-header {
+    color: var(--foreground) !important;
+    background-color: transparent !important;
+    border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark-theme .card-body .text-dark,
+.dark-theme .card .text-dark {
+    color: var(--foreground) !important;
+}
+
+.dark-theme .card .text-muted {
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.dark-theme .table {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--foreground);
+    --bs-table-border-color: rgba(255, 255, 255, 0.1);
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.02);
+    --bs-table-striped-color: var(--foreground);
+    --bs-table-active-bg: rgba(255, 255, 255, 0.05);
+    --bs-table-active-color: var(--foreground);
+    --bs-table-hover-bg: rgba(255, 255, 255, 0.05);
+    --bs-table-hover-color: var(--foreground);
+    color: var(--bs-table-color);
+}
+
+.dark-theme .table thead th {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.dark-theme .table td, .dark-theme .table th {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark-theme .border, 
+.dark-theme .border-dark-subtle {
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
 a {
     color: var(--accent-amber);
     text-decoration: none;
