@@ -57,6 +57,7 @@ return [
     'search_client' => 'Search client...',
     'search' => 'Search',
     'client_not_selected' => 'Client not selected',
+    'filter_active' => 'Active only',
     'validation' => [
         'phone_unique' => 'A client with this phone already exists',
         'phone1_unique' => 'A client with this additional phone already exists',

@@ -2377,6 +2377,10 @@ small,
 }
 
 @media (max-width: 992px) {
+    .doc-page {
+        padding-bottom: 120px;
+    }
+
     .doc-layout {
         flex-direction: column;
     }

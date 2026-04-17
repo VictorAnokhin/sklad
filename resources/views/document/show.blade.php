@@ -35,6 +35,17 @@
             </div>
         @endif
 
+        @if($errors->any())
+            <div class="alert alert-danger py-2">
+                Увага: Форма містить помилки (перевірте поля, що виділені червоним).
+                <ul class="mb-0 mt-1">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         @if(session('success'))
             <div class="alert alert-success py-2">
                 {{ session('success') }}
@@ -684,34 +695,30 @@
                 const tr = countInput.closest('tr');
                 const docType = tr?.dataset.docType || '';
 
-                const updateRowSum = () => {
+                const updateRowSum = (e) => {
                     const quantity = parseFloat(countInput.value) || 0;
-                    // Default price if no overrides apply
                     let price = parseFloat(priceInput.value) || 0;
 
-                    // Always prioritize comp.pay (priceCompPay) for all documents if that is what the user requested,
-                    // but we will allow ZOUT to do wholesale override if applicable.
-                    if (tr) {
-                        const compPay = parseFloat(tr.dataset.priceCompPay) || 0;
-                        if (compPay > 0 && docType !== 'ZOUT') {
-                            price = compPay;
-                            priceInput.value = price.toFixed(2);
-                        }
-                    }
-
-                    // For ZOUT documents: recalculate price based on quantity
-                    if (docType === 'ZOUT' && tr) {
-                        const basePrice = parseFloat(tr.dataset.priceCompPay) || parseFloat(tr.dataset.priceBase) || 0;
-                        const wholesalePrice = parseFloat(tr.dataset.priceWholesale) || 0;
+                    // Автоматически обновляем цену по каталогу/опту только если пользователь меняет количество
+                    if (tr && e && e.target === countInput) {
+                        const priceCompPay1 = parseFloat(tr.dataset.priceCompPay1) || 0;
+                        const priceBase = parseFloat(tr.dataset.priceBase) || parseFloat(tr.dataset.priceCompPay) || 0;
+                        const priceWholesale = parseFloat(tr.dataset.priceWholesale) || 0;
                         const wholesaleFrom = parseInt(tr.dataset.wholesaleFrom) || 0;
 
-                        // If wholesale price is set and quantity meets threshold, use wholesale price
-                        if (wholesaleFrom > 0 && wholesalePrice > 0 && quantity >= wholesaleFrom) {
-                            priceInput.value = wholesalePrice.toFixed(2);
-                            price = wholesalePrice;
-                        } else if (basePrice > 0) {
-                            priceInput.value = basePrice.toFixed(2);
-                            price = basePrice;
+                        if (docType === 'ZIN' || docType === 'PN') {
+                            if (priceCompPay1 > 0) {
+                                price = priceCompPay1;
+                                priceInput.value = price.toFixed(2);
+                            }
+                        } else {
+                            if (wholesaleFrom > 0 && wholesalePrice > 0 && quantity >= wholesaleFrom) {
+                                priceInput.value = wholesalePrice.toFixed(2);
+                                price = wholesalePrice;
+                            } else if (priceBase > 0) {
+                                priceInput.value = priceBase.toFixed(2);
+                                price = priceBase;
+                            }
                         }
                     }
 
@@ -777,20 +784,31 @@
                                     e.preventDefault();
                                     const emptyRow = document.getElementById('emptyGoodsRow');
                                     if (emptyRow) emptyRow.remove();
+                                    let initialPrice = 0;
+                                    if (docType === 'ZIN' || docType === 'PN') {
+                                        initialPrice = good.priceCompPay1 || 0;
+                                    } else {
+                                        if (good.wholesaleFrom > 0 && 1 >= good.wholesaleFrom && good.priceWholesale > 0) {
+                                            initialPrice = good.priceWholesale;
+                                        } else {
+                                            initialPrice = good.priceBase || good.priceCompPay || 0;
+                                        }
+                                    }
+                                    
                                     const tr = document.createElement('tr');
                                     tr.innerHTML = `
-                                                                                        <td><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark" value="${good.pnum}" readonly></td>
-                                                                                        <td><input type="hidden" name="name[]" value="${good.name || ''}"><input type="text" class="form-control form-control-sm text-dark" value="${good.name || ''}" readonly></td>
-                                                                                        <td>
-                                                                                            <div class="input-group input-group-sm">
-                                                                                                <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
-                                                                                                <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count text-dark" value="1">
-                                                                                                <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
-                                                                                            </div>
-                                                                                        </td>
-                                                                                        <td><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark" value="${good.priceCompPay}"></td>
-                                                                                        <td><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark" value="${good.priceCompPay}"></td>
-                                                                                        <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row remove-btn">❌</button></td>`;
+                                        <td><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark" value="${good.pnum}" readonly></td>
+                                        <td><input type="hidden" name="name[]" value="${good.name || ''}"><input type="text" class="form-control form-control-sm text-dark" value="${good.name || ''}" readonly></td>
+                                        <td>
+                                            <div class="input-group input-group-sm">
+                                                <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
+                                                <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count text-dark" value="1">
+                                                <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
+                                            </div>
+                                        </td>
+                                        <td><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark" value="${initialPrice.toFixed(2)}"></td>
+                                        <td><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark" value="${initialPrice.toFixed(2)}"></td>
+                                        <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row remove-btn">❌</button></td>`;
                                     tr.dataset.priceCompPay = good.priceCompPay || 0;
                                     tr.dataset.priceCompPay1 = good.priceCompPay1 || 0;
                                     tr.dataset.priceBase = good.priceBase || 0;
