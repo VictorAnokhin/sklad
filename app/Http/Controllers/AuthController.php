@@ -56,6 +56,8 @@ class AuthController extends Controller
         $newOrders = DB::table('document')
             ->where('firma', $fid)
             ->where('type', 'ZOUT')
+            ->where('summa', 0)
+            ->where('provodka', 0)
             ->where(function ($query) {
                 $query->where('status', 0)
                     ->orWhereNull('status');
