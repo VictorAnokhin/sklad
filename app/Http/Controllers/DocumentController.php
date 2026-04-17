@@ -88,9 +88,6 @@ class DocumentController extends Controller
         $doc = $request->input('doc', session('doc', 'ZOUT'));
         $pos = (int)$request->input('pos', 0);
 
-        if ($doc !== session('doc')) {
-            $pos = 0;
-        }
         if ($request->input('num') === '0') {
             session(['client1' => '0', 'client2' => '0', 'num' => '0',
                 'numz' => '0', 'typez' => '']);
@@ -100,7 +97,7 @@ class DocumentController extends Controller
 
         $this->filter->save($request, $doc, $fid);
         $fd = $this->filter->resolve($doc, $fid);
-
+        
         $result = Document::init($doc, $pos, $fd, $fid, $login, $status, $idsklad, $idkassa);
         $rows = $result['rows'];
         $total = $result['total'];

@@ -285,35 +285,14 @@
 
     {{-- Pagination --}}
     @php
-        $currentPage = $pos2 > 0 ? (int)floor($pos / $pos2) + 1 : 1;
-        $totalPages = $pos2 > 0 ? (int)ceil($total / $pos2) : 1;
-        $startPage = max(1, $currentPage - 1);
-        $endPage = min($totalPages, $startPage + 2);
-        $startPage = max(1, $endPage - 2);
-        $pageParams = array_merge($filters, ['igla' => $idglava ?? '', 'idcapt' => $idcaption ?? '', 'sort' => $sort ?? '']);
+        $pageParams = array_merge($filters ?? [], ['igla' => $idglava ?? '', 'idcapt' => $idcaption ?? '', 'sort' => $sort ?? '']);
     @endphp
-    @if($totalPages > 1)
-    <nav class="mt-3">
-        <ul class="pagination justify-content-center">
-            <li class="page-item {{ $currentPage <= 1 ? 'disabled' : '' }}">
-                <a class="page-link" href="{{ route('goods.index', array_merge($pageParams, ['pos' => 0])) }}">«</a>
-            </li>
-            <li class="page-item {{ $currentPage <= 1 ? 'disabled' : '' }}">
-                <a class="page-link" href="{{ route('goods.index', array_merge($pageParams, ['pos' => $pos - $pos2])) }}">‹</a>
-            </li>
-            @for($p = $startPage; $p <= $endPage; $p++)
-            <li class="page-item {{ $p == $currentPage ? 'active' : '' }}">
-                <a class="page-link" href="{{ route('goods.index', array_merge($pageParams, ['pos' => ($p - 1) * $pos2])) }}">{{ $p }}</a>
-            </li>
-            @endfor
-            <li class="page-item {{ $currentPage >= $totalPages ? 'disabled' : '' }}">
-                <a class="page-link" href="{{ route('goods.index', array_merge($pageParams, ['pos' => $pos + $pos2])) }}">›</a>
-            </li>
-            <li class="page-item {{ $currentPage >= $totalPages ? 'disabled' : '' }}">
-                <a class="page-link" href="{{ route('goods.index', array_merge($pageParams, ['pos' => ($totalPages - 1) * $pos2])) }}">»</a>
-            </li>
-        </ul>
-    </nav>
-    @endif
+    @include('partials.navigator', [
+            'pos' => $pos,
+            'pos2' => $pos2,
+            'max' => $total,
+            'routeName' => 'goods.index',
+            'routeParams' => $pageParams,
+    ])
 </div>
 @endsection

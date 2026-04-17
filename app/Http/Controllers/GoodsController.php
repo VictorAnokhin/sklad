@@ -29,7 +29,7 @@ class GoodsController extends Controller
         $locale = $this->resolveBackendLocale($request);
         $idglava = $request->input('igla', session('idglava', ''));
         $idcaption = $request->input('idcapt', session('idcaption', ''));
-        $pos = (int) $request->input('pos', session('pos', 0));
+        $pos = (int) $request->input('pos', session('goods_pos', 0));
         $pos2 = (int) $request->input('pos2', 20);
         $sort = $request->input('sort', session('sort', 'pay'));
 
@@ -42,7 +42,7 @@ class GoodsController extends Controller
         session([
             'idcaption' => $idcaption,
             'idglava' => $idglava,
-            'pos' => $pos,
+            'goods_pos' => $pos,
             'sort' => $sort,
             'filter1' => $filters['fName'],
             'filter_brand' => $filters['filterBrand'],

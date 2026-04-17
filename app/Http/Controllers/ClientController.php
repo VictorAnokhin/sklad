@@ -21,7 +21,7 @@ class ClientController extends Controller
     public function index(Request $request)
     {
         $fid = session('fid', '');
-        $pos = (int)$request->input('pos', session('pos', 0));
+        $pos = (int)$request->input('pos', session('client_pos', 0));
         $pos2 = 20;
 
         $filters = [
@@ -32,7 +32,7 @@ class ClientController extends Controller
         ];
 
         session([
-            'pos' => $pos,
+            'client_pos' => $pos,
             'cl_search' => $filters['search'],
             'cl_city' => $filters['city'],
             'cl_idstatus' => $filters['idstatus'],

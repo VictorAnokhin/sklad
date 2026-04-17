@@ -2,7 +2,15 @@
   $pos  = (int)($pos  ?? 0);
   $pos2 = (int)($pos2 ?? 30);
   $max  = (int)($max  ?? 0);
-  $doc  = $doc ?? session('doc', '');
+
+  // Universal route support: pass routeName and routeParams from the caller
+  $navRoute  = $routeName ?? 'document.index';
+  $navParams = $routeParams ?? [];
+
+  // Legacy support: if 'doc' is passed and no routeParams, add it
+  if (empty($navParams) && isset($doc) && $doc !== '' && $doc !== 'money') {
+      $navParams['doc'] = $doc;
+  }
 @endphp
 
 @if($max > $pos2)
@@ -17,29 +25,25 @@
   $isLast = $cur >= ($pages - 1);
 @endphp
 
-<div class="navigator" style="display:flex;gap:6px;padding:6px;align-items:center;flex-wrap:wrap">
+<div class="navigator d-flex align-items-center justify-content-center gap-2 flex-wrap py-2">
   @if($isFirst)
-    <span class="button" style="width:52px;pointer-events:none;opacity:.55;text-align:center">« 1</span>
-    <span class="button" style="width:60px;pointer-events:none;opacity:.55;text-align:center">←</span>
+    <span class="btn btn-outline-secondary disabled" style="opacity: 0.5; pointer-events: none;">«</span>
+    <span class="btn btn-outline-secondary disabled" style="opacity: 0.5; pointer-events: none;">‹</span>
   @else
-    <a href="{{ route('document.index', ['doc' => $doc, 'pos' => $firstPos]) }}"
-       class="button" style="width:52px;text-align:center">« 1</a>
-    <a href="{{ route('document.index', ['doc' => $doc, 'pos' => $prevPos]) }}"
-       class="button" style="width:60px;text-align:center">←</a>
+    <a href="{{ route($navRoute, array_merge($navParams, ['pos' => $firstPos])) }}" class="btn btn-outline-secondary">«</a>
+    <a href="{{ route($navRoute, array_merge($navParams, ['pos' => $prevPos])) }}" class="btn btn-outline-secondary">‹</a>
   @endif
 
-  @if($isLast)
-    <span class="button" style="width:60px;pointer-events:none;opacity:.55;text-align:center">→</span>
-    <span class="button" style="width:52px;pointer-events:none;opacity:.55;text-align:center">{{ $pages }} »</span>
-  @else
-    <a href="{{ route('document.index', ['doc' => $doc, 'pos' => $nextPos]) }}"
-       class="button" style="width:60px;text-align:center">→</a>
-    <a href="{{ route('document.index', ['doc' => $doc, 'pos' => $lastPos]) }}"
-       class="button" style="width:52px;text-align:center">{{ $pages }} »</a>
-  @endif
-
-  <span style="line-height:32px;font-size:0.85em;color:#666">
+  <span class="px-3" style="font-size: 0.9em; color: #fbbf24; font-weight: 500;">
     {{ __('document.navigator.from_to_total', ['from' => $pos + 1, 'to' => min($pos + $pos2, $max), 'total' => $max]) }} | {{ __('document.navigator.page', ['current' => $cur + 1, 'pages' => $pages]) }}
   </span>
+
+  @if($isLast)
+    <span class="btn btn-outline-secondary disabled" style="opacity: 0.5; pointer-events: none;">›</span>
+    <span class="btn btn-outline-secondary disabled" style="opacity: 0.5; pointer-events: none;">»</span>
+  @else
+    <a href="{{ route($navRoute, array_merge($navParams, ['pos' => $nextPos])) }}" class="btn btn-outline-secondary">›</a>
+    <a href="{{ route($navRoute, array_merge($navParams, ['pos' => $lastPos])) }}" class="btn btn-outline-secondary">»</a>
+  @endif
 </div>
 @endif

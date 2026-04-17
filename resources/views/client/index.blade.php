@@ -262,39 +262,13 @@
 
         {{-- Pagination --}}
         @php
-            $currentPage = $pos2 > 0 ? (int) floor($pos / $pos2) + 1 : 1;
-            $totalPages = $pos2 > 0 ? (int) ceil($total / $pos2) : 1;
-            $startPage = max(1, $currentPage - 1);
-            $endPage = min($totalPages, $startPage + 2);
-            $startPage = max(1, $endPage - 2);
-        @endphp
-        @if($totalPages > 1)
-            <nav class="mt-3">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item {{ $currentPage <= 1 ? 'disabled' : '' }}">
-                        <a class="page-link" href="{{ route('client.index', array_merge($filters, ['pos' => 0])) }}">«</a>
-                    </li>
-                    <li class="page-item {{ $currentPage <= 1 ? 'disabled' : '' }}">
-                        <a class="page-link"
-                            href="{{ route('client.index', array_merge($filters, ['pos' => $pos - $pos2])) }}">‹</a>
-                    </li>
-                    @for($p = $startPage; $p <= $endPage; $p++)
-                        <li class="page-item {{ $p == $currentPage ? 'active' : '' }}">
-                            <a class="page-link"
-                                href="{{ route('client.index', array_merge($filters, ['pos' => ($p - 1) * $pos2])) }}">{{ $p }}</a>
-                        </li>
-                    @endfor
-                    <li class="page-item {{ $currentPage >= $totalPages ? 'disabled' : '' }}">
-                        <a class="page-link"
-                            href="{{ route('client.index', array_merge($filters, ['pos' => $pos + $pos2])) }}">›</a>
-                    </li>
-                    <li class="page-item {{ $currentPage >= $totalPages ? 'disabled' : '' }}">
-                        <a class="page-link"
-                            href="{{ route('client.index', array_merge($filters, ['pos' => ($totalPages - 1) * $pos2])) }}">»</a>
-                    </li>
-                </ul>
-            </nav>
-        @endif
+        @include('partials.navigator', [
+            'pos' => $pos,
+            'pos2' => $pos2,
+            'max' => $total,
+            'routeName' => 'client.index',
+            'routeParams' => $filters ?? [],
+        ])
     </div>
 
     {{-- Filter Modal --}}

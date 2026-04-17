@@ -130,8 +130,8 @@
       'pos' => $pos,
       'pos2' => $perPage,
       'max' => $total,
-      'doc' => 'money',
-      'query' => http_build_query($filters ?? [])
+      'routeName' => 'money.index',
+      'routeParams' => $filters ?? [],
     ])
     @endif
 </div>

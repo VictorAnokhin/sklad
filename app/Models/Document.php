@@ -81,7 +81,8 @@ class Document extends Model
                  u.name2, u.region, u.city, u.poshta, u.phone, u.top";
 
         $sort = 'ORDER BY d.dt DESC, d.time DESC, d.num DESC';
-        $rows = DB::select("SELECT {$cols} {$base} {$sort} LIMIT ?, ?", [...$bp, $pos, 30]);
+        $pos = (int) $pos;
+        $rows = DB::select("SELECT {$cols} {$base} {$sort} LIMIT {$pos}, 30", $bp);
         //.dd("SQL: SELECT * {$base} {$sort} LIMIT ?, ? ", "PARAMS:", $bp, "LIMIT: ", $pos, 30);
         // Batch-load conf (status, money, sklads, reteil) to avoid N+1
         $confIds = [];
