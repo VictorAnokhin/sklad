@@ -1338,8 +1338,9 @@ small,
 /* Zakaz variant with extra client info column */
 .document-compact-wrap.zakaz .txtbox-price-docs,
 .txtbox-price-docs.zakaz {
-    min-width: 1120px;
-    grid-template-columns: 42px 104px minmax(220px, 1fr) 150px minmax(130px, 0.72fr) 104px minmax(320px, 1.55fr);
+    min-width: 1030px;
+    /* 1:num | 2:date | 3:client | 4:status | 5:price | 6:note | 7:clientInfo */
+    grid-template-columns: 42px 104px minmax(220px, 1.6fr) 95px minmax(110px, 0.75fr) minmax(200px, 2fr) minmax(120px, 0.85fr);
 }
 
 /* Money index - summary cards */

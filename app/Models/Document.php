@@ -117,6 +117,23 @@ class Document extends Model
         $data = [];
         $total_sum = 0;
 
+        // Batch-load child document posting states — one query for the whole page (avoids N+1)
+        $childStatuses = [];
+        if ($doc === 'ZOUT' && !empty($rows)) {
+            $docIds = array_map(fn($r) => $r->id, (array)$rows);
+            $childRows = DB::table('z_document')
+                ->whereIn('docid', $docIds)
+                ->selectRaw('docid, type, MAX(provodka) as has_posted, COUNT(*) as cnt')
+                ->groupBy('docid', 'type')
+                ->get();
+            foreach ($childRows as $cr) {
+                $childStatuses[$cr->docid][$cr->type] = [
+                    'posted' => (int)$cr->has_posted === 1,
+                    'cnt'    => (int)$cr->cnt,
+                ];
+            }
+        }
+
         foreach ($rows as $row) {
             $statusId = $row->status ?? '';
             $conf = $confMap[$statusId] ?? null;
@@ -151,22 +168,44 @@ class Document extends Model
 
             $signal = ($statusName === '' && $doc === 'ZOUT') ? "<span class='alink3'>new</span>" : '';
 
-            // Status icons based on conf.status field
+            // ── Signal icons ─────────────────────────────────────────────────
             $statusIcons = [];
+
+            // Child-document state badges (ZOUT only — one batch query above)
+            if ($doc === 'ZOUT') {
+                $ch = $childStatuses[$row->id] ?? [];
+
+                if (isset($ch['WO1'])) {
+                    $p = $ch['WO1']['posted'];
+                    $statusIcons[] = '<span class="signal-badge' . ($p ? ' signal-badge--ok' : '') . '" title="В роботі">🔧</span>';
+                }
+                if (isset($ch['RN'])) {
+                    $p = $ch['RN']['posted'];
+                    $statusIcons[] = '<span class="signal-badge' . ($p ? ' signal-badge--ok' : '') . '" title="Відвантаження">🚚</span>';
+                }
+                if (isset($ch['CH'])) {
+                    $statusIcons[] = '<span class="signal-badge signal-badge--ok" title="Рахунок">📄</span>';
+                }
+                if (isset($ch['PO'])) {
+                    $p = $ch['PO']['posted'];
+                    $statusIcons[] = '<span class="signal-badge' . ($p ? ' signal-badge--ok' : '') . '" title="Оплата">💰</span>';
+                }
+            }
+
+            // Conf-based status icons (existing logic — status=2 delivery, status=3 payment)
             if ($conf) {
                 $confStatus = (int)($conf->status ?? 0);
-                // status=2: shipping/delivery icon
                 if ($confStatus == 2) {
                     $statusIcons[] = '<img src="' . asset('img/icon-truck.png') . '" alt="Доставка" title="Доставка" class="status-icon status-icon-truck">';
                 }
-                // status=3: payment icon
                 if ($confStatus == 3) {
                     $statusIcons[] = '<img src="' . asset('img/icon-coins.png') . '" alt="Оплата" title="Оплата" class="status-icon status-icon-payment">';
                 }
             }
-            // Additional: if order has ttn (tracking number), show delivery icon
-            if (!empty($row->ttn) && !in_array(2, array_map(function($icon) { return strpos($icon, 'truck') !== false; }, $statusIcons), true)) {
-                $statusIcons[] = '<img src="' . asset('img/icon-truck.png') . '" alt="НП" title="Новая Почта" class="status-icon status-icon-truck">';
+            // TTN tracking number → truck icon (if not already shown via conf)
+            $hasTruckFromConf = $conf && (int)($conf->status ?? 0) === 2;
+            if (!empty($row->ttn) && !$hasTruckFromConf) {
+                $statusIcons[] = '<img src="' . asset('img/icon-truck.png') . '" alt="НП" title="Нова пошта" class="status-icon status-icon-truck">';
             }
             $signalIcons = implode('', $statusIcons);
 
