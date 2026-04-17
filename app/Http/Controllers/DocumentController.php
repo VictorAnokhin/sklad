@@ -177,6 +177,35 @@ class DocumentController extends Controller
         // If num=0 or doc_id=0 → auto-create new document
         if ($num == '0' || $docId == '0') {
             $table = Document::tableForType($doc);
+
+            if (in_array($doc, ['ZIN', 'ZOUT'], true)) {
+                $existingDraft = DB::table($table)
+                    ->where('firma', $fid)
+                    ->where('type', $doc)
+                    ->whereIn('client1', [0, '0'])
+                    ->where('manager', session('login', ''))
+                    ->where('summa', 0)
+                    ->where('provodka', 0)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                if ($existingDraft) {
+                    session([
+                        'doc_id' => $existingDraft->id, 
+                        'num' => $existingDraft->num, 
+                        'docid' => $existingDraft->id
+                    ]);
+                    
+                    return redirect()->route('document.show', [
+                        'doc' => $doc,
+                        'doc_id' => $existingDraft->id,
+                        'parent_doc_id' => $existingDraft->id,
+                        'num' => $existingDraft->num,
+                        'year' => $year,
+                    ]);
+                }
+            }
+
             $newNum = Document::assignNextNum($doc, $fid, $year);
             $now = now();
             $dt = $now->timestamp;
@@ -586,6 +615,36 @@ class DocumentController extends Controller
 
         if ($createDocType !== '' || isset($docTypeMap[$run])) {
             $docType = $createDocType !== '' ? $createDocType : $docTypeMap[$run];
+
+            if (in_array($docType, ['ZIN', 'ZOUT'], true)) {
+                $table = Document::tableForType($docType);
+                $existingDraft = DB::table($table)
+                    ->where('firma', $fid)
+                    ->where('type', $docType)
+                    ->whereIn('client1', [0, '0'])
+                    ->where('manager', session('login', ''))
+                    ->where('summa', 0)
+                    ->where('provodka', 0)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                if ($existingDraft) {
+                    session([
+                        'doc' => $docType, 
+                        'doc_id' => $existingDraft->id, 
+                        'num' => $existingDraft->num, 
+                        'docid' => $existingDraft->id
+                    ]);
+                    
+                    return redirect()->route('document.show', [
+                        'doc' => $docType, 
+                        'doc_id' => $existingDraft->id, 
+                        'num' => $existingDraft->num, 
+                        'year' => $year,
+                    ]);
+                }
+            }
+
             $summaPO = in_array($docType, ['PO', 'RO'], true) ? (float)$request->input('sumPO', 0) : 0.0;
             $client1 = session('client1', '0');
             $client2 = session('client2', '0');

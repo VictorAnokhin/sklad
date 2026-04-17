@@ -116,15 +116,29 @@
                     @else
                     <div class="list-group list-group-flush mb-3">
                         @foreach($newOrders as $order)
+                        @php
+                            $clientName = trim(($order->orgname ?? '') ?: (trim(($order->secondname ?? '') . ' ' . ($order->u_name ?? '') . ' ' . ($order->fathername ?? ''))));
+                        @endphp
                         <a href="{{ route('document.show', ['doc' => 'ZOUT', 'doc_id' => $order->id, 'num' => $order->num, 'year' => substr((string)($order->data ?? date('d-m-Y')), -4)]) }}"
                             class="list-group-item list-group-item-action px-2 rounded mb-1">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <div class="fw-semibold">{{ __('dashboard.order_number', ['num' => $order->num]) }}</div>
-                                    <div class="text-muted small">{{ $order->data }} {{ $order->time }}</div>
-                                    <div class="small mt-1 text-light">{{ $order->content }}</div>
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div style="min-width:0;">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <span class="fw-semibold">{{ __('dashboard.order_number', ['num' => $order->num]) }}</span>
+                                        <span class="text-muted small">{{ $order->data }} {{ $order->time }}</span>
+                                    </div>
+                                    @if($clientName)
+                                        <div class="small mt-1" style="color:#a0c4ff;">👤 {{ $clientName }}</div>
+                                    @endif
+                                    @if(!empty($order->phone))
+                                        <div class="small" style="color:#9ca3af;">📞 {{ $order->phone }}</div>
+                                    @endif
+                                    @if(!empty($order->content))
+                                        <div class="small mt-1" style="color:#d1d5db;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;"
+                                             title="{{ $order->content }}">💬 {{ $order->content }}</div>
+                                    @endif
                                 </div>
-                                <div class="fw-bold text-success-accent">{{ number_format((float)($order->summa ?? 0), 2, '.', ' ') }} грн</div>
+                                <div class="fw-bold text-success-accent text-nowrap">{{ number_format((float)($order->summa ?? 0), 2, '.', ' ') }} грн</div>
                             </div>
                         </a>
                         @endforeach

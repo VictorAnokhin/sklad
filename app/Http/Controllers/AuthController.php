@@ -55,16 +55,18 @@ class AuthController extends Controller
 
         $currentMonthYear = now()->format('m-Y');
 
-        $newOrders = DB::table('document')
-            ->where('firma', $fid)
-            ->where('type', 'ZOUT')
-            ->where('provodka', 0)
-            ->where('data', 'LIKE', '%-' . $currentMonthYear)
+        $newOrders = DB::table('document as d')
+            ->select('d.*', 'u.orgname', 'u.secondname', 'u.name as u_name', 'u.fathername', 'u.phone')
+            ->leftJoin('users as u', 'd.client1', '=', 'u.id')
+            ->where('d.firma', $fid)
+            ->where('d.type', 'ZOUT')
+            ->where('d.provodka', 0)
+            ->where('d.data', 'LIKE', '%-' . $currentMonthYear)
             ->where(function ($query) {
-                $query->where('status', 0)
-                    ->orWhereNull('status');
+                $query->where('d.status', 0)
+                    ->orWhereNull('d.status');
             })
-            ->orderByDesc('id')
+            ->orderByDesc('d.id')
             ->limit(10)
             ->get();
 
