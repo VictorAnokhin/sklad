@@ -620,20 +620,22 @@
 
                 const updateRowSum = () => {
                     const quantity = parseFloat(countInput.value) || 0;
+                    // Default price if no overrides apply
                     let price = parseFloat(priceInput.value) || 0;
 
-                    // For ZIN documents: use comp.pay1 (purchase price)
-                    if (docType === 'ZIN' && tr) {
-                        const compPay1 = parseFloat(tr.dataset.priceCompPay1) || 0;
-                        if (compPay1 > 0) {
-                            priceInput.value = compPay1.toFixed(2);
-                            price = compPay1;
+                    // Always prioritize comp.pay (priceCompPay) for all documents if that is what the user requested,
+                    // but we will allow ZOUT to do wholesale override if applicable.
+                    if (tr) {
+                        const compPay = parseFloat(tr.dataset.priceCompPay) || 0;
+                        if (compPay > 0 && docType !== 'ZOUT') {
+                            price = compPay;
+                            priceInput.value = price.toFixed(2);
                         }
                     }
 
                     // For ZOUT documents: recalculate price based on quantity
                     if (docType === 'ZOUT' && tr) {
-                        const basePrice = parseFloat(tr.dataset.priceBase) || 0;
+                        const basePrice = parseFloat(tr.dataset.priceCompPay) || parseFloat(tr.dataset.priceBase) || 0;
                         const wholesalePrice = parseFloat(tr.dataset.priceWholesale) || 0;
                         const wholesaleFrom = parseInt(tr.dataset.wholesaleFrom) || 0;
 
@@ -704,7 +706,7 @@
                             data.forEach(good => {
                                 const a = document.createElement('a');
                                 a.href = '#'; a.className = 'list-group-item list-group-item-action py-2 bg-white text-dark';
-                                a.innerHTML = `<strong>${good.pnum}</strong> - ${good.name || ''} <br><small class="text-muted">Ціна: ${good.price} грн | Залишок: ${good.count || 0}</small>`;
+                                a.innerHTML = `<strong>${good.pnum}</strong> - ${good.name || ''} <br><small class="text-muted">Ціна (pay): ${good.priceCompPay} грн | Залишок: ${good.count || 0}</small>`;
                                 a.addEventListener('click', function (e) {
                                     e.preventDefault();
                                     const emptyRow = document.getElementById('emptyGoodsRow');
@@ -720,8 +722,8 @@
                                                                                                 <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                                                                             </div>
                                                                                         </td>
-                                                                                        <td><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark" value="${good.price}"></td>
-                                                                                        <td><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark" value="${good.price}"></td>
+                                                                                        <td><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark" value="${good.priceCompPay}"></td>
+                                                                                        <td><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark" value="${good.priceCompPay}"></td>
                                                                                         <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row remove-btn">❌</button></td>`;
                                     tr.dataset.priceCompPay = good.priceCompPay || 0;
                                     tr.dataset.priceCompPay1 = good.priceCompPay1 || 0;
