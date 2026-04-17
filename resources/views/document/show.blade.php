@@ -317,7 +317,9 @@
                     <div class="doc-actions">
                         @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'VN', 'AO', 'WO1'], true))
                             @if((int) ($document->provodka ?? 0) === 1)
-                                <button type="submit" formaction="{{ route('document.provodka') }}" formmethod="post"
+                                <button type="button" 
+                                    onclick="forceSubmitAction(this, '', '', '{{ route('document.provodka') }}')"
+                                    ontouchstart="forceSubmitAction(this, '', '', '{{ route('document.provodka') }}'); event.preventDefault();"
                                     class="btn btn-success">
                                     ↺ Скасувати проводку
                                 </button>
@@ -330,10 +332,16 @@
                                         Провести документ
                                     </label>
                                 </div>
-                                <button type="submit" name="run" value="Зберегти" class="btn btn-primary">💾 Зберегти</button>
+                                <button type="button" 
+                                    onclick="forceSubmitAction(this, 'run', 'Зберегти')"
+                                    ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
+                                    class="btn btn-primary w-100 mb-2">💾 Зберегти</button>
                             @endif
                         @else
-                            <button type="submit" name="run" value="Зберегти" class="btn btn-primary">💾 Зберегти</button>
+                            <button type="button" 
+                                onclick="forceSubmitAction(this, 'run', 'Зберегти')"
+                                ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
+                                class="btn btn-primary">💾 Зберегти</button>
                         @endif
                         @if(in_array($doc, ['CH', 'RN'], true))
                             <a href="{{ route('document.print', ['doc' => $doc, 'doc_id' => $document->id, 'num' => $document->num, 'year' => $year]) }}"
@@ -670,16 +678,37 @@
                 documentSummaInput1.value = total.toFixed(2);
             };
 
-            const submitDocumentSave = () => {
-                if (!documentForm) {
-                    return;
-                }
-
+            window.submitDocumentSave = () => {
+                if (!documentForm) return;
                 const runInput = document.createElement('input');
                 runInput.type = 'hidden';
                 runInput.name = 'run';
                 runInput.value = 'Зберегти';
                 documentForm.appendChild(runInput);
+                if (documentForm.requestSubmit) {
+                    documentForm.requestSubmit();
+                } else {
+                    documentForm.submit();
+                }
+            };
+
+            window.forceSubmitAction = function(btn, name, value, actionUrl = null) {
+                if (btn.dataset.submitting) return;
+                btn.dataset.submitting = '1';
+                setTimeout(() => btn.dataset.submitting = '', 2000); // на случай возврата назад
+                
+                if (name && value) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = value;
+                    documentForm.appendChild(input);
+                }
+                
+                if (actionUrl) {
+                    documentForm.action = actionUrl;
+                }
+                
                 if (documentForm.requestSubmit) {
                     documentForm.requestSubmit();
                 } else {
