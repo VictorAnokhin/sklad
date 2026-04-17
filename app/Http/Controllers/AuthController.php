@@ -53,6 +53,7 @@ class AuthController extends Controller
             ->where('data', $today)
             ->sum('summa');
 
+        // Фильтруем заказы текущего месяца (формат даты: d-m-Y, например 17-04-2026)
         $currentMonthYear = now()->format('m-Y');
 
         $newOrders = DB::table('document as d')
@@ -62,12 +63,8 @@ class AuthController extends Controller
             ->where('d.type', 'ZOUT')
             ->where('d.provodka', 0)
             ->where('d.data', 'LIKE', '%-' . $currentMonthYear)
-            ->where(function ($query) {
-                $query->where('d.status', 0)
-                    ->orWhereNull('d.status');
-            })
             ->orderByDesc('d.id')
-            ->limit(10)
+            ->limit(20)
             ->get();
 
         return view('dashboard', compact('cashboxes', 'dailyIncome', 'newOrders', 'today'));
