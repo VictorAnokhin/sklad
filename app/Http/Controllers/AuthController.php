@@ -53,11 +53,13 @@ class AuthController extends Controller
             ->where('data', $today)
             ->sum('summa');
 
+        $currentMonthYear = now()->format('m-Y');
+
         $newOrders = DB::table('document')
             ->where('firma', $fid)
             ->where('type', 'ZOUT')
-            ->where('summa', 0)
             ->where('provodka', 0)
+            ->where('data', 'LIKE', '%-' . $currentMonthYear)
             ->where(function ($query) {
                 $query->where('status', 0)
                     ->orWhereNull('status');
