@@ -66,7 +66,7 @@ class ClientController extends Controller
                 ->orWhere('secondname', 'LIKE', "%{$qBase}%")
                 ->orWhere('phone', 'LIKE', "%{$q}%");
         })
-            ->select('id', 'orgname', 'name', 'name2', 'secondname', 'phone', 'city', 'region', 'poshta')
+            ->select('id', 'orgname', 'name', 'name2', 'secondname', 'phone', 'city', 'region', 'poshta', 'idstatus')
             ->limit(20)
             ->get()
             ->map(function ($u) {
@@ -80,6 +80,7 @@ class ClientController extends Controller
             'city' => $u->city,
             'region' => $u->region,
             'poshta' => $u->poshta,
+            'idstatus' => $u->idstatus,
             ];
         });
 
@@ -153,15 +154,22 @@ class ClientController extends Controller
             ], 422);
         }
 
+        $idParam = $request->input('id', '0');
+
         // Check for unique phone if provided
         if ($phone !== '') {
-            $phoneExists = DB::table('users')
+            $query = DB::table('users')
                 ->where('firma', $fid)
                 ->where(function ($query) use ($phone) {
                     $query->where('phone', $phone)
                           ->orWhere('phone1', $phone);
-                })
-                ->exists();
+                });
+            
+            if ($idParam !== '0') {
+                $query->where('id', '!=', $idParam);
+            }
+
+            $phoneExists = $query->exists();
 
             if ($phoneExists) {
                 return response()->json([
@@ -183,7 +191,7 @@ class ClientController extends Controller
             'top' => 1,
         ];
 
-        if (\App\Models\User::hasUsersColumn('email')) {
+        if (\App\Models\User::hasUsersColumn('email') && $idParam === '0') {
             $emailBase = $phoneDigits !== '' ? $phoneDigits : ('quickclient' . now()->timestamp);
             $candidateEmail = $emailBase . '@local.client';
             $suffix = 1;
@@ -196,16 +204,11 @@ class ClientController extends Controller
             $data['email'] = $candidateEmail;
         }
 
-        $id = User::edit('0', $data);
+        $id = User::edit($idParam, $data);
 
-        return response()->json([
-            'id' => $id,
-            'name' => $name,
-            'secondname' => $secondname,
-            'phone' => $phone,
-            'city' => $city,
-            'idstatus' => $idstatus,
-        ]);
+        $user = DB::table('users')->where('id', $id)->first();
+
+        return response()->json($user);
     }
 
     // ── Show / edit form ──────────────────────────────────────────────────────

@@ -160,17 +160,25 @@
                     <!-- Row 2: Клієнт -->
                     <div class="doc-form-row-single">
                         <label>Клієнт</label>
-                        <div class="client-search-row">
-                            <input type="text" id="clientSearchInput" class="form-control" placeholder="Пошук клієнта..."
+                        <div class="client-search-row d-flex gap-1">
+                            <input type="text" id="clientSearchInput" class="form-control flex-grow-1" placeholder="Пошук клієнта..."
                                 autocomplete="off">
-                            <button type="button" id="searchClientBtn" class="btn btn-outline-secondary">Шукати</button>
-                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
+                            <button type="button" id="editClientBtn" class="btn btn-outline-secondary text-white" data-bs-toggle="modal"
+                                data-bs-target="#newClientModal" style="{{ $client ? '' : 'display:none;' }}">Изменить</button>
+                            <button type="button" class="btn btn-outline-primary text-white" id="newClientBtn" data-bs-toggle="modal"
                                 data-bs-target="#newClientModal">Новий</button>
                         </div>
                         <div id="clientSearchResults" class="list-group client-search-results">
                         </div>
                         <input type="hidden" name="client1" id="client1_id"
-                            value="{{ old('client1', $client ? $client->id : '') }}">
+                            value="{{ old('client1', $client ? $client->id : '') }}"
+                            data-name="{{ $client->name ?? '' }}"
+                            data-secondname="{{ $client->secondname ?? '' }}"
+                            data-phone="{{ $client->phone ?? '' }}"
+                            data-city="{{ $client->city ?? '' }}"
+                            data-region="{{ $client->region ?? '' }}"
+                            data-poshta="{{ $client->poshta ?? '' }}"
+                            data-status="{{ $client->idstatus ?? '' }}">
                         <div id="selectedClientDetails"
                             class="alert {{ $client ? 'alert-secondary' : 'alert-warning' }} py-1 mt-1 selected-client-details {{ $client ? 'selected-client-details--filled' : 'selected-client-details--empty' }}">
                             @if($client)
@@ -360,6 +368,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
                 </div>
                 <div class="modal-body py-2">
+                    <input type="hidden" id="newClientId" value="0">
                     <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label small mb-0">Ім'я</label>
@@ -415,7 +424,7 @@
             document.querySelectorAll('.form-control, .form-select').forEach(el => el.classList.add('text-dark'));
             const documentForm = document.querySelector('form.compact-form');
             const searchInput = document.getElementById('clientSearchInput');
-            const searchBtn = document.getElementById('searchClientBtn');
+            const editClientBtn = document.getElementById('editClientBtn');
             const resultsContainer = document.getElementById('clientSearchResults');
             const client1Id = document.getElementById('client1_id');
             const clientDetails = document.getElementById('selectedClientDetails');
@@ -440,6 +449,16 @@
                                 a.addEventListener('click', function (e) {
                                     e.preventDefault();
                                     client1Id.value = user.id;
+                                    client1Id.dataset.name = user.name || '';
+                                    client1Id.dataset.secondname = user.secondname || '';
+                                    client1Id.dataset.phone = user.phone || '';
+                                    client1Id.dataset.city = user.city || '';
+                                    client1Id.dataset.region = user.region || '';
+                                    client1Id.dataset.poshta = user.poshta || '';
+                                    client1Id.dataset.status = user.idstatus || '';
+                                    
+                                    editClientBtn.style.display = 'inline-block';
+                                    
                                     clientDetails.className = 'alert alert-secondary py-1 mt-1';
                                     clientDetails.style.background = '#f8f9fa';
                                     clientDetails.style.border = '1px solid #ddd';
@@ -455,7 +474,6 @@
                     })
                     .catch(err => console.error('Search failed:', err));
             }
-            searchBtn.addEventListener('click', performSearch);
             let clientSearchTimeout = null;
             searchInput.addEventListener('input', function (e) {
                 clearTimeout(clientSearchTimeout);
@@ -465,14 +483,48 @@
                 if (e.key === 'Enter') { e.preventDefault(); performSearch(); }
             });
             document.addEventListener('click', function (e) {
-                if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target) && !searchBtn.contains(e.target)) {
+                if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
                     resultsContainer.style.display = 'none';
                 }
             });
 
-            // ================= NEW CLIENT MODAL =================
+            // ================= NEW/EDIT CLIENT MODAL =================
+            const newClientBtn = document.getElementById('newClientBtn');
             const saveNewClientBtn = document.getElementById('saveNewClientBtn');
             const newClientPhoneField = document.getElementById('newClientPhone');
+            const newClientIdField = document.getElementById('newClientId');
+
+            if(newClientBtn) {
+                newClientBtn.addEventListener('click', () => {
+                    document.getElementById('newClientModalLabel').textContent = 'Новий клієнт';
+                    newClientIdField.value = '0';
+                    document.getElementById('newClientName').value = '';
+                    document.getElementById('newClientSecondname').value = '';
+                    newClientPhoneField.value = '';
+                    document.getElementById('newClientCity').value = '';
+                    document.getElementById('newClientRegion').value = '';
+                    document.getElementById('newClientPoshta').value = '';
+                    document.getElementById('newClientStatus').value = '';
+                    document.getElementById('newClientError').style.display = 'none';
+                });
+            }
+
+            if(editClientBtn) {
+                editClientBtn.addEventListener('click', () => {
+                    document.getElementById('newClientModalLabel').textContent = 'Змінити клієнта';
+                    newClientIdField.value = client1Id.value || '0';
+                    document.getElementById('newClientName').value = client1Id.dataset.name || '';
+                    document.getElementById('newClientSecondname').value = client1Id.dataset.secondname || '';
+                    newClientPhoneField.value = client1Id.dataset.phone || '';
+                    document.getElementById('newClientCity').value = client1Id.dataset.city || '';
+                    document.getElementById('newClientRegion').value = client1Id.dataset.region || '';
+                    document.getElementById('newClientPoshta').value = client1Id.dataset.poshta || '';
+                    document.getElementById('newClientStatus').value = client1Id.dataset.status || '';
+                    document.getElementById('newClientError').style.display = 'none';
+                    // Trigger format
+                    newClientPhoneField.dispatchEvent(new Event('input'));
+                });
+            }
 
             const formatPhoneInput = (value) => {
                 const digits = value.replace(/\D/g, '').slice(0, 12);
@@ -504,6 +556,7 @@
             });
 
             saveNewClientBtn.addEventListener('click', function () {
+                const id = newClientIdField.value || '0';
                 const nameField = document.getElementById('newClientName');
                 const secondnameField = document.getElementById('newClientSecondname');
                 const phoneField = newClientPhoneField;
@@ -544,7 +597,7 @@
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}'
                     },
-                    body: JSON.stringify({ name, secondname, phone, city, region, poshta, idstatus })
+                    body: JSON.stringify({ id, name, secondname, phone, city, region, poshta, idstatus })
                 })
                     .then(async res => {
                         const payload = await res.json().catch(() => ({}));
@@ -555,13 +608,26 @@
                     })
                     .then(user => {
                         client1Id.value = user.id;
+                        client1Id.dataset.name = user.name || '';
+                        client1Id.dataset.secondname = user.secondname || '';
+                        client1Id.dataset.phone = user.phone || '';
+                        client1Id.dataset.city = user.city || '';
+                        client1Id.dataset.region = user.region || '';
+                        client1Id.dataset.poshta = user.poshta || '';
+                        client1Id.dataset.status = user.idstatus || '';
+                        
+                        editClientBtn.style.display = 'inline-block';
+                        
                         clientDetails.className = 'alert alert-secondary py-1 mt-1';
                         clientDetails.style.background = '#f8f9fa';
                         clientDetails.style.border = '1px solid #ddd';
                         clientDetails.style.fontSize = '0.85rem';
                         const regionPart = user.region ? user.region + ' | ' : '';
                         const poshtaPart = user.poshta ? ' | ' + user.poshta : '';
-                        clientDetails.innerHTML = `<strong>${user.secondname || ''} ${user.name || ''}</strong><br>${user.phone || ''} | ${regionPart}${user.city || ''}${poshtaPart}`;
+                        const orgnamePart = user.orgname ? `<strong>${user.orgname}</strong> | ` : '';
+                        const name2Part = user.name2 ? user.name2 + ' ' : '';
+                        clientDetails.innerHTML = `${orgnamePart}${name2Part}${user.name || ''} ${user.secondname || ''} <br> ${user.phone || ''} | ${regionPart}${user.city || ''}${poshtaPart}`;
+                        
                         const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
                         modal.hide();
                         nameField.value = '';
