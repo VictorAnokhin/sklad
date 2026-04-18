@@ -85,12 +85,10 @@
     </form>
     @else
     <div id="mobile-public-links">
-      @if(!request()->routeIs('login', 'register'))
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('micro-business') }}">Для микро-бизнеса</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('individuals') }}">Для физических лиц</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('about') }}">О проекте</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('wallet') }}">Web3</a>
-      @endif
       <a class="header-nav-menu__link" href="{{ route('login') }}">Войти</a>
       <a class="header-nav-menu__link" href="{{ route('register') }}">Регистрация</a>
     </div>
