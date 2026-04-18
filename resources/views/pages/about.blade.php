@@ -89,5 +89,29 @@
             </div>
         </div>
     </div>
+
+    @if(isset($projects) && $projects->isNotEmpty())
+    <div class="row mt-5 pt-4" style="border-top: 1px solid rgba(255,255,255,0.05);">
+        <div class="col-12 mb-4">
+            <h3 class="mb-4 text-center" style="color: #fbbf24; font-weight: 700;">Проекты</h3>
+        </div>
+        
+        @foreach($projects as $project)
+        <div class="col-md-6 mb-4">
+            <div class="hover-feature" style="background: rgba(255,255,255,0.02); height: 100%;">
+                <h4 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="color: #fbbf24; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: #fbbf24;"></span>
+                    {{ $project->name }}
+                </h4>
+                @if($project->description)
+                <p style="color: rgba(255, 255, 255, 0.65); font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">
+                    {!! nl2br(e($project->description)) !!}
+                </p>
+                @endif
+            </div>
+        </div>
+        @endforeach
+    </div>
+    @endif
 </div>
 @endsection

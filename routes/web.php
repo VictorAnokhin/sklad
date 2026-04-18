@@ -46,7 +46,12 @@ Route::get('/language/current', [LanguageController::class, 'current'])->name('l
 // ── Public Pages ──────────────────────────────────────────────────────────────
 Route::view('/', 'pages.micro_business')->name('micro-business');
 Route::view('/individuals', 'pages.individuals')->name('individuals');
-Route::view('/about', 'pages.about')->name('about');
+Route::get('/about', function () {
+    $projects = \Illuminate\Support\Facades\Schema::hasTable('project') 
+        ? \App\Models\Project::orderBy('num')->orderBy('name')->get() 
+        : collect();
+    return view('pages.about', compact('projects'));
+})->name('about');
 Route::view('/wallet', 'pages.wallet')->name('wallet');
 
 // ── Protected area ────────────────────────────────────────────────────────────

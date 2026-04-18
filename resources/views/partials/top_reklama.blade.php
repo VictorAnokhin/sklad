@@ -15,9 +15,12 @@
 
   @if(!session('name1'))
   <div class="header-public-links">
+    @if(!request()->routeIs('login', 'register'))
     <a href="{{ route('micro-business') }}" class="header-public-link">Для микро-бизнеса</a>
     <a href="{{ route('individuals') }}" class="header-public-link">Для физических лиц</a>
     <a href="{{ route('about') }}" class="header-public-link">О проекте</a>
+    <a href="{{ route('wallet') }}" class="header-public-link">Web3</a>
+    @endif
     <a href="{{ route('login') }}" class="header-public-link header-btn-login">Войти</a>
     <a href="{{ route('register') }}" class="header-public-link header-btn-register">Регистрация</a>
   </div>
@@ -77,6 +80,12 @@
         class="header-nav-menu__link">{{ __('nav.logout') }}</a>
     </form>
     @else
+    @if(!request()->routeIs('login', 'register'))
+    <a class="header-nav-menu__link mobile-only-link" href="{{ route('micro-business') }}">Для микро-бизнеса</a>
+    <a class="header-nav-menu__link mobile-only-link" href="{{ route('individuals') }}">Для физических лиц</a>
+    <a class="header-nav-menu__link mobile-only-link" href="{{ route('about') }}">О проекте</a>
+    <a class="header-nav-menu__link mobile-only-link" href="{{ route('wallet') }}">Web3</a>
+    @endif
     <a class="header-nav-menu__link" href="{{ route('login') }}">Войти</a>
     <a class="header-nav-menu__link" href="{{ route('register') }}">Регистрация</a>
     @endif
@@ -86,6 +95,10 @@
 <style>
   /* Desktop: project selector is compact and on the right */
   @media (min-width: 901px) {
+    .mobile-only-link {
+      display: none !important;
+    }
+
     .header-bar {
       flex-wrap: nowrap;
     }
@@ -170,16 +183,7 @@
     }
 
     .header-public-links {
-      display: flex;
-      gap: 0.75rem;
-      margin-left: 0.5rem;
-      margin-right: 0.5rem;
-      align-items: center;
-      overflow-x: auto;
-      white-space: nowrap;
-      flex: 1 1 auto;
-      scrollbar-width: none; /* Firefox */
-      -ms-overflow-style: none; /* IE/Edge */
+      display: none;
     }
 
     .header-public-links::-webkit-scrollbar {
