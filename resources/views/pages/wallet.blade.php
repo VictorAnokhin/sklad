@@ -56,8 +56,9 @@
             <p id="web3-status" class="web3-status text-center" style="display:none; margin-top: 0.5rem;"></p>
         </div>
     </div>
+</div>
 
-    <!-- Rabby-style Wallet UI (Hidden by default) -->
+<!-- Rabby-style Wallet UI (Hidden by default) -->
     <div id="wallet-connected" style="display: none; max-width: 420px; margin: 0 auto;">
         <div class="glass-card rabby-ui" style="border-radius: 20px; overflow: hidden; padding: 0; box-shadow: 0 15px 35px rgba(0,0,0,0.5);">
             <!-- Header: Address and Total Balance -->
