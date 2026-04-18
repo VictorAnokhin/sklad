@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ $currentBackendLocale ?? 'ru' }}">
+<html lang="{{ $currentBackendLocale ?? 'ru' }}" data-bs-theme="dark">
 
 <head>
     <meta charset="UTF-8">
@@ -10,7 +10,7 @@
         integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
 </head>
 
-<body>
+<body class="dark-theme">
     <div class="align_center">
         <div class="wrapper">
             <header>

@@ -3768,3 +3768,19 @@ small,
         line-height: 1.2;
     }
 }
+
+
+/* Modal Text Overrides */
+.dark-theme .modal-content, 
+.dark-theme .modal-body, 
+.dark-theme .modal-title, 
+.dark-theme .modal .form-label, 
+.dark-theme .modal p {
+    color: #ffffff !important;
+}
+.dark-theme .modal .text-muted {
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+.dark-theme .modal span:not(.text-dark) {
+    color: #ffffff;
+}

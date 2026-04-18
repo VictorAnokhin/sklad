@@ -216,7 +216,7 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'type' => 'required|string',
             'name' => 'required|string|max:255',
-            'color' => 'nullable|string|max:20',
+            'color' => 'nullable|string|max:255',
             'status' => 'nullable|string',
             'vision' => 'nullable|string',
             'doc' => 'nullable|string|max:100',
@@ -256,7 +256,7 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'type' => 'required|string',
             'name' => 'required|string|max:255',
-            'color' => 'nullable|string|max:20',
+            'color' => 'nullable|string|max:255',
             'status' => 'nullable|string',
             'vision' => 'nullable|string',
             'doc' => 'nullable|string|max:100',

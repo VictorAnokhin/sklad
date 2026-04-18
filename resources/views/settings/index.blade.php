@@ -16,7 +16,7 @@
 
     <div class="row g-4">
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalProjects">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalProjects">
                 <div class="card-body text-center">
                     <h5 class="card-title">📁 {{ __('settings.projects') }}</h5>
                     <p class="card-text text-muted">{{ __('settings.projects_desc') }}</p>
@@ -26,7 +26,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="status" data-title="📊 Статуси">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="status" data-title="📊 Статуси">
                 <div class="card-body text-center">
                     <h5 class="card-title">📊 Статуси</h5>
                     <p class="card-text text-muted">Статуси документів</p>
@@ -36,7 +36,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="reestr" data-title="💳 Види платежів">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="reestr" data-title="💳 Види платежів">
                 <div class="card-body text-center">
                     <h5 class="card-title">💳 Види платежів</h5>
                     <p class="card-text text-muted">Реєстр платежів</p>
@@ -46,7 +46,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tgroup" data-title="👥 Тип клієнта">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tgroup" data-title="👥 Тип клієнта">
                 <div class="card-body text-center">
                     <h5 class="card-title">👥 Тип клієнта</h5>
                     <p class="card-text text-muted">Типи клієнтів і цінові групи</p>
@@ -56,7 +56,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tclient" data-title="🏷 Тип контрагента">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tclient" data-title="🏷 Тип контрагента">
                 <div class="card-body text-center">
                     <h5 class="card-title">🏷 Тип контрагента</h5>
                     <p class="card-text text-muted">Ролі контрагентів і підрозділів</p>
@@ -66,7 +66,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="oplata" data-title="💰 Каса">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="oplata" data-title="💰 Каса">
                 <div class="card-body text-center">
                     <h5 class="card-title">💰 Каса</h5>
                     <p class="card-text text-muted">Види оплати</p>
@@ -76,7 +76,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="sklads" data-title="🏢 Офіси">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="sklads" data-title="🏢 Офіси">
                 <div class="card-body text-center">
                     <h5 class="card-title">🏢 Офіси</h5>
                     <p class="card-text text-muted">Список офісів</p>
@@ -86,7 +86,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="deposit" data-title="🏦 Депозити">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="deposit" data-title="🏦 Депозити">
                 <div class="card-body text-center">
                     <h5 class="card-title">🏦 Депозити</h5>
                     <p class="card-text text-muted">Депозитні рахунки</p>
@@ -96,7 +96,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog">
+            <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog">
                 <div class="card-body text-center">
                     <h5 class="card-title">🌐 {{ __('settings.languages_regions') }}</h5>
                     <p class="card-text text-muted">{{ __('settings.languages_regions_desc') }}</p>
@@ -107,7 +107,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 border-primary setting-card" data-bs-toggle="modal" data-bs-target="#modalProfile">
+            <div class="glass-card h-100 border-primary setting-card" data-bs-toggle="modal" data-bs-target="#modalProfile">
                 <div class="card-body text-center">
                     <h5 class="card-title">👤 Профіль</h5>
                     <p class="card-text text-muted">{{ session('login', '') }}</p>
@@ -116,7 +116,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 border-warning setting-card" data-bs-toggle="modal" data-bs-target="#modalFirms">
+            <div class="glass-card h-100 border-warning setting-card" data-bs-toggle="modal" data-bs-target="#modalFirms">
                 <div class="card-body text-center">
                     <h5 class="card-title">🏛 Мої компанії</h5>
                     <p class="card-text text-muted">Редагування, додавання та видалення компаній</p>
@@ -126,7 +126,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 border-danger setting-card" data-bs-toggle="modal" data-bs-target="#modalBanners">
+            <div class="glass-card h-100 border-danger setting-card" data-bs-toggle="modal" data-bs-target="#modalBanners">
                 <div class="card-body text-center">
                     <h5 class="card-title">🎞 Банерна карусель</h5>
                     <p class="card-text text-muted">Банери для першого екрана laravel-react</p>
@@ -136,7 +136,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 border-success setting-card" data-bs-toggle="modal" data-bs-target="#modalAccounts">
+            <div class="glass-card h-100 border-success setting-card" data-bs-toggle="modal" data-bs-target="#modalAccounts">
                 <div class="card-body text-center">
                     <h5 class="card-title">📚 План счетов</h5>
                     <p class="card-text text-muted">Счета и привязка к видам платежа</p>
@@ -146,7 +146,7 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalWeb3Tokens" style="border-color: #f3ba2f;">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalWeb3Tokens" style="border-color: #f3ba2f;">
                 <div class="card-body text-center">
                     <h5 class="card-title">🪙 Web3 Токены</h5>
                     <p class="card-text text-muted">Дополнительные токены (ERC-20)</p>
@@ -159,7 +159,7 @@
 
 <div class="modal fade" id="modalAccounts" tabindex="-1" aria-labelledby="modalAccountsLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
+        <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center">
                 <h5 class="modal-title" id="modalAccountsLabel">📚 План счетов</h5>
                 <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-account-add">+ Добавить счет</button>
@@ -254,7 +254,7 @@
 
 <div class="modal fade" id="modalWeb3Tokens" tabindex="-1" aria-labelledby="modalWeb3TokensLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
+        <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center">
                 <h5 class="modal-title" id="modalWeb3TokensLabel">🪙 Web3 Токены</h5>
                 <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-web3-add">+ Добавить токен</button>
@@ -337,7 +337,7 @@
 
 <div class="modal fade" id="modalCatalog" tabindex="-1" aria-labelledby="modalCatalogLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
+        <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center flex-wrap gap-2">
                 <div>
                     <h5 class="modal-title" id="modalCatalogLabel">🌐 {{ __('settings.languages_regions') }}</h5>
@@ -444,7 +444,7 @@
 
 <div class="modal fade" id="modalProjects" tabindex="-1" aria-labelledby="modalProjectsLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
+        <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center">
                 <h5 class="modal-title" id="modalProjectsLabel">📁 Проєкти</h5>
                 <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-project-add">+ Додати</button>
@@ -582,7 +582,7 @@
 
 <div class="modal fade" id="modalCrud" tabindex="-1" aria-labelledby="modalCrudLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
+        <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center">
                 <h5 class="modal-title" id="modalCrudLabel"></h5>
                 <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-add">+ Додати</button>
@@ -658,7 +658,7 @@
 
 <div class="modal fade" id="modalFirms" tabindex="-1" aria-labelledby="modalFirmsLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
+        <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center">
                 <h5 class="modal-title" id="modalFirmsLabel">🏛 Мої компанії</h5>
                 <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-firm-add">+ Додати компанію</button>
@@ -778,7 +778,7 @@
 
 <div class="modal fade" id="modalBanners" tabindex="-1" aria-labelledby="modalBannersLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
+        <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center">
                 <h5 class="modal-title" id="modalBannersLabel">🎞 Банерна карусель</h5>
                 <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-banner-add">+ Додати банер</button>
@@ -867,7 +867,7 @@
 
 <div class="modal fade" id="modalProfile" tabindex="-1" aria-labelledby="modalProfileLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content">
+        <div class="modal-content glass-card border-0">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalProfileLabel">👤 Дані зареєстрованого відвідувача</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
