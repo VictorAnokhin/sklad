@@ -347,6 +347,9 @@
   let currentWalletAddress = null;
   let currentWalletTokens = [];
 
+  const desktopPublicLinks = document.getElementById('desktop-public-links');
+  const mobilePublicLinks = document.getElementById('mobile-public-links');
+
   function updateWalletState(address) {
     if (address) {
       currentWalletAddress = address;
@@ -356,12 +359,16 @@
       document.getElementById('receive-address-display').textContent = address;
       
       if (topDisconnectBtn) {
-        topDisconnectBtn.style.display = 'block';
+        topDisconnectBtn.style.display = 'inline-flex';
         const addressSpan = document.getElementById('menu-wallet-address');
         if (addressSpan) {
             addressSpan.textContent = address.slice(-4);
         }
       }
+      
+      if (desktopPublicLinks) desktopPublicLinks.style.display = 'none';
+      if (mobilePublicLinks) mobilePublicLinks.style.display = 'none';
+
       showMainView();
       fetchBalances(address);
     } else {
@@ -372,6 +379,9 @@
       rabbyTokensList.innerHTML = '';
       currentWalletTokens = [];
       if (topDisconnectBtn) topDisconnectBtn.style.display = 'none';
+      
+      if (desktopPublicLinks) desktopPublicLinks.style.display = 'flex';
+      if (mobilePublicLinks) mobilePublicLinks.style.display = 'block';
     }
   }
 
