@@ -76,8 +76,9 @@
 
     <form method="POST" action="{{ route('logout') }}" id="logout-form">
       @csrf
+      <a href="#" id="menu-disconnect-wallet" class="header-nav-menu__link" style="display: none; color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px; margin: 0.25rem 1rem; padding: 0.25rem 0.5rem; text-align: center;">Выйти из кошелька</a>
       <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
-        class="header-nav-menu__link">{{ __('nav.logout') }}</a>
+        class="header-nav-menu__link" id="main-logout-btn">{{ __('nav.logout') }}</a>
     </form>
     @else
     @if(!request()->routeIs('login', 'register'))

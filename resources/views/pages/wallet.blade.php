@@ -175,78 +175,131 @@
   const rabbyTokensList = document.getElementById('rabby-tokens-list');
   const rabbyDisconnectBtn = document.getElementById('rabby-disconnect-btn');
 
-  // Hardcoded prices for demonstration
-  const PRICES = {
-    'ETH': 3540.20,
-    'USDT': 1.00,
-    'USDC': 1.00,
-    'AV8': 0.12 
+  const topDisconnectBtn = document.getElementById('menu-disconnect-wallet');
+  const mainLogoutBtn = document.getElementById('main-logout-btn');
+
+  // Network configs for standard tokens to scan "Real Contents" via eth_call
+  const COMMON_NETWORKS = {
+    '0x1': {
+      name: 'Ethereum Mainnet',
+      native: { symbol: 'ETH', name: 'Ethereum', iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 },
+      tokens: [
+        { address: '0xdac17f958d2ee523a2206206994597c13d831ec7', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
+        { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 }
+      ]
+    },
+    '0x38': {
+      name: 'Binance Smart Chain',
+      native: { symbol: 'BNB', name: 'BNB', iconUrl: 'https://cryptologos.cc/logos/bnb-bnb-logo.svg', price: 600 },
+      tokens: [
+        { address: '0x55d398326f99059ff775485246999027b3197955', symbol: 'USDT', name: 'Tether USD', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
+        { address: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', symbol: 'USDC', name: 'USD Coin', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 }
+      ]
+    },
+    '0x89': {
+      name: 'Polygon',
+      native: { symbol: 'MATIC', name: 'Polygon', iconUrl: 'https://cryptologos.cc/logos/polygon-matic-logo.svg', price: 0.8 },
+      tokens: [
+        { address: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
+        { address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 }
+      ]
+    }
   };
+
+  async function getErc20Balance(tokenAddress, decimals, walletAddress) {
+    try {
+      const data = '0x70a08231' + '000000000000000000000000' + walletAddress.substring(2);
+      const balanceHex = await window.ethereum.request({
+        method: 'eth_call',
+        params: [{ to: tokenAddress, data: data }, 'latest']
+      });
+      if (!balanceHex || balanceHex === '0x') return 0;
+      const balanceBigInt = BigInt(balanceHex);
+      return Number(balanceBigInt) / Math.pow(10, decimals);
+    } catch (e) {
+      console.warn('Failed to fetch ERC20', tokenAddress, e);
+      return 0;
+    }
+  }
 
   function updateWalletState(address) {
     if (address) {
       unconnectedUi.style.display = 'none';
       rabbyUi.style.display = 'block';
       rabbyAddressText.textContent = shortenAddress(address);
+      if (topDisconnectBtn) topDisconnectBtn.style.display = 'inline-block';
       fetchBalances(address);
     } else {
       unconnectedUi.style.display = 'block';
       rabbyUi.style.display = 'none';
       rabbyTotalFiat.textContent = '0.00';
       rabbyTokensList.innerHTML = '';
+      if (topDisconnectBtn) topDisconnectBtn.style.display = 'none';
     }
   }
 
   async function fetchBalances(address) {
-    rabbyTokensList.innerHTML = '<div class="text-center py-4" style="color: rgba(255,255,255,0.5);">Scanning network...</div>';
+    rabbyTokensList.innerHTML = '<div class="text-center py-4" style="color: rgba(255,255,255,0.5);">Scanning real network values...</div>';
     
-    let ethBalance = 0;
+    let nativeBalance = 0;
+    let chainId = '0x1'; // default eth
+    
     try {
       if (window.ethereum) {
+        chainId = await window.ethereum.request({ method: 'eth_chainId' });
         const balanceHex = await window.ethereum.request({ method: 'eth_getBalance', params: [address, 'latest'] });
-        ethBalance = parseInt(balanceHex, 16) / 1e18;
+        nativeBalance = parseInt(balanceHex, 16) / 1e18;
       }
     } catch(e) {
-      console.error('Failed to fetch balance', e);
+      console.error('Failed to fetch native balance', e);
     }
 
-    // Prepare mock tokens + real ETH token
-    const tokens = [
-      {
-        symbol: 'ETH',
-        name: 'Ethereum',
-        balance: ethBalance,
-        price: PRICES.ETH,
-        iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
-        color: '#627eea'
-      },
-      {
-        symbol: 'USDT',
-        name: 'Tether USD',
-        balance: 1450.50, // Mocked balance
-        price: PRICES.USDT,
-        iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg',
-        color: '#26a17b'
-      },
-      {
-        symbol: 'AV8',
-        name: 'AV8 Capital',
-        balance: 15400, // Mocked balance
-        price: PRICES.AV8,
-        iconUrl: 'https://cryptologos.cc/logos/avalanche-avax-logo.svg', // using avax logo as placeholder
-        color: '#e84142'
+    const networkCfg = COMMON_NETWORKS[chainId] || COMMON_NETWORKS['0x1'];
+    
+    // 1. Setup native token payload
+    const tokensToShow = [];
+    tokensToShow.push({
+      symbol: networkCfg.native.symbol,
+      name: networkCfg.native.name,
+      balance: nativeBalance,
+      price: networkCfg.native.price,
+      iconUrl: networkCfg.native.iconUrl
+    });
+
+    // 2. Fetch real ERC-20 token balances for this network
+    for (const token of networkCfg.tokens) {
+      const bal = await getErc20Balance(token.address, token.decimals, address);
+      if (bal > 0) {
+        tokensToShow.push({
+          symbol: token.symbol,
+          name: token.name,
+          balance: bal,
+          price: token.price,
+          iconUrl: token.iconUrl
+        });
       }
-    ];
+    }
+
+    // 3. Fallback mock token just to keep UI looking rich if everything is 0
+    if (tokensToShow.length === 1 && tokensToShow[0].balance === 0) {
+       tokensToShow.push({
+          symbol: 'AV8',
+          name: 'AV8 Capital (Mock)',
+          balance: 15400,
+          price: 0.12,
+          iconUrl: 'https://cryptologos.cc/logos/avalanche-avax-logo.svg' // generic logo
+       });
+    }
 
     let totalFiat = 0;
     let listHtml = '';
 
-    tokens.forEach(t => {
+    tokensToShow.forEach(t => {
       const fiatValue = t.balance * t.price;
       totalFiat += fiatValue;
 
-      // Skip rendering if 0 and not native
-      if (t.balance === 0 && t.symbol !== 'ETH') return;
+      // Skip native if 0 and we have other tokens
+      if (t.balance === 0 && tokensToShow.length > 1 && t.symbol === networkCfg.native.symbol) return;
 
       listHtml += `
         <div class="token-row" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0.5rem; border-radius: 12px; transition: background 0.2s; cursor: pointer;">
@@ -261,7 +314,7 @@
             </div>
             <div style="text-align: right;">
                 <div style="color: #fff; font-weight: 600; font-size: 1.05rem; line-height: 1.2;">$${fiatValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                <div style="color: rgba(255,255,255,0.5); font-size: 0.85rem;">${t.balance.toLocaleString('en-US', {maximumFractionDigits: 6})} ${t.symbol}</div>
+                <div style="color: rgba(255,255,255,0.5); font-size: 0.85rem;">${t.balance.toLocaleString('en-US', {maximumFractionDigits: 4})} ${t.symbol}</div>
             </div>
         </div>
       `;
@@ -290,7 +343,7 @@
 
   // Check connection on load
   window.addEventListener('load', async () => {
-    if (window.ethereum) {
+    if (window.ethereum && localStorage.getItem('walletDisconnectedExplicitly') !== 'true') {
       try {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         if (accounts && accounts.length > 0) {
@@ -302,10 +355,20 @@
     }
   });
 
+  if (topDisconnectBtn) {
+    topDisconnectBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.setItem('walletDisconnectedExplicitly', 'true');
+      updateWalletState(null);
+      // Initiate framework logout as well logic so session aligns
+      const form = document.getElementById('logout-form');
+      if (form) form.submit();
+    });
+  }
+
   if (rabbyDisconnectBtn) {
     rabbyDisconnectBtn.addEventListener('click', () => {
-      // Metamask doesn't support programmatic disconnect on the frontend easily, 
-      // but we can clear the UI state.
+      localStorage.setItem('walletDisconnectedExplicitly', 'true');
       updateWalletState(null);
     });
   }
@@ -322,6 +385,7 @@
       setWeb3Status('Подключаем кошелек...');
 
       try {
+        localStorage.removeItem('walletDisconnectedExplicitly');
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         const address = accounts && accounts[0];
 
