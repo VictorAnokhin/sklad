@@ -235,6 +235,11 @@
         { address: '0xdac17f958d2ee523a2206206994597c13d831ec7', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
         { address: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+      ],
+      defi: [
+        { address: '0x9bA00D6856a4eDF4665BcA2C2309936572473B7E', symbol: 'aUSDC', name: 'Aave interest bearing USDC', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
+        { address: '0x23878914EFE38d27C4D67Ab83ed1b93A74D4086a', symbol: 'aUSDT', name: 'Aave interest bearing USDT', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
+        { address: '0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8', symbol: 'aWETH', name: 'Aave interest bearing WETH', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 3500, protocol: 'Aave' }
       ]
     },
     '0x38': {
@@ -253,6 +258,11 @@
         { address: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
         { address: '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+      ],
+      defi: [
+        { address: '0x625E7708f30cA75bfd92586e17077590C60eb4cD', symbol: 'aUSDC', name: 'Aave Polygon USDC', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
+        { address: '0x6ab707Aca953eDAeFBc4fD23bA73294241490620', symbol: 'aUSDT', name: 'Aave Polygon USDT', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
+        { address: '0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8', symbol: 'aWETH', name: 'Aave Polygon WETH', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 3500, protocol: 'Aave' }
       ]
     },
     '0xa4b1': {
@@ -262,6 +272,12 @@
         { address: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
         { address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+      ],
+      defi: [
+        { address: '0x625E7708f30cA75bfd92586e17077590C60eb4cD', symbol: 'aUSDC', name: 'Aave Arbitrum USDC', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
+        { address: '0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8', symbol: 'aWETH', name: 'Aave Arbitrum WETH', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 3500, protocol: 'Aave' },
+        { address: '0x1aDDD80E6039594eE970E5872D247bf0414C8903', symbol: 'fsGLP', name: 'Fee Staked GLP', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/gmx-gmx-logo.svg', price: 0.9, protocol: 'GMX' },
+        { address: '0x908C4D94D34924765f1eDc22A1DD098397c59dD4', symbol: 'sGMX', name: 'Staked GMX', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/gmx-gmx-logo.svg', price: 35.0, protocol: 'GMX' }
       ]
     },
     '0xa': {
@@ -271,6 +287,10 @@
         { address: '0x94b008aa00579c1307b0ef2c499ad98a8ce58e58', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
         { address: '0x68f180fcCe6836688e9084f035309E29Bf0A2095', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+      ],
+      defi: [
+        { address: '0x625e7708f30ca75bfd92586e17077590c60eb4cd', symbol: 'aUSDC', name: 'Aave Optimism USDC', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
+        { address: '0xe50fa9b3c56ffb159cb0fca61f5c9d750e8128c8', symbol: 'aWETH', name: 'Aave Optimism WETH', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 3500, protocol: 'Aave' }
       ]
     },
     '0x2105': {
@@ -288,6 +308,11 @@
         { address: '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
         { address: '0x50b7545627a5162F82A992c33b87aDc75187B218', symbol: 'WBTC.e', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+      ],
+      defi: [
+        { address: '0x625e7708f30ca75bfd92586e17077590c60eb4cd', symbol: 'aUSDC', name: 'Aave Avalanche USDC', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
+        { address: '0xe50fa9b3c56ffb159cb0fca61f5c9d750e8128c8', symbol: 'aWAVAX', name: 'Aave Avalanche AVAX', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 35, protocol: 'Aave' },
+        { address: '0x01234181085565ed162a948b6a5e88758CD7c7b8', symbol: 'fsGLP', name: 'Fee Staked GLP', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/gmx-gmx-logo.svg', price: 0.9, protocol: 'GMX' }
       ]
     }
   };
@@ -535,7 +560,8 @@
     let totalFiat = 0;
     let listHtml = '';
     
-    currentWalletTokens = tokensToShow; // store globally for the Send dropdown
+    // Store globally for Send dropdown (omitting DeFi tokens so users don't accidentally send aTokens unless they mean to withdraw natively)
+    currentWalletTokens = tokensToShow;
 
     tokensToShow.forEach(t => {
       const fiatValue = t.balance * t.price;
@@ -565,7 +591,55 @@
 
     rabbyTokensList.innerHTML = listHtml;
     
-    // Animate counter for total fiat
+    // 4. Fetch DeFi tokens if configured
+    const defiPositions = [];
+    if (networkCfg.defi && networkCfg.defi.length > 0) {
+      for (const dToken of networkCfg.defi) {
+        const bal = await getErc20Balance(dToken.address, dToken.decimals, address);
+        if (bal > 0) {
+          defiPositions.push({
+            ...dToken,
+            balance: bal
+          });
+        }
+      }
+    }
+    
+    // Append DeFi Positions UI
+    if (defiPositions.length > 0) {
+      let defiHtml = `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 0.5rem 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 0.5rem;">
+            <h4 style="font-size: 1.05rem; color: rgba(255,255,255,0.9); font-weight: 600; margin: 0;">DeFi Positions & Yield</h4>
+        </div>
+      `;
+      
+      defiPositions.forEach(dt => {
+        const fiatValue = dt.balance * dt.price;
+        totalFiat += fiatValue;
+        
+        defiHtml += `
+          <div class="token-row" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0.5rem; border-radius: 12px; transition: background 0.2s; cursor: pointer; background: rgba(255,255,255,0.02); margin-bottom: 0.5rem;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 36px; height: 36px; border-radius: 50%; background: #1a1a1a; padding: 4px; display: flex; justify-content: center; align-items: center; position: relative;">
+                      <img src="${dt.iconUrl}" alt="${dt.protocol}" style="max-width: 100%; max-height: 100%; border-radius: 50%;">
+                      <div style="position: absolute; bottom: -4px; right: -4px; background: #fbbf24; color: #111; font-size: 0.6rem; font-weight: bold; border-radius: 4px; padding: 1px 3px;">${dt.protocol}</div>
+                  </div>
+                  <div>
+                      <div style="color: #fff; font-weight: 600; font-size: 1.05rem; line-height: 1.2;">${dt.symbol}</div>
+                      <div style="color: rgba(255,255,255,0.5); font-size: 0.85rem;">Deposited / Yielding</div>
+                  </div>
+              </div>
+              <div style="text-align: right;">
+                  <div style="color: #4ade80; font-weight: 600; font-size: 1.05rem; line-height: 1.2;">$${fiatValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                  <div style="color: rgba(255,255,255,0.5); font-size: 0.85rem;">${dt.balance.toLocaleString('en-US', {maximumFractionDigits: 4})} ${dt.symbol}</div>
+              </div>
+          </div>
+        `;
+      });
+      rabbyTokensList.insertAdjacentHTML('beforeend', defiHtml);
+    }
+    
+    // Animate counter for total fiat include DeFi
     let startTimestamp = null;
     const duration = 1000;
     const finalValue = totalFiat;
