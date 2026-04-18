@@ -64,6 +64,9 @@ class SettingsController extends Controller
         // Депозиты — conf where type='deposit'
         $deposits = DB::table('conf')->where('type', 'deposit')->where('firma', $fid)->orderBy('name')->get();
 
+        // Пользовательские Web3 Токены
+        $web3Tokens = DB::table('conf')->where('type', 'web3_token')->where('firma', $fid)->orderBy('name')->get();
+
         $myCompanies = collect();
         if ($user) {
             $myCompanies = $this->companiesQuery($user)->orderBy('id')->get();
@@ -108,7 +111,7 @@ class SettingsController extends Controller
 
         $fieldTranslationsCount = $fieldCatalogTopCount + $fieldCityCount;
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'web3Tokens', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount')));
     }
 
     public function show(Request $request)
@@ -217,6 +220,7 @@ class SettingsController extends Controller
             'status' => 'nullable|string',
             'vision' => 'nullable|string',
             'doc' => 'nullable|string|max:100',
+            'constanta' => 'nullable|string|max:255',
         ]);
 
         $data = [
@@ -226,14 +230,16 @@ class SettingsController extends Controller
             'status'  => $validated['status'] ?? '1',
             'vision'  => $validated['vision'] ?? '1',
             'hide'    => '0',
-            'constanta' => '0',
+            'constanta' => $validated['constanta'] ?? '0',
             'firma'   => $fid,
         ];
 
         if (Schema::hasColumn('conf', 'doc')) {
-            $data['doc'] = $validated['type'] === 'reestr'
-                ? Conf::normalizePaymentDocFlags($validated['doc'] ?? '')
-                : '';
+            if ($validated['type'] === 'reestr') {
+                $data['doc'] = Conf::normalizePaymentDocFlags($validated['doc'] ?? '');
+            } else {
+                $data['doc'] = $validated['doc'] ?? '';
+            }
         }
 
         $id = DB::table('conf')->insertGetId($data);
@@ -254,6 +260,7 @@ class SettingsController extends Controller
             'status' => 'nullable|string',
             'vision' => 'nullable|string',
             'doc' => 'nullable|string|max:100',
+            'constanta' => 'nullable|string|max:255',
         ]);
 
         $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
@@ -266,11 +273,17 @@ class SettingsController extends Controller
             'status' => $validated['status'] ?? '1',
             'vision' => $validated['vision'] ?? '1',
         ];
+        
+        if (array_key_exists('constanta', $validated)) {
+            $update['constanta'] = $validated['constanta'];
+        }
 
         if (Schema::hasColumn('conf', 'doc')) {
-            $update['doc'] = $validated['type'] === 'reestr'
-                ? Conf::normalizePaymentDocFlags($validated['doc'] ?? '')
-                : '';
+            if ($validated['type'] === 'reestr') {
+                $update['doc'] = Conf::normalizePaymentDocFlags($validated['doc'] ?? '');
+            } else {
+                $update['doc'] = $validated['doc'] ?? '';
+            }
         }
 
         DB::table('conf')->where('id', $id)->update($update);

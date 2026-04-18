@@ -52,7 +52,10 @@ Route::get('/about', function () {
         : collect();
     return view('pages.about', compact('projects'));
 })->name('about');
-Route::view('/wallet', 'pages.wallet')->name('wallet');
+Route::get('/wallet', function () {
+    $web3Tokens = \Illuminate\Support\Facades\DB::table('conf')->where('type', 'web3_token')->get();
+    return view('pages.wallet', compact('web3Tokens'));
+})->name('wallet');
 
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {

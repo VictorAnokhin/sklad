@@ -144,6 +144,16 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalWeb3Tokens" style="border-color: #f3ba2f;">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🪙 Web3 Токены</h5>
+                    <p class="card-text text-muted">Дополнительные токены (ERC-20)</p>
+                    <span class="badge" style="background:#f3ba2f; color:#000;" id="badge-web3-tokens">{{ count($web3Tokens ?? []) }}</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -237,6 +247,89 @@
                         <p class="text-center text-muted" id="payment-bindings-empty-msg" style="display:none">Видов платежа пока нет</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalWeb3Tokens" tabindex="-1" aria-labelledby="modalWeb3TokensLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header d-flex align-items-center">
+                <h5 class="modal-title" id="modalWeb3TokensLabel">🪙 Web3 Токены</h5>
+                <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-web3-add">+ Добавить токен</button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body" id="web3-form-area" style="display:none">
+                <form id="web3-form">
+                    <input type="hidden" id="web3-id" value="">
+                    <input type="hidden" id="web3-cgid" value="">
+                    
+                    <div class="mb-3 position-relative">
+                        <label class="form-label text-warning">🔍 Поиск по CoinGecko (Автозаполнение)</label>
+                        <input type="text" class="form-control" autocomplete="off" id="web3-cg-search" placeholder="Введите название или тикер, например: USDT">
+                        <ul class="list-group position-absolute w-100 shadow" id="web3-cg-results" style="z-index: 1000; max-height: 300px; overflow-y: auto; display: none;"></ul>
+                    </div>
+                    <hr>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Тикер (Символ) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="web3-symbol" placeholder="USDT" required>
+                            <div class="form-text">Например: USDC, UNI, PEPE</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Полное название</label>
+                            <input type="text" class="form-control" id="web3-name" placeholder="Tether USD">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Смарт-контракт (Address) <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="web3-address" placeholder="0x..." required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Chain ID (Сеть) <span class="text-danger">*</span></label>
+                            <select class="form-select" id="web3-chain" required>
+                                <option value="0x1">Ethereum Mainnet (0x1)</option>
+                                <option value="0x38">BNB Smart Chain (0x38)</option>
+                                <option value="0x89">Polygon (0x89)</option>
+                                <option value="0xa4b1">Arbitrum One (0xa4b1)</option>
+                                <option value="0x2105">Base (0x2105)</option>
+                                <option value="0xa">Optimism (0xa)</option>
+                                <option value="0xa86a">Avalanche C-Chain (0xa86a)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Decimals <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="web3-decimals" value="18" required>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">💾 Сохранить</button>
+                        <button type="button" class="btn btn-secondary" id="btn-web3-cancel">Отмена</button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-body" id="web3-list-area">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Сеть</th>
+                                <th>Тикер</th>
+                                <th>Контракт</th>
+                                <th>Decimals</th>
+                                <th class="text-end">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="web3-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-muted" id="web3-empty-msg" style="display:none">Пользовательских токенов нет</p>
             </div>
         </div>
     </div>
@@ -1114,6 +1207,261 @@ document.addEventListener('DOMContentLoaded', () => {
     initBannerCrud(csrf);
     initAccountsCrud(csrf);
     initWalletLink(csrf);
+    initWeb3TokenCrud(csrf);
+
+
+    function initWeb3TokenCrud(csrfToken) {
+        const modal = document.getElementById('modalWeb3Tokens');
+        const listArea = document.getElementById('web3-list-area');
+        const formArea = document.getElementById('web3-form-area');
+        const tbody = document.getElementById('web3-tbody');
+        const emptyMsg = document.getElementById('web3-empty-msg');
+        const form = document.getElementById('web3-form');
+        const addBtn = document.getElementById('btn-web3-add');
+        const cancelBtn = document.getElementById('btn-web3-cancel');
+        const searchInput = document.getElementById('web3-cg-search');
+        const resultsList = document.getElementById('web3-cg-results');
+        const chainSelect = document.getElementById('web3-chain');
+        
+        let cgSearchTimeout = null;
+        let currentCgPlatforms = null;
+
+        modal.addEventListener('show.bs.modal', () => {
+            hideWeb3Form();
+            loadWeb3Tokens();
+        });
+
+        addBtn.addEventListener('click', () => {
+            resetWeb3Form();
+            showWeb3Form();
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            hideWeb3Form();
+            resetWeb3Form();
+        });
+
+        // CoinGecko autocomplete
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            if (query.length < 2) {
+                resultsList.style.display = 'none';
+                return;
+            }
+            clearTimeout(cgSearchTimeout);
+            cgSearchTimeout = setTimeout(() => {
+                fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        resultsList.innerHTML = '';
+                        if (!data.coins || !data.coins.length) {
+                            resultsList.style.display = 'none';
+                            return;
+                        }
+                        data.coins.slice(0, 10).forEach(coin => {
+                            const li = document.createElement('li');
+                            li.className = 'list-group-item list-group-item-action d-flex align-items-center cursor-pointer';
+                            li.style.cursor = 'pointer';
+                            li.innerHTML = `<img src="${coin.thumb}" class="me-2 rounded-circle" width="20" height="20"> <strong>${coin.symbol}</strong> <span class="ms-2 text-muted text-truncate" style="max-width: 150px;">${coin.name}</span>`;
+                            li.addEventListener('click', () => selectCgCoin(coin));
+                            resultsList.appendChild(li);
+                        });
+                        resultsList.style.display = 'block';
+                    });
+            }, 400);
+        });
+
+        // Click outside closes search
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !resultsList.contains(e.target)) {
+                resultsList.style.display = 'none';
+            }
+        });
+
+        chainSelect.addEventListener('change', () => {
+            if (currentCgPlatforms) {
+                const chainId = chainSelect.value;
+                const platformMap = {
+                    '0x1': 'ethereum',
+                    '0x38': 'binance-smart-chain',
+                    '0x89': 'polygon-pos',
+                    '0xa4b1': 'arbitrum-one',
+                    '0x2105': 'base',
+                    '0xa': 'optimistic-ethereum',
+                    '0xa86a': 'avalanche'
+                };
+                const cgPlatformName = platformMap[chainId];
+                if (cgPlatformName && currentCgPlatforms[cgPlatformName]) {
+                    const platformDetails = currentCgPlatforms[cgPlatformName];
+                    document.getElementById('web3-address').value = platformDetails.contract_address || '';
+                    document.getElementById('web3-decimals').value = platformDetails.decimal_place || '18';
+                }
+            }
+        });
+
+        function selectCgCoin(coin) {
+            searchInput.value = coin.name;
+            resultsList.style.display = 'none';
+            
+            // Set basic info
+            document.getElementById('web3-cgid').value = coin.id;
+            document.getElementById('web3-symbol').value = (coin.symbol || '').toUpperCase();
+            document.getElementById('web3-name').value = coin.name || '';
+            
+            // Fetch detailed coin info
+            fetch(`https://api.coingecko.com/api/v3/coins/${coin.id}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.detail_platforms) {
+                        currentCgPlatforms = data.detail_platforms;
+                        // Fire change event to auto-fill the contract details for current selected chain
+                        chainSelect.dispatchEvent(new Event('change'));
+                    }
+                })
+                .catch(() => alert('Ошибка загрузки данных контрактов из CoinGecko'));
+        }
+
+        tbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('.action-btn');
+            if (!btn) return;
+            const id = btn.dataset.id;
+            if (btn.dataset.action === 'edit') editWeb3Token(id);
+            if (btn.dataset.action === 'delete') deleteWeb3Token(id, btn);
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('web3-id').value;
+            const payload = {
+                type: 'web3_token',
+                name: document.getElementById('web3-symbol').value.trim(),
+                doc: document.getElementById('web3-name').value.trim(),
+                color: document.getElementById('web3-address').value.trim(),
+                status: document.getElementById('web3-decimals').value.trim(),
+                vision: document.getElementById('web3-chain').value,
+                constanta: document.getElementById('web3-cgid').value.trim()
+            };
+
+            const url = id ? `/settings/api/${id}` : '/settings/api';
+            const method = id ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    alert(data.message || 'Ошибка');
+                    return;
+                }
+                hideWeb3Form();
+                resetWeb3Form();
+                loadWeb3Tokens();
+            })
+            .catch(() => alert('Ошибка сети'));
+        });
+
+        function loadWeb3Tokens() {
+            fetch('/settings/api/web3_token')
+                .then(r => r.json())
+                .then(items => {
+                    renderWeb3Tokens(items);
+                    const badge = document.getElementById('badge-web3-tokens');
+                    if (badge) badge.textContent = items.length;
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Ошибка загрузки токенов</td></tr>';
+                });
+        }
+
+        function getChainName(chainId) {
+            const strings = {
+                '0x1': 'Ethereum',
+                '0x38': 'BSC',
+                '0x89': 'Polygon',
+                '0xa4b1': 'Arbitrum',
+                '0x2105': 'Base',
+                '0xa': 'Optimism',
+                '0xa86a': 'Avalanche'
+            };
+            return strings[chainId] || chainId;
+        }
+
+        function renderWeb3Tokens(items) {
+            tbody.innerHTML = '';
+            if (!items.length) {
+                emptyMsg.style.display = 'block';
+                return;
+            }
+            emptyMsg.style.display = 'none';
+            items.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(getChainName(item.vision))}</td>
+                    <td><strong>${escapeHtml(item.name)}</strong><br><small class="text-muted">${escapeHtml(item.doc || '')}</small></td>
+                    <td><code>${escapeHtml(item.color)}</code></td>
+                    <td>${escapeHtml(item.status || '18')}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
+                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function editWeb3Token(id) {
+            fetch(`/settings/api/web3_token/${id}`)
+                .then(r => r.json())
+                .then(item => {
+                    document.getElementById('web3-id').value = item.id;
+                    document.getElementById('web3-cgid').value = item.constanta || '';
+                    document.getElementById('web3-symbol').value = item.name || '';
+                    document.getElementById('web3-name').value = item.doc || '';
+                    document.getElementById('web3-address').value = item.color || '';
+                    document.getElementById('web3-decimals').value = item.status || '18';
+                    document.getElementById('web3-chain').value = item.vision || '0x1';
+                    searchInput.value = '';
+                    currentCgPlatforms = null;
+                    showWeb3Form();
+                })
+                .catch(() => alert('Ошибка загрузки'));
+        }
+
+        function deleteWeb3Token(id, btn) {
+            if (!confirm('Удалить этот токен?')) return;
+            fetch(`/settings/api/${id}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': csrfToken }
+            }).then(r => r.json()).then(data => {
+                if(data.success) {
+                    btn.closest('tr').remove();
+                    loadWeb3Tokens();
+                }
+            });
+        }
+
+        function resetWeb3Form() {
+            form.reset();
+            document.getElementById('web3-id').value = '';
+            document.getElementById('web3-chain').value = '0x1';
+        }
+
+        function showWeb3Form() {
+            formArea.style.display = 'block';
+            listArea.style.display = 'none';
+        }
+
+        function hideWeb3Form() {
+            formArea.style.display = 'none';
+            listArea.style.display = 'block';
+        }
+    }
 
     function initProjectsCrud(csrfToken) {
         const modal = document.getElementById('modalProjects');
