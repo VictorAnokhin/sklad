@@ -1379,6 +1379,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         }
 
+        function normalizeChainId(value) {
+            if (value === null || value === undefined) return null;
+
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                return '0x' + value.toString(16);
+            }
+
+            if (typeof value !== 'string') return null;
+            const raw = value.trim().toLowerCase();
+            if (!raw) return null;
+
+            if (raw.startsWith('0x')) {
+                const n = parseInt(raw, 16);
+                return Number.isFinite(n) ? ('0x' + n.toString(16)) : null;
+            }
+
+            if (/^\d+$/.test(raw)) {
+                const n = parseInt(raw, 10);
+                return Number.isFinite(n) ? ('0x' + n.toString(16)) : null;
+            }
+
+            if (/^[0-9a-f]+$/.test(raw)) {
+                const n = parseInt(raw, 16);
+                return Number.isFinite(n) ? ('0x' + n.toString(16)) : null;
+            }
+
+            return null;
+        }
+
         function getChainName(chainId) {
             const strings = {
                 '0x1': 'Ethereum',
@@ -1389,7 +1418,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 '0xa': 'Optimism',
                 '0xa86a': 'Avalanche'
             };
-            return strings[chainId] || chainId;
+            const normalized = normalizeChainId(chainId) || chainId;
+            return strings[normalized] || normalized;
         }
 
         function renderWeb3Tokens(items) {
@@ -1425,7 +1455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('web3-name').value = item.doc || '';
                     document.getElementById('web3-address').value = item.color || '';
                     document.getElementById('web3-decimals').value = item.status || '18';
-                    document.getElementById('web3-chain').value = item.vision || '0x1';
+                    document.getElementById('web3-chain').value = normalizeChainId(item.vision) || '0x1';
                     searchInput.value = '';
                     currentCgPlatforms = null;
                     showWeb3Form();

@@ -265,20 +265,63 @@
     }
   };
 
+  function normalizeChainId(value) {
+    if (value === null || value === undefined) return null;
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return '0x' + value.toString(16);
+    }
+
+    if (typeof value !== 'string') return null;
+
+    const raw = value.trim().toLowerCase();
+    if (!raw) return null;
+
+    if (raw.startsWith('0x')) {
+      const n = parseInt(raw, 16);
+      if (Number.isFinite(n)) return '0x' + n.toString(16);
+      return null;
+    }
+
+    // "56" or "38" (decimal)
+    if (/^\d+$/.test(raw)) {
+      const n = parseInt(raw, 10);
+      if (Number.isFinite(n)) return '0x' + n.toString(16);
+      return null;
+    }
+
+    // "a4b1" (hex w/o 0x)
+    if (/^[0-9a-f]+$/.test(raw)) {
+      const n = parseInt(raw, 16);
+      if (Number.isFinite(n)) return '0x' + n.toString(16);
+      return null;
+    }
+
+    return null;
+  }
+
+  function isEvmAddress(value) {
+    if (typeof value !== 'string') return false;
+    return /^0x[0-9a-fA-F]{40}$/.test(value.trim());
+  }
+
   const dbTokens = {!! json_encode($web3Tokens ?? []) !!};
   dbTokens.forEach(t => {
-      const chainId = t.vision;
-      if (COMMON_NETWORKS[chainId]) {
-          COMMON_NETWORKS[chainId].tokens.push({
-              address: t.color,
-              symbol: t.name,
-              name: t.doc || t.name,
-              decimals: parseInt(t.status) || 18,
-              iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', // generic default icon
-              price: 0, // default to 0, updated by Coingecko later
-              cgId: (t.constanta && t.constanta !== '0') ? t.constanta : null
-          });
+      const chainId = normalizeChainId(t.vision);
+      const address = (typeof t.color === 'string') ? t.color.trim() : '';
+      if (!chainId || !COMMON_NETWORKS[chainId] || !isEvmAddress(address)) {
+          return;
       }
+
+      COMMON_NETWORKS[chainId].tokens.push({
+          address,
+          symbol: t.name,
+          name: t.doc || t.name,
+          decimals: parseInt(t.status) || 18,
+          iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', // generic default icon
+          price: 0, // default to 0, updated by Coingecko later
+          cgId: (t.constanta && t.constanta !== '0') ? t.constanta : null
+      });
   });
 
   // Collect Coingecko IDs
@@ -568,29 +611,18 @@
       iconUrl: networkCfg.native.iconUrl
     });
 
-    // 2. Fetch real ERC-20 token balances for this network
+    // 2. Fetch real ERC-20 token balances for this network (show configured tokens even if balance is 0)
     for (const token of networkCfg.tokens) {
       const bal = await getErc20Balance(token.address, token.decimals, address);
-      if (bal > 0) {
-        tokensToShow.push({
-          symbol: token.symbol,
-          name: token.name,
-          balance: bal,
-          price: token.price,
-          iconUrl: token.iconUrl
-        });
-      }
-    }
-
-    // 3. Fallback mock token just to keep UI looking rich if everything is 0
-    if (tokensToShow.length === 1 && tokensToShow[0].balance === 0) {
-       tokensToShow.push({
-          symbol: 'AV8',
-          name: 'AV8 Capital (Mock)',
-          balance: 15400,
-          price: 0.12,
-          iconUrl: 'https://cryptologos.cc/logos/avalanche-avax-logo.svg' // generic logo
-       });
+      tokensToShow.push({
+        symbol: token.symbol,
+        name: token.name,
+        balance: bal,
+        price: token.price,
+        iconUrl: token.iconUrl,
+        address: token.address,
+        decimals: token.decimals
+      });
     }
 
     let totalFiat = 0;

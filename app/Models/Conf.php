@@ -52,6 +52,74 @@ class Conf extends Model
         return $item;
     }
 
+    public static function normalizeWeb3ChainIdToHex(string|int|null $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return '0x' . dechex($value);
+        }
+
+        $raw = strtolower(trim((string) $value));
+        if ($raw === '') {
+            return null;
+        }
+
+        if (str_starts_with($raw, '0x')) {
+            $hex = substr($raw, 2);
+            if ($hex === '' || !ctype_xdigit($hex)) {
+                return null;
+            }
+            return '0x' . dechex((int) hexdec($hex));
+        }
+
+        if (ctype_digit($raw)) {
+            return '0x' . dechex((int) $raw);
+        }
+
+        if (ctype_xdigit($raw)) {
+            return '0x' . dechex((int) hexdec($raw));
+        }
+
+        return null;
+    }
+
+    public static function normalizeWeb3ChainIdToDecimalString(string|int|null $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        $raw = strtolower(trim((string) $value));
+        if ($raw === '') {
+            return null;
+        }
+
+        if (str_starts_with($raw, '0x')) {
+            $hex = substr($raw, 2);
+            if ($hex === '' || !ctype_xdigit($hex)) {
+                return null;
+            }
+            return (string) (int) hexdec($hex);
+        }
+
+        if (ctype_digit($raw)) {
+            return ltrim($raw, '0') === '' ? '0' : ltrim($raw, '0');
+        }
+
+        if (ctype_xdigit($raw)) {
+            return (string) (int) hexdec($raw);
+        }
+
+        return null;
+    }
+
     public static function paymentTypeAccountBinding(?string $paymentTypeId): array
     {
         $paymentTypeId = trim((string) $paymentTypeId);

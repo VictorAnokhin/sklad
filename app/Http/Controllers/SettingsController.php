@@ -223,12 +223,17 @@ class SettingsController extends Controller
             'constanta' => 'nullable|string|max:255',
         ]);
 
+        $vision = $validated['vision'] ?? '1';
+        if (($validated['type'] ?? '') === 'web3_token') {
+            $vision = Conf::normalizeWeb3ChainIdToDecimalString($vision) ?? $vision;
+        }
+
         $data = [
             'name'    => $validated['name'],
             'type'    => $validated['type'],
             'color'   => $validated['color'] ?? '',
             'status'  => $validated['status'] ?? '1',
-            'vision'  => $validated['vision'] ?? '1',
+            'vision'  => $vision,
             'hide'    => '0',
             'constanta' => $validated['constanta'] ?? '0',
             'firma'   => $fid,
@@ -266,12 +271,17 @@ class SettingsController extends Controller
         $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
 
+        $vision = $validated['vision'] ?? '1';
+        if (($validated['type'] ?? '') === 'web3_token') {
+            $vision = Conf::normalizeWeb3ChainIdToDecimalString($vision) ?? $vision;
+        }
+
         $update = [
             'name'   => $validated['name'],
             'type'   => $validated['type'],
             'color'  => $validated['color'] ?? '',
             'status' => $validated['status'] ?? '1',
-            'vision' => $validated['vision'] ?? '1',
+            'vision' => $vision,
         ];
         
         if (array_key_exists('constanta', $validated)) {
