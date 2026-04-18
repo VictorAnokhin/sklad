@@ -82,13 +82,13 @@
             <!-- Quick Actions -->
             <div class="rabby-actions" style="display: flex; justify-content: center; padding: 1.5rem 1rem; gap: 2rem; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.01);">
                 <div class="rabby-action-btn text-center">
-                    <button style="width: 52px; height: 52px; border-radius: 16px; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.2); color: #fbbf24; font-size: 1.4rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;">
+                    <button id="btn-show-send" style="width: 52px; height: 52px; border-radius: 16px; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.2); color: #fbbf24; font-size: 1.4rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
                     </button>
                     <div style="font-size: 0.85rem; margin-top: 0.5rem; color: rgba(255,255,255,0.7); font-weight: 500;">Send</div>
                 </div>
                 <div class="rabby-action-btn text-center">
-                    <button style="width: 52px; height: 52px; border-radius: 16px; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.2); color: #3b82f6; font-size: 1.4rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;">
+                    <button id="btn-show-receive" style="width: 52px; height: 52px; border-radius: 16px; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.2); color: #3b82f6; font-size: 1.4rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
                     </button>
                     <div style="font-size: 0.85rem; margin-top: 0.5rem; color: rgba(255,255,255,0.7); font-weight: 500;">Receive</div>
@@ -101,8 +101,8 @@
                 </div>
             </div>
 
-            <!-- Tokens List -->
-            <div class="rabby-tokens">
+            <!-- Tokens List View (Main) -->
+            <div id="wallet-main-view" class="rabby-tokens">
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem 0.75rem;">
                     <h4 style="font-size: 1.05rem; color: rgba(255,255,255,0.9); font-weight: 600; margin: 0;">Assets</h4>
                     <span style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">Native + Network</span>
@@ -114,6 +114,54 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Send Coins View -->
+            <div id="wallet-send-view" style="display:none; padding: 1.5rem; background: rgba(255,255,255,0.01);">
+                <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                    <button id="btn-back-from-send" style="background: none; border: none; color: #fbbf24; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; padding: 0;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                        Назад
+                    </button>
+                    <h4 style="margin: 0 auto; color: #fff; font-size: 1.1rem; transform: translateX(-20px);">Отправить</h4>
+                </div>
+                <div>
+                    <label style="color: rgba(255,255,255,0.7); font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">Адрес получателя</label>
+                    <input type="text" id="send-to-address" placeholder="0x..." style="width: 100%; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(0,0,0,0.2); color: #fff; padding: 10px 12px; margin-bottom: 1rem; outline: none; font-family: monospace;">
+                    
+                    <label style="color: rgba(255,255,255,0.7); font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">Выберите актив</label>
+                    <select id="send-token-select" style="width: 100%; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: #1a1a1a; color: #fff; padding: 10px 12px; margin-bottom: 1rem; outline: none; appearance: none; cursor: pointer;">
+                        <!-- Populated dynamically -->
+                    </select>
+
+                    <label style="color: rgba(255,255,255,0.7); font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">Сумма</label>
+                    <input type="number" id="send-amount" placeholder="0.0" step="any" min="0" style="width: 100%; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(0,0,0,0.2); color: #fff; padding: 10px 12px; margin-bottom: 1.5rem; outline: none; font-size: 1.1rem;">
+                    
+                    <button id="btn-submit-send" style="width: 100%; padding: 12px; border-radius: 8px; background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #111; border: none; font-weight: 600; font-size: 1.05rem; cursor: pointer; transition: transform 0.2s;">Одобрить транзакцию</button>
+                    <p id="send-status" class="text-center" style="margin-top: 1rem; font-size: 0.9rem;"></p>
+                </div>
+            </div>
+
+            <!-- Receive Coins View -->
+            <div id="wallet-receive-view" style="display:none; padding: 1.5rem; text-align: center; background: rgba(255,255,255,0.01);">
+                <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                    <button id="btn-back-from-receive" style="background: none; border: none; color: #3b82f6; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; padding: 0;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                        Назад
+                    </button>
+                    <h4 style="margin: 0 auto; color: #fff; font-size: 1.1rem; transform: translateX(-20px);">Получить</h4>
+                </div>
+                
+                <div style="background: #fff; padding: 1rem; border-radius: 12px; display: inline-block; margin-bottom: 1.5rem;">
+                    <!-- Placeholder for QR code icon as we don't have a specific library loaded -->
+                    <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M5 5v3h3V5H5zM16 5v3h3V5h-3zM5 16v3h3v-3H5z"></path></svg>
+                </div>
+                
+                <p style="color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-bottom: 0.5rem;">Ваш адрес в EVM-сетях:</p>
+                <div id="receive-address-display" style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.95rem; color: #fff; margin-bottom: 1rem; word-break: break-all;"></div>
+                
+                <button id="btn-copy-address" style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #3b82f6; border-radius: 8px; padding: 8px 16px; cursor: pointer; transition: all 0.2s;">Копировать адрес</button>
+            </div>
+            
         </div>
     </div>
 </div>
@@ -185,7 +233,8 @@
       native: { symbol: 'ETH', name: 'Ethereum', iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 },
       tokens: [
         { address: '0xdac17f958d2ee523a2206206994597c13d831ec7', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
-        { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 }
+        { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
+        { address: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
       ]
     },
     '0x38': {
@@ -193,7 +242,8 @@
       native: { symbol: 'BNB', name: 'BNB', iconUrl: 'https://cryptologos.cc/logos/bnb-bnb-logo.svg', price: 600 },
       tokens: [
         { address: '0x55d398326f99059ff775485246999027b3197955', symbol: 'USDT', name: 'Tether USD', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
-        { address: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', symbol: 'USDC', name: 'USD Coin', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 }
+        { address: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', symbol: 'USDC', name: 'USD Coin', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
+        { address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', symbol: 'BTCB', name: 'Bitcoin BEP2', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg', price: 65000 }
       ]
     },
     '0x89': {
@@ -201,7 +251,43 @@
       native: { symbol: 'MATIC', name: 'Polygon', iconUrl: 'https://cryptologos.cc/logos/polygon-matic-logo.svg', price: 0.8 },
       tokens: [
         { address: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
-        { address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 }
+        { address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
+        { address: '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+      ]
+    },
+    '0xa4b1': {
+      name: 'Arbitrum One',
+      native: { symbol: 'ETH', name: 'Ethereum', iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 },
+      tokens: [
+        { address: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
+        { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
+        { address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+      ]
+    },
+    '0xa': {
+      name: 'Optimism',
+      native: { symbol: 'ETH', name: 'Ethereum', iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 },
+      tokens: [
+        { address: '0x94b008aa00579c1307b0ef2c499ad98a8ce58e58', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
+        { address: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
+        { address: '0x68f180fcCe6836688e9084f035309E29Bf0A2095', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+      ]
+    },
+    '0x2105': {
+      name: 'Base',
+      native: { symbol: 'ETH', name: 'Ethereum', iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 },
+      tokens: [
+        { address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
+        { address: '0xcbB7C0000aB88B473b1f5aFd9ef80C728ef31AB0', symbol: 'cbBTC', name: 'Coinbase BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg', price: 65000 }
+      ]
+    },
+    '0xa86a': {
+      name: 'Avalanche C-Chain',
+      native: { symbol: 'AVAX', name: 'Avalanche', iconUrl: 'https://cryptologos.cc/logos/avalanche-avax-logo.svg', price: 35 },
+      tokens: [
+        { address: '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
+        { address: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
+        { address: '0x50b7545627a5162F82A992c33b87aDc75187B218', symbol: 'WBTC.e', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
       ]
     }
   };
@@ -222,11 +308,17 @@
     }
   }
 
+  let currentWalletAddress = null;
+  let currentWalletTokens = [];
+
   function updateWalletState(address) {
     if (address) {
+      currentWalletAddress = address;
       unconnectedUi.style.display = 'none';
       rabbyUi.style.display = 'block';
       rabbyAddressText.textContent = shortenAddress(address);
+      document.getElementById('receive-address-display').textContent = address;
+      
       if (topDisconnectBtn) {
         topDisconnectBtn.style.display = 'block';
         const addressSpan = document.getElementById('menu-wallet-address');
@@ -234,14 +326,157 @@
             addressSpan.textContent = address.slice(-4);
         }
       }
+      showMainView();
       fetchBalances(address);
     } else {
+      currentWalletAddress = null;
       unconnectedUi.style.display = 'block';
       rabbyUi.style.display = 'none';
       rabbyTotalFiat.textContent = '0.00';
       rabbyTokensList.innerHTML = '';
+      currentWalletTokens = [];
       if (topDisconnectBtn) topDisconnectBtn.style.display = 'none';
     }
+  }
+
+  const walletMainView = document.getElementById('wallet-main-view');
+  const walletSendView = document.getElementById('wallet-send-view');
+  const walletReceiveView = document.getElementById('wallet-receive-view');
+  const btnShowSend = document.getElementById('btn-show-send');
+  const btnShowReceive = document.getElementById('btn-show-receive');
+  const btnBackFromSend = document.getElementById('btn-back-from-send');
+  const btnBackFromReceive = document.getElementById('btn-back-from-receive');
+  const btnSubmitSend = document.getElementById('btn-submit-send');
+  const sendTokenSelect = document.getElementById('send-token-select');
+  const sendToAddress = document.getElementById('send-to-address');
+  const sendAmount = document.getElementById('send-amount');
+  const sendStatus = document.getElementById('send-status');
+
+  function showMainView() {
+    walletMainView.style.display = 'block';
+    walletSendView.style.display = 'none';
+    walletReceiveView.style.display = 'none';
+  }
+
+  function showSendView() {
+    walletMainView.style.display = 'none';
+    walletReceiveView.style.display = 'none';
+    walletSendView.style.display = 'block';
+    sendStatus.textContent = '';
+    
+    // Populate dropdown
+    sendTokenSelect.innerHTML = '';
+    currentWalletTokens.forEach((t, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${t.symbol} (Баланс: ${t.balance.toLocaleString('en-US', {maximumFractionDigits: 6})})`;
+      sendTokenSelect.appendChild(opt);
+    });
+  }
+
+  function showReceiveView() {
+    walletMainView.style.display = 'none';
+    walletSendView.style.display = 'none';
+    walletReceiveView.style.display = 'block';
+  }
+
+  if (btnShowSend) btnShowSend.addEventListener('click', showSendView);
+  if (btnShowReceive) btnShowReceive.addEventListener('click', showReceiveView);
+  if (btnBackFromSend) btnBackFromSend.addEventListener('click', showMainView);
+  if (btnBackFromReceive) btnBackFromReceive.addEventListener('click', showMainView);
+
+  document.getElementById('btn-copy-address')?.addEventListener('click', () => {
+    if (currentWalletAddress) {
+      navigator.clipboard.writeText(currentWalletAddress);
+      const btn = document.getElementById('btn-copy-address');
+      const old = btn.textContent;
+      btn.textContent = 'Скопировано!';
+      setTimeout(() => btn.textContent = old, 2000);
+    }
+  });
+
+  // Handle Send Transaction
+  if (btnSubmitSend) {
+    btnSubmitSend.addEventListener('click', async () => {
+      if (!window.ethereum || !currentWalletAddress) return;
+      const toAddr = sendToAddress.value.trim();
+      const amountVal = parseFloat(sendAmount.value);
+      const tokenIdx = parseInt(sendTokenSelect.value);
+      
+      if (!toAddr || !amountVal || isNaN(tokenIdx)) {
+        sendStatus.textContent = 'Заполните адрес и сумму корректно.';
+        sendStatus.style.color = '#ff8e8e';
+        return;
+      }
+      
+      const token = currentWalletTokens[tokenIdx];
+      
+      sendStatus.textContent = 'Ожидание подтверждения в кошельке...';
+      sendStatus.style.color = '#fbbf24';
+      btnSubmitSend.disabled = true;
+
+      try {
+        let txHash;
+        
+        // Native vs ERC20
+        // We know it's ERC20 if it has 'address' and 'decimals'
+        if (token.address && token.decimals !== undefined) {
+          // ERC20 Transfer
+          // Function selector for transfer(address,uint256) is 0xa9059cbb
+          // Pad address to 32 bytes (64 hex chars)
+          const toParam = '000000000000000000000000' + toAddr.toLowerCase().substring(2);
+          
+          // Calculate amount in lowest denomination using BigInt to prevent precision loss
+          // JS can't directly do Math.pow reliably for large uint256 strings
+          let amountStr;
+          try {
+             // Basic multiplier for JS safe integers up to decimals 18
+             // Using string manipulation or BigInt for real apps, simplified here:
+             const multiplier = 10 ** token.decimals;
+             const amountBigInt = BigInt(Math.floor(amountVal * multiplier));
+             amountStr = amountBigInt.toString(16).padStart(64, '0');
+          } catch(e) {
+             console.error("Amount conversion error", e);
+             throw new Error("Ошибка расчета суммы (слишком много нулей)");
+          }
+
+          const dataStr = '0xa9059cbb' + toParam + amountStr;
+
+          txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [{
+              from: currentWalletAddress,
+              to: token.address,
+              data: dataStr
+            }]
+          });
+
+        } else {
+          // Native Transfer
+          const amountWeiHex = '0x' + BigInt(Math.floor(amountVal * 1e18)).toString(16);
+          txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [{
+              from: currentWalletAddress,
+              to: toAddr,
+              value: amountWeiHex
+            }]
+          });
+        }
+        
+        sendStatus.textContent = 'Транзакция отправлена! Хэш: ' + shortenAddress(txHash);
+        sendStatus.style.color = '#b9fbc0';
+        sendToAddress.value = '';
+        sendAmount.value = '';
+        setTimeout(() => fetchBalances(currentWalletAddress), 5000); // refresh logic
+      } catch (err) {
+        console.error(err);
+        sendStatus.textContent = 'Ошибка: ' + (err.message || 'Транзакция отклонена');
+        sendStatus.style.color = '#ff8e8e';
+      } finally {
+        btnSubmitSend.disabled = false;
+      }
+    });
   }
 
   async function fetchBalances(address) {
@@ -299,6 +534,8 @@
 
     let totalFiat = 0;
     let listHtml = '';
+    
+    currentWalletTokens = tokensToShow; // store globally for the Send dropdown
 
     tokensToShow.forEach(t => {
       const fiatValue = t.balance * t.price;
