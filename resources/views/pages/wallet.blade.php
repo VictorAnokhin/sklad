@@ -234,7 +234,11 @@
       tokens: [
         { address: '0xdac17f958d2ee523a2206206994597c13d831ec7', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
-        { address: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+        { address: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 },
+        { address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 },
+        { address: '0x54d2252757e1672eead234d27b1270728ff90581', symbol: 'BGB', name: 'Bitget Token', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/bitget-token-bgb-logo.svg', price: 1.15 },
+        { address: '0xB8c77482e45F1F44dE1745F52C74426C631bDD52', symbol: 'BNB', name: 'BNB', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/bnb-bnb-logo.svg', price: 600 },
+        { address: '0x455e53C32B527d2B8eBB2b0F8CAde4EcbCda97E5', symbol: 'POL', name: 'Polygon Ecosystem Token', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/polygon-matic-logo.svg', price: 0.8 }
       ],
       defi: [
         { address: '0x9bA00D6856a4eDF4665BcA2C2309936572473B7E', symbol: 'aUSDC', name: 'Aave interest bearing USDC', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
@@ -248,16 +252,20 @@
       tokens: [
         { address: '0x55d398326f99059ff775485246999027b3197955', symbol: 'USDT', name: 'Tether USD', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', symbol: 'USDC', name: 'USD Coin', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
-        { address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', symbol: 'BTCB', name: 'Bitcoin BEP2', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg', price: 65000 }
+        { address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', symbol: 'BTCB', name: 'Bitcoin BEP2', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg', price: 65000 },
+        { address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 },
+        { address: '0xcc42724c6683b7e57334c4e856f4c9965ed682bd', symbol: 'POL', name: 'Polygon Ecosystem Token', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/polygon-matic-logo.svg', price: 0.8 }
       ]
     },
     '0x89': {
       name: 'Polygon',
-      native: { symbol: 'MATIC', name: 'Polygon', iconUrl: 'https://cryptologos.cc/logos/polygon-matic-logo.svg', price: 0.8 },
+      native: { symbol: 'POL', name: 'Polygon', iconUrl: 'https://cryptologos.cc/logos/polygon-matic-logo.svg', price: 0.8 },
       tokens: [
         { address: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
-        { address: '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+        { address: '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 },
+        { address: '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 },
+        { address: '0x8965349fb649a33a30cff112ca0ca1ce1fa6d028', symbol: 'BNB', name: 'BNB', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/bnb-bnb-logo.svg', price: 600 }
       ],
       defi: [
         { address: '0x625E7708f30cA75bfd92586e17077590C60eb4cD', symbol: 'aUSDC', name: 'Aave Polygon USDC', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
@@ -271,7 +279,8 @@
       tokens: [
         { address: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
-        { address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+        { address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f', symbol: 'WBTC', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 },
+        { address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 }
       ],
       defi: [
         { address: '0x625E7708f30cA75bfd92586e17077590C60eb4cD', symbol: 'aUSDC', name: 'Aave Arbitrum USDC', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
@@ -298,7 +307,8 @@
       native: { symbol: 'ETH', name: 'Ethereum', iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 },
       tokens: [
         { address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
-        { address: '0xcbB7C0000aB88B473b1f5aFd9ef80C728ef31AB0', symbol: 'cbBTC', name: 'Coinbase BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg', price: 65000 }
+        { address: '0xcbB7C0000aB88B473b1f5aFd9ef80C728ef31AB0', symbol: 'cbBTC', name: 'Coinbase BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg', price: 65000 },
+        { address: '0x4200000000000000000000000000000000000006', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 }
       ]
     },
     '0xa86a': {
@@ -307,7 +317,8 @@
       tokens: [
         { address: '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7', symbol: 'USDT', name: 'Tether USD', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.svg', price: 1.0 },
         { address: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E', symbol: 'USDC', name: 'USD Coin', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg', price: 1.0 },
-        { address: '0x50b7545627a5162F82A992c33b87aDc75187B218', symbol: 'WBTC.e', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 }
+        { address: '0x50b7545627a5162F82A992c33b87aDc75187B218', symbol: 'WBTC.e', name: 'Wrapped BTC', decimals: 8, iconUrl: 'https://cryptologos.cc/logos/wrapped-bitcoin-wbtc-logo.svg', price: 65000 },
+        { address: '0x49d5c2bdffac6ce2bf0813f43bba12f864af69c7', symbol: 'WETH.e', name: 'Wrapped Ether', decimals: 18, iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', price: 3500 }
       ],
       defi: [
         { address: '0x625e7708f30ca75bfd92586e17077590c60eb4cd', symbol: 'aUSDC', name: 'Aave Avalanche USDC', decimals: 6, iconUrl: 'https://cryptologos.cc/logos/aave-aave-logo.svg', price: 1.0, protocol: 'Aave' },
@@ -512,7 +523,12 @@
     
     try {
       if (window.ethereum) {
-        chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        let rawChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (typeof rawChainId === 'string') {
+          chainId = '0x' + parseInt(rawChainId, 16).toString(16);
+        } else if (typeof rawChainId === 'number') {
+          chainId = '0x' + rawChainId.toString(16);
+        }
         const balanceHex = await window.ethereum.request({ method: 'eth_getBalance', params: [address, 'latest'] });
         nativeBalance = parseInt(balanceHex, 16) / 1e18;
       }
