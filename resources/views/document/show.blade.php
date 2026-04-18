@@ -77,16 +77,16 @@
                     <div class="doc-form-row doc-form-row-three-cols">
                         <div class="col-f">
                             <label>Номер</label>
-                            <input type="text" name="num" class="form-control" value="{{ $document->num ?? '' }}"
+                            <input type="text" name="num" class="form-control text-white" value="{{ $document->num ?? '' }}"
                                 placeholder="Номер документа">
                         </div>
                         <div class="col-f">
                             <label>Дата</label>
-                            <input type="date" name="data" class="form-control" value="{{ $documentDateValue }}">
+                            <input type="date" name="data" class="form-control text-white" value="{{ $documentDateValue }}">
                         </div>
                         <div class="col-f">
                             <label>Время</label>
-                            <input type="time" name="time" class="form-control" value="{{ $document->time ?? '' }}">
+                            <input type="time" name="time" class="form-control text-white" value="{{ $document->time ?? '' }}">
                         </div>
                     </div>
 
@@ -94,7 +94,7 @@
                     @if(in_array($doc, ['RN', 'PN', 'WO1'], true))
                         <div class="doc-form-row-single">
                             <label>Склад</label>
-                            <select name="sklads" class="form-select">
+                            <select name="sklads" class="form-select text-white">
                                 <option value="">— Оберіть склад —</option>
                                 @foreach(($skladsList ?? collect()) as $skladOption)
                                     <option value="{{ $skladOption->id }}" {{ (string) ($document->sklads ?? '') === (string) $skladOption->id ? 'selected' : '' }}>
@@ -103,7 +103,7 @@
                                 @endforeach
                             </select>
                             @error('sklads')
-                                <div class="text-danger small mt-1">{{ $message }}</div>
+                                <div class="text-danger small mt-1 text-red">{{ $message }}</div>
                             @enderror
                         </div>
                     @endif
@@ -113,11 +113,11 @@
                         <div class="doc-form-row doc-form-row-two-cols">
                             <div class="col-f">
                                 <label>ТТН Нова Пошта</label>
-                                <input type="text" name="ttn" class="form-control" value="{{ $document->ttn ?? '' }}">
+                                <input type="text" name="ttn" class="form-control text-white" value="{{ $document->ttn ?? '' }}">
                             </div>
                             <div class="col-f">
                                 <label>Статус</label>
-                                <select name="status" class="form-select">
+                                <select name="status" class="form-select text-white">
                                     <option value="">— Оберіть статус —</option>
                                     <option value="0" {{ (string) $document->status === '0' ? 'selected' : '' }}>0 - Новий
                                     </option>
@@ -128,7 +128,7 @@
                                     @endforeach
                                 </select>
                                 @error('status')
-                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                    <div class="text-danger small mt-1 text-red">{{ $message }}</div>
                                 @enderror
                             </div>
                         </div>
@@ -139,7 +139,7 @@
                         <div class="doc-form-row doc-form-row-two-cols">
                             <div class="col-f">
                                 <label>Каса</label>
-                                <select name="oplata" class="form-select">
+                                <select name="oplata" class="form-select text-white">
                                     <option value="">— Оберіть касу —</option>
                                     @foreach(($oplataList ?? collect()) as $oplataOption)
                                         <option value="{{ $oplataOption->id }}" {{ (string) ($document->oplata ?? '') === (string) $oplataOption->id ? 'selected' : '' }}>
@@ -148,12 +148,12 @@
                                     @endforeach
                                 </select>
                                 @error('oplata')
-                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                    <div class="text-danger small mt-1 text-red">{{ $message }}</div>
                                 @enderror
                             </div>
                             <div class="col-f">
                                 <label>Вид платежу</label>
-                                <select name="reestr" class="form-select">
+                                <select name="reestr" class="form-select text-white">
                                     <option value="">— Оберіть вид платежу —</option>
                                     @foreach(($reestrList ?? collect()) as $reestrOption)
                                         <option value="{{ $reestrOption->id }}" {{ (string) ($document->reestr ?? '') === (string) $reestrOption->id ? 'selected' : '' }}>
@@ -162,7 +162,7 @@
                                     @endforeach
                                 </select>
                                 @error('reestr')
-                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                    <div class="text-danger small mt-1 text-red">{{ $message }}</div>
                                 @enderror
                             </div>
                         </div>
@@ -172,7 +172,7 @@
                     <div class="doc-form-row-single">
                         <label>Клієнт</label>
                         <div class="client-search-row d-flex gap-1">
-                            <input type="text" id="clientSearchInput" class="form-control flex-grow-1" placeholder="Пошук клієнта..."
+                            <input type="text" id="clientSearchInput" class="form-control flex-grow-1 text-white" placeholder="Пошук клієнта..."
                                 autocomplete="off">
                             <button type="button" id="editClientBtn" class="btn btn-outline-secondary text-white" data-bs-toggle="modal"
                                 data-bs-target="#newClientModal" style="{{ $client ? '' : 'display:none;' }}">Изменить</button>
@@ -202,7 +202,7 @@
                             @endif
                         </div>
                         @error('client1')
-                            <div class="text-danger small mt-1">{{ $message }}</div>
+                            <div class="text-danger small mt-1 text-red">{{ $message }}</div>
                         @enderror
                     </div>
 
@@ -211,13 +211,13 @@
                         @if(in_array($doc, ['PO', 'RO'], true))
                             <div class="col-f col-f-number">
                                 <label>Сума</label>
-                                <input type="text" name="summa" id="documentSummaInput" class="form-control form-control-number"
+                                <input type="text" name="summa" id="documentSummaInput" class="form-control form-control-number text-white"
                                     value="{{ $document->summa ?? 0 }}">
                             </div>
                         @endif
                         <div class="col-f col-f-number">
                             <label>Бонус</label>
-                            <input type="text" name="bonus" class="form-control form-control-number"
+                            <input type="text" name="bonus" class="form-control form-control-number text-white"
                                 value="{{ $document->bonus ?? 0 }}">
                         </div>
                     </div>
@@ -225,14 +225,14 @@
                     <!-- Row 4: Коментар -->
                     <div class="doc-form-row-comment">
                         <label>Коментар</label>
-                        <input type="text" name="content" class="form-control" value="{{ $document->content ?? '' }}">
+                        <input type="text" name="content" class="form-control text-white" value="{{ $document->content ?? '' }}">
                     </div>
 
                     <!-- Goods add — hidden for PO/RO (payment types) -->
                     @if(!in_array($doc, ['PO', 'RO'], true))
                         <div class="goods-search-container">
                             <div class="goods-search-row">
-                                <input type="text" id="goodsSearchInput" class="form-control" placeholder="Поиск товара..."
+                                <input type="text" id="goodsSearchInput" class="form-control text-white" placeholder="Поиск товара..."
                                     autocomplete="off">
                                 <button type="button" id="searchGoodsBtn"
                                     class="btn btn-outline-secondary btn-sm">Шукати</button>
@@ -243,7 +243,7 @@
 
                         <!-- Goods table -->
                         <h5 class="goods-title">Товари</h5>
-                        <table class="table table-bordered table-sm" id="goodsTable">
+                        <table class="table table-bordered table-sm " id="goodsTable">
                             <thead class="goods-table-header">
                                 <tr>
                                     <th class="goods-table-col-code">Код</th>
@@ -262,27 +262,27 @@
                                                 <input type="hidden" name="id[]" value="{{ $item->id }}">
                                                 <input type="hidden" name="pid[]" value="{{ $item->pid }}">
                                                 <input type="hidden" name="pnum[]" value="{{ $item->pnum }}">
-                                                <input type="text" class="form-control form-control-sm" value="{{ $item->pnum }}"
+                                                <input type="text" class="form-control form-control-sm text-white" value="{{ $item->pnum }}"
                                                     readonly>
                                             </td>
                                             <td>
                                                 <input type="hidden" name="name[]" value="{{ $item->name ?? '' }}">
-                                                <input type="text" class="form-control form-control-sm" value="{{ $item->name ?? '' }}"
+                                                <input type="text" class="form-control form-control-sm text-white" value="{{ $item->name ?? '' }}"
                                                     readonly>
                                             </td>
                                             <td>
                                                 <div class="input-group input-group-sm">
                                                     <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
                                                     <input type="text" step="1" name="pcount[]"
-                                                        class="form-control form-control-sm goods-count" value="{{ $item->pcount }}">
+                                                        class="form-control form-control-sm goods-count text-white" value="{{ $item->pcount }}">
                                                     <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                                 </div>
                                             </td>
                                             <td><input type="text" name="pprice[]"
-                                                    class="form-control form-control-sm goods-price text-end"
+                                                    class="form-control form-control-sm goods-price text-end text-white"
                                                     value="{{ $item->pprice }}"></td>
                                             <td><input type="text" name="psumma[]"
-                                                    class="form-control form-control-sm goods-sum text-end" value="{{ $item->psumma }}">
+                                                    class="form-control form-control-sm goods-sum text-end text-white" value="{{ $item->psumma }}">
                                             </td>
                                             <td class="text-center">
                                                 @if(intval($document->provodka) === 0)
@@ -296,7 +296,7 @@
                                     @endforeach
                                 @else
                                     <tr id="emptyGoodsRow">
-                                        <td colspan="6" class="text-center text-muted">Немає товарів</td>
+                                        <td colspan="6" class="text-center text-white">Немає товарів</td>
                                     </tr>
                                 @endif
                             </tbody>
@@ -307,7 +307,7 @@
                             <div class="doc-sum-box-inner">
                                 <label class="doc-sum-box-label">💰 Сума</label>
                                 <input type="text" name="summa" id="documentSummaInput"
-                                    class="form-control doc-sum-box-input text-end fs-6" value="{{ $document->summa ?? 0 }}">
+                                    class="form-control doc-sum-box-input text-end fs-6 text-white" value="{{ $document->summa ?? 0 }}">
                             </div>
                         </div>
 
@@ -391,37 +391,37 @@
                     <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label small mb-0">Ім'я</label>
-                            <input type="text" class="form-control form-control-sm" id="newClientName">
+                            <input type="text" class="form-control form-control-sm text-white" id="newClientName">
                         </div>
                         <div class="col-6">
                             <label class="form-label small mb-0">Прізвище</label>
-                            <input type="text" class="form-control form-control-sm" id="newClientSecondname">
+                            <input type="text" class="form-control form-control-sm text-white" id="newClientSecondname">
                         </div>
                     </div>
                     <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label small mb-0">Телефон</label>
-                            <input type="text" class="form-control form-control-sm" id="newClientPhone"
+                            <input type="text" class="form-control form-control-sm text-white" id="newClientPhone"
                                 placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                         </div>
                         <div class="col-6">
                             <label class="form-label small mb-0">Місто</label>
-                            <input type="text" class="form-control form-control-sm" id="newClientCity">
+                            <input type="text" class="form-control form-control-sm text-white" id="newClientCity">
                         </div>
                     </div>
                     <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label small mb-0">Область</label>
-                            <input type="text" class="form-control form-control-sm" id="newClientRegion">
+                            <input type="text" class="form-control form-control-sm text-white" id="newClientRegion">
                         </div>
                         <div class="col-6">
-                            <label class="form-label small mb-0">Отделение НП</label>
-                            <input type="text" class="form-control form-control-sm" id="newClientPoshta">
+                            <label class="form-label small mb-0">Отделение НP</label>
+                            <input type="text" class="form-control form-control-sm text-white" id="newClientPoshta">
                         </div>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small mb-0">Статус клієнта</label>
-                        <select class="form-select form-select-sm" id="newClientStatus">
+                        <select class="form-select form-select-sm  text-white" id="newClientStatus">
                             <option value="">Оберіть статус</option>
                             @foreach(($clientStatuses ?? collect()) as $statusOption)
                                 <option value="{{ $statusOption->id }}">{{ $statusOption->name }}</option>
@@ -803,12 +803,12 @@
                     .then(data => {
                         goodsResultsContainer.innerHTML = '';
                         if (data.length === 0) {
-                            goodsResultsContainer.innerHTML = '<div class="list-group-item text-muted bg-white">Нічого не знайдено</div>';
+                            goodsResultsContainer.innerHTML = '<div class="list-group-item text-dark bg-white">Нічого не знайдено</div>';
                         } else {
                             data.forEach(good => {
                                 const a = document.createElement('a');
                                 a.href = '#'; a.className = 'list-group-item list-group-item-action py-2 bg-white text-dark';
-                                a.innerHTML = `<strong>${good.pnum}</strong> - ${good.name || ''} <br><small class="text-muted">Ціна (pay): ${good.priceCompPay} грн | Залишок: ${good.count || 0}</small>`;
+                                a.innerHTML = `<strong>${good.pnum}</strong> - ${good.name || ''} <br><small class=" text-dark">Ціна (pay): ${good.priceCompPay} грн | Залишок: ${good.count || 0}</small>`;
                                 a.addEventListener('click', function (e) {
                                     e.preventDefault();
                                     const emptyRow = document.getElementById('emptyGoodsRow');
@@ -826,17 +826,17 @@
                                     
                                     const tr = document.createElement('tr');
                                     tr.innerHTML = `
-                                        <td><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark" value="${good.pnum}" readonly></td>
-                                        <td><input type="hidden" name="name[]" value="${good.name || ''}"><input type="text" class="form-control form-control-sm text-dark" value="${good.name || ''}" readonly></td>
+                                        <td><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.pnum}" readonly></td>
+                                        <td><input type="hidden" name="name[]" value="${good.name || ''}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.name || ''}" readonly></td>
                                         <td>
                                             <div class="input-group input-group-sm">
                                                 <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
-                                                <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count text-dark" value="1">
+                                                <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count text-dark text-white" value="1">
                                                 <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                             </div>
                                         </td>
-                                        <td><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark" value="${initialPrice.toFixed(2)}"></td>
-                                        <td><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark" value="${initialPrice.toFixed(2)}"></td>
+                                        <td><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
+                                        <td><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
                                         <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row remove-btn">❌</button></td>`;
                                     tr.dataset.priceCompPay = good.priceCompPay || 0;
                                     tr.dataset.priceCompPay1 = good.priceCompPay1 || 0;
@@ -852,7 +852,7 @@
                                     tr.querySelector('.remove-new-row').addEventListener('click', () => {
                                         tr.remove();
                                         if (tableBody.querySelectorAll('tr').length === 0) {
-                                            tableBody.innerHTML = '<tr id="emptyGoodsRow"><td colspan="6" class="text-center text-muted">Немає товарів</td></tr>';
+                                            tableBody.innerHTML = '<tr id="emptyGoodsRow"><td colspan="6" class="text-center text-dark">Немає товарів</td></tr>';
                                         }
                                         updateDocumentSum();
                                     });
