@@ -13,6 +13,7 @@ use App\Http\Controllers\MoneyController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\WalletController;
 
 /*
  |--------------------------------------------------------------------------
@@ -52,10 +53,7 @@ Route::get('/about', function () {
         : collect();
     return view('pages.about', compact('projects'));
 })->name('about');
-Route::get('/wallet', function () {
-    $web3Tokens = \Illuminate\Support\Facades\DB::table('conf')->where('type', 'web3_token')->get();
-    return view('pages.wallet', compact('web3Tokens'));
-})->name('wallet');
+Route::get('/wallet', [WalletController::class, 'page'])->name('wallet');
 
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {

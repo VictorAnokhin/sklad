@@ -286,7 +286,7 @@
 
                     <div class="mb-3">
                         <label class="form-label">Смарт-контракт (Address) <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="web3-address" placeholder="0x..." required>
+                        <input type="text" class="form-control" id="web3-address" placeholder="0x... или Solana mint address" required>
                     </div>
 
                     <div class="row">
@@ -300,6 +300,7 @@
                                 <option value="0x2105">Base (0x2105)</option>
                                 <option value="0xa">Optimism (0xa)</option>
                                 <option value="0xa86a">Avalanche C-Chain (0xa86a)</option>
+                                <option value="solana">Solana</option>
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -937,7 +938,7 @@
                                     <div>
                                         <div class="wallet-link-eyebrow">WEB3</div>
                                         <h6 class="wallet-link-title mb-1">Прив'язка адреси гаманця</h6>
-                                        <p class="wallet-link-text mb-0">Після прив'язки цей гаманець зможе входити через Web3 і буде асоційований з вашим контрагентом.</p>
+                                        <p class="wallet-link-text mb-0">Після прив'язки EVM або Solana гаманець зможе входити через Web3 і буде асоційований з вашим контрагентом.</p>
                                     </div>
                                 </div>
                                 <div class="wallet-link-state">
@@ -1279,6 +1280,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         chainSelect.addEventListener('change', () => {
+            if (chainSelect.value === 'solana' && !currentCgPlatforms) {
+                document.getElementById('web3-decimals').value = '9';
+            }
+
             if (currentCgPlatforms) {
                 const chainId = chainSelect.value;
                 const platformMap = {
@@ -1288,13 +1293,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     '0xa4b1': 'arbitrum-one',
                     '0x2105': 'base',
                     '0xa': 'optimistic-ethereum',
-                    '0xa86a': 'avalanche'
+                    '0xa86a': 'avalanche',
+                    'solana': 'solana'
                 };
                 const cgPlatformName = platformMap[chainId];
                 if (cgPlatformName && currentCgPlatforms[cgPlatformName]) {
                     const platformDetails = currentCgPlatforms[cgPlatformName];
                     document.getElementById('web3-address').value = platformDetails.contract_address || '';
-                    document.getElementById('web3-decimals').value = platformDetails.decimal_place || '18';
+                    document.getElementById('web3-decimals').value = platformDetails.decimal_place || (chainId === 'solana' ? '9' : '18');
                 }
             }
         });
@@ -1416,9 +1422,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 '0xa4b1': 'Arbitrum',
                 '0x2105': 'Base',
                 '0xa': 'Optimism',
-                '0xa86a': 'Avalanche'
+                '0xa86a': 'Avalanche',
+                'solana': 'Solana'
             };
-            const normalized = normalizeChainId(chainId) || chainId;
+            const normalized = String(chainId || '').toLowerCase() === 'solana'
+                ? 'solana'
+                : (normalizeChainId(chainId) || chainId);
             return strings[normalized] || normalized;
         }
 
@@ -1455,7 +1464,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('web3-name').value = item.doc || '';
                     document.getElementById('web3-address').value = item.color || '';
                     document.getElementById('web3-decimals').value = item.status || '18';
-                    document.getElementById('web3-chain').value = normalizeChainId(item.vision) || '0x1';
+                    document.getElementById('web3-chain').value = String(item.vision || '').toLowerCase() === 'solana'
+                        ? 'solana'
+                        : (normalizeChainId(item.vision) || '0x1');
                     searchInput.value = '';
                     currentCgPlatforms = null;
                     showWeb3Form();
@@ -1480,6 +1491,7 @@ document.addEventListener('DOMContentLoaded', () => {
             form.reset();
             document.getElementById('web3-id').value = '';
             document.getElementById('web3-chain').value = '0x1';
+            document.getElementById('web3-decimals').value = '18';
         }
 
         function showWeb3Form() {
@@ -2524,41 +2536,50 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         connectBtn.addEventListener('click', async () => {
-            if (!window.ethereum) {
-                setFeedback('Ethereum-гаманець не знайдено. Відкрийте сторінку в браузері з MetaMask.', true);
+            if (!window.appWallet || typeof window.appWallet.openModal !== 'function' || typeof window.appWallet.signMessage !== 'function') {
+                setFeedback('Модуль Web3-гаманців не готовий. Оновіть сторінку та спробуйте ще раз.', true);
                 return;
             }
 
-            connectBtn.disabled = true;
-            connectBtn.textContent = 'Підключаємо...';
-            setFeedback('Запитуємо доступ до гаманця...');
+            setFeedback('Оберіть гаманець у вікні підключення...');
 
-            try {
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                const address = accounts && accounts[0];
+            window.appWallet.openModal({
+                autoLogin: false,
+                onConnected: async ({ address, chainId, provider, walletType }) => {
+                    try {
+                        const normalizedType = walletType === 'solana' ? 'solana' : 'evm';
+                        const network = normalizedType === 'solana'
+                            ? 'Solana'
+                            : (chainId ? `EVM ${chainId}` : 'EVM');
 
-                if (!address) {
-                    throw new Error('Гаманець не повернув адресу.');
+                        const challenge = await postJson('{{ route('wallet.challenge') }}', {
+                            address,
+                            wallet_type: normalizedType,
+                        });
+
+                        const signature = await window.appWallet.signMessage({
+                            provider,
+                            walletType: normalizedType,
+                            address,
+                            message: challenge.message,
+                        });
+
+                        const result = await postJson('{{ route('wallet.link') }}', {
+                            address,
+                            signature,
+                            network,
+                            wallet_type: normalizedType,
+                        });
+
+                        const user = result.user || {};
+                        updateWalletState(user.wallets || []);
+                        setFeedback('Гаманець успішно додано до вашого контрагента.');
+                    } catch (error) {
+                        setFeedback(error.message || 'Не вдалося прив’язати гаманець.', true);
+                        throw error;
+                    }
                 }
-
-                const chainId = await window.ethereum.request({ method: 'eth_chainId' }).catch(() => null);
-                const network = chainId ? `EVM ${chainId}` : null;
-                const challenge = await postJson('{{ route('wallet.challenge') }}', { address });
-                const signature = await window.ethereum.request({
-                    method: 'personal_sign',
-                    params: [challenge.message, address],
-                });
-                const result = await postJson('{{ route('wallet.link') }}', { address, signature, network });
-                const user = result.user || {};
-
-                updateWalletState(user.wallets || []);
-                setFeedback('Гаманець успішно додано до вашого контрагента.');
-            } catch (error) {
-                setFeedback(error.message || 'Не вдалося прив’язати гаманець.', true);
-            } finally {
-                connectBtn.disabled = false;
-                connectBtn.textContent = 'Додати гаманець';
-            }
+            });
         });
 
         walletList.addEventListener('click', async (event) => {

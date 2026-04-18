@@ -6,6 +6,7 @@ use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\WalletController;
 use App\Http\Controllers\ZakazController;
 
 /*
@@ -41,6 +42,8 @@ Route::get('/news', [NewsController::class, 'apiIndex']);
 Route::get('/news/{id}', [NewsController::class, 'apiShow']);
 Route::get('/banners', [BannerCarouselController::class, 'apiIndex']);
 Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
+Route::get('/wallet/protocols', [WalletController::class, 'protocols']);
+Route::get('/wallet/overview', [WalletController::class, 'overview']);
 
 // ── Orders (Zakaz) API ─────────────────────────────────────────────────────
 

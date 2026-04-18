@@ -12,7 +12,7 @@
     <div class="glass-card animated-card" style="padding: 2.5rem; margin-bottom: 2rem; border-radius: 16px;">
         <h2 class="mb-4" style="color: #fbbf24; font-weight: 700;">Web3 Интеграция</h2>
         <p style="font-size: 1.1rem; color: rgba(255,255,255,0.85); line-height: 1.6; margin-bottom: 2rem;">
-            Подключение Web3-кошелька (EVM-совместимого, например MetaMask) открывает доступ к передовым инвестиционным инструментам платформы AV8 Capital.
+            Подключение Web3-кошелька EVM или Solana открывает доступ к передовым инвестиционным инструментам платформы AV8 Capital.
         </p>
 
         <div class="row">
@@ -48,7 +48,7 @@
         <div class="web3-login-copy text-center">
             <p class="web3-login-eyebrow">WEB3 ACCESS</p>
             <h2 class="web3-login-title" style="color: #fff; font-weight: 600;">Вход через кошелек</h2>
-            <p class="web3-login-text" style="color: rgba(255,255,255,0.7); margin-bottom: 1.5rem;">Подключите MetaMask или другой EVM-гаманець для авторизации в системе.</p>
+            <p class="web3-login-text" style="color: rgba(255,255,255,0.7); margin-bottom: 1.5rem;">Подключите MetaMask, Phantom или другой совместимый кошелек для авторизации в системе.</p>
         </div>
         <div class="web3-login-actions">
             <button type="button" id="web3-connect-btn" class="web3-connect-btn">Подключить Web3</button>
@@ -103,6 +103,24 @@
 
             <!-- Tokens List View (Main) -->
             <div id="wallet-main-view" class="rabby-tokens">
+                <div style="padding: 1rem 1.5rem 0.25rem;">
+                    <div class="wallet-network-panel">
+                        <div>
+                            <div class="wallet-network-panel__label">DeFi network</div>
+                            <div class="wallet-network-panel__meta" id="wallet-network-meta">Выберите сеть для просмотра активов и DeFi</div>
+                        </div>
+                        <select id="wallet-network-select" class="wallet-network-select" aria-label="Select network for DeFi protocols">
+                            <option value="0x1">Ethereum</option>
+                            <option value="0x89">Polygon</option>
+                            <option value="0xa4b1">Arbitrum</option>
+                            <option value="0xa">Optimism</option>
+                            <option value="0x2105">Base</option>
+                            <option value="0xa86a">Avalanche</option>
+                            <option value="0x38">BNB Chain</option>
+                            <option value="solana">Solana</option>
+                        </select>
+                    </div>
+                </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem 0.75rem;">
                     <h4 style="font-size: 1.05rem; color: rgba(255,255,255,0.9); font-weight: 600; margin: 0;">Assets</h4>
                     <span style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">Native + Network</span>
@@ -113,6 +131,7 @@
                         Loading assets...
                     </div>
                 </div>
+                <div id="wallet-defi-sections" style="display:none; padding: 0 1rem 1rem;"></div>
             </div>
             
             <!-- Send Coins View -->
@@ -221,10 +240,10 @@
   const rabbyAddressText = document.getElementById('rabby-address-text');
   const rabbyTotalFiat = document.getElementById('rabby-total-fiat');
   const rabbyTokensList = document.getElementById('rabby-tokens-list');
+  const walletDefiSections = document.getElementById('wallet-defi-sections');
   const rabbyDisconnectBtn = document.getElementById('rabby-disconnect-btn');
-
-  const topDisconnectBtn = document.getElementById('menu-disconnect-wallet');
-  const mainLogoutBtn = document.getElementById('main-logout-btn');
+  const walletNetworkSelect = document.getElementById('wallet-network-select');
+  const walletNetworkMeta = document.getElementById('wallet-network-meta');
 
   // Network configs for standard tokens to scan "Real Contents" via eth_call
   const COMMON_NETWORKS = {
@@ -262,7 +281,22 @@
       name: 'Avalanche C-Chain',
       native: { symbol: 'AVAX', name: 'Avalanche', iconUrl: 'https://cryptologos.cc/logos/avalanche-avax-logo.svg', price: 35 },
       tokens: []
+    },
+    'solana': {
+      name: 'Solana',
+      native: { symbol: 'SOL', name: 'Solana', iconUrl: 'https://cryptologos.cc/logos/solana-sol-logo.svg', price: 150 },
+      tokens: []
     }
+  };
+
+  const PROTOCOL_NETWORKS = {
+    '0x1': { aave: true, gmx: false },
+    '0x89': { aave: true, gmx: false },
+    '0xa4b1': { aave: true, gmx: true },
+    '0xa': { aave: true, gmx: false },
+    '0x2105': { aave: true, gmx: false },
+    '0xa86a': { aave: true, gmx: true },
+    '0x38': { aave: true, gmx: false }
   };
 
   function normalizeChainId(value) {
@@ -276,6 +310,10 @@
 
     const raw = value.trim().toLowerCase();
     if (!raw) return null;
+
+    if (raw === 'solana') {
+      return 'solana';
+    }
 
     if (raw.startsWith('0x')) {
       const n = parseInt(raw, 16);
@@ -309,7 +347,11 @@
   dbTokens.forEach(t => {
       const chainId = normalizeChainId(t.vision);
       const address = (typeof t.color === 'string') ? t.color.trim() : '';
-      if (!chainId || !COMMON_NETWORKS[chainId] || !isEvmAddress(address)) {
+      if (!chainId || !COMMON_NETWORKS[chainId]) {
+          return;
+      }
+
+      if (chainId !== 'solana' && !isEvmAddress(address)) {
           return;
       }
 
@@ -317,8 +359,10 @@
           address,
           symbol: t.name,
           name: t.doc || t.name,
-          decimals: parseInt(t.status) || 18,
-          iconUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', // generic default icon
+          decimals: parseInt(t.status) || (chainId === 'solana' ? 9 : 18),
+          iconUrl: chainId === 'solana'
+            ? 'https://cryptologos.cc/logos/solana-sol-logo.svg'
+            : 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
           price: 0, // default to 0, updated by Coingecko later
           cgId: (t.constanta && t.constanta !== '0') ? t.constanta : null
       });
@@ -333,7 +377,8 @@
     '0xa4b1': 'ethereum',
     '0xa': 'ethereum',
     '0x2105': 'ethereum',
-    '0xa86a': 'avalanche-2'
+    '0xa86a': 'avalanche-2',
+    'solana': 'solana'
   };
 
   Object.values(nativeCoinMaps).forEach(id => cgIdsToFetch.add(id));
@@ -371,7 +416,7 @@
             
             // Refresh balances if a wallet is already loaded (could occur if price fetch is slow)
             if (currentWalletAddress && document.getElementById('wallet-main-view').style.display !== 'none') {
-                fetchBalances(currentWalletAddress);
+                fetchBalances(currentWalletAddress, selectedProtocolChainId);
             }
         })
         .catch(e => console.error('Coingecko price fetch error:', e));
@@ -393,44 +438,68 @@
     }
   }
 
+  const profileWallet = {!! json_encode($profileWallet ?? null) !!};
   let currentWalletAddress = null;
+  let currentWalletChainId = null;
   let currentWalletTokens = [];
+  let connectedWalletAddress = null;
+  let connectedWalletChainId = null;
+  let selectedProtocolChainId = normalizeChainId(profileWallet?.chain_id || connectedWalletChainId || '0x1') || '0x1';
 
-  const desktopPublicLinks = document.getElementById('desktop-public-links');
-  const mobilePublicLinks = document.getElementById('mobile-public-links');
+  function describeProtocolAvailability(chainId) {
+    const support = PROTOCOL_NETWORKS[chainId] || { aave: false, gmx: false };
+    if (support.aave && support.gmx) {
+      return 'Aave + GMX доступны';
+    }
+    if (support.aave) {
+      return 'Aave доступен';
+    }
+    if (support.gmx) {
+      return 'GMX доступен';
+    }
+    if (chainId === 'solana') {
+      return 'DeFi протоколы недоступны';
+    }
+    return 'Протоколы недоступны';
+  }
 
-  function updateWalletState(address) {
+  function syncNetworkSelector(chainId) {
+    const normalized = normalizeChainId(chainId) || '0x1';
+    selectedProtocolChainId = normalized;
+
+    if (walletNetworkSelect) {
+      walletNetworkSelect.value = normalized;
+    }
+
+    if (walletNetworkMeta) {
+      const networkName = COMMON_NETWORKS[normalized]?.name || 'Unknown network';
+      walletNetworkMeta.textContent = `${networkName} • ${describeProtocolAvailability(normalized)}`;
+    }
+  }
+
+  function updateWalletState(address, options = {}) {
+    const requestedChainId = normalizeChainId(options.chainId || selectedProtocolChainId || currentWalletChainId || profileWallet?.chain_id || '0x1') || '0x1';
     if (address) {
       currentWalletAddress = address;
+      currentWalletChainId = requestedChainId;
       unconnectedUi.style.display = 'none';
       rabbyUi.style.display = 'block';
       rabbyAddressText.textContent = shortenAddress(address);
       document.getElementById('receive-address-display').textContent = address;
-      
-      if (topDisconnectBtn) {
-        topDisconnectBtn.style.display = 'inline-flex';
-        const addressSpan = document.getElementById('menu-wallet-address');
-        if (addressSpan) {
-            addressSpan.textContent = address.slice(-4);
-        }
-      }
-      
-      if (desktopPublicLinks) desktopPublicLinks.style.display = 'none';
-      if (mobilePublicLinks) mobilePublicLinks.style.display = 'none';
+      syncNetworkSelector(requestedChainId);
 
       showMainView();
-      fetchBalances(address);
+      fetchBalances(address, requestedChainId);
     } else {
       currentWalletAddress = null;
+      currentWalletChainId = null;
       unconnectedUi.style.display = 'block';
       rabbyUi.style.display = 'none';
       rabbyTotalFiat.textContent = '0.00';
       rabbyTokensList.innerHTML = '';
+      walletDefiSections.innerHTML = '';
+      walletDefiSections.style.display = 'none';
       currentWalletTokens = [];
-      if (topDisconnectBtn) topDisconnectBtn.style.display = 'none';
-      
-      if (desktopPublicLinks) desktopPublicLinks.style.display = 'flex';
-      if (mobilePublicLinks) mobilePublicLinks.style.display = 'block';
     }
   }
 
@@ -458,7 +527,32 @@
     walletReceiveView.style.display = 'none';
     walletSendView.style.display = 'block';
     sendStatus.textContent = '';
-    
+    sendStatus.style.color = 'rgba(255,255,255,0.65)';
+
+    if (!connectedWalletAddress) {
+      sendTokenSelect.innerHTML = '<option value="">Сначала подключите кошелек</option>';
+      sendTokenSelect.disabled = true;
+      sendToAddress.disabled = true;
+      sendAmount.disabled = true;
+      btnSubmitSend.disabled = false;
+      sendStatus.textContent = 'Для отправки подключите кошелек кнопкой возле меню.';
+      return;
+    }
+
+    if (normalizeChainId(currentWalletChainId) === 'solana') {
+      sendTokenSelect.innerHTML = '<option value="">Отправка для Solana пока недоступна</option>';
+      sendTokenSelect.disabled = true;
+      sendToAddress.disabled = true;
+      sendAmount.disabled = true;
+      btnSubmitSend.disabled = true;
+      sendStatus.textContent = 'Просмотр Solana активов доступен, отправка пока не реализована.';
+      return;
+    }
+
+    sendTokenSelect.disabled = false;
+    sendToAddress.disabled = false;
+    sendAmount.disabled = false;
+
     // Populate dropdown
     sendTokenSelect.innerHTML = '';
     currentWalletTokens.forEach((t, i) => {
@@ -493,6 +587,13 @@
   // Handle Send Transaction
   if (btnSubmitSend) {
     btnSubmitSend.addEventListener('click', async () => {
+      if (!connectedWalletAddress) {
+        sendStatus.textContent = 'Для отправки сначала подключите кошелек.';
+        sendStatus.style.color = '#ff8e8e';
+        await connectWalletProvider();
+        return;
+      }
+
       if (!window.ethereum || !currentWalletAddress) return;
       const toAddr = sendToAddress.value.trim();
       const amountVal = parseFloat(sendAmount.value);
@@ -540,7 +641,7 @@
           txHash = await window.ethereum.request({
             method: 'eth_sendTransaction',
             params: [{
-              from: currentWalletAddress,
+              from: connectedWalletAddress,
               to: token.address,
               data: dataStr
             }]
@@ -552,7 +653,7 @@
           txHash = await window.ethereum.request({
             method: 'eth_sendTransaction',
             params: [{
-              from: currentWalletAddress,
+              from: connectedWalletAddress,
               to: toAddr,
               value: amountWeiHex
             }]
@@ -563,7 +664,7 @@
         sendStatus.style.color = '#b9fbc0';
         sendToAddress.value = '';
         sendAmount.value = '';
-        setTimeout(() => fetchBalances(currentWalletAddress), 5000); // refresh logic
+        setTimeout(() => fetchBalances(currentWalletAddress, selectedProtocolChainId), 5000); // refresh logic
       } catch (err) {
         console.error(err);
         sendStatus.textContent = 'Ошибка: ' + (err.message || 'Транзакция отклонена');
@@ -574,56 +675,40 @@
     });
   }
 
-  async function fetchBalances(address) {
+  async function fetchBalances(address, preferredChainId = null) {
     rabbyTokensList.innerHTML = '<div class="text-center py-4" style="color: rgba(255,255,255,0.5);">Scanning real network values...</div>';
-    
-    let nativeBalance = 0;
-    let chainId = '0x1'; // default eth
-    
-    try {
-      if (window.ethereum) {
-        let rawChainId = await window.ethereum.request({ method: 'eth_chainId' });
-        if (typeof rawChainId === 'string') {
-          if (rawChainId.startsWith('0x')) {
-            chainId = '0x' + parseInt(rawChainId, 16).toString(16);
-          } else {
-            chainId = '0x' + parseInt(rawChainId, 10).toString(16);
-          }
-        } else if (typeof rawChainId === 'number') {
-          chainId = '0x' + rawChainId.toString(16);
-        }
-        const balanceHex = await window.ethereum.request({ method: 'eth_getBalance', params: [address, 'latest'] });
-        nativeBalance = parseInt(balanceHex, 16) / 1e18;
-      }
-    } catch(e) {
-      console.error('Failed to fetch native balance', e);
+    walletDefiSections.innerHTML = '';
+    walletDefiSections.style.display = 'none';
+    const overview = await fetchWalletOverview(address, preferredChainId);
+    if (!overview || !overview.assets || !overview.assets.available) {
+      rabbyTokensList.innerHTML = '<div class="text-center py-4" style="color:#fca5a5;">Не удалось загрузить активы кошелька.</div>';
+      return;
     }
 
+    const chainId = normalizeChainId(preferredChainId || overview.wallet?.chain_id || overview.assets.chain_id || '0x1') || '0x1';
+    currentWalletChainId = chainId;
+    syncNetworkSelector(chainId);
     const networkCfg = COMMON_NETWORKS[chainId] || COMMON_NETWORKS['0x1'];
-    
-    // 1. Setup native token payload
-    const tokensToShow = [];
-    tokensToShow.push({
-      symbol: networkCfg.native.symbol,
-      name: networkCfg.native.name,
-      balance: nativeBalance,
-      price: networkCfg.native.price,
-      iconUrl: networkCfg.native.iconUrl
-    });
+    const assets = Array.isArray(overview.assets.assets) ? overview.assets.assets : [];
+    const tokensToShow = assets.map((asset) => {
+      const configuredToken = asset.address
+        ? networkCfg.tokens.find((token) => chainId === 'solana'
+            ? String(token.address) === String(asset.address)
+            : String(token.address).toLowerCase() === String(asset.address).toLowerCase())
+        : null;
+      const nativeToken = asset.is_native ? networkCfg.native : null;
 
-    // 2. Fetch real ERC-20 token balances for this network (show configured tokens even if balance is 0)
-    for (const token of networkCfg.tokens) {
-      const bal = await getErc20Balance(token.address, token.decimals, address);
-      tokensToShow.push({
-        symbol: token.symbol,
-        name: token.name,
-        balance: bal,
-        price: token.price,
-        iconUrl: token.iconUrl,
-        address: token.address,
-        decimals: token.decimals
-      });
-    }
+      return {
+        symbol: asset.symbol || configuredToken?.symbol || nativeToken?.symbol || 'TOKEN',
+        name: asset.name || configuredToken?.name || nativeToken?.name || 'Token',
+        balance: Number(asset.balance || 0),
+        price: configuredToken?.price || nativeToken?.price || 0,
+        iconUrl: configuredToken?.iconUrl || nativeToken?.iconUrl || 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
+        address: asset.address || configuredToken?.address || null,
+        decimals: asset.decimals ?? configuredToken?.decimals ?? 18,
+        isNative: Boolean(asset.is_native)
+      };
+    });
 
     let totalFiat = 0;
     let listHtml = '';
@@ -636,7 +721,7 @@
       totalFiat += fiatValue;
 
       // Skip native if 0 and we have other tokens
-      if (t.balance === 0 && tokensToShow.length > 1 && t.symbol === networkCfg.native.symbol) return;
+      if (t.balance === 0 && tokensToShow.length > 1 && t.isNative) return;
 
       listHtml += `
         <div class="token-row" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0.5rem; border-radius: 12px; transition: background 0.2s; cursor: pointer;">
@@ -658,54 +743,7 @@
     });
 
     rabbyTokensList.innerHTML = listHtml;
-    
-    // 4. Fetch DeFi tokens if configured
-    const defiPositions = [];
-    if (networkCfg.defi && networkCfg.defi.length > 0) {
-      for (const dToken of networkCfg.defi) {
-        const bal = await getErc20Balance(dToken.address, dToken.decimals, address);
-        if (bal > 0) {
-          defiPositions.push({
-            ...dToken,
-            balance: bal
-          });
-        }
-      }
-    }
-    
-    // Append DeFi Positions UI
-    if (defiPositions.length > 0) {
-      let defiHtml = `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 0.5rem 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 0.5rem;">
-            <h4 style="font-size: 1.05rem; color: rgba(255,255,255,0.9); font-weight: 600; margin: 0;">DeFi Positions & Yield</h4>
-        </div>
-      `;
-      
-      defiPositions.forEach(dt => {
-        const fiatValue = dt.balance * dt.price;
-        totalFiat += fiatValue;
-        
-        defiHtml += `
-          <div class="token-row" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0.5rem; border-radius: 12px; transition: background 0.2s; cursor: pointer; background: rgba(255,255,255,0.02); margin-bottom: 0.5rem;">
-              <div style="display: flex; align-items: center; gap: 12px;">
-                  <div style="width: 36px; height: 36px; border-radius: 50%; background: #1a1a1a; padding: 4px; display: flex; justify-content: center; align-items: center; position: relative;">
-                      <img src="${dt.iconUrl}" alt="${dt.protocol}" style="max-width: 100%; max-height: 100%; border-radius: 50%;">
-                      <div style="position: absolute; bottom: -4px; right: -4px; background: #fbbf24; color: #111; font-size: 0.6rem; font-weight: bold; border-radius: 4px; padding: 1px 3px;">${dt.protocol}</div>
-                  </div>
-                  <div>
-                      <div style="color: #fff; font-weight: 600; font-size: 1.05rem; line-height: 1.2;">${dt.symbol}</div>
-                      <div style="color: rgba(255,255,255,0.5); font-size: 0.85rem;">Deposited / Yielding</div>
-                  </div>
-              </div>
-              <div style="text-align: right;">
-                  <div style="color: #4ade80; font-weight: 600; font-size: 1.05rem; line-height: 1.2;">$${fiatValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                  <div style="color: rgba(255,255,255,0.5); font-size: 0.85rem;">${dt.balance.toLocaleString('en-US', {maximumFractionDigits: 4})} ${dt.symbol}</div>
-              </div>
-          </div>
-        `;
-      });
-      rabbyTokensList.insertAdjacentHTML('beforeend', defiHtml);
-    }
+    renderProtocolSections(chainId === 'solana' ? null : (overview.protocols || null));
     
     // Animate counter for total fiat include DeFi
     let startTimestamp = null;
@@ -726,74 +764,276 @@
     window.requestAnimationFrame(step);
   }
 
+  async function fetchWalletOverview(address, chainId) {
+    try {
+      const params = new URLSearchParams({
+        address
+      });
+      if (chainId) params.set('chain_id', chainId);
+
+      const response = await fetch(`/api/wallet/overview?${params.toString()}`, {
+        headers: {
+          'Accept': 'application/json'
+        },
+        credentials: 'same-origin'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load wallet overview');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Wallet overview error:', error);
+      return null;
+    }
+  }
+
+  async function fetchProtocolData(address, chainId) {
+    try {
+      const params = new URLSearchParams({
+        address,
+        chain_id: chainId
+      });
+      const response = await fetch(`/api/wallet/protocols?${params.toString()}`, {
+        headers: {
+          'Accept': 'application/json'
+        },
+        credentials: 'same-origin'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load protocol data');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Protocol data error:', error);
+      return null;
+    }
+  }
+
+  function renderProtocolSections(protocols) {
+    if (!walletDefiSections) return;
+
+    if (!protocols || typeof protocols !== 'object') {
+      walletDefiSections.innerHTML = '';
+      walletDefiSections.style.display = 'none';
+      return;
+    }
+
+    const protocolOrder = ['aave', 'gmx'];
+    const sections = protocolOrder
+      .map((key) => renderProtocolSection(protocols[key]))
+      .filter(Boolean)
+      .join('');
+
+    walletDefiSections.innerHTML = sections;
+    walletDefiSections.style.display = sections ? 'block' : 'none';
+  }
+
+  function renderProtocolSection(protocol) {
+    if (!protocol || (!protocol.available && !protocol.error)) {
+      return '';
+    }
+
+    const tokens = Array.isArray(protocol.tokens) ? protocol.tokens : [];
+    const loans = Array.isArray(protocol.loans) ? protocol.loans : [];
+    const pools = Array.isArray(protocol.pools) ? protocol.pools : [];
+
+    if (!tokens.length && !loans.length && !pools.length && !protocol.error) {
+      return '';
+    }
+
+    return `
+      <div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+          <h4 style="font-size:1.05rem; color:rgba(255,255,255,0.9); font-weight:600; margin:0;">${escapeHtml(protocol.name || 'Protocol')}</h4>
+          <span style="font-size:0.8rem; color:${protocol.available ? '#4ade80' : '#fca5a5'};">${protocol.available ? 'API connected' : 'API unavailable'}</span>
+        </div>
+        ${protocol.error ? `<div style="color:#fca5a5; font-size:0.85rem; margin-bottom:0.75rem;">${escapeHtml(protocol.error)}</div>` : ''}
+        ${renderProtocolGroup('Tokens', tokens, renderProtocolTokenRow)}
+        ${renderProtocolGroup('Loans', loans, renderProtocolLoanRow)}
+        ${renderProtocolGroup('Pools', pools, renderProtocolPoolRow)}
+      </div>
+    `;
+  }
+
+  function renderProtocolGroup(title, items, rowRenderer) {
+    if (!items.length) return '';
+    return `
+      <div style="margin-bottom:0.85rem;">
+        <div style="color:rgba(255,255,255,0.52); font-size:0.8rem; margin-bottom:0.4rem; text-transform:uppercase; letter-spacing:0.04em;">${title}</div>
+        <div style="display:flex; flex-direction:column; gap:0.45rem;">
+          ${items.map(rowRenderer).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderProtocolTokenRow(item) {
+    const value = formatUsd(item.usd_value);
+    const balance = formatAmount(item.balance);
+    const apy = item.apy ? ` • APY ${formatPercent(item.apy)}` : '';
+    const collateral = item.collateral ? ' • collateral' : '';
+    return renderInfoRow(item.symbol || item.name, `${balance} ${item.symbol || ''}`, `${value}${apy}${collateral}`, '#4ade80');
+  }
+
+  function renderProtocolLoanRow(item) {
+    const value = formatUsd(item.usd_value);
+    const balance = formatAmount(item.balance);
+    const side = item.side ? ` • ${escapeHtml(item.side)}` : '';
+    const apy = item.apy ? ` • APR ${formatPercent(item.apy)}` : '';
+    const pnl = item.pnl_usd ? ` • PnL ${formatUsd(item.pnl_usd)}` : '';
+    return renderInfoRow(item.symbol || item.name, `${balance} ${item.symbol || ''}`, `${value}${side}${apy}${pnl}`, '#fca5a5');
+  }
+
+  function renderProtocolPoolRow(item) {
+    const metrics = [];
+    if (item.tvl_usd) metrics.push(`TVL ${formatUsd(item.tvl_usd)}`);
+    if (item.total_liquidity) metrics.push(`liq ${formatAmount(item.total_liquidity)}`);
+    if (item.total_borrowed) metrics.push(`borrowed ${formatAmount(item.total_borrowed)}`);
+    if (item.apy) metrics.push(`APY ${formatPercent(item.apy)}`);
+    if (item.supply_apy) metrics.push(`supply ${formatPercent(item.supply_apy)}`);
+    if (item.borrow_apy) metrics.push(`borrow ${formatPercent(item.borrow_apy)}`);
+    if (item.long_token || item.short_token) metrics.push(`${escapeHtml(item.long_token || '-')} / ${escapeHtml(item.short_token || '-')}`);
+    return renderInfoRow(item.symbol || item.name, item.name || item.symbol || '', metrics.join(' • '), '#93c5fd');
+  }
+
+  function renderInfoRow(title, subtitle, meta, accent) {
+    return `
+      <div style="display:flex; justify-content:space-between; gap:0.75rem; padding:0.75rem; border-radius:12px; background:rgba(255,255,255,0.02);">
+        <div>
+          <div style="color:#fff; font-weight:600; font-size:0.96rem;">${escapeHtml(title || '')}</div>
+          <div style="color:rgba(255,255,255,0.5); font-size:0.82rem;">${escapeHtml(subtitle || '')}</div>
+        </div>
+        <div style="text-align:right; color:${accent}; font-size:0.82rem; line-height:1.45;">${escapeHtml(meta || '')}</div>
+      </div>
+    `;
+  }
+
+  function formatAmount(value) {
+    const number = Number(value || 0);
+    return number.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  }
+
+  function formatUsd(value) {
+    const number = Number(value || 0);
+    return '$' + number.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatPercent(value) {
+    const number = Number(value || 0);
+    return number.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  async function connectWalletProvider() {
+    if (!window.appWallet || typeof window.appWallet.openModal !== 'function') {
+      setWeb3Status('Web3 modal недоступен. Обновите страницу.', true);
+      sendStatus.textContent = 'Web3 modal недоступен.';
+      sendStatus.style.color = '#ff8e8e';
+      return false;
+    }
+
+    if (web3Button) {
+      web3Button.disabled = true;
+      web3Button.textContent = 'Подключаем...';
+    }
+
+    setWeb3Status('Открываем модальное окно подключения...');
+
+    window.appWallet.openModal({
+      onConnected(session) {
+        connectedWalletAddress = session.address;
+        connectedWalletChainId = session.chainId;
+        setWalletAddress(session.address);
+        updateWalletState(session.address, { chainId: session.chainId });
+        setWeb3Status(session.linked ? 'Кошелек привязан. Выполняем вход...' : 'Кошелек подключен для работы с DeFi.');
+
+        if (walletSendView.style.display !== 'none') {
+          showSendView();
+        }
+      },
+    });
+
+    setTimeout(() => {
+      if (web3Button) {
+        web3Button.disabled = false;
+        web3Button.textContent = 'Подключить Web3';
+      }
+    }, 300);
+
+    return false;
+  }
+
+  function disconnectWalletProvider() {
+    if (window.appWallet && typeof window.appWallet.disconnect === 'function') {
+      window.appWallet.disconnect();
+    }
+  }
+
   // Check connection on load
   window.addEventListener('load', async () => {
-    if (window.ethereum && localStorage.getItem('walletDisconnectedExplicitly') !== 'true') {
-      try {
-        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-        if (accounts && accounts.length > 0) {
-          updateWalletState(accounts[0]);
+    if (window.appWallet && typeof window.appWallet.subscribe === 'function') {
+      window.appWallet.subscribe((state) => {
+        if (state.connected && state.address) {
+          connectedWalletAddress = state.address;
+          connectedWalletChainId = state.chainId;
+          setWalletAddress(state.address);
+          updateWalletState(state.address, { chainId: state.chainId });
+          setWeb3Status(state.linked ? 'Кошелек привязан к аккаунту.' : 'Кошелек подключен для работы с DeFi.');
+          return;
         }
-      } catch (e) {
-        console.error(e);
-      }
+
+        connectedWalletAddress = null;
+        connectedWalletChainId = null;
+
+        if (profileWallet?.address) {
+          setWalletAddress(profileWallet.address);
+          updateWalletState(profileWallet.address, { chainId: profileWallet.chain_id });
+          setWeb3Status('Показан кошелек из профиля.');
+        } else {
+          setWalletAddress(null);
+          updateWalletState(null);
+          setWeb3Status('Кошелек не подключен.');
+        }
+      });
+    } else if (profileWallet?.address) {
+      setWalletAddress(profileWallet.address);
+      updateWalletState(profileWallet.address, { chainId: profileWallet.chain_id });
+      setWeb3Status('Показан кошелек из профиля.');
+    } else {
+      updateWalletState(null);
     }
   });
 
-  if (topDisconnectBtn) {
-    topDisconnectBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      localStorage.setItem('walletDisconnectedExplicitly', 'true');
-      updateWalletState(null);
-      // Initiate framework logout as well logic so session aligns
-      const form = document.getElementById('logout-form');
-      if (form) form.submit();
+  if (rabbyDisconnectBtn) {
+    rabbyDisconnectBtn.addEventListener('click', () => {
+      disconnectWalletProvider();
     });
   }
 
-  if (rabbyDisconnectBtn) {
-    rabbyDisconnectBtn.addEventListener('click', () => {
-      localStorage.setItem('walletDisconnectedExplicitly', 'true');
-      updateWalletState(null);
+  if (walletNetworkSelect) {
+    walletNetworkSelect.addEventListener('change', () => {
+      const nextChainId = normalizeChainId(walletNetworkSelect.value) || '0x1';
+      syncNetworkSelector(nextChainId);
+
+      if (currentWalletAddress) {
+        fetchBalances(currentWalletAddress, nextChainId);
+      }
     });
   }
 
   if (web3Button) {
-    web3Button.addEventListener('click', async function () {
-      if (!window.ethereum) {
-        setWeb3Status('Ethereum-кошелек не найден. Откройте страницу в браузере с MetaMask.', true);
-        return;
-      }
-
-      web3Button.disabled = true;
-      web3Button.textContent = 'Подключаем...';
-      setWeb3Status('Подключаем кошелек...');
-
-      try {
-        localStorage.removeItem('walletDisconnectedExplicitly');
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        const address = accounts && accounts[0];
-
-        if (!address) {
-          throw new Error('Кошелек не вернул адрес.');
-        }
-
-        setWalletAddress(address);
-        
-        // Show the Rabby UI immediately upon connection
-        updateWalletState(address);
-        
-        // Optionally run the challenge if the user is logging in on backend (skipped for pure visual connect)
-        // const challenge = await postJson('...', { address });
-        // ...
-      } catch (error) {
-        setWeb3Status(error.message || 'Не удалось выполнить подключение через Web3.', true);
-      } finally {
-        web3Button.disabled = false;
-        web3Button.textContent = 'Подключить Web3';
-      }
-    });
+    web3Button.addEventListener('click', connectWalletProvider);
   }
+
+  syncNetworkSelector(selectedProtocolChainId);
 </script>
 <style>
   .animated-card {
@@ -884,6 +1124,58 @@
   }
   .token-row:hover {
     background: rgba(255,255,255,0.05);
+  }
+
+  .wallet-network-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)),
+      radial-gradient(circle at top left, rgba(251, 191, 36, 0.12), transparent 45%);
+  }
+
+  .wallet-network-panel__label {
+    color: rgba(255,255,255,0.92);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .wallet-network-panel__meta {
+    color: rgba(255,255,255,0.58);
+    font-size: 0.85rem;
+    margin-top: 0.2rem;
+  }
+
+  .wallet-network-select {
+    min-width: 170px;
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    border-radius: 10px;
+    background: rgba(10, 10, 10, 0.7);
+    color: #fff;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.95rem;
+    outline: none;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+
+  @media (max-width: 576px) {
+    .wallet-network-panel {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .wallet-network-select {
+      width: 100%;
+      min-width: 0;
+    }
   }
 </style>
 @endpush

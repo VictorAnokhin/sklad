@@ -58,6 +58,10 @@ class Conf extends Model
             return null;
         }
 
+        if (is_string($value) && strtolower(trim($value)) === 'solana') {
+            return 'solana';
+        }
+
         if (is_int($value)) {
             return '0x' . dechex($value);
         }
@@ -90,6 +94,10 @@ class Conf extends Model
     {
         if ($value === null) {
             return null;
+        }
+
+        if (is_string($value) && strtolower(trim($value)) === 'solana') {
+            return 'solana';
         }
 
         if (is_int($value)) {

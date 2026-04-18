@@ -31,4 +31,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'thegraph' => [
+        'gateway_url' => env('THEGRAPH_GATEWAY_URL', 'https://gateway.thegraph.com/api'),
+        'api_key' => env('THEGRAPH_API_KEY'),
+    ],
+
 ];

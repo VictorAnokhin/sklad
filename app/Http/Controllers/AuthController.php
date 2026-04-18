@@ -384,26 +384,33 @@ class AuthController extends Controller
         }
 
         $validated = $request->validate([
-            'address' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{40}$/'],
-            'signature' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{130}$/'],
+            'address' => ['required', 'string', 'max:80'],
+            'signature' => ['required', 'string', 'max:512'],
             'network' => 'nullable|string|max:80',
+            'wallet_type' => ['nullable', 'string', 'in:evm,solana'],
         ]);
 
-        $address = strtolower($validated['address']);
-        $nonce = Cache::get($this->web3LinkNonceKey($user->id, $address));
+        $walletType = $this->normalizeWalletType($validated['wallet_type'] ?? null);
+        $address = $this->normalizeWalletAddress((string) $validated['address'], $walletType);
+
+        if (!$this->isValidWalletAddress($address, $walletType)) {
+            return response()->json(['message' => 'Невірний формат адреси гаманця.'], 422);
+        }
+
+        $nonce = Cache::get($this->web3LinkNonceKey($user->id, $walletType, $address));
 
         if (!$nonce) {
             return response()->json(['message' => 'Запрос на привязку устарел. Повторите попытку.'], 422);
         }
 
-        $message = $this->makeWeb3Message('link', $nonce, $address);
+        $message = $this->makeWeb3Message('link', $nonce, $address, $walletType);
 
-        if (!$this->verifyEthereumSignature($message, $validated['signature'], $address)) {
+        if (!$this->verifyWalletSignature($message, (string) $validated['signature'], $address, $walletType)) {
             return response()->json(['message' => 'Подпись кошелька не прошла проверку.'], 422);
         }
 
         $this->bindWalletToUser($user, $address, $validated['network'] ?? null);
-        Cache::forget($this->web3LinkNonceKey($user->id, $address));
+        Cache::forget($this->web3LinkNonceKey($user->id, $walletType, $address));
 
         return response()->json([
             'user' => $this->serializeUser($user->fresh()),
@@ -413,17 +420,24 @@ class AuthController extends Controller
     public function web3LoginChallenge(Request $request)
     {
         $validated = $request->validate([
-            'address' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{40}$/'],
+            'address' => ['required', 'string', 'max:80'],
+            'wallet_type' => ['nullable', 'string', 'in:evm,solana'],
         ]);
 
-        $address = strtolower($validated['address']);
+        $walletType = $this->normalizeWalletType($validated['wallet_type'] ?? null);
+        $address = $this->normalizeWalletAddress((string) $validated['address'], $walletType);
+
+        if (!$this->isValidWalletAddress($address, $walletType)) {
+            return response()->json(['message' => 'Невірний формат адреси гаманця.'], 422);
+        }
+
         $nonce = Str::random(32);
 
-        Cache::put($this->web3LoginNonceKey($address), $nonce, now()->addMinutes(10));
+        Cache::put($this->web3LoginNonceKey($walletType, $address), $nonce, now()->addMinutes(10));
 
         return response()->json([
             'nonce' => $nonce,
-            'message' => $this->makeWeb3Message('login', $nonce, $address),
+            'message' => $this->makeWeb3Message('login', $nonce, $address, $walletType),
         ]);
     }
 
@@ -437,37 +451,51 @@ class AuthController extends Controller
         }
 
         $validated = $request->validate([
-            'address' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{40}$/'],
+            'address' => ['required', 'string', 'max:80'],
+            'wallet_type' => ['nullable', 'string', 'in:evm,solana'],
         ]);
 
-        $address = strtolower($validated['address']);
+        $walletType = $this->normalizeWalletType($validated['wallet_type'] ?? null);
+        $address = $this->normalizeWalletAddress((string) $validated['address'], $walletType);
+
+        if (!$this->isValidWalletAddress($address, $walletType)) {
+            return response()->json(['message' => 'Невірний формат адреси гаманця.'], 422);
+        }
+
         $nonce = Str::random(32);
 
-        Cache::put($this->web3LinkNonceKey($user->id, $address), $nonce, now()->addMinutes(10));
+        Cache::put($this->web3LinkNonceKey($user->id, $walletType, $address), $nonce, now()->addMinutes(10));
 
         return response()->json([
             'nonce' => $nonce,
-            'message' => $this->makeWeb3Message('link', $nonce, $address),
+            'message' => $this->makeWeb3Message('link', $nonce, $address, $walletType),
         ]);
     }
 
     public function web3Login(Request $request)
     {
         $validated = $request->validate([
-            'address' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{40}$/'],
-            'signature' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{130}$/'],
+            'address' => ['required', 'string', 'max:80'],
+            'signature' => ['required', 'string', 'max:512'],
+            'wallet_type' => ['nullable', 'string', 'in:evm,solana'],
         ]);
 
-        $address = strtolower($validated['address']);
-        $nonce = Cache::get($this->web3LoginNonceKey($address));
+        $walletType = $this->normalizeWalletType($validated['wallet_type'] ?? null);
+        $address = $this->normalizeWalletAddress((string) $validated['address'], $walletType);
+
+        if (!$this->isValidWalletAddress($address, $walletType)) {
+            return response()->json(['message' => 'Невірний формат адреси гаманця.'], 422);
+        }
+
+        $nonce = Cache::get($this->web3LoginNonceKey($walletType, $address));
 
         if (!$nonce) {
             return response()->json(['message' => 'Запрос на вход устарел. Повторите попытку.'], 422);
         }
 
-        $message = $this->makeWeb3Message('login', $nonce, $address);
+        $message = $this->makeWeb3Message('login', $nonce, $address, $walletType);
 
-        if (!$this->verifyEthereumSignature($message, $validated['signature'], $address)) {
+        if (!$this->verifyWalletSignature($message, (string) $validated['signature'], $address, $walletType)) {
             return response()->json(['message' => 'Подпись кошелька не прошла проверку.'], 422);
         }
 
@@ -488,7 +516,7 @@ class AuthController extends Controller
         $this->syncUserRoleStatus($user);
         Auth::login($user);
         $request->session()->regenerate();
-        Cache::forget($this->web3LoginNonceKey($address));
+        Cache::forget($this->web3LoginNonceKey($walletType, $address));
 
         return response()->json([
             'user' => $this->serializeUser($user->fresh()),
@@ -505,14 +533,20 @@ class AuthController extends Controller
         }
 
         $validated = $request->validate([
-            'address' => ['nullable', 'string', 'regex:/^0x[a-fA-F0-9]{40}$/'],
+            'address' => ['nullable', 'string', 'max:80'],
+            'wallet_type' => ['nullable', 'string', 'in:evm,solana'],
         ]);
+
+        $walletType = $this->normalizeWalletType($validated['wallet_type'] ?? null);
+        $address = !empty($validated['address'])
+            ? $this->normalizeWalletAddress((string) $validated['address'], $walletType)
+            : null;
 
         if (Schema::hasTable('user_wallets')) {
             $query = DB::table('user_wallets')->where('user_id', $user->id);
 
-            if (!empty($validated['address'])) {
-                $query->where('address', strtolower($validated['address']));
+            if (!empty($address)) {
+                $query->where('address', $address);
             }
 
             $query->delete();
@@ -658,26 +692,64 @@ class AuthController extends Controller
         ])->save();
     }
 
-    private function makeWeb3Message(string $purpose, string $nonce, string $address): string
+    private function makeWeb3Message(string $purpose, string $nonce, string $address, string $walletType = 'evm'): string
     {
         $action = $purpose === 'link' ? 'Bind wallet' : 'Login';
+        $network = $walletType === 'solana' ? 'Solana' : 'EVM';
 
         return implode("\n", [
             "AV8 Capital DAO",
             "{$action} with wallet",
+            "Network: {$network}",
             "Address: {$address}",
             "Nonce: {$nonce}",
         ]);
     }
 
-    private function web3LoginNonceKey(string $address): string
+    private function web3LoginNonceKey(string $walletType, string $address): string
     {
-        return "web3:login:nonce:{$address}";
+        return "web3:login:nonce:{$walletType}:{$address}";
     }
 
-    private function web3LinkNonceKey(int|string $userId, string $address): string
+    private function web3LinkNonceKey(int|string $userId, string $walletType, string $address): string
     {
-        return "web3:link:nonce:{$userId}:{$address}";
+        return "web3:link:nonce:{$userId}:{$walletType}:{$address}";
+    }
+
+    private function normalizeWalletType(?string $walletType): string
+    {
+        return strtolower(trim((string) $walletType)) === 'solana' ? 'solana' : 'evm';
+    }
+
+    private function normalizeWalletAddress(string $address, string $walletType): string
+    {
+        $address = trim($address);
+
+        if ($walletType === 'solana') {
+            return $address;
+        }
+
+        return str_starts_with(strtolower($address), '0x')
+            ? strtolower($address)
+            : $address;
+    }
+
+    private function isValidWalletAddress(string $address, string $walletType): bool
+    {
+        if ($walletType === 'solana') {
+            return (bool) preg_match('/^[1-9A-HJ-NP-Za-km-z]{32,44}$/', $address);
+        }
+
+        return (bool) preg_match('/^0x[a-fA-F0-9]{40}$/', $address);
+    }
+
+    private function verifyWalletSignature(string $message, string $signature, string $address, string $walletType): bool
+    {
+        if ($walletType === 'solana') {
+            return $this->verifySolanaSignature($message, $signature, $address);
+        }
+
+        return $this->verifyEthereumSignature($message, $signature, $address);
     }
 
     private function verifyEthereumSignature(string $message, string $signature, string $address): bool
@@ -707,6 +779,62 @@ class AuthController extends Controller
         );
 
         return strtolower($derivedAddress) === strtolower($address);
+    }
+
+    private function verifySolanaSignature(string $message, string $signature, string $address): bool
+    {
+        if (!function_exists('sodium_crypto_sign_verify_detached')) {
+            return false;
+        }
+
+        $publicKey = $this->base58Decode($address);
+        $signatureBytes = base64_decode($signature, true);
+
+        if ($publicKey === null || $signatureBytes === false) {
+            return false;
+        }
+
+        if (strlen($publicKey) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES || strlen($signatureBytes) !== SODIUM_CRYPTO_SIGN_BYTES) {
+            return false;
+        }
+
+        return sodium_crypto_sign_verify_detached($signatureBytes, $message, $publicKey);
+    }
+
+    private function base58Decode(string $value): ?string
+    {
+        $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+        $bytes = [0];
+
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            $charIndex = strpos($alphabet, $char);
+
+            if ($charIndex === false) {
+                return null;
+            }
+
+            $carry = $charIndex;
+
+            for ($j = 0, $count = count($bytes); $j < $count; $j++) {
+                $carry += $bytes[$j] * 58;
+                $bytes[$j] = $carry & 0xff;
+                $carry >>= 8;
+            }
+
+            while ($carry > 0) {
+                $bytes[] = $carry & 0xff;
+                $carry >>= 8;
+            }
+        }
+
+        for ($i = 0; $i < $length && $value[$i] === '1'; $i++) {
+            $bytes[] = 0;
+        }
+
+        return pack('C*', ...array_reverse($bytes));
     }
 
     private function syncUserRoleStatus(User $user): void
