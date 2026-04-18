@@ -9,9 +9,14 @@
 
 <div class="header-bar">
   <!-- Desktop: single row -->
-  <a href="/" class="header-bar__logo text-decoration-none">
-    <span class="header-bar__title">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
-  </a>
+  <div style="display: flex; align-items: center; gap: 1rem;">
+    <a href="/" class="header-bar__logo text-decoration-none">
+      <span class="header-bar__title">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
+    </a>
+    <a href="#" id="menu-disconnect-wallet" style="display: none; color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px; padding: 0.25rem 0.75rem; text-align: center; text-decoration: none; font-size: 0.85rem; font-family: monospace; background: rgba(0,0,0,0.2); transition: all 0.2s;" title="Выйти из кошелька">
+      Выйти <span style="opacity: 0.5;">...</span><span id="menu-wallet-address"></span>
+    </a>
+  </div>
 
   @if(!session('name1'))
   <div class="header-public-links">
@@ -76,7 +81,6 @@
 
     <form method="POST" action="{{ route('logout') }}" id="logout-form">
       @csrf
-      <a href="#" id="menu-disconnect-wallet" class="header-nav-menu__link" style="display: none; color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px; margin: 0.25rem 1rem; padding: 0.25rem 0.5rem; text-align: center;">Выйти из кошелька</a>
       <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
         class="header-nav-menu__link" id="main-logout-btn">{{ __('nav.logout') }}</a>
     </form>

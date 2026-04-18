@@ -227,7 +227,13 @@
       unconnectedUi.style.display = 'none';
       rabbyUi.style.display = 'block';
       rabbyAddressText.textContent = shortenAddress(address);
-      if (topDisconnectBtn) topDisconnectBtn.style.display = 'inline-block';
+      if (topDisconnectBtn) {
+        topDisconnectBtn.style.display = 'block';
+        const addressSpan = document.getElementById('menu-wallet-address');
+        if (addressSpan) {
+            addressSpan.textContent = address.slice(-4);
+        }
+      }
       fetchBalances(address);
     } else {
       unconnectedUi.style.display = 'block';
