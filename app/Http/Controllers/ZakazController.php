@@ -377,6 +377,60 @@ class ZakazController extends Controller
         ]);
     }
 
+    // ── Получить заказы аутентифицированного пользователя ──────────────────
+
+    public function apiOrders(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json([
+                'message' => 'Unauthenticated',
+            ], 401);
+        }
+
+        $orders = DB::table('document')
+            ->where('client1', $user->id)
+            ->where('type', 'ZOUT')
+            ->orderBy('dt', 'desc')
+            ->get();
+
+        // Parse description into items
+        $formattedOrders = $orders->map(function ($order) {
+            $items = [];
+            
+            // Simple parsing of description format: "Item1 — qty1шт × price1₴; Item2 — qty2шт × price2₴; ..."
+            if (!empty($order->description)) {
+                // Split by ';' to separate delivery info and items
+                $parts = explode(';', $order->description);
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    // Match pattern: "Name — Qqty × Price"
+                    if (preg_match('/^(.+?)\s*—\s*(\d+)шт\s*×\s*([0-9.]+)₴/', $part, $matches)) {
+                        $items[] = [
+                            'name' => trim($matches[1]),
+                            'quantity' => (int) $matches[2],
+                            'price' => (float) $matches[3],
+                        ];
+                    }
+                }
+            }
+
+            return [
+                'id' => $order->id,
+                'num' => $order->num,
+                'dt' => $order->dt,
+                'description' => $order->description,
+                'items' => $items,
+                'sum' => $order->sum,
+                'status' => $order->status ?? 'pending',
+            ];
+        });
+
+        return response()->json([
+            'orders' => $formattedOrders,
+        ]);
+    }
+
     private function buildGuestEmail(string $mobile): string
     {
         $digits = preg_replace('/\D+/', '', $mobile) ?: Str::random(10);

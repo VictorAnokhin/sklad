@@ -277,7 +277,6 @@ class AuthController extends Controller
     {
         Auth::guard('web')->logout();
         $request->session()->invalidate();
-        $request->session()->regenerateToken();
 
         return response()->json(['ok' => true]);
     }
@@ -292,6 +291,33 @@ class AuthController extends Controller
 
         return response()->json([
             'user' => $this->serializeUser($user),
+        ]);
+    }
+
+    public function apiUpdateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $validationRules = [
+            'name' => 'nullable|string|max:255',
+            'secondname' => 'nullable|string|max:255',
+            'fathername' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'email' => 'nullable|email|max:255|unique:users,email,' . $user->id,
+        ];
+
+        $validated = $request->validate($validationRules);
+
+        $user->update($validated);
+        $user = $user->fresh();
+
+        return response()->json([
+            'user' => $this->serializeUser($user),
+            'message' => 'Profile updated successfully',
         ]);
     }
 

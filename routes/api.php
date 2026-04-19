@@ -15,13 +15,14 @@ use App\Http\Controllers\ZakazController;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('web')->prefix('auth')->group(function () {
+Route::middleware('api')->prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'apiRegister']);
     Route::post('/login', [AuthController::class, 'apiLogin']);
     Route::post('/web3/challenge', [AuthController::class, 'web3LoginChallenge']);
     Route::post('/web3/login', [AuthController::class, 'web3Login']);
     Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'apiUser']);
     Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'apiLogout']);
+    Route::middleware('auth:sanctum')->put('/profile', [AuthController::class, 'apiUpdateProfile']);
     Route::middleware('auth:sanctum')->post('/wallet/challenge', [AuthController::class, 'web3LinkChallenge']);
     Route::middleware('auth:sanctum')->post('/wallet/link', [AuthController::class, 'linkWallet']);
     Route::middleware('auth:sanctum')->post('/wallet/unlink', [AuthController::class, 'unlinkWallet']);
@@ -49,3 +50,4 @@ Route::get('/wallet/overview', [WalletController::class, 'overview']);
 
 Route::post('/order', [ZakazController::class, 'store']);
 Route::get('/orders', [ZakazController::class, 'index']);
+Route::middleware('auth:sanctum')->get('/my-orders', [ZakazController::class, 'apiOrders']);
