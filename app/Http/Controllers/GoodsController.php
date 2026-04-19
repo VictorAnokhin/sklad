@@ -103,6 +103,7 @@ class GoodsController extends Controller
             })
             ->select(
                 'comp.id',
+                'comp.cod',
                 DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
                 DB::raw('COALESCE(d.name, "") as name_ru'),
                 DB::raw('COALESCE(d.name_ua, "") as name_ua'),
@@ -128,6 +129,7 @@ class GoodsController extends Controller
 
                 return [
                     'id' => (int) $g->id,
+                    'code' => trim((string) ($g->cod ?? '')),
                     'name' => $nameView ?: '',
                     'name_ru' => $g->name_ru ?? '',
                     'name_ua' => $g->name_ua ?? '',
@@ -287,10 +289,11 @@ class GoodsController extends Controller
     {
         $limit = (int) $request->input('limit', 20);
         $offset = (int) $request->input('offset', 0);
+        $hitOnly = $request->boolean('hit');
 
         $fid = $this->resolveApiFid($request, '2');
         $locale = $this->resolveApiLocale($request);
-        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset, $locale);
+        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset, $locale, $hitOnly);
 
         return response()->json([
             'success' => true,
@@ -298,6 +301,7 @@ class GoodsController extends Controller
             'total' => $result['total'],
             'limit' => $limit,
             'offset' => $offset,
+            'hit' => $hitOnly,
             'locale' => $locale,
         ]);
     }

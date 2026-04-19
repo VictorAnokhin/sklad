@@ -66,7 +66,7 @@ class Field extends Model
         }
 
         $select = ['id', 'idkeyfield', 'val'];
-        foreach (['valua', 'valen', 'description', 'descriptionua', 'descriptionen', 'num', 'visible', 'firstpage'] as $column) {
+        foreach (['valua', 'valen', 'description', 'descriptionua', 'descriptionen', 'link', 'num', 'visible', 'firstpage'] as $column) {
             if ($hasColumn($column)) {
                 $select[] = $column;
             }
@@ -106,6 +106,7 @@ class Field extends Model
                 'name_ru' => $nameRu,
                 'name_ua' => $nameUa,
                 'name_en' => $nameEn,
+                'link' => trim((string) ($item->link ?? '')),
                 'description' => self::localizedValue($locale, $descriptionRu, $descriptionUa, $descriptionEn),
                 'description_ru' => $descriptionRu,
                 'description_ua' => $descriptionUa,

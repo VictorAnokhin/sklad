@@ -398,6 +398,10 @@
                     </div>
 
                     <div class="row" id="catalog-description-row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Link</label>
+                            <input type="text" class="form-control" id="catalog-link" maxlength="35" placeholder="slug или ссылка из field.link">
+                        </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Опис RU</label>
                             <textarea class="form-control" id="catalog-description-ru" rows="4"></textarea>
@@ -2723,6 +2727,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name_ru: document.getElementById('catalog-name-ru').value.trim(),
                 name_ua: document.getElementById('catalog-name-ua').value.trim(),
                 name_en: document.getElementById('catalog-name-en').value.trim(),
+                link: document.getElementById('catalog-link').value.trim(),
                 num: document.getElementById('catalog-num').value,
                 visible: document.getElementById('catalog-visible').checked,
                 firstpage: document.getElementById('catalog-firstpage').checked,
@@ -2818,6 +2823,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="mt-1">${item.firstpage === '1' ? '<span class="badge bg-warning text-dark">Перша сторінка</span>' : '<span class="badge bg-light text-dark">Звичайна</span>'}</div>
                 ` : '<span class="text-muted">—</span>';
                 const description = fieldModeConfig[currentKeyfield].showExtra ? `
+                    <div><strong>Link:</strong> ${escapeHtml(shortText(item.link || '—'))}</div>
                     <div>${escapeHtml(shortText(item.description_ru || '—'))}</div>
                     <div class="catalog-meta">UA: ${escapeHtml(shortText(item.description_ua || '—'))}</div>
                     <div class="catalog-meta">EN: ${escapeHtml(shortText(item.description_en || '—'))}</div>
@@ -2891,6 +2897,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('catalog-name-ru').value = data.name_ru || '';
                     document.getElementById('catalog-name-ua').value = data.name_ua || '';
                     document.getElementById('catalog-name-en').value = data.name_en || '';
+                    document.getElementById('catalog-link').value = data.link || '';
                     document.getElementById('catalog-num').value = data.num ?? 0;
                     document.getElementById('catalog-visible').checked = String(data.visible ?? '1') === '1';
                     document.getElementById('catalog-firstpage').checked = String(data.firstpage ?? '0') === '1';
@@ -2963,6 +2970,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('catalog-id').value = '';
             document.getElementById('catalog-keyfield').value = currentKeyfield;
             document.getElementById('catalog-parent-id').value = currentKeyfield === 'catalog' ? currentParentId : '0';
+            document.getElementById('catalog-link').value = '';
             document.getElementById('catalog-num').value = '0';
             document.getElementById('catalog-visible').checked = true;
             document.getElementById('catalog-firstpage').checked = false;

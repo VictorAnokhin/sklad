@@ -346,7 +346,7 @@ class Goods extends Model
 
     // ── Web / API methods ─────────────────────────────────────────────────────
 
-    public static function getWebGoodsBySection($fid, $id, $limit, $offset, ?string $locale = 'ru')
+    public static function getWebGoodsBySection($fid, $id, $limit, $offset, ?string $locale = 'ru', bool $hitOnly = false)
     {
         $query = self::query()
             ->leftJoin('descript as d', function ($join) {
@@ -360,10 +360,15 @@ class Goods extends Model
                     ->orWhere('comp.idglava', $id);
             });
 
+        if ($hitOnly) {
+            $query->where('comp.hit', 1);
+        }
+
         $totalCount = $query->count();
 
         $goods = $query->select(
             'comp.id',
+            'comp.cod',
             DB::raw(self::displayNameSql() . ' as name'),
             DB::raw('COALESCE(d.name, "") as name_ru'),
             DB::raw('COALESCE(d.name_ua, "") as name_ua'),
@@ -374,8 +379,13 @@ class Goods extends Model
             'comp.nfoto',
             'comp.nfoto1',
             'comp.pay',
+            'comp.top',
+            'comp.hit',
             'comp.firma'
         )
+            ->orderByDesc('comp.top')
+            ->orderByDesc('comp.hit')
+            ->orderBy('name')
             ->offset($offset)
             ->limit($limit)
             ->get();
@@ -387,6 +397,7 @@ class Goods extends Model
 
                 return [
                     'id' => $item->id,
+                    'code' => trim((string) ($item->cod ?? '')),
                     'name' => $nameView,
                     'name_ua' => $item->name_ua,
                     'name_en' => $item->name_en,
@@ -414,18 +425,24 @@ class Goods extends Model
         ];
     }
 
-    public static function getWebGood($fid, $id, ?string $locale = 'ru')
+    public static function getWebGood($fid, $identifier, ?string $locale = 'ru')
     {
-        $item = self::query()
+        $identifier = trim((string) $identifier);
+
+        if ($identifier === '') {
+            return null;
+        }
+
+        $baseQuery = self::query()
             ->leftJoin('descript as d', function ($join) {
                 $join->on('d.pnum', '=', 'comp.id')
                     ->whereColumn('d.firma', '=', 'comp.firma');
             })
             ->where('comp.web', '1')
             ->where('comp.firma', $fid)
-            ->where('comp.id', $id)
             ->select(
                 'comp.id',
+                'comp.cod',
                 'comp.idcaption',
                 'comp.idglava',
                 'comp.firma',
@@ -450,8 +467,17 @@ class Goods extends Model
                 DB::raw('COALESCE(d.description, "") as description'),
                 DB::raw('COALESCE(d.description_ua, "") as description_ua'),
                 DB::raw('COALESCE(d.description_en, "") as description_en')
-            )
+            );
+
+        $item = (clone $baseQuery)
+            ->where('comp.cod', $identifier)
             ->first();
+
+        if (!$item && ctype_digit($identifier)) {
+            $item = (clone $baseQuery)
+                ->where('comp.id', (int) $identifier)
+                ->first();
+        }
 
         if (!$item) {
             return null;
@@ -511,11 +537,13 @@ class Goods extends Model
                 'name_ru' => $fieldItem->val ?? '',
                 'name_ua' => $fieldItem->valua ?? '',
                 'name_en' => $fieldItem->valen ?? '',
+                'link' => trim((string) ($fieldItem->link ?? '')),
             ];
         };
 
         return [
             'id' => (int) $item->id,
+            'code' => trim((string) ($item->cod ?? '')),
             'name' => $nameView,
             'name_ru' => $item->name_ru ?? '',
             'name_ua' => $item->name_ua ?? '',
@@ -555,6 +583,7 @@ class Goods extends Model
             ->where('comp.firma', $fid)
             ->select(
                 'comp.id',
+                'comp.cod',
                 DB::raw(self::displayNameSql() . ' as name'),
                 DB::raw('COALESCE(d.name, "") as name_ru'),
                 DB::raw('COALESCE(d.name_ua, "") as name_ua'),
@@ -579,6 +608,7 @@ class Goods extends Model
 
                 return [
                     'id' => $item->id,
+                    'code' => trim((string) ($item->cod ?? '')),
                     'name' => $nameView,
                     'name_ua' => $item->name_ua,
                     'name_en' => $item->name_en,

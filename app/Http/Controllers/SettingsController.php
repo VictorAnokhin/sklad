@@ -1145,6 +1145,7 @@ class SettingsController extends Controller
             'name_ru' => 'required|string|max:255',
             'name_ua' => 'nullable|string|max:255',
             'name_en' => 'nullable|string|max:255',
+            'link' => 'nullable|string|max:35',
             'description_ru' => 'nullable|string|max:5000',
             'description_ua' => 'nullable|string|max:5000',
             'description_en' => 'nullable|string|max:5000',
@@ -1192,6 +1193,9 @@ class SettingsController extends Controller
             $payload['descriptionen'] = $validated['description_en'] ?? '';
         } elseif (in_array('description_en', $columns, true)) {
             $payload['description_en'] = $validated['description_en'] ?? '';
+        }
+        if (in_array('link', $columns, true)) {
+            $payload['link'] = $validated['link'] ?? '';
         }
         if (in_array('visible', $columns, true)) {
             $payload['visible'] = $request->boolean('visible') ? '1' : '0';
@@ -1279,6 +1283,7 @@ class SettingsController extends Controller
             'description_ru' => $descriptionRu,
             'description_ua' => $descriptionUa,
             'description_en' => $descriptionEn,
+            'link' => in_array('link', $fieldColumns, true) ? ($item->link ?? '') : '',
             'children_count' => (int) ($childCounts[(string) $item->id] ?? 0),
             'num' => (int) (property_exists($item, 'num') ? ($item->num ?? 0) : 0),
             'visible' => (string) (property_exists($item, 'visible') ? ($item->visible ?? '1') : '1'),
