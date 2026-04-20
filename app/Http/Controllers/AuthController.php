@@ -265,18 +265,18 @@ class AuthController extends Controller
 
         $this->syncUserRoleStatus($user);
 
-        Auth::login($user);
-        $request->session()->regenerate();
+        // Create Sanctum token instead of session login
+        $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([
             'user' => $this->serializeUser($user->fresh()),
+            'token' => $token,
         ]);
     }
 
     public function apiLogout(Request $request)
     {
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
+        $request->user()->currentAccessToken()->delete();
 
         return response()->json(['ok' => true]);
     }

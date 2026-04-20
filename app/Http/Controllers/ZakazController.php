@@ -381,54 +381,60 @@ class ZakazController extends Controller
 
     public function apiOrders(Request $request)
     {
-        $user = $request->user();
-        if (!$user) {
-            return response()->json([
-                'message' => 'Unauthenticated',
-            ], 401);
-        }
-
-        $orders = DB::table('document')
-            ->where('client1', $user->id)
-            ->where('type', 'ZOUT')
-            ->orderBy('dt', 'desc')
-            ->get();
-
-        // Parse description into items
-        $formattedOrders = $orders->map(function ($order) {
-            $items = [];
-            
-            // Simple parsing of description format: "Item1 — qty1шт × price1₴; Item2 — qty2шт × price2₴; ..."
-            if (!empty($order->description)) {
-                // Split by ';' to separate delivery info and items
-                $parts = explode(';', $order->description);
-                foreach ($parts as $part) {
-                    $part = trim($part);
-                    // Match pattern: "Name — Qqty × Price"
-                    if (preg_match('/^(.+?)\s*—\s*(\d+)шт\s*×\s*([0-9.]+)₴/', $part, $matches)) {
-                        $items[] = [
-                            'name' => trim($matches[1]),
-                            'quantity' => (int) $matches[2],
-                            'price' => (float) $matches[3],
-                        ];
-                    }
-                }
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'message' => 'Unauthenticated',
+                ], 401);
             }
 
-            return [
-                'id' => $order->id,
-                'num' => $order->num,
-                'dt' => $order->dt,
-                'description' => $order->description,
-                'items' => $items,
-                'sum' => $order->sum,
-                'status' => $order->status ?? 'pending',
-            ];
-        });
+            // Debug: return user info
+            $orders = DB::table('document')
+                ->where('client1', $user->id)
+                ->where('type', 'ZOUT')
+                ->orderBy('dt', 'desc')
+                ->get();
 
-        return response()->json([
-            'orders' => $formattedOrders,
-        ]);
+            // Parse description into items
+            $formattedOrders = $orders->map(function ($order) {
+                $items = [];
+                
+                // Simple parsing of content format: "Item1 — qty1шт × price1₴; Item2 — qty2шт × price2₴; ..."
+                if (!empty($order->content)) {
+                    // Split by ';' to separate delivery info and items
+                    $parts = explode(';', $order->content);
+                    foreach ($parts as $part) {
+                        $part = trim($part);
+                        // Match pattern: "Name — Qqty × Price"
+                        if (preg_match('/^(.+?)\s*—\s*(\d+)шт\s*×\s*([0-9.]+)₴/', $part, $matches)) {
+                            $items[] = [
+                                'name' => trim($matches[1]),
+                                'quantity' => (int) $matches[2],
+                                'price' => (float) $matches[3],
+                            ];
+                        }
+                    }
+                }
+
+                return [
+                    'id' => $order->id,
+                    'num' => $order->num,
+                    'dt' => $order->dt,
+                    'description' => $order->content,
+                    'items' => $items,
+                    'sum' => (float) $order->summa,
+                    'status' => $order->status ?? 'pending',
+                ];
+            });
+
+            return response()->json($formattedOrders);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching orders',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     private function buildGuestEmail(string $mobile): string
