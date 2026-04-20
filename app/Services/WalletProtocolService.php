@@ -96,11 +96,24 @@ class WalletProtocolService
                 continue;
             }
 
-            $callData = '0x70a08231' . str_pad(substr($normalizedAddress, 2), 64, '0', STR_PAD_LEFT);
-            $balanceHex = $this->rpcCall($rpcUrl, 'eth_call', [[
-                'to' => $tokenAddress,
-                'data' => $callData,
-            ], 'latest']);
+            // Use cached balance if available and recent (within 5 minutes)
+            $cachedBalance = null;
+            $cachedPrice = null;
+            if ($token->last_updated_at && $token->last_updated_at->diffInMinutes(now()) < 5) {
+                $cachedBalance = $token->last_balance;
+                $cachedPrice = $token->last_price;
+            }
+
+            if ($cachedBalance !== null) {
+                $balance = $cachedBalance;
+            } else {
+                $callData = '0x70a08231' . str_pad(substr($normalizedAddress, 2), 64, '0', STR_PAD_LEFT);
+                $balanceHex = $this->rpcCall($rpcUrl, 'eth_call', [[
+                    'to' => $tokenAddress,
+                    'data' => $callData,
+                ], 'latest']);
+                $balance = $this->normalizeHexTokenAmount($balanceHex, max(0, (int) ($token->status ?? 18)));
+            }
 
             $decimals = max(0, (int) ($token->status ?? 18));
             $assets[] = [
@@ -108,7 +121,8 @@ class WalletProtocolService
                 'name' => (string) (($token->doc ?? '') !== '' ? $token->doc : ($token->name ?? 'Token')),
                 'address' => $tokenAddress,
                 'decimals' => $decimals,
-                'balance' => $this->normalizeHexTokenAmount($balanceHex, $decimals),
+                'balance' => $balance,
+                'price' => $cachedPrice ?? 0,
                 'is_native' => false,
                 'coingecko_id' => ($token->constanta ?? '0') !== '0' ? $token->constanta : null,
             ];
@@ -160,15 +174,27 @@ class WalletProtocolService
                 continue;
             }
 
-            $tokenAccounts = $this->solanaRpcCall('getTokenAccountsByOwner', [
-                $address,
-                ['mint' => $tokenAddress],
-                ['encoding' => 'jsonParsed', 'commitment' => 'confirmed'],
-            ]);
+            // Use cached balance if available and recent
+            $cachedBalance = null;
+            $cachedPrice = null;
+            if ($token->last_updated_at && $token->last_updated_at->diffInMinutes(now()) < 5) {
+                $cachedBalance = $token->last_balance;
+                $cachedPrice = $token->last_price;
+            }
 
-            $amount = 0.0;
-            foreach ((array) data_get($tokenAccounts, 'value', []) as $account) {
-                $amount += (float) data_get($account, 'account.data.parsed.info.tokenAmount.uiAmount', 0);
+            if ($cachedBalance !== null) {
+                $amount = $cachedBalance;
+            } else {
+                $tokenAccounts = $this->solanaRpcCall('getTokenAccountsByOwner', [
+                    $address,
+                    ['mint' => $tokenAddress],
+                    ['encoding' => 'jsonParsed', 'commitment' => 'confirmed'],
+                ]);
+
+                $amount = 0.0;
+                foreach ((array) data_get($tokenAccounts, 'value', []) as $account) {
+                    $amount += (float) data_get($account, 'account.data.parsed.info.tokenAmount.uiAmount', 0);
+                }
             }
 
             $decimals = max(0, (int) ($token->status ?? 9));
@@ -178,6 +204,7 @@ class WalletProtocolService
                 'address' => $tokenAddress,
                 'decimals' => $decimals,
                 'balance' => $amount,
+                'price' => $cachedPrice ?? 0,
                 'is_native' => false,
                 'coingecko_id' => ($token->constanta ?? '0') !== '0' ? $token->constanta : null,
             ];

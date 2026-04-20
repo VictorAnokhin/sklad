@@ -368,7 +368,7 @@ class Goods extends Model
 
         $goods = $query->select(
             'comp.id',
-            'comp.cod',
+            'comp.nickname',
             DB::raw(self::displayNameSql() . ' as name'),
             DB::raw('COALESCE(d.name, "") as name_ru'),
             DB::raw('COALESCE(d.name_ua, "") as name_ua'),
@@ -397,7 +397,8 @@ class Goods extends Model
 
                 return [
                     'id' => $item->id,
-                    'code' => trim((string) ($item->cod ?? '')),
+                    'code' => trim((string) ($item->nickname ?? '')),
+                    'nickname' => trim((string) ($item->nickname ?? '')),
                     'name' => $nameView,
                     'name_ua' => $item->name_ua,
                     'name_en' => $item->name_en,
@@ -442,7 +443,7 @@ class Goods extends Model
             ->where('comp.firma', $fid)
             ->select(
                 'comp.id',
-                'comp.cod',
+                'comp.nickname',
                 'comp.idcaption',
                 'comp.idglava',
                 'comp.firma',
@@ -469,13 +470,13 @@ class Goods extends Model
                 DB::raw('COALESCE(d.description_en, "") as description_en')
             );
 
-        $item = (clone $baseQuery)
-            ->where('comp.cod', $identifier)
-            ->first();
-
-        if (!$item && ctype_digit($identifier)) {
+        if (ctype_digit($identifier)) {
             $item = (clone $baseQuery)
                 ->where('comp.id', (int) $identifier)
+                ->first();
+        } else {
+            $item = (clone $baseQuery)
+                ->whereRaw('TRIM(comp.nickname) = ?', [$identifier])
                 ->first();
         }
 
@@ -543,7 +544,8 @@ class Goods extends Model
 
         return [
             'id' => (int) $item->id,
-            'code' => trim((string) ($item->cod ?? '')),
+            'code' => trim((string) ($item->nickname ?? '')),
+            'nickname' => trim((string) ($item->nickname ?? '')),
             'name' => $nameView,
             'name_ru' => $item->name_ru ?? '',
             'name_ua' => $item->name_ua ?? '',
@@ -583,7 +585,7 @@ class Goods extends Model
             ->where('comp.firma', $fid)
             ->select(
                 'comp.id',
-                'comp.cod',
+                'comp.nickname',
                 DB::raw(self::displayNameSql() . ' as name'),
                 DB::raw('COALESCE(d.name, "") as name_ru'),
                 DB::raw('COALESCE(d.name_ua, "") as name_ua'),
@@ -608,7 +610,8 @@ class Goods extends Model
 
                 return [
                     'id' => $item->id,
-                    'code' => trim((string) ($item->cod ?? '')),
+                    'code' => trim((string) ($item->nickname ?? '')),
+                    'nickname' => trim((string) ($item->nickname ?? '')),
                     'name' => $nameView,
                     'name_ua' => $item->name_ua,
                     'name_en' => $item->name_en,

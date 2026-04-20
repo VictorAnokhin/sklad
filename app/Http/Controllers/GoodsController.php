@@ -103,7 +103,7 @@ class GoodsController extends Controller
             })
             ->select(
                 'comp.id',
-                'comp.cod',
+                'comp.nickname',
                 DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
                 DB::raw('COALESCE(d.name, "") as name_ru'),
                 DB::raw('COALESCE(d.name_ua, "") as name_ua'),
@@ -129,7 +129,8 @@ class GoodsController extends Controller
 
                 return [
                     'id' => (int) $g->id,
-                    'code' => trim((string) ($g->cod ?? '')),
+                    'code' => trim((string) ($g->nickname ?? '')),
+                    'nickname' => trim((string) ($g->nickname ?? '')),
                     'name' => $nameView ?: '',
                     'name_ru' => $g->name_ru ?? '',
                     'name_ua' => $g->name_ua ?? '',

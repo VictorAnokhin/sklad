@@ -89,6 +89,10 @@
 
             <div id="wallet-main-view" class="rabby-tokens">
                 <div style="padding: 1rem 1.5rem 0.25rem;">
+                    <div id="profile-wallet-selector" style="margin-bottom: 1rem;">
+                        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-bottom:0.75rem;" id="profile-wallet-list"></div>
+                        <div style="color: rgba(255,255,255,0.58); font-size: 0.85rem;">Выберите кошелёк из профиля. Если кошельков несколько, переключайтесь между ними по очереди.</div>
+                    </div>
                     <div class="wallet-network-panel">
                         <div>
                             <div class="wallet-network-panel__label">DeFi network</div>
@@ -108,7 +112,10 @@
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem 0.75rem;">
                     <h4 style="font-size: 1.05rem; color: rgba(255,255,255,0.9); font-weight: 600; margin: 0;">Assets</h4>
-                    <span style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">Native + Network</span>
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <button id="btn-refresh-tokens" style="background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.3); color: #fbbf24; border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;">Обновить</button>
+                        <span style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">Native + Network</span>
+                    </div>
                 </div>
                 <div id="rabby-tokens-list" style="padding: 0 1rem 1rem;">
                     <div class="text-center py-4" style="color: rgba(255,255,255,0.5);">
@@ -323,7 +330,8 @@
         ? 'https://cryptologos.cc/logos/solana-sol-logo.svg'
         : 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
       price: 0,
-      cgId: (t.constanta && t.constanta !== '0') ? t.constanta : null
+      cgId: (t.constanta && t.constanta !== '0') ? t.constanta : null,
+      chain_id: chainId,
     });
   });
 
@@ -388,13 +396,75 @@
     }
   }
 
+  const profileWallets = {!! json_encode($profileWallets ?? []) !!};
   const profileWallet = {!! json_encode($profileWallet ?? null) !!};
+  let currentWalletIndex = 0;
   let currentWalletAddress = null;
   let currentWalletChainId = null;
   let currentWalletTokens = [];
   let connectedWalletAddress = null;
   let connectedWalletChainId = null;
   let selectedProtocolChainId = normalizeChainId(profileWallet?.chain_id || connectedWalletChainId || '0x1') || '0x1';
+
+  function buildWalletLabel(wallet) {
+    if (!wallet || !wallet.address) return 'Неизвестный кошелек';
+    const networkName = COMMON_NETWORKS[normalizeChainId(wallet.chain_id) || '0x1']?.name || wallet.chain_id || 'Chain';
+    return `${shortenAddress(wallet.address)} · ${networkName}`;
+  }
+
+  function renderProfileWalletList() {
+    const listContainer = document.getElementById('profile-wallet-list');
+    if (!listContainer) return;
+
+    if (!Array.isArray(profileWallets) || profileWallets.length === 0) {
+      listContainer.innerHTML = '<div style="color: rgba(255,255,255,0.65);">В профиле нет сохранённых кошельков.</div>';
+      return;
+    }
+
+    listContainer.innerHTML = profileWallets.map((wallet, index) => {
+      const isActive = index === currentWalletIndex;
+      return `
+        <button type="button" class="wallet-select-btn${isActive ? ' active' : ''}" data-index="${index}">
+          ${buildWalletLabel(wallet)}
+        </button>
+      `;
+    }).join('');
+
+    listContainer.querySelectorAll('.wallet-select-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        const index = Number(button.dataset.index);
+        if (!Number.isNaN(index)) {
+          selectProfileWallet(index);
+        }
+      });
+    });
+  }
+
+  function selectProfileWallet(index) {
+    if (!Array.isArray(profileWallets) || profileWallets.length === 0) return;
+    const normalizedIndex = Math.max(0, Math.min(index, profileWallets.length - 1));
+    currentWalletIndex = normalizedIndex;
+    const wallet = profileWallets[currentWalletIndex];
+    if (!wallet) return;
+
+    renderProfileWalletList();
+    updateWalletState(wallet.address, { chainId: wallet.chain_id });
+
+    // Dispatch update token data jobs
+    fetch('/api/wallet/update-token-data', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+      },
+      body: JSON.stringify({
+        wallet_address: wallet.address,
+        chain_id: wallet.chain_id || '0x1',
+      }),
+      credentials: 'same-origin',
+    }).catch(e => console.error('Failed to update token data:', e));
+  }
 
   function describeProtocolAvailability(chainId) {
     const support = PROTOCOL_NETWORKS[chainId] || { aave: false, gmx: false };
@@ -637,10 +707,11 @@
     currentWalletTokens = tokensToShow;
 
     tokensToShow.forEach(t => {
-      const fiatValue = t.balance * t.price;
+      const fiatValue = t.balance * (t.price || 0);
       totalFiat += fiatValue;
       if (t.balance === 0 && tokensToShow.length > 1 && t.isNative) return;
 
+      const priceText = t.price ? `$${t.price.toFixed(4)}` : 'Цена не загружена';
       listHtml += `
         <div class="token-row" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0.5rem; border-radius: 12px; transition: background 0.2s; cursor: pointer;">
             <div style="display: flex; align-items: center; gap: 12px;">
@@ -650,6 +721,7 @@
                 <div>
                     <div style="color: #fff; font-weight: 600; font-size: 1.05rem; line-height: 1.2;">${t.symbol}</div>
                     <div style="color: rgba(255,255,255,0.5); font-size: 0.85rem;">${t.name}</div>
+                    <div style="color: rgba(255,255,255,0.6); font-size: 0.75rem;">${priceText}</div>
                 </div>
             </div>
             <div style="text-align: right;">
@@ -872,6 +944,8 @@
   }
 
   window.addEventListener('load', async () => {
+    renderProfileWalletList();
+
     if (window.appWallet && typeof window.appWallet.subscribe === 'function') {
       window.appWallet.subscribe((state) => {
         if (state.connected && state.address) {
@@ -886,7 +960,10 @@
         connectedWalletAddress = null;
         connectedWalletChainId = null;
 
-        if (profileWallet?.address) {
+        if (profileWallets.length > 0) {
+          selectProfileWallet(0);
+          setWeb3Status('Показан первый кошелек из профиля.');
+        } else if (profileWallet?.address) {
           setWalletAddress(profileWallet.address);
           updateWalletState(profileWallet.address, { chainId: profileWallet.chain_id });
           setWeb3Status('Показан кошелек из профиля.');
@@ -896,6 +973,9 @@
           setWeb3Status('Кошелек не подключен.');
         }
       });
+    } else if (profileWallets.length > 0) {
+      selectProfileWallet(0);
+      setWeb3Status('Показан первый кошелек из профиля.');
     } else if (profileWallet?.address) {
       setWalletAddress(profileWallet.address);
       updateWalletState(profileWallet.address, { chainId: profileWallet.chain_id });
@@ -921,6 +1001,46 @@
 
   if (web3Button) {
     web3Button.addEventListener('click', connectWalletProvider);
+  }
+
+  const btnRefreshTokens = document.getElementById('btn-refresh-tokens');
+  if (btnRefreshTokens) {
+    btnRefreshTokens.addEventListener('click', async () => {
+      if (!currentWalletAddress) {
+        alert('Сначала выберите кошелёк.');
+        return;
+      }
+
+      btnRefreshTokens.disabled = true;
+      btnRefreshTokens.textContent = 'Обновление...';
+
+      try {
+        const response = await fetch('/api/wallet/update-token-data', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+          },
+          body: JSON.stringify({
+            wallet_address: currentWalletAddress,
+            chain_id: currentWalletChainId || '0x1',
+          }),
+          credentials: 'same-origin',
+        });
+
+        if (!response.ok) throw new Error('Failed to update token data');
+
+        // Reload assets after a short delay
+        setTimeout(() => fetchBalances(currentWalletAddress, selectedProtocolChainId), 2000);
+      } catch (e) {
+        console.error('Update token data error:', e);
+        alert('Ошибка обновления данных токенов.');
+      } finally {
+        btnRefreshTokens.disabled = false;
+        btnRefreshTokens.textContent = 'Обновить';
+      }
+    });
   }
 
   syncNetworkSelector(selectedProtocolChainId);
@@ -996,6 +1116,18 @@
     transform: none;
   }
 
+  #btn-refresh-tokens:hover:not(:disabled) {
+    background: rgba(251, 191, 36, 0.25);
+    border-color: rgba(251, 191, 36, 0.5);
+    transform: translateY(-1px);
+  }
+
+  #btn-refresh-tokens:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
   .web3-wallet-address,
   .web3-status {
     margin-top: 0.75rem;
@@ -1014,6 +1146,24 @@
   }
   .token-row:hover {
     background: rgba(255,255,255,0.05);
+  }
+
+  .wallet-select-btn {
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    padding: 0.5rem 0.9rem;
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.9);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .wallet-select-btn:hover,
+  .wallet-select-btn.active {
+    border-color: rgba(251,191,36,0.4);
+    background: rgba(251,191,36,0.12);
+    color: #fbbf24;
   }
 
   .wallet-network-panel {

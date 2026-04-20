@@ -154,6 +154,16 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-4">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalTaxReceipts" style="border-color: #28a745;">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🧾 Чеки ДПІ</h5>
+                    <p class="card-text text-muted">Чеки податкової інспекції Украї</p>
+                    <span class="badge bg-success" id="badge-tax-receipts">0</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -865,6 +875,140 @@
                     </table>
                 </div>
                 <p class="text-center text-muted" id="banners-empty-msg" style="display:none">Банерів ще немає</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для управления чеками налоговой -->
+<div class="modal fade" id="modalTaxReceipts" tabindex="-1" aria-labelledby="modalTaxReceiptsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header d-flex align-items-center">
+                <h5 class="modal-title" id="modalTaxReceiptsLabel">🧾 Чеки податкової інспекції України</h5>
+                <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-tax-receipt-add">+ Додати чек</button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+            </div>
+
+            <div class="modal-body" id="tax-receipt-form-area" style="display:none;">
+                <div class="alert alert-info">
+                    <strong>⚙️ Налаштування API:</strong> Для реєстрації чеків потрібно налаштувати доступ до API податкової інспекції Украї (ДПІ). 
+                    <a href="#" id="btn-tax-api-settings" class="alert-link">Налаштувати</a>
+                </div>
+                <form id="tax-receipt-form">
+                    <input type="hidden" id="tax-receipt-id" value="">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Тип документа <span class="text-danger">*</span></label>
+                        <select class="form-select" id="tax-receipt-doc-type" required>
+                            <option value="">-- оберіть тип --</option>
+                            <option value="PO">Прихід грошей (PO)</option>
+                            <option value="RO">Видача грошей (RO)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">ID документа <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="tax-receipt-document-id" placeholder="ID документа" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">ІПН платника <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="tax-receipt-taxpayer-id" placeholder="ІПН" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Касир</label>
+                            <input type="text" class="form-control" id="tax-receipt-cashier-name" placeholder="ПІБ касира">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Сума (грн) <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="tax-receipt-amount" placeholder="0.00" step="0.01" min="0" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Опис товарів/послуг</label>
+                        <textarea class="form-control" id="tax-receipt-description" rows="3" placeholder="Опис..."></textarea>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">💾 Додати чек</button>
+                        <button type="button" class="btn btn-secondary" id="btn-tax-receipt-cancel">Скасувати</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-body" id="tax-receipt-list-area">
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-sm btn-outline-success" id="btn-tax-register-pending">📤 Зареєструвати усі</button>
+                    <button class="btn btn-sm btn-outline-info" id="btn-tax-reload">🔄 Оновити</button>
+                </div>
+
+                <div class="alert alert-secondary" id="tax-receipt-stats" style="display:none;">
+                    <strong>Статистика:</strong>
+                    Всього: <span id="tax-stat-total">0</span> | 
+                    Зареєстровано: <span id="tax-stat-registered">0</span> | 
+                    Очікування: <span id="tax-stat-pending">0</span> | 
+                    Помилки: <span id="tax-stat-failed">0</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>№ Чека</th>
+                                <th>Документ</th>
+                                <th>Сума (грн)</th>
+                                <th>Статус</th>
+                                <th>Дата</th>
+                                <th class="text-end">Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tax-receipts-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-muted" id="tax-receipts-empty-msg" style="display:none">Чеків ще немає</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- API Settings Modal for Tax Receipts -->
+<div class="modal fade" id="modalTaxApiSettings" tabindex="-1" aria-labelledby="modalTaxApiSettingsLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTaxApiSettingsLabel">⚙️ Налаштування API ДПІ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <strong>📌 Важливо:</strong> Отримайте облікові дані від податкової інспекції Украї для API доступу.
+                </div>
+
+                <form id="tax-api-settings-form">
+                    <div class="mb-3">
+                        <label class="form-label">API URL <span class="text-danger">*</span></label>
+                        <input type="url" class="form-control" id="tax-api-url" placeholder="https://api.tax.gov.ua" value="https://api.tax.gov.ua" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">API Key <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="tax-api-key" placeholder="Введіть API ключ" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Secret Key <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="tax-api-secret" placeholder="Введіть секретний ключ" required>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">💾 Зберегти</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -3544,6 +3688,220 @@ document.addEventListener('DOMContentLoaded', () => {
         div.textContent = str;
         return div.innerHTML;
     }
+
+    // ── Tax Receipts Management ────────────────────────────────────────────
+
+    (() => {
+        const modal = document.getElementById('modalTaxReceipts');
+        const apiSettingsModal = document.getElementById('modalTaxApiSettings');
+        const form = document.getElementById('tax-receipt-form');
+        const listArea = document.getElementById('tax-receipt-list-area');
+        const formArea = document.getElementById('tax-receipt-form-area');
+        const tbody = document.getElementById('tax-receipts-tbody');
+        const emptyMsg = document.getElementById('tax-receipts-empty-msg');
+        const badge = document.getElementById('badge-tax-receipts');
+        const btnAdd = document.getElementById('btn-tax-receipt-add');
+        const btnCancel = document.getElementById('btn-tax-receipt-cancel');
+        const btnRegisterPending = document.getElementById('btn-tax-register-pending');
+        const btnReload = document.getElementById('btn-tax-reload');
+        const btnApiSettings = document.getElementById('btn-tax-api-settings');
+        const apiForm = document.getElementById('tax-api-settings-form');
+
+        if (!modal) return;
+
+        modal.addEventListener('show.bs.modal', () => {
+            hideForm();
+            loadTaxReceipts();
+            loadStatistics();
+        });
+
+        btnAdd.addEventListener('click', () => {
+            showForm();
+        });
+
+        btnCancel.addEventListener('click', hideForm);
+        btnReload.addEventListener('click', loadTaxReceipts);
+
+        btnRegisterPending.addEventListener('click', () => {
+            if (!confirm('Зареєструвати усі чеки у податковій?')) return;
+            
+            fetch('/settings/tax-receipts/register-pending', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    alert(`Зареєстровано: ${data.registered}, Помилки: ${data.failed}`);
+                    loadTaxReceipts();
+                    loadStatistics();
+                })
+                .catch(e => alert('Помилка: ' + e.message));
+        });
+
+        btnApiSettings.addEventListener('click', () => {
+            new (window.bootstrap.Modal)(apiSettingsModal).show();
+        });
+
+        apiForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const data = {
+                api_key: document.getElementById('tax-api-key').value,
+                secret_key: document.getElementById('tax-api-secret').value,
+                base_url: document.getElementById('tax-api-url').value,
+            };
+
+            fetch('/settings/tax-receipts/settings', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Налаштування збережено!');
+                        new (window.bootstrap.Modal)(apiSettingsModal).hide();
+                    }
+                })
+                .catch(e => alert('Помилка: ' + e.message));
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const data = {
+                document_type: document.getElementById('tax-receipt-doc-type').value,
+                document_id: document.getElementById('tax-receipt-document-id').value,
+                taxpayer_id: document.getElementById('tax-receipt-taxpayer-id').value,
+                cashier_name: document.getElementById('tax-receipt-cashier-name').value || 'Unknown',
+                amount: parseFloat(document.getElementById('tax-receipt-amount').value) || 0,
+                goods_description: document.getElementById('tax-receipt-description').value,
+            };
+
+            fetch('/settings/tax-receipts', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Чек додано!');
+                        resetForm();
+                        hideForm();
+                        loadTaxReceipts();
+                        loadStatistics();
+                    } else {
+                        alert('Помилка: ' + (data.error || 'Невідома помилка'));
+                    }
+                })
+                .catch(e => alert('Помилка: ' + e.message));
+        });
+
+        tbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+
+            const id = btn.dataset.id;
+            const action = btn.dataset.action;
+
+            if (action === 'delete') {
+                if (!confirm('Видалити чек?')) return;
+                fetch(`/settings/tax-receipts/${id}`, { method: 'DELETE' })
+                    .then(r => r.json())
+                    .then(() => {
+                        loadTaxReceipts();
+                        loadStatistics();
+                    })
+                    .catch(e => alert('Помилка: ' + e.message));
+            } else if (action === 'register') {
+                fetch(`/settings/tax-receipts/${id}/register`, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Чек зареєстровано! ID: ' + data.tax_receipt_id);
+                        } else {
+                            alert('Помилка реєстрації: ' + data.error);
+                        }
+                        loadTaxReceipts();
+                        loadStatistics();
+                    })
+                    .catch(e => alert('Помилка: ' + e.message));
+            }
+        });
+
+        function loadTaxReceipts() {
+            fetch('/settings/tax-receipts')
+                .then(r => r.json())
+                .then(data => {
+                    renderReceipts(data.data);
+                    badge.textContent = data.total;
+                })
+                .catch(e => {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Помилка завантаження</td></tr>';
+                });
+        }
+
+        function loadStatistics() {
+            fetch('/settings/tax-receipts/statistics')
+                .then(r => r.json())
+                .then(data => {
+                    const stats = data.data;
+                    document.getElementById('tax-stat-total').textContent = stats.total;
+                    document.getElementById('tax-stat-registered').textContent = stats.registered;
+                    document.getElementById('tax-stat-pending').textContent = stats.pending;
+                    document.getElementById('tax-stat-failed').textContent = stats.failed;
+                    document.getElementById('tax-receipt-stats').style.display = 'block';
+                });
+        }
+
+        function renderReceipts(items) {
+            tbody.innerHTML = '';
+            if (!items.length) {
+                emptyMsg.style.display = 'block';
+                return;
+            }
+
+            emptyMsg.style.display = 'none';
+            items.forEach(item => {
+                const statusBadge = 
+                    item.status === 'registered' ? '<span class="badge bg-success">✓ Зареєстровано</span>' :
+                    item.status === 'pending' ? '<span class="badge bg-warning text-dark">⏳ Очікування</span>' :
+                    '<span class="badge bg-danger">✗ Помилка</span>';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="fw-semibold">${escapeHtml(item.receipt_number)}</td>
+                    <td>${escapeHtml(item.document_type)} №${escapeHtml(item.document_id)}</td>
+                    <td class="text-end">${(item.amount || 0).toFixed(2)}</td>
+                    <td>${statusBadge}</td>
+                    <td>${item.registered_at ? item.registered_at : '—'}</td>
+                    <td class="text-end">
+                        ${item.status === 'pending' ? `<button class="btn btn-sm btn-outline-success" data-action="register" data-id="${item.id}">📤 Зареєстр.</button>` : ''}
+                        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${item.id}">🗑</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function resetForm() {
+            form.reset();
+            document.getElementById('tax-receipt-id').value = '';
+        }
+
+        function showForm() {
+            formArea.style.display = 'block';
+            listArea.style.display = 'none';
+            resetForm();
+        }
+
+        function hideForm() {
+            formArea.style.display = 'none';
+            listArea.style.display = 'block';
+        }
+    })();
 });
 </script>
 @endsection

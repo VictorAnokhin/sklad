@@ -2,26 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\UpdateTokenDataJob;
+use App\Models\Conf;
 use App\Services\WalletProtocolService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Auth;
 
 class WalletController extends Controller
 {
-    public function __construct(
-        private readonly WalletProtocolService $protocolService
-    ) {
+    protected WalletProtocolService $protocolService;
+
+    public function __construct(WalletProtocolService $protocolService)
+    {
+        $this->protocolService = $protocolService;
     }
 
     public function page()
     {
         $query = $this->web3TokensQuery();
         $web3Tokens = $query->get();
-        $profileWallet = $this->resolveProfileWallet();
+        $profileWallets = $this->resolveProfileWallets();
+        $profileWallet = $profileWallets[0] ?? null;
 
-        return view('pages.wallet', compact('web3Tokens', 'profileWallet'));
+        // Dispatch jobs to update token data for the first wallet
+        if ($profileWallet) {
+            foreach ($web3Tokens as $token) {
+                UpdateTokenDataJob::dispatch($token->id, $profileWallet['address'], $profileWallet['chain_id'] ?? '0x1');
+            }
+        }
+
+        return view('pages.wallet', compact('web3Tokens', 'profileWallet', 'profileWallets'));
     }
 
     public function protocols(Request $request)
@@ -60,6 +72,11 @@ class WalletController extends Controller
 
         $configuredTokens = $this->web3TokensQuery()->get()->all();
 
+        // Dispatch jobs to update token data asynchronously
+        foreach ($configuredTokens as $token) {
+            UpdateTokenDataJob::dispatch($token->id, $address, $chainId ?? '0x1');
+        }
+
         return response()->json([
             'wallet' => [
                 'address' => strtolower($address),
@@ -85,37 +102,63 @@ class WalletController extends Controller
         return $query;
     }
 
-    private function resolveProfileWallet(): ?array
+    private function resolveProfileWallets(): array
     {
         $user = Auth::user();
         if (!$user) {
-            return null;
+            return [];
         }
 
-        if (Schema::hasTable('user_wallets')) {
-            $wallet = DB::table('user_wallets')
-                ->where('user_id', $user->id)
-                ->orderByDesc('connected_at')
-                ->orderByDesc('id')
-                ->first(['address', 'network', 'connected_at']);
+        if (!Schema::hasTable('user_wallets')) {
+            $fallback = [];
 
-            if ($wallet && !empty($wallet->address)) {
-                return [
-                    'address' => (string) $wallet->address,
-                    'chain_id' => $wallet->network,
-                    'connected_at' => $wallet->connected_at,
+            if ($user->wallet_address) {
+                $fallback[] = [
+                    'address' => $user->wallet_address,
+                    'network' => $user->wallet_network,
+                    'connected_at' => optional($user->wallet_connected_at)->toIso8601String(),
                 ];
             }
+
+            return $fallback;
         }
 
-        if (!empty($user->wallet_address)) {
-            return [
-                'address' => (string) $user->wallet_address,
-                'chain_id' => $user->wallet_network,
-                'connected_at' => $user->wallet_connected_at,
-            ];
+        return DB::table('user_wallets')
+            ->where('user_id', $user->id)
+            ->orderByDesc('connected_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($wallet) {
+                return [
+                    'address' => $wallet->address,
+                    'network' => $wallet->network,
+                    'connected_at' => optional($wallet->connected_at)->toIso8601String(),
+                ];
+            })
+            ->toArray();
+    }
+
+    private function resolveProfileWallet(): ?array
+    {
+        return $this->resolveProfileWallets()[0] ?? null;
+    }
+
+    public function updateTokenData(Request $request)
+    {
+        $validated = $request->validate([
+            'wallet_address' => ['required', 'string', 'max:80'],
+            'chain_id' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $address = $validated['wallet_address'];
+        $chainId = $validated['chain_id'] ?? '0x1';
+
+        $configuredTokens = $this->web3TokensQuery()->get();
+
+        foreach ($configuredTokens as $token) {
+            UpdateTokenDataJob::dispatch($token->id, $address, $chainId);
         }
 
-        return null;
+        return response()->json(['message' => 'Token data update jobs dispatched.']);
     }
 }

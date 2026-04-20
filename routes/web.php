@@ -13,6 +13,7 @@ use App\Http\Controllers\MoneyController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TaxReceiptController;
 use App\Http\Controllers\WalletController;
 
 /*
@@ -203,6 +204,16 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/api', [SettingsController::class , 'apiStore'])->name('api.store');
             Route::put('/api/{id}', [SettingsController::class , 'apiUpdate'])->name('api.update');
             Route::delete('/api/{id}', [SettingsController::class , 'apiDestroy'])->name('api.destroy');
+
+            // Tax Receipts (чеки налоговой инспекции Украины)
+            Route::get('/tax-receipts', [TaxReceiptController::class , 'index'])->name('tax-receipts.index');
+            Route::post('/tax-receipts', [TaxReceiptController::class , 'store'])->name('tax-receipts.store');
+            Route::delete('/tax-receipts/{id}', [TaxReceiptController::class , 'destroy'])->name('tax-receipts.destroy');
+            Route::post('/tax-receipts/{id}/register', [TaxReceiptController::class , 'register'])->name('tax-receipts.register');
+            Route::post('/tax-receipts/register-pending', [TaxReceiptController::class , 'registerPending'])->name('tax-receipts.registerPending');
+            Route::get('/tax-receipts/statistics', [TaxReceiptController::class , 'statistics'])->name('tax-receipts.statistics');
+            Route::get('/tax-receipts/settings', [TaxReceiptController::class , 'getSettings'])->name('tax-receipts.settings');
+            Route::post('/tax-receipts/settings', [TaxReceiptController::class , 'saveSettings'])->name('tax-receipts.settings.save');
         }
         );
 

@@ -10,6 +10,11 @@ class Conf extends Model
     protected $table = 'conf';
     public $timestamps = false;
     protected $guarded = [];
+    protected $casts = [
+        'last_balance' => 'decimal:18',
+        'last_price' => 'decimal:8',
+        'last_updated_at' => 'datetime',
+    ];
 
 
     public function firmaObj()
