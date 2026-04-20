@@ -33,19 +33,9 @@ class Project extends Model
             return null;
         }
 
-        // Если путь начинается с ../files => используем MEDIA_IMAGE_URL
-        if (str_starts_with($value, '../files') || str_starts_with(ltrim($value, '/'), '../files')) {
-            $cleanPath = ltrim(preg_replace('#^(\.\./)+#', '', $value), '/');
-            return MediaUrl::image($cleanPath);
-        }
-
-        // Если путь начинается с files/projects => используем MEDIA_ASSET_URL
-        if (str_starts_with($value, 'files/projects')) {
-            return MediaUrl::storage($value, 'storage');
-        }
-
-        // По умолчанию — MEDIA_ASSET_URL
-        return MediaUrl::storage($value, 'storage');
+        // Используем MediaUrl::image() для всех путей (как в товарах)
+        // Это корректно обрабатывает пути ../files и files/projects
+        return MediaUrl::image($value);
     }
 
     public static function isImagePath(string $value): bool

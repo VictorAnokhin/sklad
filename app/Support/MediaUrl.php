@@ -22,6 +22,12 @@ class MediaUrl
             return self::join($base, $cleanPath);
         }
 
+        // If path starts with files/ (like files/projects) => add storage prefix
+        if (str_starts_with($path, 'files/') || str_starts_with($path, 'files\\')) {
+            $base = (string) config('media.asset_base_url', config('app.url', 'http://localhost'));
+            return self::join($base, 'storage/' . $path);
+        }
+
         // Default => use MEDIA_ASSET_URL
         return self::join((string) config('media.asset_base_url', config('app.url', 'http://localhost')), $path);
     }
