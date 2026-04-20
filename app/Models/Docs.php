@@ -220,7 +220,9 @@ class Docs extends Model
                 $actions .= "</div>";
             }
             $actions .= "<div class='ttable rel-doc-section'><span class='rel-doc-section__title'>📎 Файли</span>{$strRA}";
-            $actions .= "<div class='tstr'><a href='{$createRAUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Додати файл</a></div>";
+            if ($strRA === '') {
+                $actions .= "<div class='tstr'><a href='{$createRAUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Додати файл</a></div>";
+            }
             $actions .= "</div>";
         }
 
@@ -236,7 +238,9 @@ class Docs extends Model
                 $actions .= "<div class='tstr'><a href='{$createROUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Видача грошей</a></div>";
             }
             $actions .= "</div><div class='ttable rel-doc-section'><span class='rel-doc-section__title'>📎 Файли</span>{$strRA}";
-            $actions .= "<div class='tstr'><a href='{$createRAUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Додати файл</a></div>";
+            if ($strRA === '') {
+                $actions .= "<div class='tstr'><a href='{$createRAUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Додати файл</a></div>";
+            }
             $actions .= "</div>";
         }
 

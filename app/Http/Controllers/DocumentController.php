@@ -716,7 +716,9 @@ class DocumentController extends Controller
             $docId = (string) $request->input('doc_id', session('doc_id', '0'));
 
             $errors = [];
-            if (trim((string) $request->input('client1', '')) === '') {
+            
+            // Client validation (not required for RA documents)
+            if ($doc !== 'RA' && trim((string) $request->input('client1', '')) === '') {
                 $errors['client1'] = 'Оберіть клієнта';
             }
 

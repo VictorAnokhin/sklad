@@ -38,10 +38,82 @@ class DocumentService
                 }, 0.0);
         }
 
+        // Handle general file uploads (for all documents)
+        $uploadedFilePaths = [];
+        if ($request->hasFile('files')) {
+            $files = $request->file('files');
+            
+            // Ensure it's an array
+            if (!is_array($files)) {
+                $files = [$files];
+            }
+            
+            foreach ($files as $file) {
+                if ($file && $file->isValid()) {
+                    // Store in documents/{docType}/ folder
+                    $path = $file->store('documents/' . strtolower($docType), 'public');
+                    $uploadedFilePaths[] = '/storage/' . $path;
+                    Log::info('General file uploaded', [
+                        'docType' => $docType,
+                        'originalName' => $file->getClientOriginalName(),
+                        'path' => $path,
+                        'url' => '/storage/' . $path,
+                    ]);
+                }
+            }
+        }
+
+        // Handle file uploads for RA documents (multiple files with docum[] array)
+        $documPath = '';
+        if ($docType === 'RA') {
+            $uploadedRAPaths = [];
+            $existingDbDocum = DB::table($table)->where('id', $docId)->value('docum') ?? '';
+            $existingDocumFromRequest = $request->input('existing_docum', []);
+
+            if (!is_array($existingDocumFromRequest)) {
+                $existingDocumFromRequest = [$existingDocumFromRequest];
+            }
+            $existingDocumFromRequest = array_filter($existingDocumFromRequest, function ($value) {
+                return trim((string)$value) !== '';
+            });
+
+            if ($request->hasFile('docum')) {
+                $files = $request->file('docum');
+
+                if (!is_array($files)) {
+                    $files = [$files];
+                }
+
+                foreach ($files as $file) {
+                    if ($file && $file->isValid()) {
+                        $path = $file->store('documents/ra', 'public');
+                        $uploadedRAPaths[] = '/storage/' . $path;
+                        Log::info('RA file uploaded', [
+                            'originalName' => $file->getClientOriginalName(),
+                            'path' => $path,
+                            'url' => '/storage/' . $path,
+                        ]);
+                    }
+                }
+            }
+
+            $existingFiles = !empty($existingDocumFromRequest)
+                ? array_values($existingDocumFromRequest)
+                : (!empty($existingDbDocum) ? explode(';', $existingDbDocum) : []);
+
+            if (!empty($uploadedRAPaths)) {
+                $allFiles = array_merge($existingFiles, $uploadedRAPaths);
+                $documPath = implode(';', array_filter($allFiles));
+            } else {
+                $documPath = implode(';', array_filter($existingFiles));
+            }
+        }
+
         $data = [
             'data' => curdate($request->input('data', date('d-m-Y'))),
             'data2' => curdate($request->input('data2', date('d-m-Y'))),
             'content' => $request->input('content', ''),
+            'note' => $request->input('note', ''),
             'ttn' => $request->input('ttn', ''),
             'status' => $request->input('status', '0'),
             'summa' => $summa,
@@ -52,7 +124,7 @@ class DocumentService
             'sklads' => $request->input('sklads', ''),
             'reteil' => $request->input('reteil', ''),
             'reestr' => $request->input('reestr', ''),
-            'docum' => $request->input('docum', ''),
+            'docum' => $documPath,
             'typeproduct' => $request->input('typeproduct', ''),
             'manager' => $request->input('manager', session('login', '')),
             'money' => $request->input('money', ''),
@@ -71,7 +143,7 @@ class DocumentService
         ]);
         
         $data = array_intersect_key($data, array_flip($existingColumns));
-        foreach (['content', 'ttn', 'status', 'oplata', 'oplata2', 'sklads', 'reteil', 'reestr', 'docum', 'typeproduct', 'manager', 'money', 'sms_flag', 'schet', 'num', 'time'] as $stringField) {
+        foreach (['content', 'note', 'ttn', 'status', 'oplata', 'oplata2', 'sklads', 'reteil', 'reestr', 'docum', 'typeproduct', 'manager', 'money', 'sms_flag', 'schet', 'num', 'time'] as $stringField) {
             if (array_key_exists($stringField, $data) && $data[$stringField] === null) {
                 $data[$stringField] = '';
             }
@@ -127,6 +199,11 @@ class DocumentService
 
     public function saveBody(Request $request, string $docId, string $docType, string $fid): void
     {
+        // Skip body processing for RA documents (they don't have goods/line items)
+        if ($docType === 'RA') {
+            return;
+        }
+
         $table = Document::tableForType($docType);
         $doc = DB::table($table)->where('id', $docId)->first();
         if (!$doc)

@@ -9,6 +9,64 @@
             width: 100px !important;
             min-width: 80px;
         }
+
+        .file-preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .file-preview-card {
+            width: 120px;
+            min-height: 120px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            background: rgba(15, 23, 42, 0.85);
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: center;
+            font-size: 0.78rem;
+        }
+
+        .file-preview-card img {
+            width: 100%;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .file-preview-card .file-preview-name {
+            width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-bottom: 6px;
+        }
+
+        .file-preview-card a {
+            color: #93c5fd;
+            text-decoration: none;
+            word-break: break-all;
+            font-size: 0.75rem;
+        }
+
+        .file-preview-card .file-preview-icon {
+            width: 100%;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 2rem;
+        }
     </style>
 
     <div class="ttable doc-page">
@@ -59,7 +117,7 @@
             </div>
         @endif
 
-        <form action="{{ route('document.save') }}" method="post" class="compact-form">
+        <form action="{{ route('document.save') }}" method="post" class="compact-form" enctype="multipart/form-data">
             @csrf
             @php
                 $documentDateValue = (string) ($document->data ?? '');
@@ -206,30 +264,62 @@
                         @enderror
                     </div>
 
-                    <!-- Row 3: Сума / Бонус -->
-                    <div class="doc-form-row doc-form-row-numbers">
-                        @if(in_array($doc, ['PO', 'RO'], true))
-                            <div class="col-f col-f-number">
-                                <label>Сума</label>
-                                <input type="text" name="summa" id="documentSummaInput" class="form-control form-control-number text-white"
-                                    value="{{ $document->summa ?? 0 }}">
-                            </div>
-                        @endif
-                        <div class="col-f col-f-number">
-                            <label>Бонус</label>
-                            <input type="text" name="bonus" class="form-control form-control-number text-white"
-                                value="{{ $document->bonus ?? 0 }}">
+                    <!-- Сума field for PO/RO documents -->
+                    @if(in_array($doc, ['PO', 'RO'], true))
+                        <div class="doc-form-row-single">
+                            <label>Сума</label>
+                            <input type="text" name="summa" id="documentSummaInput" class="form-control form-control-number text-white"
+                                value="{{ $document->summa ?? 0 }}">
                         </div>
-                    </div>
+                    @endif
 
-                    <!-- Row 4: Коментар -->
-                    <div class="doc-form-row-comment">
-                        <label>Коментар</label>
-                        <input type="text" name="content" class="form-control text-white" value="{{ $document->content ?? '' }}">
-                    </div>
+                    <!-- RA: Multiple file upload block -->
+                    @if($doc === 'RA')
+                        <div class="ra-document-block" style="border: 2px solid #4a5568; padding: 16px; border-radius: 8px; background: rgba(0,0,0,0.2); margin-bottom: 20px;">
+                            <div class="ra-title" style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: #e0e7ff;">
+                                📎 Завантажити файли
+                            </div>
 
-                    <!-- Goods add — hidden for PO/RO (payment types) -->
-                    @if(!in_array($doc, ['PO', 'RO'], true))
+                            <div id="raFilesPreview" class="file-preview-container">
+                                @php
+                                    $existingRaFiles = [];
+                                    if ($doc === 'RA' && !empty($document->docum)) {
+                                        $existingRaFiles = array_filter(explode(';', $document->docum));
+                                    }
+                                    $imageExtensions = '/\.(jpe?g|png|gif|webp|bmp)$/i';
+                                @endphp
+                                @foreach($existingRaFiles as $existingFile)
+                                    <div class="file-preview-card existing-file-card" data-file-url="{{ $existingFile }}">
+                                        @if(preg_match($imageExtensions, $existingFile))
+                                            <img src="{{ $existingFile }}" alt="file preview">
+                                        @else
+                                            <div class="file-preview-icon">📎</div>
+                                        @endif
+                                        <div class="file-preview-name">{{ basename($existingFile) }}</div>
+                                        <a href="{{ $existingFile }}" target="_blank" rel="noopener noreferrer">Скачати</a>
+                                        <button type="button" class="file-preview-remove btn btn-sm btn-outline-danger" data-file-url="{{ $existingFile }}">×</button>
+                                        <input type="hidden" name="existing_docum[]" value="{{ $existingFile }}">
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            <div id="raFilesContainer" class="ra-files-container" style="margin-top: 12px;">
+                                <!-- File upload fields will be dynamically added here -->
+                                <div class="ra-file-item" data-index="1" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                    <label style="display: block; margin-bottom: 6px; font-size: 0.95rem;">📎 Файл 1:</label>
+                                    <input type="file" name="docum[]" class="form-control text-white ra-file-input" 
+                                           data-index="1"
+                                           {{ (int)($document->provodka ?? 0) === 1 ? 'disabled' : '' }}>
+                                </div>
+                            </div>
+                            <div style="margin-top: 12px; font-size: 0.9rem; color: #cbd5e1;">
+                                Додаткові поля з'являться при заповненні
+                            </div>
+                        </div>
+                    @endif
+
+                    <!-- Goods add — hidden for PO/RO (payment types) and RA (file documents) -->
+                    @if(!in_array($doc, ['PO', 'RO', 'RA'], true))
                         <div class="goods-search-container">
                             <div class="goods-search-row">
                                 <input type="text" id="goodsSearchInput" class="form-control text-white" placeholder="Поиск товара..."
@@ -313,6 +403,12 @@
 
                     @endif
 
+                    <!-- Примечание field -->
+                    <div class="doc-form-row-single">
+                        <label>Примечание</label>
+                        <textarea name="content" class="form-control text-white" rows="3" placeholder="Внесіть примітку до документа">{{ $document->content ?? '' }}</textarea>
+                    </div>
+
                     {{-- Action buttons (inside form) --}}
                     <div class="doc-actions">
                         @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'VN', 'AO', 'WO1'], true))
@@ -337,6 +433,11 @@
                                     ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
                                     class="btn btn-primary w-100 mb-2">💾 Зберегти</button>
                             @endif
+                        @elseif($doc === 'RA')
+                            <button type="button" 
+                                onclick="forceSubmitAction(this, 'run', 'Зберегти')"
+                                ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
+                                class="btn btn-primary">💾 Зберегти файл</button>
                         @else
                             <button type="button" 
                                 onclick="forceSubmitAction(this, 'run', 'Зберегти')"
@@ -349,9 +450,9 @@
                                 Печать
                             </a>
                         @endif
-                        @if(intval($document->provodka) === 0)
+                        @if(intval($document->provodka) === 0 && $doc !== 'RA')
                             <button type="button" class="btn btn-outline-danger"
-                                onclick="if(confirm('Видалити документ та всі товари?')) { document.getElementById('deleteDocForm').submit(); }">🗑
+                                onclick="if(confirm('Видалити документ{{ $doc === 'RA' ? '' : ' та всі товари' }}?')) { document.getElementById('deleteDocForm').submit(); }">🗑
                                 Видалити
                             </button>
                         @endif
@@ -741,9 +842,9 @@
                                 priceInput.value = price.toFixed(2);
                             }
                         } else {
-                            if (wholesaleFrom > 0 && wholesalePrice > 0 && quantity >= wholesaleFrom) {
-                                priceInput.value = wholesalePrice.toFixed(2);
-                                price = wholesalePrice;
+                            if (wholesaleFrom > 0 && priceWholesale > 0 && quantity >= wholesaleFrom) {
+                                priceInput.value = priceWholesale.toFixed(2);
+                                price = priceWholesale;
                             } else if (priceBase > 0) {
                                 priceInput.value = priceBase.toFixed(2);
                                 price = priceBase;
@@ -813,17 +914,15 @@
                                     e.preventDefault();
                                     const emptyRow = document.getElementById('emptyGoodsRow');
                                     if (emptyRow) emptyRow.remove();
-                                    let initialPrice = 0;
-                                    if (docType === 'ZIN' || docType === 'PN') {
-                                        initialPrice = good.priceCompPay1 || 0;
-                                    } else {
-                                        if (good.wholesaleFrom > 0 && 1 >= good.wholesaleFrom && good.priceWholesale > 0) {
-                                            initialPrice = good.priceWholesale;
-                                        } else {
-                                            initialPrice = good.priceBase || good.priceCompPay || 0;
-                                        }
+                                    const quantity = 1;
+                                    const availableCount = parseFloat(good.count || 0);
+                                    const pay = parseFloat(good.priceCompPay || 0);
+                                    const pay1 = parseFloat(good.priceCompPay1 || 0);
+                                    let initialPrice = pay;
+                                    if (availableCount > 0 && quantity > availableCount && pay1 > 0) {
+                                        initialPrice = pay1;
                                     }
-                                    
+
                                     const tr = document.createElement('tr');
                                     tr.innerHTML = `
                                         <td><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.pnum}" readonly></td>
@@ -910,5 +1009,270 @@
                 }
             });
         });
+
+        // ================= RA MULTIPLE FILE UPLOADS =================
+        (function () {
+            function initRaUploads() {
+                console.log('🔍 initRaUploads called');
+                const raFilesContainer = document.getElementById('raFilesContainer');
+                const raFilesPreview = document.getElementById('raFilesPreview');
+                
+                console.log('raFilesContainer:', raFilesContainer);
+                console.log('raFilesPreview:', raFilesPreview);
+
+                if (!raFilesContainer) {
+                    console.log('❌ raFilesContainer not found - not an RA document');
+                    return;
+                }
+
+                console.log('✅ RA upload block found, initializing...');
+
+                function getFileIcon(type) {
+                    if (type.startsWith('image/')) {
+                        return null;
+                    }
+                    if (type === 'application/pdf') {
+                        return '📄';
+                    }
+                    if (type.startsWith('video/')) {
+                        return '🎬';
+                    }
+                    if (type.startsWith('audio/')) {
+                        return '🎧';
+                    }
+                    return '📎';
+                }
+
+                function createPreviewCard(name, url, type, isImage, generated = false, inputIndex = null) {
+                    const card = document.createElement('div');
+                    card.className = 'file-preview-card' + (generated ? ' generated-preview' : '');
+
+                    if (inputIndex) {
+                        card.dataset.inputIndex = inputIndex;
+                    }
+
+                    if (isImage) {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        card.appendChild(img);
+                    } else {
+                        const icon = document.createElement('div');
+                        icon.className = 'file-preview-icon';
+                        icon.textContent = getFileIcon(type);
+                        card.appendChild(icon);
+                    }
+
+                    const nameEl = document.createElement('div');
+                    nameEl.className = 'file-preview-name';
+                    nameEl.textContent = name;
+                    card.appendChild(nameEl);
+
+                    if (url) {
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.textContent = 'Скачати';
+                        card.appendChild(link);
+                    }
+
+                    if (generated) {
+                        const removeButton = document.createElement('button');
+                        removeButton.type = 'button';
+                        removeButton.className = 'file-preview-remove btn btn-sm btn-outline-danger';
+                        removeButton.textContent = '×';
+                        card.appendChild(removeButton);
+                    }
+
+                    return card;
+                }
+
+                function renderFilesPreview(files, container) {
+                    container.innerHTML = '';
+                    if (!files || files.length === 0) {
+                        return;
+                    }
+                    Array.from(files).forEach(file => {
+                        const isImage = file.type.startsWith('image/');
+                        if (isImage) {
+                            const reader = new FileReader();
+                            reader.onload = function (e) {
+                                container.appendChild(createPreviewCard(file.name, e.target.result, file.type, true));
+                            };
+                            reader.readAsDataURL(file);
+                        } else {
+                            container.appendChild(createPreviewCard(file.name, '', file.type, false));
+                        }
+                    });
+                }
+
+                function renderRaPreviews() {
+                    if (!raFilesPreview) {
+                        console.log('❌ raFilesPreview not found');
+                        return;
+                    }
+                    console.log('🖼️ Rendering RA previews...');
+
+                    const existingGenerated = raFilesPreview.querySelectorAll('.generated-preview');
+                    existingGenerated.forEach(card => card.remove());
+
+                    const inputs = document.querySelectorAll('.ra-file-input');
+                    console.log('📎 Total RA inputs found:', inputs.length);
+
+                    let hasSelectedFiles = false;
+                    inputs.forEach((input, idx) => {
+                        if (!input.files || input.files.length === 0) {
+                            console.log('   Input ' + idx + ': empty');
+                            return;
+                        }
+                        hasSelectedFiles = true;
+                        const file = input.files[0];
+                        console.log('   Input ' + idx + ': ' + file.name + ' (' + file.type + ')');
+                        const isImage = file.type.startsWith('image/');
+                        if (isImage) {
+                            const reader = new FileReader();
+                            reader.onload = function (e) {
+                                raFilesPreview.appendChild(createPreviewCard(file.name, e.target.result, file.type, true, true, input.dataset.index));
+                            };
+                            reader.readAsDataURL(file);
+                        } else {
+                            raFilesPreview.appendChild(createPreviewCard(file.name, '', file.type, false, true, input.dataset.index));
+                        }
+                    });
+
+                    if (!hasSelectedFiles) {
+                        console.log('   No selected files found, preserving existing saved previews');
+                    }
+                }
+
+                function addRaInputListener(input) {
+                    input.addEventListener('change', function () {
+                        console.log('🔄 RA file input changed, updating fields', {
+                            filename: this.files[0]?.name || 'no file',
+                            index: this.dataset.index
+                        });
+                        updateRaFields();
+                        renderRaPreviews();
+                    });
+                }
+
+                function addRaFileField(index) {
+                    const container = document.getElementById('raFilesContainer');
+                    if (!container) {
+                        console.log('❌ raFilesContainer not found when adding field');
+                        return;
+                    }
+                    console.log('➕ Adding new RA file field:', index);
+                    const newItem = document.createElement('div');
+                    newItem.className = 'ra-file-item';
+                    newItem.setAttribute('data-index', index);
+                    newItem.style.cssText = 'margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);';
+                    newItem.innerHTML = `
+                        <label style="display: block; margin-bottom: 6px; font-size: 0.95rem;">📎 Файл ${index}:</label>
+                        <input type="file" name="docum[]" class="form-control text-white ra-file-input" data-index="${index}">
+                    `;
+                    container.appendChild(newItem);
+                    const newInput = newItem.querySelector('.ra-file-input');
+                    if (newInput) {
+                        console.log('✅ New input field created and listener added');
+                        addRaInputListener(newInput);
+                    }
+                }
+
+                function removeRaFieldsAfter(index) {
+                    const container = document.getElementById('raFilesContainer');
+                    if (!container) {
+                        return;
+                    }
+                    const items = container.querySelectorAll('.ra-file-item');
+                    items.forEach(item => {
+                        const itemIndex = parseInt(item.getAttribute('data-index'));
+                        if (itemIndex > index) {
+                            item.remove();
+                        }
+                    });
+                }
+
+                function updateRaFields() {
+                    const container = document.getElementById('raFilesContainer');
+                    if (!container) {
+                        console.log('❌ raFilesContainer not found in updateRaFields');
+                        return;
+                    }
+                    console.log('🔄 Updating RA fields...');
+                    const items = container.querySelectorAll('.ra-file-item');
+                    console.log('📦 Current items count:', items.length);
+
+                    if (items.length === 0) {
+                        addRaFileField(1);
+                        return;
+                    }
+
+                    items.forEach((item, idx) => {
+                        const input = item.querySelector('.ra-file-input');
+                        const index = parseInt(input.dataset.index) || (idx + 1);
+                        const hasFiles = input.files && input.files.length > 0;
+                        console.log('   Item ' + idx + ' (index=' + index + '): ' + (hasFiles ? 'HAS FILES' : 'empty'));
+                        if (hasFiles) {
+                            if (!container.querySelector(`.ra-file-item[data-index="${index + 1}"]`)) {
+                                console.log('   → Need to add field for index ' + (index + 1));
+                                addRaFileField(index + 1);
+                            }
+                        } else {
+                            removeRaFieldsAfter(index);
+                        }
+                    });
+                }
+
+                function attachRaPreviewDeleteHandler() {
+                    if (!raFilesPreview) {
+                        return;
+                    }
+
+                    raFilesPreview.addEventListener('click', function (event) {
+                        const button = event.target.closest('.file-preview-remove');
+                        if (!button) {
+                            return;
+                        }
+
+                        const card = button.closest('.file-preview-card');
+                        if (!card) {
+                            return;
+                        }
+
+                        const inputIndex = card.dataset.inputIndex;
+                        if (inputIndex) {
+                            const inputItem = document.querySelector(`.ra-file-item[data-index="${inputIndex}"]`);
+                            if (inputItem) {
+                                inputItem.remove();
+                            }
+                        }
+
+                        card.remove();
+                        updateRaFields();
+                    });
+                }
+
+                if (raFilesContainer) {
+                    console.log('✅ Adding listeners to existing RA inputs');
+                    console.log('✅ Adding listeners to existing RA inputs');
+                    const existingInputs = raFilesContainer.querySelectorAll('.ra-file-input');
+                    console.log('📎 Found ' + existingInputs.length + ' existing RA inputs');
+                    existingInputs.forEach(addRaInputListener);
+                    attachRaPreviewDeleteHandler();
+                    updateRaFields();
+                    console.log('✅ RA initialization complete');
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                console.log('⏳ Document still loading, waiting for DOMContentLoaded');
+                document.addEventListener('DOMContentLoaded', initRaUploads);
+            } else {
+                console.log('✅ Document already loaded, initializing RA uploads immediately');
+                initRaUploads();
+            }
+        })();
+
     </script>
 @endsection
