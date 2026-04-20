@@ -558,6 +558,8 @@ class Goods extends Model
             'description_view' => $descriptionView,
             'price' => (float) ($item->price_pay ?? 0),
             'oldPrice' => (float) ($item->price_oldpay ?? 0),
+            'pay' => (float) ($item->price_pay ?? 0),
+            'pay1' => (float) ($item->price_pay1 ?? 0),
             'wholesalePrice' => $item->wholesale_price !== null ? (float) $item->wholesale_price : null,
             'wholesaleOldPrice' => $item->wholesale_oldpay !== null ? (float) $item->wholesale_oldpay : null,
             'wholesaleFrom' => $item->wholesale_from !== null ? (int) $item->wholesale_from : null,
