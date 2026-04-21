@@ -26,6 +26,12 @@
 
     <form action="{{ route('money.save') }}" method="post">
         @csrf
+        @php
+                $documentDateValue = (string) ($document->data ?? '');
+                if (preg_match('/^\d{2}-\d{2}-\d{4}$/', $documentDateValue) === 1) {
+                    $documentDateValue = \DateTimeImmutable::createFromFormat('d-m-Y', $documentDateValue)?->format('Y-m-d') ?? '';
+                }
+        @endphp
         <input type="hidden" name="id" value="{{ $document->id ?? 0 }}">
         <input type="hidden" name="type" value="{{ $type }}">
         <input type="hidden" name="return_q" value="{{ $returnFilters['q'] ?? '' }}">
@@ -39,7 +45,7 @@
         <div class="row">
             <div class="col-md-4 mb-3">
                 <label>{{ __('money.field_date') }}</label>
-                <input type="text" name="data" class="form-control" value="{{ $document->data ?? date('d-m-Y') }}"
+                <input type="date" name="data" class="form-control" value="{{ $documentDateValue }}"
                     placeholder="{{ __('money.date_placeholder') }}">
             </div>
             <div class="col-md-4 mb-3">

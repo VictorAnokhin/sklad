@@ -52,35 +52,26 @@
             </div>
 
             <div class="row mb-3">
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label class="form-label">{{ __('client.field_phone') }}</label>
                     <input type="tel" name="phone" id="phone-input" class="form-control phone-input" value="{{ $client->phone ?? '' }}" placeholder="+38 (0XX) XXX-XX-XX" maxlength="19">
                     <div class="invalid-feedback" id="phone-error"></div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label class="form-label">{{ __('client.field_phone2') }}</label>
                     <input type="tel" name="phone1" id="phone1-input" class="form-control phone-input" value="{{ $client->phone1 ?? '' }}" placeholder="+38 (0XX) XXX-XX-XX" maxlength="19">
                     <div class="invalid-feedback" id="phone1-error"></div>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">{{ __('client.field_birthday') }}</label>
-                    <input type="text" name="hbd" class="form-control" value="{{ $client->hbd ?? '' }}">
                 </div>
             </div>
 
             <div class="row mb-3">
                 <div class="col-md-4">
-                    <label class="form-label">{{ __('client.field_email') }}</label>
-                    <input type="email" name="email" id="email-input" class="form-control" value="{{ $client->email ?? '' }}" required>
-                    <div class="invalid-feedback" id="email-error"></div>
+                    <label class="form-label">{{ __('client.field_region') }}</label>
+                    <input type="text" name="region" class="form-control" value="{{ $client->region ?? '' }}">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_city') }}</label>
                     <input type="text" name="city" class="form-control" value="{{ $client->city ?? '' }}">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">{{ __('client.field_region') }}</label>
-                    <input type="text" name="region" class="form-control" value="{{ $client->region ?? '' }}">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_nova_poshta') }}</label>
@@ -89,14 +80,32 @@
             </div>
 
             <div class="row mb-3">
+                
+                <div class="col-md-4">
+                    <label class="form-label">{{ __('client.field_client_type') }}</label>
+                    <select name="tgroup" class="form-select">
+                        <option value="">{{ __('client.select_type') }}</option>
+                        @foreach($clientTypes ?? [] as $type)
+                            <option value="{{ $type->id }}" {{ (string)($client->tgroup ?? '') === (string)$type->id ? 'selected' : '' }}>
+                                {{ $type->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{{ __('client.field_email') }}</label>
+                    <input type="email" name="email" id="email-input" class="form-control" value="{{ $client->email ?? '' }}" required>
+                    <div class="invalid-feedback" id="email-error"></div>
+                </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_password') }}</label>
                     <input type="password" name="pass" class="form-control" value="" placeholder="{{ $client ? __('client.field_password_hint') : '' }}">
                 </div>
             </div>
 
+
             <div class="row mb-3">
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_status') }}</label>
                     <select name="idstatus" class="form-select">
                         @foreach($statuses as $s)
@@ -106,13 +115,13 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">{{ __('client.field_rating') }}</label>
-                    <input type="number" name="top" class="form-control" value="{{ $client->top ?? 1 }}">
-                </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_bonus') }}</label>
                     <input type="number" step="0.01" name="bonus" class="form-control" value="{{ $client->bonus ?? 0 }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{{ __('client.field_birthday') }}</label>
+                    <input type="text" name="hbd" class="form-control" value="{{ $client->hbd ?? '' }}">
                 </div>
             </div>
 

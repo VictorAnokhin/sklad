@@ -43,6 +43,7 @@ class User extends Authenticatable
         'balans',
         'hbd',
         'email',
+        'tgroup',
         'wallet_address',
         'wallet_network',
         'wallet_connected_at',

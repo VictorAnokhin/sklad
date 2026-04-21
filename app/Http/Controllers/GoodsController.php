@@ -8,6 +8,7 @@ use App\Models\Price;
 use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * GoodsController
@@ -86,6 +87,10 @@ class GoodsController extends Controller
         $fid = $this->resolveApiFid($request, '2');
         $locale = $this->resolveApiLocale($request);
 
+        // Get User's tgroup from Sanctum auth
+        $user = Auth::guard('sanctum')->user();
+        $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
+
         $goods = DB::table('comp')
             ->leftJoin('descript as d', function ($join) use ($fid) {
                 $join->on('d.pnum', '=', 'comp.id')
@@ -120,7 +125,7 @@ class GoodsController extends Controller
             ->limit(30)
             ->get();
 
-        $goods = Goods::attachPreferredPricesByItemFirma($goods)
+        $goods = Goods::attachPreferredPricesByItemFirma($goods, $tgroupId)
             ->map(function ($g) use ($locale) {
                 $nameView = Field::localizedValue($locale, $g->name_ru ?? '', $g->name_ua ?? '', $g->name_en ?? '');
                 $desc = Field::localizedValue($locale, $g->description ?? '', $g->description_ua ?? '', $g->description_en ?? '');
@@ -134,13 +139,12 @@ class GoodsController extends Controller
                     'name' => $nameView ?: '',
                     'name_ru' => $g->name_ru ?? '',
                     'name_ua' => $g->name_ua ?? '',
-                    'name_en' => $g->name_en ?? '',
+                    'name_en' => $g->name_en ?? '', 
                     'name_view' => $nameView ?: '',
                     'price' => (float) ($g->price_pay ?? 0),
+                    'pay' => (float) ($g->price_pay ?? 0),
+                    'pay1' => (float) ($g->price_pay1 ?? 0),
                     'oldPrice' => (float) ($g->price_oldpay ?? 0),
-                    'wholesalePrice' => $g->wholesale_price !== null ? (float) $g->wholesale_price : null,
-                    'wholesaleOldPrice' => $g->wholesale_oldpay !== null ? (float) $g->wholesale_oldpay : null,
-                    'wholesaleFrom' => $g->wholesale_from !== null ? (int) $g->wholesale_from : null,
                     'count' => (int) ($g->price_count ?? 0),
                     'image' => MediaUrl::image($g->image ?? ''),
                     'image_thumb' => MediaUrl::image($g->image_thumb ?? ''),
@@ -163,6 +167,9 @@ class GoodsController extends Controller
         $fid = $this->resolveApiFid($request);
         $locale = $this->resolveApiLocale($request);
         $doc = strtoupper((string) $request->input('doc', ''));
+        
+        $user = Auth::user();
+        $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
 
         $goods = Goods::query()
             ->leftJoin('descript as d', function ($join) use ($fid) {
@@ -193,7 +200,7 @@ class GoodsController extends Controller
             ->limit(20)
             ->get();
 
-        $goods = Goods::attachPreferredPricesByItemFirma($goods)
+        $goods = Goods::attachPreferredPricesByItemFirma($goods, $tgroupId)
             ->map(function ($g) use ($doc, $locale) {
                 // For ZIN documents (purchase/procurement), use purchase price (comp.pay)
                 // For ZOUT documents (orders), use price.pay by default,
@@ -224,13 +231,16 @@ class GoodsController extends Controller
                     'name_ru' => $g->name_ru ?? '',
                     'name_ua' => $g->name_ua ?? '',
                     'name_en' => $g->name_en ?? '',
-                    'price' => $price,
+                    'price' => (float) $price,
+                    'pay' => (float) ($g->price_pay ?? 0),
+                    'pay1' => (float) ($g->price_pay1 ?? 0),
                     'priceCompPay' => (float) ($g->pay ?? 0),
                     'priceCompPay1' => (float) ($g->pay1 ?? 0),
                     'priceBase' => (float) ($g->price_pay ?? 0),
                     'priceWholesale' => (float) ($g->price_pay1 ?? 0),
                     'wholesaleFrom' => (int) ($g->price_count ?? 0),
-                    'count' => (float) ($g->sklad ?? 0),
+                    'count' => (int) ($g->price_count ?? 0),
+                    'sklad' => (float) ($g->sklad ?? 0),
                 ];
             });
 
@@ -246,7 +256,10 @@ class GoodsController extends Controller
 
         $fid = $this->resolveApiFid($request, '2');
         $locale = $this->resolveApiLocale($request);
-        $hits = Goods::getHits($fid, $limit, $offset, $locale);
+
+        $user = Auth::guard('sanctum')->user();
+        $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
+        $hits = Goods::getHits($fid, $limit, $offset, $locale, $tgroupId);
 
         return response()->json([
             'success' => true,
@@ -294,7 +307,10 @@ class GoodsController extends Controller
 
         $fid = $this->resolveApiFid($request, '2');
         $locale = $this->resolveApiLocale($request);
-        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset, $locale, $hitOnly);
+
+        $user = Auth::guard('sanctum')->user();
+        $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
+        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset, $locale, $hitOnly, $tgroupId);
 
         return response()->json([
             'success' => true,
@@ -311,7 +327,10 @@ class GoodsController extends Controller
     {
         $fid = $this->resolveApiFid($request, '2');
         $locale = $this->resolveApiLocale($request);
-        $item = Goods::getWebGood($fid, $id, $locale);
+
+        $user = Auth::guard('sanctum')->user();
+        $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
+        $item = Goods::getWebGood($fid, $id, $locale, $tgroupId);
 
         if (!$item) {
             return response()->json([

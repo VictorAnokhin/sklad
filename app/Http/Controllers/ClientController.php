@@ -225,10 +225,15 @@ class ClientController extends Controller
             ->where('firma', $fid)
             ->orderBy('name')
             ->get();
+        $clientTypes = DB::table('conf')
+            ->where('type', 'tgroup')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->get();
 
         session(['client1' => $id]);
 
-        return view('client.show', compact('client', 'statuses', 'fid'));
+        return view('client.show', compact('client', 'statuses', 'clientTypes', 'fid'));
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────
@@ -295,6 +300,7 @@ class ClientController extends Controller
                 'poshta' => $stringValue($request->input('poshta', '')),
                 'idstatus' => (int)$request->input('idstatus', 1),
                 'ustype' => (int)$request->input('idstatus', 1),
+                'tgroup' => (int)$request->input('tgroup', 0),
                 'top' => (int)$request->input('top', 1),
                 'bonus' => (float)$request->input('bonus', 0),
                 'hbd' => $stringValue($request->input('hbd', '')),

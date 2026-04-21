@@ -226,7 +226,7 @@ class Goods extends Model
         });
     }
 
-    public static function attachPreferredPricesByItemFirma($comps)
+    public static function attachPreferredPricesByItemFirma($comps, $targetTgroupId = null)
     {
         if ($comps->isEmpty()) {
             return $comps;
@@ -256,21 +256,17 @@ class Goods extends Model
         $firmaIds = $pairs->pluck('firma')->unique()->values();
         $productIds = $pairs->pluck('id')->unique()->values();
 
+        // Fetch all price groups for these firms to identify the retail group
         $priceGroups = DB::table('conf')
             ->where('type', 'tgroup')
             ->whereIn('firma', $firmaIds)
-            ->orderBy('id')
+            ->orderByDesc('status') // Usually status='1' is retail, put it first
             ->get()
             ->groupBy('firma');
 
         $retailGroups = $priceGroups->map(function ($rows) {
             $retail = $rows->first(fn($row) => (string) ($row->status ?? '0') === '1');
             return $retail ? (string) $retail->id : null;
-        });
-
-        $wholesaleGroups = $priceGroups->map(function ($rows) {
-            $wholesale = $rows->first(fn($row) => (string) ($row->status ?? '0') !== '1');
-            return $wholesale ? (string) $wholesale->id : null;
         });
 
         $priceRows = DB::table('price')
@@ -296,31 +292,27 @@ class Goods extends Model
                 ->whereIn('id', $skladIds)
                 ->pluck('name', 'id');
 
-        return $comps->map(function ($comp) use ($priceRows, $retailGroups, $wholesaleGroups, $skladNames) {
+        return $comps->map(function ($comp) use ($priceRows, $retailGroups, $skladNames, $targetTgroupId) {
             $key = ($comp->firma ?? '') . ':' . ($comp->id ?? '');
             $rows = $priceRows->get($key, collect());
+            
             $retailGroupId = $retailGroups->get((string) ($comp->firma ?? ''));
-            $wholesaleGroupId = $wholesaleGroups->get((string) ($comp->firma ?? ''));
 
-            $price = $rows->first(function ($row) use ($retailGroupId) {
-                return $retailGroupId !== null && (string) $row->tgroup === (string) $retailGroupId;
-            }) ?: $rows->first();
+            // 1. Try to find row for the user's specific tgroup
+            // 2. Fallback to retail group row
+            // 3. Fallback to first available row
+            $price = $rows->first(fn($row) => $targetTgroupId !== null && (string) $row->tgroup === (string) $targetTgroupId)
+                  ?: $rows->first(fn($row) => $retailGroupId !== null && (string) $row->tgroup === (string) $retailGroupId)
+                  ?: $rows->first();
 
-            $wholesalePrice = $rows->first(function ($row) use ($wholesaleGroupId) {
-                return $wholesaleGroupId !== null && (string) $row->tgroup === (string) $wholesaleGroupId;
-            });
-
-            $comp->price_pay = $price->pay ?? $comp->pay ?? 0;
-            $comp->price_pay1 = $price->pay1 ?? $comp->pay1 ?? 0;
-            $comp->price_oldpay = $price->oldpay ?? $comp->oldpay ?? 0;
-            $comp->price_count = $price->count ?? 0;
+            $comp->price_pay = $price->pay ?? $comp->pay ?? 0;        // Retail price
+            $comp->price_pay1 = $price->pay1 ?? $comp->pay1 ?? 0;     // Discount price
+            $comp->price_count = $price->count ?? 0;                  // Threshold quantity
+            $comp->price_oldpay = $price->oldpay ?? 0;
             $comp->price_sklad = $price->sklad ?? $comp->sklad ?? 0;
             $comp->price_sklad_name = $skladNames->get($comp->price_sklad, '—');
             $comp->price_tgroup = $price->tgroup ?? null;
-            $comp->wholesale_price = $wholesalePrice->pay ?? null;
-            $comp->wholesale_oldpay = $wholesalePrice->oldpay ?? null;
-            $comp->wholesale_from = $wholesalePrice->count ?? null;
-            $comp->wholesale_tgroup = $wholesalePrice->tgroup ?? null;
+            
             return $comp;
         });
     }
@@ -354,7 +346,7 @@ class Goods extends Model
 
     // ── Web / API methods ─────────────────────────────────────────────────────
 
-    public static function getWebGoodsBySection($fid, $id, $limit, $offset, ?string $locale = 'ru', bool $hitOnly = false)
+    public static function getWebGoodsBySection($fid, $id, $limit, $offset, ?string $locale = 'ru', bool $hitOnly = false, $targetTgroupId = null)
     {
         $query = self::query()
             ->leftJoin('descript as d', function ($join) {
@@ -398,7 +390,7 @@ class Goods extends Model
             ->limit($limit)
             ->get();
 
-        $goods = self::attachPreferredPricesByItemFirma($goods)
+        $goods = self::attachPreferredPricesByItemFirma($goods, $targetTgroupId)
             ->map(function ($item) use ($locale) {
                 $nameView = self::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '');
                 $descriptionView = self::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
@@ -419,9 +411,8 @@ class Goods extends Model
                     'description_view' => $descriptionView,
                     'price' => (float) ($item->price_pay ?? 0),
                     'oldPrice' => (float) ($item->price_oldpay ?? 0),
-                    'wholesalePrice' => $item->wholesale_price !== null ? (float) $item->wholesale_price : null,
-                    'wholesaleOldPrice' => $item->wholesale_oldpay !== null ? (float) $item->wholesale_oldpay : null,
-                    'wholesaleFrom' => $item->wholesale_from !== null ? (int) $item->wholesale_from : null,
+                    'pay' => (float) ($item->price_pay ?? 0),
+                    'pay1' => (float) ($item->price_pay1 ?? 0),
                     'count' => (int) ($item->price_count ?? 0),
                     'image' => MediaUrl::image($item->nfoto),
                     'image_thumb' => MediaUrl::image($item->nfoto1),
@@ -434,7 +425,7 @@ class Goods extends Model
         ];
     }
 
-    public static function getWebGood($fid, $identifier, ?string $locale = 'ru')
+    public static function getWebGood($fid, $identifier, ?string $locale = 'ru', $targetTgroupId = null)
     {
         $identifier = trim((string) $identifier);
 
@@ -492,7 +483,7 @@ class Goods extends Model
             return null;
         }
 
-        $item = self::attachPreferredPricesByItemFirma(collect([$item]))->first();
+        $item = self::attachPreferredPricesByItemFirma(collect([$item]), $targetTgroupId)->first();
 
         $nameView = self::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '');
         $descriptionView = self::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
@@ -568,9 +559,9 @@ class Goods extends Model
             'oldPrice' => (float) ($item->price_oldpay ?? 0),
             'pay' => (float) ($item->price_pay ?? 0),
             'pay1' => (float) ($item->price_pay1 ?? 0),
-            'wholesalePrice' => $item->wholesale_price !== null ? (float) $item->wholesale_price : null,
-            'wholesaleOldPrice' => $item->wholesale_oldpay !== null ? (float) $item->wholesale_oldpay : null,
-            'wholesaleFrom' => $item->wholesale_from !== null ? (int) $item->wholesale_from : null,
+            'wholesalePrice' => (float) ($item->price_pay1 ?? 0),
+            'wholesaleOldPrice' => (float) ($item->price_oldpay ?? 0),
+            'wholesaleFrom' => (int) ($item->price_count ?? 0),
             'count' => (int) ($item->price_count ?? 0),
             'image' => MediaUrl::image($item->nfoto ?? ''),
             'image_thumb' => MediaUrl::image($item->nfoto1 ?? ''),
@@ -584,7 +575,7 @@ class Goods extends Model
 
     // ── getHits: paginated hit goods for API ─────────────────────────────────
 
-    public static function getHits($fid, $limit = 10, $offset = 0, ?string $locale = 'ru')
+    public static function getHits($fid, $limit = 10, $offset = 0, ?string $locale = 'ru', $targetTgroupId = null)
     {
         $hits = self::query()
             ->leftJoin('descript as d', function ($join) {
@@ -613,7 +604,7 @@ class Goods extends Model
             ->limit($limit)
             ->get();
 
-        return self::attachPreferredPricesByItemFirma($hits)
+        return self::attachPreferredPricesByItemFirma($hits, $targetTgroupId)
             ->map(function ($item) use ($locale) {
                 $nameView = self::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '');
                 $descriptionView = self::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
@@ -634,9 +625,8 @@ class Goods extends Model
                     'description_view' => $descriptionView,
                     'price' => (float) ($item->price_pay ?? 0),
                     'oldPrice' => (float) ($item->price_oldpay ?? 0),
-                    'wholesalePrice' => $item->wholesale_price !== null ? (float) $item->wholesale_price : null,
-                    'wholesaleOldPrice' => $item->wholesale_oldpay !== null ? (float) $item->wholesale_oldpay : null,
-                    'wholesaleFrom' => $item->wholesale_from !== null ? (int) $item->wholesale_from : null,
+                    'pay' => (float) ($item->price_pay ?? 0),
+                    'pay1' => (float) ($item->price_pay1 ?? 0),
                     'count' => (int) ($item->price_count ?? 0),
                     'image' => MediaUrl::image($item->nfoto),
                     'image_thumb' => MediaUrl::image($item->nfoto1),
