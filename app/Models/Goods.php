@@ -93,7 +93,6 @@ class Goods extends Model
             $query->where('comp.idtype', $filterBrand);
         if ($skladNone !== '1')
             $query->where('comp.sklad', '1');
-
         return $query;
     }
 
@@ -102,20 +101,29 @@ class Goods extends Model
     public static function init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters, ?string $locale = 'ru')
     {
         $query = self::getListQuery($fid, $idcaption, $idglava, $filters);
+        // Всегда сортируем по полю `top` в приоритетном порядке
+        $query->orderByDesc('comp.top');
 
         $total = (clone $query)->count();
         $hasCategorySelection = !empty($idcaption) || !empty($idglava);
 
         if ($hasCategorySelection) {
-            $orderCol = match ($sort) {
-                'description' => 'name',
-                default => 'comp.' . $sort,
-            };
+            if ($sort === 'top') {
+                $comps = $query->orderByDesc('top')
+                    ->offset($pos)
+                    ->limit($pos2)
+                    ->get();
+            } else {
+                $orderCol = match ($sort) {
+                    'description' => 'name',
+                    default => 'comp.' . $sort,
+                };
 
-            $comps = $query->orderBy($orderCol)->offset($pos)->limit($pos2)->get();
+                $comps = $query->orderBy($orderCol)->offset($pos)->limit($pos2)->get();
+            }
         } else {
             $comps = $query
-                ->orderByDesc('comp.hit')
+                ->orderByDesc('comp.id')
                 ->orderBy('name')
                 ->offset($pos)
                 ->limit($pos2)

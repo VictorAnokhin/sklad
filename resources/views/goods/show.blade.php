@@ -515,8 +515,9 @@
             <div class="gs-section-title">Склад та атрибути</div>
             <div class="gs-row">
                 <div class="gs-col">
+                    <input type="checkbox" name="hit" value="1" id="hit" {{ (string)($comp->hit ?? '0') === '1' ? 'checked' : '' }}>
                     <label>Hit</label>
-                    <input type="number" name="hit" class="form-control" value="{{ $comp->hit ?? 0 }}">
+                    
                 </div>
                 <div class="gs-col">
                     <label>Склад</label>
@@ -533,8 +534,8 @@
                 </div>
                 <div class="gs-col" style="display:flex;align-items:flex-end;">
                     <label class="gs-check" style="min-height:42px;width:100%;">
-                        <input type="checkbox" name="top" value="1" id="top" {{ (string)($comp->top ?? '0') === '1' ? 'checked' : '' }}>
                         Top
+                        <input type="text" name="top" class="form-control" value="{{ $comp->top ?? 0 }}">
                     </label>
                 </div>
             </div>

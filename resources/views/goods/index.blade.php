@@ -30,11 +30,7 @@
         <a href="{{ route('goods.show', ['pnum' => 0]) }}" class="btn btn-primary">{{ __('goods.add') }}</a>
     </div>
 
-    @if(!$isCategoryFiltered && !$isFilterActive)
-    <div class="alert alert-info">
-        {{ __('goods.empty_notice') }}
-    </div>
-    @endif
+    {{-- Убрано информирование о невыбранных категориях по просьбе пользователя --}}
 
     {{-- Модальное окно фильтра --}}
     <div id="goodsFilterModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);z-index:9999;justify-content:center;align-items:center;">
