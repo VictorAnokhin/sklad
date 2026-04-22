@@ -13,6 +13,7 @@ use App\Http\Controllers\MoneyController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TaxReceiptController;
 use App\Http\Controllers\WalletController;
 
@@ -44,6 +45,9 @@ Route::post('/register', [AuthController::class , 'register'])->name('register.p
 // ── Language switching ────────────────────────────────────────────────────────
 Route::post('/language/switch', [LanguageController::class, 'switch'])->name('language.switch');
 Route::get('/language/current', [LanguageController::class, 'current'])->name('language.current');
+
+// ── Sitemap ───────────────────────────────────────────────────────────────────
+Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.public');
 
 // ── Public Pages ──────────────────────────────────────────────────────────────
 Route::view('/', 'pages.micro_business')->name('micro-business');
@@ -197,6 +201,8 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/banners', [SettingsController::class , 'bannersStore'])->name('banners.store');
             Route::post('/banners/{id}', [SettingsController::class , 'bannersUpdate'])->name('banners.update');
             Route::delete('/banners/{id}', [SettingsController::class , 'bannersDestroy'])->name('banners.destroy');
+            Route::get('/sitemap', [SettingsController::class, 'sitemapStatus'])->name('sitemap.status');
+            Route::post('/sitemap/generate', [SettingsController::class, 'sitemapGenerate'])->name('sitemap.generate');
 
             // Async API
             Route::get('/api/{type}', [SettingsController::class , 'apiIndex'])->name('api.index');

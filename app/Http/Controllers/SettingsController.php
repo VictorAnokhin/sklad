@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\Firma;
 use App\Models\Project;
 use App\Models\Settings;
+use App\Services\SitemapService;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -108,10 +109,16 @@ class SettingsController extends Controller
         $accountsCount = Schema::hasTable('accounts')
             ? (int) Account::query()->count()
             : 0;
+        $sitemapService = app(SitemapService::class);
+        $sitemapInfo = [
+            'public_url' => $sitemapService->getPublicUrl($fid !== '' ? (int) $fid : null),
+            'exists' => $sitemapService->exists($fid !== '' ? (int) $fid : null),
+            'last_modified_at' => $sitemapService->lastModifiedAt($fid !== '' ? (int) $fid : null),
+        ];
 
         $fieldTranslationsCount = $fieldCatalogTopCount + $fieldCityCount;
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'web3Tokens', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'web3Tokens', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount', 'sitemapInfo')));
     }
 
     public function show(Request $request)
@@ -1008,7 +1015,8 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'num' => 'nullable|integer|min:0',
             'name' => 'required|string|max:50',
-            'phone' => 'nullable|string|max:65535',
+            'phone' => 'nullable|string|max:255',
+            'url' => 'nullable|string|max:65535',
             'telegram' => 'nullable|string|max:65535',
             'instagram' => 'nullable|string|max:65535',
             'twitter' => 'nullable|string|max:65535',
@@ -1081,11 +1089,12 @@ class SettingsController extends Controller
         ];
 
         $projectPhone = trim((string) ($validated['phone'] ?? ''));
+        $projectUrl = trim((string) ($validated['url'] ?? ''));
         if (in_array('phone', $projectColumns, true)) {
             $payload['phone'] = $projectPhone;
         }
         if (in_array('url', $projectColumns, true)) {
-            $payload['url'] = $projectPhone;
+            $payload['url'] = $projectUrl;
         }
 
         return $payload;
@@ -1094,7 +1103,8 @@ class SettingsController extends Controller
     private function normalizeProject(Project $project, ?object $user): array
     {
         $payload = Project::decorateMedia($project)->toArray();
-        $payload['phone'] = (string) ($payload['phone'] ?? $payload['url'] ?? '');
+        $payload['phone'] = (string) ($payload['phone'] ?? '');
+        $payload['url'] = (string) ($payload['url'] ?? '');
         $payload['can_delete'] = $user ? (int) $user->id === (int) $project->id : false;
 
         return $payload;
@@ -1458,5 +1468,42 @@ class SettingsController extends Controller
         DB::table('field')->where('id', $id)->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    public function sitemapStatus(SitemapService $sitemapService)
+    {
+        $fid = (int) session('fid', 0);
+
+        return response()->json([
+            'exists' => $sitemapService->exists($fid > 0 ? $fid : null),
+            'public_url' => $sitemapService->getPublicUrl($fid > 0 ? $fid : null),
+            'last_modified_at' => $sitemapService->lastModifiedAt($fid > 0 ? $fid : null),
+            'fid' => $fid > 0 ? $fid : null,
+        ]);
+    }
+
+    public function sitemapGenerate(SitemapService $sitemapService)
+    {
+        $fid = (int) session('fid', 0);
+
+        try {
+            $result = $sitemapService->generate($fid > 0 ? $fid : null);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Sitemap успішно згенеровано',
+                'fid' => $result['fid'],
+                'public_url' => $result['url'],
+                'frontend_url' => $result['frontend_url'],
+                'path' => $result['path'],
+                'last_modified_at' => $sitemapService->lastModifiedAt($result['fid']),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Не вдалося згенерувати sitemap',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

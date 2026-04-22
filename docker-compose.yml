@@ -69,7 +69,8 @@ services:
 
 volumes:
   db_data:
-    name: sklad_local_db_data
+    external: true
+    name: laravel-api_db_data
 
 networks:
   sklad:

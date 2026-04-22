@@ -136,6 +136,16 @@
         </div>
 
         <div class="col-md-4">
+            <div class="glass-card h-100 border-secondary setting-card" data-bs-toggle="modal" data-bs-target="#modalSitemap">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🗺 {{ __('settings.sitemap') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.sitemap_desc') }}</p>
+                    <span class="badge bg-secondary" id="badge-sitemap">{{ !empty($sitemapInfo['exists']) ? 'XML' : '—' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
             <div class="glass-card h-100 border-success setting-card" data-bs-toggle="modal" data-bs-target="#modalAccounts">
                 <div class="card-body text-center">
                     <h5 class="card-title">📚 План счетов</h5>
@@ -162,6 +172,49 @@
                     <p class="card-text text-muted">Чеки податкової інспекції Украї</p>
                     <span class="badge bg-success" id="badge-tax-receipts">0</span>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalSitemap" tabindex="-1" aria-labelledby="modalSitemapLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalSitemapLabel">🗺 {{ __('settings.sitemap') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-secondary mb-3">
+                    Sitemap генерується окремо для активного проєкту і віддається бекендом за публічним посиланням нижче.
+                </div>
+
+                <dl class="row mb-3">
+                    <dt class="col-sm-4">Статус</dt>
+                    <dd class="col-sm-8" id="sitemap-status-text">{{ !empty($sitemapInfo['exists']) ? 'Файл доступний' : 'Файл ще не створено' }}</dd>
+
+                    <dt class="col-sm-4">Остання генерація</dt>
+                    <dd class="col-sm-8" id="sitemap-lastmod-text">
+                        @if(!empty($sitemapInfo['last_modified_at']))
+                            {{ date('Y-m-d H:i:s', $sitemapInfo['last_modified_at']) }}
+                        @else
+                            —
+                        @endif
+                    </dd>
+
+                    <dt class="col-sm-4">Публічне посилання</dt>
+                    <dd class="col-sm-8">
+                        <a href="{{ $sitemapInfo['public_url'] ?? '#' }}" id="sitemap-public-link" target="_blank" rel="noopener noreferrer">
+                            {{ $sitemapInfo['public_url'] ?? '—' }}
+                        </a>
+                    </dd>
+                </dl>
+
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary" id="btn-sitemap-generate">🔄 Згенерувати sitemap.xml</button>
+                    <a href="{{ $sitemapInfo['public_url'] ?? '#' }}" class="btn btn-outline-secondary" id="btn-sitemap-open" target="_blank" rel="noopener noreferrer">🌍 Відкрити sitemap</a>
+                </div>
+                <div class="small text-muted mt-3" id="sitemap-feedback"></div>
             </div>
         </div>
     </div>
@@ -492,9 +545,13 @@
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">phone</label>
-                            <textarea class="form-control" id="project-phone" rows="2"></textarea>
+                            <input type="text" class="form-control" id="project-phone" maxlength="255">
                         </div>
-                        <div class="col-md-8 mb-3">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">url</label>
+                            <textarea class="form-control" id="project-url" rows="2" placeholder="https://example.com"></textarea>
+                        </div>
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">description</label>
                             <textarea class="form-control" id="project-description" rows="4"></textarea>
                         </div>
@@ -1752,6 +1809,7 @@ document.addEventListener('DOMContentLoaded', () => {
             payload.append('num', String(Number(document.getElementById('project-num').value || 0)));
             payload.append('name', document.getElementById('project-name').value.trim());
             payload.append('phone', document.getElementById('project-phone').value.trim());
+            payload.append('url', document.getElementById('project-url').value.trim());
             payload.append('telegram', document.getElementById('project-telegram').value.trim());
             payload.append('instagram', document.getElementById('project-instagram').value.trim());
             payload.append('twitter', document.getElementById('project-twitter').value.trim());
@@ -1853,6 +1911,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const projectPhone = item.phone
                     ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>`
                     : '—';
+                const projectUrl = item.url
+                    ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>`
+                    : '—';
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -1863,7 +1924,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="company-meta">${escapeHtml(item.description || '')}</div>
                     </td>
                     <td>${escapeHtml(item.userid ?? 0)}</td>
-                    <td>${projectPhone}</td>
+                    <td>
+                        <div>${projectPhone}</div>
+                        <div class="small text-muted">${projectUrl}</div>
+                    </td>
                     <td>${flags.join(' ') || '—'}</td>
                     <td class="text-end">
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
@@ -1929,6 +1993,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-num').value = item.num ?? 0;
             document.getElementById('project-name').value = item.name || '';
             document.getElementById('project-phone').value = item.phone || '';
+            document.getElementById('project-url').value = item.url || '';
             document.getElementById('project-telegram').value = item.telegram || '';
             document.getElementById('project-instagram').value = item.instagram || '';
             document.getElementById('project-twitter').value = item.twitter || '';
@@ -1955,6 +2020,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-num').value = '0';
             document.getElementById('project-name').value = '';
             document.getElementById('project-phone').value = '';
+            document.getElementById('project-url').value = '';
             document.getElementById('project-telegram').value = '';
             document.getElementById('project-instagram').value = '';
             document.getElementById('project-twitter').value = '';
@@ -3900,6 +3966,118 @@ document.addEventListener('DOMContentLoaded', () => {
         function hideForm() {
             formArea.style.display = 'none';
             listArea.style.display = 'block';
+        }
+    })();
+
+    (() => {
+        const sitemapStatusUrl = @json(route('settings.sitemap.status'));
+        const sitemapGenerateUrl = @json(route('settings.sitemap.generate'));
+        const modal = document.getElementById('modalSitemap');
+        const btnGenerate = document.getElementById('btn-sitemap-generate');
+        const publicLink = document.getElementById('sitemap-public-link');
+        const openBtn = document.getElementById('btn-sitemap-open');
+        const statusText = document.getElementById('sitemap-status-text');
+        const lastmodText = document.getElementById('sitemap-lastmod-text');
+        const feedback = document.getElementById('sitemap-feedback');
+        const badge = document.getElementById('badge-sitemap');
+
+        if (!modal || !btnGenerate) return;
+
+        modal.addEventListener('show.bs.modal', loadSitemapStatus);
+        btnGenerate.addEventListener('click', generateSitemap);
+
+        async function parseSitemapResponse(response) {
+            const raw = await response.text().catch(() => '');
+
+            if (!raw) {
+                return {};
+            }
+
+            try {
+                return JSON.parse(raw);
+            } catch (_) {
+                const trimmed = raw.trim();
+                const isHtml = trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.startsWith('<');
+
+                return {
+                    message: isHtml ? 'Сервер повернув HTML замість JSON. Перевірте авторизацію або помилку на бекенді.' : trimmed,
+                };
+            }
+        }
+
+        function loadSitemapStatus() {
+            feedback.textContent = '';
+
+            fetch(sitemapStatusUrl, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+                .then(async (response) => {
+                    const data = await parseSitemapResponse(response);
+
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Не вдалося завантажити статус sitemap.');
+                    }
+
+                    return data;
+                })
+                .then((data) => updateSitemapUi(data))
+                .catch((error) => {
+                    feedback.textContent = error.message || 'Не вдалося завантажити статус sitemap.';
+                });
+        }
+
+        function generateSitemap() {
+            btnGenerate.disabled = true;
+            feedback.textContent = 'Генерація sitemap виконується...';
+
+            fetch(sitemapGenerateUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+            })
+                .then(async (response) => {
+                    const data = await parseSitemapResponse(response);
+                    return { ok: response.ok, data };
+                })
+                .then(({ ok, data }) => {
+                    if (!ok || !data.success) {
+                        throw new Error(data.message || data.error || 'Помилка генерації sitemap');
+                    }
+
+                    updateSitemapUi(data);
+                    feedback.textContent = data.message || 'Sitemap згенеровано.';
+                })
+                .catch((error) => {
+                    feedback.textContent = error.message || 'Помилка генерації sitemap.';
+                })
+                .finally(() => {
+                    btnGenerate.disabled = false;
+                });
+        }
+
+        function updateSitemapUi(data) {
+            const exists = Boolean(data.exists ?? data.public_url);
+            const publicUrl = data.public_url || '#';
+
+            statusText.textContent = exists ? 'Файл доступний' : 'Файл ще не створено';
+            badge.textContent = exists ? 'XML' : '—';
+            publicLink.href = publicUrl;
+            publicLink.textContent = publicUrl;
+            openBtn.href = publicUrl;
+            lastmodText.textContent = formatTimestamp(data.last_modified_at);
+        }
+
+        function formatTimestamp(value) {
+            if (!value) return '—';
+
+            const date = new Date(Number(value) * 1000);
+            return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
         }
     })();
 });

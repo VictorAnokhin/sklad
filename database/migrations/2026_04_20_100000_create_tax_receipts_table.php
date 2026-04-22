@@ -16,7 +16,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedInteger('firma')->default(0);
             $table->string('receipt_number', 100)->unique();
-            $table->string('document_id', 100)->nullable()->index(); // ID документа PO/RO
+            $table->string('document_id', 100)->nullable(); // ID документа PO/RO
             $table->enum('document_type', ['PO', 'RO', 'OTHER'])->default('PO');
             $table->string('taxpayer_id', 50)->nullable(); // ІПН платника
             $table->string('cashier_name', 255)->nullable();

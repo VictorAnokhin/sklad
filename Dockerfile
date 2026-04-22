@@ -1,7 +1,7 @@
 FROM php:8.2-apache
 
 # ── System deps ───────────────────────────────────────────────────────────────
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl zip unzip libpng-dev libonig-dev libxml2-dev \
     libzip-dev libicu-dev libpq-dev libgmp-dev \
     && docker-php-ext-install \
@@ -20,13 +20,18 @@ COPY --from=composer:2.6 /usr/bin/composer /usr/bin/composer
 # ── App files ─────────────────────────────────────────────────────────────────
 WORKDIR /var/www/html
 
-COPY . .
+COPY composer.json composer.lock ./
 
 # ── Install PHP deps ──────────────────────────────────────────────────────────
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts \
+    && composer clear-cache
+
+COPY --chown=www-data:www-data . .
+
+RUN composer dump-autoload --optimize \
+    && php artisan package:discover --ansi
 
 # ── Storage permissions ───────────────────────────────────────────────────────
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 storage bootstrap/cache
+RUN chmod -R 775 storage bootstrap/cache
 
 EXPOSE 80
