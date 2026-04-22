@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BannerCarousel;
 use App\Models\Account;
 use App\Models\Firma;
+use App\Models\News;
 use App\Models\Project;
 use App\Models\Settings;
 use App\Services\SitemapService;
@@ -117,8 +118,28 @@ class SettingsController extends Controller
         ];
 
         $fieldTranslationsCount = $fieldCatalogTopCount + $fieldCityCount;
+        $catalogNewsOptions = Schema::hasTable('news')
+            ? DB::table('news')
+                ->where(function ($query) use ($fid) {
+                    $query->where('firma', (int) $fid)
+                        ->orWhere('firma', 0);
+                })
+                ->orderByDesc('hot')
+                ->orderByDesc('id')
+                ->limit(500)
+                ->get()
+                ->map(function ($item) {
+                    $title = News::decorateTitle($item);
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'web3Tokens', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount', 'sitemapInfo')));
+                    return [
+                        'id' => (int) $item->id,
+                        'title' => $title !== '' ? $title : ('Новина #' . $item->id),
+                    ];
+                })
+                ->values()
+            : collect();
+
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'web3Tokens', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions')));
     }
 
     public function show(Request $request)
@@ -1151,11 +1172,25 @@ class SettingsController extends Controller
 
     private function validateField(Request $request, $fid, string $keyfield, string $parentId, bool $isUpdate = false, ?object $existing = null): array
     {
+        $request->merge([
+            'news_catalog_id' => $this->normalizeOptionalInteger($request->input('news_catalog_id')),
+        ]);
+
         $validated = $request->validate([
             'name_ru' => 'required|string|max:255',
             'name_ua' => 'nullable|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'link' => 'nullable|string|max:35',
+            'news_catalog_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('news', 'id')->where(function ($query) use ($fid) {
+                    $query->where(function ($nested) use ($fid) {
+                        $nested->where('firma', (int) $fid)
+                            ->orWhere('firma', 0);
+                    });
+                }),
+            ],
             'description_ru' => 'nullable|string|max:5000',
             'description_ua' => 'nullable|string|max:5000',
             'description_en' => 'nullable|string|max:5000',
@@ -1206,6 +1241,11 @@ class SettingsController extends Controller
         }
         if (in_array('link', $columns, true)) {
             $payload['link'] = $validated['link'] ?? '';
+        }
+        if (in_array('news_catalog_id', $columns, true)) {
+            $payload['news_catalog_id'] = $validated['news_catalog_id'] ?? null;
+        } elseif (in_array('nw', $columns, true)) {
+            $payload['nw'] = $validated['news_catalog_id'] ?? 0;
         }
         if (in_array('visible', $columns, true)) {
             $payload['visible'] = $request->boolean('visible') ? '1' : '0';
@@ -1294,11 +1334,27 @@ class SettingsController extends Controller
             'description_ua' => $descriptionUa,
             'description_en' => $descriptionEn,
             'link' => in_array('link', $fieldColumns, true) ? ($item->link ?? '') : '',
+            'news_catalog_id' => in_array('news_catalog_id', $fieldColumns, true)
+                ? ($item->news_catalog_id ? (int) $item->news_catalog_id : null)
+                : (in_array('nw', $fieldColumns, true) && (int) ($item->nw ?? 0) > 0 ? (int) $item->nw : null),
             'children_count' => (int) ($childCounts[(string) $item->id] ?? 0),
             'num' => (int) (property_exists($item, 'num') ? ($item->num ?? 0) : 0),
             'visible' => (string) (property_exists($item, 'visible') ? ($item->visible ?? '1') : '1'),
             'firstpage' => (string) (property_exists($item, 'firstpage') ? ($item->firstpage ?? '0') : '0'),
         ];
+    }
+
+    private function normalizeOptionalInteger($value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value;
+        }
+
+        return null;
     }
 
     private function resolveFieldKeyfield(Request $request): string

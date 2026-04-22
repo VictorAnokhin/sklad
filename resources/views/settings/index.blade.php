@@ -465,6 +465,12 @@
                             <label class="form-label">Link</label>
                             <input type="text" class="form-control" id="catalog-link" maxlength="35" placeholder="slug или ссылка из field.link">
                         </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Статья каталога</label>
+                            <select class="form-select" id="catalog-news-catalog">
+                                <option value="">— не выбрано —</option>
+                            </select>
+                        </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Опис RU</label>
                             <textarea class="form-control" id="catalog-description-ru" rows="4"></textarea>
@@ -1405,10 +1411,11 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
+    const catalogNewsOptions = @json($catalogNewsOptions ?? []);
 
     initProjectsCrud(csrf);
     initConfCrud(csrf);
-    initCatalogCrud(csrf);
+    initCatalogCrud(csrf, catalogNewsOptions);
     initFirmsCrud(csrf);
     initBannerCrud(csrf);
     initAccountsCrud(csrf);
@@ -2821,7 +2828,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function initCatalogCrud(csrfToken) {
+    function initCatalogCrud(csrfToken, newsOptions) {
         const modal = document.getElementById('modalCatalog');
         const listArea = document.getElementById('catalog-list-area');
         const formArea = document.getElementById('catalog-form-area');
@@ -2844,6 +2851,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const flagsHead = document.getElementById('catalog-flags-head');
         const descriptionHead = document.getElementById('catalog-description-head');
         const childrenHead = document.getElementById('catalog-children-head');
+        const newsCatalogSelect = document.getElementById('catalog-news-catalog');
+        const newsMap = new Map((newsOptions || []).map((item) => [String(item.id), item.title]));
+
+        hydrateNewsSelect(newsCatalogSelect, newsOptions || []);
 
         let currentKeyfield = 'catalog';
         let currentParentId = '0';
@@ -2938,6 +2949,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name_ua: document.getElementById('catalog-name-ua').value.trim(),
                 name_en: document.getElementById('catalog-name-en').value.trim(),
                 link: document.getElementById('catalog-link').value.trim(),
+                news_catalog_id: document.getElementById('catalog-news-catalog').value || null,
                 num: document.getElementById('catalog-num').value,
                 visible: document.getElementById('catalog-visible').checked,
                 firstpage: document.getElementById('catalog-firstpage').checked,
@@ -3034,6 +3046,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ` : '<span class="text-muted">—</span>';
                 const description = fieldModeConfig[currentKeyfield].showExtra ? `
                     <div><strong>Link:</strong> ${escapeHtml(shortText(item.link || '—'))}</div>
+                    <div><strong>Статья:</strong> ${escapeHtml(getNewsTitle(item.news_catalog_id))}</div>
                     <div>${escapeHtml(shortText(item.description_ru || '—'))}</div>
                     <div class="catalog-meta">UA: ${escapeHtml(shortText(item.description_ua || '—'))}</div>
                     <div class="catalog-meta">EN: ${escapeHtml(shortText(item.description_en || '—'))}</div>
@@ -3108,6 +3121,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('catalog-name-ua').value = data.name_ua || '';
                     document.getElementById('catalog-name-en').value = data.name_en || '';
                     document.getElementById('catalog-link').value = data.link || '';
+                    document.getElementById('catalog-news-catalog').value = data.news_catalog_id ? String(data.news_catalog_id) : '';
                     document.getElementById('catalog-num').value = data.num ?? 0;
                     document.getElementById('catalog-visible').checked = String(data.visible ?? '1') === '1';
                     document.getElementById('catalog-firstpage').checked = String(data.firstpage ?? '0') === '1';
@@ -3181,10 +3195,31 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('catalog-keyfield').value = currentKeyfield;
             document.getElementById('catalog-parent-id').value = currentKeyfield === 'catalog' ? currentParentId : '0';
             document.getElementById('catalog-link').value = '';
+            document.getElementById('catalog-news-catalog').value = '';
             document.getElementById('catalog-num').value = '0';
             document.getElementById('catalog-visible').checked = true;
             document.getElementById('catalog-firstpage').checked = false;
             parentLabel.textContent = getCurrentParentName();
+        }
+
+        function hydrateNewsSelect(select, items) {
+            if (!select) return;
+
+            select.innerHTML = '<option value="">— не выбрано —</option>';
+            items.forEach((item) => {
+                const option = document.createElement('option');
+                option.value = String(item.id);
+                option.textContent = `#${item.id} ${item.title}`;
+                select.appendChild(option);
+            });
+        }
+
+        function getNewsTitle(newsId) {
+            if (!newsId) {
+                return '—';
+            }
+
+            return newsMap.get(String(newsId)) || `#${newsId}`;
         }
 
         function showCatalogForm() {

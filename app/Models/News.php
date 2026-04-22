@@ -137,6 +137,13 @@ class News extends Model
             ->delete();
     }
 
+    public static function decorateTitle(object $item): string
+    {
+        return trim((string) ($item->title ?? ''))
+            ?: trim((string) ($item->title_ua ?? ''))
+            ?: trim((string) ($item->title_en ?? ''));
+    }
+
     private static function decorateItem(object $item, ?string $locale = 'ru'): object
     {
         $item->title_view = Field::localizedValue($locale, $item->title ?? '', $item->title_ua ?? '', $item->title_en ?? '') ?: 'Новина';

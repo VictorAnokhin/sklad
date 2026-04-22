@@ -66,7 +66,7 @@ class Field extends Model
         }
 
         $select = ['id', 'idkeyfield', 'val'];
-        foreach (['valua', 'valen', 'description', 'descriptionua', 'descriptionen', 'link', 'num', 'visible', 'firstpage'] as $column) {
+        foreach (['valua', 'valen', 'description', 'descriptionua', 'descriptionen', 'link', 'news_catalog_id', 'nw', 'num', 'visible', 'firstpage'] as $column) {
             if ($hasColumn($column)) {
                 $select[] = $column;
             }
@@ -112,6 +112,9 @@ class Field extends Model
                 'description_ua' => $descriptionUa,
                 'description_en' => $descriptionEn,
                 'num' => (int) ($item->num ?? 0),
+                'news_catalog_id' => isset($item->news_catalog_id) && $item->news_catalog_id !== null
+                    ? (int) $item->news_catalog_id
+                    : ((int) ($item->nw ?? 0) > 0 ? (int) $item->nw : null),
                 'visible' => is_scalar($visibleValue) ? (string) $visibleValue === '1' : false,
                 'firstpage' => is_scalar($firstPageValue) ? (string) $firstPageValue === '1' : false,
                 'children' => $children,
