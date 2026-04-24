@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Support\MediaUrl;
 
 class Goods extends Model
@@ -21,6 +23,11 @@ class Goods extends Model
     public function skladObj()
     {
         return $this->belongsTo(Sklad::class, 'sklad');
+    }
+
+    public function ratings()
+    {
+        return $this->hasMany(Rating::class, 'comp_id');
     }
 
     private static function displayNameSql(): string
@@ -317,6 +324,65 @@ class Goods extends Model
         });
     }
 
+    public static function attachRatings($comps, ?int $userId = null)
+    {
+        if ($comps->isEmpty()) {
+            return $comps;
+        }
+
+        if (!Schema::hasTable('rating')) {
+            return $comps->map(fn ($comp) => self::applyRatingFields($comp, null, null));
+        }
+
+        $compIds = $comps
+            ->pluck('id')
+            ->filter(fn ($value) => (string) $value !== '')
+            ->map(fn ($value) => (int) $value)
+            ->unique()
+            ->values();
+
+        if ($compIds->isEmpty()) {
+            return $comps->map(fn ($comp) => self::applyRatingFields($comp, null, null));
+        }
+
+        $stats = DB::table('rating')
+            ->select(
+                'comp_id',
+                DB::raw('AVG(rating) as rating_avg'),
+                DB::raw('COUNT(*) as rating_count')
+            )
+            ->whereIn('comp_id', $compIds)
+            ->groupBy('comp_id')
+            ->get()
+            ->keyBy(fn ($row) => (int) $row->comp_id);
+
+        $userRatings = collect();
+
+        if ($userId !== null) {
+            $userRatings = DB::table('rating')
+                ->where('user_id', $userId)
+                ->whereIn('comp_id', $compIds)
+                ->pluck('rating', 'comp_id');
+        }
+
+        return $comps->map(function ($comp) use ($stats, $userRatings) {
+            $compId = (int) ($comp->id ?? 0);
+            $stat = $stats->get($compId);
+            $userRating = $userRatings->get($compId);
+
+            return self::applyRatingFields($comp, $stat, $userRating);
+        });
+    }
+
+    private static function applyRatingFields($comp, $stat, $userRating)
+    {
+        $comp->rating_avg = $stat ? round((float) ($stat->rating_avg ?? 0), 2) : 0.0;
+        $comp->rating_count = $stat ? (int) ($stat->rating_count ?? 0) : 0;
+        $comp->user_rating = $userRating !== null ? (int) $userRating : null;
+
+        return $comp;
+    }
+
     // ── show: load single product + related data ──────────────────────────────
 
     public static function showGoods($pnum, $fid, ?string $locale = 'ru')
@@ -346,7 +412,7 @@ class Goods extends Model
 
     // ── Web / API methods ─────────────────────────────────────────────────────
 
-    public static function getWebGoodsBySection($fid, $id, $limit, $offset, ?string $locale = 'ru', bool $hitOnly = false, $targetTgroupId = null)
+    public static function getWebGoodsBySection($fid, $id, $limit, $offset, ?string $locale = 'ru', $targetTgroupId = null, bool $hitOnly = false, ?int $userId = null)
     {
         $query = self::query()
             ->leftJoin('descript as d', function ($join) {
@@ -390,7 +456,10 @@ class Goods extends Model
             ->limit($limit)
             ->get();
 
-        $goods = self::attachPreferredPricesByItemFirma($goods, $targetTgroupId)
+        $goods = self::attachRatings(
+            self::attachPreferredPricesByItemFirma($goods, $targetTgroupId),
+            $userId
+        )
             ->map(function ($item) use ($locale) {
                 $nameView = self::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '');
                 $descriptionView = self::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
@@ -416,6 +485,9 @@ class Goods extends Model
                     'count' => (int) ($item->price_count ?? 0),
                     'image' => MediaUrl::image($item->nfoto),
                     'image_thumb' => MediaUrl::image($item->nfoto1),
+                    'rating_avg' => (float) ($item->rating_avg ?? 0),
+                    'rating_count' => (int) ($item->rating_count ?? 0),
+                    'user_rating' => $item->user_rating !== null ? (int) $item->user_rating : null,
                 ];
             });
 
@@ -425,7 +497,7 @@ class Goods extends Model
         ];
     }
 
-    public static function getWebGood($fid, $identifier, ?string $locale = 'ru', $targetTgroupId = null)
+    public static function getWebGood($fid, $identifier, ?string $locale = 'ru', $targetTgroupId = null, ?int $userId = null)
     {
         $identifier = trim((string) $identifier);
 
@@ -483,7 +555,10 @@ class Goods extends Model
             return null;
         }
 
-        $item = self::attachPreferredPricesByItemFirma(collect([$item]), $targetTgroupId)->first();
+        $item = self::attachRatings(
+            self::attachPreferredPricesByItemFirma(collect([$item]), $targetTgroupId),
+            $userId
+        )->first();
 
         $nameView = self::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '');
         $descriptionView = self::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
@@ -570,12 +645,15 @@ class Goods extends Model
             'parent_section' => $mapSection($topSection),
             'meta_description' => trim((string) ($item->htmldescr ?? '')),
             'meta_keywords' => trim((string) ($item->htmlkeys ?? $item->htmlkeyspop ?? '')),
+            'rating_avg' => (float) ($item->rating_avg ?? 0),
+            'rating_count' => (int) ($item->rating_count ?? 0),
+            'user_rating' => $item->user_rating !== null ? (int) $item->user_rating : null,
         ];
     }
 
     // ── getHits: paginated hit goods for API ─────────────────────────────────
 
-    public static function getHits($fid, $limit = 10, $offset = 0, ?string $locale = 'ru', $targetTgroupId = null)
+    public static function getHits($fid, $limit = 10, $offset = 0, ?string $locale = 'ru', $targetTgroupId = null, ?int $userId = null)
     {
         $hits = self::query()
             ->leftJoin('descript as d', function ($join) {
@@ -604,7 +682,10 @@ class Goods extends Model
             ->limit($limit)
             ->get();
 
-        return self::attachPreferredPricesByItemFirma($hits, $targetTgroupId)
+        return self::attachRatings(
+            self::attachPreferredPricesByItemFirma($hits, $targetTgroupId),
+            $userId
+        )
             ->map(function ($item) use ($locale) {
                 $nameView = self::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '');
                 $descriptionView = self::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
@@ -630,6 +711,9 @@ class Goods extends Model
                     'count' => (int) ($item->price_count ?? 0),
                     'image' => MediaUrl::image($item->nfoto),
                     'image_thumb' => MediaUrl::image($item->nfoto1),
+                    'rating_avg' => (float) ($item->rating_avg ?? 0),
+                    'rating_count' => (int) ($item->rating_count ?? 0),
+                    'user_rating' => $item->user_rating !== null ? (int) $item->user_rating : null,
                 ];
             });
     }

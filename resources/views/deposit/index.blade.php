@@ -51,27 +51,22 @@
             $mode = $doc->docum ?? 'topup';
             $modeLabel = match ($mode) {
                 'withdraw' => __('deposit.op_withdraw'),
-                'exchange' => __('deposit.op_exchange'),
                 default => __('deposit.op_topup'),
             };
             $modeIcon = match ($mode) {
                 'withdraw' => '📤',
-                'exchange' => '🔄',
                 default => '📥',
             };
             $modeBg = match ($mode) {
                 'withdraw' => '#dc3545',
-                'exchange' => '#0d6efd',
                 default => '#28a745',
             };
             $fromLabel = match ($mode) {
                 'withdraw' => $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—'),
-                'exchange' => $oplataMap[$doc->oplata ?? ''] ?? ($doc->oplata ?: '—'),
                 default => $oplataMap[$doc->oplata ?? ''] ?? ($doc->oplata ?: '—'),
             };
             $toLabel = match ($mode) {
                 'withdraw' => $oplataMap[$doc->oplata2 ?? ''] ?? ($doc->oplata2 ?: '—'),
-                'exchange' => $oplataMap[$doc->oplata2 ?? ''] ?? ($doc->oplata2 ?: '—'),
                 default => $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—'),
             };
             $linkUrl = route('deposit.show', ['id' => $doc->id]);
@@ -130,7 +125,6 @@
                         <option value="">{{ __('money.filter_all_types') }}</option>
                         <option value="topup" {{ ($filters['mode'] ?? '') === 'topup' ? 'selected' : '' }}>{{ __('deposit.op_topup') }}</option>
                         <option value="withdraw" {{ ($filters['mode'] ?? '') === 'withdraw' ? 'selected' : '' }}>{{ __('deposit.op_withdraw') }}</option>
-                        <option value="exchange" {{ ($filters['mode'] ?? '') === 'exchange' ? 'selected' : '' }}>{{ __('deposit.op_exchange') }}</option>
                     </select>
                 </div>
 

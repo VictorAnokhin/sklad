@@ -32,8 +32,11 @@ class DepositController extends Controller
         if (!$document) {
             return redirect()->route('deposit.index')->with('error', 'Документ не знайдено');
         }
+        if ($id > 0 && (string) ($document->docum ?? '') === 'exchange') {
+            return redirect()->route('money.show', ['id' => $document->id, 'tab' => 'transfers']);
+        }
         if ($id === 0) {
-            $document->docum = in_array($requestedMode, ['topup', 'withdraw', 'exchange'], true) ? $requestedMode : 'topup';
+            $document->docum = in_array($requestedMode, ['topup', 'withdraw'], true) ? $requestedMode : 'topup';
         }
 
         $oplatas = Deposit::oplatas($fid);
@@ -53,14 +56,13 @@ class DepositController extends Controller
         $oplata2 = (string) $request->input('oplata2', '');
         $money = (string) $request->input('money', '');
 
-        if (!in_array($mode, ['topup', 'withdraw', 'exchange'], true)) {
+        if (!in_array($mode, ['topup', 'withdraw'], true)) {
             $mode = 'topup';
         }
 
         $isInvalid = match ($mode) {
             'topup' => $summa <= 0 || $oplata === '' || $money === '',
             'withdraw' => $summa <= 0 || $money === '' || $oplata2 === '',
-            'exchange' => $summa <= 0 || $oplata === '' || $oplata2 === '',
             default => true,
         };
 
@@ -69,13 +71,6 @@ class DepositController extends Controller
                 ->back()
                 ->withInput()
                 ->with('error', 'Заповніть суму і обидва рахунки для вибраного типу операції');
-        }
-
-        if ($mode === 'exchange' && $oplata === $oplata2) {
-            return redirect()
-                ->back()
-                ->withInput()
-                ->with('error', 'Для обмена выберите разные кассы');
         }
 
         $data = [

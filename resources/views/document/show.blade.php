@@ -4,10 +4,30 @@
     @include('partials.panel')
 
     <style>
+
+        .goods-table-col-code,
+        .goods-table-col-qty,
         .goods-table-col-price,
-        .goods-table-col-sum {
-            width: 100px !important;
-            min-width: 80px;
+        .goods-table-col-sum,
+        .goods-table-col-actions {
+            white-space: nowrap;
+        }
+
+        .goods-table-col-actions {
+            width: 1%;
+            text-align: center;
+        }
+
+        .goods-table-col-actions .remove-btn {
+            min-width: 42px;
+        }
+
+        .goods-table-col-name input,
+        .goods-table-col-price input,
+        .goods-table-col-sum input,
+        .goods-table-col-code input,
+        .goods-table-col-qty input {
+            min-width: 0;
         }
 
         .file-preview-container {
@@ -66,6 +86,213 @@
             border-radius: 8px;
             margin-bottom: 8px;
             font-size: 2rem;
+        }
+
+        @media (max-width: 767.98px) {
+            #goodsTable, 
+            #goodsTable tbody, 
+            #goodsTable tr, 
+            #goodsTable td {
+                display: block !important;
+                box-sizing: border-box;
+            }
+
+            #goodsTable {
+                border: 0 !important;
+                background: transparent !important;
+            }
+
+            #goodsTable .goods-table-header {
+                display: none !important;
+            }
+
+            #goodsTable tbody {
+                display: flex !important;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            #goodsTable tbody tr {
+                border-left: 0 !important;
+                border-right: 0 !important;
+                border-top: 1px solid rgba(148, 163, 184, 0.35);
+                border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+                border-radius: 0;
+                padding: 16px 12px;
+                background: rgba(15, 23, 42, 0.22);
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+                margin-left: -12px;
+                margin-right: -12px;
+                width: calc(100% + 24px) !important;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) {
+                display: grid !important;
+                grid-template-columns: repeat(10, minmax(0, 1fr));
+                gap: 8px;
+                align-items: start;
+            }
+
+            #goodsTable tbody td {
+                border: 0;
+                padding: 0;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) td + td {
+                margin-top: 0;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-name {
+                grid-column: 1 / -1;
+                order: 1;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-actions {
+                grid-column: 1 / -1;
+                order: 7;
+                margin-top: 4px;
+                text-align: center;
+                border-top: 1px solid rgba(148, 163, 184, 0.1);
+                padding-top: 10px;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-code {
+                grid-column: 1 / -1;
+                order: 3;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-qty {
+                grid-column: 1 / -1;
+                order: 4;
+                width: 100% !important;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-price {
+                grid-column: 1 / span 5;
+                order: 5;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-sum {
+                grid-column: 6 / span 5;
+                order: 6;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-name,
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-code,
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-qty,
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-actions {
+                width: 100% !important;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-price,
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-sum {
+                display: block;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) td::before {
+                content: attr(data-label);
+                display: block;
+                margin-bottom: 4px;
+                font-size: 0.72rem;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                color: #94a3b8;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-name input[readonly],
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-code input[readonly] {
+                background: transparent !important;
+                border: none !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                min-height: auto;
+                white-space: normal;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-name input[readonly] {
+                font-weight: 600;
+                font-size: 1.05rem;
+                color: #f8fafc !important;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-code input[readonly] {
+                font-size: 0.85rem;
+                color: #94a3b8 !important;
+                margin-top: -4px;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-actions::before {
+                display: none;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-actions .remove-btn {
+                width: auto;
+                min-width: 100px;
+                min-height: 32px;
+                padding: 4px 12px;
+                font-size: 0.85rem;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .form-control,
+            #goodsTable tbody tr:not(#emptyGoodsRow) .input-group {
+                width: 100% !important;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-qty .input-group {
+                flex-wrap: nowrap;
+            }
+
+            #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-qty .btn {
+                min-width: 50px;
+                font-size: 1.2rem;
+            }
+
+            #goodsTable tbody tr#emptyGoodsRow td {
+                border: 1px dashed rgba(148, 163, 184, 0.35);
+                border-radius: 14px;
+                padding: 16px 12px;
+                background: rgba(15, 23, 42, 0.12);
+            }
+
+            .doc-sum-box {
+                justify-content: stretch !important;
+            }
+
+            .doc-sum-box-inner {
+                width: 100%;
+            }
+
+            .doc-actions {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: rgba(15, 23, 42, 0.9);
+                padding: 12px 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                z-index: 1050;
+                box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+                border-top: 1px solid rgba(148, 163, 184, 0.2);
+                backdrop-filter: blur(10px);
+            }
+
+            .doc-actions .btn {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 12px;
+                font-weight: 600;
+            }
+
+            .doc-actions .post-checkbox {
+                margin-bottom: 4px !important;
+            }
+
+            .doc-page {
+                padding-bottom: 240px !important;
+            }
         }
     </style>
 
@@ -337,7 +564,7 @@
                             <thead class="goods-table-header">
                                 <tr>
                                     <th class="goods-table-col-code">Код</th>
-                                    <th>Найменування</th>
+                                    <th class="goods-table-col-name">Найменування</th>
                                     <th class="goods-table-col-qty">К-ть</th>
                                     <th class="goods-table-col-price">Ціна</th>
                                     <th class="goods-table-col-sum">Сума</th>
@@ -348,19 +575,19 @@
                                 @if(count($lineItems) > 0)
                                     @foreach($lineItems as $item)
                                         <tr>
-                                            <td>
+                                            <td class="goods-table-col-code" data-label="Код">
                                                 <input type="hidden" name="id[]" value="{{ $item->id }}">
                                                 <input type="hidden" name="pid[]" value="{{ $item->pid }}">
                                                 <input type="hidden" name="pnum[]" value="{{ $item->pnum }}">
                                                 <input type="text" class="form-control form-control-sm text-white" value="{{ $item->pnum }}"
                                                     readonly>
                                             </td>
-                                            <td>
+                                            <td class="goods-table-col-name" data-label="Найменування">
                                                 <input type="hidden" name="name[]" value="{{ $item->name ?? '' }}">
                                                 <input type="text" class="form-control form-control-sm text-white" value="{{ $item->name ?? '' }}"
                                                     readonly>
                                             </td>
-                                            <td>
+                                            <td class="goods-table-col-qty" data-label="К-ть">
                                                 <div class="input-group input-group-sm">
                                                     <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
                                                     <input type="text" step="1" name="pcount[]"
@@ -368,13 +595,13 @@
                                                     <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                                 </div>
                                             </td>
-                                            <td><input type="text" name="pprice[]"
+                                            <td class="goods-table-col-price" data-label="Ціна"><input type="text" name="pprice[]"
                                                     class="form-control form-control-sm goods-price text-end text-white"
                                                     value="{{ $item->pprice }}"></td>
-                                            <td><input type="text" name="psumma[]"
+                                            <td class="goods-table-col-sum" data-label="Сума"><input type="text" name="psumma[]"
                                                     class="form-control form-control-sm goods-sum text-end text-white" value="{{ $item->psumma }}">
                                             </td>
-                                            <td class="text-center">
+                                            <td class="goods-table-col-actions">
                                                 @if(intval($document->provodka) === 0)
                                                     <button type="submit" name="bid" value="{{ $item->id }}"
                                                         formaction="{{ route('document.body.delete') }}"
@@ -925,18 +1152,18 @@
 
                                     const tr = document.createElement('tr');
                                     tr.innerHTML = `
-                                        <td><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.pnum}" readonly></td>
-                                        <td><input type="hidden" name="name[]" value="${good.name || ''}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.name || ''}" readonly></td>
-                                        <td>
+                                        <td class="goods-table-col-code" data-label="Код"><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.pnum}" readonly></td>
+                                        <td class="goods-table-col-name" data-label="Найменування"><input type="hidden" name="name[]" value="${good.name || ''}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.name || ''}" readonly></td>
+                                        <td class="goods-table-col-qty" data-label="К-ть">
                                             <div class="input-group input-group-sm">
                                                 <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
                                                 <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count text-dark text-white" value="1">
                                                 <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                             </div>
                                         </td>
-                                        <td><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
-                                        <td><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
-                                        <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row remove-btn">❌</button></td>`;
+                                        <td class="goods-table-col-price" data-label="Ціна"><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
+                                        <td class="goods-table-col-sum" data-label="Сума"><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
+                                        <td class="goods-table-col-actions text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row remove-btn">❌</button></td>`;
                                     tr.dataset.priceCompPay = good.priceCompPay || 0;
                                     tr.dataset.priceCompPay1 = good.priceCompPay1 || 0;
                                     tr.dataset.priceBase = good.priceBase || 0;

@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Goods;
 use App\Models\Field;
 use App\Models\Price;
+use App\Models\Rating;
 use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * GoodsController
@@ -125,7 +127,10 @@ class GoodsController extends Controller
             ->limit(30)
             ->get();
 
-        $goods = Goods::attachPreferredPricesByItemFirma($goods, $tgroupId)
+        $goods = Goods::attachRatings(
+            Goods::attachPreferredPricesByItemFirma($goods, $tgroupId),
+            $user?->id
+        )
             ->map(function ($g) use ($locale) {
                 $nameView = Field::localizedValue($locale, $g->name_ru ?? '', $g->name_ua ?? '', $g->name_en ?? '');
                 $desc = Field::localizedValue($locale, $g->description ?? '', $g->description_ua ?? '', $g->description_en ?? '');
@@ -150,6 +155,9 @@ class GoodsController extends Controller
                     'image_thumb' => MediaUrl::image($g->image_thumb ?? ''),
                     'description' => mb_substr($desc, 0, 200),
                     'description_view' => mb_substr($desc, 0, 200),
+                    'rating_avg' => (float) ($g->rating_avg ?? 0),
+                    'rating_count' => (int) ($g->rating_count ?? 0),
+                    'user_rating' => $g->user_rating !== null ? (int) $g->user_rating : null,
                 ];
             });
 
@@ -200,7 +208,10 @@ class GoodsController extends Controller
             ->limit(20)
             ->get();
 
-        $goods = Goods::attachPreferredPricesByItemFirma($goods, $tgroupId)
+        $goods = Goods::attachRatings(
+            Goods::attachPreferredPricesByItemFirma($goods, $tgroupId),
+            $user?->id
+        )
             ->map(function ($g) use ($doc, $locale) {
                 // For ZIN documents (purchase/procurement), use purchase price (comp.pay)
                 // For ZOUT documents (orders), use price.pay by default,
@@ -241,6 +252,9 @@ class GoodsController extends Controller
                     'wholesaleFrom' => (int) ($g->price_count ?? 0),
                     'count' => (int) ($g->price_count ?? 0),
                     'sklad' => (float) ($g->sklad ?? 0),
+                    'rating_avg' => (float) ($g->rating_avg ?? 0),
+                    'rating_count' => (int) ($g->rating_count ?? 0),
+                    'user_rating' => $g->user_rating !== null ? (int) $g->user_rating : null,
                 ];
             });
 
@@ -259,7 +273,7 @@ class GoodsController extends Controller
 
         $user = Auth::guard('sanctum')->user();
         $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
-        $hits = Goods::getHits($fid, $limit, $offset, $locale, $tgroupId);
+        $hits = Goods::getHits($fid, $limit, $offset, $locale, $tgroupId, $user?->id);
 
         return response()->json([
             'success' => true,
@@ -310,7 +324,7 @@ class GoodsController extends Controller
 
         $user = Auth::guard('sanctum')->user();
         $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
-        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset, $locale, $hitOnly, $tgroupId);
+        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset, $locale, $tgroupId, $hitOnly, $user?->id);
 
         return response()->json([
             'success' => true,
@@ -330,7 +344,7 @@ class GoodsController extends Controller
 
         $user = Auth::guard('sanctum')->user();
         $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
-        $item = Goods::getWebGood($fid, $id, $locale, $tgroupId);
+        $item = Goods::getWebGood($fid, $id, $locale, $tgroupId, $user?->id);
 
         if (!$item) {
             return response()->json([
@@ -343,6 +357,60 @@ class GoodsController extends Controller
             'success' => true,
             'item' => $item,
             'locale' => $locale,
+        ]);
+    }
+
+    public function saveRating(Request $request, $id)
+    {
+        $user = Auth::guard('sanctum')->user();
+        $fid = $this->resolveApiFid($request, '2');
+
+        if (!Schema::hasTable('rating')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Rating table is not migrated yet',
+            ], 503);
+        }
+
+        $validated = $request->validate([
+            'rating' => ['required', 'integer', 'min:1', 'max:5'],
+        ]);
+
+        $comp = Goods::query()
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->first();
+
+        if (!$comp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Товар не найден',
+            ], 404);
+        }
+
+        Rating::updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'comp_id' => (int) $comp->id,
+            ],
+            [
+                'rating' => (int) $validated['rating'],
+            ]
+        );
+
+        $stats = DB::table('rating')
+            ->select(
+                DB::raw('AVG(rating) as rating_avg'),
+                DB::raw('COUNT(*) as rating_count')
+            )
+            ->where('comp_id', (int) $comp->id)
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'rating_avg' => round((float) ($stats->rating_avg ?? 0), 2),
+            'rating_count' => (int) ($stats->rating_count ?? 0),
+            'user_rating' => (int) $validated['rating'],
         ]);
     }
 

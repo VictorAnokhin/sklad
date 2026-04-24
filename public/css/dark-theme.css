@@ -322,11 +322,8 @@ header .fs-4,
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    margin-left: auto;
-}
-
-.header-lang-switch__link {
-    display: inline-flex;
+        margin-left: 0;
+        margin-top: 0.25rem;
     align-items: center;
     justify-content: center;
     min-width: 42px;
@@ -350,16 +347,16 @@ header .fs-4,
 
 /* Burger button */
 .header-burger {
-    width: 42px;
-    height: 42px;
+    width: 48px;
+    height: 48px;
     padding: 0;
     display: inline-flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     border: 1px solid rgba(251, 191, 36, 0.22);
-    border-radius: 12px;
+    border-radius: 14px;
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
@@ -367,15 +364,15 @@ header .fs-4,
 }
 
 .header-burger span {
-    width: 20px;
-    height: 2px;
+    width: 24px;
+    height: 3px;
     border-radius: 999px;
-    background: var(--accent-amber);
+    background: #000000;
     transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .header-burger[aria-expanded="true"] span:nth-child(1) {
-    transform: translateY(6px) rotate(45deg);
+    transform: translateY(8px) rotate(45deg);
 }
 
 .header-burger[aria-expanded="true"] span:nth-child(2) {
@@ -1130,7 +1127,21 @@ small,
     }
     
     .header-bar {
-        padding: 0 0.5rem;
+        padding: 0;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .top-action-bar {
+        width: 100%;
+        padding: 0.5rem 0;
+        box-sizing: border-box;
+    }
+
+    .document-compact-wrap {
+        width: 100%;
+        padding: 0;
+        box-sizing: border-box;
     }
 
     .header-nav-menu {
@@ -1389,6 +1400,7 @@ small,
 /* Zakaz variant with extra client info column */
 .document-compact-wrap.zakaz .txtbox-price-docs,
 .txtbox-price-docs.zakaz {
+    width: 100%;
     min-width: 1030px;
     /* 1:num | 2:date | 3:client | 4:status | 5:price | 6:note | 7:clientInfo */
     grid-template-columns: 42px 104px minmax(220px, 1.6fr) 95px minmax(110px, 0.75fr) minmax(200px, 2fr) minmax(120px, 0.85fr);
@@ -2149,27 +2161,32 @@ small,
 }
 
 .goods-table-col-code {
-    width: 60px;
+    width: 40px !important;
 }
 
 .goods-table-col-qty {
-    width: 60px;
+    width: 90px !important;
+}
+
+.goods-table-col-name {
+    width: 200px !important;
 }
 
 .goods-table-col-price {
-    width: 70px;
+    width: 60px !important;
 }
 
 .goods-table-col-sum {
-    width: 70px;
+    width: 60px !important;
 }
 
 .goods-table-col-actions {
-    width: 36px;
+    width: 26px !important;
 }
 
 #goodsTable input[readonly] {
-    width: 55px;
+    width: 100% !important;
+    max-width: 100%;
 }
 
 #goodsTable .input-group-sm {
@@ -2456,7 +2473,13 @@ small,
         overflow-x: visible;
     }
 
+    .document-compact-list {
+        width: 100%;
+    }
+
     .document-compact-wrap .txtbox-price-docs {
+        width: 100%;
+        box-sizing: border-box;
         min-width: 0;
         display: flex;
         flex-direction: column;
@@ -2472,7 +2495,9 @@ small,
     }
 
     /* Row 1: Order number + Date/Time on same line */
-    .document-compact-wrap .order-card__header {
+    .document-compact-wrap .order-card__header,
+    .document-compact-wrap .order-card-footer {
+        width: 100%;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -2552,12 +2577,12 @@ small,
     }
 
     .document-compact-wrap .compact-client-line.compact-main {
-        font-size: 0.95rem;
-        font-weight: 600;
+        font-size: 1.05rem;
+        font-weight: 700;
     }
 
     .document-compact-wrap .compact-client-line.city {
-        font-size: 0.85rem;
+        font-size: 0.88rem;
         color: rgba(255, 255, 255, 0.65);
     }
 
@@ -2593,19 +2618,83 @@ small,
         text-overflow: unset;
         text-align: center;
         padding: 0.6rem 0.75rem;
-        border-radius: 0.5rem;
+        border-radius: 0.75rem;
         font-size: 0.88rem;
         font-weight: 600;
         margin-top: 0.25rem;
+        min-width: 110px;
     }
 
-    /* Client info panel (zakaz) */
-    .document-compact-wrap .status-docs4:not(.compact-date) {
+    .document-compact-wrap .order-card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-top: 0.75rem;
+    }
+
+    .document-compact-wrap .txtbox-price-docs {
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .document-compact-wrap .captionbox-docs a {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .document-compact-wrap .client-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 1rem;
+    }
+
+    .document-compact-wrap .client-meta-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        white-space: normal;
+        font-size: 0.8rem;
+    }
+
+    .document-compact-wrap .meta-icon {
+        display: inline-flex;
+        width: 0.8rem;
+        justify-content: center;
+    }
+
+    .document-compact-wrap .captionbox-docs2.note {
         white-space: normal;
         overflow: visible;
         text-overflow: unset;
-        font-size: 0.82rem;
+        font-size: 0.85rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
         text-align: center;
+        color: rgba(255, 255, 255, 0.68);
+        margin-top: 0.25rem;
+    }
+
+    .document-compact-wrap .pricebox-docs1 {
+        text-align: left;
+    }
+
+    .document-compact-wrap .pricebox-docs1 .money {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #ffffff;
+    }
+
+    /* Client info panel (zakaz) */
+    .document-compact-wrap .status-docs4.client-info {
+        display: none;
     }
 
     /* Hide line breaks in mobile */
@@ -3783,4 +3872,95 @@ small,
 }
 .dark-theme .modal span:not(.text-dark) {
     color: #ffffff;
+}
+
+/* Zakaz Document Views - Desktop and Mobile Separation */
+.desktop-table {
+    display: block;
+}
+
+.mobile-cards {
+    display: none;
+}
+
+@media (max-width: 721px) {
+    .desktop-table {
+        display: none;
+    }
+    .mobile-cards {
+        display: block;
+    }
+}
+
+/* Table Styles for Dark Theme */
+.table {
+    width: 100%;
+    margin-bottom: 1rem;
+    color: var(--foreground);
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    table-layout: fixed;
+}
+
+.table th,
+.table td {
+    padding: 0.75rem;
+    vertical-align: top;
+    border-top: 1px solid var(--border);
+}
+
+.table thead th {
+    vertical-align: bottom;
+    border-bottom: 2px solid var(--border);
+    background-color: var(--secondary);
+    color: var(--secondary-foreground);
+    font-weight: 600;
+}
+
+.table tbody + tbody {
+    border-top: 2px solid var(--border);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Zakaz Table Column Widths */
+.table th:nth-child(1),
+.table td:nth-child(1) {
+    width: 5%;
+}
+
+.table th:nth-child(2),
+.table td:nth-child(2) {
+    width: 20%;
+}
+
+.table th:nth-child(3),
+.table td:nth-child(3) {
+    width: 20%;
+}
+
+.table th:nth-child(4),
+.table td:nth-child(4) {
+    width: 10%;
+}
+
+.table th:nth-child(5),
+.table td:nth-child(5) {
+    width: 15%;
+}
+
+.table th:nth-child(6),
+.table td:nth-child(6) {
+    width: 30%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

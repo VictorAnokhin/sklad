@@ -6,6 +6,7 @@ use App\Models\User;
 use Elliptic\EC;
 use Illuminate\Mail\Message;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +31,9 @@ class AuthController extends Controller
         if (Auth::check()) {
             return redirect()->route('document.index');
         }
-        return view('start');
+        return view('start', [
+            'googleClientId' => (string) config('services.google.client_id', ''),
+        ]);
 
     }
 
@@ -190,6 +193,87 @@ class AuthController extends Controller
         return redirect()->route('dashboard');
     }
 
+    public function googleLogin(Request $request)
+    {
+        $request->validate([
+            'credential' => 'required|string',
+        ]);
+
+        $googleClientId = (string) config('services.google.client_id', '');
+
+        if ($googleClientId === '') {
+            return back()->withErrors([
+                'email' => 'Вхід через Google не налаштований.',
+            ]);
+        }
+
+        $payload = $this->verifyGoogleCredential($request->string('credential')->toString(), $googleClientId);
+
+        if (!$payload) {
+            return back()->withErrors([
+                'email' => 'Не вдалося підтвердити вхід через Google.',
+            ]);
+        }
+
+        $email = trim((string) ($payload['email'] ?? ''));
+        $emailVerified = filter_var($payload['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if ($email === '' || !$emailVerified) {
+            return back()->withErrors([
+                'email' => 'Google не повернув підтверджений email для входу.',
+            ]);
+        }
+
+        /** @var User|null $user */
+        $user = User::query()->where('email', $email)->first();
+
+        if (!$user) {
+            $givenName = trim((string) ($payload['given_name'] ?? ''));
+            $familyName = trim((string) ($payload['family_name'] ?? ''));
+            $fullName = trim((string) ($payload['name'] ?? ''));
+            $passwordHash = Hash::make(Str::random(40));
+            $fallbackName = $givenName !== '' ? $givenName : ($fullName !== '' ? $fullName : 'Google User');
+            $nextFirma = $this->nextFirma();
+
+            $userData = [
+                'login' => $email,
+                'email' => $email,
+                'pass' => $passwordHash,
+                'password' => $passwordHash,
+                'name' => $fallbackName,
+                'secondname' => $familyName,
+                'fathername' => $familyName,
+                'idstatus' => 1,
+                'ustype' => 1,
+            ];
+
+            if (Schema::hasColumn('users', 'email_verified_at')) {
+                $userData['email_verified_at'] = now();
+            }
+
+            if (Schema::hasColumn('users', 'firma')) {
+                $userData['firma'] = $nextFirma;
+            }
+
+            if (Schema::hasColumn('users', 'idfirma')) {
+                $userData['idfirma'] = $nextFirma;
+            }
+
+            if (Schema::hasColumn('users', 'status')) {
+                $userData['status'] = 1;
+            }
+
+            $user = User::create(User::filterUsersColumns($userData));
+        }
+
+        $this->syncUserRoleStatus($user);
+
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return redirect()->route('dashboard');
+    }
+
     public function logout(Request $request)
     {
         Auth::logout();
@@ -246,6 +330,98 @@ class AuthController extends Controller
         return $maxFirma + 1;
     }
 
+    private function verifyGoogleCredential(string $credential, string $clientId): ?array
+    {
+        try {
+            $response = Http::timeout(10)
+                ->acceptJson()
+                ->get('https://oauth2.googleapis.com/tokeninfo', [
+                    'id_token' => $credential,
+                ]);
+        } catch (Throwable $e) {
+            return null;
+        }
+
+        if (!$response->ok()) {
+            return null;
+        }
+
+        $payload = $response->json();
+
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        if ((string) ($payload['aud'] ?? '') !== $clientId) {
+            return null;
+        }
+
+        if ((string) ($payload['iss'] ?? '') !== 'https://accounts.google.com'
+            && (string) ($payload['iss'] ?? '') !== 'accounts.google.com') {
+            return null;
+        }
+
+        return $payload;
+    }
+
+    private function resolveGoogleUser(array $payload): ?User
+    {
+        $email = trim((string) ($payload['email'] ?? ''));
+        $emailVerified = filter_var($payload['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if ($email === '' || !$emailVerified) {
+            return null;
+        }
+
+        /** @var User|null $user */
+        $user = User::query()->where('email', $email)->first();
+
+        if ($user) {
+            if (Schema::hasColumn('users', 'email_verified_at') && !$user->email_verified_at) {
+                $user->forceFill(['email_verified_at' => now()])->save();
+            }
+
+            return $user;
+        }
+
+        $givenName = trim((string) ($payload['given_name'] ?? ''));
+        $familyName = trim((string) ($payload['family_name'] ?? ''));
+        $fullName = trim((string) ($payload['name'] ?? ''));
+        $passwordHash = Hash::make(Str::random(40));
+        $fallbackName = $givenName !== '' ? $givenName : ($fullName !== '' ? $fullName : 'Google User');
+        $nextFirma = $this->nextFirma();
+
+        $userData = [
+            'login' => $email,
+            'email' => $email,
+            'pass' => $passwordHash,
+            'password' => $passwordHash,
+            'name' => $fallbackName,
+            'secondname' => $familyName,
+            'fathername' => $familyName,
+            'idstatus' => 1,
+            'ustype' => 1,
+        ];
+
+        if (Schema::hasColumn('users', 'email_verified_at')) {
+            $userData['email_verified_at'] = now();
+        }
+
+        if (Schema::hasColumn('users', 'firma')) {
+            $userData['firma'] = $nextFirma;
+        }
+
+        if (Schema::hasColumn('users', 'idfirma')) {
+            $userData['idfirma'] = $nextFirma;
+        }
+
+        if (Schema::hasColumn('users', 'status')) {
+            $userData['status'] = 1;
+        }
+
+        return User::create(User::filterUsersColumns($userData));
+    }
+
     public function apiLogin(Request $request)
     {
         $request->validate([
@@ -266,6 +442,40 @@ class AuthController extends Controller
         $this->syncUserRoleStatus($user);
 
         // Create Sanctum token instead of session login
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return response()->json([
+            'user' => $this->serializeUser($user->fresh()),
+            'token' => $token,
+        ]);
+    }
+
+    public function apiGoogleLogin(Request $request)
+    {
+        $request->validate([
+            'credential' => 'required|string',
+        ]);
+
+        $googleClientId = (string) config('services.google.client_id', '');
+
+        if ($googleClientId === '') {
+            return response()->json(['message' => 'Google login is not configured'], 503);
+        }
+
+        $payload = $this->verifyGoogleCredential($request->string('credential')->toString(), $googleClientId);
+
+        if (!$payload) {
+            return response()->json(['message' => 'Failed to verify Google account'], 422);
+        }
+
+        $user = $this->resolveGoogleUser($payload);
+
+        if (!$user) {
+            return response()->json(['message' => 'Google account does not contain a verified email'], 422);
+        }
+
+        $this->syncUserRoleStatus($user);
+
         $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([

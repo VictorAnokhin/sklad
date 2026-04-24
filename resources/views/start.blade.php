@@ -37,6 +37,17 @@
       </div>
     </form>
 
+    @if(!empty($googleClientId))
+    <div class="login-social">
+      <div class="login-divider"><span>або</span></div>
+      <div id="google-signin-button" class="google-signin-slot"></div>
+      <form id="google-login-form" action="{{ route('login.google') }}" method="post" style="display:none">
+        @csrf
+        <input type="hidden" name="credential" id="google-login-credential">
+      </form>
+    </div>
+    @endif
+
     <div class="login-secondary">
       <form action="{{ route('password.forgot') }}" method="post" class="login-recovery-form">
         @csrf
@@ -61,6 +72,9 @@
 @endsection
 
 @push('scripts')
+@if(!empty($googleClientId))
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+@endif
 <script>
   const btnMenu = document.getElementById('btn_login');
   const Menu = document.getElementById('menu_content_login');
@@ -73,6 +87,43 @@
         Menu.style.display = 'block';
     });
   }
+
+  @if(!empty($googleClientId))
+  window.handleGoogleLogin = function (response) {
+    const credentialField = document.getElementById('google-login-credential');
+    const googleForm = document.getElementById('google-login-form');
+
+    if (!credentialField || !googleForm || !response || !response.credential) {
+      return;
+    }
+
+    credentialField.value = response.credential;
+    googleForm.submit();
+  };
+
+  window.addEventListener('load', function () {
+    const buttonTarget = document.getElementById('google-signin-button');
+
+    if (!buttonTarget || !window.google || !window.google.accounts || !window.google.accounts.id) {
+      return;
+    }
+
+    window.google.accounts.id.initialize({
+      client_id: @json($googleClientId),
+      callback: window.handleGoogleLogin,
+      ux_mode: 'popup'
+    });
+
+    window.google.accounts.id.renderButton(buttonTarget, {
+      theme: 'outline',
+      size: 'large',
+      type: 'standard',
+      text: 'signin_with',
+      shape: 'pill',
+      width: buttonTarget.offsetWidth > 0 ? buttonTarget.offsetWidth : 320
+    });
+  });
+  @endif
 </script>
 <style>
   .login-shell {
@@ -108,6 +159,39 @@
     margin-top: 0.95rem;
     padding-top: 0.95rem;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .login-social {
+    margin-top: 0.95rem;
+  }
+
+  .login-divider {
+    position: relative;
+    margin: 0.2rem 0 0.85rem;
+    text-align: center;
+  }
+
+  .login-divider::before {
+    content: "";
+    position: absolute;
+    inset: 50% 0 auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    transform: translateY(-50%);
+  }
+
+  .login-divider span {
+    position: relative;
+    display: inline-block;
+    padding: 0 0.7rem;
+    background: rgba(14, 16, 28, 0.92);
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 0.84rem;
+  }
+
+  .google-signin-slot {
+    display: flex;
+    justify-content: center;
+    min-height: 44px;
   }
 
   .login-secondary-head {

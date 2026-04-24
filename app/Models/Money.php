@@ -100,6 +100,82 @@ class Money extends Model
         return compact('documents', 'sumPO', 'sumRO', 'total', 'kassasMap', 'reestrMap');
     }
 
+    public static function initTransfers($fid, $pos = 0, array $filters = []): array
+    {
+        $baseQuery = DB::table('z_document as d')
+            ->leftJoin('conf as cashbox_from', function ($join) {
+                $join->on('cashbox_from.id', '=', 'd.oplata')
+                    ->where('cashbox_from.type', '=', 'oplata');
+            })
+            ->leftJoin('conf as cashbox_to', function ($join) {
+                $join->on('cashbox_to.id', '=', 'd.oplata2')
+                    ->where('cashbox_to.type', '=', 'oplata');
+            })
+            ->where('d.firma', $fid)
+            ->where('d.type', 'PP')
+            ->where('d.docum', 'exchange');
+
+        if (($filters['q'] ?? '') !== '') {
+            $q = $filters['q'];
+            $baseQuery->where(function ($query) use ($q) {
+                $query->where('d.num', 'like', "%{$q}%")
+                    ->orWhere('d.content', 'like', "%{$q}%")
+                    ->orWhere('cashbox_from.name', 'like', "%{$q}%")
+                    ->orWhere('cashbox_to.name', 'like', "%{$q}%");
+            });
+        }
+
+        if (($filters['money'] ?? '') !== '') {
+            $baseQuery->where(function ($query) use ($filters) {
+                $query->where('d.oplata', $filters['money'])
+                    ->orWhere('d.oplata2', $filters['money']);
+            });
+        }
+
+        if (($filters['date_from'] ?? '') !== '') {
+            $from = date('d-m-Y', strtotime($filters['date_from']));
+            $baseQuery->whereRaw("STR_TO_DATE(d.data, '%d-%m-%Y') >= STR_TO_DATE(?, '%d-%m-%Y')", [$from]);
+        }
+
+        if (($filters['date_to'] ?? '') !== '') {
+            $to = date('d-m-Y', strtotime($filters['date_to']));
+            $baseQuery->whereRaw("STR_TO_DATE(d.data, '%d-%m-%Y') <= STR_TO_DATE(?, '%d-%m-%Y')", [$to]);
+        }
+
+        $documentsQuery = clone $baseQuery;
+        $sumTransfers = (float) (clone $baseQuery)->sum('d.summa');
+        $total = (clone $baseQuery)->count();
+
+        $documents = $documentsQuery
+            ->orderByDesc('d.id')
+            ->offset($pos)
+            ->limit(30)
+            ->get([
+                'd.id',
+                'd.num',
+                'd.type',
+                'd.docum',
+                'd.data',
+                'd.time',
+                'd.summa',
+                'd.content',
+                'd.oplata',
+                'd.oplata2',
+                'd.provodka',
+                'cashbox_from.name as from_cashbox_name',
+                'cashbox_to.name as to_cashbox_name',
+            ]);
+
+        $kassasMap = DB::table('conf')
+            ->where('type', 'oplata')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+
+        return compact('documents', 'sumTransfers', 'total', 'kassasMap');
+    }
+
     // ── find: один документ + дані клієнта ───────────────────────────────────
 
     public static function find($id, $fid)
@@ -141,6 +217,23 @@ class Money extends Model
             'orgname'    => '',
             'phone'      => '',
             'city'       => '',
+        ];
+    }
+
+    public static function emptyTransferDocument(): object
+    {
+        return (object) [
+            'id' => 0,
+            'num' => '',
+            'type' => 'PP',
+            'docum' => 'exchange',
+            'data' => date('d-m-Y'),
+            'time' => '',
+            'summa' => 0,
+            'content' => '',
+            'oplata' => '',
+            'oplata2' => '',
+            'provodka' => 0,
         ];
     }
 
@@ -204,6 +297,61 @@ class Money extends Model
             ->where('id', $id)
             ->where('firma', $fid)
             ->whereIn('type', ['PO', 'RO'])
+            ->delete();
+    }
+
+    public static function findTransfer(int $id, string $fid)
+    {
+        return DB::table('z_document as d')
+            ->leftJoin('conf as cashbox_from', function ($join) {
+                $join->on('cashbox_from.id', '=', 'd.oplata')
+                    ->where('cashbox_from.type', '=', 'oplata');
+            })
+            ->leftJoin('conf as cashbox_to', function ($join) {
+                $join->on('cashbox_to.id', '=', 'd.oplata2')
+                    ->where('cashbox_to.type', '=', 'oplata');
+            })
+            ->where('d.id', $id)
+            ->where('d.firma', $fid)
+            ->where('d.type', 'PP')
+            ->where('d.docum', 'exchange')
+            ->first([
+                'd.id',
+                'd.num',
+                'd.type',
+                'd.docum',
+                'd.data',
+                'd.time',
+                'd.summa',
+                'd.content',
+                'd.oplata',
+                'd.oplata2',
+                'd.provodka',
+                'cashbox_from.name as from_cashbox_name',
+                'cashbox_to.name as to_cashbox_name',
+            ]);
+    }
+
+    public static function saveTransferDocument(int $id, string $fid, array $data): int
+    {
+        return Deposit::saveDocument($id, $fid, [
+            'summa' => (float) ($data['summa'] ?? 0),
+            'content' => (string) ($data['content'] ?? ''),
+            'data' => (string) ($data['data'] ?? date('d-m-Y')),
+            'docum' => 'exchange',
+            'oplata' => (string) ($data['oplata'] ?? ''),
+            'oplata2' => (string) ($data['oplata2'] ?? ''),
+            'money' => '',
+        ]);
+    }
+
+    public static function deleteTransferDocument(int $id, string $fid): void
+    {
+        DB::table('z_document')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->where('type', 'PP')
+            ->where('docum', 'exchange')
             ->delete();
     }
 
@@ -281,5 +429,18 @@ class Money extends Model
             'document' => $fresh,
             'isPosted' => !$wasPosted,
         ];
+    }
+
+    public static function provodkaTransfer(int $id, string $fid): array
+    {
+        $doc = self::findTransfer($id, $fid);
+        if (!$doc) {
+            return [
+                'document' => null,
+                'isPosted' => false,
+            ];
+        }
+
+        return Deposit::provodka($id, $fid);
     }
 }

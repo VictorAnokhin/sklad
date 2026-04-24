@@ -24,12 +24,5 @@
                 {{ __('deposit.add_withdraw') }}
             </button>
         </form>
-        <form action="{{ route('deposit.show') }}" method="get" class="money-top-action-form">
-            <input type="hidden" name="id" value="0">
-            <input type="hidden" name="mode" value="exchange">
-            <button type="submit" class="button top-action-create-btn">
-                {{ __('deposit.add_transfer') }}
-            </button>
-        </form>
     </div>
 </div>

@@ -11,9 +11,19 @@
 <div class="header-bar">
   <!-- Desktop: single row -->
   <div style="display: flex; align-items: center; gap: 1rem;">
-    <a href="/" class="header-bar__logo text-decoration-none">
-      <span class="header-bar__title">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
-    </a>
+    <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem;">
+      <a href="/" class="header-bar__logo text-decoration-none">
+        <span class="header-bar__title">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
+      </a>
+      <div class="header-lang-switch" aria-label="{{ __('nav.language') }}">
+        @foreach(['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'] as $langCode => $langLabel)
+          <a
+            href="{{ request()->fullUrlWithQuery(['lang' => $langCode]) }}"
+            class="header-lang-switch__link {{ $activeLang === $langCode ? 'is-active' : '' }}"
+          >{{ $langLabel }}</a>
+        @endforeach
+      </div>
+    </div>
   </div>
 
   @if(!session('name1'))
@@ -26,27 +36,18 @@
   </div>
   @endif
 
-  <div class="header-lang-switch" aria-label="{{ __('nav.language') }}">
-    @foreach(['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'] as $langCode => $langLabel)
-      <a
-        href="{{ request()->fullUrlWithQuery(['lang' => $langCode]) }}"
-        class="header-lang-switch__link {{ $activeLang === $langCode ? 'is-active' : '' }}"
-      >{{ $langLabel }}</a>
-    @endforeach
-
-    <div class="header-wallet-controls">
-      <button type="button" id="menu-connect-wallet" class="header-wallet-btn">Подключить</button>
-      <button type="button" id="menu-disconnect-wallet" class="header-wallet-btn is-disconnect" style="display: none;">
-        Отключить <span id="menu-wallet-address"></span>
-      </button>
-    </div>
-
-    <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
-      <span></span>
-      <span></span>
-      <span></span>
+  <div class="header-wallet-controls">
+    <button type="button" id="menu-connect-wallet" class="header-wallet-btn">Подключить</button>
+    <button type="button" id="menu-disconnect-wallet" class="header-wallet-btn is-disconnect" style="display: none;">
+      Отключить <span id="menu-wallet-address"></span>
     </button>
   </div>
+
+  <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
 
 
   

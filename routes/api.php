@@ -18,6 +18,7 @@ use App\Http\Controllers\ZakazController;
 Route::middleware('api')->prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'apiRegister']);
     Route::post('/login', [AuthController::class, 'apiLogin']);
+    Route::post('/google', [AuthController::class, 'apiGoogleLogin']);
     Route::post('/web3/challenge', [AuthController::class, 'web3LoginChallenge']);
     Route::post('/web3/login', [AuthController::class, 'web3Login']);
     Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'apiUser']);
@@ -34,6 +35,8 @@ Route::get('/goods/search', [GoodsController::class, 'searchWeb']);
 Route::get('/goods/hits', [GoodsController::class, 'getHits']);
 Route::get('/goods/sections', [GoodsController::class, 'getSections']);
 Route::get('/goods/section/{id}', [GoodsController::class, 'getBySection']);
+Route::middleware('auth:sanctum')->post('/goods/rating/{id}', [GoodsController::class, 'saveRating']);
+Route::middleware('auth:sanctum')->post('/goods/{id}/rating', [GoodsController::class, 'saveRating']);
 Route::get('/goods/{id}', [GoodsController::class, 'getOne']);
 Route::get('/regions', [GoodsController::class, 'getRegions']);
 

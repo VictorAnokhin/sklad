@@ -9,10 +9,9 @@
     @php
     $isNew = empty($document->id);
     $mode = $document->docum ?? request('mode', 'topup');
-    $mode = in_array($mode, ['topup', 'withdraw', 'exchange'], true) ? $mode : 'topup';
+    $mode = in_array($mode, ['topup', 'withdraw'], true) ? $mode : 'topup';
     $heading = match ($mode) {
         'withdraw' => __('deposit.op_withdraw'),
-        'exchange' => __('deposit.op_exchange'),
         default => __('deposit.op_topup'),
     };
     $topLabel = match ($mode) {
@@ -21,7 +20,6 @@
     };
     $bottomLabel = match ($mode) {
         'withdraw' => __('deposit.bottom_account_cash'),
-        'exchange' => __('deposit.bottom_account_cash'),
         default => __('deposit.bottom_account_deposit'),
     };
     @endphp

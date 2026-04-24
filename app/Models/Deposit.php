@@ -17,7 +17,8 @@ class Deposit extends Model
     {
         $baseQuery = DB::table('z_document as d')
             ->where('d.firma', $fid)
-            ->where('d.type', 'PP');
+            ->where('d.type', 'PP')
+            ->where('d.docum', '!=', 'exchange');
 
         if (($filters['q'] ?? '') !== '') {
             $q = $filters['q'];
@@ -27,7 +28,7 @@ class Deposit extends Model
             });
         }
 
-        if (($filters['mode'] ?? '') !== '' && in_array($filters['mode'], ['topup', 'withdraw', 'exchange'], true)) {
+        if (($filters['mode'] ?? '') !== '' && in_array($filters['mode'], ['topup', 'withdraw'], true)) {
             $baseQuery->where('d.docum', $filters['mode']);
         }
 

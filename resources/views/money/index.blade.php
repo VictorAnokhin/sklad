@@ -4,21 +4,27 @@
 
 @section('content')
 @php
+    $activeTab = ($tab ?? 'orders') === 'transfers' ? 'transfers' : 'orders';
     $perPage = 30;
-    $currentPage = (int) floor(($pos ?? 0) / $perPage) + 1;
-    $totalPages = max(1, (int) ceil(($total ?? 0) / $perPage));
-    $from = ($total ?? 0) > 0 ? (($pos ?? 0) + 1) : 0;
-    $to = min(($pos ?? 0) + $perPage, $total ?? 0);
-    $windowStart = max(1, min($currentPage - 1, max(1, $totalPages - 3)));
-    $windowEnd = min($totalPages, $windowStart + 3);
-    $activeFilters = array_filter($filters ?? [], fn($value) => $value !== '' && $value !== null);
-    $returnFilters = array_merge($filters ?? [], ['pos' => $pos ?? 0]);
+    $activeFilters = array_filter($filters ?? [], function ($value, $key) use ($activeTab) {
+        if ($value === '' || $value === null) {
+            return false;
+        }
+
+        if ($activeTab === 'transfers' && in_array($key, ['type', 'reestr'], true)) {
+            return false;
+        }
+
+        return true;
+    }, ARRAY_FILTER_USE_BOTH);
+    $returnFilters = array_merge($filters ?? [], ['pos' => $pos ?? 0, 'tab' => $activeTab]);
 @endphp
 
 @include('money.partials.top-actions', [
     'returnFilters' => $returnFilters,
     'showMoneyFilter' => true,
     'activeFilters' => $activeFilters,
+    'tab' => $activeTab,
 ])
 
 <div class="ttable document-compact-wrap">
@@ -32,30 +38,92 @@
     @if(!empty($activeFilters))
     <div class="alert alert-warning money-filter-active-notice">
         {{ __('money.filter_active') }}
-        <a href="{{ route('money.index') }}" style="margin-left: 8px;">{{ __('money.reset') }}</a>
+        <a href="{{ route('money.index', ['tab' => $activeTab]) }}" style="margin-left: 8px;">{{ __('money.reset') }}</a>
     </div>
     @endif
 
-    {{-- Зведення --}}
+    @if($activeTab === 'transfers')
+    <div class="money-summary">
+        <div class="glass-card money-summary__card">
+            <div class="money-summary__icon">🔄</div>
+            <div class="money-summary__label">{{ __('money.summary_transfers') }}</div>
+            <div class="money-summary__value money-summary__value--income">{{ number_format($sumTransfers ?? 0, 2, '.', ' ') }} грн</div>
+        </div>
+        <div class="glass-card money-summary__card">
+            <div class="money-summary__icon">📄</div>
+            <div class="money-summary__label">{{ __('money.summary_transfer_docs') }}</div>
+            <div class="money-summary__value money-summary__value--income">{{ $total ?? 0 }}</div>
+        </div>
+    </div>
+
+    @if(($documents ?? collect())->isEmpty())
+    <div style="text-align:center;padding:20px;color:#CC0000;font-size:1.2em">
+        {{ __('money.no_transfer_documents') }}
+    </div>
+    @else
+    <div class="glass-card" style="overflow-x:auto;">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>{{ __('money.table_header') }}</th>
+                    <th>{{ __('money.table_date') }}</th>
+                    <th>{{ __('money.table_from_cashbox') }}</th>
+                    <th>{{ __('money.table_to_cashbox') }}</th>
+                    <th>{{ __('money.table_sum') }}</th>
+                    <th>{{ __('money.table_comment') }}</th>
+                    <th>{{ __('money.table_posted') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($documents as $doc)
+                @php
+                    $linkUrl = route('money.show', array_merge([
+                        'id' => $doc->id,
+                        'tab' => 'transfers',
+                    ], [
+                        'return_q' => $returnFilters['q'] ?? null,
+                        'return_money' => $returnFilters['money'] ?? null,
+                        'return_date_from' => $returnFilters['date_from'] ?? null,
+                        'return_date_to' => $returnFilters['date_to'] ?? null,
+                        'return_pos' => $returnFilters['pos'] ?? null,
+                    ]));
+                    $fromCashbox = $doc->from_cashbox_name ?? ($kassasMap[$doc->oplata ?? ''] ?? ($doc->oplata ?: '—'));
+                    $toCashbox = $doc->to_cashbox_name ?? ($kassasMap[$doc->oplata2 ?? ''] ?? ($doc->oplata2 ?: '—'));
+                @endphp
+                <tr>
+                    <td><a href="{{ $linkUrl }}">#{{ $doc->num }}</a></td>
+                    <td>{{ $doc->data ?? '—' }}<br><small class="text-muted">{{ $doc->time ?? '' }}</small></td>
+                    <td>{{ $fromCashbox }}</td>
+                    <td>{{ $toCashbox }}</td>
+                    <td><span class="money">{{ number_format($doc->summa ?? 0, 2, '.', ' ') }}</span></td>
+                    <td>{{ $doc->content ?? '' }}</td>
+                    <td>{!! $doc->provodka ? '✅' : '<span style="color:#999">⏳</span>' !!}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
+    @else
     <div class="money-summary">
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">📥</div>
             <div class="money-summary__label">{{ __('money.summary_income') }}</div>
-            <div class="money-summary__value money-summary__value--income">{{ number_format($sumPO, 2, '.', ' ') }} грн</div>
+            <div class="money-summary__value money-summary__value--income">{{ number_format($sumPO ?? 0, 2, '.', ' ') }} грн</div>
         </div>
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">📤</div>
             <div class="money-summary__label">{{ __('money.summary_outcome') }}</div>
-            <div class="money-summary__value money-summary__value--expense">{{ number_format($sumRO, 2, '.', ' ') }} грн</div>
+            <div class="money-summary__value money-summary__value--expense">{{ number_format($sumRO ?? 0, 2, '.', ' ') }} грн</div>
         </div>
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">💰</div>
             <div class="money-summary__label">{{ __('money.summary_balance') }}</div>
-            <div class="money-summary__value money-summary__value--income">{{ number_format($sumPO - $sumRO, 2, '.', ' ') }} грн</div>
+            <div class="money-summary__value money-summary__value--income">{{ number_format(($sumPO ?? 0) - ($sumRO ?? 0), 2, '.', ' ') }} грн</div>
         </div>
     </div>
 
-    @if($documents->isEmpty())
+    @if(($documents ?? collect())->isEmpty())
     <div style="text-align:center;padding:20px;color:#CC0000;font-size:1.2em">
         {{ __('money.no_documents') }}
     </div>
@@ -63,7 +131,7 @@
     <div class="document-compact-list">
         @foreach($documents as $doc)
         @php
-            $linkUrl = route('money.show', array_merge(['id' => $doc->id, 'type' => $doc->type], [
+            $linkUrl = route('money.show', array_merge(['id' => $doc->id, 'type' => $doc->type, 'tab' => 'orders'], [
                 'return_q' => $returnFilters['q'] ?? null,
                 'return_filter_type' => $returnFilters['type'] ?? null,
                 'return_money' => $returnFilters['money'] ?? null,
@@ -123,19 +191,18 @@
         @endforeach
     </div>
     @endif
+    @endif
 
-    {{-- Pagination --}}
     @if(($total ?? 0) > $perPage)
     @include('partials.navigator', [
       'pos' => $pos,
       'pos2' => $perPage,
       'max' => $total,
       'routeName' => 'money.index',
-      'routeParams' => $filters ?? [],
+      'routeParams' => array_merge($filters ?? [], ['tab' => $activeTab]),
     ])
     @endif
 </div>
-
 
 <div id="moneyFilterModal" class="money-filter-modal">
     <div class="glass-card money-filter-modal__content">
@@ -143,12 +210,14 @@
         <h3 class="money-filter-modal__title">🔍 {{ __('money.filter_title') }}</h3>
 
         <form action="{{ route('money.index') }}" method="get">
+            <input type="hidden" name="tab" value="{{ $activeTab }}">
             <div class="money-filter-modal__grid">
                 <div class="money-filter-modal__field">
-                    <label>{{ __('money.filter_search') }}</label>
+                    <label>{{ $activeTab === 'transfers' ? __('money.filter_transfer_search') : __('money.filter_search') }}</label>
                     <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" class="form-control">
                 </div>
 
+                @if($activeTab === 'orders')
                 <div class="money-filter-modal__field">
                     <label>{{ __('money.filter_type') }}</label>
                     <select name="type" class="form-control">
@@ -157,9 +226,10 @@
                         <option value="RO" {{ ($filters['type'] ?? '') === 'RO' ? 'selected' : '' }}>{{ __('money.filter_outcome') }}</option>
                     </select>
                 </div>
+                @endif
 
                 <div class="money-filter-modal__field">
-                    <label>{{ __('money.filter_cashbox') }}</label>
+                    <label>{{ $activeTab === 'transfers' ? __('money.filter_cashbox_any') : __('money.filter_cashbox') }}</label>
                     <select name="money" class="form-control">
                         <option value="">{{ __('money.filter_all_types') }}</option>
                         @foreach(($kassasMap ?? []) as $moneyName => $moneyLabel)
@@ -170,6 +240,7 @@
                     </select>
                 </div>
 
+                @if($activeTab === 'orders')
                 <div class="money-filter-modal__field">
                     <label>{{ __('money.filter_payment_type') }}</label>
                     <select name="reestr" class="form-control">
@@ -181,6 +252,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endif
 
                 <div class="money-filter-modal__field">
                     <label>{{ __('money.filter_date_from') }}</label>
@@ -195,7 +267,7 @@
 
             <div class="money-filter-modal__actions">
                 <button type="submit" class="btn btn-warning">{{ __('money.filter_apply') }}</button>
-                <a href="{{ route('money.index') }}" class="btn btn-outline-secondary">{{ __('money.filter_reset') }}</a>
+                <a href="{{ route('money.index', ['tab' => $activeTab]) }}" class="btn btn-outline-secondary">{{ __('money.filter_reset') }}</a>
             </div>
         </form>
     </div>
