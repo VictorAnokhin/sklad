@@ -630,6 +630,7 @@
 
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-success">💾 Зберегти</button>
+                        <button type="button" class="btn btn-outline-danger" id="btn-project-delete" style="display:none;">🗑 Видалити</button>
                         <button type="button" class="btn btn-secondary" id="btn-project-cancel">Скасувати</button>
                     </div>
                 </form>
@@ -641,11 +642,8 @@
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>num</th>
                                 <th>Назва</th>
-                                <th>userid</th>
                                 <th>Телефон</th>
-                                <th>Прапори</th>
                                 <th class="text-end">Дії</th>
                             </tr>
                         </thead>
@@ -670,18 +668,28 @@
             <div class="modal-body" id="conf-form-area" style="display:none">
                 <form id="crud-form">
                     <input type="hidden" id="form-id" value="">
-                    <div class="mb-3">
-                        <label for="form-name" class="form-label">Назва <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="form-name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="form-color" class="form-label">Колір</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="color" class="form-control form-control-color" id="form-color-picker" value="#ffffff">
-                            <input type="text" class="form-control" id="form-color" placeholder="#hex">
+                    <input type="hidden" id="form-foto-existing" value="">
+                    <div class="row">
+                        <div class="col-md-5 mb-3">
+                            <label for="form-name" class="form-label">Назва <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="form-name" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="form-color" class="form-label">Колір</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="color" class="form-control form-control-color" id="form-color-picker" value="#ffffff">
+                                <input type="text" class="form-control" id="form-color" placeholder="#hex">
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3" id="form-visibility-row" style="display:none;">
+                            <label class="form-label d-block">Видимість</label>
+                            <div class="form-check form-switch pt-2">
+                                <input class="form-check-input" type="checkbox" role="switch" id="form-visibility-checkbox">
+                                <label class="form-check-label" for="form-visibility-checkbox" id="form-visibility-label">Видимий</label>
+                            </div>
                         </div>
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-3" id="form-status-row">
                         <label for="form-status" class="form-label" id="form-status-label">Статус</label>
                         <select class="form-select" id="form-status">
                             <option value="1">Активний</option>
@@ -707,8 +715,33 @@
                         </div>
                         <div class="form-text">Для яких документів доступний цей вид платежу.</div>
                     </div>
+                    <div id="form-office-fields" style="display:none;">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="form-phone" class="form-label">Телефон</label>
+                                <input type="text" class="form-control" id="form-phone" placeholder="+380...">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="form-address" class="form-label">Адреса</label>
+                                <input type="text" class="form-control" id="form-address" placeholder="Місто, вулиця, офіс">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="form-google-map" class="form-label">Google Maps</label>
+                            <textarea class="form-control" id="form-google-map" rows="4" placeholder="Посилання або iframe-код карти"></textarea>
+                            <div class="form-text">Можна вставити посилання на карту або embed iframe.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="form-foto-file" class="form-label">Фото офісу</label>
+                            <input type="file" class="form-control" id="form-foto-file" accept="image/*">
+                            <div class="firm-media-preview mt-2" id="form-foto-preview-wrap" hidden>
+                                <img src="" alt="Фото офісу" id="form-foto-preview" style="max-width:220px;max-height:140px;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.18);">
+                            </div>
+                        </div>
+                    </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-success">💾 Зберегти</button>
+                        <button type="button" class="btn btn-outline-danger" id="btn-delete" style="display:none;">🗑 Видалити</button>
                         <button type="button" class="btn btn-secondary" id="btn-cancel">Скасувати</button>
                     </div>
                 </form>
@@ -720,8 +753,10 @@
                         <tr>
                             <th>#</th>
                             <th>Назва</th>
-                            <th>Колір</th>
+                            <th id="crud-color-column">Колір</th>
                             <th id="crud-status-column">Статус</th>
+                            <th id="crud-phone-column" style="display:none;">Телефон</th>
+                            <th id="crud-address-column" style="display:none;">Адреса</th>
                             <th id="crud-doc-column" style="display:none;">Документ</th>
                             <th class="text-end">Дії</th>
                         </tr>
@@ -1726,6 +1761,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const emptyMsg = document.getElementById('projects-empty-msg');
         const addBtn = document.getElementById('btn-project-add');
         const cancelBtn = document.getElementById('btn-project-cancel');
+        const deleteBtn = document.getElementById('btn-project-delete');
         const badge = document.getElementById('badge-projects');
         const fotoFileInput = document.getElementById('project-foto-file');
         const fotoHeaderFileInput = document.getElementById('project-foto-header-file');
@@ -1791,6 +1827,11 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelBtn.addEventListener('click', () => {
             hideForm();
             resetProjectForm();
+        });
+        deleteBtn?.addEventListener('click', () => {
+            const id = document.getElementById('project-id').value;
+            if (!id) return;
+            deleteProject(id);
         });
 
         tbody.addEventListener('click', (event) => {
@@ -1889,7 +1930,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderProjects(Array.isArray(data) ? data : []);
                 })
                 .catch((error) => {
-                    tbody.innerHTML = `<tr><td colspan="7" class="text-danger">${escapeHtml(error?.message || 'Помилка завантаження')}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="4" class="text-danger">${escapeHtml(error?.message || 'Помилка завантаження')}</td></tr>`;
                     emptyMsg.style.display = 'none';
                 });
         }
@@ -1911,10 +1952,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             items.forEach((item) => {
-                const flags = [];
-                if (Number(item.web) === 1) flags.push('<span class="badge bg-primary">web</span>');
-                if (Number(item.hit) === 1) flags.push('<span class="badge bg-warning text-dark">hit</span>');
-
                 const projectPhone = item.phone
                     ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>`
                     : '—';
@@ -1925,20 +1962,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${item.id ?? ''}</td>
-                    <td>${escapeHtml(item.num ?? 0)}</td>
                     <td>
                         <div class="fw-semibold">${escapeHtml(item.name || '')}</div>
                         <div class="company-meta">${escapeHtml(item.description || '')}</div>
                     </td>
-                    <td>${escapeHtml(item.userid ?? 0)}</td>
                     <td>
                         <div>${projectPhone}</div>
                         <div class="small text-muted">${projectUrl}</div>
                     </td>
-                    <td>${flags.join(' ') || '—'}</td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
-                        ${item.can_delete ? `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>` : '<span class="text-muted small">Без прав на видалення</span>'}
+                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">Редагувати</button>
+                        ${item.can_delete ? `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">Видалити</button>` : '<span class="text-muted small">Без прав на видалення</span>'}
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -1985,10 +2019,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                btn.closest('tr')?.remove();
-                if (!tbody.children.length) {
-                    emptyMsg.style.display = 'block';
-                }
+                hideForm();
+                resetProjectForm();
                 loadProjects();
             })
             .catch((error) => alert(error?.message || 'Помилка мережі'));
@@ -2051,11 +2083,17 @@ document.addEventListener('DOMContentLoaded', () => {
         function showForm() {
             formArea.style.display = 'block';
             listArea.style.display = 'none';
+            if (deleteBtn) {
+                deleteBtn.style.display = document.getElementById('project-id').value ? '' : 'none';
+            }
         }
 
         function hideForm() {
             formArea.style.display = 'none';
             listArea.style.display = 'block';
+            if (deleteBtn) {
+                deleteBtn.style.display = 'none';
+            }
         }
 
         function bindProjectPreview(input, wrapId, imageId) {
@@ -2104,14 +2142,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const emptyMsg = document.getElementById('empty-msg');
         const addBtn = document.getElementById('btn-add');
         const cancelBtn = document.getElementById('btn-cancel');
+        const deleteBtn = document.getElementById('btn-delete');
         const colorPicker = document.getElementById('form-color-picker');
         const colorInput = document.getElementById('form-color');
+        const statusRow = document.getElementById('form-status-row');
         const statusLabel = document.getElementById('form-status-label');
         const statusSelect = document.getElementById('form-status');
         const statusHelp = document.getElementById('form-status-help');
+        const visibilityRow = document.getElementById('form-visibility-row');
+        const visibilityCheckbox = document.getElementById('form-visibility-checkbox');
+        const visibilityLabel = document.getElementById('form-visibility-label');
         const statusColumn = document.getElementById('crud-status-column');
         const docRow = document.getElementById('form-doc-row');
         const docColumn = document.getElementById('crud-doc-column');
+        const officeFields = document.getElementById('form-office-fields');
+        const phoneInput = document.getElementById('form-phone');
+        const addressInput = document.getElementById('form-address');
+        const googleMapInput = document.getElementById('form-google-map');
+        const fotoExistingInput = document.getElementById('form-foto-existing');
+        const fotoFileInput = document.getElementById('form-foto-file');
+        const colorColumn = document.getElementById('crud-color-column');
+        const phoneColumn = document.getElementById('crud-phone-column');
+        const addressColumn = document.getElementById('crud-address-column');
         const docCheckboxes = [
             document.getElementById('form-doc-po'),
             document.getElementById('form-doc-ro'),
@@ -2119,6 +2171,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
 
         let currentType = '';
+
+        fotoFileInput?.addEventListener('change', () => {
+            updateImagePreview(fotoFileInput, 'form-foto-preview', 'form-foto-preview-wrap');
+        });
 
         modal.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
@@ -2142,10 +2198,16 @@ document.addEventListener('DOMContentLoaded', () => {
             colorPicker.value = '#ffffff';
             document.getElementById('form-status').value = currentType === 'tclient' ? '0' : '1';
             setDocFlags('');
+            resetOfficeFields();
             showForm();
         });
 
         cancelBtn.addEventListener('click', hideForm);
+        deleteBtn.addEventListener('click', () => {
+            const id = document.getElementById('form-id').value;
+            if (!id) return;
+            deleteItem(id);
+        });
 
         colorPicker.addEventListener('input', (e) => {
             colorInput.value = e.target.value;
@@ -2155,6 +2217,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
                 colorPicker.value = e.target.value;
             }
+        });
+
+        visibilityCheckbox?.addEventListener('change', () => {
+            visibilityLabel.textContent = visibilityCheckbox.checked ? 'Видимий' : 'Прихований';
         });
 
         tbody.addEventListener('click', (e) => {
@@ -2178,7 +2244,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: document.getElementById('form-name').value.trim(),
                 color: colorInput.value.trim(),
                 status: document.getElementById('form-status').value,
-                vision: currentType === 'sklads' ? document.getElementById('form-status').value : '1',
+                vision: currentType === 'sklads'
+                    ? (visibilityCheckbox.checked ? '1' : '0')
+                    : '1',
             };
 
             if (currentType === 'reestr') {
@@ -2187,14 +2255,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!payload.name) return;
 
-            fetch(id ? `/settings/api/${id}` : '/settings/api', {
-                method: id ? 'PUT' : 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-                body: JSON.stringify(payload),
-            })
+            const request = currentType === 'sklads'
+                ? submitOfficeForm(id, payload)
+                : fetch(id ? `/settings/api/${id}` : '/settings/api', {
+                    method: id ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+            request
             .then((r) => r.json())
             .then((data) => {
                 if (!data.success) {
@@ -2213,7 +2285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then((r) => r.json())
                 .then(renderTable)
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Помилка завантаження</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="${getTableColumnCount()}" class="text-danger">Помилка завантаження</td></tr>`;
                 });
         }
 
@@ -2232,6 +2304,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     : '—';
                 const docHtml = currentType === 'reestr'
                     ? escapeHtml(item.doc_label || 'Все документы')
+                    : '';
+                const addressHtml = currentType === 'sklads'
+                    ? escapeHtml(item.address || '—')
                     : '';
                 let statusLabel = '<span class="badge bg-secondary">Неактивний</span>';
                 if (currentType === 'tgroup') {
@@ -2256,12 +2331,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.innerHTML = `
                     <td>${item.id}</td>
                     <td>${escapeHtml(item.name || '')}</td>
-                    <td>${colorHtml}</td>
+                    ${currentType === 'sklads' ? '' : `<td>${colorHtml}</td>`}
                     <td>${statusLabel}</td>
+                    ${currentType === 'sklads' ? `<td>${addressHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td>${docHtml}</td>` : ''}
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
-                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
+                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">Редагувати</button>
+                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">Видалити</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -2279,7 +2355,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('form-status').value = currentType === 'sklads'
                         ? (item.vision ?? '1')
                         : (item.status ?? '1');
+                    visibilityCheckbox.checked = String(item.vision ?? '1') === '1';
+                    visibilityLabel.textContent = visibilityCheckbox.checked ? 'Видимий' : 'Прихований';
                     setDocFlags(item.doc || '');
+                    phoneInput.value = item.phone || '';
+                    addressInput.value = item.address || '';
+                    googleMapInput.value = item.google_map || '';
+                    fotoExistingInput.value = item.foto || '';
+                    if (fotoFileInput) fotoFileInput.value = '';
+                    updateImagePreview(null, 'form-foto-preview', 'form-foto-preview-wrap', item.foto_preview || '');
                     showForm();
                 })
                 .catch(() => alert('Помилка завантаження'));
@@ -2301,11 +2385,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert(data.message || 'Помилка');
                     return;
                 }
-                btn.closest('tr').remove();
-                updateBadge();
-                if (!tbody.children.length) {
-                    emptyMsg.style.display = 'block';
+                if (btn?.closest) {
+                    btn.closest('tr')?.remove();
                 }
+                hideForm();
+                updateBadge();
+                loadData();
             })
             .catch(() => alert('Помилка мережі'));
         }
@@ -2324,17 +2409,26 @@ document.addEventListener('DOMContentLoaded', () => {
         function showForm() {
             formArea.style.display = 'block';
             listArea.style.display = 'none';
+            deleteBtn.style.display = document.getElementById('form-id').value ? '' : 'none';
         }
 
         function hideForm() {
             formArea.style.display = 'none';
             listArea.style.display = 'block';
+            deleteBtn.style.display = 'none';
         }
 
         function configureStatusField() {
             const isReestr = currentType === 'reestr';
+            const isOffice = currentType === 'sklads';
             docRow.style.display = isReestr ? 'block' : 'none';
             docColumn.style.display = isReestr ? '' : 'none';
+            officeFields.style.display = isOffice ? 'block' : 'none';
+            visibilityRow.style.display = isOffice ? '' : 'none';
+            statusRow.style.display = isOffice ? 'none' : 'block';
+            colorColumn.style.display = isOffice ? 'none' : '';
+            phoneColumn.style.display = 'none';
+            addressColumn.style.display = isOffice ? '' : 'none';
 
             if (currentType === 'tgroup') {
                 statusColumn.textContent = 'Статус';
@@ -2382,6 +2476,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 .filter((checkbox) => checkbox.checked)
                 .map((checkbox) => checkbox.value)
                 .join(',');
+        }
+
+        function submitOfficeForm(id, payload) {
+            const formData = new FormData();
+            formData.append('type', payload.type);
+            formData.append('name', payload.name);
+            formData.append('color', payload.color);
+            formData.append('status', payload.status);
+            formData.append('vision', payload.vision);
+            formData.append('phone', phoneInput.value.trim());
+            formData.append('address', addressInput.value.trim());
+            formData.append('google_map', googleMapInput.value.trim());
+            formData.append('foto', fotoExistingInput.value.trim());
+
+            const fotoFile = fotoFileInput?.files?.[0];
+            if (fotoFile) {
+                formData.append('foto_file', fotoFile);
+            }
+
+            if (id) {
+                formData.append('_method', 'PUT');
+            }
+
+            return fetch(id ? `/settings/api/${id}` : '/settings/api', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: formData,
+            });
+        }
+
+        function resetOfficeFields() {
+            phoneInput.value = '';
+            addressInput.value = '';
+            googleMapInput.value = '';
+            fotoExistingInput.value = '';
+            visibilityCheckbox.checked = true;
+            visibilityLabel.textContent = 'Видимий';
+            if (fotoFileInput) fotoFileInput.value = '';
+            updateImagePreview(null, 'form-foto-preview', 'form-foto-preview-wrap', '');
+        }
+
+        function getTableColumnCount() {
+            let count = 5;
+            if (currentType === 'sklads') {
+                count += 1;
+            }
+            if (currentType === 'reestr') {
+                count += 1;
+            }
+            return count;
         }
 
         function setDocFlags(value) {

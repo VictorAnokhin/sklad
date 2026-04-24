@@ -16,6 +16,7 @@ use App\Http\Controllers\ZakazController;
 */
 
 Route::middleware('api')->prefix('auth')->group(function () {
+    Route::get('/config', [AuthController::class, 'apiAuthConfig']);
     Route::post('/register', [AuthController::class, 'apiRegister']);
     Route::post('/login', [AuthController::class, 'apiLogin']);
     Route::post('/google', [AuthController::class, 'apiGoogleLogin']);
@@ -46,6 +47,7 @@ Route::get('/news', [NewsController::class, 'apiIndex']);
 Route::get('/news/{id}', [NewsController::class, 'apiShow']);
 Route::get('/banners', [BannerCarouselController::class, 'apiIndex']);
 Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
+Route::get('/offices', [SettingsController::class, 'officesPublicIndex']);
 Route::get('/wallet/protocols', [WalletController::class, 'protocols']);
 Route::get('/wallet/overview', [WalletController::class, 'overview']);
 

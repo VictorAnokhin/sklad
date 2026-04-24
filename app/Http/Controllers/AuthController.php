@@ -484,6 +484,13 @@ class AuthController extends Controller
         ]);
     }
 
+    public function apiAuthConfig()
+    {
+        return response()->json([
+            'googleClientId' => (string) config('services.google.client_id', ''),
+        ]);
+    }
+
     public function apiLogout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();

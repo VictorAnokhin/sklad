@@ -363,11 +363,15 @@ class Document extends Model
                     default => null,
                 };
 
-                // Fix count in price_sklad for RN and PN
+                // Keep warehouse остатки in price_sklad aligned with RN/PN posting state.
                 if (in_array($docType, ['RN', 'PN'], true)) {
                     $skladId = (int) ($doc->sklads ?? 0);
                     if ($skladId > 0) {
-                        $deltaCount = ($docType === 'PN' ? 1 : -1) * $direction * $count;
+                        $deltaCount = match ($docType) {
+                            'RN' => $wasPosted ? $count : -1 * $count,
+                            'PN' => $wasPosted ? -1 * $count : $count,
+                            default => 0.0,
+                        };
                         
                         if ($deltaCount != 0) {
                             $existsSklad = DB::table('price_sklad')

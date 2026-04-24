@@ -9,6 +9,7 @@ use App\Models\News;
 use App\Models\Project;
 use App\Models\Settings;
 use App\Services\SitemapService;
+use App\Support\MediaUrl;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -218,7 +219,7 @@ class SettingsController extends Controller
     {
         $fid = session('fid', '');
         $items = DB::table('conf')->where('type', $type)->where('firma', $fid)->orderBy('name')->get()
-            ->map(fn ($item) => $type === 'reestr' ? Conf::decoratePaymentType($item) : $item);
+            ->map(fn ($item) => $this->decorateConfItem($item, $type));
         return response()->json($items);
     }
 
@@ -231,7 +232,7 @@ class SettingsController extends Controller
         $fid = session('fid', '');
         $item = DB::table('conf')->where('id', $id)->where('type', $type)->where('firma', $fid)->first();
         if (!$item) return response()->json(['message' => 'Не знайдено'], 404);
-        return response()->json($type === 'reestr' ? Conf::decoratePaymentType($item) : $item);
+        return response()->json($this->decorateConfItem($item, $type));
     }
 
     /**
@@ -241,39 +242,9 @@ class SettingsController extends Controller
     public function apiStore(Request $request)
     {
         $fid = session('fid', '');
-        $validated = $request->validate([
-            'type' => 'required|string',
-            'name' => 'required|string|max:255',
-            'color' => 'nullable|string|max:255',
-            'status' => 'nullable|string',
-            'vision' => 'nullable|string',
-            'doc' => 'nullable|string|max:100',
-            'constanta' => 'nullable|string|max:255',
-        ]);
-
-        $vision = $validated['vision'] ?? '1';
-        if (($validated['type'] ?? '') === 'web3_token') {
-            $vision = Conf::normalizeWeb3ChainIdToDecimalString($vision) ?? $vision;
-        }
-
-        $data = [
-            'name'    => $validated['name'],
-            'type'    => $validated['type'],
-            'color'   => $validated['color'] ?? '',
-            'status'  => $validated['status'] ?? '1',
-            'vision'  => $vision,
-            'hide'    => '0',
-            'constanta' => $validated['constanta'] ?? '0',
-            'firma'   => $fid,
-        ];
-
-        if (Schema::hasColumn('conf', 'doc')) {
-            if ($validated['type'] === 'reestr') {
-                $data['doc'] = Conf::normalizePaymentDocFlags($validated['doc'] ?? '');
-            } else {
-                $data['doc'] = $validated['doc'] ?? '';
-            }
-        }
+        $data = $this->validateConfRecord($request);
+        $data['hide'] = '0';
+        $data['firma'] = $fid;
 
         $id = DB::table('conf')->insertGetId($data);
         return response()->json(['success' => true, 'id' => $id]);
@@ -286,43 +257,9 @@ class SettingsController extends Controller
     public function apiUpdate(Request $request, $id)
     {
         $fid = session('fid', '');
-        $validated = $request->validate([
-            'type' => 'required|string',
-            'name' => 'required|string|max:255',
-            'color' => 'nullable|string|max:255',
-            'status' => 'nullable|string',
-            'vision' => 'nullable|string',
-            'doc' => 'nullable|string|max:100',
-            'constanta' => 'nullable|string|max:255',
-        ]);
-
         $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
-
-        $vision = $validated['vision'] ?? '1';
-        if (($validated['type'] ?? '') === 'web3_token') {
-            $vision = Conf::normalizeWeb3ChainIdToDecimalString($vision) ?? $vision;
-        }
-
-        $update = [
-            'name'   => $validated['name'],
-            'type'   => $validated['type'],
-            'color'  => $validated['color'] ?? '',
-            'status' => $validated['status'] ?? '1',
-            'vision' => $vision,
-        ];
-        
-        if (array_key_exists('constanta', $validated)) {
-            $update['constanta'] = $validated['constanta'];
-        }
-
-        if (Schema::hasColumn('conf', 'doc')) {
-            if ($validated['type'] === 'reestr') {
-                $update['doc'] = Conf::normalizePaymentDocFlags($validated['doc'] ?? '');
-            } else {
-                $update['doc'] = $validated['doc'] ?? '';
-            }
-        }
+        $update = $this->validateConfRecord($request, $exists);
 
         DB::table('conf')->where('id', $id)->update($update);
 
@@ -709,6 +646,46 @@ class SettingsController extends Controller
         ]);
     }
 
+    public function officesPublicIndex(Request $request)
+    {
+        $fid = (string) $request->input('fid', session('fid', '2'));
+
+        if (!Schema::hasTable('conf')) {
+            return response()->json(['items' => []]);
+        }
+
+        $items = DB::table('conf')
+            ->where('type', 'sklads')
+            ->where('firma', $fid)
+            ->where('vision', '1')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($item) {
+                $item->phone = trim((string) ($item->phone ?? ''));
+                if ($item->phone === '') {
+                    $item->phone = trim((string) ($item->descript2 ?? ''));
+                }
+
+                $item->address = trim((string) ($item->address ?? ''));
+                if ($item->address === '') {
+                    $item->address = trim((string) ($item->descript ?? ''));
+                }
+
+                $item->google_map = trim((string) ($item->google_map ?? ''));
+                if ($item->google_map === '') {
+                    $item->google_map = trim((string) ($item->descript3 ?? ''));
+                }
+                $item->foto_preview = MediaUrl::image((string) ($item->foto ?? ''));
+
+                return $item;
+            })
+            ->values();
+
+        return response()->json([
+            'items' => $items,
+        ]);
+    }
+
     public function projectsStore(Request $request)
     {
         if (!Schema::hasTable('project')) {
@@ -1029,6 +1006,91 @@ class SettingsController extends Controller
             'vision' => $request->boolean('vision', (bool) ($existing->vision ?? true)) ? 1 : 0,
             'image_path' => $imagePath,
         ];
+    }
+
+    private function validateConfRecord(Request $request, ?object $existing = null): array
+    {
+        $validated = $request->validate([
+            'type' => 'required|string',
+            'name' => 'required|string|max:255',
+            'color' => 'nullable|string|max:255',
+            'status' => 'nullable|string',
+            'vision' => 'nullable|string',
+            'doc' => 'nullable|string|max:100',
+            'constanta' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'address' => 'nullable|string|max:255',
+            'google_map' => 'nullable|string|max:65535',
+            'foto' => 'nullable|string|max:255',
+            'foto_file' => 'nullable|image|max:4096',
+        ]);
+
+        $type = (string) ($validated['type'] ?? '');
+        $vision = $validated['vision'] ?? '1';
+        if ($type === 'web3_token') {
+            $vision = Conf::normalizeWeb3ChainIdToDecimalString($vision) ?? $vision;
+        }
+
+        $data = [
+            'name' => trim((string) ($validated['name'] ?? '')),
+            'type' => $type,
+            'color' => trim((string) ($validated['color'] ?? '')),
+            'status' => (string) ($validated['status'] ?? '1'),
+            'vision' => (string) $vision,
+            'constanta' => (string) ($validated['constanta'] ?? '0'),
+        ];
+
+        if (Schema::hasColumn('conf', 'doc')) {
+            if ($type === 'reestr') {
+                $data['doc'] = Conf::normalizePaymentDocFlags($validated['doc'] ?? '');
+            } else {
+                $data['doc'] = trim((string) ($validated['doc'] ?? ''));
+            }
+        }
+
+        if ($type === 'sklads') {
+            $foto = trim((string) ($validated['foto'] ?? ($existing->foto ?? '')));
+            if ($request->hasFile('foto_file')) {
+                $uploadedFile = $request->file('foto_file');
+                if ($uploadedFile && $uploadedFile->isValid()) {
+                    $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'jpg');
+                    $filename = 'office_' . date('Ymd_His') . '_' . uniqid() . '.' . $extension;
+                    $path = $uploadedFile->storeAs('files/sklads', $filename, 'public');
+                    $foto = $path ?: $foto;
+                }
+            }
+
+            if (Schema::hasColumn('conf', 'phone')) {
+                $data['phone'] = trim((string) ($validated['phone'] ?? ''));
+            }
+
+            if (Schema::hasColumn('conf', 'address')) {
+                $data['address'] = trim((string) ($validated['address'] ?? ''));
+            }
+
+            if (Schema::hasColumn('conf', 'google_map')) {
+                $data['google_map'] = trim((string) ($validated['google_map'] ?? ''));
+            }
+
+            if (Schema::hasColumn('conf', 'foto')) {
+                $data['foto'] = $foto;
+            }
+        }
+
+        return $data;
+    }
+
+    private function decorateConfItem(object $item, string $type): object
+    {
+        if ($type === 'reestr') {
+            $item = Conf::decoratePaymentType($item);
+        }
+
+        if ($type === 'sklads') {
+            $item->foto_preview = MediaUrl::image((string) ($item->foto ?? ''));
+        }
+
+        return $item;
     }
 
     private function validateProject(Request $request): array

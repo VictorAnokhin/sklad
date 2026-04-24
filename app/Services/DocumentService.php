@@ -302,6 +302,42 @@ class DocumentService
                     'AO' => $this->applyColumnDelta(clone $priceQuery, 'count', -1 * $direction * $count),
                     default => null,
                 };
+
+                if (in_array($docType, ['RN', 'PN'], true)) {
+                    $skladId = (int) ($doc->sklads ?? 0);
+
+                    if ($skladId > 0) {
+                        $deltaCount = match ($docType) {
+                            'RN' => $isPosted ? $count : -1 * $count,
+                            'PN' => $isPosted ? -1 * $count : $count,
+                            default => 0.0,
+                        };
+
+                        if ($deltaCount != 0) {
+                            $existsSklad = DB::table('price_sklad')
+                                ->where('pnum', $pnum)
+                                ->where('firma', $fid)
+                                ->where('sklad', $skladId)
+                                ->exists();
+
+                            if (!$existsSklad) {
+                                DB::table('price_sklad')->insert([
+                                    'pnum' => $pnum,
+                                    'firma' => $fid,
+                                    'sklad' => $skladId,
+                                    'count' => 0,
+                                ]);
+                            }
+
+                            $priceSkladQuery = DB::table('price_sklad')
+                                ->where('pnum', $pnum)
+                                ->where('firma', $fid)
+                                ->where('sklad', $skladId);
+
+                            $this->applyColumnDelta($priceSkladQuery, 'count', $deltaCount);
+                        }
+                    }
+                }
             }
 
             // ── Cash movements ────────────────────────────────────────────────
