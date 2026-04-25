@@ -28,6 +28,7 @@ return [
         'http://localhost:3002',
         'http://127.0.0.1:3002',
         'https://autoagent.in.ua',
+        'https://gosnomera.net.ua',
         'https://av8capital.space',
     ],
 
