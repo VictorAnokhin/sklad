@@ -495,16 +495,15 @@
             <div class="modal-body" id="catalog-list-area">
                 <div class="mb-3" id="catalog-breadcrumb"></div>
                 <div class="table-responsive">
-                    <table class="table table-hover table-sm align-middle">
+                    <table class="table table-hover table-sm align-middle catalog-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>num</th>
+                                <th class="catalog-id-cell">ID</th>
                                 <th>Назви</th>
-                                <th id="catalog-flags-head">Прапори</th>
-                                <th id="catalog-description-head">Опис</th>
-                                <th id="catalog-children-head">Підкатегорії</th>
-                                <th class="text-end">Дії</th>
+                                <th id="" class="catalog-description-cell">Опис</th>
+                                <th id="catalog-flags-head" class="catalog-flags-cell">Прапори</th>
+                                <th id="catalog-description-head" class="catalog-children-cell">Підкатегорії</th>
+                                <th class="catalog-actions-cell">Дії</th>
                             </tr>
                         </thead>
                         <tbody id="catalog-tbody"></tbody>
@@ -1299,8 +1298,52 @@
     }
 
     .catalog-meta {
-        font-size: 0.85rem;
+        font-size: 0.78rem;
         color: #6b7280;
+        line-height: 1.25;
+    }
+
+    .catalog-table {
+        font-size: 0.84rem;
+    }
+
+    .catalog-table > :not(caption) > * > * {
+        padding: 0.28rem 0.38rem;
+    }
+
+    .catalog-table .badge {
+        font-size: 0.68rem;
+        padding: 0.22em 0.42em;
+        font-weight: 500;
+    }
+
+    .catalog-table .action-btn {
+        min-width: 30px;
+        padding: 1px 6px;
+        line-height: 1.35;
+    }
+
+    .catalog-id-cell {
+        width: 5%;
+        white-space: nowrap;
+    }
+
+    .catalog-flags-cell {
+        width: 10%;
+    }
+
+    .catalog-description-cell {
+        width: 65%;
+    }
+
+    .catalog-children-cell {
+        width: 10%;
+        text-align: center;
+    }
+
+    .catalog-actions-cell {
+        width: 10%;
+        white-space: nowrap;
     }
 
     .catalog-breadcrumb {
@@ -3168,7 +3211,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     backBtn.style.display = currentKeyfield === 'catalog' && currentParentId !== '0' ? 'inline-block' : 'none';
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-danger">Помилка завантаження довідника</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Помилка завантаження довідника</td></tr>';
                 });
         }
 
@@ -3201,17 +3244,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? `<button class="btn btn-sm btn-outline-secondary action-btn" data-action="open" data-id="${item.id}">📂</button>`
                     : '';
                 tr.innerHTML = `
-                    <td>${item.id}</td>
-                    <td>${item.num ?? 0}</td>
+                    <td >${item.id}</td>
                     <td>
                         <div><strong>RU:</strong> ${escapeHtml(item.name_ru || '')}</div>
                         <div class="catalog-meta"><strong>UA:</strong> ${escapeHtml(item.name_ua || '—')}</div>
                         <div class="catalog-meta"><strong>EN:</strong> ${escapeHtml(item.name_en || '—')}</div>
                     </td>
-                    <td>${flags}</td>
-                    <td>${description}</td>
-                    <td>${childLabel}</td>
-                    <td class="text-end">
+                    <td >${description}</td>
+                    <td >${flags}</td>
+                    <td >${childLabel}</td>
+                    <td >
                         ${openButton}
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
                         <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
@@ -3379,7 +3421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function shortText(value) {
-            return value.length > 90 ? `${value.slice(0, 87)}...` : value;
+            return value.length > 64 ? `${value.slice(0, 61)}...` : value;
         }
 
         function switchFieldMode(mode) {
