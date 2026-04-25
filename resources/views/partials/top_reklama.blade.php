@@ -1,32 +1,79 @@
 {{-- top_reklama.blade.php --}}
 @php
-  $headerProjects = \Illuminate\Support\Facades\Schema::hasTable('project')
-    ? \App\Models\Project::query()->orderBy('num')->orderBy('name')->get(['id', 'num', 'name'])
-    : collect();
-  $activeFid = (int) session('fid', 0);
-  $activeLang = \App\Models\Field::normalizeLocale(app()->getLocale());
+  $authUser = \Illuminate\Support\Facades\Auth::user();
   $isAuthenticated = \Illuminate\Support\Facades\Auth::check();
+  $userProjectId = (int) (($authUser->firma ?? 0) ?: ($authUser->idfirma ?? 0) ?: ($authUser->fid ?? 0));
+  $userProjectIds = collect();
+
+  if (
+    $isAuthenticated
+    && !empty($authUser?->email)
+    && \App\Models\User::hasUsersColumn('email')
+    && \App\Models\User::hasUsersColumn('firma')
+  ) {
+    $userProjectIds = \App\Models\User::query()
+      ->where('email', (string) $authUser->email)
+      ->pluck('firma')
+      ->map(fn ($firma) => (int) $firma)
+      ->filter(fn ($firma) => $firma > 0)
+      ->unique()
+      ->values();
+  }
+
+  if ($userProjectIds->isEmpty() && $userProjectId > 0) {
+    $userProjectIds = collect([$userProjectId]);
+  }
+
+  $headerProjects = \Illuminate\Support\Facades\Schema::hasTable('project')
+    ? \App\Models\Project::query()
+        ->when($userProjectIds->isNotEmpty(), fn ($query) => $query->whereIn('id', $userProjectIds->all()))
+        ->orderBy('num')
+        ->orderBy('name')
+        ->get(['id', 'num', 'name'])
+    : collect();
+  $activeFid = (int) session('fid', $userProjectIds->first() ?: $userProjectId);
+  $activeLang = \App\Models\Field::normalizeLocale(app()->getLocale());
+  $headerLangOptions = ['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'];
+  $activeProject = $headerProjects->firstWhere('id', $activeFid);
+  $headerUserName = trim(implode(' ', array_filter([
+    $authUser->name ?? session('name1', ''),
+    $authUser->secondname ?? '',
+  ])));
+  $headerTitle = $isAuthenticated
+    ? ($headerUserName !== '' ? $headerUserName : (string) ($authUser->login ?? session('login', config('app.name'))))
+    : config('app.name');
+  $headerSubtitle = $isAuthenticated ? (session('name1') ?? '') : '';
 @endphp
 
 <div class="header-bar">
-  <!-- Desktop: single row -->
-  <div style="display: flex; align-items: center; gap: 1rem;">
+  
+
+  <div class="header-bar__brand-wrap" style="display: flex; align-items: center; gap: 1rem;">
+    <!-- Desktop: single row -->
+    @if($isAuthenticated && $headerProjects->isNotEmpty())
+      <div class="header-project-switch">
+        <form method="POST" action="{{ route('settings.switchProject') }}" class="header-project-switch__form">
+          @csrf
+          <select id="header-project-select" name="fid" class="header-bar__title" onchange="this.form.submit()">
+            @foreach($headerProjects as $project)
+              <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
+                 {{ $project->name }} #{{ $project->id }}
+              </option>
+            @endforeach
+          </select>
+        </form>
+      </div>
+    @else
     <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem;">
       <a href="/" class="header-bar__logo text-decoration-none">
-        <span class="header-bar__title">{{ config('app.name') }}: {{ session('name1') ?? '' }}</span>
+        <span class="header-bar__title">{{ $headerTitle }}</span>
+        
       </a>
-      <div class="header-lang-switch" aria-label="{{ __('nav.language') }}">
-        @foreach(['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'] as $langCode => $langLabel)
-          <a
-            href="{{ request()->fullUrlWithQuery(['lang' => $langCode]) }}"
-            class="header-lang-switch__link {{ $activeLang === $langCode ? 'is-active' : '' }}"
-          >{{ $langLabel }}</a>
-        @endforeach
-      </div>
     </div>
+    @endif
   </div>
 
-  @if(!session('name1'))
+  @if(!$isAuthenticated)
   <div class="header-public-links" id="desktop-public-links">
     
     <a href="{{ route('micro-business') }}" class="header-public-link">Для микро-бизнеса</a>
@@ -36,13 +83,37 @@
   </div>
   @endif
 
-  <div class="header-wallet-controls">
-    <button type="button" id="menu-connect-wallet" class="header-wallet-btn">Подключить</button>
-    <button type="button" id="menu-disconnect-wallet" class="header-wallet-btn is-disconnect" style="display: none;">
-      Отключить <span id="menu-wallet-address"></span>
-    </button>
+  <div class="header-lang-switch" aria-label="{{ __('nav.language') }}">
+    <select
+      id="header-lang-select"
+      class="header-lang-switch__select"
+      onchange="if (this.value) { window.location.href = this.value; }"
+    >
+      @foreach($headerLangOptions as $langCode => $langLabel)
+        <option
+          value="{{ request()->fullUrlWithQuery(['lang' => $langCode]) }}"
+          {{ $activeLang === $langCode ? 'selected' : '' }}
+        >{{ $langLabel }}</option>
+      @endforeach
+    </select>
   </div>
-
+  <div class="header-wallet-controls">
+    <div class="header-wallet-dropdown" id="header-wallet-dropdown">
+      <button
+        type="button"
+        class="header-wallet-trigger"
+        id="header-wallet-trigger"
+        aria-expanded="false"
+        aria-controls="header-wallet-menu"
+      >Web3</button>
+      <div class="header-wallet-menu" id="header-wallet-menu" hidden>
+        <button type="button" id="menu-connect-wallet" class="header-wallet-menu__action">Подключить кошелек</button>
+        <button type="button" id="menu-disconnect-wallet" class="header-wallet-menu__action is-disconnect" style="display: none;">
+          Отключить <span id="menu-wallet-address"></span>
+        </button>
+      </div>
+    </div>
+  </div>
   <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
     <span></span>
     <span></span>
@@ -53,23 +124,7 @@
   
 
   <nav class="header-nav-menu" id="header-nav-menu">
-    @if(session('name1'))
-    @if($headerProjects->isNotEmpty())
-    <div class="header-nav-menu__section">
-      <label class="header-nav-menu__label">{{ __('nav.project') }}</label>
-      <form method="POST" action="{{ route('settings.switchProject') }}" class="header-nav-menu__project-form">
-        @csrf
-        <select name="fid" class="header-nav-menu__project-select" onchange="this.form.submit()">
-          @foreach($headerProjects as $project)
-          <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
-            #{{ $project->id }}{{ !empty($project->num) ? ' / ' . $project->num : '' }} {{ $project->name }}
-          </option>
-          @endforeach
-        </select>
-      </form>
-    </div>
-    @endif
-
+    @if($isAuthenticated)
     <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
     <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">{{ __('nav.orders') }}</a>
     <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
@@ -131,6 +186,10 @@
       flex-wrap: nowrap;
     }
 
+    .header-bar__brand-wrap {
+      min-width: 0;
+    }
+
     .header-bar__bottom {
       flex-wrap: nowrap;
     }
@@ -155,19 +214,31 @@
       color: #fff;
     }
 
+    .header-bar__logo {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .header-bar__subtitle {
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 0.8rem;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
     .header-btn-login, .header-btn-register {
       color: #fbbf24;
       font-weight: 600;
     }
 
     .header-project-switch {
-      margin-left: auto;
-      order: 3;
+      order: 1;
     }
 
     .header-project-switch__select {
       min-width: 140px;
-      max-width: 200px;
+      max-width: 260px;
     }
 
     .header-project-switch__label {
@@ -181,33 +252,130 @@
     .header-lang-switch {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.4rem;
       order: 2;
       margin-left: 0;
     }
 
-    .header-wallet-controls {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-left: 0.5rem;
+    .header-lang-switch__label {
+      display: none;
     }
 
-    .header-wallet-btn {
+    .header-lang-switch__select {
+      width: 64px;
+      min-width: 54px;
+      height: 44px;
+      padding: 0;
+      border-radius: 10px;
       border: 1px solid rgba(251, 191, 36, 0.35);
-      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      color: #fbbf24;
+      font-size: 1rem;
+      font-weight: 600;
+      text-align: center;
+      text-align-last: center;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .header-lang-switch__select:focus {
+      border-color: rgba(251, 191, 36, 0.55);
+      box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12);
+    }
+
+    .header-lang-switch__select:hover {
+      background: rgba(251, 191, 36, 0.12);
+      border-color: rgba(251, 191, 36, 0.55);
+    }
+
+    .header-lang-switch__select option {
+      color: #111827;
+    }
+
+    .header-wallet-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-left: auto;
+    }
+
+    .header-wallet-dropdown {
+      position: relative;
+    }
+
+    .header-wallet-trigger {
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      border-radius: 10px;
       background: rgba(0, 0, 0, 0.2);
       color: #fbbf24;
       font-size: 0.82rem;
       line-height: 1;
-      padding: 0.5rem 0.75rem;
+      font-weight: 700;
+      width: 44px;
+      height: 44px;
+      padding: 0;
       transition: all 0.2s;
-      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
-    .header-wallet-btn:hover {
+    .header-wallet-trigger:hover,
+    .header-wallet-trigger[aria-expanded="true"] {
       background: rgba(251, 191, 36, 0.12);
       border-color: rgba(251, 191, 36, 0.55);
+    }
+
+    .header-wallet-menu {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      min-width: 220px;
+      padding: 0.4rem;
+      border-radius: 12px;
+      border: 1px solid rgba(251, 191, 36, 0.18);
+      background:
+        radial-gradient(circle at top left, rgba(251, 191, 36, 0.12), transparent 40%),
+        linear-gradient(180deg, rgba(19, 24, 33, 0.98), rgba(10, 13, 18, 0.98));
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38);
+      display: none;
+      z-index: 1050;
+    }
+
+    .header-wallet-menu[hidden] {
+      display: none !important;
+    }
+
+    .header-wallet-dropdown.is-open .header-wallet-menu {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .header-wallet-menu__action {
+      width: 100%;
+      border: 1px solid rgba(251, 191, 36, 0.16);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #f8fafc;
+      font-size: 0.88rem;
+      line-height: 1.2;
+      text-align: left;
+      padding: 0.75rem 0.85rem;
+      transition: all 0.2s ease;
+    }
+
+    .header-wallet-menu__action:hover {
+      background: rgba(251, 191, 36, 0.1);
+      border-color: rgba(251, 191, 36, 0.35);
+      color: #fff;
+    }
+
+    .header-wallet-menu__action.is-disconnect {
+      color: #fecaca;
+      border-color: rgba(248, 113, 113, 0.18);
     }
 
     .header-burger {
@@ -224,14 +392,26 @@
       gap: 0.35rem;
     }
 
-    .header-bar__logo {
+    .header-bar__brand-wrap {
       order: 1;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .header-bar__logo {
       flex: 1 1 auto;
       min-width: 0;
     }
 
     .header-bar__logo .header-bar__title {
       font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-bar__logo .header-bar__subtitle {
+      max-width: 180px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -262,13 +442,13 @@
       display: flex;
       align-items: center;
       gap: 0;
-      margin-left: auto;
+      margin-left: 0;
     }
 
     .header-project-switch__select {
       min-width: 0;
       width: auto;
-      max-width: 150px;
+      max-width: 170px;
       height: 36px;
       padding: 0 1.5rem 0 0.5rem;
       font-size: 0.75rem;
@@ -293,36 +473,44 @@
       margin-left: 0;
     }
 
+    .header-lang-switch__select {
+    order:3;
+      width: 75px;
+      min-width: 70px;
+      height: 40px;
+      font-size: 0.9rem;
+      border-radius: 10px;
+    }
+
     .header-wallet-controls {
+      order: 4;
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
       margin-left: 0.35rem;
+      
     }
 
-    .header-wallet-btn {
-      border: 1px solid rgba(251, 191, 36, 0.35);
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.2);
-      color: #fbbf24;
-      font-size: 0.76rem;
-      line-height: 1;
-      padding: 0.45rem 0.6rem;
-      white-space: nowrap;
+    .header-wallet-trigger {
+      width: 70px;
+      height: 40px;
+      font-size: 1rem;
+      border-radius: 10px;
     }
 
-    .header-lang-switch__link {
-      min-width: 32px;
-      height: 30px;
-      padding: 0 0.5rem;
-      font-size: 0.7rem;
-      border-radius: 8px;
-      border-width: 1px;
+    .header-wallet-menu {
+      right: -0.35rem;
+      min-width: 200px;
+    }
+
+    .header-wallet-menu__action {
+      font-size: 0.84rem;
+      padding: 0.7rem 0.8rem;
     }
 
     /* Burger button */
     .header-burger {
-      order: 4;
+      order: 5;
       margin-left: 0.15rem;
       width: 40px;
       height: 40px;
@@ -333,30 +521,30 @@
 
     .header-burger span {
       width: 20px;
-      height: 2.5px;
+      height: 3.5px;
       margin: 2.5px 0;
     }
 
     .header-nav-menu {
-      right: 0.5rem;
-      left: 0.5rem;
+      right: 1.5rem;
+      left: 1.5rem;
       min-width: 0;
       padding: 0.4rem;
     }
 
     .header-nav-menu__link {
       padding: 0.55rem 0.75rem;
-      font-size: 1.1rem;
+      font-size: 1rem;
     }
 
     .header-nav-menu__section {
       padding: 0.5rem 0.75rem;
-      margin-bottom: 0.35rem;
+      margin-bottom: 0.45rem;
     }
 
     .header-nav-menu__label {
-      font-size: 0.7rem;
-      margin-bottom: 0.35rem;
+      font-size: 1rem;
+      margin-bottom: 0.45rem;
     }
 
     .header-nav-menu__project-select {
@@ -368,7 +556,7 @@
   /* Project selector in mobile menu */
   .header-nav-menu__section {
     padding: 0.5rem 0.75rem;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.45rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
@@ -378,7 +566,7 @@
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.45rem;
   }
 
   .header-nav-menu__project-form {
@@ -550,6 +738,9 @@
   (function () {
     const burger = document.getElementById('header-burger');
     const menu = document.getElementById('header-nav-menu');
+    const walletDropdown = document.getElementById('header-wallet-dropdown');
+    const walletTrigger = document.getElementById('header-wallet-trigger');
+    const walletMenu = document.getElementById('header-wallet-menu');
     const connectWalletBtn = document.getElementById('menu-connect-wallet');
     const disconnectWalletBtn = document.getElementById('menu-disconnect-wallet');
     const walletAddressNode = document.getElementById('menu-wallet-address');
@@ -590,6 +781,28 @@
 
     if (walletModalNode && window.bootstrap) {
       walletModal = window.bootstrap.Modal.getOrCreateInstance(walletModalNode);
+    }
+
+    function closeWalletDropdown() {
+      if (!walletDropdown || !walletTrigger || !walletMenu) {
+        return;
+      }
+
+      walletDropdown.classList.remove('is-open');
+      walletTrigger.setAttribute('aria-expanded', 'false');
+      walletMenu.hidden = true;
+    }
+
+    function toggleWalletDropdown() {
+      if (!walletDropdown || !walletTrigger || !walletMenu) {
+        return;
+      }
+
+      const expanded = walletTrigger.getAttribute('aria-expanded') === 'true';
+      const willOpen = !expanded;
+      walletDropdown.classList.toggle('is-open', willOpen);
+      walletTrigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      walletMenu.hidden = !willOpen;
     }
 
     function closeHeaderMenu() {
@@ -1064,6 +1277,7 @@
 
     if (connectWalletBtn) {
       connectWalletBtn.addEventListener('click', function () {
+        closeWalletDropdown();
         openWalletModal();
       });
     }
@@ -1071,9 +1285,30 @@
     if (disconnectWalletBtn) {
       disconnectWalletBtn.addEventListener('click', function (event) {
         event.preventDefault();
+        closeWalletDropdown();
         disconnectWallet();
       });
     }
+
+    if (walletTrigger) {
+      walletTrigger.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleWalletDropdown();
+      });
+    }
+
+    document.addEventListener('click', function (event) {
+      if (!walletDropdown || !walletDropdown.classList.contains('is-open')) {
+        return;
+      }
+
+      if (walletDropdown.contains(event.target)) {
+        return;
+      }
+
+      closeWalletDropdown();
+    });
 
     if (walletProviderList) {
       walletProviderList.addEventListener('click', async function (event) {
