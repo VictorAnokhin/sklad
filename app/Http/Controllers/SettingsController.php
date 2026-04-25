@@ -693,6 +693,11 @@ class SettingsController extends Controller
         }
 
         $project = Project::query()->create($this->validateProject($request));
+        $projectUserId = $this->ensureProjectUserCopy($project);
+
+        if ($projectUserId && Schema::hasColumn('project', 'userid')) {
+            $project->forceFill(['userid' => $projectUserId])->save();
+        }
 
         return response()->json(['success' => true, 'id' => $project->id]);
     }
@@ -710,6 +715,11 @@ class SettingsController extends Controller
         }
 
         $project->fill($this->validateProject($request))->save();
+        $projectUserId = $this->ensureProjectUserCopy($project);
+
+        if ($projectUserId && Schema::hasColumn('project', 'userid')) {
+            $project->forceFill(['userid' => $projectUserId])->save();
+        }
 
         return response()->json(['success' => true]);
     }
@@ -1191,6 +1201,53 @@ class SettingsController extends Controller
         $payload['can_delete'] = $user ? (int) $user->id === (int) $project->id : false;
 
         return $payload;
+    }
+
+    private function ensureProjectUserCopy(Project $project): ?int
+    {
+        $user = $this->currentUser();
+        if (!$user || !Schema::hasTable('users') || !Schema::hasColumn('users', 'firma')) {
+            return null;
+        }
+
+        $email = trim((string) ($user->email ?? ''));
+        if ($email === '' || !Schema::hasColumn('users', 'email')) {
+            return null;
+        }
+
+        $projectId = (string) $project->id;
+        $existingId = DB::table('users')
+            ->where('email', $email)
+            ->where('firma', $projectId)
+            ->value('id');
+
+        if ($existingId) {
+            return (int) $existingId;
+        }
+
+        $source = DB::table('users')->where('id', $user->id)->first();
+        if (!$source) {
+            return null;
+        }
+
+        $payload = (array) $source;
+        unset($payload['id']);
+
+        $payload['firma'] = $projectId;
+
+        if (Schema::hasColumn('users', 'idfirma')) {
+            $payload['idfirma'] = $projectId;
+        }
+
+        if (Schema::hasColumn('users', 'updated_at')) {
+            $payload['updated_at'] = now();
+        }
+
+        if (Schema::hasColumn('users', 'created_at')) {
+            $payload['created_at'] = now();
+        }
+
+        return (int) DB::table('users')->insertGetId(User::filterUsersColumns($payload));
     }
 
     private function fieldBaseQuery($fid, string $keyfield)

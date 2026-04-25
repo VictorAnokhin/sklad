@@ -102,18 +102,20 @@ class AuthController extends Controller
         $phone = trim($request->input('phone', ''));
 
 
+        $fid = $this->resolveAuthFid($request);
+
         /** @var User|null $user */
-        $user = User::forLogin($login)->first();
+        $user = $this->userForLogin($login, $fid)->first();
 
         if ($user) {
             return back()->withErrors(['login' => 'Користувач вже існує']);
         }
 
-        if (User::where('email', $email)->exists()) {
+        if ($this->userByEmail($email, $fid)->exists()) {
             return back()->withErrors(['email' => 'Користувач з таким email вже існує']);
         }
 
-        if ($phone !== '' && User::where('phone', $phone)->exists()) {
+        if ($phone !== '' && $this->userByPhone($phone, $fid)->exists()) {
             return back()->withErrors(['phone' => 'Користувач з таким телефоном вже існує']);
         }
 
@@ -132,14 +134,14 @@ class AuthController extends Controller
             'ustype' => 1,
         ];
 
-        $nextFirma = $this->nextFirma();
+        $userFirma = $this->authFirmaForNewUser($fid);
 
         if (Schema::hasColumn('users', 'firma')) {
-            $userData['firma'] = $nextFirma;
+            $userData['firma'] = $userFirma;
         }
 
         if (Schema::hasColumn('users', 'idfirma')) {
-            $userData['idfirma'] = $nextFirma;
+            $userData['idfirma'] = $userFirma;
         }
 
         if (Schema::hasColumn('users', 'status')) {
@@ -150,6 +152,7 @@ class AuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        $this->syncAuthSessionFid($request, $user);
 
         return redirect()->route('dashboard');
     }
@@ -170,8 +173,10 @@ class AuthController extends Controller
             return back()->withErrors(['email' => 'Введіть email і пароль']);
         }
 
+        $fid = $this->resolveAuthFid($request);
+
         /** @var User|null $user */
-        $user = User::forLogin($login)->first();
+        $user = $this->userForLogin($login, $fid)->first();
 
         if (!$user) {
             return back()->withErrors(['email' => 'Користувача з таким email не знайдено. Спочатку зареєструйтесь.']);
@@ -189,6 +194,7 @@ class AuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        $this->syncAuthSessionFid($request, $user);
 
         return redirect()->route('dashboard');
     }
@@ -224,8 +230,10 @@ class AuthController extends Controller
             ]);
         }
 
+        $fid = $this->resolveAuthFid($request);
+
         /** @var User|null $user */
-        $user = User::query()->where('email', $email)->first();
+        $user = $this->userByEmail($email, $fid)->first();
 
         if (!$user) {
             $givenName = trim((string) ($payload['given_name'] ?? ''));
@@ -233,7 +241,7 @@ class AuthController extends Controller
             $fullName = trim((string) ($payload['name'] ?? ''));
             $passwordHash = Hash::make(Str::random(40));
             $fallbackName = $givenName !== '' ? $givenName : ($fullName !== '' ? $fullName : 'Google User');
-            $nextFirma = $this->nextFirma();
+            $userFirma = $this->authFirmaForNewUser($fid);
 
             $userData = [
                 'login' => $email,
@@ -252,11 +260,11 @@ class AuthController extends Controller
             }
 
             if (Schema::hasColumn('users', 'firma')) {
-                $userData['firma'] = $nextFirma;
+                $userData['firma'] = $userFirma;
             }
 
             if (Schema::hasColumn('users', 'idfirma')) {
-                $userData['idfirma'] = $nextFirma;
+                $userData['idfirma'] = $userFirma;
             }
 
             if (Schema::hasColumn('users', 'status')) {
@@ -270,6 +278,7 @@ class AuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        $this->syncAuthSessionFid($request, $user);
 
         return redirect()->route('dashboard');
     }
@@ -330,6 +339,61 @@ class AuthController extends Controller
         return $maxFirma + 1;
     }
 
+    private function resolveAuthFid(Request $request): ?string
+    {
+        $fid = trim((string) $request->input('fid', ''));
+
+        if ($fid === '') {
+            $fid = trim((string) session('fid', ''));
+        }
+
+        return $fid !== '' ? $fid : null;
+    }
+
+    private function authFirmaForNewUser(?string $fid): int|string
+    {
+        return $fid !== null && $fid !== '' ? $fid : $this->nextFirma();
+    }
+
+    private function userForLogin(string $login, ?string $fid)
+    {
+        $query = User::forLogin($login);
+
+        return $this->scopeUserQueryToFid($query, $fid);
+    }
+
+    private function userByEmail(string $email, ?string $fid)
+    {
+        $query = User::query()->where('email', $email);
+
+        return $this->scopeUserQueryToFid($query, $fid);
+    }
+
+    private function userByPhone(string $phone, ?string $fid)
+    {
+        $query = User::query()->where('phone', $phone);
+
+        return $this->scopeUserQueryToFid($query, $fid);
+    }
+
+    private function scopeUserQueryToFid($query, ?string $fid)
+    {
+        if ($fid !== null && $fid !== '' && Schema::hasColumn('users', 'firma')) {
+            $query->where('firma', $fid);
+        }
+
+        return $query;
+    }
+
+    private function syncAuthSessionFid(Request $request, User $user): void
+    {
+        $fid = $user->firma ?: $user->fid ?: $user->idfirma;
+
+        if ($fid !== null && $fid !== '') {
+            $request->session()->put('fid', $fid);
+        }
+    }
+
     private function verifyGoogleCredential(string $credential, string $clientId): ?array
     {
         try {
@@ -364,7 +428,7 @@ class AuthController extends Controller
         return $payload;
     }
 
-    private function resolveGoogleUser(array $payload): ?User
+    private function resolveGoogleUser(array $payload, ?string $fid = null): ?User
     {
         $email = trim((string) ($payload['email'] ?? ''));
         $emailVerified = filter_var($payload['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN);
@@ -374,7 +438,7 @@ class AuthController extends Controller
         }
 
         /** @var User|null $user */
-        $user = User::query()->where('email', $email)->first();
+        $user = $this->userByEmail($email, $fid)->first();
 
         if ($user) {
             if (Schema::hasColumn('users', 'email_verified_at') && !$user->email_verified_at) {
@@ -389,7 +453,7 @@ class AuthController extends Controller
         $fullName = trim((string) ($payload['name'] ?? ''));
         $passwordHash = Hash::make(Str::random(40));
         $fallbackName = $givenName !== '' ? $givenName : ($fullName !== '' ? $fullName : 'Google User');
-        $nextFirma = $this->nextFirma();
+        $userFirma = $this->authFirmaForNewUser($fid);
 
         $userData = [
             'login' => $email,
@@ -408,11 +472,11 @@ class AuthController extends Controller
         }
 
         if (Schema::hasColumn('users', 'firma')) {
-            $userData['firma'] = $nextFirma;
+            $userData['firma'] = $userFirma;
         }
 
         if (Schema::hasColumn('users', 'idfirma')) {
-            $userData['idfirma'] = $nextFirma;
+            $userData['idfirma'] = $userFirma;
         }
 
         if (Schema::hasColumn('users', 'status')) {
@@ -429,7 +493,8 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::forLogin(trim($request->string('login')->toString()))->first();
+        $fid = $this->resolveAuthFid($request);
+        $user = $this->userForLogin(trim($request->string('login')->toString()), $fid)->first();
 
         if (!$user || !$user->passwordMatches($request->string('password')->toString())) {
             return response()->json(['message' => 'Invalid credentials'], 422);
@@ -468,7 +533,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Failed to verify Google account'], 422);
         }
 
-        $user = $this->resolveGoogleUser($payload);
+        $user = $this->resolveGoogleUser($payload, $this->resolveAuthFid($request));
 
         if (!$user) {
             return response()->json(['message' => 'Google account does not contain a verified email'], 422);
@@ -562,17 +627,19 @@ class AuthController extends Controller
         $phone = trim($validated['phone'] ?? '');
 
         /** @var User|null $user */
-        $user = User::forLogin($login)->first();
+        $fid = $this->resolveAuthFid($request);
+
+        $user = $this->userForLogin($login, $fid)->first();
 
         if ($user) {
             return response()->json(['message' => 'Користувач вже існує'], 422);
         }
 
-        if (User::where('email', $email)->exists()) {
+        if ($this->userByEmail($email, $fid)->exists()) {
             return response()->json(['message' => 'Користувач з таким email вже існує'], 422);
         }
 
-        if ($phone !== '' && User::where('phone', $phone)->exists()) {
+        if ($phone !== '' && $this->userByPhone($phone, $fid)->exists()) {
             return response()->json(['message' => 'Користувач з таким телефоном вже існує'], 422);
         }
 
@@ -591,14 +658,14 @@ class AuthController extends Controller
             'ustype' => 1,
         ];
 
-        $nextFirma = $this->nextFirma();
+        $userFirma = $this->authFirmaForNewUser($fid);
 
         if (Schema::hasColumn('users', 'firma')) {
-            $userData['firma'] = $nextFirma;
+            $userData['firma'] = $userFirma;
         }
 
         if (Schema::hasColumn('users', 'idfirma')) {
-            $userData['idfirma'] = $nextFirma;
+            $userData['idfirma'] = $userFirma;
         }
 
         if (Schema::hasColumn('users', 'status')) {
@@ -610,6 +677,7 @@ class AuthController extends Controller
         // Auto login after registration
         Auth::login($user);
         $request->session()->regenerate();
+        $this->syncAuthSessionFid($request, $user);
 
         return response()->json([
             'message' => 'Реєстрація успішна',
