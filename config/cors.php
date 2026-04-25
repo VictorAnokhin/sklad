@@ -20,6 +20,7 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
+<<<<<<< Updated upstream
         'http://localhost:5173',
         'http://127.0.0.1:5173',
         'http://localhost:8000',
@@ -28,6 +29,11 @@ return [
         'http://localhost:3002',
         'http://127.0.0.1:3002',
         'https://autoagent.in.ua',
+=======
+        'https://app.autoagent.in.ua',
+        'https://autoagent.in.ua',
+        'https://gosnomera.net.ua',
+>>>>>>> Stashed changes
         'https://av8capital.space',
     ],
 
