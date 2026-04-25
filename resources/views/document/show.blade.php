@@ -574,7 +574,14 @@
                             <tbody>
                                 @if(count($lineItems) > 0)
                                     @foreach($lineItems as $item)
-                                        <tr>
+                                        <tr
+                                            data-price-comp-pay="{{ (float) ($item->comp_pay ?? 0) }}"
+                                            data-price-comp-pay1="{{ (float) ($item->comp_pay1 ?? 0) }}"
+                                            data-price-base="{{ (float) ($item->price_pay ?? 0) }}"
+                                            data-price-wholesale="{{ (float) ($item->price_pay1 ?? 0) }}"
+                                            data-wholesale-from="{{ (int) ($item->price_count ?? 0) }}"
+                                            data-doc-type="{{ $doc }}"
+                                        >
                                             <td class="goods-table-col-code" data-label="Код">
                                                 <input type="hidden" name="id[]" value="{{ $item->id }}">
                                                 <input type="hidden" name="pid[]" value="{{ $item->pid }}">
@@ -1142,11 +1149,19 @@
                                     const emptyRow = document.getElementById('emptyGoodsRow');
                                     if (emptyRow) emptyRow.remove();
                                     const quantity = 1;
-                                    const availableCount = parseFloat(good.count || 0);
+                                    const wholesaleFrom = parseInt(good.wholesaleFrom || 0, 10);
                                     const pay = parseFloat(good.priceCompPay || 0);
                                     const pay1 = parseFloat(good.priceCompPay1 || 0);
-                                    let initialPrice = pay;
-                                    if (availableCount > 0 && quantity > availableCount && pay1 > 0) {
+                                    const priceBase = parseFloat(good.priceBase || 0) || pay;
+                                    const priceWholesale = parseFloat(good.priceWholesale || 0) || parseFloat(good.pay1 || 0);
+                                    let initialPrice = (docType === 'ZIN' || docType === 'PN') ? pay1 : priceBase;
+                                    if ((docType === 'ZOUT' || docType === 'RN') && wholesaleFrom > 0 && quantity >= wholesaleFrom && priceWholesale > 0) {
+                                        initialPrice = priceWholesale;
+                                    } else if ((docType === 'ZOUT' || docType === 'RN') && priceBase > 0) {
+                                        initialPrice = priceBase;
+                                    } else if ((docType === 'ZIN' || docType === 'PN') && pay1 <= 0) {
+                                        initialPrice = 0;
+                                    } else if (initialPrice <= 0) {
                                         initialPrice = pay1;
                                     }
 

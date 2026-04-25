@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Models\Goods;
 use App\Models\ZBody;
 use App\Models\Conf;
 use App\Models\Docs;
@@ -30,6 +31,68 @@ class DocumentController extends Controller
     {
     }
 
+    private function resolveGoodsUnitPrice(
+        string $docType,
+        float $quantity,
+        float $pricePay,
+        float $pricePay1,
+        int $priceCount,
+        float $compPay1
+    ): float {
+        if (in_array($docType, ['ZIN', 'PN'], true)) {
+            return $compPay1 > 0 ? $compPay1 : 0.0;
+        }
+
+        if (in_array($docType, ['ZOUT', 'RN'], true)) {
+            if ($priceCount > 0 && $quantity >= $priceCount && $pricePay1 > 0) {
+                return $pricePay1;
+            }
+
+            if ($pricePay > 0) {
+                return $pricePay;
+            }
+        }
+
+        return $pricePay > 0 ? $pricePay : $compPay1;
+    }
+
+    private function goodsPricingMetaByPnum(iterable $pnums, string $fid): array
+    {
+        $normalized = collect($pnums)
+            ->map(fn ($pnum) => (string) $pnum)
+            ->filter(fn ($pnum) => $pnum !== '' && $pnum !== '0')
+            ->unique()
+            ->values();
+
+        if ($normalized->isEmpty()) {
+            return [];
+        }
+
+        $goods = DB::table('comp')
+            ->whereIn('id', $normalized)
+            ->where('firma', $fid)
+            ->select('id', 'firma', 'pay', 'pay1')
+            ->get();
+
+        $user = Auth::user();
+        $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
+
+        $goods = Goods::attachPreferredPricesByItemFirma($goods, $tgroupId);
+
+        $meta = [];
+        foreach ($goods as $good) {
+            $meta[(string) $good->id] = [
+                'price_pay' => (float) ($good->price_pay ?? 0),
+                'price_pay1' => (float) ($good->price_pay1 ?? 0),
+                'price_count' => (int) ($good->price_count ?? 0),
+                'comp_pay1' => (float) ($good->pay1 ?? 0),
+                'comp_pay' => (float) ($good->pay ?? 0),
+            ];
+        }
+
+        return $meta;
+    }
+
     private function cloneBodyRowsToChild(string $sourceDocId, string $targetDocId, string $fid, string $docType, string $docNum): void
     {
         if ($sourceDocId === '0' || $targetDocId === '0') {
@@ -45,14 +108,28 @@ class DocumentController extends Controller
             ->orderBy('id')
             ->get();
 
+        $pricingMeta = $this->goodsPricingMetaByPnum($rows->pluck('pnum'), $fid);
+
         foreach ($rows as $row) {
+            $meta = $pricingMeta[(string) $row->pnum] ?? null;
+            $unitPrice = $meta
+                ? $this->resolveGoodsUnitPrice(
+                    $docType,
+                    (float) ($row->pcount ?? 0),
+                    (float) ($meta['price_pay'] ?? 0),
+                    (float) ($meta['price_pay1'] ?? 0),
+                    (int) ($meta['price_count'] ?? 0),
+                    (float) ($meta['comp_pay1'] ?? 0)
+                )
+                : (float) ($row->pprice ?? 0);
+
             ZBody::create([
                 'docnum' => $docNum,
                 'pid' => $row->pid,
                 'pnum' => $row->pnum,
                 'pcount' => $row->pcount,
-                'pprice' => $row->pprice,
-                'psumma' => $row->psumma,
+                'pprice' => $unitPrice,
+                'psumma' => (float) ($row->pcount ?? 0) * $unitPrice,
                 'type' => $docType,
                 'firma' => $fid,
                 'docid' => $targetDocId,
@@ -354,15 +431,25 @@ class DocumentController extends Controller
         $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'RN', 'PN'], true) ? $docId : $parentDocid;
         $lineItems = ZBody::from('z_body as zb')
             ->leftJoin('comp as c', function ($join) {
-            $join->on('zb.pnum', '=', 'c.id')
-                ->on('zb.firma', '=', 'c.firma');
-        })
+                $join->on('zb.pnum', '=', 'c.id')
+                    ->on('zb.firma', '=', 'c.firma');
+            })
             ->where('zb.docid', $docIdToFind)
-            ->select('zb.*', 'c.name as name')
+            ->select('zb.*', 'c.name as name', 'c.pay as comp_pay', 'c.pay1 as comp_pay1')
             ->orderBy('zb.id')
-            ->get()
-            ->map(function ($item) {
-            $item->name = (string)$item->name;
+            ->get();
+
+        $pricingMeta = $this->goodsPricingMetaByPnum($lineItems->pluck('pnum'), $fid);
+
+        $lineItems = $lineItems->map(function ($item) use ($pricingMeta) {
+            $meta = $pricingMeta[(string) $item->pnum] ?? [];
+            $item->name = (string) $item->name;
+            $item->price_pay = (float) ($meta['price_pay'] ?? 0);
+            $item->price_pay1 = (float) ($meta['price_pay1'] ?? 0);
+            $item->price_count = (int) ($meta['price_count'] ?? 0);
+            $item->comp_pay = (float) ($meta['comp_pay'] ?? ($item->comp_pay ?? 0));
+            $item->comp_pay1 = (float) ($meta['comp_pay1'] ?? ($item->comp_pay1 ?? 0));
+
             return $item;
         });
 
