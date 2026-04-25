@@ -213,24 +213,10 @@ class GoodsController extends Controller
             $user?->id
         )
             ->map(function ($g) use ($doc, $locale) {
-                // For ZIN documents (purchase/procurement), use purchase price (comp.pay)
-                // For ZOUT documents (orders), use price.pay by default,
-                // but if quantity >= price.count and price.pay1 > 0, use price.pay1
-                // For other documents, use sales price (comp.pay1 or preferred price)
-                if ($doc === 'ZIN') {
+                if (in_array($doc, ['ZIN', 'PN'], true)) {
                     $price = (float) ($g->pay1 ?? 0);
-                } elseif ($doc === 'ZOUT') {
-                    $basePrice = (float) ($g->price_pay ?? $g->pay ?? 0);
-                    $wholesalePrice = (float) ($g->price_pay1 ?? 0);
-                    $wholesaleThreshold = (int) ($g->price_count ?? 0);
-                    
-                    // For ZOUT: use wholesale price only if threshold is set and wholesale price > 0
-                    // The actual quantity check will be done on frontend
-                    if ($wholesaleThreshold > 0 && $wholesalePrice > 0) {
-                        $price = $wholesalePrice;
-                    } else {
-                        $price = $basePrice;
-                    }
+                } elseif (in_array($doc, ['ZOUT', 'RN'], true)) {
+                    $price = (float) ($g->price_pay ?? $g->pay ?? 0);
                 } else {
                     $price = (float) ($g->price_pay ?? $g->pay1 ?? 0);
                 }
