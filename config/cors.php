@@ -26,7 +26,8 @@ return [
         'http://localhost:3001',
         'http://127.0.0.1:3001',
         'http://localhost:3002',
-        'https://app.autoagent.in.ua',
+        'http://127.0.0.1:3002',
+        'https://autoagent.in.ua',
         'https://av8capital.space',
     ],
 

@@ -16,12 +16,19 @@ use Illuminate\Support\Str;
  */
 class ZakazController extends Controller
 {
+    private function resolveApiFid(Request $request, $default = '2')
+    {
+        return (string) $request->input('fid', $default !== '' ? $default : session('fid', ''));
+    }
+
     // ── Оформить заказ ──────────────────────────────────────────────────────
 
     public function store(Request $request)
     {
+        $fid = $this->resolveApiFid($request, '2');
+
         if ($request->boolean('quick_order')) {
-            return $this->storeQuickOrder($request);
+            return $this->storeQuickOrder($request, $fid);
         }
 
         $validator = Validator::make($request->all(), [
@@ -90,12 +97,12 @@ class ZakazController extends Controller
         $docId = 0;
         $docNum = 0;
 
-        DB::transaction(function () use ($data, $deliveryDescription, $fullDescription, $totalSum, &$docId, &$docNum) {
+        DB::transaction(function () use ($data, $deliveryDescription, $fid, $fullDescription, $totalSum, &$docId, &$docNum) {
             $year = now()->format('Y');
-            $this->withOrderNumberLock(2, $year, function () use ($data, $deliveryDescription, $fullDescription, $totalSum, $year, &$docId, &$docNum) {
+            $this->withOrderNumberLock($fid, $year, function () use ($data, $deliveryDescription, $fid, $fullDescription, $totalSum, $year, &$docId, &$docNum) {
                 $client = DB::table('users')
                     ->where('phone', $data['mobile'])
-                    ->where('firma', 2)
+                    ->where('firma', $fid)
                     ->lockForUpdate()
                     ->first();
 
@@ -110,7 +117,7 @@ class ZakazController extends Controller
                         'phone'       => $data['mobile'],
                         'email'       => $this->buildGuestEmail($data['mobile']),
                         'password'    => Hash::make(Str::random(40)),
-                        'firma'       => 2,
+                        'firma'       => $fid,
                         'user'        => 'autoagent_api',
                         'description' => $deliveryDescription,
                         'domen'       => 'http://autoagent.in.ua',
@@ -134,7 +141,7 @@ class ZakazController extends Controller
                         ]);
                 }
 
-                $docNum = $this->nextOrderNumber(2, $year);
+                $docNum = $this->nextOrderNumber($fid, $year);
                 $dt = now()->format('Y-m-d');
                 $time = now()->format('H:i:s');
 
@@ -149,7 +156,7 @@ class ZakazController extends Controller
                     'data'      => now()->format('d-m-Y'),
                     'time'      => $time,
                     'user'      => 'autoagent_api',
-                    'firma'     => 2,
+                    'firma'     => $fid,
                     'dt'        => strtotime($dt) ?: time(),
                     'numz'      => $docNum,
                     'typez'     => 'ZOUT',
@@ -166,7 +173,7 @@ class ZakazController extends Controller
                         'pprice' => (float) $item['price'],
                         'psumma' => (float) $item['price'] * (int) $item['quantity'],
                         'type'   => 'ZOUT',
-                        'firma'  => 2,
+                        'firma'  => $fid,
                         'docid'  => $docId,
                     ]);
                 }
@@ -190,7 +197,7 @@ class ZakazController extends Controller
         ]);
     }
 
-    private function storeQuickOrder(Request $request)
+    private function storeQuickOrder(Request $request, string $fid)
     {
         $validator = Validator::make($request->all(), [
             'firstname' => 'required|string|max:50',
@@ -210,12 +217,12 @@ class ZakazController extends Controller
         $docId = 0;
         $docNum = 0;
 
-        DB::transaction(function () use ($data, &$docId, &$docNum) {
+        DB::transaction(function () use ($data, $fid, &$docId, &$docNum) {
             $year = now()->format('Y');
-            $this->withOrderNumberLock(2, $year, function () use ($data, $year, &$docId, &$docNum) {
+            $this->withOrderNumberLock($fid, $year, function () use ($data, $fid, $year, &$docId, &$docNum) {
                 $client = DB::table('users')
                     ->where('phone', $data['mobile'])
-                    ->where('firma', 2)
+                    ->where('firma', $fid)
                     ->lockForUpdate()
                     ->first();
 
@@ -230,7 +237,7 @@ class ZakazController extends Controller
                         'phone' => $data['mobile'],
                         'email' => $this->buildGuestEmail($data['mobile']),
                         'password' => Hash::make(Str::random(40)),
-                        'firma' => 2,
+                        'firma' => $fid,
                         'user' => 'autoagent_api',
                         'description' => 'Швидке замовлення номера з головної сторінки',
                         'domen' => 'http://autoagent.in.ua',
@@ -249,7 +256,7 @@ class ZakazController extends Controller
                         ]);
                 }
 
-                $docNum = $this->nextOrderNumber(2, $year);
+                $docNum = $this->nextOrderNumber($fid, $year);
                 $dt = now()->format('Y-m-d');
                 $time = now()->format('H:i:s');
                 $content = 'Швидке замовлення номера. Номер: ' . $data['autonum'] . '. Імʼя: ' . $data['firstname'] . '. Телефон: ' . $data['mobile'];
@@ -265,7 +272,7 @@ class ZakazController extends Controller
                     'data' => now()->format('d-m-Y'),
                     'time' => $time,
                     'user' => 'autoagent_api',
-                    'firma' => 2,
+                    'firma' => $fid,
                     'dt' => strtotime($dt) ?: time(),
                     'numz' => $docNum,
                     'typez' => 'ZOUT',
@@ -343,6 +350,7 @@ class ZakazController extends Controller
 
     public function index(Request $request)
     {
+        $fid = $this->resolveApiFid($request, '2');
         $mobile = $request->input('mobile');
 
         if (!$mobile) {
@@ -354,7 +362,7 @@ class ZakazController extends Controller
 
         $client = DB::table('users')
             ->where('phone', $mobile)
-            ->where('firma', 2)
+            ->where('firma', $fid)
             ->first();
 
         if (!$client) {
