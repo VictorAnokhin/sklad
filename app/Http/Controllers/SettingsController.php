@@ -1300,6 +1300,8 @@ class SettingsController extends Controller
             'name_ua' => 'nullable|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'link' => 'nullable|string|max:35',
+            'foto1' => 'nullable|string|max:255',
+            'foto1_file' => 'nullable|file|max:10240',
             'news_catalog_id' => [
                 'nullable',
                 'integer',
@@ -1365,6 +1367,19 @@ class SettingsController extends Controller
             $payload['news_catalog_id'] = $validated['news_catalog_id'] ?? null;
         } elseif (in_array('nw', $columns, true)) {
             $payload['nw'] = $validated['news_catalog_id'] ?? 0;
+        }
+        if (in_array('foto1', $columns, true)) {
+            $foto1 = trim((string) ($validated['foto1'] ?? ($existing->foto1 ?? '')));
+            if ($request->hasFile('foto1_file')) {
+                $uploadedFile = $request->file('foto1_file');
+                if ($uploadedFile && $uploadedFile->isValid()) {
+                    $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'bin');
+                    $filename = 'cf_' . date('YmdHis') . '_' . substr(uniqid('', true), -8) . '.' . $extension;
+                    $path = $uploadedFile->storeAs('files/catalog', $filename, 'public');
+                    $foto1 = $path ?: $foto1;
+                }
+            }
+            $payload['foto1'] = $foto1;
         }
         if (in_array('visible', $columns, true)) {
             $payload['visible'] = $request->boolean('visible') ? '1' : '0';
@@ -1456,6 +1471,8 @@ class SettingsController extends Controller
             'news_catalog_id' => in_array('news_catalog_id', $fieldColumns, true)
                 ? ($item->news_catalog_id ? (int) $item->news_catalog_id : null)
                 : (in_array('nw', $fieldColumns, true) && (int) ($item->nw ?? 0) > 0 ? (int) $item->nw : null),
+            'foto1' => in_array('foto1', $fieldColumns, true) ? ($item->foto1 ?? '') : '',
+            'foto1_url' => in_array('foto1', $fieldColumns, true) ? MediaUrl::storage((string) ($item->foto1 ?? '')) : null,
             'children_count' => (int) ($childCounts[(string) $item->id] ?? 0),
             'num' => (int) (property_exists($item, 'num') ? ($item->num ?? 0) : 0),
             'visible' => (string) (property_exists($item, 'visible') ? ($item->visible ?? '1') : '1'),

@@ -461,15 +461,21 @@
                     </div>
 
                     <div class="row" id="catalog-description-row">
-                        <div class="col-12 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Link</label>
                             <input type="text" class="form-control" id="catalog-link" maxlength="35" placeholder="slug или ссылка из field.link">
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Статья каталога</label>
                             <select class="form-select" id="catalog-news-catalog">
                                 <option value="">— не выбрано —</option>
                             </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Загрузка файла</label>
+                            <input type="hidden" id="catalog-file-path">
+                            <input type="file" class="form-control" id="catalog-file-upload">
+                            <div class="form-text" id="catalog-file-current">Файл не загружен</div>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Опис RU</label>
@@ -3138,14 +3144,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 name_ua: document.getElementById('catalog-name-ua').value.trim(),
                 name_en: document.getElementById('catalog-name-en').value.trim(),
                 link: document.getElementById('catalog-link').value.trim(),
-                news_catalog_id: document.getElementById('catalog-news-catalog').value || null,
+                news_catalog_id: document.getElementById('catalog-news-catalog').value || '',
+                foto1: document.getElementById('catalog-file-path').value.trim(),
                 num: document.getElementById('catalog-num').value,
-                visible: document.getElementById('catalog-visible').checked,
-                firstpage: document.getElementById('catalog-firstpage').checked,
+                visible: document.getElementById('catalog-visible').checked ? '1' : '0',
+                firstpage: document.getElementById('catalog-firstpage').checked ? '1' : '0',
                 description_ru: document.getElementById('catalog-description-ru').value.trim(),
                 description_ua: document.getElementById('catalog-description-ua').value.trim(),
                 description_en: document.getElementById('catalog-description-en').value.trim(),
             };
+            const formData = new FormData();
+            Object.entries(payload).forEach(([key, value]) => {
+                formData.append(key, value);
+            });
+
+            const fileInput = document.getElementById('catalog-file-upload');
+            if (fileInput.files && fileInput.files[0]) {
+                formData.append('foto1_file', fileInput.files[0]);
+            }
+
+            if (id) {
+                formData.append('_method', 'PUT');
+            }
 
             if (!payload.name_ru) {
                 alert('Вкажіть назву RU');
@@ -3153,12 +3173,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             fetch(id ? `/settings/fields/${id}` : '/settings/fields', {
-                method: id ? 'PUT' : 'POST',
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
-                body: JSON.stringify(payload),
+                body: formData,
             })
             .then(async (r) => {
                 const data = await r.json();
@@ -3236,6 +3255,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const description = fieldModeConfig[currentKeyfield].showExtra ? `
                     <div><strong>Link:</strong> ${escapeHtml(shortText(item.link || '—'))}</div>
                     <div><strong>Статья:</strong> ${escapeHtml(getNewsTitle(item.news_catalog_id))}</div>
+                    <div><strong>Файл:</strong> ${item.foto1_url ? `<a href="${escapeHtml(item.foto1_url)}" target="_blank" rel="noopener noreferrer">Открыть</a>` : '—'}</div>
                     <div>${escapeHtml(shortText(item.description_ru || '—'))}</div>
                     <div class="catalog-meta">UA: ${escapeHtml(shortText(item.description_ua || '—'))}</div>
                     <div class="catalog-meta">EN: ${escapeHtml(shortText(item.description_en || '—'))}</div>
@@ -3310,6 +3330,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('catalog-name-en').value = data.name_en || '';
                     document.getElementById('catalog-link').value = data.link || '';
                     document.getElementById('catalog-news-catalog').value = data.news_catalog_id ? String(data.news_catalog_id) : '';
+                    document.getElementById('catalog-file-path').value = data.foto1 || '';
+                    document.getElementById('catalog-file-upload').value = '';
+                    document.getElementById('catalog-file-current').innerHTML = data.foto1_url
+                        ? `Текущий файл: <a href="${escapeHtml(data.foto1_url)}" target="_blank" rel="noopener noreferrer">Открыть</a>`
+                        : 'Файл не загружен';
                     document.getElementById('catalog-num').value = data.num ?? 0;
                     document.getElementById('catalog-visible').checked = String(data.visible ?? '1') === '1';
                     document.getElementById('catalog-firstpage').checked = String(data.firstpage ?? '0') === '1';
@@ -3384,6 +3409,9 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('catalog-parent-id').value = currentKeyfield === 'catalog' ? currentParentId : '0';
             document.getElementById('catalog-link').value = '';
             document.getElementById('catalog-news-catalog').value = '';
+            document.getElementById('catalog-file-path').value = '';
+            document.getElementById('catalog-file-upload').value = '';
+            document.getElementById('catalog-file-current').textContent = 'Файл не загружен';
             document.getElementById('catalog-num').value = '0';
             document.getElementById('catalog-visible').checked = true;
             document.getElementById('catalog-firstpage').checked = false;
