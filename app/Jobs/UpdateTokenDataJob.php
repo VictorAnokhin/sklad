@@ -10,7 +10,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 
 class UpdateTokenDataJob implements ShouldQueue
 {
@@ -62,21 +61,6 @@ class UpdateTokenDataJob implements ShouldQueue
 
             $balance = (float) data_get($asset, 'balance', 0);
             $price = (float) data_get($asset, 'price', 0);
-
-            if ($price <= 0) {
-                $cgId = $token->constanta;
-                if ($cgId && $cgId !== '0') {
-                    try {
-                        $response = Http::get("https://api.coingecko.com/api/v3/simple/price?ids={$cgId}&vs_currencies=usd");
-                        if ($response->successful()) {
-                            $data = $response->json();
-                            $price = (float) ($data[$cgId]['usd'] ?? 0);
-                        }
-                    } catch (\Throwable $exception) {
-                        report($exception);
-                    }
-                }
-            }
 
             $token->update([
                 'last_balance' => $balance,

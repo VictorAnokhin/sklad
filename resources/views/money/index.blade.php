@@ -106,20 +106,20 @@
     @endif
     @else
     <div class="money-summary">
-        <div class="glass-card money-summary__card">
-            <div class="money-summary__icon">📥</div>
+            <div class="glass-card money-summary__card">
+                <div class="money-summary__icon">📥</div>
             <div class="money-summary__label">{{ __('money.summary_income') }}</div>
-            <div class="money-summary__value money-summary__value--income">{{ number_format($sumPO ?? 0, 2, '.', ' ') }} грн</div>
+            <div class="money-summary__value money-summary__value--income">{{ number_format($sumPPO ?? 0, 2, '.', ' ') }} грн</div>
         </div>
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">📤</div>
             <div class="money-summary__label">{{ __('money.summary_outcome') }}</div>
-            <div class="money-summary__value money-summary__value--expense">{{ number_format($sumRO ?? 0, 2, '.', ' ') }} грн</div>
+            <div class="money-summary__value money-summary__value--expense">{{ number_format($sumPRO ?? 0, 2, '.', ' ') }} грн</div>
         </div>
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">💰</div>
             <div class="money-summary__label">{{ __('money.summary_balance') }}</div>
-            <div class="money-summary__value money-summary__value--income">{{ number_format(($sumPO ?? 0) - ($sumRO ?? 0), 2, '.', ' ') }} грн</div>
+            <div class="money-summary__value money-summary__value--income">{{ number_format($userBalance ?? 0, 2, '.', ' ') }} грн</div>
         </div>
     </div>
 
@@ -140,7 +140,7 @@
                 'return_date_to' => $returnFilters['date_to'] ?? null,
                 'return_pos' => $returnFilters['pos'] ?? null,
             ]));
-            $isIncome = $doc->type === 'PO';
+            $isIncome = $doc->type === 'PPO';
             $typeBg = $isIncome ? '#28a745' : '#dc3545';
             $typeIcon = $isIncome ? '📥' : '📤';
             $typeLabel = $isIncome ? __('money.filter_income') : __('money.filter_outcome');
@@ -171,8 +171,7 @@
                 <a href="{{ $linkUrl }}" class="title">
                     <span class="compact-client-line compact-main">{{ $clientName !== '' ? $clientName : '—' }}</span>
                     <span class="compact-client-line city text-muted">
-                        {{ __('money.filter_cashbox') }}: {{ $cashboxName }}
-                        | {{ __('money.filter_payment_type') }}: {{ $paymentTypeName }}
+                        {{ __('money.filter_payment_type') }}: {{ $paymentTypeName }}
                     </span>
                     @if($doc->phone)<span class="phone">{{ $doc->phone }}</span>@endif
                 </a>
@@ -222,8 +221,8 @@
                     <label>{{ __('money.filter_type') }}</label>
                     <select name="type" class="form-control">
                         <option value="">{{ __('money.filter_all_types') }}</option>
-                        <option value="PO" {{ ($filters['type'] ?? '') === 'PO' ? 'selected' : '' }}>{{ __('money.filter_income') }}</option>
-                        <option value="RO" {{ ($filters['type'] ?? '') === 'RO' ? 'selected' : '' }}>{{ __('money.filter_outcome') }}</option>
+                        <option value="PPO" {{ ($filters['type'] ?? '') === 'PPO' ? 'selected' : '' }}>{{ __('money.filter_income') }}</option>
+                        <option value="PRO" {{ ($filters['type'] ?? '') === 'PRO' ? 'selected' : '' }}>{{ __('money.filter_outcome') }}</option>
                     </select>
                 </div>
                 @endif

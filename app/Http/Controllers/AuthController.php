@@ -41,6 +41,15 @@ class AuthController extends Controller
     {
         $fid = session('fid', '');
         $today = now()->format('d-m-Y');
+        $currentUserId = (int) (Auth::id() ?: session('userid', 0));
+        $currentUserBalance = 0.0;
+
+        if ($currentUserId > 0) {
+            $currentUserBalance = (float) DB::table('users')
+                ->where('id', $currentUserId)
+                ->when($fid !== '', fn ($query) => $query->where('firma', $fid))
+                ->value('balance');
+        }
 
         $cashboxes = DB::table('conf')
             ->where('type', 'oplata')
@@ -70,7 +79,7 @@ class AuthController extends Controller
             ->limit(20)
             ->get();
 
-        return view('dashboard', compact('cashboxes', 'dailyIncome', 'newOrders', 'today'));
+        return view('dashboard', compact('cashboxes', 'dailyIncome', 'newOrders', 'today', 'currentUserBalance'));
     }
 
     public function showRegister()

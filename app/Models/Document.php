@@ -261,11 +261,14 @@ class Document extends Model
         $paid = DB::table('z_document')
             ->where('client1', $id)->where('firma', $fid)->where('type', 'PO')
             ->where('provodka', 1)->sum('summa');
+        $salary = DB::table('z_document')
+            ->where('client1', $id)->where('firma', $fid)->where('type', 'ZP')
+            ->where('provodka', 1)->sum('summa');
 
         return [
             'debt' => (float)$zout,
-            'paid' => (float)$paid,
-            'balance' => (float)$paid - (float)$zout,
+            'paid' => (float)$paid + (float)$salary,
+            'balance' => (float)$paid + (float)$salary - (float)$zout,
         ];
     }
 
@@ -431,6 +434,44 @@ class Document extends Model
                 }
             }
 
+            if ($docType === 'ZP') {
+                $kasId = $oplata;
+                $confColumns = Schema::getColumnListing('conf');
+                $cashDelta = -1 * $summa * $direction;
+
+                if (trim($kasId) === '') {
+                    throw new \RuntimeException('Для проводки зарплати потрібно вибрати касу.');
+                }
+
+                if (in_array('value', $confColumns, true)) {
+                    $currentValue = (float) DB::table('conf')
+                        ->where('id', $kasId)
+                        ->where('type', 'oplata')
+                        ->where('firma', $fid)
+                        ->value('value');
+
+                    DB::table('conf')
+                        ->where('id', $kasId)
+                        ->where('type', 'oplata')
+                        ->where('firma', $fid)
+                        ->update(['value' => $currentValue + $cashDelta]);
+                } else {
+                    self::applyColumnDelta(
+                        DB::table('kassa')->where('id', $kasId),
+                        'balance',
+                        $cashDelta
+                    );
+                }
+
+                if ($client1 !== '' && $client1 !== '0') {
+                    self::applyColumnDelta(
+                        DB::table('users')->where('id', $client1)->where('firma', $fid),
+                        'balance',
+                        $summa * $direction
+                    );
+                }
+            }
+
             app(AccountingService::class)->createDocumentTransaction(
                 "{$table}:{$docType}",
                 $docId,
@@ -584,7 +625,10 @@ class Document extends Model
         $paid = DB::table('z_document')
             ->where('client1', $userId)->where('firma', $fid)
             ->where('type', 'PO')->where('provodka', 1)->sum('summa');
-        $balance = (float) $paid - (float) $zout;
+        $salary = DB::table('z_document')
+            ->where('client1', $userId)->where('firma', $fid)
+            ->where('type', 'ZP')->where('provodka', 1)->sum('summa');
+        $balance = (float) $paid + (float) $salary - (float) $zout;
 
         DB::table('users_cashe')->updateOrInsert(
             ['userid' => $userId],

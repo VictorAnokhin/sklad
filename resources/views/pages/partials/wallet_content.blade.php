@@ -114,7 +114,7 @@
                     <h4 style="font-size: 1.05rem; color: rgba(255,255,255,0.9); font-weight: 600; margin: 0;">Assets</h4>
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <button id="btn-refresh-tokens" style="background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.3); color: #fbbf24; border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;">Обновить</button>
-                        <span style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">Native + Network</span>
+                        <span style="font-size: 0.85rem; color: rgba(255,255,255,0.5);">Only settings tokens</span>
                     </div>
                 </div>
                 <div id="rabby-tokens-list" style="padding: 0 1rem 1rem;">
@@ -330,55 +330,9 @@
         ? 'https://cryptologos.cc/logos/solana-sol-logo.svg'
         : 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
       price: 0,
-      cgId: (t.constanta && t.constanta !== '0') ? t.constanta : null,
       chain_id: chainId,
     });
   });
-
-  const cgIdsToFetch = new Set();
-  const nativeCoinMaps = {
-    '0x1': 'ethereum',
-    '0x38': 'binancecoin',
-    '0x89': 'matic-network',
-    '0xa4b1': 'ethereum',
-    '0xa': 'ethereum',
-    '0x2105': 'ethereum',
-    '0xa86a': 'avalanche-2',
-    'solana': 'solana'
-  };
-
-  Object.values(nativeCoinMaps).forEach(id => cgIdsToFetch.add(id));
-  dbTokens.forEach(t => {
-    if (t.constanta && t.constanta !== '0') cgIdsToFetch.add(t.constanta);
-  });
-
-  if (cgIdsToFetch.size > 0) {
-    const idsStr = Array.from(cgIdsToFetch).join(',');
-    fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${idsStr}&vs_currencies=usd`)
-      .then(r => r.json())
-      .then(prices => {
-        Object.keys(nativeCoinMaps).forEach(chainId => {
-          const cgId = nativeCoinMaps[chainId];
-          if (prices[cgId] && prices[cgId].usd && COMMON_NETWORKS[chainId]?.native) {
-            COMMON_NETWORKS[chainId].native.price = prices[cgId].usd;
-          }
-        });
-
-        Object.values(COMMON_NETWORKS).forEach(net => {
-          if (!net.tokens) return;
-          net.tokens.forEach(tk => {
-            if (tk.cgId && prices[tk.cgId] && prices[tk.cgId].usd) {
-              tk.price = prices[tk.cgId].usd;
-            }
-          });
-        });
-
-        if (currentWalletAddress && document.getElementById('wallet-main-view').style.display !== 'none') {
-          fetchBalances(currentWalletAddress, selectedProtocolChainId);
-        }
-      })
-      .catch(e => console.error('Coingecko price fetch error:', e));
-  }
 
   async function getErc20Balance(tokenAddress, decimals, walletAddress) {
     try {
@@ -697,20 +651,34 @@
     syncNetworkSelector(chainId);
     const networkCfg = COMMON_NETWORKS[chainId] || COMMON_NETWORKS['0x1'];
     const assets = Array.isArray(overview.assets.assets) ? overview.assets.assets : [];
+
+    if (assets.length === 0) {
+      currentWalletTokens = [];
+      rabbyTokensList.innerHTML = `
+        <div class="text-center py-4" style="color: rgba(255,255,255,0.58);">
+          ${dbTokens.length === 0
+            ? 'В Settings → Web3 не выбраны токены для отображения.'
+            : 'Для выбранной сети нет токенов из Settings или по ним нулевой баланс.'}
+        </div>
+      `;
+      renderProtocolSections(chainId === 'solana' ? null : (overview.protocols || null));
+      rabbyTotalFiat.textContent = '0.00';
+      return;
+    }
+
     const tokensToShow = assets.map((asset) => {
       const configuredToken = asset.address
         ? networkCfg.tokens.find((token) => chainId === 'solana'
             ? String(token.address) === String(asset.address)
             : String(token.address).toLowerCase() === String(asset.address).toLowerCase())
         : null;
-      const nativeToken = asset.is_native ? networkCfg.native : null;
 
       return {
-        symbol: asset.symbol || configuredToken?.symbol || nativeToken?.symbol || 'TOKEN',
-        name: asset.name || configuredToken?.name || nativeToken?.name || 'Token',
+        symbol: asset.symbol || configuredToken?.symbol || 'TOKEN',
+        name: asset.name || configuredToken?.name || 'Token',
         balance: Number(asset.balance || 0),
-        price: Number(asset.price || configuredToken?.price || nativeToken?.price || 0),
-        iconUrl: configuredToken?.iconUrl || nativeToken?.iconUrl || 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
+        price: Number(asset.price || configuredToken?.price || 0),
+        iconUrl: configuredToken?.iconUrl || 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
         address: asset.address || configuredToken?.address || null,
         decimals: asset.decimals ?? configuredToken?.decimals ?? 18,
         isNative: Boolean(asset.is_native)
@@ -724,10 +692,9 @@
     tokensToShow.forEach(t => {
       const fiatValue = t.balance * (t.price || 0);
       totalFiat += fiatValue;
-      if (t.balance === 0 && tokensToShow.length > 1 && t.isNative) return;
 
       const priceText = t.price ? `$${t.price.toFixed(4)}` : 'Цена не загружена';
-      const addressText = t.address ? shortenAddress(t.address) : 'Native asset';
+      const addressText = t.address ? shortenAddress(t.address) : 'Token';
       listHtml += `
         <div class="token-row" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0.5rem; border-radius: 12px; transition: background 0.2s; cursor: pointer;">
             <div style="display: flex; align-items: center; gap: 12px;">

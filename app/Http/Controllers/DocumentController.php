@@ -471,7 +471,7 @@ class DocumentController extends Controller
         // Load all oplata and reestr options for PO/RO dropdowns
         $oplataList = collect();
         $reestrList = collect();
-        if (in_array($doc, ['PO', 'RO'], true)) {
+        if (in_array($doc, ['PO', 'RO', 'ZP'], true)) {
             $oplataList = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
             $reestrList = ConfModel::paymentTypesForDocument($fid, $doc);
         }
@@ -694,6 +694,7 @@ class DocumentController extends Controller
             'Отримання товару' => 'PN', 'Получение товара' => 'PN',
             'Отримання грошей' => 'PO', 'Получение денег' => 'PO',
             'Видача грошей' => 'RO', 'Выдача денег' => 'RO',
+            'Видати ЗП' => 'ZP', 'Выдать ЗП' => 'ZP',
             'Додати фото' => 'RA', 'Добавить фото' => 'RA',
         ];
 
@@ -729,7 +730,7 @@ class DocumentController extends Controller
                 }
             }
 
-            $summaPO = in_array($docType, ['PO', 'RO'], true) ? (float)$request->input('sumPO', 0) : 0.0;
+            $summaPO = in_array($docType, ['PO', 'RO', 'ZP'], true) ? (float)$request->input('sumPO', 0) : 0.0;
             $client1 = session('client1', '0');
             $client2 = session('client2', '0');
             $numz = session('numz', '0');
@@ -813,7 +814,7 @@ class DocumentController extends Controller
                 $errors['status'] = 'Оберіть статус';
             }
 
-            if (in_array($doc, ['PO', 'RO'], true)) {
+            if (in_array($doc, ['PO', 'RO', 'ZP'], true)) {
                 if (trim((string) $request->input('oplata', '')) === '') {
                     $errors['oplata'] = 'Оберіть касу';
                 }
@@ -854,7 +855,7 @@ class DocumentController extends Controller
                     'docId' => $docId,
                 ]);
 
-                $conductableDocs = ['RN', 'PN', 'PO', 'RO', 'VN', 'AO', 'WO1'];
+                $conductableDocs = ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'];
                 $message = 'Збережено';
 
                 if (in_array($doc, $conductableDocs, true)) {

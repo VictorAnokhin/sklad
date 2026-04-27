@@ -20,7 +20,10 @@ class PanelComposer
     public function compose(View $view): void
     {
         $idstatus = (int) session('idstatus', 0);
-        $currentDoc = session('doc', '');
+        $viewDoc = $view->getData()['doc'] ?? null;
+        $currentDoc = is_string($viewDoc) && $viewDoc !== ''
+            ? $viewDoc
+            : (string) request()->input('doc', session('doc', ''));
         $num = session('num', '0');
         $currentReport = match (true) {
             request()->routeIs('reports.sales') => 'sales',

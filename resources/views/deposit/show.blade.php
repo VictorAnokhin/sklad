@@ -15,16 +15,30 @@
         default => __('deposit.op_topup'),
     };
     $topLabel = match ($mode) {
-        'withdraw' => __('deposit.top_account_deposit'),
-        default => __('deposit.top_account_cash'),
+        'withdraw' => 'Выбери депозит',
+        default => '',
     };
     $bottomLabel = match ($mode) {
-        'withdraw' => __('deposit.bottom_account_cash'),
-        default => __('deposit.bottom_account_deposit'),
+        'withdraw' => 'Ваш баланс',
+        default => 'Выбери депозит',
     };
+    $selectedOwnerBalance = (float) ($document->owner_balance ?? 0);
+    $authorName = trim(implode(' ', array_filter([
+        $document->owner_orgname ?? '',
+        $document->owner_secondname ?? '',
+        $document->owner_name ?? '',
+        $document->owner_fathername ?? '',
+    ])));
+    $currentUserId = (string) (\Illuminate\Support\Facades\Auth::id() ?: session('userid', '0'));
+    $isDocumentOwner = (string) ($document->client2 ?? '') !== '' && (string) ($document->client2 ?? '') === $currentUserId;
     @endphp
 
     <h3 style="color:#b45309;">🏦 {{ $heading }} @if(!$isNew) № {{ $document->num }} @endif</h3>
+    @if($isDocumentOwner)
+    <div class="text-muted mb-3">Ваш баланс: {{ number_format($selectedOwnerBalance, 2, '.', ' ') }}</div>
+    @elseif($authorName !== '')
+    <div class="text-muted mb-3">Автор: {{ $authorName }}</div>
+    @endif
 
     @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
@@ -59,9 +73,11 @@
             </div>
         </div>
 
-        <div class="glass-card" style="margin-bottom:12px; border:1px solid rgba(180, 83, 9, 0.15);">
+        @if($mode === 'withdraw')
+        <div class="glass-card" style="margin-bottom:16px; border:1px solid rgba(180, 83, 9, 0.15);">
+            @if($topLabel !== '')
             <div style="font-size:0.82rem; text-transform:uppercase; letter-spacing:0.08em; color:#92400e; margin-bottom:8px;">{{ $topLabel }}</div>
-            @if($mode === 'withdraw')
+            @endif
             <select name="money" class="form-control" required>
                 <option value="">{{ __('deposit.select_deposit') }}</option>
                 @foreach($deposits as $deposit)
@@ -70,23 +86,12 @@
                 </option>
                 @endforeach
             </select>
-            @else
-            <select name="oplata" class="form-control" required>
-                <option value="">{{ __('deposit.select_cash') }}</option>
-                @foreach($oplatas as $oplata)
-                <option value="{{ $oplata->id }}" {{ (string) old('oplata', $document->oplata ?? '') === (string) $oplata->id ? 'selected' : '' }}>
-                    {{ $oplata->name }} @if(isset($oplata->value)) | {{ number_format((float) $oplata->value, 2, '.', ' ') }} @endif
-                </option>
-                @endforeach
-            </select>
-            @endif
         </div>
+        @endif
 
-        <div style="text-align:center; font-size:1.6rem; color:#b45309; margin:6px 0 12px;">↓</div>
-
+        @if($mode === 'topup')
         <div class="glass-card" style="margin-bottom:16px; border:1px solid rgba(180, 83, 9, 0.15);">
             <div style="font-size:0.82rem; text-transform:uppercase; letter-spacing:0.08em; color:#92400e; margin-bottom:8px;">{{ $bottomLabel }}</div>
-            @if($mode === 'topup')
             <select name="money" class="form-control" required>
                 <option value="">{{ __('deposit.select_deposit') }}</option>
                 @foreach($deposits as $deposit)
@@ -95,17 +100,8 @@
                 </option>
                 @endforeach
             </select>
-            @else
-            <select name="oplata2" class="form-control" required>
-                <option value="">{{ __('deposit.select_cash') }}</option>
-                @foreach($oplatas as $oplata)
-                <option value="{{ $oplata->id }}" {{ (string) old('oplata2', $document->oplata2 ?? '') === (string) $oplata->id ? 'selected' : '' }}>
-                    {{ $oplata->name }} @if(isset($oplata->value)) | {{ number_format((float) $oplata->value, 2, '.', ' ') }} @endif
-                </option>
-                @endforeach
-            </select>
-            @endif
         </div>
+        @endif
 
         <div class="mb-3">
             <label>{{ __('deposit.comment') }}</label>

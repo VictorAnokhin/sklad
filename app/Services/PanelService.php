@@ -25,7 +25,7 @@ class PanelService
         $financialReportTabs = [];
         $strategicReportTabs = [];
         $salesDocs = ['ZOUT', 'CH', 'RN', 'PO', 'RA'];
-        $managerDocs = ['ZIN', 'PN', 'RO', 'PP', 'VN'];
+        $managerDocs = ['ZIN', 'PN', 'RO', 'PP', 'VN', 'ZP'];
         $productionDocs = ['WO1', 'SP'];
 
         $isSalesContext = in_array($currentDoc, $salesDocs, true);
@@ -52,6 +52,7 @@ class PanelService
                 $this->makeTab('ZIN', __('document.tabs.purchases'), 'icon-order.png', $currentDoc),
                 $this->makeTab('PN', __('document.tabs.goods_receipt'), 'icon-packing.png', $currentDoc),
                 $this->makeTab('RO', __('document.tabs.money_expense'), 'icon-business.png', $currentDoc),
+                $this->makeTab('ZP', __('document.tabs.salary_issue'), 'icon-business.png', $currentDoc),
                 $this->makeTab('PP', __('document.tabs.deposits'), 'icon-wallet-income.png', $currentDoc),
                 $this->makeTab('VN', __('document.tabs.returns'), 'icon-naryad.png', $currentDoc),
             ];

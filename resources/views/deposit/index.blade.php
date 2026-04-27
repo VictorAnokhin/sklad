@@ -69,6 +69,7 @@
                 'withdraw' => $oplataMap[$doc->oplata2 ?? ''] ?? ($doc->oplata2 ?: '—'),
                 default => $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—'),
             };
+            $depositLabel = $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—');
             $linkUrl = route('deposit.show', ['id' => $doc->id]);
         @endphp
         <div class="txtbox-price-docs">
@@ -86,8 +87,7 @@
             </div>
             <div class="captionbox-docs">
                 <a href="{{ $linkUrl }}" class="title">
-                    <span class="compact-client-line compact-main">{{ $fromLabel }}</span>
-                    <span class="compact-client-line city text-muted">→ {{ $toLabel }}</span>
+                    <span class="compact-client-line compact-main">{{ $depositLabel }}</span>
                 </a>
             </div>
             <div class="status-docs3" style="background:{{ $modeBg }}; color:#fff;">

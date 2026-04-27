@@ -26,6 +26,53 @@ class ZerionWalletService
         'solana' => 'solana',
     ];
 
+    private const REVERSE_CHAIN_MAP = [
+        'ethereum' => '0x1',
+        'binance-smart-chain' => '0x38',
+        'polygon' => '0x89',
+        'optimism' => '0xa',
+        'base' => '0x2105',
+        'arbitrum' => '0xa4b1',
+        'avalanche' => '0xa86a',
+        'solana' => 'solana',
+    ];
+
+    public function searchFungibles(string $query, string|int|null $chainId = null, int $limit = 10): array
+    {
+        $normalizedChainId = $this->normalizeWalletChainId($chainId);
+        $chainSlug = $this->resolveChainSlug($normalizedChainId);
+
+        if (! $this->isConfigured()) {
+            return [];
+        }
+
+        if ($normalizedChainId !== null && $chainSlug === null) {
+            return [];
+        }
+
+        try {
+            $response = $this->http()->get('/fungibles/', array_filter([
+                'currency' => 'usd',
+                'filter[search_query]' => trim($query),
+                'filter[implementation_chain_id]' => $chainSlug,
+                'sort' => '-market_data.market_cap',
+            ], fn ($value) => $value !== null && $value !== ''));
+
+            $payload = $response->throw()->json();
+
+            return collect((array) data_get($payload, 'data', []))
+                ->map(fn (array $item) => $this->mapSearchFungible($item, $normalizedChainId))
+                ->filter()
+                ->take(max(1, $limit))
+                ->values()
+                ->all();
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return [];
+        }
+    }
+
     public function loadAssets(string $address, string|int|null $chainId, array $configuredTokens = []): array
     {
         $normalizedChainId = $this->normalizeWalletChainId($chainId);
@@ -57,28 +104,26 @@ class ZerionWalletService
                     ->filter(fn (?array $asset) => $asset !== null)
                     ->values();
 
-                if ($configuredTokens !== []) {
-                    $allowedAddresses = collect($configuredTokens)
-                        ->map(function ($token) use ($chainSlug) {
-                            $tokenChainSlug = $this->resolveChainSlug(Conf::normalizeWeb3ChainIdToHex($token->vision ?? null));
-                            $tokenAddress = strtolower(trim((string) ($token->color ?? '')));
+                $allowedAddresses = collect($configuredTokens)
+                    ->map(function ($token) use ($chainSlug) {
+                        $tokenChainSlug = $this->resolveChainSlug(Conf::normalizeWeb3ChainIdToHex($token->vision ?? null));
+                        $tokenAddress = strtolower(trim((string) ($token->color ?? '')));
 
-                            if ($tokenChainSlug !== $chainSlug || $tokenAddress === '') {
-                                return null;
-                            }
+                        if ($tokenChainSlug !== $chainSlug || $tokenAddress === '') {
+                            return null;
+                        }
 
-                            return $tokenAddress;
-                        })
-                        ->filter()
-                        ->values()
-                        ->all();
+                        return $tokenAddress;
+                    })
+                    ->filter()
+                    ->values()
+                    ->all();
 
+                if ($configuredTokens === []) {
+                    $assets = collect();
+                } else {
                     $assets = $assets
                         ->filter(function (array $asset) use ($allowedAddresses) {
-                            if (($asset['is_native'] ?? false) === true) {
-                                return true;
-                            }
-
                             $address = strtolower((string) ($asset['address'] ?? ''));
 
                             return $address !== '' && in_array($address, $allowedAddresses, true);
@@ -99,6 +144,56 @@ class ZerionWalletService
 
             return $this->emptyAssets($normalizedAddress, $normalizedChainId, $this->humanizeApiError($exception));
         }
+    }
+
+    private function mapSearchFungible(array $item, ?string $preferredChainId = null): ?array
+    {
+        $implementations = collect((array) data_get($item, 'attributes.implementations', []))
+            ->map(function (array $implementation) {
+                $hexChainId = $this->resolveHexChainId((string) data_get($implementation, 'chain_id', ''));
+                $address = trim((string) data_get($implementation, 'address', ''));
+
+                if ($hexChainId === null || $address === '') {
+                    return null;
+                }
+
+                return [
+                    'chain_id' => $hexChainId,
+                    'address' => $address,
+                    'decimals' => (int) data_get($implementation, 'decimals', $hexChainId === 'solana' ? 9 : 18),
+                ];
+            })
+            ->filter();
+
+        if ($preferredChainId !== null) {
+            $implementations = $implementations->where('chain_id', $preferredChainId)->values();
+        } else {
+            $implementations = $implementations->values();
+        }
+
+        if ($implementations->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'id' => (string) data_get($item, 'id', ''),
+            'symbol' => (string) data_get($item, 'attributes.symbol', ''),
+            'name' => (string) data_get($item, 'attributes.name', ''),
+            'icon_url' => data_get($item, 'attributes.icon.url'),
+            'price' => (float) (
+                data_get($item, 'attributes.market_data.price')
+                ?? data_get($item, 'attributes.market_data.price.last')
+                ?? 0
+            ),
+            'implementations' => $implementations->all(),
+        ];
+    }
+
+    private function resolveHexChainId(string $chainSlug): ?string
+    {
+        $normalized = strtolower(trim($chainSlug));
+
+        return self::REVERSE_CHAIN_MAP[$normalized] ?? null;
     }
 
     public function loadProtocols(string $address, string|int|null $chainId): array

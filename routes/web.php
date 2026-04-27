@@ -15,6 +15,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TaxReceiptController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\WalletController;
 
 /*
@@ -59,12 +60,18 @@ Route::get('/about', function () {
         : collect();
     return view('pages.about', compact('projects'));
 })->name('about');
+Route::get('/team', [TeamController::class, 'index'])->name('team');
 Route::get('/wallet', [WalletController::class, 'page'])->name('wallet');
 Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name('wallet.swap-window');
 
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
+    Route::prefix('team')->name('team.')->group(function () {
+        Route::get('/show', [TeamController::class, 'show'])->name('show');
+        Route::post('/save', [TeamController::class, 'save'])->name('save');
+        Route::post('/delete', [TeamController::class, 'destroy'])->name('destroy');
+    });
     Route::post('/wallet/challenge', [AuthController::class, 'web3LinkChallenge'])->name('wallet.challenge');
     Route::post('/wallet/link', [AuthController::class, 'linkWallet'])->name('wallet.link');
     Route::post('/wallet/unlink', [AuthController::class, 'unlinkWallet'])->name('wallet.unlink');
@@ -207,6 +214,7 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/sitemap/generate', [SettingsController::class, 'sitemapGenerate'])->name('sitemap.generate');
 
             // Async API
+            Route::get('/api/web3-token-search', [SettingsController::class, 'web3TokenSearch'])->name('api.web3-token-search');
             Route::get('/api/{type}', [SettingsController::class , 'apiIndex'])->name('api.index');
             Route::get('/api/{type}/{id}', [SettingsController::class , 'apiShow'])->name('api.show');
             Route::post('/api', [SettingsController::class , 'apiStore'])->name('api.store');

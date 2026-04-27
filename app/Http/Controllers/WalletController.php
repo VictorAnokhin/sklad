@@ -73,13 +73,15 @@ class WalletController extends Controller
 
         abort_unless($address, 422, 'Wallet address is required.');
 
+        $configuredTokens = $this->web3TokensQuery()->get()->all();
+
         return response()->json([
             'wallet' => [
                 'address' => strtolower($address),
                 'chain_id' => $chainId,
                 'source' => $profileWallet ? 'profile' : 'request',
             ],
-            'assets' => $this->protocolService->loadAssets($address, $chainId),
+            'assets' => $this->protocolService->loadAssets($address, $chainId, $configuredTokens),
             'protocols' => $this->protocolService->load($address, $chainId),
         ]);
     }

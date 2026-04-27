@@ -113,15 +113,28 @@
     </form>
     @else
     @php
-        $type = request('type', $document->type ?? 'PO');
-        $isPO = $type === 'PO';
-        $selectedCashboxId = old('money', $document->effective_cashbox_id ?? $document->money ?? $document->oplata ?? '');
+        $type = request('type', $document->type ?? 'PPO');
+        $isPO = $type === 'PPO';
+        $selectedOwnerBalance = (float) ($document->owner_balance ?? 0);
+        $currentUserId = (string) (\Illuminate\Support\Facades\Auth::id() ?: session('userid', '0'));
+        $isDocumentOwner = (string) ($document->client2 ?? '') !== '' && (string) ($document->client2 ?? '') === $currentUserId;
+        $authorName = trim(implode(' ', array_filter([
+            $document->owner_orgname ?? '',
+            $document->owner_secondname ?? '',
+            $document->owner_name ?? '',
+            $document->owner_fathername ?? '',
+        ])));
     @endphp
 
     <h3 style="color:{{ $isPO ? 'green' : 'red' }};">
         {{ $isPO ? '📥 ' . __('money.heading_income') : '📤 ' . __('money.heading_outcome') }}
         @if(!$isNew) № {{ $document->num }} @endif
     </h3>
+    @if($isDocumentOwner)
+    <div class="text-muted mb-3">Ваш баланс: {{ number_format($selectedOwnerBalance, 2, '.', ' ') }}</div>
+    @elseif($authorName !== '')
+    <div class="text-muted mb-3">Автор: {{ $authorName }}</div>
+    @endif
 
     <form action="{{ route('money.save') }}" method="post">
         @csrf
@@ -140,20 +153,6 @@
             <div class="col-md-4 mb-3">
                 <label>{{ __('money.field_date') }}</label>
                 <input type="date" name="data" class="form-control" value="{{ $documentDateValue }}" placeholder="{{ __('money.date_placeholder') }}">
-            </div>
-            <div class="col-md-4 mb-3">
-                <label>{{ __('money.field_cashbox') }}</label>
-                <select name="money" class="form-control" required>
-                    <option value="">{{ __('money.select_cashbox') }}</option>
-                    @foreach($kassas as $kassa)
-                    <option value="{{ $kassa->id }}" {{ (string)$selectedCashboxId === (string)$kassa->id ? 'selected' : '' }}>
-                        {{ $kassa->name }}
-                    </option>
-                    @endforeach
-                </select>
-                @error('money')
-                <div class="text-danger small mt-1">{{ $message }}</div>
-                @enderror
             </div>
             <div class="col-md-4 mb-3">
                 <label>{{ __('money.field_payment_type') }}</label>

@@ -8,6 +8,7 @@ use App\Models\Firma;
 use App\Models\News;
 use App\Models\Project;
 use App\Models\Settings;
+use App\Services\ZerionWalletService;
 use App\Services\SitemapService;
 use App\Support\MediaUrl;
 use App\Models\User;
@@ -278,6 +279,22 @@ class SettingsController extends Controller
 
         DB::table('conf')->where('id', $id)->delete();
         return response()->json(['success' => true]);
+    }
+
+    public function web3TokenSearch(Request $request, ZerionWalletService $zerionWalletService)
+    {
+        $validated = $request->validate([
+            'query' => ['required', 'string', 'min:2', 'max:66'],
+            'chain_id' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        return response()->json(
+            $zerionWalletService->searchFungibles(
+                $validated['query'],
+                $validated['chain_id'] ?? null,
+                10
+            )
+        );
     }
 
     public function accountsIndex()

@@ -125,7 +125,10 @@ class AccountingService
 
         return match ($docType) {
             'PO' => $this->entriesForMoneyReceipt($document, $fid),
+            'PPO' => $this->entriesForMoneyReceipt($document, $fid),
             'RO' => $this->entriesForMoneyIssue($document, $fid),
+            'PRO' => $this->entriesForMoneyIssue($document, $fid),
+            'ZP' => $this->entriesForMoneyIssue($document, $fid),
             'PP' => $this->entriesForDepositOperation($document, $fid),
             'PN' => $this->entriesForPurchaseInvoice($document, $fid),
             'RN' => $this->entriesForSalesInvoice($document, $lineItems, $fid),

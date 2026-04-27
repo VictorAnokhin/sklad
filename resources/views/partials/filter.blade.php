@@ -1,5 +1,5 @@
 @php
-  $doc    = session('doc', '');
+  $doc    = $doc ?? session('doc', '');
   $fid    = session('fid', '');
   $num    = session('num', '0');
   $fd     = $fd ?? app(\App\Services\FilterService::class)->resolve($doc, $fid);

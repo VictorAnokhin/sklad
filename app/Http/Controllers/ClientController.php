@@ -57,16 +57,18 @@ class ClientController extends Controller
 
         $fid = session('fid', '');
         $qBase = $q;
+        $teamOnly = $request->boolean('team_only');
 
         $users = DB::table('users')
             ->where('firma', $fid)
+            ->when($teamOnly, fn ($query) => $query->where('firmuser', '1'))
             ->where(function ($query) use ($q, $qBase) {
             $query->where('orgname', 'LIKE', "%{$qBase}%")
                 ->orWhere('name', 'LIKE', "%{$qBase}%")
                 ->orWhere('secondname', 'LIKE', "%{$qBase}%")
                 ->orWhere('phone', 'LIKE', "%{$q}%");
         })
-            ->select('id', 'orgname', 'name', 'name2', 'secondname', 'phone', 'city', 'region', 'poshta', 'idstatus')
+            ->select('id', 'orgname', 'name', 'name2', 'secondname', 'phone', 'city', 'region', 'poshta', 'idstatus', 'balance')
             ->limit(20)
             ->get()
             ->map(function ($u) {
@@ -81,6 +83,7 @@ class ClientController extends Controller
             'region' => $u->region,
             'poshta' => $u->poshta,
             'idstatus' => $u->idstatus,
+            'client_balance' => (float) ($u->balance ?? 0),
             ];
         });
 

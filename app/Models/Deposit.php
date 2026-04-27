@@ -87,6 +87,7 @@ class Deposit extends Model
     public static function find(int $id, string $fid)
     {
         return DB::table('z_document as d')
+            ->leftJoin('users as owner_user', 'owner_user.id', '=', 'd.client2')
             ->where('d.id', $id)
             ->where('d.firma', $fid)
             ->where('d.type', 'PP')
@@ -102,7 +103,13 @@ class Deposit extends Model
                 'd.oplata',
                 'd.oplata2',
                 'd.money',
+                'd.client2',
                 'd.provodka',
+                'owner_user.balance as owner_balance',
+                'owner_user.name as owner_name',
+                'owner_user.secondname as owner_secondname',
+                'owner_user.fathername as owner_fathername',
+                'owner_user.orgname as owner_orgname',
             ]);
     }
 
@@ -120,7 +127,13 @@ class Deposit extends Model
             'oplata' => '',
             'oplata2' => '',
             'money' => '',
+            'client2' => '',
             'provodka' => 0,
+            'owner_balance' => 0,
+            'owner_name' => '',
+            'owner_secondname' => '',
+            'owner_fathername' => '',
+            'owner_orgname' => '',
         ];
     }
 
@@ -155,6 +168,7 @@ class Deposit extends Model
             'oplata2' => (string) ($data['oplata2'] ?? ''),
             'money' => (string) ($data['money'] ?? ''),
             'client1' => '0',
+            'client2' => (string) ($data['client2'] ?? '0'),
         ];
 
         if ($id === 0) {
@@ -202,36 +216,22 @@ class Deposit extends Model
             ];
         }
 
-        $confColumns = Schema::getColumnListing('conf');
-        if (!in_array('value', $confColumns, true)) {
-            return [
-                'document' => $doc,
-                'isPosted' => (int) ($doc->provodka ?? 0) === 1,
-            ];
-        }
-
         $wasPosted = (int) ($doc->provodka ?? 0) === 1;
         $direction = $wasPosted ? -1 : 1;
         $summa = (float) ($doc->summa ?? 0);
         $mode = (string) ($doc->docum ?? 'topup');
-        $oplataId = (string) ($doc->oplata ?? '');
-        $oplata2Id = (string) ($doc->oplata2 ?? '');
         $depositId = (string) ($doc->money ?? '');
+        $ownerUserId = trim((string) ($doc->client2 ?? ''));
 
-        DB::transaction(function () use ($fid, $direction, $summa, $mode, $oplataId, $oplata2Id, $depositId, $id, $wasPosted, $doc): void {
-            if ($mode === 'topup' && $oplataId !== '' && $depositId !== '') {
-                self::shiftConfValue($fid, 'oplata', $oplataId, -1 * $summa * $direction);
+        DB::transaction(function () use ($fid, $direction, $summa, $mode, $depositId, $ownerUserId, $id, $wasPosted, $doc): void {
+            if ($mode === 'topup' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
+                self::shiftUserBalance($fid, $ownerUserId, -1 * $summa * $direction);
                 self::shiftConfValue($fid, 'deposit', $depositId, $summa * $direction);
             }
 
-            if ($mode === 'withdraw' && $depositId !== '' && $oplata2Id !== '') {
+            if ($mode === 'withdraw' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
                 self::shiftConfValue($fid, 'deposit', $depositId, -1 * $summa * $direction);
-                self::shiftConfValue($fid, 'oplata', $oplata2Id, $summa * $direction);
-            }
-
-            if ($mode === 'exchange' && $oplataId !== '' && $oplata2Id !== '') {
-                self::shiftConfValue($fid, 'oplata', $oplataId, -1 * $summa * $direction);
-                self::shiftConfValue($fid, 'oplata', $oplata2Id, $summa * $direction);
+                self::shiftUserBalance($fid, $ownerUserId, $summa * $direction);
             }
 
             app(AccountingService::class)->createDocumentTransaction(
@@ -276,5 +276,18 @@ class Deposit extends Model
             ->where('type', $type)
             ->where('firma', $fid)
             ->update(['value' => $currentValue + $delta]);
+    }
+
+    private static function shiftUserBalance(string $fid, string $userId, float $delta): void
+    {
+        $currentBalance = (float) DB::table('users')
+            ->where('id', $userId)
+            ->where('firma', $fid)
+            ->value('balance');
+
+        DB::table('users')
+            ->where('id', $userId)
+            ->where('firma', $fid)
+            ->update(['balance' => $currentBalance + $delta]);
     }
 }

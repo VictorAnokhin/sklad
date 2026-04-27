@@ -168,7 +168,10 @@ class Conf extends Model
             $labels[] = match ($flag) {
                 'PO' => 'Получение денег',
                 'RO' => 'Выдача денег',
+                'PPO' => 'Приход денег',
                 'DEPOSIT' => 'Депозиты',
+                'ZP' => 'Выдача зарплаты',
+                'PRO' => 'Личные средства',
                 default => $flag,
             };
         }
@@ -185,17 +188,22 @@ class Conf extends Model
             ->orderBy('name');
 
         if (Schema::hasColumn('conf', 'doc') && $docType !== '') {
-            $normalizedDocType = match ($docType) {
-                'PO', 'RO', 'DEPOSIT' => $docType,
-                default => '',
+            $docAliases = match ($docType) {
+                'PPO' => ['PPO', 'PO'],
+                'PRO' => ['PRO', 'RO'],
+                'PO', 'RO', 'DEPOSIT', 'ZP' => [$docType],
+                default => [],
             };
 
-            if ($normalizedDocType !== '') {
-                $query->where(function ($builder) use ($normalizedDocType) {
+            if ($docAliases !== []) {
+                $query->where(function ($builder) use ($docAliases) {
                     $builder->whereNull('doc')
                         ->orWhere('doc', '')
-                        ->orWhere('doc', $normalizedDocType)
-                        ->orWhereRaw('FIND_IN_SET(?, REPLACE(doc, \' \', \'\')) > 0', [$normalizedDocType]);
+                        ->orWhereIn('doc', $docAliases);
+
+                    foreach ($docAliases as $alias) {
+                        $builder->orWhereRaw('FIND_IN_SET(?, REPLACE(doc, \' \', \'\')) > 0', [$alias]);
+                    }
                 });
             }
         }
@@ -206,7 +214,7 @@ class Conf extends Model
     public static function paymentDocFlags(string|array|null $doc): array
     {
         $rawFlags = is_array($doc) ? $doc : explode(',', (string) $doc);
-        $allowed = ['PO', 'RO', 'DEPOSIT'];
+        $allowed = ['PO', 'RO', 'PPO', 'DEPOSIT', 'ZP', 'PRO'];
         $flags = [];
 
         foreach ($rawFlags as $flag) {
@@ -222,7 +230,7 @@ class Conf extends Model
     public static function normalizePaymentDocFlags(string|array|null $doc): string
     {
         $flags = self::paymentDocFlags($doc);
-        $order = ['PO', 'RO', 'DEPOSIT'];
+        $order = ['PO', 'RO', 'PPO', 'DEPOSIT', 'ZP', 'PRO'];
 
         usort($flags, static function (string $left, string $right) use ($order): int {
             return array_search($left, $order, true) <=> array_search($right, $order, true);

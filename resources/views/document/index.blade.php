@@ -7,6 +7,7 @@
 $btnLabel = match($doc) {
 'PO' => \App\Models\Document::typeName('PO'),
 'RO' => \App\Models\Document::typeName('RO'),
+'ZP' => 'Выдать ЗП',
 'PP' => \App\Models\Document::typeName('PP'),
 'PN' => \App\Models\Document::typeName('PN'),
 'RN' => \App\Models\Document::typeName('RN'),
@@ -64,7 +65,7 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
       <a href="{{ $item['linkUrl'] }}" class="title">
         <span class="compact-client-line compact-main">{!! $item['org'] !!}{{ $item['fullName'] }}</span>
         <span class="compact-client-line city">{{ $item['city'] }} {{ $item['poshta'] }}</span>
-        @if(in_array($doc, ['PO', 'RO', 'PP']))
+        @if(in_array($doc, ['PO', 'RO', 'PP', 'ZP']))
           <span class="compact-client-line city text-muted">
             <strong>{{ __('money.filter_cashbox') }}:</strong> {{ $item['moneyName'] ?: '—' }}
             | 

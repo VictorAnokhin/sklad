@@ -4,13 +4,14 @@ namespace App\Models;
 
 use App\Services\AccountingService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
  * Money — cash documents from z_document
- * PO = Отримання грошей (приход)
- * RO = Видача грошей (витрата)
+ * PPO = Прихід грошей
+ * PRO = Витрата грошей
  */
 class Money extends Model
 {
@@ -22,6 +23,8 @@ class Money extends Model
 
     public static function init($fid, $pos = 0, array $filters = [])
     {
+        $currentUserId = (string) (Auth::id() ?: session('userid', '0'));
+
         $baseQuery = DB::table('z_document as d')
             ->leftJoin('users as u', 'u.id', '=', 'd.client1')
             ->leftJoin('conf as cashbox', function ($join) {
@@ -29,7 +32,8 @@ class Money extends Model
             })
             ->leftJoin('conf as payment_type', 'payment_type.id', '=', 'd.reestr')
             ->where('d.firma', $fid)
-            ->whereIn('d.type', ['PO', 'RO']);
+            ->where('d.client2', $currentUserId)
+            ->whereIn('d.type', ['PPO', 'PRO']);
 
         if (($filters['q'] ?? '') !== '') {
             $q = $filters['q'];
@@ -43,7 +47,7 @@ class Money extends Model
             });
         }
 
-        if (($filters['type'] ?? '') !== '' && in_array($filters['type'], ['PO', 'RO'], true)) {
+        if (($filters['type'] ?? '') !== '' && in_array($filters['type'], ['PPO', 'PRO'], true)) {
             $baseQuery->where('d.type', $filters['type']);
         }
 
@@ -66,8 +70,8 @@ class Money extends Model
         }
 
         $documentsQuery = clone $baseQuery;
-        $sumPO = (clone $baseQuery)->where('d.type', 'PO')->sum('d.summa');
-        $sumRO = (clone $baseQuery)->where('d.type', 'RO')->sum('d.summa');
+        $sumPPO = (clone $baseQuery)->where('d.type', 'PPO')->sum('d.summa');
+        $sumPRO = (clone $baseQuery)->where('d.type', 'PRO')->sum('d.summa');
         $total = (clone $baseQuery)->count();
 
         $documents = $documentsQuery
@@ -97,7 +101,7 @@ class Money extends Model
             ->pluck('name', 'id')
             ->all();
 
-        return compact('documents', 'sumPO', 'sumRO', 'total', 'kassasMap', 'reestrMap');
+        return compact('documents', 'sumPPO', 'sumPRO', 'total', 'kassasMap', 'reestrMap');
     }
 
     public static function initTransfers($fid, $pos = 0, array $filters = []): array
@@ -182,25 +186,32 @@ class Money extends Model
     {
         return DB::table('z_document as d')
             ->leftJoin('users as u', 'u.id', '=', 'd.client1')
+            ->leftJoin('users as owner_user', 'owner_user.id', '=', 'd.client2')
             ->where('d.id', $id)
             ->where('d.firma', $fid)
-            ->whereIn('d.type', ['PO', 'RO'])
+            ->whereIn('d.type', ['PPO', 'PRO'])
             ->first([
                 'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
-                'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka', 'd.client1',
+                'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka', 'd.client1', 'd.client2',
                 DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as effective_cashbox_id"),
                 'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta',
+                'u.balance as client_balance',
+                'owner_user.name as owner_name',
+                'owner_user.secondname as owner_secondname',
+                'owner_user.fathername as owner_fathername',
+                'owner_user.orgname as owner_orgname',
+                'owner_user.balance as owner_balance',
             ]);
     }
 
     // ── emptyDocument: порожній об'єкт для нового документа ──────────────────
 
-    public static function emptyDocument($type = 'PO')
+    public static function emptyDocument($type = 'PPO')
     {
         return (object)[
             'id'         => 0,
             'num'        => '',
-            'type'       => in_array($type, ['PO', 'RO']) ? $type : 'PO',
+            'type'       => in_array($type, ['PPO', 'PRO'], true) ? $type : 'PPO',
             'data'       => date('d-m-Y'),
             'time'       => '',
             'summa'      => 0,
@@ -211,12 +222,15 @@ class Money extends Model
             'reestr'     => '',
             'provodka'   => 0,
             'client1'    => '',
+            'client2'    => '',
             'name'       => '',
             'name2'      => '',
             'secondname' => '',
             'orgname'    => '',
             'phone'      => '',
             'city'       => '',
+            'client_balance'    => 0,
+            'owner_balance'    => 0,
         ];
     }
 
@@ -266,6 +280,7 @@ class Money extends Model
         $data['reestr'] = (string)($data['reestr'] ?? '');
         $data['content'] = (string)($data['content'] ?? '');
         $data['client1'] = (string)($data['client1'] ?? '0');
+        $data['client2'] = (string)($data['client2'] ?? '0');
         $data['summa'] = (float)($data['summa'] ?? 0);
         $data['data'] = curdate((string) ($data['data'] ?? date('d-m-Y')));
 
@@ -296,7 +311,7 @@ class Money extends Model
         DB::table('z_document')
             ->where('id', $id)
             ->where('firma', $fid)
-            ->whereIn('type', ['PO', 'RO'])
+            ->whereIn('type', ['PPO', 'PRO'])
             ->delete();
     }
 
@@ -362,7 +377,7 @@ class Money extends Model
         $doc = DB::table('z_document')
             ->where('id', $id)
             ->where('firma', $fid)
-            ->whereIn('type', ['PO', 'RO'])
+            ->whereIn('type', ['PPO', 'PRO'])
             ->first();
 
         if (!$doc) {
@@ -372,34 +387,38 @@ class Money extends Model
             ];
         }
 
-        $confColumns = Schema::getColumnListing('conf');
         $wasPosted = (int) ($doc->provodka ?? 0) === 1;
 
-        if (!in_array('value', $confColumns, true)) {
-            return [
-                'document' => $doc,
-                'isPosted' => $wasPosted,
-            ];
-        }
-
-        $sign = $doc->type === 'RO' ? -1 : 1;
         $direction = $wasPosted ? -1 : 1;
-        $delta = $sign * (float) ($doc->summa ?? 0) * $direction;
-        $moneyId = (string) ($doc->money ?? '');
+        $summa = (float) ($doc->summa ?? 0);
+        $targetClientId = trim((string) ($doc->client1 ?? ''));
+        $ownerUserId = trim((string) ($doc->client2 ?? ''));
+        $ownerDelta = ($doc->type === 'PPO' ? 1 : -1) * $summa * $direction;
+        $targetDelta = -1 * $ownerDelta;
 
-        DB::transaction(function () use ($moneyId, $fid, $delta, $id, $wasPosted, $doc) {
-            if ($moneyId !== '') {
-                $currentValue = (float) DB::table('conf')
-                    ->where('id', $moneyId)
-                    ->where('type', 'oplata')
+        DB::transaction(function () use ($ownerUserId, $targetClientId, $fid, $ownerDelta, $targetDelta, $id, $wasPosted, $doc) {
+            if ($ownerUserId !== '' && $ownerUserId !== '0') {
+                $ownerBalance = (float) DB::table('users')
+                    ->where('id', $ownerUserId)
                     ->where('firma', $fid)
-                    ->value('value');
+                    ->value('balance');
 
-                DB::table('conf')
-                    ->where('id', $moneyId)
-                    ->where('type', 'oplata')
+                DB::table('users')
+                    ->where('id', $ownerUserId)
                     ->where('firma', $fid)
-                    ->update(['value' => $currentValue + $delta]);
+                    ->update(['balance' => $ownerBalance + $ownerDelta]);
+            }
+
+            if ($targetClientId !== '' && $targetClientId !== '0') {
+                $targetBalance = (float) DB::table('users')
+                    ->where('id', $targetClientId)
+                    ->where('firma', $fid)
+                    ->value('balance');
+
+                DB::table('users')
+                    ->where('id', $targetClientId)
+                    ->where('firma', $fid)
+                    ->update(['balance' => $targetBalance + $targetDelta]);
             }
 
             app(AccountingService::class)->createDocumentTransaction(
@@ -415,14 +434,14 @@ class Money extends Model
             DB::table('z_document')
                 ->where('id', $id)
                 ->where('firma', $fid)
-                ->whereIn('type', ['PO', 'RO'])
+                ->whereIn('type', ['PPO', 'PRO'])
                 ->update(['provodka' => $wasPosted ? 0 : 1]);
         });
 
         $fresh = DB::table('z_document')
             ->where('id', $id)
             ->where('firma', $fid)
-            ->whereIn('type', ['PO', 'RO'])
+            ->whereIn('type', ['PPO', 'PRO'])
             ->first();
 
         return [

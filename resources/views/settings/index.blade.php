@@ -329,7 +329,7 @@
                     <input type="hidden" id="web3-cgid" value="">
                     
                     <div class="mb-3 position-relative">
-                        <label class="form-label text-warning">🔍 Поиск по CoinGecko (Автозаполнение)</label>
+                        <label class="form-label text-warning">🔍 Поиск токена через Zerion</label>
                         <input type="text" class="form-control" autocomplete="off" id="web3-cg-search" placeholder="Введите название или тикер, например: USDT">
                         <ul class="list-group position-absolute w-100 shadow" id="web3-cg-results" style="z-index: 1000; max-height: 300px; overflow-y: auto; display: none;"></ul>
                     </div>
@@ -710,12 +710,24 @@
                                 <span>Получение денег</span>
                             </label>
                             <label class="form-check-label d-flex align-items-center gap-2">
+                                <input class="form-check-input mt-0" type="checkbox" id="form-doc-ppo" value="PPO">
+                                <span>Приход денег (PPO)</span>
+                            </label>
+                            <label class="form-check-label d-flex align-items-center gap-2">
                                 <input class="form-check-input mt-0" type="checkbox" id="form-doc-ro" value="RO">
                                 <span>Выдача денег</span>
                             </label>
                             <label class="form-check-label d-flex align-items-center gap-2">
                                 <input class="form-check-input mt-0" type="checkbox" id="form-doc-deposit" value="DEPOSIT">
                                 <span>Депозиты</span>
+                            </label>
+                            <label class="form-check-label d-flex align-items-center gap-2">
+                                <input class="form-check-input mt-0" type="checkbox" id="form-doc-zp" value="ZP">
+                                <span>Выдача зарплаты (ZP)</span>
+                            </label>
+                            <label class="form-check-label d-flex align-items-center gap-2">
+                                <input class="form-check-input mt-0" type="checkbox" id="form-doc-pro" value="PRO">
+                                <span>Личные средства (PRO)</span>
                             </label>
                         </div>
                         <div class="form-text">Для яких документів доступний цей вид платежу.</div>
@@ -1520,8 +1532,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const resultsList = document.getElementById('web3-cg-results');
         const chainSelect = document.getElementById('web3-chain');
         
-        let cgSearchTimeout = null;
-        let currentCgPlatforms = null;
+        let zerionSearchTimeout = null;
+        let currentZerionImplementations = [];
 
         modal.addEventListener('show.bs.modal', () => {
             hideWeb3Form();
@@ -1538,29 +1550,34 @@ document.addEventListener('DOMContentLoaded', () => {
             resetWeb3Form();
         });
 
-        // CoinGecko autocomplete
+        // Zerion autocomplete
         searchInput.addEventListener('input', (e) => {
             const query = e.target.value.trim();
             if (query.length < 2) {
                 resultsList.style.display = 'none';
                 return;
             }
-            clearTimeout(cgSearchTimeout);
-            cgSearchTimeout = setTimeout(() => {
-                fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`)
+            clearTimeout(zerionSearchTimeout);
+            zerionSearchTimeout = setTimeout(() => {
+                const params = new URLSearchParams({
+                    query,
+                    chain_id: chainSelect.value || '0x1',
+                });
+
+                fetch(`/settings/api/web3-token-search?${params.toString()}`)
                     .then(r => r.json())
                     .then(data => {
                         resultsList.innerHTML = '';
-                        if (!data.coins || !data.coins.length) {
+                        if (!Array.isArray(data) || !data.length) {
                             resultsList.style.display = 'none';
                             return;
                         }
-                        data.coins.slice(0, 10).forEach(coin => {
+                        data.forEach(token => {
                             const li = document.createElement('li');
                             li.className = 'list-group-item list-group-item-action d-flex align-items-center cursor-pointer';
                             li.style.cursor = 'pointer';
-                            li.innerHTML = `<img src="${coin.thumb}" class="me-2 rounded-circle" width="20" height="20"> <strong>${coin.symbol}</strong> <span class="ms-2 text-muted text-truncate" style="max-width: 150px;">${coin.name}</span>`;
-                            li.addEventListener('click', () => selectCgCoin(coin));
+                            li.innerHTML = `<img src="${escapeHtml(token.icon_url || '')}" class="me-2 rounded-circle" width="20" height="20"> <strong>${escapeHtml(token.symbol || '')}</strong> <span class="ms-2 text-muted text-truncate" style="max-width: 150px;">${escapeHtml(token.name || '')}</span>`;
+                            li.addEventListener('click', () => selectZerionToken(token));
                             resultsList.appendChild(li);
                         });
                         resultsList.style.display = 'block';
@@ -1576,51 +1593,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         chainSelect.addEventListener('change', () => {
-            if (chainSelect.value === 'solana' && !currentCgPlatforms) {
+            if (chainSelect.value === 'solana' && currentZerionImplementations.length === 0) {
                 document.getElementById('web3-decimals').value = '9';
             }
 
-            if (currentCgPlatforms) {
-                const chainId = chainSelect.value;
-                const platformMap = {
-                    '0x1': 'ethereum',
-                    '0x38': 'binance-smart-chain',
-                    '0x89': 'polygon-pos',
-                    '0xa4b1': 'arbitrum-one',
-                    '0x2105': 'base',
-                    '0xa': 'optimistic-ethereum',
-                    '0xa86a': 'avalanche',
-                    'solana': 'solana'
-                };
-                const cgPlatformName = platformMap[chainId];
-                if (cgPlatformName && currentCgPlatforms[cgPlatformName]) {
-                    const platformDetails = currentCgPlatforms[cgPlatformName];
-                    document.getElementById('web3-address').value = platformDetails.contract_address || '';
-                    document.getElementById('web3-decimals').value = platformDetails.decimal_place || (chainId === 'solana' ? '9' : '18');
-                }
+            if (currentZerionImplementations.length > 0) {
+                applyZerionImplementation(chainSelect.value);
             }
         });
 
-        function selectCgCoin(coin) {
-            searchInput.value = coin.name;
+        function applyZerionImplementation(chainId) {
+            const implementation = currentZerionImplementations.find((item) => item.chain_id === chainId);
+            if (!implementation) {
+                document.getElementById('web3-address').value = '';
+                document.getElementById('web3-decimals').value = String(chainId === 'solana' ? 9 : 18);
+                return;
+            }
+
+            document.getElementById('web3-address').value = implementation.address || '';
+            document.getElementById('web3-decimals').value = String(implementation.decimals || (chainId === 'solana' ? 9 : 18));
+        }
+
+        function selectZerionToken(token) {
+            searchInput.value = token.name || token.symbol || '';
             resultsList.style.display = 'none';
-            
-            // Set basic info
-            document.getElementById('web3-cgid').value = coin.id;
-            document.getElementById('web3-symbol').value = (coin.symbol || '').toUpperCase();
-            document.getElementById('web3-name').value = coin.name || '';
-            
-            // Fetch detailed coin info
-            fetch(`https://api.coingecko.com/api/v3/coins/${coin.id}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.detail_platforms) {
-                        currentCgPlatforms = data.detail_platforms;
-                        // Fire change event to auto-fill the contract details for current selected chain
-                        chainSelect.dispatchEvent(new Event('change'));
-                    }
-                })
-                .catch(() => alert('Ошибка загрузки данных контрактов из CoinGecko'));
+
+            document.getElementById('web3-cgid').value = token.id || '';
+            document.getElementById('web3-symbol').value = (token.symbol || '').toUpperCase();
+            document.getElementById('web3-name').value = token.name || '';
+            currentZerionImplementations = Array.isArray(token.implementations) ? token.implementations : [];
+            applyZerionImplementation(chainSelect.value);
         }
 
         tbody.addEventListener('click', (e) => {
@@ -1764,7 +1766,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ? 'solana'
                         : (normalizeChainId(item.vision) || '0x1');
                     searchInput.value = '';
-                    currentCgPlatforms = null;
+                    currentZerionImplementations = [];
                     showWeb3Form();
                 })
                 .catch(() => alert('Ошибка загрузки'));
@@ -1788,6 +1790,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('web3-id').value = '';
             document.getElementById('web3-chain').value = '0x1';
             document.getElementById('web3-decimals').value = '18';
+            currentZerionImplementations = [];
         }
 
         function showWeb3Form() {
@@ -2215,8 +2218,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const addressColumn = document.getElementById('crud-address-column');
         const docCheckboxes = [
             document.getElementById('form-doc-po'),
+            document.getElementById('form-doc-ppo'),
             document.getElementById('form-doc-ro'),
             document.getElementById('form-doc-deposit'),
+            document.getElementById('form-doc-zp'),
+            document.getElementById('form-doc-pro'),
         ];
 
         let currentType = '';

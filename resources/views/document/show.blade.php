@@ -490,7 +490,7 @@
                     @endif
 
                     <!-- Row 3b: Каса | Вид платежу (only for PO/RO) -->
-                    @if(in_array($doc, ['PO', 'RO'], true))
+                    @if(in_array($doc, ['PO', 'RO', 'ZP'], true))
                         <div class="doc-form-row doc-form-row-two-cols">
                             <div class="col-f">
                                 <label>Каса</label>
@@ -525,14 +525,16 @@
 
                     <!-- Row 2: Клієнт -->
                     <div class="doc-form-row-single">
-                        <label>Клієнт</label>
+                        <label>{{ $doc === 'ZP' ? 'Сотрудник' : 'Клієнт' }}</label>
                         <div class="client-search-row d-flex gap-1">
-                            <input type="text" id="clientSearchInput" class="form-control flex-grow-1 text-white" placeholder="Пошук клієнта..."
+                            <input type="text" id="clientSearchInput" class="form-control flex-grow-1 text-white" placeholder="{{ $doc === 'ZP' ? 'Пошук співробітника...' : 'Пошук клієнта...' }}"
                                 autocomplete="off">
-                            <button type="button" id="editClientBtn" class="btn btn-outline-secondary text-white" data-bs-toggle="modal"
-                                data-bs-target="#newClientModal" style="{{ $client ? '' : 'display:none;' }}">Изменить</button>
-                            <button type="button" class="btn btn-outline-primary text-white" id="newClientBtn" data-bs-toggle="modal"
-                                data-bs-target="#newClientModal">Новий</button>
+                            @if($doc !== 'ZP')
+                                <button type="button" id="editClientBtn" class="btn btn-outline-secondary text-white" data-bs-toggle="modal"
+                                    data-bs-target="#newClientModal" style="{{ $client ? '' : 'display:none;' }}">Изменить</button>
+                                <button type="button" class="btn btn-outline-primary text-white" id="newClientBtn" data-bs-toggle="modal"
+                                    data-bs-target="#newClientModal">Новий</button>
+                            @endif
                         </div>
                         <div id="clientSearchResults" class="list-group client-search-results">
                         </div>
@@ -556,7 +558,7 @@
                                 {{ $client->phone }} |
                                 {{ $client->region ? $client->region . ' | ' : '' }}{{ $client->city }}{{ $client->poshta ? ' | ' . $client->poshta : '' }}
                             @else
-                                Клієнт не обраний
+                                {{ $doc === 'ZP' ? 'Сотрудник не выбран' : 'Клієнт не обраний' }}
                             @endif
                         </div>
                         @error('client1')
@@ -565,7 +567,7 @@
                     </div>
 
                     <!-- Сума field for PO/RO documents -->
-                    @if(in_array($doc, ['PO', 'RO'], true))
+                    @if(in_array($doc, ['PO', 'RO', 'ZP'], true))
                         <div class="doc-form-row-single">
                             <label>Сума</label>
                             <input type="text" name="summa" id="documentSummaInput" class="form-control form-control-number text-white"
@@ -619,7 +621,7 @@
                     @endif
 
                     <!-- Goods add — hidden for PO/RO (payment types) and RA (file documents) -->
-                    @if(!in_array($doc, ['PO', 'RO', 'RA'], true))
+                    @if(!in_array($doc, ['PO', 'RO', 'ZP', 'RA'], true))
                         <div class="goods-search-container">
                             <div class="goods-search-row">
                                 <input type="text" id="goodsSearchInput" class="form-control text-white" placeholder="Поиск товара..."
@@ -718,7 +720,7 @@
 
                     {{-- Action buttons (inside form) --}}
                     <div class="doc-actions">
-                        @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'VN', 'AO', 'WO1'], true))
+                        @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'], true))
                             @if((int) ($document->provodka ?? 0) === 1)
                                 <button type="button" 
                                     onclick="forceSubmitAction(this, '', '', '{{ route('document.provodka') }}')"
@@ -787,64 +789,66 @@
     </div>
 
     <!-- Modal: New Client -->
-    <div class="modal fade" id="newClientModal" tabindex="-1" aria-labelledby="newClientModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="newClientModalLabel">Новий клієнт</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
-                </div>
-                <div class="modal-body py-2">
-                    <input type="hidden" id="newClientId" value="0">
-                    <div class="row g-2 modal-client-grid">
-                        <div class="col-12 client-modal-field">
-                            <label class="form-label small mb-0">Організація</label>
-                            <input type="text" class="form-control form-control-sm text-white" id="newClientOrgname">
-                        </div>
-                        <div class="col-12 col-md-6 client-modal-field">
-                            <label class="form-label small mb-0">Прізвище</label>
-                            <input type="text" class="form-control form-control-sm text-white" id="newClientSecondname">
-                        </div>
-                        <div class="col-12 col-md-6 client-modal-field">
-                            <label class="form-label small mb-0">Ім'я</label>
-                            <input type="text" class="form-control form-control-sm text-white" id="newClientName">
-                        </div>
-                        <div class="col-12 col-md-6 client-modal-field">
-                            <label class="form-label small mb-0">Телефон</label>
-                            <input type="text" class="form-control form-control-sm text-white" id="newClientPhone"
-                                placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
-                        </div>
-                        <div class="col-12 col-md-6 client-modal-field">
-                            <label class="form-label small mb-0">Місто</label>
-                            <input type="text" class="form-control form-control-sm text-white" id="newClientCity">
-                        </div>
-                        <div class="col-12 col-md-6 client-modal-field">
-                            <label class="form-label small mb-0">Область</label>
-                            <input type="text" class="form-control form-control-sm text-white" id="newClientRegion">
-                        </div>
-                        <div class="col-12 col-md-6 client-modal-field">
-                            <label class="form-label small mb-0">Отделение НP</label>
-                            <input type="text" class="form-control form-control-sm text-white" id="newClientPoshta">
-                        </div>
-                        <div class="col-12 client-modal-field">
-                            <label class="form-label small mb-0">Статус клієнта</label>
-                            <select class="form-select form-select-sm text-white" id="newClientStatus">
-                                <option value="">Оберіть статус</option>
-                                @foreach(($clientStatuses ?? collect()) as $statusOption)
-                                    <option value="{{ $statusOption->id }}">{{ $statusOption->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+    @if($doc !== 'ZP')
+        <div class="modal fade" id="newClientModal" tabindex="-1" aria-labelledby="newClientModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="newClientModalLabel">Новий клієнт</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
                     </div>
-                    <div id="newClientError" class="text-danger small" style="display: none;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
-                    <button type="button" class="btn btn-primary" id="saveNewClientBtn">Зберегти</button>
+                    <div class="modal-body py-2">
+                        <input type="hidden" id="newClientId" value="0">
+                        <div class="row g-2 modal-client-grid">
+                            <div class="col-12 client-modal-field">
+                                <label class="form-label small mb-0">Організація</label>
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientOrgname">
+                            </div>
+                            <div class="col-12 col-md-6 client-modal-field">
+                                <label class="form-label small mb-0">Прізвище</label>
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientSecondname">
+                            </div>
+                            <div class="col-12 col-md-6 client-modal-field">
+                                <label class="form-label small mb-0">Ім'я</label>
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientName">
+                            </div>
+                            <div class="col-12 col-md-6 client-modal-field">
+                                <label class="form-label small mb-0">Телефон</label>
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientPhone"
+                                    placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
+                            </div>
+                            <div class="col-12 col-md-6 client-modal-field">
+                                <label class="form-label small mb-0">Місто</label>
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientCity">
+                            </div>
+                            <div class="col-12 col-md-6 client-modal-field">
+                                <label class="form-label small mb-0">Область</label>
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientRegion">
+                            </div>
+                            <div class="col-12 col-md-6 client-modal-field">
+                                <label class="form-label small mb-0">Отделение НP</label>
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientPoshta">
+                            </div>
+                            <div class="col-12 client-modal-field">
+                                <label class="form-label small mb-0">Статус клієнта</label>
+                                <select class="form-select form-select-sm text-white" id="newClientStatus">
+                                    <option value="">Оберіть статус</option>
+                                    @foreach(($clientStatuses ?? collect()) as $statusOption)
+                                        <option value="{{ $statusOption->id }}">{{ $statusOption->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div id="newClientError" class="text-danger small" style="display: none;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
+                        <button type="button" class="btn btn-primary" id="saveNewClientBtn">Зберегти</button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    @endif
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -856,6 +860,7 @@
             const client1Id = document.getElementById('client1_id');
             const clientDetails = document.getElementById('selectedClientDetails');
             const documentSummaInput1 = document.getElementById('documentSummaInput');
+            const teamOnlyClientSearch = @json($doc === 'ZP');
             const formatClientName = (user) => [user.secondname || '', user.name || ''].filter(Boolean).join(' ').trim();
             const formatClientDetailsHtml = (user) => {
                 const regionPart = user.region ? user.region + ' | ' : '';
@@ -868,7 +873,11 @@
             function performSearch() {
                 const q = searchInput.value.trim();
                 if (q.length < 2) { resultsContainer.style.display = 'none'; return; }
-                fetch("{{ route('client.search') }}?q=" + encodeURIComponent(q))
+                const params = new URLSearchParams({ q });
+                if (teamOnlyClientSearch) {
+                    params.set('team_only', '1');
+                }
+                fetch("{{ route('client.search') }}?" + params.toString())
                     .then(res => res.json())
                     .then(data => {
                         resultsContainer.innerHTML = '';
@@ -881,6 +890,7 @@
                                 a.innerHTML = formatClientDetailsHtml(user);
                                 a.addEventListener('click', function (e) {
                                     e.preventDefault();
+                                    const selectedLabel = [user.orgname || '', formatClientName(user)].filter(Boolean).join(' ').trim();
                                     client1Id.value = user.id;
                                     client1Id.dataset.orgname = user.orgname || '';
                                     client1Id.dataset.name = user.name || '';
@@ -890,8 +900,10 @@
                                     client1Id.dataset.region = user.region || '';
                                     client1Id.dataset.poshta = user.poshta || '';
                                     client1Id.dataset.status = user.idstatus || '';
-                                    
-                                    editClientBtn.style.display = 'inline-block';
+
+                                    if (editClientBtn) {
+                                        editClientBtn.style.display = 'inline-block';
+                                    }
                                     
                                     clientDetails.className = 'alert alert-secondary py-1 mt-1';
                                     clientDetails.style.background = '#f8f9fa';
@@ -899,7 +911,7 @@
                                     clientDetails.style.fontSize = '0.85rem';
                                     clientDetails.innerHTML = formatClientDetailsHtml(user);
                                     resultsContainer.style.display = 'none';
-                                    searchInput.value = '';
+                                    searchInput.value = selectedLabel;
                                 });
                                 resultsContainer.appendChild(a);
                             });
@@ -988,96 +1000,102 @@
                 return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8, 10)}-${digits.slice(10)}`;
             };
 
-            newClientPhoneField.addEventListener('input', function () {
-                this.value = formatPhoneInput(this.value);
-            });
+            if (newClientPhoneField) {
+                newClientPhoneField.addEventListener('input', function () {
+                    this.value = formatPhoneInput(this.value);
+                });
+            }
 
-            saveNewClientBtn.addEventListener('click', function () {
-                const id = newClientIdField.value || '0';
-                const orgnameField = newClientOrgnameField;
-                const nameField = document.getElementById('newClientName');
-                const secondnameField = document.getElementById('newClientSecondname');
-                const phoneField = newClientPhoneField;
-                const cityField = document.getElementById('newClientCity');
-                const regionField = document.getElementById('newClientRegion');
-                const poshtaField = document.getElementById('newClientPoshta');
-                const statusField = document.getElementById('newClientStatus');
-                const orgname = orgnameField.value.trim();
-                const name = nameField.value.trim();
-                const secondname = secondnameField.value.trim();
-                const phone = phoneField.value.trim();
-                const city = cityField.value.trim();
-                const region = regionField.value.trim();
-                const poshta = poshtaField.value.trim();
-                const idstatus = statusField.value;
-                const errorDiv = document.getElementById('newClientError');
-                [nameField, secondnameField, phoneField, statusField].forEach(field => field.classList.remove('is-invalid'));
-                if (!name && !secondname && !phone) {
-                    nameField.classList.add('is-invalid');
-                    secondnameField.classList.add('is-invalid');
-                    phoneField.classList.add('is-invalid');
-                    errorDiv.textContent = 'Заповніть хоча б одне поле: імʼя, прізвище або телефон';
-                    errorDiv.style.display = 'block';
-                    return;
-                }
-                if (!idstatus) {
-                    statusField.classList.add('is-invalid');
-                    errorDiv.textContent = 'Оберіть статус клієнта';
-                    errorDiv.style.display = 'block';
-                    return;
-                }
-                errorDiv.style.display = 'none';
-                saveNewClientBtn.disabled = true;
-                saveNewClientBtn.textContent = 'Зберігаємо...';
-                fetch("{{ route('client.quickStore') }}", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({ id, orgname, name, secondname, phone, city, region, poshta, idstatus })
-                })
-                    .then(async res => {
-                        const payload = await res.json().catch(() => ({}));
-                        if (!res.ok) {
-                            throw new Error(payload.message || 'Не вдалося зберегти клієнта');
-                        }
-                        return payload;
+            if (saveNewClientBtn && newClientPhoneField && newClientIdField && newClientOrgnameField) {
+                saveNewClientBtn.addEventListener('click', function () {
+                    const id = newClientIdField.value || '0';
+                    const orgnameField = newClientOrgnameField;
+                    const nameField = document.getElementById('newClientName');
+                    const secondnameField = document.getElementById('newClientSecondname');
+                    const phoneField = newClientPhoneField;
+                    const cityField = document.getElementById('newClientCity');
+                    const regionField = document.getElementById('newClientRegion');
+                    const poshtaField = document.getElementById('newClientPoshta');
+                    const statusField = document.getElementById('newClientStatus');
+                    const orgname = orgnameField.value.trim();
+                    const name = nameField.value.trim();
+                    const secondname = secondnameField.value.trim();
+                    const phone = phoneField.value.trim();
+                    const city = cityField.value.trim();
+                    const region = regionField.value.trim();
+                    const poshta = poshtaField.value.trim();
+                    const idstatus = statusField.value;
+                    const errorDiv = document.getElementById('newClientError');
+                    [nameField, secondnameField, phoneField, statusField].forEach(field => field.classList.remove('is-invalid'));
+                    if (!name && !secondname && !phone) {
+                        nameField.classList.add('is-invalid');
+                        secondnameField.classList.add('is-invalid');
+                        phoneField.classList.add('is-invalid');
+                        errorDiv.textContent = 'Заповніть хоча б одне поле: імʼя, прізвище або телефон';
+                        errorDiv.style.display = 'block';
+                        return;
+                    }
+                    if (!idstatus) {
+                        statusField.classList.add('is-invalid');
+                        errorDiv.textContent = 'Оберіть статус клієнта';
+                        errorDiv.style.display = 'block';
+                        return;
+                    }
+                    errorDiv.style.display = 'none';
+                    saveNewClientBtn.disabled = true;
+                    saveNewClientBtn.textContent = 'Зберігаємо...';
+                    fetch("{{ route('client.quickStore') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({ id, orgname, name, secondname, phone, city, region, poshta, idstatus })
                     })
-                    .then(user => {
-                        client1Id.value = user.id;
-                        client1Id.dataset.orgname = user.orgname || '';
-                        client1Id.dataset.name = user.name || '';
-                        client1Id.dataset.secondname = user.secondname || '';
-                        client1Id.dataset.phone = user.phone || '';
-                        client1Id.dataset.city = user.city || '';
-                        client1Id.dataset.region = user.region || '';
-                        client1Id.dataset.poshta = user.poshta || '';
-                        client1Id.dataset.status = user.idstatus || '';
-                        
-                        editClientBtn.style.display = 'inline-block';
-                        
-                        clientDetails.className = 'alert alert-secondary py-1 mt-1';
-                        clientDetails.style.background = '#f8f9fa';
-                        clientDetails.style.border = '1px solid #ddd';
-                        clientDetails.style.fontSize = '0.85rem';
-                        clientDetails.innerHTML = formatClientDetailsHtml(user);
-                        
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
-                        modal.hide();
-                        orgnameField.value = '';
-                        nameField.value = '';
-                        secondnameField.value = '';
-                        phoneField.value = '';
-                        cityField.value = '';
-                        regionField.value = '';
-                        poshtaField.value = '';
-                        statusField.value = '';
-                    })
-                    .catch(err => { errorDiv.textContent = 'Помилка: ' + err.message; errorDiv.style.display = 'block'; })
-                    .finally(() => { saveNewClientBtn.disabled = false; saveNewClientBtn.textContent = 'Зберегти'; });
-            });
+                        .then(async res => {
+                            const payload = await res.json().catch(() => ({}));
+                            if (!res.ok) {
+                                throw new Error(payload.message || 'Не вдалося зберегти клієнта');
+                            }
+                            return payload;
+                        })
+                        .then(user => {
+                            client1Id.value = user.id;
+                            client1Id.dataset.orgname = user.orgname || '';
+                            client1Id.dataset.name = user.name || '';
+                            client1Id.dataset.secondname = user.secondname || '';
+                            client1Id.dataset.phone = user.phone || '';
+                            client1Id.dataset.city = user.city || '';
+                            client1Id.dataset.region = user.region || '';
+                            client1Id.dataset.poshta = user.poshta || '';
+                            client1Id.dataset.status = user.idstatus || '';
+                            
+                            if (editClientBtn) {
+                                editClientBtn.style.display = 'inline-block';
+                            }
+                            
+                            clientDetails.className = 'alert alert-secondary py-1 mt-1';
+                            clientDetails.style.background = '#f8f9fa';
+                            clientDetails.style.border = '1px solid #ddd';
+                            clientDetails.style.fontSize = '0.85rem';
+                            clientDetails.innerHTML = formatClientDetailsHtml(user);
+                            
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
+                            modal.hide();
+                            orgnameField.value = '';
+                            nameField.value = '';
+                            secondnameField.value = '';
+                            phoneField.value = '';
+                            cityField.value = '';
+                            regionField.value = '';
+                            poshtaField.value = '';
+                            statusField.value = '';
+                        })
+                        .catch(err => { errorDiv.textContent = 'Помилка: ' + err.message; errorDiv.style.display = 'block'; })
+                        .finally(() => { saveNewClientBtn.disabled = false; saveNewClientBtn.textContent = 'Зберегти'; });
+                });
+            }
 
             // ================= GOODS SEARCH =================
             const goodsSearchInput = document.getElementById('goodsSearchInput');

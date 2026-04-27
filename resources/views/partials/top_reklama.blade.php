@@ -78,6 +78,7 @@
     
     <a href="{{ route('micro-business') }}" class="header-public-link">Для микро-бизнеса</a>
     <a href="{{ route('individuals') }}" class="header-public-link">Для физических лиц</a>
+    <a href="{{ route('team') }}" class="header-public-link">Команда</a>
     <a href="{{ route('about') }}" class="header-public-link">О проекте</a>
     <a href="{{ route('login') }}" class="header-public-link header-btn-login">Войти</a>
   </div>
@@ -129,6 +130,7 @@
     <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">{{ __('nav.orders') }}</a>
     <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
     <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
+    <a class="header-nav-menu__link" href="{{ route('team') }}">Команда</a>
     <a class="header-nav-menu__link" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
     <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
     <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
@@ -146,6 +148,7 @@
     <div id="mobile-public-links">
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('micro-business') }}">Для микро-бизнеса</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('individuals') }}">Для физических лиц</a>
+      <a class="header-nav-menu__link mobile-only-link" href="{{ route('team') }}">Команда</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('about') }}">О проекте</a>
       <a class="header-nav-menu__link" href="{{ route('login') }}">Войти</a>
     </div>

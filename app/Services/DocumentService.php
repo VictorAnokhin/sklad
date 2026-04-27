@@ -31,7 +31,7 @@ class DocumentService
         $table = Document::tableForType($docType);
         $summa = (float) $request->input('summa', 0);
 
-        if (!in_array($docType, ['PO', 'RO', 'PP'], true)) {
+        if (!in_array($docType, ['PO', 'RO', 'PP', 'ZP'], true)) {
             $summa = collect($request->input('psumma', []))
                 ->reduce(function (float $carry, $value) {
                     return $carry + (float) $value;
@@ -200,7 +200,7 @@ class DocumentService
     public function saveBody(Request $request, string $docId, string $docType, string $fid): void
     {
         // Skip body processing for RA documents (they don't have goods/line items)
-        if ($docType === 'RA') {
+        if (in_array($docType, ['RA', 'ZP'], true)) {
             return;
         }
 
@@ -523,7 +523,10 @@ class DocumentService
         $paid = DB::table('z_document')
             ->where('client1', $userId)->where('firma', $fid)
             ->where('type', 'PO')->where('provodka', 1)->sum('summa');
-        $balance = (float)$paid - (float)$zout;
+        $salary = DB::table('z_document')
+            ->where('client1', $userId)->where('firma', $fid)
+            ->where('type', 'ZP')->where('provodka', 1)->sum('summa');
+        $balance = (float)$paid + (float)$salary - (float)$zout;
 
         DB::table('users_cashe')->updateOrInsert(
             ['userid' => $userId],

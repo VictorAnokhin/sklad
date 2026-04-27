@@ -5,10 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Conf;
 use App\Models\Money;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
- * MoneyController — cash documents (PO / RO) and cash transfers.
+ * MoneyController — cash documents (PPO / PRO) and cash transfers.
  * All DB logic is in App\Models\Money.
  */
 class MoneyController extends Controller
@@ -73,7 +74,9 @@ class MoneyController extends Controller
                 ->get()
                 ->map(fn ($item) => Conf::decoratePaymentType($item));
 
-        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab')));
+        $userBalance = (float) (Auth::user()->balance ?? 0);
+
+        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalance')));
     }
 
     public function show(Request $request)
@@ -81,7 +84,7 @@ class MoneyController extends Controller
         $fid = session('fid', '');
         $docId = (int) $request->input('id', 0);
         $tab = $this->activeTab($request);
-        $type = $request->input('type', 'PO');
+        $type = $request->input('type', 'PPO');
         $returnFilters = $this->extractReturnFilters($request);
 
         if ($tab === 'transfers') {
@@ -99,6 +102,12 @@ class MoneyController extends Controller
 
         if ($docId === 0) {
             $document = Money::emptyDocument($type);
+            $document->client2 = (string) (Auth::id() ?: session('userid', '0'));
+            $document->owner_balance = (float) (Auth::user()->balance ?? 0);
+            $document->owner_name = (string) (Auth::user()->name ?? '');
+            $document->owner_secondname = (string) (Auth::user()->secondname ?? '');
+            $document->owner_fathername = (string) (Auth::user()->fathername ?? '');
+            $document->owner_orgname = (string) (Auth::user()->orgname ?? '');
         } else {
             $document = Money::find($docId, $fid);
 
@@ -107,10 +116,9 @@ class MoneyController extends Controller
             }
         }
 
-        $kassas = Money::kassas($fid, (string) ($document->effective_cashbox_id ?? $document->money ?? ''));
         $reestrList = Conf::paymentTypesForDocument($fid, $type);
 
-        return view('money.show', compact('document', 'kassas', 'reestrList', 'returnFilters', 'tab'));
+        return view('money.show', compact('document', 'reestrList', 'returnFilters', 'tab'));
     }
 
     public function save(Request $request)
@@ -118,7 +126,7 @@ class MoneyController extends Controller
         $fid = session('fid', '');
         $id = (int) $request->input('id', 0);
         $tab = $this->activeTab($request);
-        $type = $request->input('type', 'PO');
+        $type = $request->input('type', 'PPO');
         $shouldPost = $request->boolean('post_after_save');
         $returnFilters = $this->extractReturnFilters($request);
 
@@ -172,23 +180,24 @@ class MoneyController extends Controller
             ])->with('success', $message);
         }
 
-        $money = trim((string) $request->input('money', ''));
-        if ($money === '') {
+        $client1 = trim((string) $request->input('client1', ''));
+        if ($client1 === '' || $client1 === '0') {
             return redirect()
                 ->back()
-                ->withErrors(['money' => 'Оберіть касу'])
+                ->withErrors(['client1' => 'Оберіть клієнта'])
                 ->withInput();
         }
 
         $data = [
-            'type' => in_array($type, ['PO', 'RO'], true) ? $type : 'PO',
+            'type' => in_array($type, ['PPO', 'PRO'], true) ? $type : 'PPO',
             'summa' => (float) $request->input('summa', 0),
             'content' => (string) $request->input('content', ''),
             'data' => $request->input('data', date('d-m-Y')),
-            'money' => $money,
-            'oplata' => $money,
+            'money' => '',
+            'oplata' => '',
             'reestr' => (string) $request->input('reestr', ''),
-            'client1' => $request->input('client1', '') ?: '0',
+            'client1' => $client1,
+            'client2' => (string) (Auth::id() ?: session('userid', '0')),
         ];
 
         $savedId = Money::saveDocument($id, $fid, $data);

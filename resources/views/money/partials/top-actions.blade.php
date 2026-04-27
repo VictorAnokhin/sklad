@@ -45,7 +45,7 @@
         @else
         <form action="{{ route('money.show') }}" method="get" class="money-top-action-form">
             <input type="hidden" name="id" value="0">
-            <input type="hidden" name="type" value="PO">
+            <input type="hidden" name="type" value="PPO">
             <input type="hidden" name="tab" value="orders">
             <input type="hidden" name="return_q" value="{{ $baseFilters['q'] ?? '' }}">
             <input type="hidden" name="return_filter_type" value="{{ $baseFilters['type'] ?? '' }}">
@@ -60,7 +60,7 @@
         </form>
         <form action="{{ route('money.show') }}" method="get" class="money-top-action-form">
             <input type="hidden" name="id" value="0">
-            <input type="hidden" name="type" value="RO">
+            <input type="hidden" name="type" value="PRO">
             <input type="hidden" name="tab" value="orders">
             <input type="hidden" name="return_q" value="{{ $baseFilters['q'] ?? '' }}">
             <input type="hidden" name="return_filter_type" value="{{ $baseFilters['type'] ?? '' }}">
