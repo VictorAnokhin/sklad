@@ -25,12 +25,12 @@
 
             <div class="row mb-3">
                 <div class="col-md-4">
-                    <label class="form-label">Имя</label>
-                    <input type="text" name="name" class="form-control" value="{{ old('name', $member->name ?? '') }}" required>
-                </div>
-                <div class="col-md-4">
                     <label class="form-label">Фамилия</label>
                     <input type="text" name="secondname" class="form-control" value="{{ old('secondname', $member->secondname ?? '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Имя</label>
+                    <input type="text" name="name" class="form-control" value="{{ old('name', $member->name ?? '') }}" required>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Отчество</label>
@@ -47,31 +47,6 @@
                     <label class="form-label">Компания / подпись</label>
                     <input type="text" name="orgname" class="form-control" value="{{ old('orgname', $member->orgname ?? '') }}">
                 </div>
-            </div>
-
-            <div class="mb-3 position-relative">
-                <label class="form-label">Контрагент</label>
-                <div id="selectedCounterpartyDetails" class="alert {{ !empty(old('userid', $member->userid ?? '')) && old('userid', $member->userid ?? '') !== '0' ? 'alert-secondary' : 'alert-warning' }} py-2 mt-2" style="{{ !empty(old('userid', $member->userid ?? '')) && old('userid', $member->userid ?? '') !== '0' ? 'border:1px solid var(--border);' : '' }}">
-                    @if(!empty(old('userid', $member->userid ?? '')) && old('userid', $member->userid ?? '') !== '0' && !empty($selectedCounterparty))
-                        <strong>{{ $selectedCounterparty->orgname ?? '' }}</strong> |
-                        {{ trim(($selectedCounterparty->secondname ?? '') . ' ' . ($selectedCounterparty->name ?? '') . ' ' . ($selectedCounterparty->name2 ?? '')) }}<br>
-                        {{ $selectedCounterparty->phone ?? '' }} | {{ $selectedCounterparty->region ? $selectedCounterparty->region . ' | ' : '' }}{{ $selectedCounterparty->city ?? '' }}{{ $selectedCounterparty->poshta ? ' | ' . $selectedCounterparty->poshta : '' }}
-                    @else
-                        Контрагент не выбран
-                    @endif
-                </div>
-
-                <input type="text" id="selectedCounterpartyName" class="form-control mb-2" value="{{ old('selected_counterparty_name', $selectedCounterpartyLabel ?? '') }}" placeholder="Выбранный контрагент" readonly>
-
-                <div class="input-group mb-2">
-                    <input type="text" id="counterpartySearchInput" class="form-control" placeholder="Поиск контрагента" autocomplete="off">
-                    <button type="button" class="btn btn-outline-secondary" id="searchCounterpartyBtn">Найти</button>
-                </div>
-                <div id="counterpartySearchResults" class="list-group mb-2" style="display:none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000; width:100%; box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
-                <input type="hidden" name="userid" id="userid" value="{{ old('userid', $member->userid ?? '0') }}">
-                @error('userid')
-                    <div class="text-danger small mt-1">{{ $message }}</div>
-                @enderror
             </div>
 
             <div class="row mb-3">
