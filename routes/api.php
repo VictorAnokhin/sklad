@@ -50,6 +50,9 @@ Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
 Route::get('/offices', [SettingsController::class, 'officesPublicIndex']);
 Route::get('/wallet/protocols', [WalletController::class, 'protocols']);
 Route::get('/wallet/overview', [WalletController::class, 'overview']);
+Route::post('/wallet/swap/price', [WalletController::class, 'swapPrice']);
+Route::post('/wallet/swap/quote', [WalletController::class, 'swapQuote']);
+Route::get('/transparency/overview', [WalletController::class, 'transparencyOverview']);
 
 // ── Orders (Zakaz) API ─────────────────────────────────────────────────────
 

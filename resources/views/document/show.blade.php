@@ -22,6 +22,33 @@
             min-width: 42px;
         }
 
+        #goodsTable {
+            table-layout: fixed;
+        }
+
+        #goodsTable .goods-table-col-qty {
+            width: 190px;
+        }
+
+        #goodsTable .goods-table-col-price,
+        #goodsTable .goods-table-col-sum {
+            width: 152px;
+        }
+
+        #goodsTable .goods-table-col-name {
+            width: 32%;
+        }
+
+        #goodsTable .goods-table-col-qty .input-group,
+        #goodsTable .goods-table-col-price .form-control,
+        #goodsTable .goods-table-col-sum .form-control {
+            min-width: 100%;
+        }
+
+        #goodsTable .goods-table-col-qty .btn {
+            min-width: 42px;
+        }
+
         .goods-table-col-name input,
         .goods-table-col-price input,
         .goods-table-col-sum input,
@@ -86,6 +113,11 @@
             border-radius: 8px;
             margin-bottom: 8px;
             font-size: 2rem;
+        }
+
+        .client-modal-field .form-control,
+        .client-modal-field .form-select {
+            min-height: 42px;
         }
 
         @media (max-width: 767.98px) {
@@ -170,11 +202,13 @@
             #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-price {
                 grid-column: 1 / span 5;
                 order: 5;
+                width: 100% !important;
             }
 
             #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-sum {
                 grid-column: 6 / span 5;
                 order: 6;
+                width: 100% !important;
             }
 
             #goodsTable tbody tr:not(#emptyGoodsRow) .goods-table-col-name,
@@ -292,6 +326,42 @@
 
             .doc-page {
                 padding-bottom: 240px !important;
+            }
+
+            #newClientModal .modal-dialog {
+                width: 100vw;
+                max-width: 100vw;
+                margin: 0;
+                min-height: 100vh;
+            }
+
+            #newClientModal .modal-content {
+                min-height: 100vh;
+                border-radius: 0;
+                border: 0;
+            }
+
+            #newClientModal .modal-body {
+                padding: 16px;
+            }
+
+            #newClientModal .modal-footer {
+                padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            }
+
+            #newClientModal .modal-footer .btn {
+                flex: 1 1 100%;
+            }
+
+            #newClientModal .modal-client-grid {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            #newClientModal .modal-client-grid .col-12,
+            #newClientModal .modal-client-grid .col-md-6 {
+                width: 100%;
             }
         }
     </style>
@@ -468,6 +538,7 @@
                         </div>
                         <input type="hidden" name="client1" id="client1_id"
                             value="{{ old('client1', $client ? $client->id : '') }}"
+                            data-orgname="{{ $client->orgname ?? '' }}"
                             data-name="{{ $client->name ?? '' }}"
                             data-secondname="{{ $client->secondname ?? '' }}"
                             data-phone="{{ $client->phone ?? '' }}"
@@ -478,8 +549,10 @@
                         <div id="selectedClientDetails"
                             class="alert {{ $client ? 'alert-secondary' : 'alert-warning' }} py-1 mt-1 selected-client-details {{ $client ? 'selected-client-details--filled' : 'selected-client-details--empty' }}">
                             @if($client)
-                                <strong>{{ $client->orgname }}</strong> | {{ $client->name2 }} {{ $client->name }}
-                                {{ $client->secondname }}<br>
+                                @if($client->orgname)
+                                    <strong>{{ $client->orgname }}</strong> |
+                                @endif
+                                {{ trim(($client->secondname ?? '') . ' ' . ($client->name ?? '')) }}<br>
                                 {{ $client->phone }} |
                                 {{ $client->region ? $client->region . ' | ' : '' }}{{ $client->city }}{{ $client->poshta ? ' | ' . $client->poshta : '' }}
                             @else
@@ -715,7 +788,7 @@
 
     <!-- Modal: New Client -->
     <div class="modal fade" id="newClientModal" tabindex="-1" aria-labelledby="newClientModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="newClientModalLabel">Новий клієнт</h5>
@@ -723,45 +796,45 @@
                 </div>
                 <div class="modal-body py-2">
                     <input type="hidden" id="newClientId" value="0">
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label class="form-label small mb-0">Ім'я</label>
-                            <input type="text" class="form-control form-control-sm text-white" id="newClientName">
+                    <div class="row g-2 modal-client-grid">
+                        <div class="col-12 client-modal-field">
+                            <label class="form-label small mb-0">Організація</label>
+                            <input type="text" class="form-control form-control-sm text-white" id="newClientOrgname">
                         </div>
-                        <div class="col-6">
+                        <div class="col-12 col-md-6 client-modal-field">
                             <label class="form-label small mb-0">Прізвище</label>
                             <input type="text" class="form-control form-control-sm text-white" id="newClientSecondname">
                         </div>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
+                        <div class="col-12 col-md-6 client-modal-field">
+                            <label class="form-label small mb-0">Ім'я</label>
+                            <input type="text" class="form-control form-control-sm text-white" id="newClientName">
+                        </div>
+                        <div class="col-12 col-md-6 client-modal-field">
                             <label class="form-label small mb-0">Телефон</label>
                             <input type="text" class="form-control form-control-sm text-white" id="newClientPhone"
                                 placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                         </div>
-                        <div class="col-6">
+                        <div class="col-12 col-md-6 client-modal-field">
                             <label class="form-label small mb-0">Місто</label>
                             <input type="text" class="form-control form-control-sm text-white" id="newClientCity">
                         </div>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
+                        <div class="col-12 col-md-6 client-modal-field">
                             <label class="form-label small mb-0">Область</label>
                             <input type="text" class="form-control form-control-sm text-white" id="newClientRegion">
                         </div>
-                        <div class="col-6">
+                        <div class="col-12 col-md-6 client-modal-field">
                             <label class="form-label small mb-0">Отделение НP</label>
                             <input type="text" class="form-control form-control-sm text-white" id="newClientPoshta">
                         </div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small mb-0">Статус клієнта</label>
-                        <select class="form-select form-select-sm  text-white" id="newClientStatus">
-                            <option value="">Оберіть статус</option>
-                            @foreach(($clientStatuses ?? collect()) as $statusOption)
-                                <option value="{{ $statusOption->id }}">{{ $statusOption->name }}</option>
-                            @endforeach
-                        </select>
+                        <div class="col-12 client-modal-field">
+                            <label class="form-label small mb-0">Статус клієнта</label>
+                            <select class="form-select form-select-sm text-white" id="newClientStatus">
+                                <option value="">Оберіть статус</option>
+                                @foreach(($clientStatuses ?? collect()) as $statusOption)
+                                    <option value="{{ $statusOption->id }}">{{ $statusOption->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
                     <div id="newClientError" class="text-danger small" style="display: none;"></div>
                 </div>
@@ -783,6 +856,14 @@
             const client1Id = document.getElementById('client1_id');
             const clientDetails = document.getElementById('selectedClientDetails');
             const documentSummaInput1 = document.getElementById('documentSummaInput');
+            const formatClientName = (user) => [user.secondname || '', user.name || ''].filter(Boolean).join(' ').trim();
+            const formatClientDetailsHtml = (user) => {
+                const regionPart = user.region ? user.region + ' | ' : '';
+                const poshtaPart = user.poshta ? ' | ' + user.poshta : '';
+                const orgnamePart = user.orgname ? `<strong>${user.orgname}</strong> | ` : '';
+                const clientName = formatClientName(user);
+                return `${orgnamePart}${clientName}<br><small>${user.phone || ''} | ${regionPart}${user.city || ''}${poshtaPart}</small>`;
+            };
 
             function performSearch() {
                 const q = searchInput.value.trim();
@@ -797,12 +878,11 @@
                             data.forEach(user => {
                                 const a = document.createElement('a');
                                 a.href = '#'; a.className = 'list-group-item list-group-item-action bg-white text-dark';
-                                const regionPart = user.region ? user.region + ' | ' : '';
-                                const poshtaPart = user.poshta ? ' | ' + user.poshta : '';
-                                a.innerHTML = `<strong>${user.orgname || ''}</strong> | ${user.name2 || ''} ${user.name || ''} ${user.secondname || ''} <br> <small>${user.phone || ''} | ${regionPart}${user.city || ''}${poshtaPart}</small>`;
+                                a.innerHTML = formatClientDetailsHtml(user);
                                 a.addEventListener('click', function (e) {
                                     e.preventDefault();
                                     client1Id.value = user.id;
+                                    client1Id.dataset.orgname = user.orgname || '';
                                     client1Id.dataset.name = user.name || '';
                                     client1Id.dataset.secondname = user.secondname || '';
                                     client1Id.dataset.phone = user.phone || '';
@@ -817,7 +897,7 @@
                                     clientDetails.style.background = '#f8f9fa';
                                     clientDetails.style.border = '1px solid #ddd';
                                     clientDetails.style.fontSize = '0.85rem';
-                                    clientDetails.innerHTML = a.innerHTML;
+                                    clientDetails.innerHTML = formatClientDetailsHtml(user);
                                     resultsContainer.style.display = 'none';
                                     searchInput.value = '';
                                 });
@@ -847,11 +927,13 @@
             const saveNewClientBtn = document.getElementById('saveNewClientBtn');
             const newClientPhoneField = document.getElementById('newClientPhone');
             const newClientIdField = document.getElementById('newClientId');
+            const newClientOrgnameField = document.getElementById('newClientOrgname');
 
             if(newClientBtn) {
                 newClientBtn.addEventListener('click', () => {
                     document.getElementById('newClientModalLabel').textContent = 'Новий клієнт';
                     newClientIdField.value = '0';
+                    newClientOrgnameField.value = '';
                     document.getElementById('newClientName').value = '';
                     document.getElementById('newClientSecondname').value = '';
                     newClientPhoneField.value = '';
@@ -867,6 +949,7 @@
                 editClientBtn.addEventListener('click', () => {
                     document.getElementById('newClientModalLabel').textContent = 'Змінити клієнта';
                     newClientIdField.value = client1Id.value || '0';
+                    newClientOrgnameField.value = client1Id.dataset.orgname || '';
                     document.getElementById('newClientName').value = client1Id.dataset.name || '';
                     document.getElementById('newClientSecondname').value = client1Id.dataset.secondname || '';
                     newClientPhoneField.value = client1Id.dataset.phone || '';
@@ -911,6 +994,7 @@
 
             saveNewClientBtn.addEventListener('click', function () {
                 const id = newClientIdField.value || '0';
+                const orgnameField = newClientOrgnameField;
                 const nameField = document.getElementById('newClientName');
                 const secondnameField = document.getElementById('newClientSecondname');
                 const phoneField = newClientPhoneField;
@@ -918,6 +1002,7 @@
                 const regionField = document.getElementById('newClientRegion');
                 const poshtaField = document.getElementById('newClientPoshta');
                 const statusField = document.getElementById('newClientStatus');
+                const orgname = orgnameField.value.trim();
                 const name = nameField.value.trim();
                 const secondname = secondnameField.value.trim();
                 const phone = phoneField.value.trim();
@@ -951,7 +1036,7 @@
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}'
                     },
-                    body: JSON.stringify({ id, name, secondname, phone, city, region, poshta, idstatus })
+                    body: JSON.stringify({ id, orgname, name, secondname, phone, city, region, poshta, idstatus })
                 })
                     .then(async res => {
                         const payload = await res.json().catch(() => ({}));
@@ -962,6 +1047,7 @@
                     })
                     .then(user => {
                         client1Id.value = user.id;
+                        client1Id.dataset.orgname = user.orgname || '';
                         client1Id.dataset.name = user.name || '';
                         client1Id.dataset.secondname = user.secondname || '';
                         client1Id.dataset.phone = user.phone || '';
@@ -976,14 +1062,11 @@
                         clientDetails.style.background = '#f8f9fa';
                         clientDetails.style.border = '1px solid #ddd';
                         clientDetails.style.fontSize = '0.85rem';
-                        const regionPart = user.region ? user.region + ' | ' : '';
-                        const poshtaPart = user.poshta ? ' | ' + user.poshta : '';
-                        const orgnamePart = user.orgname ? `<strong>${user.orgname}</strong> | ` : '';
-                        const name2Part = user.name2 ? user.name2 + ' ' : '';
-                        clientDetails.innerHTML = `${orgnamePart}${name2Part}${user.name || ''} ${user.secondname || ''} <br> ${user.phone || ''} | ${regionPart}${user.city || ''}${poshtaPart}`;
+                        clientDetails.innerHTML = formatClientDetailsHtml(user);
                         
                         const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
                         modal.hide();
+                        orgnameField.value = '';
                         nameField.value = '';
                         secondnameField.value = '';
                         phoneField.value = '';

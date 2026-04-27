@@ -132,6 +132,7 @@ class ClientController extends Controller
     public function storeQuick(Request $request)
     {
         $fid = session('fid', '');
+        $orgname = trim((string) ($request->input('orgname') ?? ''));
         $name = trim((string) ($request->input('name') ?? ''));
         $secondname = trim((string) ($request->input('secondname') ?? ''));
         $rawPhone = trim((string) ($request->input('phone') ?? ''));
@@ -179,6 +180,7 @@ class ClientController extends Controller
         }
 
         $data = [
+            'orgname' => $orgname,
             'name' => $name,
             'secondname' => $secondname,
             'phone' => $phone,

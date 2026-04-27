@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
 class UpdateTokenDataJob implements ShouldQueue
@@ -16,65 +17,85 @@ class UpdateTokenDataJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function __construct(
-        public int $tokenId,
+        public array $tokenIds,
         public string $walletAddress,
         public string $chainId
-    ) {}
+    ) {
+    }
+
+    public static function dispatchForWallet(Collection|array $tokens, string $walletAddress, string $chainId): void
+    {
+        $tokenIds = collect($tokens)
+            ->map(fn ($token) => (int) data_get($token, 'id'))
+            ->filter(fn (int $id) => $id > 0)
+            ->values()
+            ->all();
+
+        if ($tokenIds === []) {
+            return;
+        }
+
+        self::dispatch($tokenIds, $walletAddress, $chainId);
+    }
 
     public function handle(WalletProtocolService $protocolService): void
     {
-        $token = Conf::find($this->tokenId);
-        if (!$token || $token->type !== 'web3_token') {
+        $tokens = Conf::query()
+            ->whereIn('id', $this->tokenIds)
+            ->where('type', 'web3_token')
+            ->get();
+
+        if ($tokens->isEmpty()) {
             return;
         }
 
         $normalizedChainId = $this->normalizeChainId($this->chainId);
         $normalizedAddress = $this->normalizeAddress($this->walletAddress);
+        $assetsPayload = $protocolService->loadAssets($normalizedAddress, $normalizedChainId, $tokens->all());
+        $assets = collect((array) ($assetsPayload['assets'] ?? []));
 
-        // Get balance
-        $assets = $protocolService->loadAssets($normalizedAddress, $normalizedChainId, [$token]);
-        $balance = 0.0;
-        if (isset($assets['assets']) && is_array($assets['assets'])) {
-            foreach ($assets['assets'] as $asset) {
-                if (strtolower($asset['address'] ?? '') === strtolower($token->color ?? '')) {
-                    $balance = (float) ($asset['balance'] ?? 0);
-                    break;
+        foreach ($tokens as $token) {
+            $tokenAddress = strtolower(trim((string) ($token->color ?? '')));
+            $asset = $assets->first(function (array $item) use ($tokenAddress) {
+                return strtolower((string) ($item['address'] ?? '')) === $tokenAddress;
+            });
+
+            $balance = (float) data_get($asset, 'balance', 0);
+            $price = (float) data_get($asset, 'price', 0);
+
+            if ($price <= 0) {
+                $cgId = $token->constanta;
+                if ($cgId && $cgId !== '0') {
+                    try {
+                        $response = Http::get("https://api.coingecko.com/api/v3/simple/price?ids={$cgId}&vs_currencies=usd");
+                        if ($response->successful()) {
+                            $data = $response->json();
+                            $price = (float) ($data[$cgId]['usd'] ?? 0);
+                        }
+                    } catch (\Throwable $exception) {
+                        report($exception);
+                    }
                 }
             }
-        }
 
-        // Get price from Coingecko
-        $price = 0.0;
-        $cgId = $token->constanta;
-        if ($cgId && $cgId !== '0') {
-            try {
-                $response = Http::get("https://api.coingecko.com/api/v3/simple/price?ids={$cgId}&vs_currencies=usd");
-                if ($response->successful()) {
-                    $data = $response->json();
-                    $price = (float) ($data[$cgId]['usd'] ?? 0);
-                }
-            } catch (\Exception $e) {
-                // Log error if needed
-            }
+            $token->update([
+                'last_balance' => $balance,
+                'last_price' => $price,
+                'last_updated_at' => now(),
+            ]);
         }
-
-        // Update token data
-        $token->update([
-            'last_balance' => $balance,
-            'last_price' => $price,
-            'last_updated_at' => now(),
-        ]);
     }
 
     private function normalizeChainId(string $chainId): string
     {
         if (preg_match('/^0x[0-9a-f]+$/i', $chainId)) {
-            return $chainId;
+            return strtolower($chainId);
         }
         if (is_numeric($chainId)) {
             return '0x' . dechex((int) $chainId);
         }
-        return $chainId;
+
+        return strtolower($chainId);
     }
 
     private function normalizeAddress(string $address): string

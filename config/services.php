@@ -40,4 +40,18 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
     ],
 
+    'zerion' => [
+        'api_key' => env('ZERION_API_KEY'),
+        'wallet_address' => env('ZERION_WALLET_ADDRESS'),
+        'chain_ids' => env('ZERION_CHAIN_IDS', ''),
+    ],
+
+    'zerox' => [
+        'api_key' => env('ZEROX_API_KEY'),
+    ],
+
+    'defillama' => [
+        'protocol_slug' => env('DEFILLAMA_PROTOCOL_SLUG'),
+    ],
+
 ];

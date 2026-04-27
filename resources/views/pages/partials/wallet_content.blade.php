@@ -80,7 +80,7 @@
                     <div style="font-size: 0.85rem; margin-top: 0.5rem; color: rgba(255,255,255,0.7); font-weight: 500;">Receive</div>
                 </div>
                 <div class="rabby-action-btn text-center">
-                    <button style="width: 52px; height: 52px; border-radius: 16px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.2); color: #10b981; font-size: 1.4rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;">
+                    <button id="btn-open-swap-window" style="width: 52px; height: 52px; border-radius: 16px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.2); color: #10b981; font-size: 1.4rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"></path><path d="M4 20L21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg>
                     </button>
                     <div style="font-size: 0.85rem; margin-top: 0.5rem; color: rgba(255,255,255,0.7); font-weight: 500;">Swap</div>
@@ -519,6 +519,7 @@
   const btnShowReceive = document.getElementById('btn-show-receive');
   const btnBackFromSend = document.getElementById('btn-back-from-send');
   const btnBackFromReceive = document.getElementById('btn-back-from-receive');
+  const btnOpenSwapWindow = document.getElementById('btn-open-swap-window');
   const btnSubmitSend = document.getElementById('btn-submit-send');
   const sendTokenSelect = document.getElementById('send-token-select');
   const sendToAddress = document.getElementById('send-to-address');
@@ -580,6 +581,19 @@
   if (btnShowReceive) btnShowReceive.addEventListener('click', showReceiveView);
   if (btnBackFromSend) btnBackFromSend.addEventListener('click', showMainView);
   if (btnBackFromReceive) btnBackFromReceive.addEventListener('click', showMainView);
+  if (btnOpenSwapWindow) {
+    btnOpenSwapWindow.addEventListener('click', () => {
+      const chainId = normalizeChainId(selectedProtocolChainId || currentWalletChainId || '0xa4b1') || '0xa4b1';
+      if (chainId === 'solana') {
+        alert('Swap popup currently supports EVM networks only.');
+        return;
+      }
+
+      const wallet = connectedWalletAddress || currentWalletAddress || '';
+      const url = `/wallet/swap-window?chain_id=${encodeURIComponent(chainId)}&wallet=${encodeURIComponent(wallet)}`;
+      window.open(url, 'av8-swap-window', 'popup=yes,width=1180,height=860,resizable=yes,scrollbars=yes');
+    });
+  }
 
   document.getElementById('btn-copy-address')?.addEventListener('click', () => {
     if (currentWalletAddress) {
@@ -673,7 +687,8 @@
     walletDefiSections.style.display = 'none';
     const overview = await fetchWalletOverview(address, preferredChainId);
     if (!overview || !overview.assets || !overview.assets.available) {
-      rabbyTokensList.innerHTML = '<div class="text-center py-4" style="color:#fca5a5;">Не удалось загрузить активы кошелька.</div>';
+      const errorText = overview?.assets?.error || 'Не удалось загрузить активы кошелька.';
+      rabbyTokensList.innerHTML = `<div class="text-center py-4" style="color:#fca5a5;">${escapeHtml(errorText)}</div>`;
       return;
     }
 
@@ -694,7 +709,7 @@
         symbol: asset.symbol || configuredToken?.symbol || nativeToken?.symbol || 'TOKEN',
         name: asset.name || configuredToken?.name || nativeToken?.name || 'Token',
         balance: Number(asset.balance || 0),
-        price: configuredToken?.price || nativeToken?.price || 0,
+        price: Number(asset.price || configuredToken?.price || nativeToken?.price || 0),
         iconUrl: configuredToken?.iconUrl || nativeToken?.iconUrl || 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
         address: asset.address || configuredToken?.address || null,
         decimals: asset.decimals ?? configuredToken?.decimals ?? 18,
@@ -712,6 +727,7 @@
       if (t.balance === 0 && tokensToShow.length > 1 && t.isNative) return;
 
       const priceText = t.price ? `$${t.price.toFixed(4)}` : 'Цена не загружена';
+      const addressText = t.address ? shortenAddress(t.address) : 'Native asset';
       listHtml += `
         <div class="token-row" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0.5rem; border-radius: 12px; transition: background 0.2s; cursor: pointer;">
             <div style="display: flex; align-items: center; gap: 12px;">
@@ -721,6 +737,7 @@
                 <div>
                     <div style="color: #fff; font-weight: 600; font-size: 1.05rem; line-height: 1.2;">${t.symbol}</div>
                     <div style="color: rgba(255,255,255,0.5); font-size: 0.85rem;">${t.name}</div>
+                    <div style="color: rgba(255,255,255,0.42); font-size: 0.72rem; font-family: monospace;">${escapeHtml(addressText)}</div>
                     <div style="color: rgba(255,255,255,0.6); font-size: 0.75rem;">${priceText}</div>
                 </div>
             </div>
@@ -731,6 +748,12 @@
         </div>
       `;
     });
+
+    const defiTotal = chainId === 'solana'
+      ? 0
+      : Object.values(overview.protocols || {}).reduce((sum, protocol) => sum + protocolSectionTotal(protocol), 0);
+
+    totalFiat += defiTotal;
 
     rabbyTokensList.innerHTML = listHtml;
     renderProtocolSections(chainId === 'solana' ? null : (overview.protocols || null));
@@ -789,14 +812,32 @@
       return;
     }
 
-    const protocolOrder = ['aave', 'gmx'];
-    const sections = protocolOrder
-      .map((key) => renderProtocolSection(protocols[key]))
+    const sections = Object.values(protocols)
+      .sort((left, right) => {
+        const leftTotal = protocolSectionTotal(left);
+        const rightTotal = protocolSectionTotal(right);
+        return rightTotal - leftTotal;
+      })
+      .map((protocol) => renderProtocolSection(protocol))
       .filter(Boolean)
       .join('');
 
     walletDefiSections.innerHTML = sections;
     walletDefiSections.style.display = sections ? 'block' : 'none';
+  }
+
+  function protocolSectionTotal(protocol) {
+    if (!protocol || typeof protocol !== 'object') return 0;
+
+    const tokens = Array.isArray(protocol.tokens) ? protocol.tokens : [];
+    const loans = Array.isArray(protocol.loans) ? protocol.loans : [];
+    const pools = Array.isArray(protocol.pools) ? protocol.pools : [];
+
+    const tokensTotal = tokens.reduce((sum, item) => sum + Number(item?.usd_value || 0), 0);
+    const poolsTotal = pools.reduce((sum, item) => sum + Number(item?.usd_value || 0), 0);
+    const loansTotal = loans.reduce((sum, item) => sum + Number(item?.usd_value || 0), 0);
+
+    return tokensTotal + poolsTotal - loansTotal;
   }
 
   function renderProtocolSection(protocol) {
@@ -805,14 +846,32 @@
     const tokens = Array.isArray(protocol.tokens) ? protocol.tokens : [];
     const loans = Array.isArray(protocol.loans) ? protocol.loans : [];
     const pools = Array.isArray(protocol.pools) ? protocol.pools : [];
+    const protocolLink = typeof protocol.url === 'string' ? protocol.url : '';
+    const protocolIcon = typeof protocol.icon === 'string' ? protocol.icon : '';
 
     if (!tokens.length && !loans.length && !pools.length && !protocol.error) return '';
 
     return `
       <div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-          <h4 style="font-size:1.05rem; color:rgba(255,255,255,0.9); font-weight:600; margin:0;">${escapeHtml(protocol.name || 'Protocol')}</h4>
-          <span style="font-size:0.8rem; color:${protocol.available ? '#4ade80' : '#fca5a5'};">${protocol.available ? 'API connected' : 'API unavailable'}</span>
+          <div style="display:flex; align-items:center; gap:0.65rem;">
+            ${protocolIcon ? `<img src="${escapeHtml(protocolIcon)}" alt="${escapeHtml(protocol.name || 'Protocol')}" style="width:28px; height:28px; border-radius:999px; object-fit:cover; background:rgba(255,255,255,0.04);">` : ''}
+            <h4 style="font-size:1.05rem; color:rgba(255,255,255,0.9); font-weight:600; margin:0;">${escapeHtml(protocol.name || 'Protocol')}</h4>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.6rem;">
+            ${protocolLink ? `
+              <a
+                href="${escapeHtml(protocolLink)}"
+                target="_blank"
+                rel="noreferrer"
+                style="display:inline-flex; align-items:center; gap:0.35rem; padding:0.38rem 0.7rem; border-radius:999px; background:rgba(59,130,246,0.12); border:1px solid rgba(96,165,250,0.25); color:#93c5fd; font-size:0.76rem; font-weight:600; text-decoration:none;"
+              >
+                Open protocol
+                <span aria-hidden="true">↗</span>
+              </a>
+            ` : ''}
+            <span style="font-size:0.8rem; color:${protocol.available ? '#4ade80' : '#fca5a5'};">${protocol.available ? 'API connected' : 'API unavailable'}</span>
+          </div>
         </div>
         ${protocol.error ? `<div style="color:#fca5a5; font-size:0.85rem; margin-bottom:0.75rem;">${escapeHtml(protocol.error)}</div>` : ''}
         ${renderProtocolGroup('Tokens', tokens, renderProtocolTokenRow)}
@@ -839,7 +898,13 @@
     const balance = formatAmount(item.balance);
     const apy = item.apy ? ` • APY ${formatPercent(item.apy)}` : '';
     const collateral = item.collateral ? ' • collateral' : '';
-    return renderInfoRow(item.symbol || item.name, `${balance} ${item.symbol || ''}`, `${value}${apy}${collateral}`, '#4ade80');
+    return renderInfoRow(
+      item.symbol || item.name,
+      `${balance} ${item.symbol || ''}`,
+      `${value}${apy}${collateral}`,
+      '#4ade80',
+      protocolItemDetails(item)
+    );
   }
 
   function renderProtocolLoanRow(item) {
@@ -848,7 +913,13 @@
     const side = item.side ? ` • ${escapeHtml(item.side)}` : '';
     const apy = item.apy ? ` • APR ${formatPercent(item.apy)}` : '';
     const pnl = item.pnl_usd ? ` • PnL ${formatUsd(item.pnl_usd)}` : '';
-    return renderInfoRow(item.symbol || item.name, `${balance} ${item.symbol || ''}`, `${value}${side}${apy}${pnl}`, '#fca5a5');
+    return renderInfoRow(
+      item.symbol || item.name,
+      `${balance} ${item.symbol || ''}`,
+      `${value}${side}${apy}${pnl}`,
+      '#fca5a5',
+      protocolItemDetails(item)
+    );
   }
 
   function renderProtocolPoolRow(item) {
@@ -860,19 +931,74 @@
     if (item.supply_apy) metrics.push(`supply ${formatPercent(item.supply_apy)}`);
     if (item.borrow_apy) metrics.push(`borrow ${formatPercent(item.borrow_apy)}`);
     if (item.long_token || item.short_token) metrics.push(`${escapeHtml(item.long_token || '-')} / ${escapeHtml(item.short_token || '-')}`);
-    return renderInfoRow(item.symbol || item.name, item.name || item.symbol || '', metrics.join(' • '), '#93c5fd');
+    return renderInfoRow(
+      item.symbol || item.name,
+      item.name || item.symbol || '',
+      metrics.join(' • '),
+      '#93c5fd',
+      protocolItemDetails(item)
+    );
   }
 
-  function renderInfoRow(title, subtitle, meta, accent) {
-    return `
-      <div style="display:flex; justify-content:space-between; gap:0.75rem; padding:0.75rem; border-radius:12px; background:rgba(255,255,255,0.02);">
-        <div>
-          <div style="color:#fff; font-weight:600; font-size:0.96rem;">${escapeHtml(title || '')}</div>
-          <div style="color:rgba(255,255,255,0.5); font-size:0.82rem;">${escapeHtml(subtitle || '')}</div>
+  function renderInfoRow(title, subtitle, meta, accent, details = []) {
+    const detailRows = Array.isArray(details)
+      ? details
+          .filter((entry) => entry && entry.label && entry.value)
+          .map((entry) => `
+            <div style="display:flex; justify-content:space-between; gap:0.75rem; padding:0.3rem 0; border-top:1px solid rgba(255,255,255,0.05);">
+              <span style="color:rgba(255,255,255,0.5);">${escapeHtml(entry.label)}</span>
+              <span style="color:rgba(255,255,255,0.9); text-align:right;">${entry.isHtml ? entry.value : escapeHtml(entry.value)}</span>
+            </div>
+          `)
+          .join('')
+      : '';
+
+    const isExpandable = detailRows !== '';
+
+    if (!isExpandable) {
+      return `
+        <div style="display:flex; justify-content:space-between; gap:0.75rem; padding:0.75rem; border-radius:12px; background:rgba(255,255,255,0.02);">
+          <div>
+            <div style="color:#fff; font-weight:600; font-size:0.96rem;">${escapeHtml(title || '')}</div>
+            <div style="color:rgba(255,255,255,0.5); font-size:0.82rem;">${escapeHtml(subtitle || '')}</div>
+          </div>
+          <div style="text-align:right; color:${accent}; font-size:0.82rem; line-height:1.45;">${escapeHtml(meta || '')}</div>
         </div>
-        <div style="text-align:right; color:${accent}; font-size:0.82rem; line-height:1.45;">${escapeHtml(meta || '')}</div>
-      </div>
+      `;
+    }
+
+    return `
+      <details style="border-radius:12px; background:rgba(255,255,255,0.02);">
+        <summary style="list-style:none; cursor:${isExpandable ? 'pointer' : 'default'}; display:flex; justify-content:space-between; gap:0.75rem; padding:0.75rem; border-radius:12px;">
+          <div>
+            <div style="color:#fff; font-weight:600; font-size:0.96rem;">${escapeHtml(title || '')}</div>
+            <div style="color:rgba(255,255,255,0.5); font-size:0.82rem;">${escapeHtml(subtitle || '')}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.6rem;">
+            <div style="text-align:right; color:${accent}; font-size:0.82rem; line-height:1.45;">${escapeHtml(meta || '')}</div>
+            <span style="color:rgba(255,255,255,0.38); font-size:0.8rem;">Details</span>
+          </div>
+        </summary>
+        <div style="padding:0 0.75rem 0.75rem 0.75rem; font-size:0.78rem; line-height:1.45;">${detailRows}</div>
+      </details>
     `;
+  }
+
+  function protocolItemDetails(item) {
+    const rows = [];
+
+    if (item.chain) rows.push({ label: 'Chain', value: String(item.chain).toUpperCase() });
+    if (item.position_type) rows.push({ label: 'Position type', value: item.position_type });
+    if (item.protocol_module) rows.push({ label: 'Module', value: item.protocol_module });
+    if (item.link) {
+      rows.push({
+        label: 'Protocol',
+        value: `<a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer" style="color:#93c5fd; text-decoration:none;">Open dApp ↗</a>`,
+        isHtml: true,
+      });
+    }
+
+    return rows;
   }
 
   function formatAmount(value) {

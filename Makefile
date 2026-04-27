@@ -1,12 +1,15 @@
 # Makefile — быстрые команды для sklad docker
 # Использование: make up | make down | make bash | make migrate | ...
 
-.PHONY: up down build restart bash logs migrate seed fresh key perm pma
+.PHONY: up down build restart bash logs migrate seed fresh key perm pma bootstrap
 
 ## ── Запуск ────────────────────────────────────────────────────────────────────
 
 up:         ## Запустить все контейнеры (фон)
 	docker compose up -d
+
+bootstrap:  ## Прогнать migrate + legacy import one-shot сервисом
+	docker compose up bootstrap
 
 down:       ## Остановить и удалить контейнеры
 	docker compose down

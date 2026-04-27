@@ -1,5 +1,9 @@
-# Положите сюда dump.sql для автоматического импорта при первом старте MySQL.
-# Например: docker/mysql/init/01_dump.sql
+# Эта папка остается доступной для raw MySQL init, но основной bootstrap
+# проекта теперь выполняется через Compose-сервис `bootstrap`.
 #
-# MySQL выполняет все *.sql файлы из этой папки в алфавитном порядке
-# только при ПЕРВОМ запуске (когда db_data volume пустой).
+# Он делает:
+# 1. `php artisan migrate --force`
+# 2. `php artisan db:import-maha --path=/var/www/html/filtered_maha_2.sql --with-users`
+# 3. `php artisan db:import-legacy-users --path=/var/www/html/import_users.sql`
+#
+# Поэтому для обычного старта достаточно `docker compose up -d`.

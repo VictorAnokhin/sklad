@@ -60,6 +60,7 @@ Route::get('/about', function () {
     return view('pages.about', compact('projects'));
 })->name('about');
 Route::get('/wallet', [WalletController::class, 'page'])->name('wallet');
+Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name('wallet.swap-window');
 
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {

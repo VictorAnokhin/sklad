@@ -1,7 +1,34 @@
 services:
+  bootstrap:
+    image: laravel-api-app:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    volumes:
+      - .:/var/www/html
+      - ./storage:/var/www/html/storage
+      - /var/www/html/vendor
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      - sh
+      - -lc
+      - php artisan migrate --force && php artisan db:import-maha --path=/var/www/html/filtered_maha_2.sql --with-users && php artisan db:import-legacy-users --path=/var/www/html/import_users.sql
+    networks:
+      - sklad
+
 
   # ── PHP + Apache ─────────────────────────────────────────────────────────────
   app:
+    image: laravel-api-app:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -22,6 +49,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
     networks:
       - sklad
 
@@ -69,7 +98,6 @@ services:
 
 volumes:
   db_data:
-    external: true
     name: laravel-api_db_data
 
 networks:
