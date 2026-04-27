@@ -5,14 +5,16 @@
 @section('content')
 @php
     $activeTab = ($tab ?? 'orders') === 'transfers' ? 'transfers' : 'orders';
+    $indexRouteName = $indexRouteName ?? ($activeTab === 'transfers' ? 'money.transfers' : 'money.index');
+    $showRouteName = $showRouteName ?? 'money.show';
 @endphp
 
-@include('money.partials.top-actions', ['returnFilters' => $returnFilters ?? [], 'tab' => $activeTab])
+@include('money.partials.top-actions', ['returnFilters' => $returnFilters ?? [], 'tab' => $activeTab, 'indexRouteName' => $indexRouteName, 'showRouteName' => $showRouteName])
 
 <div class="ttable money-show-page" style="padding: 20px; max-width: 760px; margin: 0 auto; border-radius: 8px;">
     @php
         $isNew = empty($document->id);
-        $backUrl = route('money.index', $returnFilters ?? ['tab' => $activeTab]);
+        $backUrl = route($indexRouteName, $returnFilters ?? []);
         $documentDateValue = (string) ($document->data ?? '');
         if (preg_match('/^\d{2}-\d{2}-\d{4}$/', $documentDateValue) === 1) {
             $documentDateValue = \DateTimeImmutable::createFromFormat('d-m-Y', $documentDateValue)?->format('Y-m-d') ?? '';
@@ -62,7 +64,7 @@
                 <option value="">{{ __('money.select_cashbox') }}</option>
                 @foreach($kassas as $kassa)
                 <option value="{{ $kassa->id }}" {{ (string) old('oplata', $document->oplata ?? '') === (string) $kassa->id ? 'selected' : '' }}>
-                    {{ $kassa->name }}
+                    {{ $kassa->name }} ({{ number_format((float) ($kassa->balance ?? 0), 2, '.', ' ') }})
                 </option>
                 @endforeach
             </select>
@@ -76,7 +78,7 @@
                 <option value="">{{ __('money.select_cashbox') }}</option>
                 @foreach($targetKassas ?? $kassas as $kassa)
                 <option value="{{ $kassa->id }}" {{ (string) old('oplata2', $document->oplata2 ?? '') === (string) $kassa->id ? 'selected' : '' }}>
-                    {{ $kassa->name }}
+                    {{ $kassa->name }} ({{ number_format((float) ($kassa->balance ?? 0), 2, '.', ' ') }})
                 </option>
                 @endforeach
             </select>

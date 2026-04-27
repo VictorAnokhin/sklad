@@ -7,6 +7,9 @@
     $activeTab = ($tab ?? 'orders') === 'transfers' ? 'transfers' : 'orders';
     $perPage = 30;
     $datesAreDefault = $datesAreDefault ?? false;
+    $indexRouteName = $indexRouteName ?? ($activeTab === 'transfers' ? 'money.transfers' : 'money.index');
+    $showRouteName = $showRouteName ?? 'money.show';
+    $filterRouteName = $filterRouteName ?? $indexRouteName;
     $hasDateFilter = (($filters['date_from'] ?? '') !== '' || ($filters['date_to'] ?? '') !== '');
     $activeFilters = array_filter($filters ?? [], function ($value, $key) use ($activeTab, $datesAreDefault) {
         if ($value === '' || $value === null) {
@@ -35,6 +38,8 @@
     'showMoneyFilter' => true,
     'activeFilters' => $activeFilters,
     'tab' => $activeTab,
+    'indexRouteName' => $indexRouteName,
+    'showRouteName' => $showRouteName,
 ])
 
 <div class="ttable document-compact-wrap">
@@ -48,7 +53,7 @@
     @if(!empty($activeFilters))
     <div class="alert alert-warning money-filter-active-notice">
         {{ __('money.filter_active') }}
-        <a href="{{ route('money.index', ['tab' => $activeTab]) }}" style="margin-left: 8px;">{{ __('money.reset') }}</a>
+        <a href="{{ route($indexRouteName) }}" style="margin-left: 8px;">{{ __('money.reset') }}</a>
     </div>
     @endif
 
@@ -94,7 +99,7 @@
             <tbody>
                 @foreach($documents as $doc)
                 @php
-                    $linkUrl = route('money.show', array_merge([
+                    $linkUrl = route($showRouteName, array_merge([
                         'id' => $doc->id,
                         'tab' => 'transfers',
                     ], [
@@ -148,7 +153,7 @@
     <div class="document-compact-list">
         @foreach($documents as $doc)
         @php
-            $linkUrl = route('money.show', array_merge(['id' => $doc->id, 'type' => $doc->type, 'tab' => 'orders'], [
+            $linkUrl = route($showRouteName, array_merge(['id' => $doc->id, 'type' => $doc->type, 'tab' => 'orders'], [
                 'return_q' => $returnFilters['q'] ?? null,
                 'return_filter_type' => $returnFilters['type'] ?? null,
                 'return_money' => $returnFilters['money'] ?? null,
@@ -214,7 +219,7 @@
       'pos' => $pos,
       'pos2' => $perPage,
       'max' => $total,
-      'routeName' => 'money.index',
+      'routeName' => $indexRouteName,
       'routeParams' => array_merge($filters ?? [], ['tab' => $activeTab]),
     ])
     @endif
@@ -232,8 +237,7 @@
         </div>
         @endif
 
-        <form action="{{ route('money.index') }}" method="get">
-            <input type="hidden" name="tab" value="{{ $activeTab }}">
+        <form action="{{ route($filterRouteName) }}" method="get">
             <div class="money-filter-modal__grid">
                 @if($activeTab === 'orders')
                 <div class="money-filter-modal__field">
@@ -273,7 +277,7 @@
 
             <div class="money-filter-modal__actions">
                 <button type="submit" class="btn btn-warning">{{ __('money.filter_apply') }}</button>
-                <a href="{{ route('money.index', ['tab' => $activeTab]) }}" class="btn btn-outline-secondary">{{ __('money.filter_reset') }}</a>
+                <a href="{{ route($indexRouteName) }}" class="btn btn-outline-secondary">{{ __('money.filter_reset') }}</a>
             </div>
         </form>
     </div>

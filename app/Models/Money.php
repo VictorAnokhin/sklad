@@ -267,7 +267,12 @@ class Money extends Model
                 }
             })
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'value'])
+            ->map(function ($cashbox) {
+                $cashbox->balance = (float) ($cashbox->value ?? 0);
+
+                return $cashbox;
+            });
     }
 
     // ── save: insert або update ───────────────────────────────────────────────

@@ -1,6 +1,8 @@
 @php
     $activeTab = ($tab ?? 'orders') === 'transfers' ? 'transfers' : 'orders';
     $baseFilters = $returnFilters ?? [];
+    $indexRouteName = $indexRouteName ?? ($activeTab === 'transfers' ? 'money.transfers' : 'money.index');
+    $showRouteName = $showRouteName ?? 'money.show';
 @endphp
 
 <div class="ttable top-action-bar money-top-action-bar" style="display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;">
@@ -15,22 +17,11 @@
             </div>
         </div>
         @endif
-
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-            <a href="{{ route('money.index', array_merge($baseFilters, ['tab' => 'orders', 'type' => $activeTab === 'orders' ? ($baseFilters['type'] ?? null) : null, 'reestr' => $activeTab === 'orders' ? ($baseFilters['reestr'] ?? null) : null])) }}"
-                class="btn {{ $activeTab === 'orders' ? '' : 'btn-outline-secondary' }}">
-                {{ __('money.tab_orders') }}
-            </a>
-            <a href="{{ route('money.index', array_merge($baseFilters, ['tab' => 'transfers', 'type' => null, 'reestr' => null])) }}"
-                class="btn {{ $activeTab === 'transfers' ? '' : 'btn-outline-secondary' }}">
-                {{ __('money.tab_transfers') }}
-            </a>
-        </div>
     </div>
 
     <div class="top-action-create money-top-action-create">
         @if($activeTab === 'transfers')
-        <form action="{{ route('money.show') }}" method="get" class="money-top-action-form">
+        <form action="{{ route($showRouteName) }}" method="get" class="money-top-action-form">
             <input type="hidden" name="id" value="0">
             <input type="hidden" name="tab" value="transfers">
             <input type="hidden" name="return_q" value="{{ $baseFilters['q'] ?? '' }}">
@@ -43,7 +34,7 @@
             </button>
         </form>
         @else
-        <form action="{{ route('money.show') }}" method="get" class="money-top-action-form">
+        <form action="{{ route($showRouteName) }}" method="get" class="money-top-action-form">
             <input type="hidden" name="id" value="0">
             <input type="hidden" name="type" value="PPO">
             <input type="hidden" name="tab" value="orders">
@@ -58,7 +49,7 @@
                 {{ __('money.add_income') }}
             </button>
         </form>
-        <form action="{{ route('money.show') }}" method="get" class="money-top-action-form">
+        <form action="{{ route($showRouteName) }}" method="get" class="money-top-action-form">
             <input type="hidden" name="id" value="0">
             <input type="hidden" name="type" value="PRO">
             <input type="hidden" name="tab" value="orders">

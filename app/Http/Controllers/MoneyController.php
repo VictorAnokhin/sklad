@@ -14,6 +14,23 @@ use Illuminate\Support\Facades\DB;
  */
 class MoneyController extends Controller
 {
+    private function buildIndexFilters(Request $request): array
+    {
+        $defaultDateFrom = now()->subDays(30)->format('Y-m-d');
+        $defaultDateTo = now()->format('Y-m-d');
+
+        return [
+            'q' => trim((string) $request->input('q', '')),
+            'type' => trim((string) $request->input('type', '')),
+            'money' => trim((string) $request->input('money', '')),
+            'reestr' => trim((string) $request->input('reestr', '')),
+            'date_from' => trim((string) $request->input('date_from', $defaultDateFrom)),
+            'date_to' => trim((string) $request->input('date_to', $defaultDateTo)),
+            '_dates_are_default' => trim((string) $request->input('date_from', $defaultDateFrom)) === $defaultDateFrom
+                && trim((string) $request->input('date_to', $defaultDateTo)) === $defaultDateTo,
+        ];
+    }
+
     private function activeTab(Request $request): string
     {
         return $request->input('tab') === 'transfers' ? 'transfers' : 'orders';
@@ -50,24 +67,13 @@ class MoneyController extends Controller
     public function index(Request $request)
     {
         $fid = session('fid', '');
-        $tab = $this->activeTab($request);
         $pos = (int) $request->input('pos', 0);
-        $defaultDateFrom = now()->subDays(30)->format('Y-m-d');
-        $defaultDateTo = now()->format('Y-m-d');
-        $filters = [
-            'q' => trim((string) $request->input('q', '')),
-            'type' => trim((string) $request->input('type', '')),
-            'money' => trim((string) $request->input('money', '')),
-            'reestr' => trim((string) $request->input('reestr', '')),
-            'date_from' => trim((string) $request->input('date_from', $defaultDateFrom)),
-            'date_to' => trim((string) $request->input('date_to', $defaultDateTo)),
-        ];
-        $datesAreDefault = $filters['date_from'] === $defaultDateFrom
-            && $filters['date_to'] === $defaultDateTo;
+        $tab = 'orders';
+        $filters = $this->buildIndexFilters($request);
+        $datesAreDefault = (bool) ($filters['_dates_are_default'] ?? false);
+        unset($filters['_dates_are_default']);
 
-        $data = $tab === 'transfers'
-            ? Money::initTransfers($fid, $pos, $filters)
-            : Money::init($fid, $pos, $filters);
+        $data = Money::init($fid, $pos, $filters);
 
         $paymentTypes = ($filters['type'] ?? '') !== ''
             ? Conf::paymentTypesForDocument($fid, $filters['type'])
@@ -80,7 +86,30 @@ class MoneyController extends Controller
 
         $userBalance = (float) (Auth::user()->balance ?? 0);
 
-        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalance', 'datesAreDefault')));
+        $indexRouteName = 'money.index';
+        $showRouteName = 'money.show';
+        $filterRouteName = 'money.index';
+
+        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalance', 'datesAreDefault', 'indexRouteName', 'showRouteName', 'filterRouteName')));
+    }
+
+    public function transfers(Request $request)
+    {
+        $fid = session('fid', '');
+        $pos = (int) $request->input('pos', 0);
+        $tab = 'transfers';
+        $filters = $this->buildIndexFilters($request);
+        $datesAreDefault = (bool) ($filters['_dates_are_default'] ?? false);
+        unset($filters['_dates_are_default']);
+
+        $data = Money::initTransfers($fid, $pos, $filters);
+        $paymentTypes = collect();
+        $userBalance = (float) (Auth::user()->balance ?? 0);
+        $indexRouteName = 'money.transfers';
+        $showRouteName = 'money.show';
+        $filterRouteName = 'money.transfers';
+
+        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalance', 'datesAreDefault', 'indexRouteName', 'showRouteName', 'filterRouteName')));
     }
 
     public function show(Request $request)
@@ -95,13 +124,14 @@ class MoneyController extends Controller
             $document = $docId === 0 ? Money::emptyTransferDocument() : Money::findTransfer($docId, $fid);
 
             if (!$document) {
-                return redirect()->route('money.index', ['tab' => 'transfers'])->with('error', 'Документ не знайдено');
+                return redirect()->route('money.transfers')->with('error', 'Документ не знайдено');
             }
 
             $kassas = Money::kassas($fid, (string) ($document->oplata ?? ''));
             $targetKassas = Money::kassas($fid, (string) ($document->oplata2 ?? ''));
+            $indexRouteName = 'money.transfers';
 
-            return view('money.show', compact('document', 'kassas', 'targetKassas', 'returnFilters', 'tab'));
+            return view('money.show', compact('document', 'kassas', 'targetKassas', 'returnFilters', 'tab', 'indexRouteName'));
         }
 
         if ($docId === 0) {
@@ -157,7 +187,7 @@ class MoneyController extends Controller
 
             $savedDocument = Money::findTransfer($savedId, $fid);
             if (!$savedDocument) {
-                return redirect()->route('money.index', ['tab' => 'transfers'])->with('error', 'Документ не знайдено');
+                return redirect()->route('money.transfers')->with('error', 'Документ не знайдено');
             }
 
             $isCurrentlyPosted = (int) ($savedDocument->provodka ?? 0) === 1;
@@ -167,7 +197,7 @@ class MoneyController extends Controller
                 $result = Money::provodkaTransfer($savedId, $fid);
 
                 if (!($result['document'] ?? null)) {
-                    return redirect()->route('money.index', ['tab' => 'transfers'])->with('error', 'Документ не знайдено');
+                    return redirect()->route('money.transfers')->with('error', 'Документ не знайдено');
                 }
 
                 $message = $shouldPost ? 'Збережено та проведено' : 'Збережено, проводку скасовано';

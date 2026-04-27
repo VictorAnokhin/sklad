@@ -122,6 +122,7 @@ Route::middleware(['auth'])->group(function () {
         // ── Money ─────────────────────────────────────────────────────────────────
         Route::prefix('money')->name('money.')->group(function () {
             Route::get('/', [MoneyController::class , 'index'])->name('index');
+            Route::get('/transfers', [MoneyController::class , 'transfers'])->name('transfers');
             Route::get('/show', [MoneyController::class , 'show'])->name('show');
             Route::post('/save', [MoneyController::class , 'save'])->name('save');
             Route::post('/provodka', [MoneyController::class , 'provodka'])->name('provodka');
