@@ -21,15 +21,26 @@ class ClientController extends Controller
     public function index(Request $request)
     {
         $fid = session('fid', '');
+        $previousFilters = [
+            'search' => session('cl_search', ''),
+            'city' => session('cl_city', ''),
+            'idstatus' => session('cl_idstatus', ''),
+            'phone' => session('cl_phone', ''),
+        ];
         $pos = (int)$request->input('pos', session('client_pos', 0));
         $pos2 = 20;
 
         $filters = [
-            'search' => $request->input('search', session('cl_search', '')),
-            'city' => $request->input('city', session('cl_city', '')),
-            'idstatus' => $request->input('idstatus', session('cl_idstatus', '')),
-            'phone' => $request->input('phone', session('cl_phone', '')),
+            'search' => $request->input('search', $previousFilters['search']),
+            'city' => $request->input('city', $previousFilters['city']),
+            'idstatus' => $request->input('idstatus', $previousFilters['idstatus']),
+            'phone' => $request->input('phone', $previousFilters['phone']),
         ];
+
+        $hasFilterInput = $request->hasAny(['search', 'city', 'idstatus', 'phone']);
+        if ($hasFilterInput && $filters !== $previousFilters) {
+            $pos = 0;
+        }
 
         session([
             'client_pos' => $pos,

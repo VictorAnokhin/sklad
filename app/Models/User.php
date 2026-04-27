@@ -166,18 +166,23 @@ class User extends Authenticatable
         $filterPhone = $filters['phone'] ?? '';
 
         $query = DB::table('users')
-            ->where('firma', $fid)
-            ->where('top', '>', 0);
+            ->where('firma', $fid);
 
         if ($search !== '') {
-            $like = '%' . $search . '%';
-            $query->where(function ($q) use ($like) {
-                $q->where('orgname', 'like', '%' . $like . '%')
-                    ->orWhere('name', 'like', '%' . $like . '%')
-                    ->orWhere('secondname', 'like', '%' . $like . '%')
-                    ->orWhere('phone', 'like', '%' . $like . '%')
-                    ->orWhere('city', 'like', '%' . $like . '%')
-                    ->orWhere('name2', 'like', '%' . $like . '%');
+            $like = '%' . mb_strtolower($search) . '%';
+            $searchId = ctype_digit(trim($search)) ? (int) trim($search) : null;
+            $query->where(function ($q) use ($like, $searchId) {
+                $q->whereRaw('LOWER(orgname) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(name) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(secondname) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(fathername) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(phone) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(city) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(name2) LIKE ?', [$like]);
+
+                if ($searchId !== null) {
+                    $q->orWhere('id', $searchId);
+                }
             });
         }
         if ($filterCity !== '') {

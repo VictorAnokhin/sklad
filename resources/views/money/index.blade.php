@@ -6,12 +6,22 @@
 @php
     $activeTab = ($tab ?? 'orders') === 'transfers' ? 'transfers' : 'orders';
     $perPage = 30;
-    $activeFilters = array_filter($filters ?? [], function ($value, $key) use ($activeTab) {
+    $datesAreDefault = $datesAreDefault ?? false;
+    $hasDateFilter = (($filters['date_from'] ?? '') !== '' || ($filters['date_to'] ?? '') !== '');
+    $activeFilters = array_filter($filters ?? [], function ($value, $key) use ($activeTab, $datesAreDefault) {
         if ($value === '' || $value === null) {
             return false;
         }
 
         if ($activeTab === 'transfers' && in_array($key, ['type', 'reestr'], true)) {
+            return false;
+        }
+
+        if (in_array($key, ['q', 'money'], true)) {
+            return false;
+        }
+
+        if ($datesAreDefault && in_array($key, ['date_from', 'date_to'], true)) {
             return false;
         }
 
@@ -39,6 +49,13 @@
     <div class="alert alert-warning money-filter-active-notice">
         {{ __('money.filter_active') }}
         <a href="{{ route('money.index', ['tab' => $activeTab]) }}" style="margin-left: 8px;">{{ __('money.reset') }}</a>
+    </div>
+    @endif
+
+    @if($hasDateFilter)
+    <div class="alert alert-secondary money-filter-active-notice" style="border:1px solid var(--border); background:rgba(255,255,255,0.04); color:var(--foreground);">
+        {{ $datesAreDefault ? 'Показані операції за останні 30 днів:' : 'Показані операції за вибраний період:' }}
+        <strong>{{ $filters['date_from'] ?: '—' }}</strong> - <strong>{{ $filters['date_to'] ?: '—' }}</strong>.
     </div>
     @endif
 
@@ -208,14 +225,16 @@
         <div onclick="moneyFilterToggle()" class="money-filter-modal__close">✕</div>
         <h3 class="money-filter-modal__title">🔍 {{ __('money.filter_title') }}</h3>
 
+        @if($hasDateFilter)
+        <div style="margin-bottom:16px; padding:10px 12px; border-radius:10px; border:1px solid rgba(251,191,36,0.28); background:rgba(251,191,36,0.08); color:var(--foreground); font-size:0.9rem;">
+            {{ $datesAreDefault ? 'За замовчуванням показано останні 30 днів:' : 'Активний діапазон дат:' }}
+            <strong>{{ $filters['date_from'] ?: '—' }}</strong> - <strong>{{ $filters['date_to'] ?: '—' }}</strong>.
+        </div>
+        @endif
+
         <form action="{{ route('money.index') }}" method="get">
             <input type="hidden" name="tab" value="{{ $activeTab }}">
             <div class="money-filter-modal__grid">
-                <div class="money-filter-modal__field">
-                    <label>{{ $activeTab === 'transfers' ? __('money.filter_transfer_search') : __('money.filter_search') }}</label>
-                    <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" class="form-control">
-                </div>
-
                 @if($activeTab === 'orders')
                 <div class="money-filter-modal__field">
                     <label>{{ __('money.filter_type') }}</label>
@@ -226,18 +245,6 @@
                     </select>
                 </div>
                 @endif
-
-                <div class="money-filter-modal__field">
-                    <label>{{ $activeTab === 'transfers' ? __('money.filter_cashbox_any') : __('money.filter_cashbox') }}</label>
-                    <select name="money" class="form-control">
-                        <option value="">{{ __('money.filter_all_types') }}</option>
-                        @foreach(($kassasMap ?? []) as $moneyName => $moneyLabel)
-                        <option value="{{ $moneyName }}" {{ ($filters['money'] ?? '') === (string)$moneyName ? 'selected' : '' }}>
-                            {{ $moneyLabel }}
-                        </option>
-                        @endforeach
-                    </select>
-                </div>
 
                 @if($activeTab === 'orders')
                 <div class="money-filter-modal__field">

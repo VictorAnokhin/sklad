@@ -52,14 +52,18 @@ class MoneyController extends Controller
         $fid = session('fid', '');
         $tab = $this->activeTab($request);
         $pos = (int) $request->input('pos', 0);
+        $defaultDateFrom = now()->subDays(30)->format('Y-m-d');
+        $defaultDateTo = now()->format('Y-m-d');
         $filters = [
             'q' => trim((string) $request->input('q', '')),
             'type' => trim((string) $request->input('type', '')),
             'money' => trim((string) $request->input('money', '')),
             'reestr' => trim((string) $request->input('reestr', '')),
-            'date_from' => trim((string) $request->input('date_from', '')),
-            'date_to' => trim((string) $request->input('date_to', '')),
+            'date_from' => trim((string) $request->input('date_from', $defaultDateFrom)),
+            'date_to' => trim((string) $request->input('date_to', $defaultDateTo)),
         ];
+        $datesAreDefault = $filters['date_from'] === $defaultDateFrom
+            && $filters['date_to'] === $defaultDateTo;
 
         $data = $tab === 'transfers'
             ? Money::initTransfers($fid, $pos, $filters)
@@ -76,7 +80,7 @@ class MoneyController extends Controller
 
         $userBalance = (float) (Auth::user()->balance ?? 0);
 
-        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalance')));
+        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalance', 'datesAreDefault')));
     }
 
     public function show(Request $request)

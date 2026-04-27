@@ -17,41 +17,6 @@
         margin: 0 auto;
     }
 
-    .team-hero {
-        padding: 2.5rem;
-        border-radius: 20px;
-        background:
-            radial-gradient(circle at top right, rgba(251, 191, 36, 0.14), transparent 30%),
-            linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-        border: 1px solid rgba(255,255,255,0.06);
-        margin-bottom: 1.75rem;
-    }
-
-    .team-hero__eyebrow {
-        color: #fbbf24;
-        font-size: 0.82rem;
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
-        font-weight: 700;
-        margin-bottom: 0.75rem;
-    }
-
-    .team-hero__title {
-        color: #fff;
-        font-size: clamp(2rem, 4vw, 3.4rem);
-        line-height: 1.05;
-        margin: 0 0 0.9rem;
-        font-weight: 700;
-    }
-
-    .team-hero__text {
-        color: rgba(255,255,255,0.72);
-        max-width: 720px;
-        font-size: 1.05rem;
-        line-height: 1.65;
-        margin: 0;
-    }
-
     .team-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
@@ -144,14 +109,6 @@
 </style>
 
 <div class="team-page">
-    <section class="team-hero">
-        <div class="team-hero__eyebrow">AV8 Capital</div>
-        <h2 class="team-hero__title">Команда</h2>
-        <p class="team-hero__text">
-            На этой странице отображаются пользователи из таблицы <code>users</code>, у которых <code>firmuser=1</code>.
-        </p>
-    </section>
-
     @if($teamMembers->isEmpty())
         <div class="team-empty">
             В команде пока нет участников с <code>firmuser=1</code>.

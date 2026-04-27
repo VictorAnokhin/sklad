@@ -177,7 +177,7 @@
         @if(!empty($activeFilters))
             <div class="alert alert-warning" style="display:flex;align-items:center;gap:8px;">
                 🔍 {{ __('client.filter_active') ?? 'Фільтр активний' }}
-                <a href="{{ route('client.index') }}" style="margin-left:8px;">{{ __('client.reset') }}</a>
+                <a href="{{ route('client.index', ['search' => '', 'city' => '', 'phone' => '', 'idstatus' => '', 'pos' => 0]) }}" style="margin-left:8px;">{{ __('client.reset') }}</a>
             </div>
         @endif
 

@@ -12,15 +12,19 @@ class DepositController extends Controller
     {
         $fid = session('fid', '');
         $pos = (int) $request->input('pos', 0);
+        $defaultDateFrom = now()->subDays(30)->format('Y-m-d');
+        $defaultDateTo = now()->format('Y-m-d');
         $filters = [
             'q' => trim((string) $request->input('q', '')),
             'mode' => trim((string) $request->input('mode', '')),
-            'date_from' => trim((string) $request->input('date_from', '')),
-            'date_to' => trim((string) $request->input('date_to', '')),
+            'date_from' => trim((string) $request->input('date_from', $defaultDateFrom)),
+            'date_to' => trim((string) $request->input('date_to', $defaultDateTo)),
         ];
+        $datesAreDefault = $filters['date_from'] === $defaultDateFrom
+            && $filters['date_to'] === $defaultDateTo;
         $data = Deposit::init($fid, $pos, $filters);
 
-        return view('deposit.index', array_merge($data, compact('pos', 'filters')));
+        return view('deposit.index', array_merge($data, compact('pos', 'filters', 'datesAreDefault')));
     }
 
     public function show(Request $request)

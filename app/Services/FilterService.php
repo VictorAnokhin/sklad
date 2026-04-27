@@ -208,15 +208,18 @@ class FilterService
             $params[] = $fStatus;
         }
 
+        $datesAreDefault = (($fdata1 === '' || $fdata1 === $def['fdata1'])
+            && ($fdata2 === '' || $fdata2 === $def['fdata2']));
+
         $isDefault = ($fName === '' && $fContent === '' && $fOperator === ''
             && $fReteil === '' && $fSklads === '' && $fStatus === 0
             && $fOplata === '' && $fReestr === '' && $fProvodka === ''
-            && ($fdata1 === '' || $fdata1 === $def['fdata1'])
-            && ($fdata2 === '' || $fdata2 === $def['fdata2']));
+            && $datesAreDefault);
 
         return compact(
             'userSql', 'docSql', 'params',
             'fdata1', 'fdata2', 'isDefault',
+            'datesAreDefault',
             'fName', 'fContent', 'fOperator',
             'fReteil', 'fSklads', 'fStatus',
             'fOplata', 'fReestr', 'fMoneyWay', 'fProvodka'

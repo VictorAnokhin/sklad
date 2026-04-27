@@ -65,7 +65,7 @@ class TeamController extends Controller
             abort_unless($this->teamMembersQuery()->where('id', $id)->exists(), 404);
         }
 
-        $request->validate([
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'secondname' => ['nullable', 'string', 'max:255'],
             'fathername' => ['nullable', 'string', 'max:255'],
@@ -91,11 +91,27 @@ class TeamController extends Controller
             'region' => ['nullable', 'string', 'max:100'],
             'description' => ['nullable', 'string'],
             'foto1' => ['nullable', 'string', 'max:255'],
-            'top' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            'foto1_file' => ['nullable', 'file', 'image', 'max:10240'],
+            'status' => ['nullable', 'integer', 'min:0', 'max:999999'],
             'orgname' => ['nullable', 'string', 'max:255'],
             'pass' => ['nullable', 'string', 'max:255'],
             'userid' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        $departmentValue = $request->filled('status') ? (int) $request->input('status') : 0;
+        $currentPhoto = $stringValue($validated['foto1'] ?? ($id !== '0'
+            ? DB::table('users')->where('id', $id)->value('foto1')
+            : ''));
+
+        if ($request->hasFile('foto1_file')) {
+            $uploadedFile = $request->file('foto1_file');
+            if ($uploadedFile && $uploadedFile->isValid()) {
+                $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'jpg');
+                $filename = 'team_' . ($id !== '0' ? $id : uniqid()) . '_' . now()->format('YmdHis') . '.' . $extension;
+                $path = $uploadedFile->storeAs('files/team', $filename, 'public');
+                $currentPhoto = $path ?: $currentPhoto;
+            }
+        }
 
         $data = [
             'name' => $stringValue($request->input('name')),
@@ -108,9 +124,9 @@ class TeamController extends Controller
             'city' => $stringValue($request->input('city')),
             'region' => $stringValue($request->input('region')),
             'description' => $stringValue($request->input('description')),
-            'foto1' => $stringValue($request->input('foto1')),
+            'foto1' => $currentPhoto,
             'orgname' => $stringValue($request->input('orgname')),
-            'top' => (int) $request->input('top', 1),
+            'status' => $departmentValue,
             'userid' => (int) $request->input('userid', 0),
             'firmuser' => '1',
             'firma' => $fid,
@@ -129,6 +145,12 @@ class TeamController extends Controller
         }
 
         $memberId = User::edit($id, $data);
+
+        if (Schema::hasColumn('users', 'status')) {
+            DB::table('users')
+                ->where('id', $memberId)
+                ->update(['status' => $departmentValue]);
+        }
 
         return redirect()->route('team.show', ['id' => $memberId])->with('success', 'Збережено');
     }
