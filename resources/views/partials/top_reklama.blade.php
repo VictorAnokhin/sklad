@@ -559,6 +559,8 @@
 
   /* Project selector in mobile menu */
   .header-nav-menu__section {
+    display: grid;
+    gap: 0.35rem;
     padding: 0.5rem 0.75rem;
     margin-bottom: 0.45rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);

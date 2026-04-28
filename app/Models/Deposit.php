@@ -234,6 +234,16 @@ class Deposit extends Model
                 self::shiftUserBalance($fid, $ownerUserId, $summa * $direction);
             }
 
+            if ($mode === 'exchange') {
+                $fromCashboxId = trim((string) ($doc->oplata ?? ''));
+                $toCashboxId = trim((string) ($doc->oplata2 ?? ''));
+
+                if ($fromCashboxId !== '' && $toCashboxId !== '') {
+                    self::shiftConfValue($fid, 'oplata', $fromCashboxId, -1 * $summa * $direction);
+                    self::shiftConfValue($fid, 'oplata', $toCashboxId, $summa * $direction);
+                }
+            }
+
             app(AccountingService::class)->createDocumentTransaction(
                 'z_document:deposit_operation',
                 $id,
