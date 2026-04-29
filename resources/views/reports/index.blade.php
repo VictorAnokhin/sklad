@@ -6,7 +6,7 @@
 @endsection
 
 @section('content')
-<div class="container mt-4" data-bs-theme="dark">
+<div class="container mt-4 reports-page" data-bs-theme="dark">
     @include('reports.period_form')
 
     <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
@@ -134,7 +134,7 @@
                     @if(($cashboxes ?? collect())->isEmpty())
                     <div class="text-muted">{{ __('reports.cash_position_not_configured') }}</div>
                     @else
-                    <div class="table-responsive">
+                    <div class="table-responsive reports-sticky-first-col">
                         <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                             <thead class="table-dark">
                                 <tr>
@@ -174,7 +174,7 @@
                     @if(($topProducts ?? collect())->isEmpty())
                     <div class="text-muted">{{ __('reports.top_sales_no_data') }}</div>
                     @else
-                    <div class="table-responsive">
+                    <div class="table-responsive reports-sticky-first-col">
                         <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                             <thead class="table-dark">
                                 <tr>
@@ -214,7 +214,7 @@
             @if(($recentOrders ?? collect())->isEmpty())
             <div class="text-muted">{{ __('reports.orders_journal_no_data') }}</div>
             @else
-            <div class="table-responsive">
+            <div class="table-responsive reports-sticky-first-col">
                 <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                     <thead class="table-dark">
                         <tr>
@@ -258,35 +258,4 @@
         </div>
     </div>
 </div>
-
-<style>
-    /* Улучшенная мобильная версия таблиц: закрепляем первую колонку */
-    .table-responsive {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .table th:first-child,
-    .table td:first-child {
-        position: sticky;
-        left: 0;
-        z-index: 10;
-        background-color: #1a1d20 !important; /* Цвет фона для перекрытия при скролле */
-        box-shadow: 4px 0 8px rgba(0, 0, 0, 0.4);
-        vertical-align: middle;
-        min-width: 160px !important;
-    }
-
-    /* На десктопах делаем колонку еще шире */
-    @media (min-width: 992px) {
-        .table th:first-child,
-        .table td:first-child {
-            min-width: 280px !important;
-        }
-    }
-
-    .table thead th:first-child {
-        z-index: 11; /* Чтобы заголовок был выше ячеек при прокрутке */
-    }
-</style>
 @endsection

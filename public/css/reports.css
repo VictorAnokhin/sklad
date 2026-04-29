@@ -1,0 +1,90 @@
+/* Reports page/table helpers.
+   Scoped by .reports-sticky-first-col to avoid affecting other tables globally. */
+
+.reports-page .table {
+    font-size: 0.82rem;
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    margin-bottom: 0;
+    background-color: transparent;
+}
+
+/* Стили заголовков отчета с поддержкой sticky */
+.reports-page thead th {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    background-color: #1a1d20 !important;
+    color: var(--accent-amber) !important;
+    font-family: var(--header);
+    font-weight: 600;
+    padding: 12px 10px;
+    border-bottom: 2px solid var(--accent-amber-border) !important;
+    white-space: nowrap;
+    box-shadow: 0 2px 2px rgba(0,0,0,0.2);
+}
+
+.reports-page tbody td {
+    padding: 8px 10px;
+    vertical-align: middle;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.reports-page tr:hover td {
+    background-color: rgba(251, 191, 36, 0.03) !important;
+}
+
+.reports-sticky-first-col {
+    table-layout: auto;
+}
+
+/* закрепляем первую колонку */
+.reports-sticky-first-col th:first-child,
+.reports-sticky-first-col td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: #1a1d20 !important;
+    box-shadow: 4px 0 8px rgba(0, 0, 0, 0.4);
+    vertical-align: middle;
+
+    min-width: 120px !important;
+    max-width: none !important;
+    width: max-content !important;
+    white-space: nowrap;
+}
+
+@media (min-width: 992px) {
+    .reports-sticky-first-col th:first-child,
+    .reports-sticky-first-col td:first-child {
+        min-width: 360px !important;
+    }
+}
+
+/* Улучшение скролла только для страницы reports */
+.reports-page .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--glass-border);
+    background: var(--card);
+    max-height: 80vh; /* Ограничение высоты для работы sticky header */
+}
+
+/* Вспомогательные классы для колонок с числами */
+.reports-page .text-numeric {
+    text-align: right;
+    font-family: var(--money);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Итоговые строки */
+.reports-page .report-summary-row td {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+    font-weight: 700;
+    color: var(--foreground);
+    border-top: 1px solid var(--accent-amber-border);
+    border-bottom: 2px solid var(--accent-amber-border);
+}
