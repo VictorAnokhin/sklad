@@ -126,25 +126,35 @@
 
   <nav class="header-nav-menu" id="header-nav-menu">
     @if($isAuthenticated)
-    <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
-    <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">{{ __('nav.orders') }}</a>
-    <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
-    <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">Трансферы</a>
-    <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
-    <a class="header-nav-menu__link" href="{{ route('team') }}">Команда</a>
-    <a class="header-nav-menu__link" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
-    <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
-    <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
-    <a class="header-nav-menu__link" href="{{ route('money.index') }}">{{ __('nav.money') }}</a>
-    <a class="header-nav-menu__link" href="{{ route('deposit.index') }}">{{ __('nav.deposits') }}</a>
-    <a class="header-nav-menu__link" href="{{ route('wallet') }}">Кошелек</a>
-    <a class="header-nav-menu__link" href="{{ route('settings.index') }}">{{ __('nav.settings') }}</a>
+    <div class="header-nav-menu__section-label">Бизнес</div>
+    <div class="header-nav-menu__grid">
+      <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">{{ __('nav.orders') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">Трансферы</a>
+      <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('team') }}">Команда</a>
+      <a class="header-nav-menu__link" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('wallet') }}">Кошелек</a>
+    </div>
 
-    <form method="POST" action="{{ route('logout') }}" id="logout-form">
-      @csrf
-      <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
-        class="header-nav-menu__link" id="main-logout-btn">{{ __('nav.logout') }}</a>
-    </form>
+    <div class="header-nav-menu__section-label">Частный</div>
+    <div class="header-nav-menu__grid">
+      <a class="header-nav-menu__link" href="{{ route('money.index') }}">{{ __('nav.money') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('deposit.index') }}">{{ __('nav.deposits') }}</a>
+    </div>
+
+    <div class="header-nav-menu__section-label">Прочее</div>
+    <div class="header-nav-menu__grid">
+      <a class="header-nav-menu__link" href="{{ route('settings.index') }}">{{ __('nav.settings') }}</a>
+      <form method="POST" action="{{ route('logout') }}" id="logout-form" style="display: contents;">
+        @csrf
+        <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
+          class="header-nav-menu__link" id="main-logout-btn">{{ __('nav.logout') }}</a>
+      </form>
+    </div>
     @else
     <div id="mobile-public-links">
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('micro-business') }}">Для микро-бизнеса</a>
@@ -530,15 +540,60 @@
     }
 
     .header-nav-menu {
-      right: 1.5rem;
-      left: 1.5rem;
+      position: absolute;
+      top: 100%;
+      right: 1rem;
+      left: 1rem;
       min-width: 0;
-      padding: 0.4rem;
+      padding: 0.75rem;
+      background: linear-gradient(180deg, rgba(19, 24, 33, 0.96), rgba(10, 13, 18, 0.98));
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(251, 191, 36, 0.25);
+      border-radius: 20px;
+      box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7);
+      margin-top: 0.5rem;
+      display: none; /* Скрыто по умолчанию, показывается через .is-open */
+      z-index: 1000;
+    }
+
+    .header-nav-menu.is-open {
+      display: block;
+      animation: menuFadeIn 0.2s ease-out;
+    }
+
+    @keyframes menuFadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .header-nav-menu__link {
-      padding: 0.55rem 0.75rem;
-      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.85rem 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      color: rgba(255, 255, 255, 0.9);
+      text-decoration: none;
+      text-align: center;
+    }
+
+    .header-nav-menu__link:hover {
+      background: rgba(251, 191, 36, 0.15);
+      border-color: rgba(251, 191, 36, 0.45);
+      color: #fbbf24;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .header-nav-menu__link:active {
+      transform: scale(0.94);
+      background: rgba(251, 191, 36, 0.25);
+      transition: transform 0.1s;
     }
 
     .header-nav-menu__section {
@@ -555,6 +610,33 @@
       height: 38px;
       font-size: 0.95rem;
     }
+  }
+
+  .header-nav-menu__section-label {
+    padding: 1.25rem 0.85rem 0.5rem;
+    color: #fbbf24;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    opacity: 0.9;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .header-nav-menu__section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.3), transparent);
+  }
+
+  .header-nav-menu__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+    padding: 0.4rem;
   }
 
   /* Project selector in mobile menu */
@@ -736,6 +818,12 @@
     color: #fde68a;
     border: 1px solid rgba(251, 191, 36, 0.24);
     background: rgba(120, 53, 15, 0.22);
+  }
+
+  /* Общий стиль для таблиц в отчетах */
+  .table th:first-child,
+  .table td:first-child {
+    vertical-align: middle;
   }
 </style>
 

@@ -258,4 +258,35 @@
         </div>
     </div>
 </div>
+
+<style>
+    /* Улучшенная мобильная версия таблиц: закрепляем первую колонку */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table th:first-child,
+    .table td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 10;
+        background-color: #1a1d20 !important; /* Цвет фона для перекрытия при скролле */
+        box-shadow: 4px 0 8px rgba(0, 0, 0, 0.4);
+        vertical-align: middle;
+        min-width: 160px !important;
+    }
+
+    /* На десктопах делаем колонку еще шире */
+    @media (min-width: 992px) {
+        .table th:first-child,
+        .table td:first-child {
+            min-width: 280px !important;
+        }
+    }
+
+    .table thead th:first-child {
+        z-index: 11; /* Чтобы заголовок был выше ячеек при прокрутке */
+    }
+</style>
 @endsection
