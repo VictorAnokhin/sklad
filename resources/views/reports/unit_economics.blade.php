@@ -6,7 +6,7 @@
 @endsection
 
 @section('content')
-<div class="container mt-4" data-bs-theme="dark">
+<div class="container mt-4 reports-page" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.uniteconomics'),
         'periodResetUrl' => route('reports.uniteconomics'),

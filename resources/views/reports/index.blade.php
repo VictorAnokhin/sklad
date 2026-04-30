@@ -135,7 +135,7 @@
                     <div class="text-muted">{{ __('reports.cash_position_not_configured') }}</div>
                     @else
                     <div class="table-responsive reports-sticky-first-col">
-                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
+                        <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent reports-cashboxes-table">
                             <thead class="table-dark">
                                 <tr>
                                     <th>{{ __('reports.cash_table_cashbox') }}</th>

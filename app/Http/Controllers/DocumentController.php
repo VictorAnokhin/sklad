@@ -472,7 +472,14 @@ class DocumentController extends Controller
         $oplataList = collect();
         $reestrList = collect();
         if (in_array($doc, ['PO', 'RO', 'ZP'], true)) {
-            $oplataList = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
+            $oplataList = DB::table('conf')
+                ->where('type', 'oplata')
+                ->where('firma', $fid)
+                ->when(in_array($doc, ['PO', 'RO'], true), function ($query) {
+                    $query->where('vision', '1');
+                })
+                ->orderBy('name')
+                ->get();
             $reestrList = ConfModel::paymentTypesForDocument($fid, $doc);
         }
         $statusList = DB::table('conf')

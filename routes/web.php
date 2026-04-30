@@ -49,6 +49,7 @@ Route::post('/language/switch', [LanguageController::class, 'switch'])->name('la
 Route::get('/language/current', [LanguageController::class, 'current'])->name('language.current');
 
 // ── Sitemap ───────────────────────────────────────────────────────────────────
+Route::get('/sitemap', [SitemapController::class, 'short'])->name('sitemap.short');
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.public');
 
 // ── Public Pages ──────────────────────────────────────────────────────────────
@@ -211,7 +212,7 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/banners', [SettingsController::class , 'bannersStore'])->name('banners.store');
             Route::post('/banners/{id}', [SettingsController::class , 'bannersUpdate'])->name('banners.update');
             Route::delete('/banners/{id}', [SettingsController::class , 'bannersDestroy'])->name('banners.destroy');
-            Route::get('/sitemap', [SettingsController::class, 'sitemapStatus'])->name('sitemap.status');
+            Route::get('/sitemap/status', [SettingsController::class, 'sitemapStatus'])->name('sitemap.status');
             Route::post('/sitemap/generate', [SettingsController::class, 'sitemapGenerate'])->name('sitemap.generate');
 
             // Async API
