@@ -30,7 +30,5 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer(['partials.panel', 'partials.report_panel'], PanelComposer::class);
 
-        // Устанавливает длину строк по умолчанию в 191 символ
-        Schema::defaultStringLength(191);
     }
 }
