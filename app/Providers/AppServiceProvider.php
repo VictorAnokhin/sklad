@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Http\ViewComposers\PanelComposer;
 use App\Models\Field;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,6 +24,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Schema::defaultStringLength(191);
+
         // Use View::composer with closure to ensure locale is resolved on every request
         View::composer('*', function ($view) {
             $view->with('currentBackendLocale', app()->getLocale());
