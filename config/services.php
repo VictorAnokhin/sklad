@@ -50,6 +50,19 @@ return [
         'api_key' => env('ZEROX_API_KEY'),
     ],
 
+    'oneinch' => [
+        'api_key' => env('ONEINCH_API_KEY'),
+        'referrer' => env('ONEINCH_REFERRER'),
+    ],
+
+    'alchemy' => [
+        'key' => env('ALCHEMY_API_KEY'),
+    ],
+
+    'coingecko' => [
+        'api_key' => env('COINGECKO_API_KEY'),
+    ],
+
     'defillama' => [
         'protocol_slug' => env('DEFILLAMA_PROTOCOL_SLUG'),
     ],

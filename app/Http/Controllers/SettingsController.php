@@ -68,9 +68,6 @@ class SettingsController extends Controller
         // Депозиты — conf where type='deposit'
         $deposits = DB::table('conf')->where('type', 'deposit')->where('firma', $fid)->orderBy('name')->get();
 
-        // Пользовательские Web3 Токены
-        $web3Tokens = DB::table('conf')->where('type', 'web3_token')->where('firma', $fid)->orderBy('name')->get();
-
         $myCompanies = collect();
         if ($user) {
             $myCompanies = $this->companiesQuery($user)->orderBy('id')->get();
@@ -141,7 +138,7 @@ class SettingsController extends Controller
                 ->values()
             : collect();
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'web3Tokens', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions')));
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions')));
     }
 
     public function show(Request $request)
@@ -1037,12 +1034,14 @@ class SettingsController extends Controller
 
     private function validateConfRecord(Request $request, ?object $existing = null): array
     {
+        $hasCommissionColumn = Schema::hasColumn('conf', 'commission');
         $validated = $request->validate([
             'type' => 'required|string',
             'name' => 'required|string|max:255',
             'color' => 'nullable|string|max:255',
             'status' => 'nullable|string',
             'vision' => 'nullable|string',
+            'commission' => $hasCommissionColumn ? 'nullable|numeric|min:0|max:3' : 'nullable',
             'doc' => 'nullable|string|max:100',
             'constanta' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:50',
@@ -1066,6 +1065,12 @@ class SettingsController extends Controller
             'vision' => (string) $vision,
             'constanta' => (string) ($validated['constanta'] ?? '0'),
         ];
+
+        if ($hasCommissionColumn) {
+            $data['commission'] = array_key_exists('commission', $validated) && $validated['commission'] !== null
+                ? round((float) $validated['commission'], 4)
+                : null;
+        }
 
         if (Schema::hasColumn('conf', 'doc')) {
             if ($type === 'reestr') {
@@ -1115,6 +1120,12 @@ class SettingsController extends Controller
 
         if ($type === 'sklads') {
             $item->foto_preview = MediaUrl::image((string) ($item->foto ?? ''));
+        }
+
+        if ($type === 'web3_token') {
+            $item->commission = property_exists($item, 'commission') && $item->commission !== null
+                ? (float) $item->commission
+                : 0.0;
         }
 
         return $item;

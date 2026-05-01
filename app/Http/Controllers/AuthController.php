@@ -585,6 +585,45 @@ class AuthController extends Controller
         ]);
     }
 
+    public function resolveUserByWallet(Request $request)
+    {
+        $validated = $request->validate([
+            'address' => ['required', 'string', 'max:120'],
+        ]);
+
+        $address = $this->normalizeLookupWalletAddress((string) $validated['address']);
+
+        if ($address === '') {
+            return response()->json([
+                'found' => false,
+                'user' => null,
+            ]);
+        }
+
+        /** @var User|null $user */
+        if (Schema::hasTable('user_wallets')) {
+            $userId = DB::table('user_wallets')
+                ->where('address', $address)
+                ->value('user_id');
+
+            $user = $userId ? User::find($userId) : null;
+        } else {
+            $user = User::where('wallet_address', $address)->first();
+        }
+
+        if (! $user) {
+            return response()->json([
+                'found' => false,
+                'user' => null,
+            ]);
+        }
+
+        return response()->json([
+            'found' => true,
+            'user' => $this->serializeUser($user),
+        ]);
+    }
+
     public function apiUpdateProfile(Request $request)
     {
         $user = $request->user();
@@ -1039,6 +1078,11 @@ class AuthController extends Controller
     private function normalizeWalletType(?string $walletType): string
     {
         return strtolower(trim((string) $walletType)) === 'solana' ? 'solana' : 'evm';
+    }
+
+    private function normalizeLookupWalletAddress(string $address): string
+    {
+        return strtolower(trim($address));
     }
 
     private function normalizeWalletAddress(string $address, string $walletType): string

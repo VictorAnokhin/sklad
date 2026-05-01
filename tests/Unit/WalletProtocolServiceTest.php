@@ -163,6 +163,21 @@ class WalletProtocolServiceTest extends TestCase
                             'chain' => ['data' => ['id' => 'arbitrum']],
                         ],
                     ],
+                    [
+                        'id' => 'gmx-glp',
+                        'attributes' => [
+                            'name' => 'GLP Position',
+                            'position_type' => 'deposit',
+                            'protocol_module' => 'vault',
+                            'value' => 900,
+                            'quantity' => ['float' => 15, 'decimals' => 18],
+                            'fungible_info' => ['symbol' => 'GLP'],
+                            'application_metadata' => ['name' => 'GMX'],
+                        ],
+                        'relationships' => [
+                            'chain' => ['data' => ['id' => 'arbitrum']],
+                        ],
+                    ],
                 ],
             ]),
         ]);
@@ -172,12 +187,115 @@ class WalletProtocolServiceTest extends TestCase
 
         $this->assertArrayHasKey('aave_v3', $payload);
         $this->assertArrayHasKey('uniswap_v3', $payload);
+        $this->assertArrayHasKey('gmx', $payload);
         $this->assertSame('Aave V3', $payload['aave_v3']['name']);
         $this->assertCount(1, $payload['aave_v3']['tokens']);
         $this->assertSame('USDC', $payload['aave_v3']['tokens'][0]['symbol']);
         $this->assertCount(1, $payload['uniswap_v3']['pools']);
         $this->assertSame('WETH / USDC', $payload['uniswap_v3']['pools'][0]['symbol']);
         $this->assertEquals(2000.0, $payload['uniswap_v3']['pools'][0]['usd_value']);
+        $this->assertSame('GMX', $payload['gmx']['name']);
+        $this->assertCount(1, $payload['gmx']['tokens']);
+        $this->assertSame('GLP', $payload['gmx']['tokens'][0]['symbol']);
+    }
+
+    public function test_it_keeps_configured_arbitrum_stablecoin_when_address_or_name_matches(): void
+    {
+        config()->set('services.zerion.api_key', 'test-key');
+
+        Http::fake([
+            'https://api.zerion.io/v1/wallets/*/positions/*' => Http::response([
+                'links' => ['self' => 'https://api.zerion.io/v1/wallets/test/positions/'],
+                'data' => [
+                    [
+                        'id' => 'eth-wallet',
+                        'attributes' => [
+                            'name' => 'Ether',
+                            'position_type' => 'wallet',
+                            'value' => 100,
+                            'price' => 100,
+                            'quantity' => ['float' => 0.05, 'decimals' => 18],
+                            'fungible_info' => [
+                                'name' => 'Ether',
+                                'symbol' => 'ETH',
+                                'implementations' => [],
+                            ],
+                        ],
+                        'relationships' => [
+                            'chain' => ['data' => ['id' => 'arbitrum']],
+                        ],
+                    ],
+                    [
+                        'id' => 'usdt0-wallet',
+                        'attributes' => [
+                            'name' => 'Tether USD',
+                            'position_type' => 'wallet',
+                            'value' => 750,
+                            'price' => 1,
+                            'quantity' => ['float' => 750, 'decimals' => 6],
+                            'fungible_info' => [
+                                'name' => 'Tether USD',
+                                'symbol' => 'USDT0',
+                                'implementations' => [
+                                    [
+                                        'chain_id' => 'arbitrum',
+                                        'address' => '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+                                    ],
+                                ],
+                            ],
+                        ],
+                        'relationships' => [
+                            'chain' => ['data' => ['id' => 'arbitrum']],
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $token = (object) [
+            'name' => 'USDT',
+            'doc' => 'Tether USD',
+            'color' => '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+            'status' => '6',
+            'vision' => '42161',
+            'constanta' => 'tether',
+        ];
+
+        $service = new WalletProtocolService(new ZerionWalletService());
+        $payload = $service->loadAssets('0xa79798c0637daea4ac7fccbd61371dbb08d1d002', '0xa4b1', [$token]);
+
+        $this->assertTrue($payload['available']);
+        $this->assertCount(2, $payload['assets']);
+        $this->assertSame('0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', $payload['assets'][1]['address']);
+        $this->assertSame('USDT0', $payload['assets'][1]['symbol']);
+        $this->assertEquals(750.0, $payload['assets'][1]['balance']);
+    }
+
+    public function test_it_falls_back_to_saved_token_data_when_zerion_assets_are_unavailable(): void
+    {
+        config()->set('services.zerion.api_key', '');
+
+        $token = (object) [
+            'name' => 'USDT0',
+            'doc' => 'Tether USD',
+            'color' => '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+            'status' => '6',
+            'vision' => '42161',
+            'constanta' => 'tether',
+            'last_balance' => '1337.500000',
+            'last_price' => '1.00000000',
+        ];
+
+        $service = new WalletProtocolService(new ZerionWalletService());
+        $payload = $service->loadAssets('0xa79798c0637daea4ac7fccbd61371dbb08d1d002', '0xa4b1', [$token]);
+
+        $this->assertTrue($payload['available']);
+        $this->assertSame('Zerion API key is not configured.', $payload['error']);
+        $this->assertCount(1, $payload['assets']);
+        $this->assertSame('USDT0', $payload['assets'][0]['symbol']);
+        $this->assertSame('0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', $payload['assets'][0]['address']);
+        $this->assertEquals(1337.5, $payload['assets'][0]['balance']);
+        $this->assertEquals(1.0, $payload['assets'][0]['price']);
     }
 
     public function test_it_marks_unsupported_networks_as_unavailable_for_assets(): void

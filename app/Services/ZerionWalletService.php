@@ -78,13 +78,24 @@ class ZerionWalletService
         $normalizedChainId = $this->normalizeWalletChainId($chainId);
         $chainSlug = $this->resolveChainSlug($normalizedChainId);
         $normalizedAddress = $this->normalizeWalletAddress($address, $normalizedChainId);
+        $configuredAssets = $this->configuredAssetsForChain($configuredTokens, $chainSlug);
 
         if (! $this->isConfigured()) {
-            return $this->emptyAssets($normalizedAddress, $normalizedChainId, 'Zerion API key is not configured.');
+            return $this->emptyAssets(
+                $normalizedAddress,
+                $normalizedChainId,
+                'Zerion API key is not configured.',
+                $this->fallbackAssetsFromConfiguredTokens($configuredAssets)
+            );
         }
 
         if ($normalizedChainId !== null && $chainSlug === null) {
-            return $this->emptyAssets($normalizedAddress, $normalizedChainId, 'Unsupported network');
+            return $this->emptyAssets(
+                $normalizedAddress,
+                $normalizedChainId,
+                'Unsupported network',
+                $this->fallbackAssetsFromConfiguredTokens($configuredAssets)
+            );
         }
 
         $cacheKey = sprintf('zerion:assets:%s:%s:%s', $normalizedAddress, $chainSlug ?: 'all', md5(json_encode($this->configuredTokenKeys($configuredTokens))));
@@ -104,17 +115,8 @@ class ZerionWalletService
                     ->filter(fn (?array $asset) => $asset !== null)
                     ->values();
 
-                $allowedAddresses = collect($configuredTokens)
-                    ->map(function ($token) use ($chainSlug) {
-                        $tokenChainSlug = $this->resolveChainSlug(Conf::normalizeWeb3ChainIdToHex($token->vision ?? null));
-                        $tokenAddress = strtolower(trim((string) ($token->color ?? '')));
-
-                        if ($tokenChainSlug !== $chainSlug || $tokenAddress === '') {
-                            return null;
-                        }
-
-                        return $tokenAddress;
-                    })
+                $allowedAddresses = $configuredAssets
+                    ->pluck('address')
                     ->filter()
                     ->values()
                     ->all();
@@ -123,16 +125,31 @@ class ZerionWalletService
                     $assets = collect();
                 } else {
                     $assets = $assets
-                        ->filter(function (array $asset) use ($allowedAddresses) {
-                            $address = strtolower((string) ($asset['address'] ?? ''));
+                        ->filter(function (array $asset) use ($allowedAddresses, $configuredAssets) {
+                            if (! empty($asset['is_native'])) {
+                                return true;
+                            }
 
-                            return $address !== '' && in_array($address, $allowedAddresses, true);
+                            $address = strtolower((string) ($asset['address'] ?? ''));
+                            if ($address !== '' && in_array($address, $allowedAddresses, true)) {
+                                return true;
+                            }
+
+                            $symbol = strtoupper(trim((string) ($asset['symbol'] ?? '')));
+                            $name = trim((string) ($asset['name'] ?? ''));
+
+                            return $configuredAssets->contains(function (array $configured) use ($symbol, $name) {
+                                return ($symbol !== '' && $configured['symbol'] !== '' && $configured['symbol'] === $symbol)
+                                    || ($name !== '' && $configured['name'] !== '' && strcasecmp($configured['name'], $name) === 0);
+                            });
                         })
                         ->values();
                 }
 
+                $assets = $this->mergeConfiguredFallbackAssets($assets, $configuredAssets);
+
                 return [
-                    'available' => true,
+                    'available' => $assets->isNotEmpty(),
                     'address' => $normalizedAddress,
                     'chain_id' => $normalizedChainId,
                     'assets' => $assets->all(),
@@ -142,7 +159,12 @@ class ZerionWalletService
         } catch (Throwable $exception) {
             report($exception);
 
-            return $this->emptyAssets($normalizedAddress, $normalizedChainId, $this->humanizeApiError($exception));
+            return $this->emptyAssets(
+                $normalizedAddress,
+                $normalizedChainId,
+                $this->humanizeApiError($exception),
+                $this->fallbackAssetsFromConfiguredTokens($configuredAssets)
+            );
         }
     }
 
@@ -672,15 +694,79 @@ class ZerionWalletService
         return trim((string) config('services.zerion.api_key', '')) !== '';
     }
 
-    private function emptyAssets(string $address, ?string $chainId, string $error): array
+    private function emptyAssets(string $address, ?string $chainId, string $error, array $assets = []): array
     {
         return [
-            'available' => false,
+            'available' => $assets !== [],
             'address' => $address,
             'chain_id' => $chainId,
-            'assets' => [],
+            'assets' => $assets,
             'error' => $error,
         ];
+    }
+
+    private function configuredAssetsForChain(array $configuredTokens, ?string $chainSlug)
+    {
+        return collect($configuredTokens)
+            ->map(function ($token) use ($chainSlug) {
+                $tokenChainSlug = $this->resolveChainSlug(Conf::normalizeWeb3ChainIdToHex($token->vision ?? null));
+                if ($tokenChainSlug !== $chainSlug) {
+                    return null;
+                }
+
+                return [
+                    'address' => strtolower(trim((string) ($token->color ?? ''))),
+                    'symbol' => strtoupper(trim((string) ($token->name ?? ''))),
+                    'name' => trim((string) ($token->doc ?? '')),
+                    'decimals' => (int) ($token->status ?? 18),
+                    'balance' => is_numeric($token->last_balance ?? null) ? (float) $token->last_balance : 0.0,
+                    'price' => is_numeric($token->last_price ?? null) ? (float) $token->last_price : 0.0,
+                ];
+            })
+            ->filter()
+            ->values();
+    }
+
+    private function fallbackAssetsFromConfiguredTokens($configuredAssets): array
+    {
+        return $configuredAssets
+            ->filter(fn (array $asset) => (float) ($asset['balance'] ?? 0) > 0)
+            ->map(fn (array $asset) => [
+                'symbol' => $asset['symbol'] ?: 'TOKEN',
+                'name' => $asset['name'] ?: ($asset['symbol'] ?: 'Token'),
+                'address' => $asset['address'] !== '' ? $asset['address'] : null,
+                'decimals' => $asset['decimals'] ?? 18,
+                'balance' => (float) ($asset['balance'] ?? 0),
+                'price' => (float) ($asset['price'] ?? 0),
+                'is_native' => false,
+                'coingecko_id' => null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function mergeConfiguredFallbackAssets($assets, $configuredAssets)
+    {
+        $existingAddresses = $assets
+            ->map(fn (array $asset) => strtolower((string) ($asset['address'] ?? '')))
+            ->filter()
+            ->values()
+            ->all();
+
+        $fallbackAssets = $this->fallbackAssetsFromConfiguredTokens($configuredAssets);
+
+        foreach ($fallbackAssets as $fallbackAsset) {
+            $fallbackAddress = strtolower((string) ($fallbackAsset['address'] ?? ''));
+            if ($fallbackAddress !== '' && in_array($fallbackAddress, $existingAddresses, true)) {
+                continue;
+            }
+
+            $assets->push($fallbackAsset);
+        }
+
+        return $assets
+            ->sortByDesc(fn (array $asset) => ((float) ($asset['balance'] ?? 0)) * ((float) ($asset['price'] ?? 0)))
+            ->values();
     }
 
     private function emptyTransparencyOverview(string $address, array $chainIds, string $error): array

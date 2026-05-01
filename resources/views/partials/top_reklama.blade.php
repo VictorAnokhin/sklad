@@ -328,13 +328,14 @@
       font-size: 0.82rem;
       line-height: 1;
       font-weight: 700;
-      width: 44px;
+      min-width: 44px;
       height: 44px;
-      padding: 0;
+      padding: 0 0.8rem;
       transition: all 0.2s;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      white-space: nowrap;
     }
 
     .header-wallet-trigger:hover,
@@ -506,9 +507,10 @@
     }
 
     .header-wallet-trigger {
-      width: 70px;
+      min-width: 70px;
       height: 40px;
-      font-size: 1rem;
+      padding: 0 0.9rem;
+      font-size: 0.9rem;
       border-radius: 10px;
     }
 
@@ -845,6 +847,8 @@
     const isAuthenticated = @json($isAuthenticated);
     const web3ChallengeUrl = '{{ route('web3.challenge') }}';
     const web3LoginUrl = '{{ route('web3.login') }}';
+    const walletLinkChallengeUrl = '{{ route('wallet.challenge') }}';
+    const walletLinkUrl = '{{ route('wallet.link') }}';
     const walletPageUrl = '{{ route('wallet') }}';
     const dashboardUrl = '{{ route('dashboard') }}';
     const stateListeners = new Set();
@@ -1024,7 +1028,24 @@
       return address.slice(0, 6) + '...' + address.slice(-4);
     }
 
+    function walletTriggerLabel() {
+      if (!walletState.connected || !walletState.address) {
+        return 'Web3';
+      }
+
+      return `Выход ${walletState.address.slice(-4)}`;
+    }
+
     function syncWalletButtons() {
+      if (walletTrigger) {
+        const label = walletTriggerLabel();
+        walletTrigger.textContent = label;
+        walletTrigger.setAttribute('aria-label', label);
+        walletTrigger.title = walletState.address
+          ? `Отключить ${walletState.address}`
+          : 'Подключить Web3 кошелек';
+      }
+
       if (connectWalletBtn) {
         connectWalletBtn.style.display = walletState.connected ? 'none' : 'inline-flex';
       }
@@ -1052,6 +1073,27 @@
     function setWalletState(patch) {
       Object.assign(walletState, patch);
       emitWalletState();
+    }
+
+    function syncWalletStateFromExternal(detail) {
+      if (!detail || typeof detail !== 'object') {
+        return;
+      }
+
+      setWalletState({
+        provider: detail.provider || walletState.provider || window.ethereum || null,
+        address: detail.connected ? (detail.address || null) : null,
+        chainId: detail.connected ? (normalizeChainId(detail.chainId) || detail.chainId || null) : null,
+        walletType: detail.walletType === 'solana' ? 'solana' : (detail.walletType || (detail.connected ? 'evm' : null)),
+        linked: Boolean(detail.linked),
+        connected: Boolean(detail.connected && detail.address),
+      });
+
+      if (detail.connected) {
+        localStorage.removeItem('walletDisconnectedExplicitly');
+      } else {
+        localStorage.setItem('walletDisconnectedExplicitly', 'true');
+      }
     }
 
     function setWalletModalStatus(message, type) {
@@ -1191,6 +1233,32 @@
       }
     }
 
+    async function ensureWalletLinked(address, provider, options) {
+      const walletType = options?.walletType === 'solana' ? 'solana' : 'evm';
+      const chainId = walletType === 'solana'
+        ? 'solana'
+        : (normalizeChainId(options?.chainId) || '0x1');
+
+      if (!isAuthenticated) {
+        return { linked: false, skipped: true };
+      }
+
+      const challenge = await postJson(walletLinkChallengeUrl, {
+        address,
+        wallet_type: walletType,
+      });
+
+      const signature = await signWalletMessage(provider, walletType, address, challenge.message);
+      await postJson(walletLinkUrl, {
+        address,
+        signature,
+        network: chainId,
+        wallet_type: walletType,
+      });
+
+      return { linked: true };
+    }
+
     async function connectWallet(walletId, options) {
       const selected = listWalletOptions().find((wallet) => wallet.id === walletId);
 
@@ -1234,8 +1302,9 @@
 
       localStorage.removeItem('walletDisconnectedExplicitly');
 
+      const linkResult = await ensureWalletLinked(address, selected.provider, { ...(options || {}), walletType: selected.type, chainId });
       const loginResult = await attemptWalletLogin(address, selected.provider, { ...(options || {}), walletType: selected.type });
-      setWalletState({ linked: Boolean(loginResult.linked) });
+      setWalletState({ linked: Boolean(linkResult.linked || loginResult.linked) });
 
       if (loginResult.linked) {
         setWalletModalStatus('Кошелек привязан к аккаунту. Открываем dashboard...', 'success');
@@ -1245,7 +1314,7 @@
       } else if (!loginResult.skipped) {
         setWalletModalStatus('Кошелек подключен, но адрес пока не привязан к аккаунту. Можно продолжить работу на странице кошелька.', 'info');
       } else {
-        setWalletModalStatus('Кошелек подключен.', 'success');
+        setWalletModalStatus(linkResult.linked ? 'Кошелек подключен и добавлен к аккаунту.' : 'Кошелек подключен.', 'success');
       }
 
       if (walletModal && !loginResult.linked) {
@@ -1258,12 +1327,12 @@
           chainId,
           provider: selected.provider,
           walletType: selected.type,
-          linked: Boolean(loginResult.linked),
+          linked: Boolean(linkResult.linked || loginResult.linked),
         });
       }
 
       renderWalletModalProviders(null);
-      return { address, chainId, provider: selected.provider, walletType: selected.type, linked: Boolean(loginResult.linked) };
+      return { address, chainId, provider: selected.provider, walletType: selected.type, linked: Boolean(linkResult.linked || loginResult.linked) };
     }
 
     function openWalletModal(options = {}) {
@@ -1388,7 +1457,15 @@
       walletTrigger.addEventListener('click', function (event) {
         event.preventDefault();
         event.stopPropagation();
-        toggleWalletDropdown();
+
+        if (walletState.connected) {
+          closeWalletDropdown();
+          disconnectWallet();
+          return;
+        }
+
+        closeWalletDropdown();
+        openWalletModal();
       });
     }
 
@@ -1459,6 +1536,10 @@
         openWalletModal(options);
       },
     };
+
+    window.addEventListener('app-wallet-state-changed', function (event) {
+      syncWalletStateFromExternal(event.detail);
+    });
 
     restoreWalletConnection();
 

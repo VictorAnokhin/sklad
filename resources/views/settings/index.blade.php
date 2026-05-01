@@ -156,16 +156,6 @@
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalWeb3Tokens" style="border-color: #f3ba2f;">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🪙 Web3 Токены</h5>
-                    <p class="card-text text-muted">Дополнительные токены (ERC-20)</p>
-                    <span class="badge" style="background:#f3ba2f; color:#000;" id="badge-web3-tokens">{{ count($web3Tokens ?? []) }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
             <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalTaxReceipts" style="border-color: #28a745;">
                 <div class="card-body text-center">
                     <h5 class="card-title">🧾 Чеки ДПІ</h5>
@@ -310,90 +300,6 @@
                         <p class="text-center text-muted" id="payment-bindings-empty-msg" style="display:none">Видов платежа пока нет</p>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="modalWeb3Tokens" tabindex="-1" aria-labelledby="modalWeb3TokensLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content glass-card border-0">
-            <div class="modal-header d-flex align-items-center">
-                <h5 class="modal-title" id="modalWeb3TokensLabel">🪙 Web3 Токены</h5>
-                <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-web3-add">+ Добавить токен</button>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body" id="web3-form-area" style="display:none">
-                <form id="web3-form">
-                    <input type="hidden" id="web3-id" value="">
-                    <input type="hidden" id="web3-cgid" value="">
-                    
-                    <div class="mb-3 position-relative">
-                        <label class="form-label text-warning">🔍 Поиск токена через Zerion</label>
-                        <input type="text" class="form-control" autocomplete="off" id="web3-cg-search" placeholder="Введите название или тикер, например: USDT">
-                        <ul class="list-group position-absolute w-100 shadow" id="web3-cg-results" style="z-index: 1000; max-height: 300px; overflow-y: auto; display: none;"></ul>
-                    </div>
-                    <hr>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Тикер (Символ) <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="web3-symbol" placeholder="USDT" required>
-                            <div class="form-text">Например: USDC, UNI, PEPE</div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Полное название</label>
-                            <input type="text" class="form-control" id="web3-name" placeholder="Tether USD">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Смарт-контракт (Address) <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="web3-address" placeholder="0x... или Solana mint address" required>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Chain ID (Сеть) <span class="text-danger">*</span></label>
-                            <select class="form-select" id="web3-chain" required>
-                                <option value="0x1">Ethereum Mainnet (0x1)</option>
-                                <option value="0x38">BNB Smart Chain (0x38)</option>
-                                <option value="0x89">Polygon (0x89)</option>
-                                <option value="0xa4b1">Arbitrum One (0xa4b1)</option>
-                                <option value="0x2105">Base (0x2105)</option>
-                                <option value="0xa">Optimism (0xa)</option>
-                                <option value="0xa86a">Avalanche C-Chain (0xa86a)</option>
-                                <option value="solana">Solana</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Decimals <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="web3-decimals" value="18" required>
-                        </div>
-                    </div>
-                    
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-success">💾 Сохранить</button>
-                        <button type="button" class="btn btn-secondary" id="btn-web3-cancel">Отмена</button>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-body" id="web3-list-area">
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th>Сеть</th>
-                                <th>Тикер</th>
-                                <th>Контракт</th>
-                                <th>Decimals</th>
-                                <th class="text-end">Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody id="web3-tbody"></tbody>
-                    </table>
-                </div>
-                <p class="text-center text-muted" id="web3-empty-msg" style="display:none">Пользовательских токенов нет</p>
             </div>
         </div>
     </div>
@@ -1516,9 +1422,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initBannerCrud(csrf);
     initAccountsCrud(csrf);
     initWalletLink(csrf);
-    initWeb3TokenCrud(csrf);
-
-
     function initWeb3TokenCrud(csrfToken) {
         const modal = document.getElementById('modalWeb3Tokens');
         const listArea = document.getElementById('web3-list-area');
@@ -1643,7 +1546,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 color: document.getElementById('web3-address').value.trim(),
                 status: document.getElementById('web3-decimals').value.trim(),
                 vision: document.getElementById('web3-chain').value,
-                constanta: document.getElementById('web3-cgid').value.trim()
+                constanta: document.getElementById('web3-cgid').value.trim(),
+                commission: document.getElementById('web3-commission').value.trim() || '0'
             };
 
             const url = id ? `/settings/api/${id}` : '/settings/api';
@@ -1657,7 +1561,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify(payload)
             })
-            .then(r => r.json())
+            .then(async (r) => {
+                const raw = await r.text().catch(() => '');
+                let data = {};
+                try {
+                    data = raw ? JSON.parse(raw) : {};
+                } catch (_) {
+                    data = { success: false, message: raw || `HTTP ${r.status}` };
+                }
+
+                if (!r.ok) {
+                    throw new Error(data.message || `HTTP ${r.status}`);
+                }
+
+                return data;
+            })
             .then(data => {
                 if (!data.success) {
                     alert(data.message || 'Ошибка');
@@ -1667,7 +1585,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 resetWeb3Form();
                 loadWeb3Tokens();
             })
-            .catch(() => alert('Ошибка сети'));
+            .catch((error) => alert(error?.message || 'Ошибка сети'));
         });
 
         function loadWeb3Tokens() {
@@ -1679,7 +1597,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (badge) badge.textContent = items.length;
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Ошибка загрузки токенов</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Ошибка загрузки токенов</td></tr>';
                 });
         }
 
@@ -1743,6 +1661,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong>${escapeHtml(item.name)}</strong><br><small class="text-muted">${escapeHtml(item.doc || '')}</small></td>
                     <td><code>${escapeHtml(item.color)}</code></td>
                     <td>${escapeHtml(item.status || '18')}</td>
+                    <td>${Number(item.commission || 0).toFixed(4)}%</td>
                     <td class="text-end">
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
                         <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
@@ -1762,6 +1681,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('web3-name').value = item.doc || '';
                     document.getElementById('web3-address').value = item.color || '';
                     document.getElementById('web3-decimals').value = item.status || '18';
+                    document.getElementById('web3-commission').value = Number(item.commission || 0).toFixed(4);
                     document.getElementById('web3-chain').value = String(item.vision || '').toLowerCase() === 'solana'
                         ? 'solana'
                         : (normalizeChainId(item.vision) || '0x1');
@@ -1790,6 +1710,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('web3-id').value = '';
             document.getElementById('web3-chain').value = '0x1';
             document.getElementById('web3-decimals').value = '18';
+            document.getElementById('web3-commission').value = '0';
             currentZerionImplementations = [];
         }
 

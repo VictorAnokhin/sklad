@@ -17,6 +17,7 @@ use App\Http\Controllers\ZakazController;
 
 Route::middleware('api')->prefix('auth')->group(function () {
     Route::get('/config', [AuthController::class, 'apiAuthConfig']);
+    Route::get('/wallet/resolve', [AuthController::class, 'resolveUserByWallet']);
     Route::post('/register', [AuthController::class, 'apiRegister']);
     Route::post('/login', [AuthController::class, 'apiLogin']);
     Route::post('/google', [AuthController::class, 'apiGoogleLogin']);
@@ -48,6 +49,10 @@ Route::get('/news/{id}', [NewsController::class, 'apiShow']);
 Route::get('/banners', [BannerCarouselController::class, 'apiIndex']);
 Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
 Route::get('/offices', [SettingsController::class, 'officesPublicIndex']);
+Route::get('/wallet/tokens', [WalletController::class, 'tokens']);
+Route::get('/wallet/{address}/tokens', [WalletController::class, 'walletTokens']);
+Route::match(['get', 'put'], '/wallet/{address}/tokens/settings', [WalletController::class, 'walletTokenSettings']);
+Route::get('/wallet/{address}/tokens/search', [WalletController::class, 'walletTokenSearch']);
 Route::get('/wallet/protocols', [WalletController::class, 'protocols']);
 Route::get('/wallet/overview', [WalletController::class, 'overview']);
 Route::post('/wallet/swap/price', [WalletController::class, 'swapPrice']);

@@ -13,7 +13,8 @@ class NewsController extends Controller
         $limit = max(1, min(50, (int) $request->input('limit', 10)));
         $offset = max(0, (int) $request->input('offset', 0));
         $locale = $this->resolveApiLocale($request);
-        $data = News::init($fid, $offset, $limit, $locale);
+        $htmlkeys = trim((string) $request->input('htmlkeys', ''));
+        $data = News::init($fid, $offset, $limit, $locale, $htmlkeys);
 
         return response()->json([
             'items' => $data['items'],
@@ -21,6 +22,7 @@ class NewsController extends Controller
             'limit' => $limit,
             'offset' => $offset,
             'locale' => $locale,
+            'htmlkeys' => $htmlkeys,
         ]);
     }
 

@@ -27,13 +27,18 @@ class News extends Model
             ->map(fn ($item) => self::decorateItem($item, $locale));
     }
 
-    public static function init(string $fid, int $pos = 0, int $perPage = 20, ?string $locale = 'ru'): array
+    public static function init(string $fid, int $pos = 0, int $perPage = 20, ?string $locale = 'ru', ?string $htmlkeys = null): array
     {
         $baseQuery = DB::table('news')
             ->where(function ($query) use ($fid) {
                 $query->where('firma', (int) $fid)
                     ->orWhere('firma', 0);
             });
+
+        $htmlkeys = trim((string) $htmlkeys);
+        if ($htmlkeys !== '') {
+            $baseQuery->where('htmlkeys', 'like', '%' . $htmlkeys . '%');
+        }
 
         $total = (clone $baseQuery)->count();
 
