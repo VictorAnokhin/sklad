@@ -852,13 +852,81 @@
     const walletPageUrl = '{{ route('wallet') }}';
     const dashboardUrl = '{{ route('dashboard') }}';
     const stateListeners = new Set();
+    const eip6963Providers = new Map();
     const KNOWN_WALLETS = [
-      { id: 'metamask', type: 'evm', name: 'MetaMask', installUrl: 'https://metamask.io/download/', matches(provider) { return provider && provider.isMetaMask === true; } },
-      { id: 'rabby', type: 'evm', name: 'Rabby', installUrl: 'https://rabby.io/', matches(provider) { return provider && provider.isRabby === true; } },
-      { id: 'coinbase', type: 'evm', name: 'Coinbase Wallet', installUrl: 'https://www.coinbase.com/wallet/downloads', matches(provider) { return provider && provider.isCoinbaseWallet === true; } },
-      { id: 'trust', type: 'evm', name: 'Trust Wallet', installUrl: 'https://trustwallet.com/browser-extension', matches(provider) { return provider && provider.isTrust === true; } },
-      { id: 'okx', type: 'evm', name: 'OKX Wallet', installUrl: 'https://www.okx.com/web3', matches(provider) { return provider && (provider.isOKExWallet === true || provider.isOKXWallet === true); } },
-      { id: 'phantom', type: 'solana', name: 'Phantom', installUrl: 'https://phantom.com/download', matches(provider) { return provider && provider.isPhantom === true; } },
+      {
+        id: 'metamask',
+        type: 'evm',
+        name: 'MetaMask',
+        installUrl: 'https://metamask.io/download/',
+        mobileDeeplink(url) { return `https://link.metamask.io/dapp/${encodeURIComponent(url)}`; },
+        matches(provider) { return provider && provider.isMetaMask === true; }
+      },
+      {
+        id: 'rabby',
+        type: 'evm',
+        name: 'Rabby',
+        installUrl: 'https://rabby.io/',
+        matches(provider, info) {
+          const providerName = String(info?.name || provider?.name || '').toLowerCase();
+          const providerRdns = String(info?.rdns || '').toLowerCase();
+
+          return provider && (
+            provider.isRabby === true
+            || providerName.includes('rabby')
+            || providerRdns.includes('rabby')
+          );
+        }
+      },
+      {
+        id: 'coinbase',
+        type: 'evm',
+        name: 'Coinbase Wallet',
+        installUrl: 'https://www.coinbase.com/wallet/downloads',
+        matches(provider, info) {
+          const providerName = String(info?.name || provider?.name || '').toLowerCase();
+          const providerRdns = String(info?.rdns || '').toLowerCase();
+
+          return provider && (
+            provider.isCoinbaseWallet === true
+            || providerName.includes('coinbase')
+            || providerRdns.includes('coinbase')
+          );
+        }
+      },
+      {
+        id: 'trust',
+        type: 'evm',
+        name: 'Trust Wallet',
+        installUrl: 'https://trustwallet.com/browser-extension',
+        mobileDeeplink(url) { return `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(url)}`; },
+        matches(provider) { return provider && provider.isTrust === true; }
+      },
+      {
+        id: 'okx',
+        type: 'evm',
+        name: 'OKX Wallet',
+        installUrl: 'https://www.okx.com/web3',
+        matches(provider, info) {
+          const providerName = String(info?.name || provider?.name || '').toLowerCase();
+          const providerRdns = String(info?.rdns || '').toLowerCase();
+
+          return provider && (
+            provider.isOKExWallet === true
+            || provider.isOKXWallet === true
+            || providerName.includes('okx')
+            || providerRdns.includes('okx')
+          );
+        }
+      },
+      {
+        id: 'phantom',
+        type: 'solana',
+        name: 'Phantom',
+        installUrl: 'https://phantom.com/download',
+        mobileDeeplink(url) { return `https://phantom.app/ul/browse/${encodeURIComponent(url)}?ref=${encodeURIComponent(window.location.origin)}`; },
+        matches(provider) { return provider && provider.isPhantom === true; }
+      },
       { id: 'solflare', type: 'solana', name: 'Solflare', installUrl: 'https://solflare.com/download', matches(provider) { return provider && provider.isSolflare === true; } },
       { id: 'backpack', type: 'solana', name: 'Backpack', installUrl: 'https://backpack.app/', matches(provider) { return provider && provider.isBackpack === true; } },
     ];
@@ -880,6 +948,40 @@
     if (walletModalNode && window.bootstrap) {
       walletModal = window.bootstrap.Modal.getOrCreateInstance(walletModalNode);
     }
+
+    function normalizeEip6963Provider(detail) {
+      const provider = detail?.provider || null;
+      const info = detail?.info || null;
+      const uuid = String(info?.uuid || '');
+      const rdns = String(info?.rdns || '');
+      const name = String(info?.name || '');
+
+      if (!provider || typeof provider !== 'object') {
+        return null;
+      }
+
+      return {
+        id: uuid || rdns || name || `eip6963-${eip6963Providers.size + 1}`,
+        provider,
+        info,
+      };
+    }
+
+    function registerEip6963Provider(detail) {
+      const normalized = normalizeEip6963Provider(detail);
+      if (!normalized) {
+        return;
+      }
+
+      eip6963Providers.set(normalized.id, normalized);
+    }
+
+    window.addEventListener('eip6963:announceProvider', function (event) {
+      registerEip6963Provider(event.detail);
+      renderWalletModalProviders(null);
+    });
+
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
 
     function closeWalletDropdown() {
       if (!walletDropdown || !walletTrigger || !walletMenu) {
@@ -939,15 +1041,65 @@
     }
 
     function getInjectedProviders() {
+      const mapped = new Map();
+      const addProvider = (provider, info = null) => {
+        if (!provider || typeof provider !== 'object' || mapped.has(provider)) {
+          return;
+        }
+
+        mapped.set(provider, {
+          provider,
+          info,
+        });
+      };
+
+      eip6963Providers.forEach((entry) => {
+        addProvider(entry?.provider, entry?.info || null);
+      });
+
+      addProvider(window.okxwallet, {
+        name: 'OKX Wallet',
+        rdns: 'com.okx.wallet',
+      });
+
+      addProvider(window.okexchain, {
+        name: 'OKX Wallet',
+        rdns: 'com.okx.wallet',
+      });
+
       if (!window.ethereum) {
-        return [];
+        return Array.from(mapped.values());
       }
 
       if (Array.isArray(window.ethereum.providers) && window.ethereum.providers.length > 0) {
-        return window.ethereum.providers;
+        window.ethereum.providers.forEach((provider) => {
+          addProvider(provider, null);
+        });
+
+        return Array.from(mapped.values());
       }
 
-      return [window.ethereum];
+      addProvider(window.ethereum, null);
+
+      return Array.from(mapped.values());
+    }
+
+    function isMobileDevice() {
+      return /android|iphone|ipad|ipod|iemobile|opera mini|mobile/i.test(navigator.userAgent || '')
+        || (window.matchMedia && window.matchMedia('(max-width: 991px)').matches && navigator.maxTouchPoints > 0);
+    }
+
+    function isWalletAppBrowser() {
+      return Boolean(
+        window.ethereum
+        || window.phantom?.solana
+        || window.solflare
+        || window.backpack?.solana
+      );
+    }
+
+    function currentDappUrl() {
+      return window.location.href;
     }
 
     function getSolanaProviders() {
@@ -972,15 +1124,16 @@
     function listWalletOptions() {
       const mapped = new Map();
 
-      getInjectedProviders().forEach((provider) => {
-        const known = KNOWN_WALLETS.find((wallet) => wallet.matches(provider));
+      getInjectedProviders().forEach(({ provider, info }) => {
+        const known = KNOWN_WALLETS.find((wallet) => wallet.matches(provider, info));
         const id = known ? known.id : `evm-${mapped.size + 1}`;
+        const fallbackName = info?.name || 'Browser Wallet';
 
         if (!mapped.has(id)) {
           mapped.set(id, {
             id,
             type: known ? known.type : 'evm',
-            name: known ? known.name : 'Browser Wallet',
+            name: known ? known.name : fallbackName,
             installUrl: known ? known.installUrl : 'https://ethereum.org/wallets/',
             provider,
             installed: true,
@@ -1018,6 +1171,23 @@
       });
 
       return Array.from(mapped.values());
+    }
+
+    function listMobileWalletOptions() {
+      if (!isMobileDevice() || isWalletAppBrowser()) {
+        return [];
+      }
+
+      const url = currentDappUrl();
+
+      return KNOWN_WALLETS
+        .filter((wallet) => typeof wallet.mobileDeeplink === 'function')
+        .map((wallet) => ({
+          id: wallet.id,
+          type: wallet.type,
+          name: wallet.name,
+          url: wallet.mobileDeeplink(url),
+        }));
     }
 
     function shortenAddress(address) {
@@ -1121,16 +1291,31 @@
       const options = listWalletOptions();
       const installed = options.filter((wallet) => wallet.installed);
       const missing = options.filter((wallet) => !wallet.installed);
+      const mobileWallets = listMobileWalletOptions();
 
-      walletProviderList.innerHTML = installed.map((wallet) => `
-        <button type="button" class="wallet-modal-provider" data-wallet-id="${wallet.id}" ${activeWalletId ? 'disabled' : ''}>
-          <span>
-            <span class="wallet-modal-provider__name">${wallet.name}</span>
-            <span class="wallet-modal-provider__meta">Подключить ${wallet.type === 'solana' ? 'Solana' : 'EVM'}-адрес и проверить привязку</span>
-          </span>
-          <span class="wallet-modal-provider__badge">${activeWalletId === wallet.id ? 'Подключаем...' : 'Установлен'}</span>
-        </button>
-      `).join('');
+      if (installed.length > 0) {
+        walletProviderList.innerHTML = installed.map((wallet) => `
+          <button type="button" class="wallet-modal-provider" data-wallet-id="${wallet.id}" ${activeWalletId ? 'disabled' : ''}>
+            <span>
+              <span class="wallet-modal-provider__name">${wallet.name}</span>
+              <span class="wallet-modal-provider__meta">Подключить ${wallet.type === 'solana' ? 'Solana' : 'EVM'}-адрес и проверить привязку</span>
+            </span>
+            <span class="wallet-modal-provider__badge">${activeWalletId === wallet.id ? 'Подключаем...' : 'Установлен'}</span>
+          </button>
+        `).join('');
+      } else if (mobileWallets.length > 0) {
+        walletProviderList.innerHTML = mobileWallets.map((wallet) => `
+          <a href="${wallet.url}" class="wallet-modal-provider" rel="noreferrer">
+            <span>
+              <span class="wallet-modal-provider__name">${wallet.name}</span>
+              <span class="wallet-modal-provider__meta">Открыть эту страницу внутри ${wallet.name} и подключить ${wallet.type === 'solana' ? 'Solana' : 'EVM'}-кошелек</span>
+            </span>
+            <span class="wallet-modal-provider__badge">Открыть</span>
+          </a>
+        `).join('');
+      } else {
+        walletProviderList.innerHTML = '';
+      }
 
       if (missing.length > 0) {
         walletInstallList.style.display = 'grid';
@@ -1138,7 +1323,7 @@
           <a href="${wallet.installUrl}" target="_blank" rel="noreferrer" class="wallet-modal-provider">
             <span>
               <span class="wallet-modal-provider__name">${wallet.name}</span>
-              <span class="wallet-modal-provider__meta">Установить расширение</span>
+              <span class="wallet-modal-provider__meta">${isMobileDevice() ? 'Установить приложение кошелька' : 'Установить расширение'}</span>
             </span>
             <span class="wallet-modal-provider__badge">Скачать</span>
           </a>
@@ -1148,7 +1333,9 @@
         walletInstallList.innerHTML = '';
       }
 
-      if (installed.length === 0) {
+      if (installed.length === 0 && mobileWallets.length > 0) {
+        setWalletModalStatus('В обычном мобильном браузере кошелек часто недоступен. Откройте текущую страницу через приложение кошелька, установленное на телефоне.', 'info');
+      } else if (installed.length === 0) {
         setWalletModalStatus('В браузере не найден Web3-кошелек. Установите MetaMask, Phantom, Solflare или другой совместимый кошелек.', 'error');
       }
     }
