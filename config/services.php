@@ -40,6 +40,10 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
     ],
 
+    'sui' => [
+        'zklogin_prover_url' => env('SUI_ZKLOGIN_PROVER_URL', 'https://prover-dev.mystenlabs.com/v1'),
+    ],
+
     'zerion' => [
         'api_key' => env('ZERION_API_KEY'),
         'wallet_address' => env('ZERION_WALLET_ADDRESS'),

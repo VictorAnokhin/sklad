@@ -565,6 +565,179 @@ class AuthController extends Controller
         ]);
     }
 
+    public function zkLoginConfig()
+    {
+        return response()->json([
+            'googleClientId' => (string) config('services.google.client_id', ''),
+            'proverUrl' => (string) config('services.sui.zklogin_prover_url', ''),
+            'enabled' => (string) config('services.google.client_id', '') !== '',
+        ]);
+    }
+
+    public function zkLoginGoogleSalt(Request $request)
+    {
+        $validated = $request->validate([
+            'jwt' => ['required', 'string'],
+        ]);
+
+        $googleClientId = (string) config('services.google.client_id', '');
+
+        if ($googleClientId === '') {
+            return response()->json(['message' => 'Google zkLogin is not configured'], 503);
+        }
+
+        $payload = $this->verifyGoogleCredential((string) $validated['jwt'], $googleClientId);
+
+        if (!$payload) {
+            return response()->json(['message' => 'Failed to verify Google account'], 422);
+        }
+
+        $user = $this->resolveGoogleUser($payload, $this->resolveAuthFid($request));
+
+        if (!$user) {
+            return response()->json(['message' => 'Google account does not contain a verified email'], 422);
+        }
+
+        $identity = $this->resolveOrCreateZkLoginIdentity($user, $payload);
+
+        return response()->json([
+            'salt' => $identity['salt'],
+            'provider' => 'google',
+            'iss' => (string) ($payload['iss'] ?? 'https://accounts.google.com'),
+            'aud' => (string) ($payload['aud'] ?? $googleClientId),
+            'sub' => (string) ($payload['sub'] ?? ''),
+            'user' => $this->serializeUser($user->fresh()),
+        ]);
+    }
+
+    public function zkLoginGoogleProof(Request $request)
+    {
+        $validated = $request->validate([
+            'jwt' => ['required', 'string'],
+            'extendedEphemeralPublicKey' => ['required', 'string', 'max:512'],
+            'maxEpoch' => ['required', 'integer', 'min:0'],
+            'jwtRandomness' => ['required', 'string', 'max:256'],
+            'salt' => ['required', 'string', 'max:128'],
+            'keyClaimName' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        $googleClientId = (string) config('services.google.client_id', '');
+
+        if ($googleClientId === '') {
+            return response()->json(['message' => 'Google zkLogin is not configured'], 503);
+        }
+
+        $payload = $this->verifyGoogleCredential((string) $validated['jwt'], $googleClientId);
+
+        if (!$payload) {
+            return response()->json(['message' => 'Failed to verify Google account'], 422);
+        }
+
+        $user = $this->resolveGoogleUser($payload, $this->resolveAuthFid($request));
+
+        if (!$user) {
+            return response()->json(['message' => 'Google account does not contain a verified email'], 422);
+        }
+
+        $identity = $this->resolveOrCreateZkLoginIdentity($user, $payload);
+
+        if ((string) $identity['salt'] !== (string) $validated['salt']) {
+            return response()->json(['message' => 'Salt does not match the stored zkLogin identity.'], 422);
+        }
+
+        $proverUrl = trim((string) config('services.sui.zklogin_prover_url', ''));
+
+        if ($proverUrl === '') {
+            return response()->json(['message' => 'zkLogin prover URL is not configured'], 503);
+        }
+
+        try {
+            $response = Http::acceptJson()
+                ->timeout(45)
+                ->connectTimeout(10)
+                ->post($proverUrl, [
+                    'jwt' => (string) $validated['jwt'],
+                    'extendedEphemeralPublicKey' => (string) $validated['extendedEphemeralPublicKey'],
+                    'maxEpoch' => (int) $validated['maxEpoch'],
+                    'jwtRandomness' => (string) $validated['jwtRandomness'],
+                    'salt' => (string) $validated['salt'],
+                    'keyClaimName' => (string) ($validated['keyClaimName'] ?? 'sub'),
+                ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'message' => 'zkLogin proving service is unavailable.',
+                'error' => $e->getMessage(),
+            ], 502);
+        }
+
+        $json = $response->json();
+
+        if (!$response->ok() || !is_array($json)) {
+            return response()->json([
+                'message' => 'zkLogin proving service returned an invalid response.',
+                'details' => $json,
+            ], 502);
+        }
+
+        return response()->json($json);
+    }
+
+    public function zkLoginGoogleLogin(Request $request)
+    {
+        $validated = $request->validate([
+            'jwt' => ['required', 'string'],
+            'address' => ['required', 'string', 'max:80'],
+        ]);
+
+        $googleClientId = (string) config('services.google.client_id', '');
+
+        if ($googleClientId === '') {
+            return response()->json(['message' => 'Google zkLogin is not configured'], 503);
+        }
+
+        $payload = $this->verifyGoogleCredential((string) $validated['jwt'], $googleClientId);
+
+        if (!$payload) {
+            return response()->json(['message' => 'Failed to verify Google account'], 422);
+        }
+
+        $user = $this->resolveGoogleUser($payload, $this->resolveAuthFid($request));
+
+        if (!$user) {
+            return response()->json(['message' => 'Google account does not contain a verified email'], 422);
+        }
+
+        $address = $this->normalizeSuiWalletAddress((string) $validated['address']);
+
+        if (!$this->isValidWalletAddress($address, 'solana') && !$this->looksLikeSuiAddress($address)) {
+            return response()->json(['message' => 'Invalid zkLogin Sui address format.'], 422);
+        }
+
+        $this->syncUserRoleStatus($user);
+        $identity = $this->resolveOrCreateZkLoginIdentity($user, $payload);
+
+        $this->bindWalletToUser($user, $address, 'sui');
+
+        if (Schema::hasTable('zklogin_identities')) {
+            DB::table('zklogin_identities')
+                ->where('id', $identity['id'])
+                ->update([
+                    'wallet_address' => $address,
+                    'last_login_at' => now(),
+                    'updated_at' => now(),
+                ]);
+        }
+
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return response()->json([
+            'user' => $this->serializeUser($user->fresh()),
+            'token' => $token,
+            'wallet_address' => $address,
+            'salt' => $identity['salt'],
+        ]);
+    }
+
     public function apiLogout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
@@ -1143,6 +1316,127 @@ class AuthController extends Controller
         );
 
         return strtolower($derivedAddress) === strtolower($address);
+    }
+
+    private function resolveOrCreateZkLoginIdentity(User $user, array $payload): array
+    {
+        if (!Schema::hasTable('zklogin_identities')) {
+            abort(response()->json([
+                'message' => 'zkLogin identities storage is not available. Run database migrations first.',
+            ], 503));
+        }
+
+        $issuer = trim((string) ($payload['iss'] ?? 'https://accounts.google.com'));
+        $subject = trim((string) ($payload['sub'] ?? ''));
+        $audience = trim((string) ($payload['aud'] ?? ''));
+
+        if ($issuer === '' || $subject === '' || $audience === '') {
+            abort(response()->json([
+                'message' => 'Google token does not contain the required zkLogin claims.',
+            ], 422));
+        }
+
+        $existing = DB::table('zklogin_identities')
+            ->where('provider', 'google')
+            ->where('issuer', $issuer)
+            ->where('subject', $subject)
+            ->first();
+
+        if ($existing) {
+            if ((int) $existing->user_id !== (int) $user->id) {
+                DB::table('zklogin_identities')
+                    ->where('id', $existing->id)
+                    ->update([
+                        'user_id' => $user->id,
+                        'audience' => $audience,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            return [
+                'id' => (int) $existing->id,
+                'salt' => (string) $existing->salt,
+                'wallet_address' => $existing->wallet_address ? (string) $existing->wallet_address : null,
+            ];
+        }
+
+        $id = DB::table('zklogin_identities')->insertGetId([
+            'user_id' => $user->id,
+            'provider' => 'google',
+            'issuer' => $issuer,
+            'subject' => $subject,
+            'audience' => $audience,
+            'salt' => $this->generateZkLoginSalt(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $created = DB::table('zklogin_identities')->where('id', $id)->first();
+
+        return [
+            'id' => (int) $id,
+            'salt' => (string) ($created->salt ?? ''),
+            'wallet_address' => $created && $created->wallet_address ? (string) $created->wallet_address : null,
+        ];
+    }
+
+    private function generateZkLoginSalt(): string
+    {
+        return $this->hexToDecimalString(bin2hex(random_bytes(16)));
+    }
+
+    private function hexToDecimalString(string $hex): string
+    {
+        $hex = strtolower(trim($hex));
+        $hex = ltrim($hex, '0');
+
+        if ($hex === '') {
+            return '0';
+        }
+
+        $decimal = '0';
+
+        foreach (str_split($hex) as $char) {
+            $value = strpos('0123456789abcdef', $char);
+            $decimal = $this->decimalMultiplyAndAdd($decimal, 16, $value === false ? 0 : $value);
+        }
+
+        return $decimal;
+    }
+
+    private function decimalMultiplyAndAdd(string $decimal, int $multiplier, int $addition): string
+    {
+        $carry = $addition;
+        $result = '';
+
+        for ($index = strlen($decimal) - 1; $index >= 0; $index--) {
+            $product = ((int) $decimal[$index] * $multiplier) + $carry;
+            $result = (string) ($product % 10) . $result;
+            $carry = intdiv($product, 10);
+        }
+
+        while ($carry > 0) {
+            $result = (string) ($carry % 10) . $result;
+            $carry = intdiv($carry, 10);
+        }
+
+        return ltrim($result, '0') ?: '0';
+    }
+
+    private function normalizeSuiWalletAddress(string $address): string
+    {
+        $address = strtolower(trim($address));
+
+        if ($address === '') {
+            return '';
+        }
+
+        return str_starts_with($address, '0x') ? $address : "0x{$address}";
+    }
+
+    private function looksLikeSuiAddress(string $address): bool
+    {
+        return (bool) preg_match('/^0x[a-f0-9]{64}$/', strtolower(trim($address)));
     }
 
     private function verifySolanaSignature(string $message, string $signature, string $address): bool

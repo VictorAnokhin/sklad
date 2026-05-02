@@ -17,6 +17,10 @@ use App\Http\Controllers\ZakazController;
 
 Route::middleware('api')->prefix('auth')->group(function () {
     Route::get('/config', [AuthController::class, 'apiAuthConfig']);
+    Route::get('/zklogin/config', [AuthController::class, 'zkLoginConfig']);
+    Route::post('/zklogin/google/salt', [AuthController::class, 'zkLoginGoogleSalt']);
+    Route::post('/zklogin/google/proof', [AuthController::class, 'zkLoginGoogleProof']);
+    Route::post('/zklogin/google/login', [AuthController::class, 'zkLoginGoogleLogin']);
     Route::get('/wallet/resolve', [AuthController::class, 'resolveUserByWallet']);
     Route::post('/register', [AuthController::class, 'apiRegister']);
     Route::post('/login', [AuthController::class, 'apiLogin']);

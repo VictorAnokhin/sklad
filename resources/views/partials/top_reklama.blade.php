@@ -78,7 +78,6 @@
     
     <a href="{{ route('micro-business') }}" class="header-public-link">Для микро-бизнеса</a>
     <a href="{{ route('individuals') }}" class="header-public-link">Для физических лиц</a>
-    <a href="{{ route('team') }}" class="header-public-link">Команда</a>
     <a href="{{ route('about') }}" class="header-public-link">О проекте</a>
     <a href="{{ route('login') }}" class="header-public-link header-btn-login">Войти</a>
   </div>
