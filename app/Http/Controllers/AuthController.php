@@ -382,7 +382,7 @@ class AuthController extends Controller
     {
         $fid = trim((string) $request->input('fid', ''));
 
-        if ($fid === '') {
+        if ($fid === '' && $request->hasSession()) {
             $fid = trim((string) session('fid', ''));
         }
 
@@ -443,11 +443,26 @@ class AuthController extends Controller
 
     private function syncAuthSessionFid(Request $request, User $user): void
     {
+        if (!$request->hasSession()) {
+            return;
+        }
+
         $fid = $user->firma ?: $user->fid ?: $user->idfirma;
 
         if ($fid !== null && $fid !== '') {
             $request->session()->put('fid', $fid);
         }
+    }
+
+    private function establishAuthenticatedSession(Request $request, User $user): void
+    {
+        if (!$request->hasSession()) {
+            return;
+        }
+
+        Auth::login($user);
+        $request->session()->regenerate();
+        $this->syncAuthSessionFid($request, $user);
     }
 
     private function verifyGoogleCredential(string $credential, string $clientId): ?array
@@ -689,9 +704,7 @@ class AuthController extends Controller
         }
 
         $this->syncUserRoleStatus($user);
-        Auth::login($user);
-        $request->session()->regenerate();
-        $this->syncAuthSessionFid($request, $user);
+        $this->establishAuthenticatedSession($request, $user);
         Cache::forget($this->phoneOtpCodeKey($normalizedPhone));
 
         $token = $user->createToken('api-token')->plainTextToken;
@@ -1087,10 +1100,8 @@ class AuthController extends Controller
 
         $user = User::create(User::filterUsersColumns($userData));
 
-        // Auto login after registration
-        Auth::login($user);
-        $request->session()->regenerate();
-        $this->syncAuthSessionFid($request, $user);
+        // Auto login for stateful web callers; API clients receive JSON and can authenticate separately.
+        $this->establishAuthenticatedSession($request, $user);
 
         return response()->json([
             'message' => 'Реєстрація успішна',
