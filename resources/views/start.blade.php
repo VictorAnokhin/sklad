@@ -13,6 +13,9 @@
 
     <form action="{{ route('login.post') }}" method="post" class="login-form">
       @csrf
+      @if(!empty($authFid))
+      <input type="hidden" name="fid" value="{{ $authFid }}">
+      @endif
 
       @error('email')
       <div class="alert alert-error" style="margin-bottom:1rem">{{ $message }}</div>
@@ -43,6 +46,9 @@
       <div id="google-signin-button" class="google-signin-slot"></div>
       <form id="google-login-form" action="{{ route('login.google') }}" method="post" style="display:none">
         @csrf
+        @if(!empty($authFid))
+        <input type="hidden" name="fid" value="{{ $authFid }}">
+        @endif
         <input type="hidden" name="credential" id="google-login-credential">
       </form>
     </div>
@@ -51,10 +57,24 @@
     <div class="login-secondary">
       <form action="{{ route('password.forgot') }}" method="post" class="login-recovery-form">
         @csrf
+        @if(!empty($authFid))
+        <input type="hidden" name="fid" value="{{ $authFid }}">
+        @endif
         <div class="login-secondary-head">
           <strong>Забули пароль?</strong>
           <span>Введіть email і ми надішлемо новий пароль.</span>
         </div>
+        @error('recovery_email')
+        <div class="alert alert-error" style="margin-bottom:0.7rem">{{ $message }}</div>
+        @enderror
+        @if(session('recovery_warning'))
+        <div class="alert alert-warning" style="margin-bottom:0.7rem">{{ session('recovery_warning') }}</div>
+        @endif
+        @if(session('temporary_password'))
+        <div class="alert alert-success" style="margin-bottom:0.7rem">
+          <strong>Тимчасовий пароль:</strong> <code>{{ session('temporary_password') }}</code>
+        </div>
+        @endif
         <div class="login-recovery-row">
           <input type="email" name="email" value="{{ old('email') }}" placeholder="you@example.com" autocomplete="email" required>
           <button type="submit">Відновити</button>
@@ -63,7 +83,7 @@
 
       <div class="login-register-row">
         <span>Ще немає акаунта?</span>
-        <a href="{{ route('register') }}">Зареєструватися</a>
+        <a href="{{ !empty($authFid) ? route('register', ['fid' => $authFid]) : route('register') }}">Зареєструватися</a>
       </div>
     </div>
 

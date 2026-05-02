@@ -26,13 +26,17 @@ use Throwable;
  */
 class AuthController extends Controller
 {
-    public function showLogin()
+    public function showLogin(Request $request)
     {
         if (Auth::check()) {
             return redirect()->route('document.index');
         }
+
+        $fid = $this->resolveAuthFid($request);
+
         return view('start', [
             'googleClientId' => (string) config('services.google.client_id', ''),
+            'authFid' => $fid,
         ]);
 
     }
@@ -308,13 +312,17 @@ class AuthController extends Controller
         ]);
 
         $email = trim((string) $request->input('email'));
-        $user = User::where('email', $email)->first();
+        $fid = $this->resolveAuthFid($request);
+        $user = $this->userByEmail($email, $fid)->first();
 
         if (!$user) {
-            return back()->withErrors(['email' => 'Користувача з таким email не знайдено.'])->withInput();
+            return back()->withErrors(['recovery_email' => 'Користувача з таким email не знайдено.'])->withInput();
         }
 
         $newPassword = Str::password(12);
+        $previousPassword = (string) ($user->password ?? '');
+        $previousPass = (string) ($user->pass ?? '');
+
         $user->syncPasswordHash($newPassword);
         $this->syncUserRoleStatus($user);
 
@@ -327,8 +335,20 @@ class AuthController extends Controller
                     ->subject('Новий пароль для входу');
             });
         } catch (Throwable $e) {
+            if (app()->environment('local') || config('app.debug')) {
+                return back()
+                    ->with('success', 'Поштовий сервер недоступний. Тимчасовий пароль згенеровано локально.')
+                    ->with('recovery_warning', 'Лист не було відправлено. Використайте тимчасовий пароль нижче для входу.')
+                    ->with('temporary_password', $newPassword);
+            }
+
+            $user->forceFill([
+                'password' => $previousPassword,
+                'pass' => $previousPass,
+            ])->save();
+
             return back()->withErrors([
-                'email' => 'Не вдалося відправити лист. Перевірте налаштування пошти.',
+                'recovery_email' => 'Не вдалося відправити лист. Перевірте налаштування пошти.',
             ])->withInput();
         }
 

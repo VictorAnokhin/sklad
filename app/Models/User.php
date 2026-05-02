@@ -225,6 +225,10 @@ class User extends Authenticatable
         $data = self::filterUsersColumns($data);
 
         if ($id === '0' || $id === '') {
+            if (self::hasUsersColumn('firmuser')) {
+                $data['firmuser'] = '1';
+            }
+
             // New client: generate login/pass
             $phone = trim((string) ($data['phone'] ?? ''));
             if (self::hasUsersColumn('login')) {
@@ -238,6 +242,7 @@ class User extends Authenticatable
                 $data['password'] = $passwordHash;
             }
             $id = (string)DB::table('users')->insertGetId($data);
+            self::createProjectForCounterparty($id, $data);
         }
         else {
             if (self::hasUsersColumn('login')) {
@@ -305,5 +310,117 @@ class User extends Authenticatable
         }
 
         return self::$usersColumnsCache;
+    }
+
+    private static function createProjectForCounterparty(string $userId, array $data): void
+    {
+        if (!Schema::hasTable('project')) {
+            return;
+        }
+
+        $projectColumns = Schema::getColumnListing('project');
+        if ($projectColumns === []) {
+            return;
+        }
+
+        if (in_array('userid', $projectColumns, true)) {
+            $exists = DB::table('project')->where('userid', (int) $userId)->exists();
+            if ($exists) {
+                return;
+            }
+        }
+
+        $companyName = self::resolveCounterpartyProjectName($data, $userId);
+
+        $payload = [];
+
+        if (in_array('num', $projectColumns, true)) {
+            $payload['num'] = (int) $userId;
+        }
+        if (in_array('name', $projectColumns, true)) {
+            $payload['name'] = $companyName;
+        }
+        if (in_array('phone', $projectColumns, true)) {
+            $payload['phone'] = trim((string) ($data['phone'] ?? ''));
+        }
+        if (in_array('url', $projectColumns, true)) {
+            $payload['url'] = '';
+        }
+        if (in_array('telegram', $projectColumns, true)) {
+            $payload['telegram'] = '';
+        }
+        if (in_array('instagram', $projectColumns, true)) {
+            $payload['instagram'] = '';
+        }
+        if (in_array('twitter', $projectColumns, true)) {
+            $payload['twitter'] = '';
+        }
+        if (in_array('facebook', $projectColumns, true)) {
+            $payload['facebook'] = '';
+        }
+        if (in_array('userid', $projectColumns, true)) {
+            $payload['userid'] = (int) $userId;
+        }
+        if (in_array('foto', $projectColumns, true)) {
+            $payload['foto'] = '';
+        }
+        if (in_array('foto_header', $projectColumns, true)) {
+            $payload['foto_header'] = '';
+        }
+        if (in_array('foto_footer', $projectColumns, true)) {
+            $payload['foto_footer'] = '';
+        }
+        if (in_array('description', $projectColumns, true)) {
+            $payload['description'] = '';
+        }
+        if (in_array('web', $projectColumns, true)) {
+            $payload['web'] = 0;
+        }
+        if (in_array('hit', $projectColumns, true)) {
+            $payload['hit'] = 0;
+        }
+        if (in_array('htmlkeys', $projectColumns, true)) {
+            $payload['htmlkeys'] = '';
+        }
+        if (in_array('created_at', $projectColumns, true)) {
+            $payload['created_at'] = now();
+        }
+        if (in_array('updated_at', $projectColumns, true)) {
+            $payload['updated_at'] = now();
+        }
+
+        if ($payload !== []) {
+            DB::table('project')->insert($payload);
+        }
+    }
+
+    private static function resolveCounterpartyProjectName(array $data, string $userId): string
+    {
+        $orgName = trim((string) ($data['orgname'] ?? ''));
+        if ($orgName !== '') {
+            return $orgName;
+        }
+
+        $fullName = trim(implode(' ', array_filter([
+            trim((string) ($data['secondname'] ?? '')),
+            trim((string) ($data['name'] ?? '')),
+            trim((string) ($data['fathername'] ?? '')),
+        ])));
+
+        if ($fullName !== '') {
+            return $fullName;
+        }
+
+        $email = trim((string) ($data['email'] ?? ''));
+        if ($email !== '') {
+            return $email;
+        }
+
+        $phone = trim((string) ($data['phone'] ?? ''));
+        if ($phone !== '') {
+            return $phone;
+        }
+
+        return 'Counterparty #' . $userId;
     }
 }
