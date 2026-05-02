@@ -13,6 +13,7 @@ class ApiSmokeTest extends TestCase
         $response->assertStatus(200);
         $response->assertJsonStructure([
             'googleClientId',
+            'phoneAuthEnabled',
         ]);
     }
 
@@ -27,6 +28,22 @@ class ApiSmokeTest extends TestCase
     {
         $response = $this->postJson('/api/auth/login', [
             'login' => 'user@example.com',
+        ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_api_phone_send_code_requires_phone(): void
+    {
+        $response = $this->postJson('/api/auth/phone/send-code', []);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_api_phone_verify_requires_code(): void
+    {
+        $response = $this->postJson('/api/auth/phone/verify', [
+            'phone' => '+380671234567',
         ]);
 
         $response->assertStatus(422);

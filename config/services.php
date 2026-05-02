@@ -40,6 +40,12 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
     ],
 
+    'smsclub' => [
+        'token' => env('SMSCLUB_TOKEN'),
+        'sender' => env('SMSCLUB_SENDER'),
+        'endpoint' => env('SMSCLUB_ENDPOINT', 'https://im.smsclub.mobi/sms/send'),
+    ],
+
     'sui' => [
         'zklogin_prover_url' => env('SUI_ZKLOGIN_PROVER_URL', 'https://prover-dev.mystenlabs.com/v1'),
     ],

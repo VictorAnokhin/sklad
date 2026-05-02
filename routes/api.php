@@ -24,6 +24,8 @@ Route::middleware('api')->prefix('auth')->group(function () {
     Route::get('/wallet/resolve', [AuthController::class, 'resolveUserByWallet']);
     Route::post('/register', [AuthController::class, 'apiRegister']);
     Route::post('/login', [AuthController::class, 'apiLogin']);
+    Route::post('/phone/send-code', [AuthController::class, 'apiSendPhoneCode']);
+    Route::post('/phone/verify', [AuthController::class, 'apiVerifyPhoneCode']);
     Route::post('/google', [AuthController::class, 'apiGoogleLogin']);
     Route::post('/web3/challenge', [AuthController::class, 'web3LoginChallenge']);
     Route::post('/web3/login', [AuthController::class, 'web3Login']);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\SmsClubService;
 use Elliptic\EC;
 use Illuminate\Mail\Message;
 use Illuminate\Http\Request;
@@ -553,6 +554,133 @@ class AuthController extends Controller
         ]);
     }
 
+    public function apiSendPhoneCode(Request $request, SmsClubService $smsClub)
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:50'],
+        ]);
+
+        if (!$this->isPhoneAuthEnabled()) {
+            return response()->json(['message' => 'Phone authentication is not configured'], 503);
+        }
+
+        $normalizedPhone = $this->normalizePhoneNumber((string) $validated['phone']);
+
+        if ($normalizedPhone === null) {
+            return response()->json(['message' => 'Некоректний формат телефону.'], 422);
+        }
+
+        $requestFingerprint = $this->phoneOtpRateLimitKey($request, $normalizedPhone);
+
+        if (Cache::has($requestFingerprint)) {
+            return response()->json(['message' => 'Код уже відправлено. Спробуйте трохи пізніше.'], 429);
+        }
+
+        $code = $this->generatePhoneOtpCode();
+        $message = $this->makePhoneOtpMessage($code);
+
+        try {
+            $smsClub->sendOtp($this->smsClubPhonePayload($normalizedPhone), $message);
+        } catch (Throwable $e) {
+            Log::error('Failed to send SMS Club OTP.', [
+                'phone' => $normalizedPhone,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Не вдалося відправити SMS-код.'], 502);
+        }
+
+        Cache::put($this->phoneOtpCodeKey($normalizedPhone), [
+            'code' => Hash::make($code),
+            'phone' => $normalizedPhone,
+        ], now()->addMinutes(10));
+        Cache::put($requestFingerprint, true, now()->addSeconds(60));
+
+        return response()->json([
+            'message' => 'Код підтвердження відправлено.',
+            'ttl' => 600,
+        ]);
+    }
+
+    public function apiVerifyPhoneCode(Request $request)
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:50'],
+            'code' => ['required', 'string', 'size:6'],
+            'name' => ['nullable', 'string', 'max:255'],
+            'surname' => ['nullable', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+        ]);
+
+        if (!$this->isPhoneAuthEnabled()) {
+            return response()->json(['message' => 'Phone authentication is not configured'], 503);
+        }
+
+        $normalizedPhone = $this->normalizePhoneNumber((string) $validated['phone']);
+
+        if ($normalizedPhone === null) {
+            return response()->json(['message' => 'Некоректний формат телефону.'], 422);
+        }
+
+        $cachedOtp = Cache::get($this->phoneOtpCodeKey($normalizedPhone));
+
+        if (!is_array($cachedOtp) || !Hash::check((string) $validated['code'], (string) ($cachedOtp['code'] ?? ''))) {
+            return response()->json(['message' => 'Невірний або прострочений код підтвердження.'], 422);
+        }
+
+        $fid = $this->resolveAuthFid($request);
+        $email = trim((string) ($validated['email'] ?? ''));
+        $user = $this->userByPhone($normalizedPhone, $fid)->first();
+
+        if (!$user && $email !== '' && $this->userByEmail($email, $fid)->exists()) {
+            return response()->json(['message' => 'Користувач з таким email вже існує.'], 422);
+        }
+
+        if (!$user) {
+            $user = $this->createPhoneAuthUser(
+                $normalizedPhone,
+                $fid,
+                trim((string) ($validated['name'] ?? '')),
+                trim((string) ($validated['surname'] ?? '')),
+                $email !== '' ? $email : null,
+            );
+        } else {
+            $profileUpdates = [];
+
+            if ($email !== '' && empty($user->email)) {
+                $profileUpdates['email'] = $email;
+            }
+
+            if (!empty($validated['name']) && empty($user->name)) {
+                $profileUpdates['name'] = trim((string) $validated['name']);
+            }
+
+            if (!empty($validated['surname']) && empty($user->secondname)) {
+                $profileUpdates['secondname'] = trim((string) $validated['surname']);
+                $profileUpdates['fathername'] = trim((string) $validated['surname']);
+            }
+
+            if ($profileUpdates !== []) {
+                $user->update(User::filterUsersColumns($profileUpdates));
+                $user = $user->fresh();
+            }
+        }
+
+        $this->syncUserRoleStatus($user);
+        Auth::login($user);
+        $request->session()->regenerate();
+        $this->syncAuthSessionFid($request, $user);
+        Cache::forget($this->phoneOtpCodeKey($normalizedPhone));
+
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Телефон підтверджено.',
+            'user' => $this->serializeUser($user->fresh()),
+            'token' => $token,
+        ]);
+    }
+
     public function apiGoogleLogin(Request $request)
     {
         $request->validate([
@@ -591,6 +719,7 @@ class AuthController extends Controller
     {
         return response()->json([
             'googleClientId' => (string) config('services.google.client_id', ''),
+            'phoneAuthEnabled' => $this->isPhoneAuthEnabled(),
         ]);
     }
 
@@ -1123,6 +1252,104 @@ class AuthController extends Controller
         return response()->json([
             'user' => $this->serializeUser($user->fresh()),
         ]);
+    }
+
+    private function isPhoneAuthEnabled(): bool
+    {
+        return trim((string) config('services.smsclub.token', '')) !== ''
+            && trim((string) config('services.smsclub.sender', '')) !== '';
+    }
+
+    private function normalizePhoneNumber(string $phone): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '0')) {
+            $digits = '38' . $digits;
+        }
+
+        if (!str_starts_with($digits, '38') && strlen($digits) === 10) {
+            $digits = '38' . $digits;
+        }
+
+        if (!preg_match('/^380\d{9}$/', $digits)) {
+            return null;
+        }
+
+        return '+' . $digits;
+    }
+
+    private function smsClubPhonePayload(string $phone): string
+    {
+        return ltrim($phone, '+');
+    }
+
+    private function generatePhoneOtpCode(): string
+    {
+        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    private function makePhoneOtpMessage(string $code): string
+    {
+        return "Код входу AV8 Capital: {$code}. Дійсний 10 хвилин.";
+    }
+
+    private function phoneOtpCodeKey(string $phone): string
+    {
+        return 'auth:phone-otp:' . sha1($phone);
+    }
+
+    private function phoneOtpRateLimitKey(Request $request, string $phone): string
+    {
+        return 'auth:phone-otp:send:' . sha1($phone . '|' . (string) $request->ip());
+    }
+
+    private function createPhoneAuthUser(
+        string $phone,
+        ?string $fid,
+        string $name = '',
+        string $surname = '',
+        ?string $email = null
+    ): User {
+        $randomPassword = Str::random(40);
+        $passwordHash = Hash::make($randomPassword);
+        $userFirma = $this->authFirmaForNewUser($fid);
+        $login = $email && $email !== '' ? $email : $phone;
+
+        $userData = [
+            'login' => $login,
+            'email' => $email,
+            'phone' => $phone,
+            'pass' => $passwordHash,
+            'password' => $passwordHash,
+            'name' => $name !== '' ? $name : 'Phone User',
+            'secondname' => $surname,
+            'fathername' => $surname,
+            'idstatus' => 1,
+            'ustype' => 1,
+        ];
+
+        if (Schema::hasColumn('users', 'firma')) {
+            $userData['firma'] = $userFirma;
+        }
+
+        if (Schema::hasColumn('users', 'idfirma')) {
+            $userData['idfirma'] = $userFirma;
+        }
+
+        if (Schema::hasColumn('users', 'status')) {
+            $userData['status'] = 1;
+        }
+
+        if (Schema::hasColumn('users', 'email_verified_at') && $email) {
+            $userData['email_verified_at'] = now();
+        }
+
+        return User::create(User::filterUsersColumns($userData));
     }
 
     private function serializeUser(User $user): array
