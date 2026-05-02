@@ -201,6 +201,7 @@ class ZakazController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'firstname' => 'required|string|max:50',
+            'email' => 'required|email|max:255',
             'mobile' => ['required', 'regex:/^\+38\d{10}$/'],
             'autonum' => 'required|string|max:255',
         ]);
@@ -235,7 +236,7 @@ class ZakazController extends Controller
                         'name' => $data['firstname'],
                         'secondname' => '',
                         'phone' => $data['mobile'],
-                        'email' => $this->buildGuestEmail($data['mobile']),
+                        'email' => $data['email'],
                         'password' => Hash::make(Str::random(40)),
                         'firma' => $fid,
                         'user' => 'autoagent_api',
@@ -252,6 +253,7 @@ class ZakazController extends Controller
                         ->where('id', $clientId)
                         ->update([
                             'name' => $data['firstname'],
+                            'email' => $data['email'],
                             'description' => 'Швидке замовлення номера з головної сторінки',
                         ]);
                 }
@@ -259,7 +261,7 @@ class ZakazController extends Controller
                 $docNum = $this->nextOrderNumber($fid, $year);
                 $dt = now()->format('Y-m-d');
                 $time = now()->format('H:i:s');
-                $content = 'Швидке замовлення номера. Номер: ' . $data['autonum'] . '. Імʼя: ' . $data['firstname'] . '. Телефон: ' . $data['mobile'];
+                $content = 'Швидке замовлення номера. Номер: ' . $data['autonum'] . '. Імʼя: ' . $data['firstname'] . '. Email: ' . $data['email'] . '. Телефон: ' . $data['mobile'];
 
                 $docId = DB::table('document')->insertGetId([
                     'num' => $docNum,
