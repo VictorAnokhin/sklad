@@ -685,10 +685,10 @@
                                             </td>
                                             <td class="goods-table-col-actions">
                                                 @if(intval($document->provodka) === 0)
-                                                    <button type="submit" name="bid" value="{{ $item->id }}"
-                                                        formaction="{{ route('document.body.delete') }}"
+                                                    <button type="button" value="{{ $item->id }}"
                                                         class="btn btn-sm btn-outline-danger remove-btn" title="Видалити"
-                                                        onclick="return confirm('Видалити цей товар?');">❌</button>
+                                                        onclick="confirmAndSubmitItemDelete(this)"
+                                                        ontouchstart="confirmAndSubmitItemDelete(this); event.preventDefault();">❌</button>
                                                 @endif
                                             </td>
                                         </tr>
@@ -1134,10 +1134,12 @@
                 setTimeout(() => btn.dataset.submitting = '', 2000); // на случай возврата назад
                 
                 if (name && value) {
+                    documentForm.querySelectorAll(`[data-temp-submit-field="${name}"]`).forEach((input) => input.remove());
                     const input = document.createElement('input');
                     input.type = 'hidden';
                     input.name = name;
                     input.value = value;
+                    input.dataset.tempSubmitField = name;
                     documentForm.appendChild(input);
                 }
                 
@@ -1150,6 +1152,18 @@
                 } else {
                     documentForm.submit();
                 }
+            };
+
+            window.confirmAndSubmitItemDelete = function(btn) {
+                if (!btn || !btn.value) {
+                    return;
+                }
+
+                if (!confirm('Видалити цей товар?')) {
+                    return;
+                }
+
+                forceSubmitAction(btn, 'bid', btn.value, "{{ route('document.body.delete') }}");
             };
 
             const bindGoodsRowInputs = (countInput, priceInput, sumInput) => {
