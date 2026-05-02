@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -335,6 +336,14 @@ class AuthController extends Controller
                     ->subject('Новий пароль для входу');
             });
         } catch (Throwable $e) {
+            Log::error('Failed to send password recovery email.', [
+                'email' => $user->email,
+                'mailer' => config('mail.default'),
+                'mail_host' => config('mail.mailers.smtp.host'),
+                'mail_port' => config('mail.mailers.smtp.port'),
+                'exception' => $e->getMessage(),
+            ]);
+
             if (app()->environment('local') || config('app.debug')) {
                 return back()
                     ->with('success', 'Поштовий сервер недоступний. Тимчасовий пароль згенеровано локально.')
