@@ -410,7 +410,24 @@ class AuthController extends Controller
 
     private function userByPhone(string $phone, ?string $fid)
     {
-        $query = User::query()->where('phone', $phone);
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        $query = User::query()->where(function ($builder) use ($phone, $digits) {
+            $builder->where('phone', $phone);
+
+            if ($digits === '') {
+                return;
+            }
+
+            $normalizedPhoneSql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')";
+
+            $builder->orWhereRaw("{$normalizedPhoneSql} = ?", [$digits]);
+
+            if (str_starts_with($digits, '38')) {
+                $builder->orWhereRaw("{$normalizedPhoneSql} = ?", [substr($digits, 2)]);
+            } elseif (str_starts_with($digits, '0')) {
+                $builder->orWhereRaw("{$normalizedPhoneSql} = ?", ['38' . $digits]);
+            }
+        });
 
         return $this->scopeUserQueryToFid($query, $fid);
     }
@@ -573,7 +590,10 @@ class AuthController extends Controller
         $requestFingerprint = $this->phoneOtpRateLimitKey($request, $normalizedPhone);
 
         if (Cache::has($requestFingerprint)) {
-            return response()->json(['message' => 'Код уже відправлено. Спробуйте трохи пізніше.'], 429);
+            return response()->json([
+                'message' => 'Код уже відправлено. Спробуйте трохи пізніше.',
+                'ttl' => 600,
+            ]);
         }
 
         $code = $this->generatePhoneOtpCode();
@@ -587,14 +607,16 @@ class AuthController extends Controller
                 'exception' => $e->getMessage(),
             ]);
 
-            return response()->json(['message' => 'Не вдалося відправити SMS-код.'], 502);
+            return response()->json([
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : 'Не вдалося відправити SMS-код.',
+            ], 502);
         }
 
         Cache::put($this->phoneOtpCodeKey($normalizedPhone), [
             'code' => Hash::make($code),
             'phone' => $normalizedPhone,
         ], now()->addMinutes(10));
-        Cache::put($requestFingerprint, true, now()->addSeconds(60));
+        Cache::put($requestFingerprint, true, now()->addSeconds(120));
 
         return response()->json([
             'message' => 'Код підтвердження відправлено.',
@@ -898,7 +920,19 @@ class AuthController extends Controller
 
     public function apiLogout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+        $currentToken = $user?->currentAccessToken();
+
+        if ($currentToken && method_exists($currentToken, 'delete')) {
+            $currentToken->delete();
+        }
+
+        Auth::guard('web')->logout();
+
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -1318,11 +1352,11 @@ class AuthController extends Controller
         $randomPassword = Str::random(40);
         $passwordHash = Hash::make($randomPassword);
         $userFirma = $this->authFirmaForNewUser($fid);
-        $login = $email && $email !== '' ? $email : $phone;
+        $normalizedEmail = $email !== null ? trim($email) : '';
+        $login = $normalizedEmail !== '' ? $normalizedEmail : $phone;
 
         $userData = [
             'login' => $login,
-            'email' => $email,
             'phone' => $phone,
             'pass' => $passwordHash,
             'password' => $passwordHash,
@@ -1332,6 +1366,10 @@ class AuthController extends Controller
             'idstatus' => 1,
             'ustype' => 1,
         ];
+
+        if (Schema::hasColumn('users', 'email')) {
+            $userData['email'] = $normalizedEmail;
+        }
 
         if (Schema::hasColumn('users', 'firma')) {
             $userData['firma'] = $userFirma;
@@ -1345,7 +1383,7 @@ class AuthController extends Controller
             $userData['status'] = 1;
         }
 
-        if (Schema::hasColumn('users', 'email_verified_at') && $email) {
+        if (Schema::hasColumn('users', 'email_verified_at') && $normalizedEmail !== '') {
             $userData['email_verified_at'] = now();
         }
 

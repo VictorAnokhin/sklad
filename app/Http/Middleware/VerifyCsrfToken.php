@@ -8,6 +8,8 @@ class VerifyCsrfToken extends Middleware {
         'api/auth/google',
         'api/auth/logout',
         'api/auth/register',
+        'api/auth/phone/send-code',
+        'api/auth/phone/verify',
         'api/auth/web3/challenge',
         'api/auth/web3/login',
         'api/goods/rating/*',

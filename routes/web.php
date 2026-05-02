@@ -37,6 +37,8 @@ use App\Http\Controllers\WalletController;
 Route::get('/start', [AuthController::class , 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class , 'login'])->name('login.post');
 Route::post('/login/google', [AuthController::class , 'googleLogin'])->name('login.google');
+Route::post('/auth/phone/send-code', [AuthController::class, 'apiSendPhoneCode'])->name('auth.phone.send-code');
+Route::post('/auth/phone/verify', [AuthController::class, 'apiVerifyPhoneCode'])->name('auth.phone.verify');
 Route::post('/web3/challenge', [AuthController::class , 'web3LoginChallenge'])->name('web3.challenge');
 Route::post('/web3/login', [AuthController::class , 'web3Login'])->name('web3.login');
 Route::post('/forgot-password', [AuthController::class , 'forgotPassword'])->name('password.forgot');

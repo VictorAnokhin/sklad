@@ -664,6 +664,22 @@
     }).catch(e => console.error('Failed to update token data:', e));
   }
 
+  function preferredProfileWalletView() {
+    if (!Array.isArray(profileWallets) || profileWallets.length === 0) {
+      return null;
+    }
+
+    const wallet = profileWallets[Math.max(0, Math.min(currentWalletIndex, profileWallets.length - 1))] || profileWallets[0];
+    if (!wallet?.address) {
+      return null;
+    }
+
+    return {
+      address: wallet.address,
+      chainId: normalizeChainId(wallet.chain_id || wallet.network) || selectedProtocolChainId || configuredChainIds()[0] || '0x1',
+    };
+  }
+
   function describeProtocolAvailability(chainId) {
     const network = COMMON_NETWORKS[chainId];
     if (!network) return 'Сеть не настроена в settings/web3';
@@ -2238,7 +2254,12 @@
     connectedWalletAddress = null;
     connectedWalletChainId = null;
     setWalletAddress(null);
-    updateWalletState(null);
+    const fallbackWallet = preferredProfileWalletView();
+    if (fallbackWallet?.address) {
+      updateWalletState(fallbackWallet.address, { chainId: fallbackWallet.chainId, forceReload: true });
+    } else {
+      updateWalletState(null);
+    }
     dispatchWalletStateChange({
       provider: null,
       address: null,
@@ -2247,7 +2268,9 @@
       linked: false,
       connected: false,
     });
-    setWeb3Status('Кошелек не подключен.');
+    setWeb3Status(fallbackWallet?.address
+      ? 'Кошелек отключен. Доступен просмотр активов по адресу из профиля.'
+      : 'Кошелек не подключен.');
   }
 
   function attachInjectedWalletListeners() {
@@ -2339,13 +2362,21 @@
     renderProfileWalletList();
     attachInjectedWalletListeners();
 
+    const fallbackWallet = preferredProfileWalletView();
+    if (fallbackWallet?.address) {
+      updateWalletState(fallbackWallet.address, { chainId: fallbackWallet.chainId, forceReload: true });
+      setWeb3Status('Открыт просмотр активов по адресу кошелька из профиля.');
+    }
+
     if (attachAppWalletBridge()) {
       return;
     }
 
     waitForAppWalletBridge();
-    updateWalletState(null);
-    setWeb3Status('Кошелек не подключен.');
+    if (!fallbackWallet?.address) {
+      updateWalletState(null);
+      setWeb3Status('Кошелек не подключен.');
+    }
   }
 
   if (document.readyState === 'loading') {
