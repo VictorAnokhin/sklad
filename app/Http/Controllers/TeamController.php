@@ -152,6 +152,17 @@ class TeamController extends Controller
                 ->update(['status' => $departmentValue]);
         }
 
+        $counterpartyId = (int) $request->input('userid', 0);
+        if (
+            $counterpartyId > 0
+            && Schema::hasColumn('users', 'firmuser')
+        ) {
+            DB::table('users')
+                ->where('id', $counterpartyId)
+                ->where('firma', $fid)
+                ->update(['firmuser' => '1']);
+        }
+
         return redirect()->route('team.show', ['id' => $memberId])->with('success', 'Збережено');
     }
 

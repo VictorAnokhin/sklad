@@ -557,6 +557,30 @@ class AuthController extends Controller
         return User::create(User::filterUsersColumns($userData));
     }
 
+    private function resolveExistingGoogleUser(array $payload, ?string $fid = null): ?User
+    {
+        $email = trim((string) ($payload['email'] ?? ''));
+        $emailVerified = filter_var($payload['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if ($email === '' || !$emailVerified) {
+            return null;
+        }
+
+        /** @var User|null $user */
+        $user = $this->userByEmail($email, $fid)->first();
+
+        if (!$user && Schema::hasColumn('users', 'email')) {
+            $query = User::query()->whereRaw('LOWER(email) = ?', [strtolower($email)]);
+            $user = $this->scopeUserQueryToFid($query, $fid)->first();
+        }
+
+        if ($user && Schema::hasColumn('users', 'email_verified_at') && !$user->email_verified_at) {
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
+
+        return $user;
+    }
+
     public function apiLogin(Request $request)
     {
         $request->validate([
@@ -734,10 +758,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'Failed to verify Google account'], 422);
         }
 
-        $user = $this->resolveGoogleUser($payload, $this->resolveAuthFid($request));
+        $user = $this->resolveExistingGoogleUser($payload, $this->resolveAuthFid($request));
 
         if (!$user) {
-            return response()->json(['message' => 'Google account does not contain a verified email'], 422);
+            return response()->json([
+                'message' => 'Email Google не найден в базе users.',
+            ], 404);
         }
 
         $this->syncUserRoleStatus($user);
@@ -785,10 +811,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'Failed to verify Google account'], 422);
         }
 
-        $user = $this->resolveGoogleUser($payload, $this->resolveAuthFid($request));
+        $user = $this->resolveExistingGoogleUser($payload, $this->resolveAuthFid($request));
 
         if (!$user) {
-            return response()->json(['message' => 'Google account does not contain a verified email'], 422);
+            return response()->json([
+                'message' => 'Email Google не найден в базе users.',
+            ], 404);
         }
 
         $identity = $this->resolveOrCreateZkLoginIdentity($user, $payload);
@@ -826,10 +854,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'Failed to verify Google account'], 422);
         }
 
-        $user = $this->resolveGoogleUser($payload, $this->resolveAuthFid($request));
+        $user = $this->resolveExistingGoogleUser($payload, $this->resolveAuthFid($request));
 
         if (!$user) {
-            return response()->json(['message' => 'Google account does not contain a verified email'], 422);
+            return response()->json([
+                'message' => 'Email Google не найден в базе users.',
+            ], 404);
         }
 
         $identity = $this->resolveOrCreateZkLoginIdentity($user, $payload);
@@ -894,10 +924,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'Failed to verify Google account'], 422);
         }
 
-        $user = $this->resolveGoogleUser($payload, $this->resolveAuthFid($request));
+        $user = $this->resolveExistingGoogleUser($payload, $this->resolveAuthFid($request));
 
         if (!$user) {
-            return response()->json(['message' => 'Google account does not contain a verified email'], 422);
+            return response()->json([
+                'message' => 'Email Google не найден в базе users.',
+            ], 404);
         }
 
         $address = $this->normalizeSuiWalletAddress((string) $validated['address']);

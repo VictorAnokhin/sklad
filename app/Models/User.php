@@ -220,12 +220,12 @@ class User extends Authenticatable
         return compact('client', 'statuses');
     }
 
-    public static function edit($id, $data)
+    public static function edit($id, $data, bool $setFirmUserForNew = true)
     {
         $data = self::filterUsersColumns($data);
 
         if ($id === '0' || $id === '') {
-            if (self::hasUsersColumn('firmuser')) {
+            if ($setFirmUserForNew && self::hasUsersColumn('firmuser')) {
                 $data['firmuser'] = '1';
             }
 

@@ -220,7 +220,7 @@ class ClientController extends Controller
             $data['email'] = $candidateEmail;
         }
 
-        $id = User::edit($idParam, $data);
+        $id = User::edit($idParam, $data, false);
 
         $user = DB::table('users')->where('id', $id)->first();
 
