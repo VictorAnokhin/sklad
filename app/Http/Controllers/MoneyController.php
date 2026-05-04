@@ -151,8 +151,13 @@ class MoneyController extends Controller
         }
 
         $reestrList = Conf::paymentTypesForDocument($fid, $type);
+        $clientStatuses = DB::table('conf')
+            ->where('type', 'tclient')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->get();
 
-        return view('money.show', compact('document', 'reestrList', 'returnFilters', 'tab'));
+        return view('money.show', compact('document', 'reestrList', 'returnFilters', 'tab', 'clientStatuses'));
     }
 
     public function save(Request $request)
