@@ -5,7 +5,9 @@
     font-size: 0.82rem;
     border-collapse: separate;
     border-spacing: 0;
+    table-layout: auto !important;
     width: 100%;
+    min-width: max-content;
     margin-bottom: 0;
     background-color: transparent;
 }
@@ -34,12 +36,34 @@
 /* Базово не даем первой колонке схлопываться во всех отчетных таблицах. */
 .reports-page .table th:first-child,
 .reports-page .table td:first-child {
-    min-width: 180px;
-    width: 22%;
+    min-width: 220px !important;
+    width: 24% !important;
+    max-width: none !important;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .reports-page tr:hover td {
     background-color: rgba(251, 191, 36, 0.03) !important;
+}
+
+/* Bootstrap status rows are light by default; keep report tables dark. */
+.reports-page .table tbody tr.table-danger td,
+.reports-page .table tbody tr.table-danger th {
+    background-color: rgba(220, 53, 69, 0.16) !important;
+    color: var(--foreground) !important;
+}
+
+.reports-page .table tbody tr.table-warning td,
+.reports-page .table tbody tr.table-warning th {
+    background-color: rgba(251, 191, 36, 0.16) !important;
+    color: var(--foreground) !important;
+}
+
+.reports-page .table tbody tr.table-success td,
+.reports-page .table tbody tr.table-success th {
+    background-color: rgba(25, 135, 84, 0.16) !important;
+    color: var(--foreground) !important;
 }
 
 .reports-sticky-first-col {
