@@ -189,11 +189,10 @@
 
             <div class="client-search-row d-flex gap-1 mb-2">
                 <input type="text" id="clientSearchInput" class="form-control flex-grow-1" placeholder="{{ __('money.search_client') }}" autocomplete="off">
-                <button type="button" class="btn btn-outline-secondary" id="searchClientBtn">{{ __('money.search') }}</button>
-                <button type="button" class="btn btn-outline-secondary" id="editClientBtn" data-bs-toggle="modal" data-bs-target="#newClientModal" style="{{ !empty($document->client1) ? '' : 'display:none;' }}">
+                <button type="button" class="btn btn-outline-secondary" id="editClientBtn" style="{{ !empty($document->client1) ? '' : 'display:none;' }}">
                     Изменить
                 </button>
-                <button type="button" class="btn btn-outline-primary" id="newClientBtn" data-bs-toggle="modal" data-bs-target="#newClientModal">
+                <button type="button" class="btn btn-outline-primary" id="newClientBtn">
                     Новый
                 </button>
             </div>
@@ -301,7 +300,6 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const searchInput = document.getElementById('clientSearchInput');
-            const searchBtn = document.getElementById('searchClientBtn');
             const editClientBtn = document.getElementById('editClientBtn');
             const newClientBtn = document.getElementById('newClientBtn');
             const resultsContainer = document.getElementById('clientSearchResults');
@@ -363,12 +361,11 @@
                     });
             }
 
-            searchBtn.addEventListener('click', performSearch);
             let t = null;
             searchInput.addEventListener('input', () => { clearTimeout(t); t = setTimeout(performSearch, 400); });
             searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); performSearch(); } });
             document.addEventListener('click', e => {
-                if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target) && !searchBtn.contains(e.target)) {
+                if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
                     resultsContainer.style.display = 'none';
                 }
             });
@@ -385,6 +382,16 @@
             const newClientError = document.getElementById('newClientError');
             const saveNewClientBtn = document.getElementById('saveNewClientBtn');
             const newClientModalElement = document.getElementById('newClientModal');
+            if (newClientModalElement && newClientModalElement.parentElement !== document.body) {
+                document.body.appendChild(newClientModalElement);
+            }
+            const newClientModal = (typeof bootstrap !== 'undefined' && newClientModalElement)
+                ? new bootstrap.Modal(newClientModalElement, {
+                    backdrop: true,
+                    keyboard: true,
+                    focus: true
+                })
+                : null;
 
             const formatPhoneInput = (value) => {
                 const digits = String(value || '').replace(/\D/g, '').slice(0, 12);
@@ -421,13 +428,18 @@
 
             if (newClientBtn) {
                 newClientBtn.addEventListener('click', () => {
+                    resultsContainer.style.display = 'none';
                     document.getElementById('newClientModalLabel').textContent = 'Новый клиент';
                     resetClientModal();
+                    if (newClientModal) {
+                        newClientModal.show();
+                    }
                 });
             }
 
             if (editClientBtn) {
                 editClientBtn.addEventListener('click', () => {
+                    resultsContainer.style.display = 'none';
                     document.getElementById('newClientModalLabel').textContent = 'Изменить клиента';
                     newClientIdField.value = client1Id.value || '0';
                     newClientOrgnameField.value = client1Id.dataset.orgname || '';
@@ -440,6 +452,9 @@
                     newClientStatusField.value = client1Id.dataset.status || '';
                     newClientError.style.display = 'none';
                     newClientPhoneField.dispatchEvent(new Event('input'));
+                    if (newClientModal) {
+                        newClientModal.show();
+                    }
                 });
             }
 
@@ -525,9 +540,8 @@
                             `;
                             searchInput.value = selectedLabel;
 
-                            const modal = bootstrap.Modal.getInstance(newClientModalElement);
-                            if (modal) {
-                                modal.hide();
+                            if (newClientModal) {
+                                newClientModal.hide();
                             }
                         })
                         .catch((error) => {

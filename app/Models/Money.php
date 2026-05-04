@@ -81,7 +81,7 @@ class Money extends Model
             ->get([
                 'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
                 'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka',
-                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta',
+                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta', 'u.idstatus',
                 DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as effective_cashbox_id"),
                 'cashbox.name as cashbox_name',
                 'payment_type.name as payment_type_name',
@@ -194,7 +194,7 @@ class Money extends Model
                 'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
                 'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka', 'd.client1', 'd.client2',
                 DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as effective_cashbox_id"),
-                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta',
+                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta', 'u.idstatus',
                 'u.balance as client_balance',
                 'owner_user.name as owner_name',
                 'owner_user.secondname as owner_secondname',
