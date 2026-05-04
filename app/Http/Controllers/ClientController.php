@@ -330,7 +330,7 @@ class ClientController extends Controller
                 $data['password'] = $hash;
             }
 
-            $id = User::edit($id, $data);
+            $id = User::edit($id, $data, false);
 
             session(['client1' => $id]);
             return redirect()->route('client.show', ['id' => $id])->with('success', 'Збережено');
