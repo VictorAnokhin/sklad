@@ -27,7 +27,7 @@
         }
 
         #goodsTable .goods-table-col-qty {
-            width: 190px;
+            width: 150px;
         }
 
         #goodsTable .goods-table-col-price,
@@ -39,14 +39,28 @@
             width: 32%;
         }
 
-        #goodsTable .goods-table-col-qty .input-group,
         #goodsTable .goods-table-col-price .form-control,
         #goodsTable .goods-table-col-sum .form-control {
             min-width: 100%;
         }
 
+        #goodsTable .goods-table-col-qty .input-group {
+            flex-wrap: nowrap;
+            min-width: 0;
+        }
+
+        #goodsTable .goods-table-col-qty .goods-count {
+            flex: 0 1 58px;
+            min-width: 48px;
+            max-width: 64px;
+            text-align: center;
+        }
+
         #goodsTable .goods-table-col-qty .btn {
-            min-width: 42px;
+            flex: 0 0 34px;
+            min-width: 34px;
+            padding-left: 0;
+            padding-right: 0;
         }
 
         .goods-table-col-name input,
@@ -672,7 +686,7 @@
                                             <td class="goods-table-col-qty" data-label="К-ть">
                                                 <div class="input-group input-group-sm">
                                                     <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
-                                                    <input type="text" step="1" name="pcount[]"
+                                                    <input type="text" name="pcount[]"
                                                         class="form-control form-control-sm goods-count text-white" value="{{ $item->pcount }}">
                                                     <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
                                                 </div>
