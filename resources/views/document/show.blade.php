@@ -754,7 +754,7 @@
                                 <button type="button" 
                                     onclick="forceSubmitAction(this, 'run', 'Зберегти')"
                                     ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
-                                    class="btn btn-primary w-100 mb-2">💾 Зберегти</button>
+                                    class="btn btn-primary {{ in_array($doc, ['PN', 'RN', 'PO', 'RO'], true) ? '' : 'w-100 mb-2' }}">💾 Зберегти</button>
                             @endif
                         @elseif($doc === 'RA')
                             <button type="button" 
