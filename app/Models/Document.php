@@ -358,11 +358,7 @@ class Document extends Model
                     ->where('firma', $fid);
 
                 match ($docType) {
-                    'PN' => self::applyColumnDelta(clone $priceQuery, 'count', $direction * $count),
-                    'RN', 'WO1' => self::applyColumnDelta(clone $priceQuery, 'count', -1 * $direction * $count),
                     'ZOUT' => self::applyColumnDelta(clone $priceQuery, 'reserved', $direction * $count),
-                    'VN' => self::applyColumnDelta(clone $priceQuery, 'count', $direction * $count),
-                    'AO' => self::applyColumnDelta(clone $priceQuery, 'count', -1 * $direction * $count),
                     default => null,
                 };
 

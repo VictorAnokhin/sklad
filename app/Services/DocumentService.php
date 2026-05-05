@@ -295,11 +295,7 @@ class DocumentService
                     ->where('firma', $fid);
 
                 match ($docType) {
-                    'PN' => $this->applyColumnDelta(clone $priceQuery, 'count', $direction * $count),
-                    'RN', 'WO1' => $this->applyColumnDelta(clone $priceQuery, 'count', -1 * $direction * $count),
                     'ZOUT' => $this->applyColumnDelta(clone $priceQuery, 'reserved', $direction * $count),
-                    'VN' => $this->applyColumnDelta(clone $priceQuery, 'count', $direction * $count),
-                    'AO' => $this->applyColumnDelta(clone $priceQuery, 'count', -1 * $direction * $count),
                     default => null,
                 };
 
