@@ -1997,7 +1997,9 @@ class Report extends Model
             'teamMemberCount' => 0,
         ];
 
-        if (! Schema::hasTable('document') || ! Schema::hasTable('users') || ! Schema::hasColumn('users', 'firmuser')) {
+        $payrollTable = Document::tableForType('ZP');
+
+        if (! Schema::hasTable($payrollTable) || ! Schema::hasTable('users') || ! Schema::hasColumn('users', 'firmuser')) {
             return $empty;
         }
 
@@ -2014,7 +2016,7 @@ class Report extends Model
 
         $teamIds = $teamMembers->pluck('id')->map(static fn ($id): string => (string) $id)->all();
 
-        $totalsRows = DB::table('document')
+        $totalsRows = DB::table($payrollTable)
             ->where('firma', $fid)
             ->where('type', 'ZP')
             ->where('provodka', 1)
@@ -2058,7 +2060,7 @@ class Report extends Model
 
         $grandTotal = (float) $ledgerRows->sum('total_paid');
 
-        $detailLines = DB::table('document as d')
+        $detailLines = DB::table($payrollTable . ' as d')
             ->join('users as u', 'u.id', '=', 'd.client1')
             ->where('d.firma', $fid)
             ->where('u.firma', $fid)
