@@ -19,19 +19,22 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:8000',
-        'http://localhost:3001',
-        'http://127.0.0.1:3001',
-        'http://localhost:3002',
-        'http://127.0.0.1:3002',
-        'https://app.autoagent.in.ua',
-        'https://autoagent.in.ua',
-        'https://gosnomera.net.ua',
-        'https://av8capital.space',
-    ],
+    'allowed_origins' => array_values(array_filter(array_merge(
+        [
+            'http://localhost:5173',
+            'http://127.0.0.1:5173',
+            'http://localhost:8000',
+            'http://localhost:3001',
+            'http://127.0.0.1:3001',
+            'http://localhost:3002',
+            'http://127.0.0.1:3002',
+            'https://app.autoagent.in.ua',
+            'https://autoagent.in.ua',
+            'https://gosnomera.net.ua',
+            'https://av8capital.space',
+        ],
+        array_filter(array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS', '')))),
+    ))),
 
     'allowed_origins_patterns' => [
         '#^http://localhost(?::\d+)?$#',
