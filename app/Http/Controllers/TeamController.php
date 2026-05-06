@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Report;
 use App\Models\User;
 use App\Support\MediaUrl;
 use Illuminate\Http\Request;
@@ -53,6 +54,19 @@ class TeamController extends Controller
                 : '',
             'tclients' => $tclients,
         ]);
+    }
+
+    public function payrollReport(Request $request)
+    {
+        $fid = (string) (Auth::user()->firma ?? session('fid', ''));
+
+        $data = Report::teamPayrollLedger(
+            $fid,
+            (string) $request->input('date_from', ''),
+            (string) $request->input('date_to', '')
+        );
+
+        return view('team.payroll_report', $data);
     }
 
     public function save(Request $request)

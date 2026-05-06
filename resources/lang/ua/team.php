@@ -1,0 +1,26 @@
+<?php
+
+return [
+    'payroll_add_member' => 'Додати учасника',
+    'payroll_title' => 'Платіжна відомість (команда)',
+    'payroll_subtitle' => 'Нарахована та виплачена зарплата за проведеними документами ZP по учасниках команди (firmuser = 1).',
+    'payroll_period_label' => 'Період',
+    'payroll_back_team' => 'До команди',
+    'payroll_reset_period' => 'Поточний місяць',
+    'payroll_ledger_heading' => 'Зведення по співробітниках',
+    'payroll_zp_hint' => 'У звіт потрапляють лише проведені документи типу «Видача зарплати» (ZP) з обраним учасником команди в полі «Співробітник».',
+    'payroll_no_team' => 'Немає учасників команди (firmuser = 1) для цього проєкту.',
+    'payroll_col_name' => 'ПІБ / назва',
+    'payroll_col_position' => 'Посада',
+    'payroll_col_count' => 'Кількість виплат',
+    'payroll_col_amount' => 'Сума, грн',
+    'payroll_total' => 'Разом',
+    'payroll_currency_note' => 'Суми у валюті обліку документа (як у полі summa документа ZP).',
+    'payroll_detail_heading' => 'Деталізація по документах ZP',
+    'payroll_no_lines' => 'За обраний період проведених виплат ZP для команди не знайдено.',
+    'payroll_doc_num' => 'Номер',
+    'payroll_doc_date' => 'Дата',
+    'payroll_doc_employee' => 'Співробітник',
+    'payroll_doc_note' => 'Примітка',
+    'payroll_open_doc' => 'Відкрити',
+];

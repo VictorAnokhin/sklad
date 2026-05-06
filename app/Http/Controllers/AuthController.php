@@ -1433,6 +1433,26 @@ class AuthController extends Controller
         return User::create(User::filterUsersColumns($userData));
     }
 
+    private function resolveZkLoginWalletAddress(int|string $userId): ?string
+    {
+        if (! Schema::hasTable('zklogin_identities')) {
+            return null;
+        }
+
+        $row = DB::table('zklogin_identities')
+            ->where('user_id', $userId)
+            ->where('provider', 'google')
+            ->whereNotNull('wallet_address')
+            ->orderByDesc('updated_at')
+            ->first();
+
+        if (! $row || empty($row->wallet_address)) {
+            return null;
+        }
+
+        return $this->normalizeSuiWalletAddress((string) $row->wallet_address);
+    }
+
     private function serializeUser(User $user): array
     {
         $wallets = $this->userWallets($user->id);
@@ -1452,6 +1472,7 @@ class AuthController extends Controller
             'wallet_network' => $primaryWallet['network'] ?? $user->wallet_network,
             'wallet_connected_at' => $primaryWallet['connected_at'] ?? optional($user->wallet_connected_at)->toIso8601String(),
             'wallets' => $wallets,
+            'zklogin_wallet_address' => $this->resolveZkLoginWalletAddress($user->id),
             'idkassa' => $user->idkassa,
             'idsklad' => $user->idsklad,
             'idreestr' => $user->idreestr,

@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class Report extends Model
 {
@@ -1966,6 +1967,131 @@ class Report extends Model
         }
 
         return (($last - $first) / $first) * 100;
+    }
+
+    /**
+     * Платіжна відомість: проведені документи ZP (видача зарплати) по учасниках команди за період.
+     *
+     * @return array{
+     *   dateFrom: string,
+     *   dateTo: string,
+     *   periodLabel: string,
+     *   ledgerRows: \Illuminate\Support\Collection,
+     *   detailLines: \Illuminate\Support\Collection,
+     *   grandTotal: float,
+     *   teamMemberCount: int
+     * }
+     */
+    public static function teamPayrollLedger(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
+    {
+        [$dateFromUi, $dateToUi, $dateFromLegacy, $dateToLegacy] = self::normalizePeriod($dateFromInput, $dateToInput);
+        $periodLabel = self::periodLabel($dateFromUi, $dateToUi);
+
+        $empty = [
+            'dateFrom' => $dateFromUi,
+            'dateTo' => $dateToUi,
+            'periodLabel' => $periodLabel,
+            'ledgerRows' => collect(),
+            'detailLines' => collect(),
+            'grandTotal' => 0.0,
+            'teamMemberCount' => 0,
+        ];
+
+        if (! Schema::hasTable('document') || ! Schema::hasTable('users') || ! Schema::hasColumn('users', 'firmuser')) {
+            return $empty;
+        }
+
+        $teamMembers = DB::table('users')
+            ->where('firma', $fid)
+            ->where('firmuser', '1')
+            ->orderBy('secondname')
+            ->orderBy('name')
+            ->get(['id', 'name', 'secondname', 'fathername', 'orgname', 'name2']);
+
+        if ($teamMembers->isEmpty()) {
+            return $empty;
+        }
+
+        $teamIds = $teamMembers->pluck('id')->map(static fn ($id): string => (string) $id)->all();
+
+        $totalsRows = DB::table('document')
+            ->where('firma', $fid)
+            ->where('type', 'ZP')
+            ->where('provodka', 1)
+            ->whereIn('client1', $teamIds)
+            ->whereRaw(
+                "STR_TO_DATE(data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
+                [$dateFromLegacy, $dateToLegacy]
+            )
+            ->groupBy('client1')
+            ->selectRaw('client1, SUM(summa) as total_paid, COUNT(*) as payment_count')
+            ->get();
+
+        $totalsByClient = [];
+        foreach ($totalsRows as $row) {
+            $totalsByClient[(string) $row->client1] = $row;
+        }
+
+        $ledgerRows = $teamMembers->map(function ($user) use ($totalsByClient) {
+            $key = (string) $user->id;
+            $agg = $totalsByClient[$key] ?? null;
+            $fullName = trim(implode(' ', array_filter([
+                $user->name ?? '',
+                $user->secondname ?? '',
+                $user->fathername ?? '',
+            ])));
+            if ($fullName === '') {
+                $fullName = trim((string) ($user->orgname ?? ''));
+            }
+            if ($fullName === '') {
+                $fullName = 'User #' . $user->id;
+            }
+
+            return (object) [
+                'user_id' => $user->id,
+                'full_name' => $fullName,
+                'position' => trim((string) ($user->name2 ?? '')),
+                'payment_count' => (int) ($agg->payment_count ?? 0),
+                'total_paid' => (float) ($agg->total_paid ?? 0),
+            ];
+        })->values();
+
+        $grandTotal = (float) $ledgerRows->sum('total_paid');
+
+        $detailLines = DB::table('document as d')
+            ->join('users as u', 'u.id', '=', 'd.client1')
+            ->where('d.firma', $fid)
+            ->where('u.firma', $fid)
+            ->where('u.firmuser', '1')
+            ->where('d.type', 'ZP')
+            ->where('d.provodka', 1)
+            ->whereIn('d.client1', $teamIds)
+            ->whereRaw(
+                "STR_TO_DATE(d.data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
+                [$dateFromLegacy, $dateToLegacy]
+            )
+            ->orderByRaw("STR_TO_DATE(d.data, '%d-%m-%Y') ASC")
+            ->orderBy('d.id')
+            ->get([
+                'd.id',
+                'd.num',
+                'd.data',
+                'd.summa',
+                'd.content',
+                'd.oplata',
+                'u.id as employee_id',
+                DB::raw("TRIM(CONCAT(COALESCE(u.name,''),' ',COALESCE(u.secondname,''))) as employee_name"),
+            ]);
+
+        return [
+            'dateFrom' => $dateFromUi,
+            'dateTo' => $dateToUi,
+            'periodLabel' => $periodLabel,
+            'ledgerRows' => $ledgerRows,
+            'detailLines' => $detailLines,
+            'grandTotal' => $grandTotal,
+            'teamMemberCount' => $teamMembers->count(),
+        ];
     }
 
     private static function normalizePeriod(string $dateFromInput, string $dateToInput): array

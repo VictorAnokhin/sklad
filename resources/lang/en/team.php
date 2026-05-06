@@ -1,0 +1,26 @@
+<?php
+
+return [
+    'payroll_add_member' => 'Add member',
+    'payroll_title' => 'Team payroll sheet',
+    'payroll_subtitle' => 'Posted salary payments (ZP documents) for team members (firmuser = 1) in the selected period.',
+    'payroll_period_label' => 'Period',
+    'payroll_back_team' => 'Back to team',
+    'payroll_reset_period' => 'Current month',
+    'payroll_ledger_heading' => 'Summary by employee',
+    'payroll_zp_hint' => 'Only posted «Payroll issue» documents (ZP) with a team member selected in the employee field are included.',
+    'payroll_no_team' => 'There are no team members (firmuser = 1) for this company context.',
+    'payroll_col_name' => 'Name',
+    'payroll_col_position' => 'Role',
+    'payroll_col_count' => 'Payments',
+    'payroll_col_amount' => 'Amount',
+    'payroll_total' => 'Total',
+    'payroll_currency_note' => 'Amounts follow the document currency as stored in the ZP sum field (UAH in typical setups).',
+    'payroll_detail_heading' => 'ZP document detail',
+    'payroll_no_lines' => 'No posted ZP payments for the team in this period.',
+    'payroll_doc_num' => 'No.',
+    'payroll_doc_date' => 'Date',
+    'payroll_doc_employee' => 'Employee',
+    'payroll_doc_note' => 'Note',
+    'payroll_open_doc' => 'Open',
+];

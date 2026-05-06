@@ -6,7 +6,8 @@
 
 @section('header_actions')
     @auth
-        <a href="{{ route('team.show', ['id' => 0]) }}" class="btn btn-primary">Добавить</a>
+        <a href="{{ route('team.report') }}" class="btn btn-outline-warning me-2">{{ __('team.payroll_title') }}</a>
+        <a href="{{ route('team.show', ['id' => 0]) }}" class="btn btn-primary">{{ __('team.payroll_add_member') }}</a>
     @endauth
 @endsection
 

@@ -72,6 +72,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
     Route::prefix('team')->name('team.')->group(function () {
         Route::get('/show', [TeamController::class, 'show'])->name('show');
+        Route::get('/report', [TeamController::class, 'payrollReport'])->name('report');
         Route::post('/save', [TeamController::class, 'save'])->name('save');
         Route::post('/delete', [TeamController::class, 'destroy'])->name('destroy');
     });
