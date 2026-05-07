@@ -106,7 +106,7 @@ class ZakazController extends Controller
             $year = now()->format('Y');
             $this->withOrderNumberLock($fid, $year, function () use ($data, $deliveryDescription, $fid, $fullDescription, $totalSum, $year, $bearerUser, &$docId, &$docNum) {
                 $bearerFirma = $bearerUser
-                    ? trim((string) ($bearerUser->firma ?? $bearerUser->fid ?? $bearerUser->idfirma ?? ''))
+                    ? trim((string) ($bearerUser->firma ?? $bearerUser->fid ?? ''))
                     : '';
                 $useBearerClient = $bearerUser
                     && $bearerFirma !== ''
@@ -433,7 +433,7 @@ class ZakazController extends Controller
 
             $fid = trim((string) $request->input('fid', ''));
             if ($fid === '') {
-                $fid = trim((string) ($user->firma ?? $user->fid ?? $user->idfirma ?? ''));
+                $fid = trim((string) ($user->firma ?? $user->fid ?? ''));
             }
 
             $clientUserIds = $this->resolveCabinetOrderClientIds($user);
@@ -494,7 +494,7 @@ class ZakazController extends Controller
      */
     private function resolveCabinetOrderClientIds(User $user): array
     {
-        $firma = trim((string) ($user->firma ?? $user->fid ?? $user->idfirma ?? ''));
+        $firma = trim((string) ($user->firma ?? $user->fid ?? ''));
         $ids = collect([(int) $user->id]);
 
         if ($firma === '') {

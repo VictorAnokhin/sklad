@@ -13,12 +13,8 @@ return new class extends Migration
                 $table->string('firma', 20)->default('0')->after('fid');
             }
 
-            if (!Schema::hasColumn('users', 'idfirma')) {
-                $table->string('idfirma', 20)->default('0')->after('firma');
-            }
-
             if (!Schema::hasColumn('users', 'status')) {
-                $table->tinyInteger('status')->default(1)->after('idfirma');
+                $table->tinyInteger('status')->default(1)->after('firma');
             }
         });
     }
@@ -28,10 +24,6 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             if (Schema::hasColumn('users', 'status')) {
                 $table->dropColumn('status');
-            }
-
-            if (Schema::hasColumn('users', 'idfirma')) {
-                $table->dropColumn('idfirma');
             }
 
             if (Schema::hasColumn('users', 'firma')) {

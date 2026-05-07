@@ -2,7 +2,7 @@
 @php
   $authUser = \Illuminate\Support\Facades\Auth::user();
   $isAuthenticated = \Illuminate\Support\Facades\Auth::check();
-  $userProjectId = (int) (($authUser->firma ?? 0) ?: ($authUser->idfirma ?? 0) ?: ($authUser->fid ?? 0));
+  $userProjectId = (int) (($authUser->firma ?? 0) ?: ($authUser->fid ?? 0));
   $userProjectIds = collect();
 
   if (

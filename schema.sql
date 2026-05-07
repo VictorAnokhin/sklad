@@ -427,7 +427,7 @@ CREATE TABLE `user` (
   `id` int NOT NULL,
   `name` varchar(25) NOT NULL DEFAULT '',
   `iduser` int NOT NULL,
-  `idfirma` int NOT NULL DEFAULT '0',
+  `firma` int NOT NULL DEFAULT '0',
   `address` varchar(30) NOT NULL DEFAULT '',
   `phone` varchar(50) NOT NULL DEFAULT '',
   `login` varchar(30) NOT NULL DEFAULT '',

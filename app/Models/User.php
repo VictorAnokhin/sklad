@@ -32,7 +32,6 @@ class User extends Authenticatable
         'fathername',
         'fid',
         'firma',
-        'idfirma',
         'status',
         'idstatus',
         'idkassa',
@@ -252,7 +251,9 @@ class User extends Authenticatable
                 $data['password'] = $passwordHash;
             }
             $id = (string)DB::table('users')->insertGetId($data);
-            self::createProjectForCounterparty($id, $data);
+            if (self::shouldCreateProjectForNewCounterparty($data)) {
+                self::createProjectForCounterparty($id, $data);
+            }
         }
         else {
             if (self::hasUsersColumn('login')) {
@@ -320,6 +321,25 @@ class User extends Authenticatable
         }
 
         return self::$usersColumnsCache;
+    }
+
+    /**
+     * Запис у project — лише для контрагента без прив’язки до фірми (fid/firma порожній або 0).
+     */
+    private static function shouldCreateProjectForNewCounterparty(array $data): bool
+    {
+        $raw = $data['firma'] ?? $data['fid'] ?? '';
+        $fid = trim((string) $raw);
+
+        if ($fid === '' || $fid === '0') {
+            return true;
+        }
+
+        if (is_numeric($fid)) {
+            return ((int) $fid) === 0;
+        }
+
+        return false;
     }
 
     private static function createProjectForCounterparty(string $userId, array $data): void

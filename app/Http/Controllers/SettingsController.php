@@ -1263,10 +1263,6 @@ class SettingsController extends Controller
 
         $payload['firma'] = $projectId;
 
-        if (Schema::hasColumn('users', 'idfirma')) {
-            $payload['idfirma'] = $projectId;
-        }
-
         if (Schema::hasColumn('users', 'updated_at')) {
             $payload['updated_at'] = now();
         }

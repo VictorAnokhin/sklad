@@ -155,10 +155,6 @@ class AuthController extends Controller
             $userData['firma'] = $userFirma;
         }
 
-        if (Schema::hasColumn('users', 'idfirma')) {
-            $userData['idfirma'] = $userFirma;
-        }
-
         if (Schema::hasColumn('users', 'status')) {
             $userData['status'] = 1;
         }
@@ -276,10 +272,6 @@ class AuthController extends Controller
 
             if (Schema::hasColumn('users', 'firma')) {
                 $userData['firma'] = $userFirma;
-            }
-
-            if (Schema::hasColumn('users', 'idfirma')) {
-                $userData['idfirma'] = $userFirma;
             }
 
             if (Schema::hasColumn('users', 'status')) {
@@ -447,7 +439,7 @@ class AuthController extends Controller
             return;
         }
 
-        $fid = $user->firma ?: $user->fid ?: $user->idfirma;
+        $fid = $user->firma ?: $user->fid;
 
         if ($fid !== null && $fid !== '') {
             $request->session()->put('fid', $fid);
@@ -544,10 +536,6 @@ class AuthController extends Controller
 
         if (Schema::hasColumn('users', 'firma')) {
             $userData['firma'] = $userFirma;
-        }
-
-        if (Schema::hasColumn('users', 'idfirma')) {
-            $userData['idfirma'] = $userFirma;
         }
 
         if (Schema::hasColumn('users', 'status')) {
@@ -1122,10 +1110,6 @@ class AuthController extends Controller
             $userData['firma'] = $userFirma;
         }
 
-        if (Schema::hasColumn('users', 'idfirma')) {
-            $userData['idfirma'] = $userFirma;
-        }
-
         if (Schema::hasColumn('users', 'status')) {
             $userData['status'] = 1;
         }
@@ -1418,10 +1402,6 @@ class AuthController extends Controller
             $userData['firma'] = $userFirma;
         }
 
-        if (Schema::hasColumn('users', 'idfirma')) {
-            $userData['idfirma'] = $userFirma;
-        }
-
         if (Schema::hasColumn('users', 'status')) {
             $userData['status'] = 1;
         }
@@ -1466,7 +1446,7 @@ class AuthController extends Controller
             'secondname' => $user->secondname,
             'fathername' => $user->fathername,
             'email' => $user->email,
-            'fid' => $user->firma ?: $user->fid ?: $user->idfirma,
+            'fid' => $user->firma ?: $user->fid,
             'idstatus' => $user->idstatus ?: $user->ustype,
             'wallet_address' => $primaryWallet['address'] ?? $user->wallet_address,
             'wallet_network' => $primaryWallet['network'] ?? $user->wallet_network,

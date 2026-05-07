@@ -13,7 +13,7 @@ class LegacyUser extends Model
 
     public function firmaObj()
     {
-        return $this->belongsTo(Firma::class, 'idfirma');
+        return $this->belongsTo(Firma::class, 'firma');
     }
 
     public function skladObj()

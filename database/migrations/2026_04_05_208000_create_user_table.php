@@ -16,7 +16,7 @@ return new class extends Migration
             $table->id();
             $table->string('name', 25)->default('');
             $table->unsignedBigInteger('iduser')->default(0);
-            $table->unsignedBigInteger('idfirma')->default(0);
+            $table->unsignedBigInteger('firma')->default(0);
             $table->string('address', 30)->default('');
             $table->string('phone', 50)->default('');
             $table->string('login', 30)->default('');
@@ -30,7 +30,7 @@ return new class extends Migration
             $table->unsignedBigInteger('userid')->default(0);
 
             $table->index('userid');
-            $table->index('idfirma');
+            $table->index('firma');
             $table->index('login');
         });
     }

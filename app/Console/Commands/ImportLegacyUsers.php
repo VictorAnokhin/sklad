@@ -205,7 +205,6 @@ class ImportLegacyUsers extends Command
         return [
             'id' => $id,
             'fid' => (string) ($legacy['firma'] ?? $legacy['idfirma'] ?? ''),
-            'idfirma' => (string) ($legacy['idfirma'] ?? 0),
             'firmuser' => (string) ($legacy['firmuser'] ?? ''),
             'firmuserall' => (string) ($legacy['firmuserall'] ?? ''),
             'login' => trim((string) ($legacy['login'] ?? '')),
@@ -233,7 +232,7 @@ class ImportLegacyUsers extends Command
             'phone' => (string) ($legacy['phone'] ?? ''),
             'email' => $email,
             'hbd' => (string) ($legacy['hbd'] ?? ''),
-            'firma' => (string) ($legacy['firma'] ?? 0),
+            'firma' => (string) ($legacy['firma'] ?? $legacy['idfirma'] ?? 0),
             'status' => (int) ($legacy['status'] ?? 0),
             'idstatus' => $idstatus,
             'idkassa' => (string) ($legacy['kassa'] ?? 0),

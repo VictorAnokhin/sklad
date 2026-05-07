@@ -47,8 +47,6 @@ foreach ($tables as $table) {
     
     if (in_array('firma', $columns)) {
         $relations .= "    public function firmaObj()\n    {\n        return \$this->belongsTo(Firma::class, 'firma');\n    }\n\n";
-    } elseif (in_array('idfirma', $columns)) {
-        $relations .= "    public function firmaObj()\n    {\n        return \$this->belongsTo(Firma::class, 'idfirma');\n    }\n\n";
     }
     
     if (in_array('sklad', $columns) && $table !== 'sklad') {
