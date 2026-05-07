@@ -114,8 +114,4 @@
     </div>
     @endif
 </div>
-
-<div style="margin-top: 3rem;">
-    @include('pages.partials.wallet_content')
-</div>
 @endsection

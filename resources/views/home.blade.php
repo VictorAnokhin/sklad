@@ -17,6 +17,7 @@
             <header>
                 @include('partials.top_reklama')
             </header>
+            @include('partials.wallet_connect_app')
             <div class="main">
                 <div class="page-heading">
                     <h1 class="text-white page-heading__title">@yield('title')</h1>

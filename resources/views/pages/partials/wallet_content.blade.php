@@ -13,7 +13,7 @@
                 <p class="web3-login-text" style="color: rgba(255,255,255,0.7); margin-bottom: 1.5rem;">MetaMask, Rabby или другой совместимый Web3 кошелек.</p>
             </div>
             <div class="web3-login-actions">
-                <button type="button" id="web3-connect-btn" class="web3-connect-btn">Подключить Web3</button>
+                <button type="button" id="web3-connect-btn" class="web3-connect-btn">Подключить кошелек</button>
                 <p id="web3-wallet-address" class="web3-wallet-address text-center" style="display:none; margin-top: 1rem; color: #fbbf24;"></p>
                 <p id="web3-status" class="web3-status text-center" style="display:none; margin-top: 0.5rem;"></p>
             </div>
@@ -62,7 +62,10 @@
             <div id="wallet-main-view" class="rabby-tokens">
                 <div style="padding: 1rem 1.5rem 0.25rem;">
                     <div id="profile-wallet-selector" style="margin-bottom: 1rem;">
-                        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-bottom:0.75rem;" id="profile-wallet-list"></div>
+                        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-bottom:0.75rem;">
+                            <div id="profile-wallet-list" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; flex:1 1 auto; min-width:0;"></div>
+                            <button type="button" id="web3-connect-btn-inline" class="web3-connect-btn web3-connect-btn--inline">Подключить кошелек</button>
+                        </div>
                     </div>
                     <div class="wallet-network-panel">
                         <div>
@@ -213,6 +216,7 @@
 @push('scripts')
 <script>
   const web3Button = document.getElementById('web3-connect-btn');
+  const web3ConnectBtnInline = document.getElementById('web3-connect-btn-inline');
   const web3Status = document.getElementById('web3-status');
   const web3WalletAddress = document.getElementById('web3-wallet-address');
   const isAuthenticated = @json(\Illuminate\Support\Facades\Auth::check());
@@ -2124,11 +2128,17 @@
     return { linked: true, user: result?.user || null };
   }
 
+  function setConnectWalletButtonsBusy(busy) {
+    const label = busy ? 'Подключаем...' : 'Подключить кошелек';
+    [web3Button, web3ConnectBtnInline].forEach((btn) => {
+      if (!btn) return;
+      btn.disabled = busy;
+      btn.textContent = label;
+    });
+  }
+
   async function connectWalletProvider() {
-    if (web3Button) {
-      web3Button.disabled = true;
-      web3Button.textContent = 'Подключаем...';
-    }
+    setConnectWalletButtonsBusy(true);
 
     try {
       const provider = injectedEvmProvider();
@@ -2203,10 +2213,7 @@
       }
       return false;
     } finally {
-      if (web3Button) {
-        web3Button.disabled = false;
-        web3Button.textContent = 'Подключить Web3';
-      }
+      setConnectWalletButtonsBusy(false);
     }
   }
 
@@ -2404,6 +2411,9 @@
   if (web3Button) {
     web3Button.addEventListener('click', connectWalletProvider);
   }
+  if (web3ConnectBtnInline) {
+    web3ConnectBtnInline.addEventListener('click', connectWalletProvider);
+  }
 
   const btnRefreshTokens = document.getElementById('btn-refresh-tokens');
   if (btnRefreshTokens) {
@@ -2531,6 +2541,15 @@
     opacity: 0.75;
     cursor: not-allowed;
     transform: none;
+  }
+
+  .web3-connect-btn.web3-connect-btn--inline {
+    width: auto;
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    align-self: center;
   }
 
   #btn-refresh-tokens:hover:not(:disabled) {
