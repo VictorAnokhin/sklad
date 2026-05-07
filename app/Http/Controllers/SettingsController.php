@@ -723,7 +723,32 @@ class SettingsController extends Controller
             return response()->json(['success' => false, 'message' => 'Таблицю project не знайдено'], 404);
         }
 
-        $project = Project::query()->create($this->validateProject($request));
+        $creator = $this->currentUser();
+        if (! $creator instanceof User) {
+            return response()->json(['success' => false, 'message' => 'Потрібна авторизація'], 401);
+        }
+
+        if (! Schema::hasColumn('users', 'email')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Неможливо створити проєкт: у профілі користувача відсутнє поле email.',
+            ], 422);
+        }
+
+        $profileEmail = trim((string) ($creator->email ?? ''));
+        if ($profileEmail === '' || ! filter_var($profileEmail, FILTER_VALIDATE_EMAIL)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Щоб створити проєкт, вкажіть коректний email у профілі (картка користувача).',
+            ], 422);
+        }
+
+        $payload = $this->validateProject($request);
+        if (Schema::hasColumn('project', 'email')) {
+            $payload['email'] = mb_strtolower($profileEmail);
+        }
+
+        $project = Project::query()->create($payload);
         $projectUserId = $this->ensureProjectUserCopy($project);
 
         if ($projectUserId && Schema::hasColumn('project', 'userid')) {
@@ -771,10 +796,10 @@ class SettingsController extends Controller
             return response()->json(['success' => false, 'message' => 'Проєкт не знайдено'], 404);
         }
 
-        if ((int) $user->id !== (int) $project->id) {
+        if (! $this->userCanDeleteProjectByEmail($user, $project)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Видалити проєкт може лише користувач, у якого users.id збігається з project.id',
+                'message' => 'Видалити проєкт може лише користувач, у якого email збігається з email проєкту (project.email).',
             ], 403);
         }
 
@@ -1243,13 +1268,30 @@ class SettingsController extends Controller
         return $payload;
     }
 
+    /**
+     * Видалення проєкту: users.email (профіль) має збігатися з project.email, без урахування регістру.
+     */
+    private function userCanDeleteProjectByEmail(?object $user, Project $project): bool
+    {
+        if (! $user instanceof User) {
+            return false;
+        }
+        if (! Schema::hasColumn('project', 'email') || ! Schema::hasColumn('users', 'email')) {
+            return false;
+        }
+        $projectEmail = mb_strtolower(trim((string) ($project->email ?? '')));
+        $userEmail = mb_strtolower(trim((string) ($user->email ?? '')));
+
+        return $projectEmail !== '' && $userEmail !== '' && $projectEmail === $userEmail;
+    }
+
     private function normalizeProject(Project $project, ?object $user): array
     {
         $payload = Project::decorateMedia($project)->toArray();
         $payload['phone'] = (string) ($payload['phone'] ?? '');
         $payload['email'] = (string) ($payload['email'] ?? '');
         $payload['url'] = (string) ($payload['url'] ?? '');
-        $payload['can_delete'] = $user ? (int) $user->id === (int) $project->id : false;
+        $payload['can_delete'] = $this->userCanDeleteProjectByEmail($user, $project);
 
         return $payload;
     }
@@ -1264,7 +1306,7 @@ class SettingsController extends Controller
             return null;
         }
 
-        $email = mb_strtolower(trim((string) ($authUser->email ?? '')));
+        $email = $this->resolveUserEmailForProjectMetadata($authUser) ?? '';
         if ($email === '' && Schema::hasColumn('project', 'email')) {
             $email = mb_strtolower(trim((string) ($project->email ?? '')));
         }
@@ -1280,6 +1322,32 @@ class SettingsController extends Controller
         }
 
         return $this->ensureUserRowForProjectFirma($authUser, (string) $project->id);
+    }
+
+    /**
+     * Пошта для project.email при створенні: users.email, інакше login якщо це валідний email (legacy).
+     */
+    private function resolveUserEmailForProjectMetadata(?object $user): ?string
+    {
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        if (Schema::hasColumn('users', 'email')) {
+            $email = mb_strtolower(trim((string) ($user->email ?? '')));
+            if ($email !== '') {
+                return $email;
+            }
+        }
+
+        if (User::hasUsersColumn('login')) {
+            $login = trim((string) ($user->login ?? ''));
+            if ($login !== '' && filter_var($login, FILTER_VALIDATE_EMAIL)) {
+                return mb_strtolower($login);
+            }
+        }
+
+        return null;
     }
 
     private function ensureProjectUserCopy(Project $project): ?int
