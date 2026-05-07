@@ -4,7 +4,7 @@ return [
     'title' => 'Clients',
     'title_with_count' => 'Clients (:total)',
     'add' => '+ Add',
-    'search_label' => 'Search (Full name, organization...)',
+    'search_label' => 'Search (name, organization, phone, email...)',
     'search_placeholder' => 'Search...',
     'city' => 'City',
     'phone' => 'Phone',

@@ -164,6 +164,8 @@ class User extends Authenticatable
         $filterCity = $filters['city'] ?? '';
         $filterStatus = $filters['idstatus'] ?? '';
         $filterPhone = $filters['phone'] ?? '';
+        $filterEmail = $filters['email'] ?? '';
+        $hasEmailCol = self::hasUsersColumn('email');
 
         $query = DB::table('users')
             ->where('firma', $fid);
@@ -171,7 +173,7 @@ class User extends Authenticatable
         if ($search !== '') {
             $like = '%' . mb_strtolower($search) . '%';
             $searchId = ctype_digit(trim($search)) ? (int) trim($search) : null;
-            $query->where(function ($q) use ($like, $searchId) {
+            $query->where(function ($q) use ($like, $searchId, $hasEmailCol) {
                 $q->whereRaw('LOWER(orgname) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(name) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(secondname) LIKE ?', [$like])
@@ -179,6 +181,10 @@ class User extends Authenticatable
                     ->orWhereRaw('LOWER(phone) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(city) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(name2) LIKE ?', [$like]);
+
+                if ($hasEmailCol) {
+                    $q->orWhereRaw('LOWER(email) LIKE ?', [$like]);
+                }
 
                 if ($searchId !== null) {
                     $q->orWhere('id', $searchId);
@@ -193,6 +199,10 @@ class User extends Authenticatable
         }
         if ($filterPhone !== '') {
             $query->where('phone', 'like', '%' . $filterPhone . '%');
+        }
+        if ($filterEmail !== '' && $hasEmailCol) {
+            $emailLike = '%' . mb_strtolower($filterEmail) . '%';
+            $query->whereRaw('LOWER(email) LIKE ?', [$emailLike]);
         }
 
         $total = $query->count();

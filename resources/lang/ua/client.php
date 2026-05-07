@@ -4,7 +4,7 @@ return [
     'title' => 'Клієнти',
     'title_with_count' => 'Клієнти (:total)',
     'add' => '+ Додати',
-    'search_label' => 'Пошук (ПІБ, організація...)',
+    'search_label' => 'Пошук (ПІБ, організація, телефон, email...)',
     'search_placeholder' => 'Пошук...',
     'city' => 'Місто',
     'phone' => 'Телефон',

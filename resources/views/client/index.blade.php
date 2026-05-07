@@ -177,7 +177,7 @@
         @if(!empty($activeFilters))
             <div class="alert alert-warning" style="display:flex;align-items:center;gap:8px;">
                 🔍 {{ __('client.filter_active') ?? 'Фільтр активний' }}
-                <a href="{{ route('client.index', ['search' => '', 'city' => '', 'phone' => '', 'idstatus' => '', 'pos' => 0]) }}" style="margin-left:8px;">{{ __('client.reset') }}</a>
+                <a href="{{ route('client.index', ['search' => '', 'city' => '', 'phone' => '', 'email' => '', 'idstatus' => '', 'pos' => 0]) }}" style="margin-left:8px;">{{ __('client.reset') }}</a>
             </div>
         @endif
 
@@ -307,6 +307,13 @@
                     </div>
 
                     <div>
+                        <label style="display:block;margin-bottom:4px;font-size:0.85rem;">{{ __('client.field_email') }}</label>
+                        <input type="text" name="email" autocomplete="off" inputmode="email"
+                            placeholder="{{ __('client.field_email') }}"
+                            value="{{ $filters['email'] ?? '' }}" style="width:100%;padding:8px 12px;font-size:0.9rem;">
+                    </div>
+
+                    <div>
                         <label style="display:block;margin-bottom:4px;font-size:0.85rem;">{{ __('client.status') }}</label>
                         <select name="idstatus" style="width:100%;padding:8px 12px;font-size:0.9rem;">
                             <option value="">{{ __('client.all_statuses') }}</option>
@@ -324,7 +331,7 @@
                         style="flex:1;padding:10px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:8px;box-shadow:0 4px 12px rgba(251,191,36,0.3);color:#000;font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;justify-content:center;gap:6px;">
                         <span>🔍</span> {{ __('client.find') }}
                     </button>
-                    <a href="{{ route('client.index') }}?search=&city=&phone=&idstatus="
+                    <a href="{{ route('client.index') }}?search=&city=&phone=&email=&idstatus="
                         style="flex:1;padding:10px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:var(--foreground);font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;">
                         <span>✕</span> {{ __('client.reset') }}
                     </a>

@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\RwaAdminCapController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\ZakazController;
@@ -64,6 +65,9 @@ Route::get('/wallet/overview', [WalletController::class, 'overview']);
 Route::post('/wallet/swap/price', [WalletController::class, 'swapPrice']);
 Route::post('/wallet/swap/quote', [WalletController::class, 'swapQuote']);
 Route::get('/transparency/overview', [WalletController::class, 'transparencyOverview']);
+Route::get('/rwa/admin-caps', [RwaAdminCapController::class, 'index']);
+Route::post('/rwa/admin-caps', [RwaAdminCapController::class, 'store']);
+Route::delete('/rwa/admin-caps/{id}', [RwaAdminCapController::class, 'destroy']);
 
 // ── Orders (Zakaz) API ─────────────────────────────────────────────────────
 

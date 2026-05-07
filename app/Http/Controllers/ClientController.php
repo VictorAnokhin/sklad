@@ -26,6 +26,7 @@ class ClientController extends Controller
             'city' => session('cl_city', ''),
             'idstatus' => session('cl_idstatus', ''),
             'phone' => session('cl_phone', ''),
+            'email' => session('cl_email', ''),
         ];
         $pos = (int)$request->input('pos', session('client_pos', 0));
         $pos2 = 20;
@@ -35,9 +36,10 @@ class ClientController extends Controller
             'city' => $request->input('city', $previousFilters['city']),
             'idstatus' => $request->input('idstatus', $previousFilters['idstatus']),
             'phone' => $request->input('phone', $previousFilters['phone']),
+            'email' => $request->input('email', $previousFilters['email']),
         ];
 
-        $hasFilterInput = $request->hasAny(['search', 'city', 'idstatus', 'phone']);
+        $hasFilterInput = $request->hasAny(['search', 'city', 'idstatus', 'phone', 'email']);
         if ($hasFilterInput && $filters !== $previousFilters) {
             $pos = 0;
         }
@@ -48,6 +50,7 @@ class ClientController extends Controller
             'cl_city' => $filters['city'],
             'cl_idstatus' => $filters['idstatus'],
             'cl_phone' => $filters['phone'],
+            'cl_email' => $filters['email'],
         ]);
 
         $result = User::userslist($fid, $filters, $pos, $pos2);
@@ -78,6 +81,9 @@ class ClientController extends Controller
                 ->orWhere('name', 'LIKE', "%{$qBase}%")
                 ->orWhere('secondname', 'LIKE', "%{$qBase}%")
                 ->orWhere('phone', 'LIKE', "%{$q}%");
+            if (User::hasUsersColumn('email')) {
+                $query->orWhereRaw('LOWER(email) LIKE ?', ['%' . mb_strtolower($qBase) . '%']);
+            }
         })
             ->select('id', 'orgname', 'name', 'name2', 'secondname', 'phone', 'city', 'region', 'poshta', 'idstatus', 'balance')
             ->limit(20)
