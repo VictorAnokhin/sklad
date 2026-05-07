@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -97,48 +99,78 @@ class ZakazController extends Controller
         $docId = 0;
         $docNum = 0;
 
-        DB::transaction(function () use ($data, $deliveryDescription, $fid, $fullDescription, $totalSum, &$docId, &$docNum) {
+        /** @var User|null $bearerUser Користувач з Bearer token (кабінет), щоб client1 збігався з акаунтом */
+        $bearerUser = Auth::guard('sanctum')->user();
+
+        DB::transaction(function () use ($data, $deliveryDescription, $fid, $fullDescription, $totalSum, $bearerUser, &$docId, &$docNum) {
             $year = now()->format('Y');
-            $this->withOrderNumberLock($fid, $year, function () use ($data, $deliveryDescription, $fid, $fullDescription, $totalSum, $year, &$docId, &$docNum) {
-                $client = DB::table('users')
-                    ->where('phone', $data['mobile'])
-                    ->where('firma', $fid)
-                    ->lockForUpdate()
-                    ->first();
+            $this->withOrderNumberLock($fid, $year, function () use ($data, $deliveryDescription, $fid, $fullDescription, $totalSum, $year, $bearerUser, &$docId, &$docNum) {
+                $bearerFirma = $bearerUser
+                    ? trim((string) ($bearerUser->firma ?? $bearerUser->fid ?? $bearerUser->idfirma ?? ''))
+                    : '';
+                $useBearerClient = $bearerUser
+                    && $bearerFirma !== ''
+                    && $bearerFirma === trim((string) $fid);
 
-                if (!$client) {
-                    $clientId = DB::table('users')->insertGetId([
-                        'region'      => $data['region'] ?? '',
-                        'city'        => $data['city'],
-                        'poshta'      => $data['poshta'] ?? '',
-                        'address'     => $data['address'] ?? '',
-                        'name'        => $data['firstname'],
-                        'secondname'  => $data['secondname'] ?? '',
-                        'phone'       => $data['mobile'],
-                        'email'       => $this->buildGuestEmail($data['mobile']),
-                        'password'    => Hash::make(Str::random(40)),
-                        'firma'       => $fid,
-                        'user'        => 'autoagent_api',
-                        'description' => $deliveryDescription,
-                        'domen'       => 'http://autoagent.in.ua',
-                        'msg'         => '1',
-                        'date'        => now()->format('Y-m-d'),
-                        'time'        => now()->format('H:i:s'),
-                    ]);
+                if ($useBearerClient) {
+                    $clientId = (int) $bearerUser->id;
+
+                    $userRow = DB::table('users')->where('id', $clientId)->lockForUpdate()->first();
+                    if ($userRow) {
+                        DB::table('users')
+                            ->where('id', $clientId)
+                            ->update([
+                                'region'      => $data['region'] ?? $userRow->region,
+                                'city'        => $data['city'],
+                                'poshta'      => $data['poshta'] ?? $userRow->poshta,
+                                'address'     => $data['address'] ?? $userRow->address,
+                                'name'        => $data['firstname'],
+                                'secondname'  => $data['secondname'] ?? $userRow->secondname,
+                                'description' => trim(($userRow->description ?? '') . ', ПІБ: ' . ($data['secondname'] ?? '') . ' ' . $data['firstname'], ', '),
+                                'phone'       => $data['mobile'],
+                            ]);
+                    }
                 } else {
-                    $clientId = $client->id;
+                    $client = DB::table('users')
+                        ->where('phone', $data['mobile'])
+                        ->where('firma', $fid)
+                        ->lockForUpdate()
+                        ->first();
 
-                    DB::table('users')
-                        ->where('id', $clientId)
-                        ->update([
-                            'region'      => $data['region'] ?? $client->region,
+                    if (!$client) {
+                        $clientId = DB::table('users')->insertGetId([
+                            'region'      => $data['region'] ?? '',
                             'city'        => $data['city'],
-                            'poshta'      => $data['poshta'] ?? $client->poshta,
-                            'address'     => $data['address'] ?? $client->address,
+                            'poshta'      => $data['poshta'] ?? '',
+                            'address'     => $data['address'] ?? '',
                             'name'        => $data['firstname'],
-                            'secondname'  => $data['secondname'] ?? $client->secondname,
-                            'description' => $client->description . ', ПІБ: ' . ($data['secondname'] ?? '') . ' ' . $data['firstname'],
+                            'secondname'  => $data['secondname'] ?? '',
+                            'phone'       => $data['mobile'],
+                            'email'       => $this->buildGuestEmail($data['mobile']),
+                            'password'    => Hash::make(Str::random(40)),
+                            'firma'       => $fid,
+                            'user'        => 'autoagent_api',
+                            'description' => $deliveryDescription,
+                            'domen'       => 'http://autoagent.in.ua',
+                            'msg'         => '1',
+                            'date'        => now()->format('Y-m-d'),
+                            'time'        => now()->format('H:i:s'),
                         ]);
+                    } else {
+                        $clientId = $client->id;
+
+                        DB::table('users')
+                            ->where('id', $clientId)
+                            ->update([
+                                'region'      => $data['region'] ?? $client->region,
+                                'city'        => $data['city'],
+                                'poshta'      => $data['poshta'] ?? $client->poshta,
+                                'address'     => $data['address'] ?? $client->address,
+                                'name'        => $data['firstname'],
+                                'secondname'  => $data['secondname'] ?? $client->secondname,
+                                'description' => $client->description . ', ПІБ: ' . ($data['secondname'] ?? '') . ' ' . $data['firstname'],
+                            ]);
+                    }
                 }
 
                 $docNum = $this->nextOrderNumber($fid, $year);
@@ -399,10 +431,17 @@ class ZakazController extends Controller
                 ], 401);
             }
 
-            // Debug: return user info
+            $fid = trim((string) $request->input('fid', ''));
+            if ($fid === '') {
+                $fid = trim((string) ($user->firma ?? $user->fid ?? $user->idfirma ?? ''));
+            }
+
+            $clientUserIds = $this->resolveCabinetOrderClientIds($user);
+
             $orders = DB::table('document')
-                ->where('client1', $user->id)
+                ->whereIn('client1', $clientUserIds)
                 ->where('type', 'ZOUT')
+                ->when($fid !== '', fn ($q) => $q->where('firma', $fid))
                 ->orderBy('dt', 'desc')
                 ->get();
 
@@ -429,7 +468,7 @@ class ZakazController extends Controller
 
                 return [
                     'id' => $order->id,
-                    'num' => $order->num,
+                    'num' => (string) $order->num,
                     'dt' => $order->dt,
                     'description' => $order->content,
                     'items' => $items,
@@ -445,6 +484,48 @@ class ZakazController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * У кабінеті client1 у документів часто вказує на «гостьовий» рядок users з тим самим телефоном.
+     * Збираємо всі id контрагентів з поточним акаунтом за id та за phone / phone1 у межах firma.
+     *
+     * @return list<int>
+     */
+    private function resolveCabinetOrderClientIds(User $user): array
+    {
+        $firma = trim((string) ($user->firma ?? $user->fid ?? $user->idfirma ?? ''));
+        $ids = collect([(int) $user->id]);
+
+        if ($firma === '') {
+            return $ids->unique()->values()->all();
+        }
+
+        $p = trim((string) ($user->phone ?? ''));
+        $p1 = trim((string) ($user->phone1 ?? ''));
+
+        if ($p !== '' || $p1 !== '') {
+            $ids = $ids->merge(
+                DB::table('users')
+                    ->where('firma', $firma)
+                    ->where(function ($q) use ($p, $p1) {
+                        if ($p !== '' && $p1 !== '' && $p !== $p1) {
+                            $q->where(function ($q2) use ($p) {
+                                $q2->where('phone', $p)->orWhere('phone1', $p);
+                            })->orWhere(function ($q2) use ($p1) {
+                                $q2->where('phone', $p1)->orWhere('phone1', $p1);
+                            });
+                        } elseif ($p !== '') {
+                            $q->where('phone', $p)->orWhere('phone1', $p);
+                        } else {
+                            $q->where('phone', $p1)->orWhere('phone1', $p1);
+                        }
+                    })
+                    ->pluck('id')
+            );
+        }
+
+        return $ids->map(fn ($id) => (int) $id)->unique()->values()->all();
     }
 
     private function buildGuestEmail(string $mobile): string
