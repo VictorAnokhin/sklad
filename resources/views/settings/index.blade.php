@@ -461,6 +461,11 @@
 
                     <div class="row">
                         <div class="col-md-4 mb-3">
+                            <label class="form-label">email</label>
+                            <input type="email" class="form-control" id="project-email" maxlength="255" placeholder="fallback при зміні проєкту, якщо у сесії немає email">
+                            <div class="form-text small text-muted">Звичайно email береться з облікового запису; це поле — резерв для перемикання проєкту.</div>
+                        </div>
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">phone</label>
                             <input type="text" class="form-control" id="project-phone" maxlength="255">
                         </div>
@@ -554,6 +559,7 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Назва</th>
+                                <th>Email</th>
                                 <th>Телефон</th>
                                 <th class="text-end">Дії</th>
                             </tr>
@@ -1829,6 +1835,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const payload = new FormData();
             payload.append('num', String(Number(document.getElementById('project-num').value || 0)));
             payload.append('name', document.getElementById('project-name').value.trim());
+            payload.append('email', document.getElementById('project-email').value.trim());
             payload.append('phone', document.getElementById('project-phone').value.trim());
             payload.append('url', document.getElementById('project-url').value.trim());
             payload.append('telegram', document.getElementById('project-telegram').value.trim());
@@ -1903,7 +1910,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderProjects(Array.isArray(data) ? data : []);
                 })
                 .catch((error) => {
-                    tbody.innerHTML = `<tr><td colspan="4" class="text-danger">${escapeHtml(error?.message || 'Помилка завантаження')}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${escapeHtml(error?.message || 'Помилка завантаження')}</td></tr>`;
                     emptyMsg.style.display = 'none';
                 });
         }
@@ -1925,6 +1932,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             items.forEach((item) => {
+                const projectEmail = item.email
+                    ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>`
+                    : '—';
                 const projectPhone = item.phone
                     ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>`
                     : '—';
@@ -1939,6 +1949,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="fw-semibold">${escapeHtml(item.name || '')}</div>
                         <div class="company-meta">${escapeHtml(item.description || '')}</div>
                     </td>
+                    <td>${projectEmail}</td>
                     <td>
                         <div>${projectPhone}</div>
                         <div class="small text-muted">${projectUrl}</div>
@@ -2004,6 +2015,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-id-display').value = item.id ?? '';
             document.getElementById('project-num').value = item.num ?? 0;
             document.getElementById('project-name').value = item.name || '';
+            document.getElementById('project-email').value = item.email || '';
             document.getElementById('project-phone').value = item.phone || '';
             document.getElementById('project-url').value = item.url || '';
             document.getElementById('project-telegram').value = item.telegram || '';
@@ -2031,6 +2043,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-id-display').value = '';
             document.getElementById('project-num').value = '0';
             document.getElementById('project-name').value = '';
+            document.getElementById('project-email').value = '';
             document.getElementById('project-phone').value = '';
             document.getElementById('project-url').value = '';
             document.getElementById('project-telegram').value = '';

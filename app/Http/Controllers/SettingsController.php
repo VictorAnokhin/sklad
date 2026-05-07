@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use App\Models\Conf;
+use App\Http\Middleware\SyncLegacySessionFromAuth;
 
 /**
  * SettingsController — migrated from admin/ module (idstatus >= 3)
@@ -174,6 +175,22 @@ class SettingsController extends Controller
         }
 
         session(['fid' => $project->id]);
+
+        if (Auth::check()) {
+            $authUser = Auth::user();
+            if ($authUser instanceof User) {
+                $resolvedId = $this->resolveUserIdAfterProjectSwitch($authUser, $project);
+                if ($resolvedId !== null) {
+                    $target = User::query()->find($resolvedId);
+                    if ($target) {
+                        Auth::login($target, false);
+                        $request->session()->regenerate();
+                        session(['fid' => $project->id]);
+                        SyncLegacySessionFromAuth::applyWorkspaceSession($target);
+                    }
+                }
+            }
+        }
 
         return redirect()->back()->with('success', 'Активний проєкт змінено');
     }
@@ -1137,6 +1154,7 @@ class SettingsController extends Controller
             'num' => 'nullable|integer|min:0',
             'name' => 'required|string|max:50',
             'phone' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
             'url' => 'nullable|string|max:65535',
             'telegram' => 'nullable|string|max:65535',
             'instagram' => 'nullable|string|max:65535',
@@ -1210,9 +1228,13 @@ class SettingsController extends Controller
         ];
 
         $projectPhone = trim((string) ($validated['phone'] ?? ''));
+        $projectEmail = mb_strtolower(trim((string) ($validated['email'] ?? '')));
         $projectUrl = trim((string) ($validated['url'] ?? ''));
         if (in_array('phone', $projectColumns, true)) {
             $payload['phone'] = $projectPhone;
+        }
+        if (in_array('email', $projectColumns, true)) {
+            $payload['email'] = $projectEmail === '' ? null : $projectEmail;
         }
         if (in_array('url', $projectColumns, true)) {
             $payload['url'] = $projectUrl;
@@ -1225,43 +1247,80 @@ class SettingsController extends Controller
     {
         $payload = Project::decorateMedia($project)->toArray();
         $payload['phone'] = (string) ($payload['phone'] ?? '');
+        $payload['email'] = (string) ($payload['email'] ?? '');
         $payload['url'] = (string) ($payload['url'] ?? '');
         $payload['can_delete'] = $user ? (int) $user->id === (int) $project->id : false;
 
         return $payload;
     }
 
+    /**
+     * Після перемикання проєкту (firma = project.id): знаходимо users.id за email (спільний для клієнта в усіх проєктах),
+     * інакше fallback — ensureUserRowForProjectFirma (клон / існуючий рядок).
+     */
+    private function resolveUserIdAfterProjectSwitch(User $authUser, Project $project): ?int
+    {
+        if (!Schema::hasTable('users') || !Schema::hasColumn('users', 'firma')) {
+            return null;
+        }
+
+        $email = mb_strtolower(trim((string) ($authUser->email ?? '')));
+        if ($email === '' && Schema::hasColumn('project', 'email')) {
+            $email = mb_strtolower(trim((string) ($project->email ?? '')));
+        }
+
+        if ($email !== '' && Schema::hasColumn('users', 'email')) {
+            $foundId = User::query()
+                ->where('firma', (string) $project->id)
+                ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+                ->value('id');
+            if ($foundId) {
+                return (int) $foundId;
+            }
+        }
+
+        return $this->ensureUserRowForProjectFirma($authUser, (string) $project->id);
+    }
+
     private function ensureProjectUserCopy(Project $project): ?int
     {
         $user = $this->currentUser();
-        if (!$user || !Schema::hasTable('users') || !Schema::hasColumn('users', 'firma')) {
+        if (! $user instanceof User) {
             return null;
         }
 
-        $email = trim((string) ($user->email ?? ''));
-        if ($email === '' || !Schema::hasColumn('users', 'email')) {
+        return $this->ensureUserRowForProjectFirma($user, (string) $project->id);
+    }
+
+    /**
+     * Один обліковий запис (email / телефон / login) може мати окремий рядок users для кожного проєкту (firma = project.id).
+     * Повертає id користувача у цьому проєкті: існуючий або клон поточного рядка.
+     */
+    private function ensureUserRowForProjectFirma(User $user, string $firmaId): ?int
+    {
+        if (! Schema::hasTable('users') || ! Schema::hasColumn('users', 'firma')) {
             return null;
         }
 
-        $projectId = (string) $project->id;
-        $existingId = DB::table('users')
-            ->where('email', $email)
-            ->where('firma', $projectId)
-            ->value('id');
+        $firmaId = trim($firmaId);
+        if ($firmaId === '') {
+            return null;
+        }
 
-        if ($existingId) {
-            return (int) $existingId;
+        $existingId = $this->findUserIdInFirma($user, $firmaId);
+        if ($existingId !== null) {
+            return $existingId;
         }
 
         $source = DB::table('users')->where('id', $user->id)->first();
-        if (!$source) {
+        if (! $source) {
             return null;
         }
 
         $payload = (array) $source;
         unset($payload['id']);
 
-        $payload['firma'] = $projectId;
+        $payload['firma'] = $firmaId;
 
         if (Schema::hasColumn('users', 'updated_at')) {
             $payload['updated_at'] = now();
@@ -1272,6 +1331,71 @@ class SettingsController extends Controller
         }
 
         return (int) DB::table('users')->insertGetId(User::filterUsersColumns($payload));
+    }
+
+    private function findUserIdInFirma(User $user, string $firmaId): ?int
+    {
+        $firmaId = trim($firmaId);
+        if ($firmaId === '') {
+            return null;
+        }
+
+        if ((string) ($user->firma ?? '') === $firmaId) {
+            return (int) $user->id;
+        }
+
+        $email = trim((string) ($user->email ?? ''));
+        if ($email !== '' && Schema::hasColumn('users', 'email')) {
+            $id = User::query()->where('firma', $firmaId)->where('email', $email)->value('id');
+            if ($id) {
+                return (int) $id;
+            }
+        }
+
+        $phone = trim((string) ($user->phone ?? ''));
+        if ($phone !== '' && Schema::hasColumn('users', 'phone')) {
+            $byPhone = $this->findUserIdByPhoneInFirma($firmaId, $phone);
+            if ($byPhone !== null) {
+                return $byPhone;
+            }
+        }
+
+        $login = trim((string) ($user->login ?? ''));
+        if ($login !== '' && User::hasUsersColumn('login')) {
+            $id = User::query()->where('firma', $firmaId)->where('login', $login)->value('id');
+            if ($id) {
+                return (int) $id;
+            }
+        }
+
+        return null;
+    }
+
+    private function findUserIdByPhoneInFirma(string $firmaId, string $phone): ?int
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        $id = User::query()
+            ->where('firma', $firmaId)
+            ->where(function ($b) use ($phone, $digits) {
+                $b->where('phone', $phone);
+
+                if ($digits === '') {
+                    return;
+                }
+
+                $normalizedPhoneSql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')";
+
+                $b->orWhereRaw("{$normalizedPhoneSql} = ?", [$digits]);
+
+                if (str_starts_with($digits, '38')) {
+                    $b->orWhereRaw("{$normalizedPhoneSql} = ?", [substr($digits, 2)]);
+                } elseif (str_starts_with($digits, '0')) {
+                    $b->orWhereRaw("{$normalizedPhoneSql} = ?", ['38' . $digits]);
+                }
+            })
+            ->value('id');
+
+        return $id ? (int) $id : null;
     }
 
     private function fieldBaseQuery($fid, string $keyfield)
