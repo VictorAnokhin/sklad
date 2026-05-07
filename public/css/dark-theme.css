@@ -877,6 +877,47 @@ label {
     color: var(--muted-foreground);
 }
 
+.site-footer__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.65rem 1.75rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.site-footer__seg {
+    white-space: nowrap;
+}
+
+.site-footer__company {
+    font-weight: 600;
+    color: var(--foreground);
+    margin-right: 0.25rem;
+}
+
+.site-footer__link {
+    color: var(--accent-amber, #fbbf24);
+    text-decoration: none;
+}
+
+.site-footer__link:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+    .site-footer__inner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .site-footer__seg {
+        white-space: normal;
+    }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
     width: 10px;

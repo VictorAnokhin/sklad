@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Http\ViewComposers\PanelComposer;
+use App\Http\ViewComposers\SiteFooterComposer;
 use App\Models\Field;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Schema;
@@ -32,6 +33,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         View::composer(['partials.panel', 'partials.report_panel'], PanelComposer::class);
+        View::composer('partials.site_footer', SiteFooterComposer::class);
 
     }
 }

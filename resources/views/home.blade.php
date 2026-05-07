@@ -27,7 +27,7 @@
                 </div>
                 @yield('content')
             </div>
-
+            @include('partials.site_footer')
         </div>
     </div>
 
