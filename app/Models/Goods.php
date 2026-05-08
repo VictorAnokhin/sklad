@@ -412,7 +412,27 @@ class Goods extends Model
 
     // ── Web / API methods ─────────────────────────────────────────────────────
 
-    public static function getWebGoodsBySection($fid, $id, $limit, $offset, ?string $locale = 'ru', $targetTgroupId = null, bool $hitOnly = false, ?int $userId = null)
+    /**
+     * @return array<int, array{0: int, 1: int}>
+     */
+    private static function parseHtmlkeyspopFilterPairs(?string $raw): array
+    {
+        if ($raw === null || $raw === '') {
+            return [];
+        }
+
+        $out = [];
+        foreach (preg_split('/\s*,\s*/', trim($raw)) as $part) {
+            if ($part === '' || ! preg_match('/^(\d+)\s*:\s*(\d+)/', $part, $m)) {
+                continue;
+            }
+            $out[] = [(int) $m[1], (int) $m[2]];
+        }
+
+        return $out;
+    }
+
+    public static function getWebGoodsBySection($fid, $id, $limit, $offset, ?string $locale = 'ru', $targetTgroupId = null, bool $hitOnly = false, ?int $userId = null, ?string $htmlkeyspop = null)
     {
         $query = self::query()
             ->leftJoin('descript as d', function ($join) {
@@ -428,6 +448,12 @@ class Goods extends Model
 
         if ($hitOnly) {
             $query->where('comp.hit', 1);
+        }
+
+        $filterPairs = self::parseHtmlkeyspopFilterPairs($htmlkeyspop);
+        foreach ($filterPairs as [$groupId, $valueId]) {
+            $needle = $groupId . ':' . $valueId;
+            $query->where('comp.htmlkeyspop', 'LIKE', '%' . $needle . '%');
         }
 
         $totalCount = $query->count();

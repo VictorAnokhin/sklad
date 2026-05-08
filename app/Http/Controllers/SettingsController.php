@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BannerCarousel;
 use App\Models\Account;
+use App\Models\Filter;
 use App\Models\Firma;
 use App\Models\News;
 use App\Models\Project;
@@ -139,7 +140,19 @@ class SettingsController extends Controller
                 ->values()
             : collect();
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions')));
+        $catalogFiltersGroupCount = 0;
+        if (Schema::hasTable('filter') && Schema::hasTable('field')) {
+            $catalogIds = $this->fieldFilterCatalogBaseQuery($fid)->pluck('id');
+            if ($catalogIds->isNotEmpty()) {
+                $catalogFiltersGroupCount = (int) Filter::query()
+                    ->where('keyfield', 'filter')
+                    ->where('idfilter', 0)
+                    ->whereIn('idkeyfield', $catalogIds)
+                    ->count();
+            }
+        }
+
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -940,6 +953,288 @@ class SettingsController extends Controller
         return $this->fieldDestroyByKeyfield(request(), $id, 'catalog');
     }
 
+    // ── Catalog filters (filter.keyfield = filter, idkeyfield = field.id catalog) ─
+
+    public function catalogFiltersCategories()
+    {
+        if (!Schema::hasTable('field')) {
+            return response()->json(['categories' => []]);
+        }
+
+        $fid = session('fid', '');
+        $columns = $this->fieldColumns();
+        $select = ['id', 'idkeyfield'];
+        foreach (['val', 'valua', 'val_ua', 'valru'] as $col) {
+            if (in_array($col, $columns, true)) {
+                $select[] = $col;
+            }
+        }
+
+        $rows = $this->fieldFilterCatalogBaseQuery($fid)
+            ->orderBy('id')
+            ->get($select);
+
+        $byId = $rows->keyBy(fn ($r) => (int) $r->id);
+        $categories = $rows->map(function ($r) use ($byId) {
+            return [
+                'id' => (int) $r->id,
+                'label' => $this->catalogFieldLabelPath($byId, (int) $r->id),
+            ];
+        })->values();
+
+        return response()->json(['categories' => $categories]);
+    }
+
+    public function catalogFiltersIndex(Request $request)
+    {
+        if (!Schema::hasTable('filter')) {
+            return response()->json(['groups' => [], 'catalog_id' => null]);
+        }
+
+        $catalogId = (int) $request->query('catalog_id', 0);
+        if ($catalogId <= 0) {
+            return response()->json(['message' => 'Вкажіть catalog_id'], 422);
+        }
+
+        $fid = session('fid', '');
+        if (! $this->fieldFilterCatalogFind($fid, $catalogId)) {
+            return response()->json(['message' => 'Категорію не знайдено'], 404);
+        }
+
+        $groups = Filter::query()
+            ->where('keyfield', 'filter')
+            ->where('idkeyfield', $catalogId)
+            ->where('idfilter', 0)
+            ->orderBy('num')
+            ->orderBy('id')
+            ->get();
+
+        $payload = $groups->map(function ($g) use ($catalogId) {
+            $values = Filter::query()
+                ->where('keyfield', 'filter')
+                ->where('idkeyfield', $catalogId)
+                ->where('idfilter', $g->id)
+                ->orderBy('num')
+                ->orderBy('id')
+                ->get();
+
+            return [
+                'group' => $this->serializeCatalogFilter($g),
+                'values' => $values->map(fn ($v) => $this->serializeCatalogFilter($v))->values(),
+            ];
+        })->values();
+
+        return response()->json([
+            'groups' => $payload,
+            'catalog_id' => $catalogId,
+        ]);
+    }
+
+    public function catalogFiltersShow(Request $request, $id)
+    {
+        if (!Schema::hasTable('filter')) {
+            return response()->json(['message' => 'Не знайдено'], 404);
+        }
+
+        $row = Filter::query()->where('id', $id)->where('keyfield', 'filter')->first();
+        if (!$row) {
+            return response()->json(['message' => 'Не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        if (! $this->fieldFilterCatalogFind($fid, (string) $row->idkeyfield)) {
+            return response()->json(['message' => 'Не знайдено'], 404);
+        }
+
+        return response()->json($this->serializeCatalogFilter($row));
+    }
+
+    public function catalogFiltersStore(Request $request)
+    {
+        if (!Schema::hasTable('filter')) {
+            return response()->json(['success' => false, 'message' => 'Таблиця filter відсутня'], 404);
+        }
+
+        $data = $request->validate([
+            'catalog_id' => 'required|integer|min:1',
+            'is_group' => 'required|boolean',
+            'parent_group_id' => 'nullable|integer|min:1',
+            'val' => 'required|string|max:60',
+            'valru' => 'nullable|string|max:60',
+            'valen' => 'nullable|string|max:60',
+            'num' => 'nullable|integer|min:0|max:65535',
+        ]);
+
+        $fid = session('fid', '');
+        $catalogId = (int) $data['catalog_id'];
+        if (! $this->fieldFilterCatalogFind($fid, $catalogId)) {
+            return response()->json(['success' => false, 'message' => 'Категорію не знайдено'], 404);
+        }
+
+        $isGroup = (bool) $data['is_group'];
+        $idfilter = 0;
+        if (!$isGroup) {
+            $parentId = (int) ($data['parent_group_id'] ?? 0);
+            if ($parentId < 1) {
+                return response()->json(['success' => false, 'message' => 'Для значення потрібна група (parent_group_id)'], 422);
+            }
+            $parent = Filter::query()
+                ->where('id', $parentId)
+                ->where('keyfield', 'filter')
+                ->where('idkeyfield', $catalogId)
+                ->where('idfilter', 0)
+                ->first();
+            if (!$parent) {
+                return response()->json(['success' => false, 'message' => 'Групу фільтра не знайдено'], 404);
+            }
+            $idfilter = $parentId;
+        }
+
+        $payload = [
+            'idkeyfield' => $catalogId,
+            'idfilter' => $idfilter,
+            'keyfield' => 'filter',
+            'val' => $data['val'],
+            'valru' => (string) ($data['valru'] ?? ''),
+            'valen' => (string) ($data['valen'] ?? ''),
+            'count' => 0,
+            'top' => 0,
+            'num' => (int) ($data['num'] ?? 0),
+        ];
+
+        foreach (['description', 'descriptionen', 'descriptionru'] as $col) {
+            if (Schema::hasColumn('filter', $col)) {
+                $payload[$col] = '';
+            }
+        }
+
+        $newId = Filter::query()->insertGetId($payload);
+        $row = Filter::query()->find($newId);
+
+        return response()->json([
+            'success' => true,
+            'item' => $row ? $this->serializeCatalogFilter($row) : null,
+        ]);
+    }
+
+    public function catalogFiltersUpdate(Request $request, $id)
+    {
+        if (!Schema::hasTable('filter')) {
+            return response()->json(['success' => false, 'message' => 'Таблиця filter відсутня'], 404);
+        }
+
+        $row = Filter::query()->where('id', $id)->where('keyfield', 'filter')->first();
+        if (!$row) {
+            return response()->json(['success' => false, 'message' => 'Запис не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        if (! $this->fieldFilterCatalogFind($fid, (string) $row->idkeyfield)) {
+            return response()->json(['success' => false, 'message' => 'Запис не знайдено'], 404);
+        }
+
+        $data = $request->validate([
+            'val' => 'required|string|max:60',
+            'valru' => 'nullable|string|max:60',
+            'valen' => 'nullable|string|max:60',
+            'num' => 'nullable|integer|min:0|max:65535',
+        ]);
+
+        $update = [
+            'val' => $data['val'],
+            'valru' => (string) ($data['valru'] ?? ''),
+            'valen' => (string) ($data['valen'] ?? ''),
+            'num' => (int) ($data['num'] ?? 0),
+        ];
+
+        Filter::query()->where('id', $id)->update($update);
+        $fresh = Filter::query()->find($id);
+
+        return response()->json([
+            'success' => true,
+            'item' => $fresh ? $this->serializeCatalogFilter($fresh) : null,
+        ]);
+    }
+
+    public function catalogFiltersDestroy(Request $request, $id)
+    {
+        if (!Schema::hasTable('filter')) {
+            return response()->json(['success' => false, 'message' => 'Таблиця filter відсутня'], 404);
+        }
+
+        $row = Filter::query()->where('id', $id)->where('keyfield', 'filter')->first();
+        if (!$row) {
+            return response()->json(['success' => false, 'message' => 'Запис не знайдено'], 404);
+        }
+
+        $fid = session('fid', '');
+        if (! $this->fieldFilterCatalogFind($fid, (string) $row->idkeyfield)) {
+            return response()->json(['success' => false, 'message' => 'Запис не знайдено'], 404);
+        }
+
+        DB::transaction(function () use ($row) {
+            if ((int) $row->idfilter === 0) {
+                Filter::query()
+                    ->where('keyfield', 'filter')
+                    ->where('idkeyfield', $row->idkeyfield)
+                    ->where('idfilter', $row->id)
+                    ->delete();
+            }
+            Filter::query()->where('id', $row->id)->delete();
+        });
+
+        return response()->json(['success' => true]);
+    }
+
+    private function catalogFieldLabelPath($byId, int $id): string
+    {
+        $segments = [];
+        $guard = 0;
+        $current = $id;
+
+        while ($current > 0 && $guard++ < 80) {
+            $row = $byId->firstWhere('id', $current);
+            if (! $row) {
+                $row = $byId->firstWhere('id', (string) $current);
+            }
+            if (! $row) {
+                break;
+            }
+
+            $ua = '';
+            if (property_exists($row, 'valua')) {
+                $ua = trim((string) ($row->valua ?? ''));
+            } elseif (property_exists($row, 'val_ua')) {
+                $ua = trim((string) ($row->val_ua ?? ''));
+            }
+            $ru = trim((string) ($row->val ?? ''));
+            $legacyRu = property_exists($row, 'valru') ? trim((string) ($row->valru ?? '')) : '';
+
+            $name = $ua !== '' ? $ua : ($ru !== '' ? $ru : ($legacyRu !== '' ? $legacyRu : '#' . $row->id));
+            $segments[] = $name;
+            $pid = (int) ($row->idkeyfield ?? 0);
+            if ($pid <= 0) {
+                break;
+            }
+            $current = $pid;
+        }
+
+        return implode(' → ', array_reverse($segments));
+    }
+
+    private function serializeCatalogFilter(object $row): array
+    {
+        return [
+            'id' => (int) $row->id,
+            'idkeyfield' => (int) ($row->idkeyfield ?? 0),
+            'idfilter' => (int) ($row->idfilter ?? 0),
+            'val' => (string) ($row->val ?? ''),
+            'valru' => (string) ($row->valru ?? ''),
+            'valen' => (string) ($row->valen ?? ''),
+            'num' => (int) ($row->num ?? 0),
+        ];
+    }
+
     private function currentUser()
     {
         if (Auth::check()) {
@@ -1498,6 +1793,36 @@ class SettingsController extends Controller
     private function fieldFind($fid, string $keyfield, $id)
     {
         return $this->fieldBaseQuery($fid, $keyfield)->where('id', $id)->first();
+    }
+
+    /**
+     * Категорії каталогу, доступні для прив’язки фільтрів: firma = поточний проєкт або 0 (спільні).
+     */
+    private function fieldFilterCatalogBaseQuery($fid)
+    {
+        $firma = ($fid === null || $fid === '') ? 0 : (int) $fid;
+
+        return DB::table('field')
+            ->where('keyfield', 'catalog')
+            ->where(function ($nested) use ($firma) {
+                $nested->where('firma', $firma);
+                if ($firma !== 0) {
+                    $nested->orWhere('firma', 0);
+                }
+            });
+    }
+
+    private function fieldFilterCatalogFind($fid, $catalogId): ?object
+    {
+        if (! Schema::hasTable('field')) {
+            return null;
+        }
+        $id = (int) $catalogId;
+        if ($id <= 0) {
+            return null;
+        }
+
+        return $this->fieldFilterCatalogBaseQuery($fid)->where('id', $id)->first();
     }
 
     private function fieldColumns(): array

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Goods;
 use App\Models\Field;
+use App\Models\Filter;
 use App\Models\Price;
 use App\Models\Rating;
 use App\Support\MediaUrl;
@@ -77,12 +78,38 @@ class GoodsController extends Controller
         ));
     }
 
+    /**
+     * @return array<int, array{0: int, 1: int}>
+     */
+    private function parseHtmlkeyspopFilterPairs(?string $raw): array
+    {
+        if ($raw === null || $raw === '') {
+            return [];
+        }
+
+        $out = [];
+        foreach (preg_split('/\s*,\s*/', trim($raw)) as $part) {
+            if ($part === '' || ! preg_match('/^(\d+)\s*:\s*(\d+)/', $part, $m)) {
+                continue;
+            }
+            $out[] = [(int) $m[1], (int) $m[2]];
+        }
+
+        return $out;
+    }
+
     // ── Search (Web API — for Accessories page) ──────────────────────────────
 
     public function searchWeb(Request $request)
     {
-        $q = $request->input('q');
-        if (!$q || mb_strlen($q) < 2) {
+        $q = trim((string) $request->input('q', ''));
+        $htmlkeyspopRaw = (string) $request->input('htmlkeyspop', '');
+        $filterPairs = $this->parseHtmlkeyspopFilterPairs($htmlkeyspopRaw);
+
+        $qOk = mb_strlen($q) >= 2;
+        $filtersOk = $filterPairs !== [];
+
+        if (! $qOk && ! $filtersOk) {
             return response()->json([]);
         }
 
@@ -99,14 +126,22 @@ class GoodsController extends Controller
                     ->where('d.firma', '=', $fid);
             })
             ->where('comp.firma', $fid)
-            ->where(function ($query) use ($q) {
-                $query->where('d.name', 'LIKE', "%{$q}%")
-                    ->orWhere('d.name_ua', 'LIKE', "%{$q}%")
-                    ->orWhere('d.name_en', 'LIKE', "%{$q}%")
-                    ->orWhere('d.description', 'LIKE', "%{$q}%")
-                    ->orWhere('d.description_ua', 'LIKE', "%{$q}%")
-                    ->orWhere('d.description_en', 'LIKE', "%{$q}%")
-                    ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$q}%");
+            ->where(function ($outer) use ($qOk, $q, $filterPairs) {
+                if ($qOk) {
+                    $outer->where(function ($query) use ($q) {
+                        $query->where('d.name', 'LIKE', "%{$q}%")
+                            ->orWhere('d.name_ua', 'LIKE', "%{$q}%")
+                            ->orWhere('d.name_en', 'LIKE', "%{$q}%")
+                            ->orWhere('d.description', 'LIKE', "%{$q}%")
+                            ->orWhere('d.description_ua', 'LIKE', "%{$q}%")
+                            ->orWhere('d.description_en', 'LIKE', "%{$q}%")
+                            ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$q}%");
+                    });
+                }
+                foreach ($filterPairs as [$groupId, $valueId]) {
+                    $needle = $groupId . ':' . $valueId;
+                    $outer->where('comp.htmlkeyspop', 'LIKE', '%' . $needle . '%');
+                }
             })
             ->select(
                 'comp.id',
@@ -304,13 +339,24 @@ class GoodsController extends Controller
         $limit = (int) $request->input('limit', 20);
         $offset = (int) $request->input('offset', 0);
         $hitOnly = $request->boolean('hit');
+        $htmlkeyspopRaw = trim((string) $request->input('htmlkeyspop', ''));
 
         $fid = $this->resolveApiFid($request, '2');
         $locale = $this->resolveApiLocale($request);
 
         $user = Auth::guard('sanctum')->user();
         $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
-        $result = Goods::getWebGoodsBySection($fid, $id, $limit, $offset, $locale, $tgroupId, $hitOnly, $user?->id);
+        $result = Goods::getWebGoodsBySection(
+            $fid,
+            $id,
+            $limit,
+            $offset,
+            $locale,
+            $tgroupId,
+            $hitOnly,
+            $user?->id,
+            $htmlkeyspopRaw !== '' ? $htmlkeyspopRaw : null
+        );
 
         return response()->json([
             'success' => true,
@@ -428,8 +474,128 @@ class GoodsController extends Controller
             'news',
             'filterTags',
             'fid',
-            'pnum'
+            'pnum',
+            'locale'
         ));
+    }
+
+    /**
+     * Групи та значення filter.* для категорій товару (idcaption, idglava) — для форми comp.htmlkeyspop (формат id_групи:id_значення,).
+     */
+    public function catalogFilterGroups(Request $request)
+    {
+        $fid = (string) session('fid', '');
+        $idcaption = (int) $request->query('idcaption', 0);
+        $idglava = (int) $request->query('idglava', 0);
+
+        return response()->json([
+            'groups' => $this->buildCatalogFilterGroupsPayload($fid, $idcaption, $idglava),
+        ]);
+    }
+
+    /**
+     * Public API: ті самі групи фільтрів, що в налаштуваннях «Фільтр» (по fid з query — як інші /api/goods/*).
+     */
+    public function catalogFilterGroupsApi(Request $request)
+    {
+        $fid = $this->resolveApiFid($request, '2');
+        $idcaption = (int) $request->query('idcaption', 0);
+        $idglava = (int) $request->query('idglava', 0);
+
+        return response()->json([
+            'groups' => $this->buildCatalogFilterGroupsPayload($fid, $idcaption, $idglava),
+        ]);
+    }
+
+    /**
+     * @return list<array{catalog_id: int, group: array, values: \Illuminate\Support\Collection<int, array>}>
+     */
+    private function buildCatalogFilterGroupsPayload(string $fid, int $idcaption, int $idglava): array
+    {
+        if (! Schema::hasTable('filter')) {
+            return [];
+        }
+
+        $catalogIds = array_values(array_unique(array_filter([$idcaption, $idglava], fn ($x) => $x > 0)));
+
+        if ($catalogIds === []) {
+            return [];
+        }
+
+        $payload = [];
+        $seenGroupIds = [];
+
+        foreach ($catalogIds as $cid) {
+            if (! $this->goodsCatalogFieldExists($fid, $cid)) {
+                continue;
+            }
+            $groups = Filter::query()
+                ->where('keyfield', 'filter')
+                ->where('idkeyfield', $cid)
+                ->where('idfilter', 0)
+                ->orderBy('num')
+                ->orderBy('id')
+                ->get();
+
+            foreach ($groups as $g) {
+                $gid = (int) $g->id;
+                if (isset($seenGroupIds[$gid])) {
+                    continue;
+                }
+                $seenGroupIds[$gid] = true;
+
+                $values = Filter::query()
+                    ->where('keyfield', 'filter')
+                    ->where('idkeyfield', $cid)
+                    ->where('idfilter', $gid)
+                    ->orderBy('num')
+                    ->orderBy('id')
+                    ->get();
+
+                $payload[] = [
+                    'catalog_id' => $cid,
+                    'group' => $this->goodsSerializeFilterRow($g),
+                    'values' => $values->map(fn ($v) => $this->goodsSerializeFilterRow($v))->values(),
+                ];
+            }
+        }
+
+        return $payload;
+    }
+
+    private function goodsCatalogFieldQuery($fid)
+    {
+        $firma = ($fid === null || $fid === '') ? 0 : (int) $fid;
+
+        return DB::table('field')
+            ->where('keyfield', 'catalog')
+            ->where(function ($nested) use ($firma) {
+                $nested->where('firma', $firma);
+                if ($firma !== 0) {
+                    $nested->orWhere('firma', 0);
+                }
+            });
+    }
+
+    private function goodsCatalogFieldExists($fid, int $catalogId): bool
+    {
+        if (! Schema::hasTable('field') || $catalogId <= 0) {
+            return false;
+        }
+
+        return $this->goodsCatalogFieldQuery($fid)->where('id', $catalogId)->exists();
+    }
+
+    private function goodsSerializeFilterRow(object $row): array
+    {
+        return [
+            'id' => (int) $row->id,
+            'idkeyfield' => (int) ($row->idkeyfield ?? 0),
+            'idfilter' => (int) ($row->idfilter ?? 0),
+            'val' => (string) ($row->val ?? ''),
+            'valru' => (string) ($row->valru ?? ''),
+            'valen' => (string) ($row->valen ?? ''),
+        ];
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────

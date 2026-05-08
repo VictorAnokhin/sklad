@@ -64,4 +64,12 @@ class ApiSmokeTest extends TestCase
         $response->assertStatus(200);
         $response->assertExactJson([]);
     }
+
+    public function test_goods_catalog_filter_groups_returns_json_structure(): void
+    {
+        $response = $this->getJson('/api/goods/catalog-filter-groups');
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure(['groups']);
+    }
 }

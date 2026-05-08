@@ -107,6 +107,16 @@
         </div>
 
         <div class="col-md-4">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalogFilters">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🔎 Фільтри каталогу</h5>
+                    <p class="card-text text-muted">Групи та значення (filter → категорія catalog)</p>
+                    <span class="badge bg-primary" id="badge-catalog-filters">{{ $catalogFiltersGroupCount ?? 0 }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
             <div class="glass-card h-100 border-primary setting-card" data-bs-toggle="modal" data-bs-target="#modalProfile">
                 <div class="card-body text-center">
                     <h5 class="card-title">👤 Профіль</h5>
@@ -422,6 +432,68 @@
                     </table>
                 </div>
                 <p class="text-center text-muted" id="catalog-empty-msg" style="display:none">Записей пока нет</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCatalogFilters" tabindex="-1" aria-labelledby="modalCatalogFiltersLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header flex-wrap gap-2">
+                <h5 class="modal-title" id="modalCatalogFiltersLabel">🔎 Фільтри каталогу</h5>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-catalog-filters-add-group">+ Група</button>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Закрити"></button>
+            </div>
+            <div class="modal-body">
+                <div id="catalog-filters-main-area">
+                    <div class="row g-2 align-items-end mb-3">
+                        <div class="col-md-10">
+                            <label class="form-label" for="catalog-filters-category">Категорія (field.keyfield = catalog)</label>
+                            <select class="form-select" id="catalog-filters-category">
+                                <option value="">— оберіть —</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-outline-primary w-100" id="btn-catalog-filters-load">Показати</button>
+                        </div>
+                    </div>
+                    <div id="catalog-filters-list" class="catalog-filters-tree"></div>
+                    <p class="text-center text-muted mt-3" id="catalog-filters-empty" style="display:none;">Немає даних для обраної категорії</p>
+                </div>
+                <div id="catalog-filters-form-area" style="display:none;">
+                    <form id="catalog-filters-form">
+                        <input type="hidden" id="catalog-filters-record-id" value="">
+                        <input type="hidden" id="catalog-filters-catalog-id" value="">
+                        <input type="hidden" id="catalog-filters-is-group" value="1">
+                        <input type="hidden" id="catalog-filters-parent-group-id" value="">
+                        <div class="alert alert-secondary py-2" id="catalog-filters-form-hint"></div>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label">Назва UA (val) <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="catalog-filters-val" maxlength="60" required>
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label">Назва RU (valru)</label>
+                                <input type="text" class="form-control" id="catalog-filters-valru" maxlength="60">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label">Назва EN (valen)</label>
+                                <input type="text" class="form-control" id="catalog-filters-valen" maxlength="60">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label">Порядок (num)</label>
+                                <input type="number" class="form-control" id="catalog-filters-num" min="0" max="65535" value="0">
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button type="submit" class="btn btn-success">Зберегти</button>
+                            <button type="button" class="btn btn-secondary" id="btn-catalog-filters-form-cancel">Скасувати</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -1424,6 +1496,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initProjectsCrud(csrf);
     initConfCrud(csrf);
     initCatalogCrud(csrf, catalogNewsOptions);
+    initCatalogFiltersCrud(csrf);
     initFirmsCrud(csrf);
     initBannerCrud(csrf);
     initAccountsCrud(csrf);
@@ -3420,6 +3493,326 @@ document.addEventListener('DOMContentLoaded', () => {
             if (breadcrumbBox) breadcrumbBox.style.display = config.allowChildren ? '' : 'none';
             if (backBtn) backBtn.style.display = 'none';
         }
+    }
+
+    function initCatalogFiltersCrud(csrfToken) {
+        const modal = document.getElementById('modalCatalogFilters');
+        if (!modal) {
+            return;
+        }
+
+        const catSelect = document.getElementById('catalog-filters-category');
+        const listHost = document.getElementById('catalog-filters-list');
+        const emptyMsg = document.getElementById('catalog-filters-empty');
+        const mainArea = document.getElementById('catalog-filters-main-area');
+        const formArea = document.getElementById('catalog-filters-form-area');
+        const form = document.getElementById('catalog-filters-form');
+        const formHint = document.getElementById('catalog-filters-form-hint');
+        const btnLoad = document.getElementById('btn-catalog-filters-load');
+        const btnAddGroup = document.getElementById('btn-catalog-filters-add-group');
+        const btnCancel = document.getElementById('btn-catalog-filters-form-cancel');
+
+        const routes = {
+            categories: @json(route('settings.catalogFilters.categories')),
+            index: @json(route('settings.catalogFilters.index')),
+            store: @json(route('settings.catalogFilters.store')),
+        };
+        const itemBase = @json(url('/settings/catalog-filters'));
+        const itemUrl = (id) => `${itemBase}/${encodeURIComponent(id)}`;
+
+        function bumpBadge(delta) {
+            const el = document.getElementById('badge-catalog-filters');
+            if (!el) {
+                return;
+            }
+            const cur = parseInt(el.textContent, 10) || 0;
+            el.textContent = String(Math.max(0, cur + delta));
+        }
+
+        function showMain() {
+            mainArea.style.display = 'block';
+            formArea.style.display = 'none';
+        }
+
+        function showForm(hint) {
+            formHint.textContent = hint || '';
+            mainArea.style.display = 'none';
+            formArea.style.display = 'block';
+        }
+
+        function resetForm() {
+            document.getElementById('catalog-filters-record-id').value = '';
+            document.getElementById('catalog-filters-val').value = '';
+            document.getElementById('catalog-filters-valru').value = '';
+            document.getElementById('catalog-filters-valen').value = '';
+            document.getElementById('catalog-filters-num').value = '0';
+        }
+
+        async function loadCategories() {
+            const r = await fetch(routes.categories, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            if (!r.ok) {
+                const txt = await r.text();
+                console.error('catalog-filters categories', r.status, txt.slice(0, 500));
+                alert('Не вдалося завантажити категорії (HTTP ' + r.status + ')');
+                return;
+            }
+            let data;
+            try {
+                data = await r.json();
+            } catch (e) {
+                alert('Некоректна відповідь сервера для списку категорій');
+                return;
+            }
+            const items = data.categories || [];
+            catSelect.innerHTML = '<option value="">— оберіть —</option>';
+            items.forEach((c) => {
+                const o = document.createElement('option');
+                o.value = String(c.id);
+                o.textContent = `#${c.id} ${c.label}`;
+                catSelect.appendChild(o);
+            });
+        }
+
+        function selectedCatalogId() {
+            return catSelect.value || '';
+        }
+
+        async function loadFilters() {
+            const cid = selectedCatalogId();
+            if (!cid) {
+                alert('Оберіть категорію');
+                return;
+            }
+            listHost.innerHTML = '<p class="text-muted">Завантаження...</p>';
+            const r = await fetch(`${routes.index}?catalog_id=${encodeURIComponent(cid)}`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            let data;
+            try {
+                data = await r.json();
+            } catch (e) {
+                alert('Некоректна відповідь сервера');
+                listHost.innerHTML = '';
+                return;
+            }
+            if (!r.ok) {
+                alert(data.message || 'Помилка');
+                listHost.innerHTML = '';
+                return;
+            }
+            renderTree(data.groups || []);
+        }
+
+        function renderTree(groups) {
+            listHost.innerHTML = '';
+            if (!groups.length) {
+                emptyMsg.style.display = 'block';
+                return;
+            }
+            emptyMsg.style.display = 'none';
+
+            groups.forEach(({ group, values }) => {
+                const wrap = document.createElement('div');
+                wrap.className = 'glass-card mb-3 p-3';
+                const g = group;
+                wrap.innerHTML = `
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <div>
+                            <strong>Група #${g.id}</strong>
+                            <div class="small text-muted">UA: ${escapeHtml(g.val)} | RU: ${escapeHtml(g.valru)} | EN: ${escapeHtml(g.valen)} | num: ${g.num}</div>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary cf-edit" data-id="${g.id}">Змінити</button>
+                            <button type="button" class="btn btn-outline-danger cf-del-group" data-id="${g.id}">Видалити</button>
+                            <button type="button" class="btn btn-outline-success cf-add-val" data-group-id="${g.id}">+ Значення</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead><tr><th>ID</th><th>UA</th><th>RU</th><th>EN</th><th>num</th><th></th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                `;
+                const tbody = wrap.querySelector('tbody');
+                (values || []).forEach((v) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${v.id}</td>
+                        <td>${escapeHtml(v.val)}</td>
+                        <td>${escapeHtml(v.valru)}</td>
+                        <td>${escapeHtml(v.valen)}</td>
+                        <td>${v.num}</td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-secondary cf-edit" data-id="${v.id}">Змінити</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger cf-del-val" data-id="${v.id}">Видалити</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                listHost.appendChild(wrap);
+            });
+
+            listHost.querySelectorAll('.cf-edit').forEach((b) => {
+                b.addEventListener('click', () => startEdit(b.dataset.id));
+            });
+            listHost.querySelectorAll('.cf-del-group').forEach((b) => {
+                b.addEventListener('click', () => destroyRow(b.dataset.id, true));
+            });
+            listHost.querySelectorAll('.cf-add-val').forEach((b) => {
+                b.addEventListener('click', () => startAddValue(b.dataset.groupId));
+            });
+            listHost.querySelectorAll('.cf-del-val').forEach((b) => {
+                b.addEventListener('click', () => destroyRow(b.dataset.id, false));
+            });
+        }
+
+        modal.addEventListener('show.bs.modal', () => {
+            showMain();
+            resetForm();
+            void loadCategories();
+        });
+
+        btnLoad.addEventListener('click', () => void loadFilters());
+        btnAddGroup.addEventListener('click', () => startAddGroup());
+        btnCancel.addEventListener('click', () => {
+            showMain();
+            resetForm();
+        });
+
+        function startAddGroup() {
+            const cid = selectedCatalogId();
+            if (!cid) {
+                alert('Оберіть категорію');
+                return;
+            }
+            resetForm();
+            document.getElementById('catalog-filters-record-id').value = '';
+            document.getElementById('catalog-filters-catalog-id').value = cid;
+            document.getElementById('catalog-filters-is-group').value = '1';
+            document.getElementById('catalog-filters-parent-group-id').value = '';
+            showForm('Нова група (idfilter = 0)');
+        }
+
+        function startAddValue(groupId) {
+            const cid = selectedCatalogId();
+            if (!cid) {
+                alert('Оберіть категорію');
+                return;
+            }
+            resetForm();
+            document.getElementById('catalog-filters-record-id').value = '';
+            document.getElementById('catalog-filters-catalog-id').value = cid;
+            document.getElementById('catalog-filters-is-group').value = '0';
+            document.getElementById('catalog-filters-parent-group-id').value = String(groupId);
+            showForm(`Нове значення для групи #${groupId}`);
+        }
+
+        async function startEdit(id) {
+            const r = await fetch(itemUrl(id), { headers: { Accept: 'application/json' } });
+            const row = await r.json();
+            if (!r.ok) {
+                alert(row.message || 'Помилка');
+                return;
+            }
+            const isGroup = Number(row.idfilter) === 0;
+            document.getElementById('catalog-filters-record-id').value = String(row.id);
+            document.getElementById('catalog-filters-catalog-id').value = String(row.idkeyfield);
+            document.getElementById('catalog-filters-is-group').value = isGroup ? '1' : '0';
+            document.getElementById('catalog-filters-parent-group-id').value = isGroup ? '' : String(row.idfilter);
+            document.getElementById('catalog-filters-val').value = row.val || '';
+            document.getElementById('catalog-filters-valru').value = row.valru || '';
+            document.getElementById('catalog-filters-valen').value = row.valen || '';
+            document.getElementById('catalog-filters-num').value = String(row.num ?? 0);
+            showForm(isGroup ? `Редагування групи #${id}` : `Редагування значення #${id}`);
+        }
+
+        async function destroyRow(id, isGroup) {
+            if (!confirm(isGroup ? 'Видалити групу та всі значення?' : 'Видалити значення?')) {
+                return;
+            }
+            const r = await fetch(itemUrl(id), {
+                method: 'DELETE',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok || !data.success) {
+                alert(data.message || 'Помилка видалення');
+                return;
+            }
+            if (isGroup) {
+                bumpBadge(-1);
+            }
+            void loadFilters();
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const recordId = document.getElementById('catalog-filters-record-id').value;
+            const cid = document.getElementById('catalog-filters-catalog-id').value;
+            const isGroup = document.getElementById('catalog-filters-is-group').value === '1';
+            const body = {
+                val: document.getElementById('catalog-filters-val').value.trim(),
+                valru: document.getElementById('catalog-filters-valru').value.trim(),
+                valen: document.getElementById('catalog-filters-valen').value.trim(),
+                num: parseInt(document.getElementById('catalog-filters-num').value, 10) || 0,
+            };
+            if (!body.val) {
+                alert('Вкажіть назву UA (val)');
+                return;
+            }
+
+            if (recordId) {
+                const r = await fetch(itemUrl(recordId), {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: JSON.stringify(body),
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || !data.success) {
+                    alert(data.message || 'Помилка збереження');
+                    return;
+                }
+            } else {
+                const payload = {
+                    catalog_id: parseInt(cid, 10),
+                    is_group: isGroup,
+                    parent_group_id: isGroup ? null : parseInt(document.getElementById('catalog-filters-parent-group-id').value, 10),
+                    ...body,
+                };
+                const r = await fetch(routes.store, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: JSON.stringify(payload),
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || !data.success) {
+                    alert(data.message || 'Помилка збереження');
+                    return;
+                }
+                if (isGroup) {
+                    bumpBadge(1);
+                }
+            }
+            showMain();
+            resetForm();
+            void loadFilters();
+        });
     }
 
     function initFirmsCrud(csrfToken) {

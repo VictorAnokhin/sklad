@@ -116,6 +116,7 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('goods')->name('goods.')->group(function () {
             Route::get('/', [GoodsController::class , 'index'])->name('index');
             Route::get('/show', [GoodsController::class , 'show'])->name('show');
+            Route::get('/catalog-filter-groups', [GoodsController::class, 'catalogFilterGroups'])->name('catalogFilterGroups');
             Route::get('/search', [GoodsController::class , 'search'])->name('search');
             Route::post('/save', [GoodsController::class , 'save'])->name('save');
             Route::post('/delete', [GoodsController::class , 'destroy'])->name('destroy');
@@ -210,6 +211,12 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/catalog', [SettingsController::class , 'catalogStore'])->name('catalog.store');
             Route::put('/catalog/{id}', [SettingsController::class , 'catalogUpdate'])->name('catalog.update');
             Route::delete('/catalog/{id}', [SettingsController::class , 'catalogDestroy'])->name('catalog.destroy');
+            Route::get('/catalog-filters/categories', [SettingsController::class, 'catalogFiltersCategories'])->name('catalogFilters.categories');
+            Route::get('/catalog-filters', [SettingsController::class, 'catalogFiltersIndex'])->name('catalogFilters.index');
+            Route::get('/catalog-filters/{id}', [SettingsController::class, 'catalogFiltersShow'])->name('catalogFilters.show');
+            Route::post('/catalog-filters', [SettingsController::class, 'catalogFiltersStore'])->name('catalogFilters.store');
+            Route::put('/catalog-filters/{id}', [SettingsController::class, 'catalogFiltersUpdate'])->name('catalogFilters.update');
+            Route::delete('/catalog-filters/{id}', [SettingsController::class, 'catalogFiltersDestroy'])->name('catalogFilters.destroy');
             Route::get('/banners', [SettingsController::class , 'bannersIndex'])->name('banners.index');
             Route::get('/banners/{id}', [SettingsController::class , 'bannersShow'])->name('banners.show');
             Route::post('/banners', [SettingsController::class , 'bannersStore'])->name('banners.store');

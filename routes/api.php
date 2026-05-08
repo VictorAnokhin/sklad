@@ -41,6 +41,7 @@ Route::middleware('api')->prefix('auth')->group(function () {
 // ── Goods API ─────────────────────────────────────────────────────────────
 
 Route::get('/goods/search', [GoodsController::class, 'searchWeb']);
+Route::get('/goods/catalog-filter-groups', [GoodsController::class, 'catalogFilterGroupsApi']);
 Route::get('/goods/hits', [GoodsController::class, 'getHits']);
 Route::get('/goods/sections', [GoodsController::class, 'getSections']);
 Route::get('/goods/section/{id}', [GoodsController::class, 'getBySection']);

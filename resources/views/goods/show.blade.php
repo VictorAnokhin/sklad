@@ -400,6 +400,23 @@
             </div>
         </div>
 
+        {{-- Фільтри каталогу (filter) → comp.htmlkeyspop: id_групи:id_значення, --}}
+        <div class="gs-section" id="goods-catalog-filters-section">
+            <div class="gs-section-title">Фільтри каталогу</div>
+            <p class="small text-muted mb-2" style="color: rgba(255,255,255,0.45) !important;">
+                Оберіть підкатегорію — з’являться групи з таблиці <code>filter</code> для цієї категорії та батьківської. У полі нижче зберігається рядок на кшталт <code>729:730,761:762,</code> (ключ — id групи, значення — id опції).
+            </p>
+            <div id="goods-catalog-filters-ui" class="gs-row" style="margin-bottom: 10px;"></div>
+            <p class="small text-muted mb-1" id="goods-catalog-filters-hint" style="display:none;color: rgba(251,191,36,0.65) !important;"></p>
+            <div class="gs-row">
+                <div class="gs-col-3">
+                    <label>htmlkeyspop (автозаповнення)</label>
+                    <textarea name="htmlkeyspop" id="goods-htmlkeyspop" class="form-control" rows="2"
+                        placeholder="729:730,761:762,">{{ $comp->htmlkeyspop ?? '' }}</textarea>
+                </div>
+            </div>
+        </div>
+
         {{-- Назви --}}
         <div class="gs-section">
             <div class="gs-section-title">Назва</div>
@@ -572,10 +589,6 @@
                     <label>HTML keys</label>
                     <textarea name="htmlkeys" class="form-control">{{ $comp->htmlkeys ?? '' }}</textarea>
                 </div>
-                <div class="gs-col">
-                    <label>HTML keys pop</label>
-                    <textarea name="htmlkeyspop" class="form-control">{{ $comp->htmlkeyspop ?? '' }}</textarea>
-                </div>
             </div>
         </div>
 
@@ -658,6 +671,135 @@ var goodsShowAllSubs = @json(
         collect($items)->map(fn($s) => ['id' => $s->id, 'val' => $s->val])->values()
     )
 );
+var goodsShowLocale = @json($locale ?? 'ru');
+var goodsCatalogFilterGroupsUrl = @json(route('goods.catalogFilterGroups'));
+
+function goodsFilterLabel(row) {
+    if (!row) return '';
+    var loc = (goodsShowLocale || 'ru').toLowerCase();
+    if (loc === 'en' && row.valen) return row.valen;
+    if (loc === 'ru' && row.valru) return row.valru;
+    if ((loc === 'ua' || loc === 'uk') && row.val) return row.val;
+    return row.val || row.valru || row.valen || ('#' + row.id);
+}
+
+function goodsParseHtmlkeyspop(str) {
+    var map = {};
+    String(str || '').replace(/\s+/g, '').split(',').forEach(function(seg) {
+        if (!seg) return;
+        var i = seg.indexOf(':');
+        if (i === -1) return;
+        var g = seg.slice(0, i);
+        var v = seg.slice(i + 1);
+        if (/^\d+$/.test(g) && /^\d+$/.test(v)) map[g] = v;
+    });
+    return map;
+}
+
+function goodsSerializeHtmlkeyspop(map) {
+    return Object.keys(map).sort(function(a, b) { return Number(a) - Number(b); })
+        .map(function(g) { return g + ':' + map[g] + ','; }).join('');
+}
+
+function goodsSyncHtmlkeyspopFromUi() {
+    var ta = document.getElementById('goods-htmlkeyspop');
+    if (!ta) return;
+    var map = goodsParseHtmlkeyspop(ta.value);
+    document.querySelectorAll('.goods-cat-filter-select').forEach(function(sel) {
+        var gid = sel.getAttribute('data-group-id');
+        if (!gid) return;
+        if (sel.value) map[gid] = sel.value;
+        else delete map[gid];
+    });
+    ta.value = goodsSerializeHtmlkeyspop(map);
+}
+
+function goodsApplyMapToFilterSelects(map) {
+    document.querySelectorAll('.goods-cat-filter-select').forEach(function(sel) {
+        var gid = sel.getAttribute('data-group-id');
+        if (!gid || !map[gid]) return;
+        var want = String(map[gid]);
+        var has = Array.prototype.some.call(sel.options, function(o) { return o.value === want; });
+        if (has) sel.value = want;
+    });
+}
+
+function goodsReloadCatalogFilters() {
+    var mount = document.getElementById('goods-catalog-filters-ui');
+    var hint = document.getElementById('goods-catalog-filters-hint');
+    var ta = document.getElementById('goods-htmlkeyspop');
+    if (!mount || !ta) return;
+
+    var topSel = document.getElementById('goodsShowTopSelect');
+    var subSel = document.getElementById('goodsShowSubSelect');
+    var idglava = topSel && topSel.value ? topSel.value : '';
+    var idcaption = subSel && subSel.value ? subSel.value : '';
+
+    var preset = goodsParseHtmlkeyspop(ta.value);
+
+    if (!idcaption && !idglava) {
+        mount.innerHTML = '';
+        if (hint) { hint.style.display = 'none'; hint.textContent = ''; }
+        return;
+    }
+
+    mount.innerHTML = '<div class="text-muted small">Завантаження фільтрів…</div>';
+    if (hint) { hint.style.display = 'none'; }
+
+    var url = goodsCatalogFilterGroupsUrl
+        + '?idcaption=' + encodeURIComponent(idcaption || '0')
+        + '&idglava=' + encodeURIComponent(idglava || '0');
+
+    fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+        .then(function(r) {
+            return r.json().then(function(data) { return { ok: r.ok, data: data }; });
+        })
+        .then(function(res) {
+            mount.innerHTML = '';
+            if (!res.ok) {
+                mount.innerHTML = '<div class="text-danger small">' + (res.data && res.data.message ? res.data.message : 'Помилка завантаження') + '</div>';
+                return;
+            }
+            var groups = (res.data && res.data.groups) || [];
+            if (!groups.length) {
+                mount.innerHTML = '<div class="text-muted small">Для цієї категорії немає налаштованих фільтрів у таблиці filter.</div>';
+                if (hint) { hint.style.display = 'block'; hint.textContent = 'Можна залишити лише рядок у htmlkeyspop вручну.'; }
+                return;
+            }
+            groups.forEach(function(block) {
+                var g = block.group;
+                if (!g) return;
+                var vals = block.values || [];
+                var wrap = document.createElement('div');
+                wrap.className = 'gs-col';
+                wrap.style.minWidth = '220px';
+                var lab = document.createElement('label');
+                lab.textContent = goodsFilterLabel(g);
+                var sel = document.createElement('select');
+                sel.className = 'form-select goods-cat-filter-select';
+                sel.setAttribute('data-group-id', String(g.id));
+                var o0 = document.createElement('option');
+                o0.value = '';
+                o0.textContent = '— Не обрано —';
+                sel.appendChild(o0);
+                vals.forEach(function(v) {
+                    var o = document.createElement('option');
+                    o.value = String(v.id);
+                    o.textContent = goodsFilterLabel(v);
+                    sel.appendChild(o);
+                });
+                sel.addEventListener('change', goodsSyncHtmlkeyspopFromUi);
+                wrap.appendChild(lab);
+                wrap.appendChild(sel);
+                mount.appendChild(wrap);
+            });
+            goodsApplyMapToFilterSelects(preset);
+            goodsSyncHtmlkeyspopFromUi();
+        })
+        .catch(function() {
+            mount.innerHTML = '<div class="text-danger small">Помилка завантаження фільтрів.</div>';
+        });
+}
 
 function goodsShowFillSubs(topId) {
     var sub = document.getElementById('goodsShowSubSelect');
@@ -678,12 +820,14 @@ function goodsShowFillSubs(topId) {
     } else {
         sub.disabled = true;
     }
+    goodsReloadCatalogFilters();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
     const payInput     = document.getElementById('payInput');
     const pay1Input    = document.getElementById('pay1Input');
     const profitInput  = document.getElementById('profitpayInput');
+    const subSel = document.getElementById('goodsShowSubSelect');
 
     const calcMargin = () => {
         const buy  = parseFloat(pay1Input?.value)  || 0;
@@ -694,6 +838,19 @@ document.addEventListener('DOMContentLoaded', function() {
     payInput?.addEventListener('input',  calcMargin);
     pay1Input?.addEventListener('input', calcMargin);
     calcMargin();
+
+    subSel?.addEventListener('change', goodsReloadCatalogFilters);
+
+    document.getElementById('goods-htmlkeyspop')?.addEventListener('change', function() {
+        var map = goodsParseHtmlkeyspop(this.value);
+        goodsApplyMapToFilterSelects(map);
+    });
+
+    document.querySelector('form.gs-form')?.addEventListener('submit', function() {
+        goodsSyncHtmlkeyspopFromUi();
+    });
+
+    goodsReloadCatalogFilters();
 });
 </script>
 @endsection
