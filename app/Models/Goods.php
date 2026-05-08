@@ -179,32 +179,34 @@ class Goods extends Model
             return $comps;
         }
 
-        $retailGroupId = DB::table('conf')
+        $firmaIds = $comps
+            ->map(fn ($comp) => (string) (($comp->firma ?? '') !== '' ? $comp->firma : $fid))
+            ->unique()
+            ->values();
+
+        $productIds = $comps->pluck('id')->filter()->values();
+
+        $priceGroups = DB::table('conf')
             ->where('type', 'tgroup')
-            ->where('status', '1')
-            ->where(function ($query) use ($fid) {
-                $query->where('firma', $fid)
-                    ->orWhere('constanta', '1');
-            })
-            ->orderByDesc('constanta')
-            ->orderBy('id')
-            ->value('id');
+            ->whereIn('firma', $firmaIds)
+            ->orderByDesc('status')
+            ->get()
+            ->groupBy(fn ($row) => (string) ($row->firma ?? ''));
 
-        $ids = $comps->pluck('id')->filter()->values();
+        $retailGroups = $priceGroups->map(function ($rows) {
+            $retail = $rows->first(fn ($row) => (string) ($row->status ?? '0') === '1');
 
-        $priceQuery = DB::table('price')
-            ->whereIn('pnum', $ids)
-            ->where('firma', $fid)
-            ->orderBy('pnum');
+            return $retail ? (string) $retail->id : null;
+        });
 
-        if ($retailGroupId !== null) {
-            $priceQuery->orderByRaw("CASE WHEN tgroup = ? THEN 0 ELSE 1 END", [$retailGroupId]);
-        }
-
-        $priceRows = $priceQuery
+        $priceRows = DB::table('price')
+            ->whereIn('firma', $firmaIds)
+            ->whereIn('pnum', $productIds)
+            ->orderBy('firma')
+            ->orderBy('pnum')
             ->orderBy('id')
             ->get()
-            ->groupBy('pnum');
+            ->groupBy(fn ($row) => $row->firma . ':' . $row->pnum);
 
         $skladIds = $priceRows
             ->flatten(1)
@@ -220,8 +222,17 @@ class Goods extends Model
                 ->whereIn('id', $skladIds)
                 ->pluck('name', 'id');
 
-        return $comps->map(function ($comp) use ($priceRows, $skladNames) {
-            $price = $priceRows->get($comp->id)?->first();
+        return $comps->map(function ($comp) use ($priceRows, $skladNames, $retailGroups, $fid) {
+            $itemFirma = (string) (($comp->firma ?? '') !== '' ? $comp->firma : $fid);
+            $key = $itemFirma . ':' . ($comp->id ?? '');
+            $rows = $priceRows->get($key, collect());
+            $retailGroupId = $retailGroups->get($itemFirma);
+
+            $price = ($retailGroupId !== null
+                ? $rows->first(fn ($row) => (string) $row->tgroup === (string) $retailGroupId)
+                : null)
+                ?: $rows->first();
+
             $comp->price_pay = $price->pay ?? $comp->pay ?? 0;
             $comp->price_pay1 = $price->pay1 ?? $comp->pay1 ?? 0;
             $comp->price_oldpay = $price->oldpay ?? 0;
@@ -229,6 +240,7 @@ class Goods extends Model
             $comp->price_sklad = $price->sklad ?? $comp->sklad ?? 0;
             $comp->price_sklad_name = $skladNames->get($comp->price_sklad, '—');
             $comp->price_tgroup = $price->tgroup ?? null;
+
             return $comp;
         });
     }
