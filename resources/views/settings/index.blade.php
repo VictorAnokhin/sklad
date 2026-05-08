@@ -4,6 +4,7 @@
 
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
+@include('settings.partials.i18n')
 
 <div class="container mt-4">
     @if(session('success'))
@@ -26,70 +27,70 @@
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="status" data-title="📊 Статуси">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="status" data-title="📊 {{ __('settings.cards.statuses.modal_title') }}">
                 <div class="card-body text-center">
-                    <h5 class="card-title">📊 Статуси</h5>
-                    <p class="card-text text-muted">Статуси документів</p>
+                    <h5 class="card-title">📊 {{ __('settings.cards.statuses.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.statuses.description') }}</p>
                     <span class="badge bg-success" id="badge-status">{{ count($statuses ?? []) }}</span>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="reestr" data-title="💳 Види платежів">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="reestr" data-title="💳 {{ __('settings.cards.payment_types.modal_title') }}">
                 <div class="card-body text-center">
-                    <h5 class="card-title">💳 Види платежів</h5>
-                    <p class="card-text text-muted">Реєстр платежів</p>
+                    <h5 class="card-title">💳 {{ __('settings.cards.payment_types.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.payment_types.description') }}</p>
                     <span class="badge bg-info" id="badge-reestr">{{ count($reestrs ?? []) }}</span>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tgroup" data-title="👥 Тип клієнта">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tgroup" data-title="👥 {{ __('settings.cards.client_type.modal_title') }}">
                 <div class="card-body text-center">
-                    <h5 class="card-title">👥 Тип клієнта</h5>
-                    <p class="card-text text-muted">Типи клієнтів і цінові групи</p>
+                    <h5 class="card-title">👥 {{ __('settings.cards.client_type.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.client_type.description') }}</p>
                     <span class="badge bg-secondary" id="badge-tgroup">{{ count($tgroups ?? []) }}</span>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tclient" data-title="🏷 Тип контрагента">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tclient" data-title="🏷 {{ __('settings.cards.counterparty_type.modal_title') }}">
                 <div class="card-body text-center">
-                    <h5 class="card-title">🏷 Тип контрагента</h5>
-                    <p class="card-text text-muted">Ролі контрагентів і підрозділів</p>
+                    <h5 class="card-title">🏷 {{ __('settings.cards.counterparty_type.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.counterparty_type.description') }}</p>
                     <span class="badge bg-dark" id="badge-tclient">{{ count($tclients ?? []) }}</span>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="oplata" data-title="💰 Каса">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="oplata" data-title="💰 {{ __('settings.cards.cashbox.modal_title') }}">
                 <div class="card-body text-center">
-                    <h5 class="card-title">💰 Каса</h5>
-                    <p class="card-text text-muted">Види оплати</p>
+                    <h5 class="card-title">💰 {{ __('settings.cards.cashbox.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.cashbox.description') }}</p>
                     <span class="badge bg-warning text-dark" id="badge-oplata">{{ count($oplatas ?? []) }}</span>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="sklads" data-title="🏢 Офіси">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="sklads" data-title="🏢 {{ __('settings.cards.offices.modal_title') }}">
                 <div class="card-body text-center">
-                    <h5 class="card-title">🏢 Офіси</h5>
-                    <p class="card-text text-muted">Список офісів</p>
+                    <h5 class="card-title">🏢 {{ __('settings.cards.offices.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.offices.description') }}</p>
                     <span class="badge bg-secondary" id="badge-sklads">{{ count($sklads ?? []) }}</span>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="deposit" data-title="🏦 Депозити">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="deposit" data-title="🏦 {{ __('settings.cards.deposits.modal_title') }}">
                 <div class="card-body text-center">
-                    <h5 class="card-title">🏦 Депозити</h5>
-                    <p class="card-text text-muted">Депозитні рахунки</p>
+                    <h5 class="card-title">🏦 {{ __('settings.cards.deposits.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.deposits.description') }}</p>
                     <span class="badge bg-dark" id="badge-deposit">{{ count($deposits ?? []) }}</span>
                 </div>
             </div>
@@ -101,7 +102,10 @@
                     <h5 class="card-title">🌐 {{ __('settings.languages_regions') }}</h5>
                     <p class="card-text text-muted">{{ __('settings.languages_regions_desc') }}</p>
                     <span class="badge bg-info text-dark" id="badge-field-total">{{ $fieldTranslationsCount ?? 0 }}</span>
-                    <div class="small text-muted mt-2">catalog: <span id="badge-catalog">{{ $fieldCatalogTopCount ?? 0 }}</span> | city: <span id="badge-city">{{ $fieldCityCount ?? 0 }}</span></div>
+                    <div class="small text-muted mt-2">
+                        {{ __('settings.catalog.line_catalog') }} <span id="badge-catalog">{{ $fieldCatalogTopCount ?? 0 }}</span>
+                        | {{ __('settings.catalog.line_city') }} <span id="badge-city">{{ $fieldCityCount ?? 0 }}</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -109,8 +113,8 @@
         <div class="col-md-4">
             <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalogFilters">
                 <div class="card-body text-center">
-                    <h5 class="card-title">🔎 Фільтри каталогу</h5>
-                    <p class="card-text text-muted">Групи та значення (filter → категорія catalog)</p>
+                    <h5 class="card-title">🔎 {{ __('settings.cards.catalog_filters.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.catalog_filters.description') }}</p>
                     <span class="badge bg-primary" id="badge-catalog-filters">{{ $catalogFiltersGroupCount ?? 0 }}</span>
                 </div>
             </div>
@@ -119,7 +123,7 @@
         <div class="col-md-4">
             <div class="glass-card h-100 border-primary setting-card" data-bs-toggle="modal" data-bs-target="#modalProfile">
                 <div class="card-body text-center">
-                    <h5 class="card-title">👤 Профіль</h5>
+                    <h5 class="card-title">👤 {{ __('settings.cards.profile.title') }}</h5>
                     <p class="card-text text-muted">{{ session('login', '') }}</p>
                 </div>
             </div>
@@ -128,8 +132,8 @@
         <div class="col-md-4">
             <div class="glass-card h-100 border-warning setting-card" data-bs-toggle="modal" data-bs-target="#modalFirms">
                 <div class="card-body text-center">
-                    <h5 class="card-title">🏛 Мої компанії</h5>
-                    <p class="card-text text-muted">Редагування, додавання та видалення компаній</p>
+                    <h5 class="card-title">🏛 {{ __('settings.cards.my_companies.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.my_companies.description') }}</p>
                     <span class="badge bg-warning text-dark" id="badge-firms">{{ count($myCompanies ?? []) }}</span>
                 </div>
             </div>
@@ -138,8 +142,8 @@
         <div class="col-md-4">
             <div class="glass-card h-100 border-danger setting-card" data-bs-toggle="modal" data-bs-target="#modalBanners">
                 <div class="card-body text-center">
-                    <h5 class="card-title">🎞 Банерна карусель</h5>
-                    <p class="card-text text-muted">Банери для першого екрана laravel-react</p>
+                    <h5 class="card-title">🎞 {{ __('settings.cards.banner_carousel.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.banner_carousel.description') }}</p>
                     <span class="badge bg-danger" id="badge-banners">{{ $bannerCarouselCount ?? 0 }}</span>
                 </div>
             </div>
@@ -158,8 +162,8 @@
         <div class="col-md-4">
             <div class="glass-card h-100 border-success setting-card" data-bs-toggle="modal" data-bs-target="#modalAccounts">
                 <div class="card-body text-center">
-                    <h5 class="card-title">📚 План счетов</h5>
-                    <p class="card-text text-muted">Счета и привязка к видам платежа</p>
+                    <h5 class="card-title">📚 {{ __('settings.cards.chart_of_accounts.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.chart_of_accounts.description') }}</p>
                     <span class="badge bg-success" id="badge-accounts">{{ $accountsCount ?? 0 }}</span>
                 </div>
             </div>
@@ -168,8 +172,8 @@
         <div class="col-md-4">
             <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalTaxReceipts" style="border-color: #28a745;">
                 <div class="card-body text-center">
-                    <h5 class="card-title">🧾 Чеки ДПІ</h5>
-                    <p class="card-text text-muted">Чеки податкової інспекції Украї</p>
+                    <h5 class="card-title">🧾 {{ __('settings.cards.tax_receipts.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.tax_receipts.description') }}</p>
                     <span class="badge bg-success" id="badge-tax-receipts">0</span>
                 </div>
             </div>
@@ -182,18 +186,18 @@
         <div class="modal-content glass-card border-0">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalSitemapLabel">🗺 {{ __('settings.sitemap') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-secondary mb-3">
-                    Sitemap генерується окремо для активного проєкту і віддається бекендом за публічним посиланням нижче.
+                    {{ __('settings.sitemap_modal.intro') }}
                 </div>
 
                 <dl class="row mb-3">
-                    <dt class="col-sm-4">Статус</dt>
-                    <dd class="col-sm-8" id="sitemap-status-text">{{ !empty($sitemapInfo['exists']) ? 'Файл доступний' : 'Файл ще не створено' }}</dd>
+                    <dt class="col-sm-4">{{ __('settings.sitemap_modal.status_label') }}</dt>
+                    <dd class="col-sm-8" id="sitemap-status-text">{{ !empty($sitemapInfo['exists']) ? __('settings.sitemap_modal.file_ready') : __('settings.sitemap_modal.file_missing') }}</dd>
 
-                    <dt class="col-sm-4">Остання генерація</dt>
+                    <dt class="col-sm-4">{{ __('settings.sitemap_modal.last_generation') }}</dt>
                     <dd class="col-sm-8" id="sitemap-lastmod-text">
                         @if(!empty($sitemapInfo['last_modified_at']))
                             {{ date('Y-m-d H:i:s', $sitemapInfo['last_modified_at']) }}
@@ -202,7 +206,7 @@
                         @endif
                     </dd>
 
-                    <dt class="col-sm-4">Публічне посилання</dt>
+                    <dt class="col-sm-4">{{ __('settings.sitemap_modal.public_url') }}</dt>
                     <dd class="col-sm-8">
                         <a href="{{ $sitemapInfo['public_url'] ?? '#' }}" id="sitemap-public-link" target="_blank" rel="noopener noreferrer">
                             {{ $sitemapInfo['public_url'] ?? '—' }}
@@ -211,8 +215,8 @@
                 </dl>
 
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary" id="btn-sitemap-generate">🔄 Згенерувати sitemap.xml</button>
-                    <a href="{{ $sitemapInfo['public_url'] ?? '#' }}" class="btn btn-outline-secondary" id="btn-sitemap-open" target="_blank" rel="noopener noreferrer">🌍 Відкрити sitemap</a>
+                    <button type="button" class="btn btn-primary" id="btn-sitemap-generate">🔄 {{ __('settings.sitemap_modal.btn_generate') }}</button>
+                    <a href="{{ $sitemapInfo['public_url'] ?? '#' }}" class="btn btn-outline-secondary" id="btn-sitemap-open" target="_blank" rel="noopener noreferrer">🌍 {{ __('settings.sitemap_modal.btn_open') }}</a>
                 </div>
                 <div class="small text-muted mt-3" id="sitemap-feedback"></div>
             </div>
@@ -224,9 +228,9 @@
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center">
-                <h5 class="modal-title" id="modalAccountsLabel">📚 План счетов</h5>
-                <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-account-add">+ Добавить счет</button>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+                <h5 class="modal-title" id="modalAccountsLabel">📚 {{ __('settings.cards.chart_of_accounts.modal_title') }}</h5>
+                <button type="button" class="btn btn-sm btn-primary ms-3" id="btn-account-add">+ {{ __('settings.accounts.add_account') }}</button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
             </div>
 
             <div class="modal-body" id="account-form-area" style="display:none;">
@@ -234,35 +238,35 @@
                     <input type="hidden" id="account-id" value="">
                     <div class="row">
                         <div class="col-md-3 mb-3">
-                            <label class="form-label">Код <span class="text-danger">*</span></label>
+                            <label class="form-label">{{ __('settings.accounts.code') }} <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="account-code" required>
                         </div>
                         <div class="col-md-5 mb-3">
-                            <label class="form-label">Название <span class="text-danger">*</span></label>
+                            <label class="form-label">{{ __('settings.accounts.name') }} <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="account-name" required>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Тип <span class="text-danger">*</span></label>
+                            <label class="form-label">{{ __('settings.accounts.type') }} <span class="text-danger">*</span></label>
                             <select class="form-select" id="account-type" required>
-                                <option value="asset">Актив</option>
-                                <option value="liability">Пассив</option>
-                                <option value="equity">Капитал</option>
-                                <option value="income">Доход</option>
-                                <option value="expense">Расход</option>
+                                <option value="asset">{{ __('settings.accounts.type_asset') }}</option>
+                                <option value="liability">{{ __('settings.accounts.type_liability') }}</option>
+                                <option value="equity">{{ __('settings.accounts.type_equity') }}</option>
+                                <option value="income">{{ __('settings.accounts.type_income') }}</option>
+                                <option value="expense">{{ __('settings.accounts.type_expense') }}</option>
                             </select>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Родительский счет</label>
+                            <label class="form-label">{{ __('settings.accounts.parent') }}</label>
                             <select class="form-select" id="account-parent-id">
-                                <option value="">— без родителя —</option>
+                                <option value="">{{ __('settings.accounts.no_parent') }}</option>
                             </select>
                         </div>
                     </div>
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-success">💾 Зберегти</button>
-                        <button type="button" class="btn btn-secondary" id="btn-account-cancel">Скасувати</button>
+                        <button type="submit" class="btn btn-success">💾 {{ __('settings.common.save') }}</button>
+                        <button type="button" class="btn btn-secondary" id="btn-account-cancel">{{ __('settings.common.cancel') }}</button>
                     </div>
                 </form>
             </div>
@@ -270,44 +274,44 @@
             <div class="modal-body" id="account-list-area">
                 <div class="row g-4">
                     <div class="col-lg-6">
-                        <h6 class="mb-3">Счета</h6>
+                        <h6 class="mb-3">{{ __('settings.accounts.accounts_heading') }}</h6>
                         <div class="table-responsive">
                             <table class="table table-hover table-sm align-middle">
                                 <thead>
                                     <tr>
-                                        <th>Код</th>
-                                        <th>Название</th>
-                                        <th>Тип</th>
-                                        <th>Родитель</th>
-                                        <th class="text-end">Дії</th>
+                                        <th>{{ __('settings.accounts.th_code') }}</th>
+                                        <th>{{ __('settings.accounts.th_name') }}</th>
+                                        <th>{{ __('settings.accounts.th_type') }}</th>
+                                        <th>{{ __('settings.accounts.th_parent') }}</th>
+                                        <th class="text-end">{{ __('settings.common.actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody id="accounts-tbody"></tbody>
                             </table>
                         </div>
-                        <p class="text-center text-muted" id="accounts-empty-msg" style="display:none">Счетов пока нет</p>
+                        <p class="text-center text-muted" id="accounts-empty-msg" style="display:none">{{ __('settings.accounts.empty_accounts') }}</p>
                     </div>
 
                     <div class="col-lg-6">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="mb-0">Привязка к видам платежа</h6>
-                            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-payment-bindings-reload">Оновити</button>
+                            <h6 class="mb-0">{{ __('settings.accounts.bindings_heading') }}</h6>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-payment-bindings-reload">{{ __('settings.common.refresh') }}</button>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover table-sm align-middle">
                                 <thead>
                                     <tr>
-                                        <th>Вид платежа</th>
-                                        <th>Документы</th>
-                                        <th>Дебет</th>
-                                        <th>Кредит</th>
-                                        <th class="text-end">Дії</th>
+                                        <th>{{ __('settings.accounts.th_payment_type') }}</th>
+                                        <th>{{ __('settings.accounts.th_documents') }}</th>
+                                        <th>{{ __('settings.accounts.th_debit') }}</th>
+                                        <th>{{ __('settings.accounts.th_credit') }}</th>
+                                        <th class="text-end">{{ __('settings.common.actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody id="payment-bindings-tbody"></tbody>
                             </table>
                         </div>
-                        <p class="text-center text-muted" id="payment-bindings-empty-msg" style="display:none">Видов платежа пока нет</p>
+                        <p class="text-center text-muted" id="payment-bindings-empty-msg" style="display:none">{{ __('settings.accounts.empty_payments') }}</p>
                     </div>
                 </div>
             </div>
@@ -321,15 +325,15 @@
             <div class="modal-header d-flex align-items-center flex-wrap gap-2">
                 <div>
                     <h5 class="modal-title" id="modalCatalogLabel">🌐 {{ __('settings.languages_regions') }}</h5>
-                    <div class="small text-muted" id="catalog-current-level">Категории и подписи</div>
+                    <div class="small text-muted" id="catalog-current-level">{{ __('settings.catalog_modal.current_level_catalog') }}</div>
                 </div>
-                <div class="btn-group btn-group-sm ms-md-3" role="group" aria-label="Режим справочника">
-                    <button type="button" class="btn btn-outline-primary active" id="btn-field-mode-catalog">Категории/Надписи</button>
-                    <button type="button" class="btn btn-outline-primary" id="btn-field-mode-city">Регионы</button>
+                <div class="btn-group btn-group-sm ms-md-3" role="group" aria-label="{{ __('settings.catalog_modal.aria_mode') }}">
+                    <button type="button" class="btn btn-outline-primary active" id="btn-field-mode-catalog">{{ __('settings.catalog_modal.btn_mode_catalog') }}</button>
+                    <button type="button" class="btn btn-outline-primary" id="btn-field-mode-city">{{ __('settings.catalog_modal.btn_mode_city') }}</button>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-secondary ms-md-3" id="btn-catalog-back" style="display:none;">← Назад</button>
-                <button type="button" class="btn btn-sm btn-primary" id="btn-catalog-add">+ Добавить запись</button>
-                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Закрити"></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-md-3" id="btn-catalog-back" style="display:none;">← {{ __('settings.common.back') }}</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-catalog-add">{{ __('settings.catalog_modal.btn_add_entry') }}</button>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
             </div>
 
             <div class="modal-body" id="catalog-form-area" style="display:none">
@@ -339,77 +343,77 @@
                     <input type="hidden" id="catalog-keyfield" value="catalog">
 
                     <div class="alert alert-secondary py-2 mb-3">
-                        <strong>Раздел:</strong> <span id="catalog-parent-label">Категории и подписи</span>
+                        <strong>{{ __('settings.catalog_modal.section_label') }}</strong> <span id="catalog-parent-label">{{ __('settings.catalog_modal.current_level_catalog') }}</span>
                     </div>
 
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Назва RU <span class="text-danger">*</span></label>
+                            <label class="form-label">{{ __('settings.catalog_modal.name_ru') }} <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="catalog-name-ru" required>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Назва UA</label>
+                            <label class="form-label">{{ __('settings.catalog_modal.name_ua') }}</label>
                             <input type="text" class="form-control" id="catalog-name-ua">
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Назва EN</label>
+                            <label class="form-label">{{ __('settings.catalog_modal.name_en') }}</label>
                             <input type="text" class="form-control" id="catalog-name-en">
                         </div>
                     </div>
 
                     <div class="row" id="catalog-flags-row">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Порядок (num)</label>
+                            <label class="form-label">{{ __('settings.catalog_modal.num') }}</label>
                             <input type="number" class="form-control" id="catalog-num" min="0" value="0">
                         </div>
                         <div class="col-md-4 mb-3 d-flex align-items-end">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="catalog-visible" checked>
-                                <label class="form-check-label" for="catalog-visible">Показывать</label>
+                                <label class="form-check-label" for="catalog-visible">{{ __('settings.catalog_modal.visible') }}</label>
                             </div>
                         </div>
                         <div class="col-md-4 mb-3 d-flex align-items-end">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="catalog-firstpage">
-                                <label class="form-check-label" for="catalog-firstpage">На первой странице</label>
+                                <label class="form-check-label" for="catalog-firstpage">{{ __('settings.catalog_modal.firstpage') }}</label>
                             </div>
                         </div>
                     </div>
 
                     <div class="row" id="catalog-description-row">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Link</label>
-                            <input type="text" class="form-control" id="catalog-link" maxlength="35" placeholder="slug или ссылка из field.link">
+                            <label class="form-label">{{ __('settings.catalog_modal.link') }}</label>
+                            <input type="text" class="form-control" id="catalog-link" maxlength="35" placeholder="{{ __('settings.catalog_modal.link_placeholder') }}">
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Статья каталога</label>
+                            <label class="form-label">{{ __('settings.catalog_modal.news_catalog') }}</label>
                             <select class="form-select" id="catalog-news-catalog">
-                                <option value="">— не выбрано —</option>
+                                <option value="">{{ __('settings.catalog_modal.news_none') }}</option>
                             </select>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Загрузка файла</label>
+                            <label class="form-label">{{ __('settings.catalog_modal.file_upload') }}</label>
                             <input type="hidden" id="catalog-file-path">
                             <input type="file" class="form-control" id="catalog-file-upload">
-                            <div class="form-text" id="catalog-file-current">Файл не загружен</div>
+                            <div class="form-text" id="catalog-file-current">{{ __('settings.catalog_modal.file_not_uploaded') }}</div>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Опис RU</label>
+                            <label class="form-label">{{ __('settings.catalog_modal.descr_ru') }}</label>
                             <textarea class="form-control" id="catalog-description-ru" rows="4"></textarea>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Опис UA</label>
+                            <label class="form-label">{{ __('settings.catalog_modal.descr_ua') }}</label>
                             <textarea class="form-control" id="catalog-description-ua" rows="4"></textarea>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Опис EN</label>
+                            <label class="form-label">{{ __('settings.catalog_modal.descr_en') }}</label>
                             <textarea class="form-control" id="catalog-description-en" rows="4"></textarea>
                         </div>
                     </div>
 
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-success">💾 Зберегти</button>
-                        <button type="button" class="btn btn-secondary" id="btn-catalog-cancel">Скасувати</button>
+                        <button type="submit" class="btn btn-success">💾 {{ __('settings.common.save') }}</button>
+                        <button type="button" class="btn btn-secondary" id="btn-catalog-cancel">{{ __('settings.common.cancel') }}</button>
                     </div>
                 </form>
             </div>
@@ -420,18 +424,18 @@
                     <table class="table table-hover table-sm align-middle catalog-table">
                         <thead>
                             <tr>
-                                <th class="catalog-id-cell">ID</th>
-                                <th>Назви</th>
-                                <th id="" class="catalog-description-cell">Опис</th>
-                                <th id="catalog-flags-head" class="catalog-flags-cell">Прапори</th>
-                                <th id="catalog-description-head" class="catalog-children-cell">Підкатегорії</th>
-                                <th class="catalog-actions-cell">Дії</th>
+                                <th class="catalog-id-cell">{{ __('settings.catalog_modal.th_id') }}</th>
+                                <th>{{ __('settings.catalog_modal.th_names') }}</th>
+                                <th id="" class="catalog-description-cell">{{ __('settings.catalog_modal.th_description') }}</th>
+                                <th id="catalog-flags-head" class="catalog-flags-cell">{{ __('settings.catalog_modal.th_flags') }}</th>
+                                <th id="catalog-description-head" class="catalog-children-cell">{{ __('settings.catalog_modal.th_subcategories') }}</th>
+                                <th class="catalog-actions-cell">{{ __('settings.common.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody id="catalog-tbody"></tbody>
                     </table>
                 </div>
-                <p class="text-center text-muted" id="catalog-empty-msg" style="display:none">Записей пока нет</p>
+                <p class="text-center text-muted" id="catalog-empty-msg" style="display:none">{{ __('settings.field_modes.catalog.empty') }}</p>
             </div>
         </div>
     </div>
@@ -1657,14 +1661,14 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(data => {
                 if (!data.success) {
-                    alert(data.message || 'Ошибка');
+                    alert(data.message || _ts('js.error_generic'));
                     return;
                 }
                 hideWeb3Form();
                 resetWeb3Form();
                 loadWeb3Tokens();
             })
-            .catch((error) => alert(error?.message || 'Ошибка сети'));
+            .catch((error) => alert(error?.message || _ts('js.network_error')));
         });
 
         function loadWeb3Tokens() {
@@ -1676,7 +1680,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (badge) badge.textContent = items.length;
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Ошибка загрузки токенов</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">' + _ts('js.load_error_tokens') + '</td></tr>';
                 });
         }
 
@@ -1768,11 +1772,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentZerionImplementations = [];
                     showWeb3Form();
                 })
-                .catch(() => alert('Ошибка загрузки'));
+                .catch(() => alert(_ts('js.load_error')));
         }
 
         function deleteWeb3Token(id, btn) {
-            if (!confirm('Удалить этот токен?')) return;
+            if (!confirm(_ts('js.delete_token_confirm'))) return;
             fetch(`/settings/api/${id}`, {
                 method: 'DELETE',
                 headers: { 'X-CSRF-TOKEN': csrfToken }
@@ -1840,7 +1844,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        const extractErrorMessage = (payload, fallback = 'Помилка запиту') => {
+        const extractErrorMessage = (payload, fallback = _ts('js.request_error')) => {
             if (payload && typeof payload.message === 'string' && payload.message.trim()) {
                 return payload.message.trim();
             }
@@ -1938,7 +1942,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (!String(payload.get('name') || '').trim()) {
-                alert('Вкажи назву проєкту');
+                alert(_ts('js.project_name_required'));
                 return;
             }
 
@@ -1958,7 +1962,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(extractErrorMessage(data, 'Помилка збереження'));
+                    alert(extractErrorMessage(data, _ts('js.save_error')));
                     return;
                 }
 
@@ -1966,7 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 resetProjectForm();
                 loadProjects();
             })
-            .catch((error) => alert(error?.message || 'Помилка мережі'));
+            .catch((error) => alert(error?.message || _ts('js.network_error')));
         });
 
         function loadProjects() {
@@ -1977,13 +1981,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        throw new Error(extractErrorMessage(data, 'Помилка завантаження'));
+                        throw new Error(extractErrorMessage(data, _ts('js.load_error')));
                     }
 
                     renderProjects(Array.isArray(data) ? data : []);
                 })
                 .catch((error) => {
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${escapeHtml(error?.message || 'Помилка завантаження')}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${escapeHtml(error?.message || _ts('js.load_error'))}</td></tr>`;
                     emptyMsg.style.display = 'none';
                 });
         }
@@ -2028,8 +2032,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="small text-muted">${projectUrl}</div>
                     </td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">Редагувати</button>
-                        ${item.can_delete ? `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">Видалити</button>` : '<span class="text-muted small">Без прав на видалення</span>'}
+                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">${escapeHtml(_ts('crud.edit'))}</button>
+                        ${item.can_delete ? `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">${escapeHtml(_ts('crud.delete'))}</button>` : `<span class="text-muted small">${escapeHtml(_ts('js.no_delete_permission'))}</span>`}
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -2044,18 +2048,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        alert(extractErrorMessage(data, 'Проєкт не знайдено'));
+                        alert(extractErrorMessage(data, _ts('js.project_not_found')));
                         return;
                     }
 
                     fillProjectForm(data);
                     showForm();
                 })
-                .catch((error) => alert(error?.message || 'Помилка завантаження'));
+                .catch((error) => alert(error?.message || _ts('js.load_error')));
         }
 
         function deleteProject(id, btn) {
-            if (!confirm('Видалити цей проєкт?')) return;
+            if (!confirm(_ts('js.delete_project_confirm'))) return;
 
             fetch(`/settings/projects/${id}`, {
                 method: 'DELETE',
@@ -2072,7 +2076,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(extractErrorMessage(data, 'Помилка видалення'));
+                    alert(extractErrorMessage(data, _ts('js.delete_error_project')));
                     return;
                 }
 
@@ -2080,7 +2084,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 resetProjectForm();
                 loadProjects();
             })
-            .catch((error) => alert(error?.message || 'Помилка мережі'));
+            .catch((error) => alert(error?.message || _ts('js.network_error')));
         }
 
         function fillProjectForm(item) {
@@ -2282,7 +2286,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         visibilityCheckbox?.addEventListener('change', () => {
-            visibilityLabel.textContent = visibilityCheckbox.checked ? 'Видимий' : 'Прихований';
+            visibilityLabel.textContent = visibilityCheckbox.checked ? _ts('crud.visible') : _ts('crud.hidden');
         });
 
         tbody.addEventListener('click', (e) => {
@@ -2332,14 +2336,14 @@ document.addEventListener('DOMContentLoaded', () => {
             .then((r) => r.json())
             .then((data) => {
                 if (!data.success) {
-                    alert(data.message || 'Помилка');
+                    alert(data.message || _ts('js.error_generic'));
                     return;
                 }
                 hideForm();
                 loadData();
                 updateBadge();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         });
 
         function loadData() {
@@ -2347,7 +2351,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then((r) => r.json())
                 .then(renderTable)
                 .catch(() => {
-                    tbody.innerHTML = `<tr><td colspan="${getTableColumnCount()}" class="text-danger">Помилка завантаження</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="${getTableColumnCount()}" class="text-danger">${escapeHtml(_ts('js.load_error'))}</td></tr>`;
                 });
         }
 
@@ -2365,29 +2369,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? `<span style="display:inline-block;width:16px;height:16px;background:${item.color};border-radius:3px;vertical-align:middle"></span> ${escapeHtml(item.color)}`
                     : '—';
                 const docHtml = currentType === 'reestr'
-                    ? escapeHtml(item.doc_label || 'Все документы')
+                    ? escapeHtml(item.doc_label || _ts('crud.all_documents'))
                     : '';
                 const addressHtml = currentType === 'sklads'
                     ? escapeHtml(item.address || '—')
                     : '';
-                let statusLabel = '<span class="badge bg-secondary">Неактивний</span>';
+                let statusLabel = `<span class="badge bg-secondary">${_ts('crud.inactive')}</span>`;
                 if (currentType === 'tgroup') {
                     statusLabel = String(item.status) === '1'
-                        ? '<span class="badge bg-warning text-dark">Роздріб</span>'
-                        : '<span class="badge bg-secondary">Додаткова група</span>';
+                        ? `<span class="badge bg-warning text-dark">${_ts('crud.retail_badge')}</span>`
+                        : `<span class="badge bg-secondary">${_ts('crud.extra_group_badge')}</span>`;
                 } else if (currentType === 'tclient') {
                     statusLabel = ({
-                        '1': '<span class="badge bg-primary">Відділ продаж</span>',
-                        '2': '<span class="badge bg-warning text-dark">Виробництво</span>',
-                        '3': '<span class="badge bg-danger">Адміністрація</span>',
-                        '0': '<span class="badge bg-secondary">Прочие</span>',
-                    }[String(item.status)] || '<span class="badge bg-secondary">Прочие</span>');
+                        '1': `<span class="badge bg-primary">${_ts('crud.sales_dept')}</span>`,
+                        '2': `<span class="badge bg-warning text-dark">${_ts('crud.production')}</span>`,
+                        '3': `<span class="badge bg-danger">${_ts('crud.admin')}</span>`,
+                        '0': `<span class="badge bg-secondary">${_ts('crud.other_dept')}</span>`,
+                    }[String(item.status)] || `<span class="badge bg-secondary">${_ts('crud.other_dept')}</span>`);
                 } else if (currentType === 'sklads') {
                     statusLabel = String(item.vision) === '1'
-                        ? '<span class="badge bg-success">Видимий</span>'
-                        : '<span class="badge bg-secondary">Прихований</span>';
+                        ? `<span class="badge bg-success">${_ts('crud.visible')}</span>`
+                        : `<span class="badge bg-secondary">${_ts('crud.hidden')}</span>`;
                 } else if (String(item.status) === '1') {
-                    statusLabel = '<span class="badge bg-success">Активний</span>';
+                    statusLabel = `<span class="badge bg-success">${_ts('crud.active')}</span>`;
                 }
 
                 tr.innerHTML = `
@@ -2398,8 +2402,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${currentType === 'sklads' ? `<td>${addressHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td>${docHtml}</td>` : ''}
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">Редагувати</button>
-                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">Видалити</button>
+                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">${_ts('crud.edit')}</button>
+                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">${_ts('crud.delete')}</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -2418,7 +2422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ? (item.vision ?? '1')
                         : (item.status ?? '1');
                     visibilityCheckbox.checked = String(item.vision ?? '1') === '1';
-                    visibilityLabel.textContent = visibilityCheckbox.checked ? 'Видимий' : 'Прихований';
+                    visibilityLabel.textContent = visibilityCheckbox.checked ? _ts('crud.visible') : _ts('crud.hidden');
                     setDocFlags(item.doc || '');
                     phoneInput.value = item.phone || '';
                     addressInput.value = item.address || '';
@@ -2428,11 +2432,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateImagePreview(null, 'form-foto-preview', 'form-foto-preview-wrap', item.foto_preview || '');
                     showForm();
                 })
-                .catch(() => alert('Помилка завантаження'));
+                .catch(() => alert(_ts('js.load_error')));
         }
 
         function deleteItem(id, btn) {
-            if (!confirm('Видалити цей запис?')) return;
+            if (!confirm(_ts('js.delete_record_confirm'))) return;
 
             fetch(`/settings/api/${id}`, {
                 method: 'DELETE',
@@ -2444,7 +2448,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then((r) => r.json())
             .then((data) => {
                 if (!data.success) {
-                    alert(data.message || 'Помилка');
+                    alert(data.message || _ts('js.error_generic'));
                     return;
                 }
                 if (btn?.closest) {
@@ -2454,7 +2458,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateBadge();
                 loadData();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         }
 
         function updateBadge() {
@@ -2493,40 +2497,40 @@ document.addEventListener('DOMContentLoaded', () => {
             addressColumn.style.display = isOffice ? '' : 'none';
 
             if (currentType === 'tgroup') {
-                statusColumn.textContent = 'Статус';
-                statusLabel.textContent = 'Тип групи';
+                statusColumn.textContent = _ts('crud.status_column');
+                statusLabel.textContent = _ts('crud.tgroup_label');
                 statusSelect.innerHTML = `
-                    <option value="1">Роздрібна група</option>
-                    <option value="0">Додаткова група</option>
+                    <option value="1">${_ts('crud.tgroup_opt_retail')}</option>
+                    <option value="0">${_ts('crud.tgroup_opt_extra')}</option>
                 `;
                 statusHelp.style.display = 'block';
-                statusHelp.textContent = 'Для виділення роздрібної групи цін використовуй status = 1.';
+                statusHelp.textContent = _ts('crud.tgroup_help');
             } else if (currentType === 'tclient') {
-                statusColumn.textContent = 'Статус';
-                statusLabel.textContent = 'Підрозділ';
+                statusColumn.textContent = _ts('crud.status_column');
+                statusLabel.textContent = _ts('crud.tclient_label');
                 statusSelect.innerHTML = `
-                    <option value="0">Прочие</option>
-                    <option value="1">Відділ продаж</option>
-                    <option value="2">Виробництво</option>
-                    <option value="3">Адміністрація</option>
+                    <option value="0">${_ts('crud.tclient_opt0')}</option>
+                    <option value="1">${_ts('crud.tclient_opt1')}</option>
+                    <option value="2">${_ts('crud.tclient_opt2')}</option>
+                    <option value="3">${_ts('crud.tclient_opt3')}</option>
                 `;
                 statusHelp.style.display = 'block';
-                statusHelp.textContent = 'status: 1 = відділ продаж, 2 = виробництво, 3 = адміністрація, 0 = прочие.';
+                statusHelp.textContent = _ts('crud.tclient_help');
             } else if (currentType === 'sklads') {
-                statusColumn.textContent = 'Видимість';
-                statusLabel.textContent = 'Видимість';
+                statusColumn.textContent = _ts('crud.office_visibility_col');
+                statusLabel.textContent = _ts('crud.office_visibility_label');
                 statusSelect.innerHTML = `
-                    <option value="1">Видимий</option>
-                    <option value="0">Прихований</option>
+                    <option value="1">${_ts('crud.office_opt_visible')}</option>
+                    <option value="0">${_ts('crud.office_opt_hidden')}</option>
                 `;
                 statusHelp.style.display = 'block';
-                statusHelp.textContent = 'Для офісів використовується поле vision: 1 = видимий, 0 = прихований.';
+                statusHelp.textContent = _ts('crud.office_help');
             } else {
-                statusColumn.textContent = 'Статус';
-                statusLabel.textContent = 'Статус';
+                statusColumn.textContent = _ts('crud.status_column');
+                statusLabel.textContent = _ts('crud.generic_status_label');
                 statusSelect.innerHTML = `
-                    <option value="1">Активний</option>
-                    <option value="0">Неактивний</option>
+                    <option value="1">${_ts('crud.generic_active')}</option>
+                    <option value="0">${_ts('crud.generic_inactive')}</option>
                 `;
                 statusHelp.style.display = 'none';
                 statusHelp.textContent = '';
@@ -2576,7 +2580,7 @@ document.addEventListener('DOMContentLoaded', () => {
             googleMapInput.value = '';
             fotoExistingInput.value = '';
             visibilityCheckbox.checked = true;
-            visibilityLabel.textContent = 'Видимий';
+            visibilityLabel.textContent = _ts('crud.visible');
             if (fotoFileInput) fotoFileInput.value = '';
             updateImagePreview(null, 'form-foto-preview', 'form-foto-preview-wrap', '');
         }
@@ -2686,7 +2690,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка збереження рахунку');
+                    alert(data.message || _ts('js.save_error_account'));
                     return;
                 }
 
@@ -2694,7 +2698,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadAccounts();
                 loadBindings();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         });
 
         function loadAccounts() {
@@ -2707,7 +2711,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     badge.textContent = accountsCache.length;
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Помилка завантаження</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${escapeHtml(_ts('js.load_error'))}</td></tr>`;
                 });
         }
 
@@ -2716,7 +2720,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then((r) => r.json())
                 .then(renderBindings)
                 .catch(() => {
-                    bindingsTbody.innerHTML = '<tr><td colspan="5" class="text-danger">Помилка завантаження</td></tr>';
+                    bindingsTbody.innerHTML = `<tr><td colspan="5" class="text-danger">${escapeHtml(_ts('js.load_error'))}</td></tr>`;
                 });
         }
 
@@ -2746,7 +2750,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function renderParentOptions(items) {
             const currentId = document.getElementById('account-id').value;
-            parentSelect.innerHTML = '<option value="">— без родителя —</option>';
+            parentSelect.innerHTML = `<option value="">${escapeHtml(_ts('accounts.no_parent'))}</option>`;
             items.forEach((item) => {
                 if (String(item.id) === String(currentId)) {
                     return;
@@ -2770,7 +2774,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${escapeHtml(item.name || '')}</td>
-                    <td class="small text-muted">${escapeHtml(item.doc_label || 'Все документы')}</td>
+                    <td class="small text-muted">${escapeHtml(item.doc_label || _ts('crud.all_documents'))}</td>
                     <td>${buildAccountSelect(`binding-debit-${item.id}`, item.debit_account_id)}</td>
                     <td>${buildAccountSelect(`binding-credit-${item.id}`, item.credit_account_id)}</td>
                     <td class="text-end">
@@ -2802,11 +2806,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     parentSelect.value = item.parent_id || '';
                     showAccountForm();
                 })
-                .catch(() => alert('Помилка завантаження рахунку'));
+                .catch(() => alert(_ts('js.load_error_account')));
         }
 
         function deleteAccount(id) {
-            if (!confirm('Видалити цей рахунок?')) return;
+            if (!confirm(_ts('js.delete_account_confirm'))) return;
 
             fetch(`/settings/accounts/${id}`, {
                 method: 'DELETE',
@@ -2821,14 +2825,14 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка видалення');
+                    alert(data.message || _ts('js.delete_error_account'));
                     return;
                 }
 
                 loadAccounts();
                 loadBindings();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         }
 
         function saveBinding(id) {
@@ -2851,22 +2855,22 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка збереження привязки');
+                    alert(data.message || _ts('js.save_error_binding'));
                     return;
                 }
 
                 loadBindings();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         }
 
         function accountTypeLabel(type) {
             return ({
-                asset: 'Актив',
-                liability: 'Пассив',
-                equity: 'Капитал',
-                income: 'Доход',
-                expense: 'Расход',
+                asset: _ts('accounts.type_asset'),
+                liability: _ts('accounts.type_liability'),
+                equity: _ts('accounts.type_equity'),
+                income: _ts('accounts.type_income'),
+                expense: _ts('accounts.type_expense'),
             }[type] || type);
         }
 
@@ -2916,7 +2920,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const renderWalletList = (wallets) => {
             if (!wallets.length) {
-                walletList.innerHTML = '<p id="wallet-list-empty" class="wallet-list-empty mb-0">Ще не прив’язано жодного гаманця.</p>';
+                walletList.innerHTML = '<p id="wallet-list-empty" class="wallet-list-empty mb-0">' + escapeHtml(_ts('js.wallet_empty')) + '</p>';
                 return;
             }
 
@@ -2924,9 +2928,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="wallet-list-item" data-wallet-address="${escapeHtml(wallet.address)}">
                     <div class="wallet-list-main">
                         <code title="${escapeHtml(wallet.address)}">${escapeHtml(wallet.address)}</code>
-                        <span class="wallet-list-network">${escapeHtml(wallet.network || 'Мережа не вказана')}</span>
+                        <span class="wallet-list-network">${escapeHtml(wallet.network || _ts('js.wallet_network_unknown'))}</span>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-danger wallet-remove-btn" data-address="${escapeHtml(wallet.address)}">Відв’язати</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger wallet-remove-btn" data-address="${escapeHtml(wallet.address)}">${escapeHtml(_ts('js.wallet_unlink'))}</button>
                 </div>
             `).join('');
         };
@@ -2935,7 +2939,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const linked = wallets.length > 0;
             const latestWallet = wallets[0] || null;
 
-            statusBadge.textContent = linked ? 'Гаманці прив’язані' : 'Гаманці не прив’язані';
+            statusBadge.textContent = linked ? _ts('js.wallet_status_linked') : _ts('js.wallet_status_empty');
             statusBadge.classList.toggle('is-linked', linked);
             statusBadge.classList.toggle('is-empty', !linked);
             countNode.textContent = String(wallets.length);
@@ -2958,7 +2962,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(data.message || 'Помилка Web3-запиту.');
+                throw new Error(data.message || _ts('js.web3_request_error'));
             }
 
             return data;
@@ -2966,11 +2970,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         connectBtn.addEventListener('click', async () => {
             if (!window.appWallet || typeof window.appWallet.openModal !== 'function' || typeof window.appWallet.signMessage !== 'function') {
-                setFeedback('Модуль Web3-гаманців не готовий. Оновіть сторінку та спробуйте ще раз.', true);
+                setFeedback(_ts('js.web3_module_not_ready'), true);
                 return;
             }
 
-            setFeedback('Оберіть гаманець у вікні підключення...');
+            setFeedback(_ts('js.web3_select_wallet'));
 
             window.appWallet.openModal({
                 autoLogin: false,
@@ -3002,9 +3006,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         const user = result.user || {};
                         updateWalletState(user.wallets || []);
-                        setFeedback('Гаманець успішно додано до вашого контрагента.');
+                        setFeedback(_ts('js.wallet_link_success'));
                     } catch (error) {
-                        setFeedback(error.message || 'Не вдалося прив’язати гаманець.', true);
+                        setFeedback(error.message || _ts('js.wallet_link_failed'), true);
                         throw error;
                     }
                 }
@@ -3018,19 +3022,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const address = button.dataset.address;
-            if (!address || !confirm('Відв’язати цей гаманець від контрагента?')) {
+            if (!address || !confirm(_ts('js.unbind_wallet_confirm'))) {
                 return;
             }
 
             button.disabled = true;
-            setFeedback('Відв’язуємо гаманець...');
+            setFeedback(_ts('js.wallet_unlinking'));
 
             try {
                 const result = await postJson('{{ route('wallet.unlink') }}', { address });
                 updateWalletState((result.user && result.user.wallets) || []);
-                setFeedback('Гаманець відв’язано.');
+                setFeedback(_ts('js.wallet_unlinked'));
             } catch (error) {
-                setFeedback(error.message || 'Не вдалося відв’язати гаманець.', true);
+                setFeedback(error.message || _ts('js.wallet_unlink_failed'), true);
                 button.disabled = false;
             }
         });
@@ -3066,26 +3070,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let currentKeyfield = 'catalog';
         let currentParentId = '0';
-        let breadcrumb = [{ id: 0, name: 'Категории/Надписи' }];
-
-        const fieldModeConfig = {
-            catalog: {
-                root: 'Категории/Надписи',
-                current: 'Категории и подписи',
-                addLabel: '+ Добавить запись',
-                empty: 'Записей на этом уровне пока нет',
-                allowChildren: true,
-                showExtra: true,
-            },
-            city: {
-                root: 'Регионы',
-                current: 'Список регионов',
-                addLabel: '+ Добавить регион',
-                empty: 'Регионов пока нет',
-                allowChildren: false,
-                showExtra: false,
-            },
-        };
+        const fieldModeConfig = window.SettingsI18n.field_modes || {};
+        let breadcrumb = [{ id: 0, name: fieldModeConfig.catalog.root }];
 
         modal.addEventListener('show.bs.modal', () => {
             switchFieldMode('catalog');
@@ -3181,7 +3167,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (!payload.name_ru) {
-                alert('Вкажіть назву RU');
+                alert(_ts('js.name_ru_required'));
                 return;
             }
 
@@ -3198,7 +3184,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка збереження');
+                    alert(data.message || _ts('js.save_error'));
                     return;
                 }
 
@@ -3207,7 +3193,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadCatalog(payload.parent_id || currentParentId);
                 updateCatalogBadge();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         });
 
         function loadCatalog(parentId) {
@@ -3219,7 +3205,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        alert(data.message || 'Помилка завантаження каталогу');
+                        alert(data.message || _ts('js.load_error_catalog'));
                         return;
                     }
 
@@ -3235,7 +3221,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const currentParentName = data.currentParent?.name_ru || fieldModeConfig[currentKeyfield].root;
                     currentLevel.textContent = currentKeyfield === 'catalog'
-                        ? (currentParentId === '0' ? fieldModeConfig.catalog.current : `Подкатегории: ${currentParentName}`)
+                        ? (currentParentId === '0' ? fieldModeConfig.catalog.current : `${fieldModeConfig.catalog.subcategories_prefix}${currentParentName}`)
                         : fieldModeConfig.city.current;
                     parentLabel.textContent = currentKeyfield === 'catalog'
                         ? (currentParentId === '0' ? fieldModeConfig.catalog.root : currentParentName)
@@ -3243,7 +3229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     backBtn.style.display = currentKeyfield === 'catalog' && currentParentId !== '0' ? 'inline-block' : 'none';
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Помилка завантаження довідника</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${escapeHtml(_ts('js.load_error_directory'))}</td></tr>`;
                 });
         }
 
@@ -3262,13 +3248,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? `<span class="badge bg-info text-dark">${item.children_count}</span>`
                     : '<span class="text-muted">0</span>';
                 const flags = fieldModeConfig[currentKeyfield].showExtra ? `
-                    <div>${item.visible === '1' ? '<span class="badge bg-success">Показувати</span>' : '<span class="badge bg-secondary">Приховано</span>'}</div>
-                    <div class="mt-1">${item.firstpage === '1' ? '<span class="badge bg-warning text-dark">Перша сторінка</span>' : '<span class="badge bg-light text-dark">Звичайна</span>'}</div>
+                    <div>${item.visible === '1' ? `<span class="badge bg-success">${escapeHtml(_ts('catalog_modal.badge_visible'))}</span>` : `<span class="badge bg-secondary">${escapeHtml(_ts('catalog_modal.badge_hidden'))}</span>`}</div>
+                    <div class="mt-1">${item.firstpage === '1' ? `<span class="badge bg-warning text-dark">${escapeHtml(_ts('catalog_modal.badge_firstpage'))}</span>` : `<span class="badge bg-light text-dark">${escapeHtml(_ts('catalog_modal.badge_normal'))}</span>`}</div>
                 ` : '<span class="text-muted">—</span>';
                 const description = fieldModeConfig[currentKeyfield].showExtra ? `
-                    <div><strong>Link:</strong> ${escapeHtml(shortText(item.link || '—'))}</div>
-                    <div><strong>Статья:</strong> ${escapeHtml(getNewsTitle(item.news_catalog_id))}</div>
-                    <div><strong>Файл:</strong> ${item.foto1_url ? `<a href="${escapeHtml(item.foto1_url)}" target="_blank" rel="noopener noreferrer">Открыть</a>` : '—'}</div>
+                    <div><strong>${escapeHtml(_ts('catalog_modal.label_link'))}</strong> ${escapeHtml(shortText(item.link || '—'))}</div>
+                    <div><strong>${escapeHtml(_ts('catalog_modal.label_article'))}</strong> ${escapeHtml(getNewsTitle(item.news_catalog_id))}</div>
+                    <div><strong>${escapeHtml(_ts('catalog_modal.label_file'))}</strong> ${item.foto1_url ? `<a href="${escapeHtml(item.foto1_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(_ts('catalog_modal.open_file'))}</a>` : '—'}</div>
                     <div>${escapeHtml(shortText(item.description_ru || '—'))}</div>
                     <div class="catalog-meta">UA: ${escapeHtml(shortText(item.description_ua || '—'))}</div>
                     <div class="catalog-meta">EN: ${escapeHtml(shortText(item.description_en || '—'))}</div>
@@ -3331,7 +3317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        alert(data.message || 'Категорію не знайдено');
+                        alert(data.message || _ts('js.category_not_found'));
                         return;
                     }
 
@@ -3346,8 +3332,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('catalog-file-path').value = data.foto1 || '';
                     document.getElementById('catalog-file-upload').value = '';
                     document.getElementById('catalog-file-current').innerHTML = data.foto1_url
-                        ? `Текущий файл: <a href="${escapeHtml(data.foto1_url)}" target="_blank" rel="noopener noreferrer">Открыть</a>`
-                        : 'Файл не загружен';
+                        ? `${escapeHtml(_ts('catalog_modal.file_current'))} <a href="${escapeHtml(data.foto1_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(_ts('catalog_modal.open_file'))}</a>`
+                        : escapeHtml(_ts('catalog_modal.file_not_uploaded'));
                     document.getElementById('catalog-num').value = data.num ?? 0;
                     document.getElementById('catalog-visible').checked = String(data.visible ?? '1') === '1';
                     document.getElementById('catalog-firstpage').checked = String(data.firstpage ?? '0') === '1';
@@ -3361,11 +3347,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     showCatalogForm();
                 })
-                .catch(() => alert('Помилка завантаження категорії'));
+                .catch(() => alert(_ts('js.load_error_category')));
         }
 
         function deleteCategory(id) {
-            if (!confirm('Видалити категорію?')) return;
+            if (!confirm(_ts('js.delete_category_confirm'))) return;
 
             fetch(`/settings/fields/${id}?keyfield=${encodeURIComponent(currentKeyfield)}`, {
                 method: 'DELETE',
@@ -3380,14 +3366,14 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка видалення');
+                    alert(data.message || _ts('js.delete_error'));
                     return;
                 }
 
                 loadCatalog(currentParentId);
                 updateCatalogBadge();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         }
 
         function updateCatalogBadge() {
@@ -3424,7 +3410,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('catalog-news-catalog').value = '';
             document.getElementById('catalog-file-path').value = '';
             document.getElementById('catalog-file-upload').value = '';
-            document.getElementById('catalog-file-current').textContent = 'Файл не загружен';
+            document.getElementById('catalog-file-current').textContent = _ts('catalog_modal.file_not_uploaded');
             document.getElementById('catalog-num').value = '0';
             document.getElementById('catalog-visible').checked = true;
             document.getElementById('catalog-firstpage').checked = false;
@@ -3434,7 +3420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function hydrateNewsSelect(select, items) {
             if (!select) return;
 
-            select.innerHTML = '<option value="">— не выбрано —</option>';
+            select.innerHTML = `<option value="">${escapeHtml(_ts('catalog_modal.news_none'))}</option>`;
             items.forEach((item) => {
                 const option = document.createElement('option');
                 option.value = String(item.id);
@@ -3489,7 +3475,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (descriptionRow) descriptionRow.style.display = display;
             if (flagsHead) flagsHead.style.display = display;
             if (descriptionHead) descriptionHead.style.display = display;
-            if (childrenHead) childrenHead.textContent = config.allowChildren ? 'Підкатегорії' : 'Записів';
+            if (childrenHead) childrenHead.textContent = config.allowChildren ? _ts('crud.column_subcategories') : _ts('crud.column_records');
             if (breadcrumbBox) breadcrumbBox.style.display = config.allowChildren ? '' : 'none';
             if (backBtn) backBtn.style.display = 'none';
         }
@@ -3556,18 +3542,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!r.ok) {
                 const txt = await r.text();
                 console.error('catalog-filters categories', r.status, txt.slice(0, 500));
-                alert('Не вдалося завантажити категорії (HTTP ' + r.status + ')');
+                alert(_ts('js.http_categories') + r.status + ')');
                 return;
             }
             let data;
             try {
                 data = await r.json();
             } catch (e) {
-                alert('Некоректна відповідь сервера для списку категорій');
+                alert(_ts('js.invalid_server_list'));
                 return;
             }
             const items = data.categories || [];
-            catSelect.innerHTML = '<option value="">— оберіть —</option>';
+            catSelect.innerHTML = `<option value="">${escapeHtml(_ts('js.select_prompt'))}</option>`;
             items.forEach((c) => {
                 const o = document.createElement('option');
                 o.value = String(c.id);
@@ -3583,10 +3569,10 @@ document.addEventListener('DOMContentLoaded', () => {
         async function loadFilters() {
             const cid = selectedCatalogId();
             if (!cid) {
-                alert('Оберіть категорію');
+                alert(_ts('js.choose_category'));
                 return;
             }
-            listHost.innerHTML = '<p class="text-muted">Завантаження...</p>';
+            listHost.innerHTML = '<p class="text-muted">' + escapeHtml(_ts('js.loading')) + '</p>';
             const r = await fetch(`${routes.index}?catalog_id=${encodeURIComponent(cid)}`, {
                 headers: { Accept: 'application/json' },
                 credentials: 'same-origin',
@@ -3595,12 +3581,12 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 data = await r.json();
             } catch (e) {
-                alert('Некоректна відповідь сервера');
+                alert(_ts('js.invalid_server_response'));
                 listHost.innerHTML = '';
                 return;
             }
             if (!r.ok) {
-                alert(data.message || 'Помилка');
+                alert(data.message || _ts('js.error_generic'));
                 listHost.innerHTML = '';
                 return;
             }
@@ -3622,13 +3608,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 wrap.innerHTML = `
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                         <div>
-                            <strong>Група #${g.id}</strong>
+                            <strong>${escapeHtml(_ts('js.cf_group'))} #${g.id}</strong>
                             <div class="small text-muted">UA: ${escapeHtml(g.val)} | RU: ${escapeHtml(g.valru)} | EN: ${escapeHtml(g.valen)} | num: ${g.num}</div>
                         </div>
                         <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-secondary cf-edit" data-id="${g.id}">Змінити</button>
-                            <button type="button" class="btn btn-outline-danger cf-del-group" data-id="${g.id}">Видалити</button>
-                            <button type="button" class="btn btn-outline-success cf-add-val" data-group-id="${g.id}">+ Значення</button>
+                            <button type="button" class="btn btn-outline-secondary cf-edit" data-id="${g.id}">${escapeHtml(_ts('js.cf_change'))}</button>
+                            <button type="button" class="btn btn-outline-danger cf-del-group" data-id="${g.id}">${escapeHtml(_ts('js.cf_delete'))}</button>
+                            <button type="button" class="btn btn-outline-success cf-add-val" data-group-id="${g.id}">${escapeHtml(_ts('js.cf_add_value'))}</button>
                         </div>
                     </div>
                     <div class="table-responsive">
@@ -3648,8 +3634,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${escapeHtml(v.valen)}</td>
                         <td>${v.num}</td>
                         <td class="text-end">
-                            <button type="button" class="btn btn-sm btn-outline-secondary cf-edit" data-id="${v.id}">Змінити</button>
-                            <button type="button" class="btn btn-sm btn-outline-danger cf-del-val" data-id="${v.id}">Видалити</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary cf-edit" data-id="${v.id}">${escapeHtml(_ts('js.cf_change'))}</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger cf-del-val" data-id="${v.id}">${escapeHtml(_ts('js.cf_delete'))}</button>
                         </td>
                     `;
                     tbody.appendChild(tr);
@@ -3687,7 +3673,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function startAddGroup() {
             const cid = selectedCatalogId();
             if (!cid) {
-                alert('Оберіть категорію');
+                alert(_ts('js.choose_category'));
                 return;
             }
             resetForm();
@@ -3695,13 +3681,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('catalog-filters-catalog-id').value = cid;
             document.getElementById('catalog-filters-is-group').value = '1';
             document.getElementById('catalog-filters-parent-group-id').value = '';
-            showForm('Нова група (idfilter = 0)');
+            showForm(_ts('js.cf_new_group'));
         }
 
         function startAddValue(groupId) {
             const cid = selectedCatalogId();
             if (!cid) {
-                alert('Оберіть категорію');
+                alert(_ts('js.choose_category'));
                 return;
             }
             resetForm();
@@ -3709,14 +3695,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('catalog-filters-catalog-id').value = cid;
             document.getElementById('catalog-filters-is-group').value = '0';
             document.getElementById('catalog-filters-parent-group-id').value = String(groupId);
-            showForm(`Нове значення для групи #${groupId}`);
+            showForm(`${_ts('js.cf_new_value_prefix')}${groupId}`);
         }
 
         async function startEdit(id) {
             const r = await fetch(itemUrl(id), { headers: { Accept: 'application/json' } });
             const row = await r.json();
             if (!r.ok) {
-                alert(row.message || 'Помилка');
+                alert(row.message || _ts('js.error_generic'));
                 return;
             }
             const isGroup = Number(row.idfilter) === 0;
@@ -3728,11 +3714,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('catalog-filters-valru').value = row.valru || '';
             document.getElementById('catalog-filters-valen').value = row.valen || '';
             document.getElementById('catalog-filters-num').value = String(row.num ?? 0);
-            showForm(isGroup ? `Редагування групи #${id}` : `Редагування значення #${id}`);
+            showForm(isGroup ? `${_ts('js.cf_edit_group_prefix')}${id}` : `${_ts('js.cf_edit_value_prefix')}${id}`);
         }
 
         async function destroyRow(id, isGroup) {
-            if (!confirm(isGroup ? 'Видалити групу та всі значення?' : 'Видалити значення?')) {
+            if (!confirm(isGroup ? _ts('js.delete_filter_group_confirm') : _ts('js.delete_filter_value_confirm'))) {
                 return;
             }
             const r = await fetch(itemUrl(id), {
@@ -3744,7 +3730,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await r.json().catch(() => ({}));
             if (!r.ok || !data.success) {
-                alert(data.message || 'Помилка видалення');
+                alert(data.message || _ts('js.delete_error'));
                 return;
             }
             if (isGroup) {
@@ -3765,7 +3751,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 num: parseInt(document.getElementById('catalog-filters-num').value, 10) || 0,
             };
             if (!body.val) {
-                alert('Вкажіть назву UA (val)');
+                alert(_ts('js.name_ua_required'));
                 return;
             }
 
@@ -3781,7 +3767,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok || !data.success) {
-                    alert(data.message || 'Помилка збереження');
+                    alert(data.message || _ts('js.save_error'));
                     return;
                 }
             } else {
@@ -3802,7 +3788,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok || !data.success) {
-                    alert(data.message || 'Помилка збереження');
+                    alert(data.message || _ts('js.save_error'));
                     return;
                 }
                 if (isGroup) {
@@ -3875,7 +3861,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const payload = collectFirmPayload();
 
             if (!payload.get('name')) {
-                alert('Вкажіть назву компанії');
+                alert(_ts('js.company_name_required'));
                 return;
             }
 
@@ -3892,14 +3878,14 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка збереження');
+                    alert(data.message || _ts('js.save_error'));
                     return;
                 }
                 hideFirmForm();
                 resetFirmForm();
                 loadFirms();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         });
 
         function collectFirmPayload() {
@@ -3944,7 +3930,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-danger">Помилка завантаження компаній</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-danger">${escapeHtml(_ts('js.load_error_companies'))}</td></tr>`;
                 });
         }
 
@@ -3985,7 +3971,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        alert(data.message || 'Компанію не знайдено');
+                        alert(data.message || _ts('js.company_not_found'));
                         return;
                     }
 
@@ -4007,11 +3993,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     showFirmForm();
                 })
-                .catch(() => alert('Помилка завантаження компанії'));
+                .catch(() => alert(_ts('js.load_error_company')));
         }
 
         function deleteFirm(id, btn) {
-            if (!confirm('Видалити компанію?')) return;
+            if (!confirm(_ts('js.delete_company_confirm'))) return;
 
             fetch(`/settings/firms/${id}`, {
                 method: 'DELETE',
@@ -4026,7 +4012,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка видалення');
+                    alert(data.message || _ts('js.delete_error'));
                     return;
                 }
 
@@ -4037,7 +4023,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     emptyMsg.style.display = 'block';
                 }
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         }
 
         function resetFirmForm() {
@@ -4138,7 +4124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const payload = collectBannerPayload(id);
 
             if (!payload.get('title')) {
-                alert('Вкажіть заголовок банера');
+                alert(_ts('js.banner_title_required'));
                 return;
             }
 
@@ -4155,7 +4141,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка збереження');
+                    alert(data.message || _ts('js.save_error'));
                     return;
                 }
 
@@ -4163,7 +4149,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 resetBannerForm();
                 loadBanners();
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         });
 
         function collectBannerPayload(id) {
@@ -4197,7 +4183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Помилка завантаження банерів</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${escapeHtml(_ts('js.load_error'))}</td></tr>`;
                 });
         }
 
@@ -4223,7 +4209,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </td>
                     <td>${escapeHtml(item.link_url || '—')}</td>
                     <td>${item.sort_order ?? 0}</td>
-                    <td>${String(item.vision) === '1' ? '<span class="badge bg-success">Показується</span>' : '<span class="badge bg-secondary">Прихований</span>'}</td>
+                    <td>${String(item.vision) === '1' ? `<span class="badge bg-success">${escapeHtml(_ts('js.banner_visible'))}</span>` : `<span class="badge bg-secondary">${escapeHtml(_ts('js.banner_hidden'))}</span>`}</td>
                     <td class="text-end">
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
                         <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
@@ -4241,7 +4227,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        alert(data.message || 'Банер не знайдено');
+                        alert(data.message || _ts('js.banner_not_found'));
                         return;
                     }
 
@@ -4256,11 +4242,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     showBannerForm();
                 })
-                .catch(() => alert('Помилка завантаження банера'));
+                .catch(() => alert(_ts('js.load_error_banner')));
         }
 
         function deleteBanner(id, btn) {
-            if (!confirm('Видалити банер?')) return;
+            if (!confirm(_ts('js.delete_banner_confirm'))) return;
 
             fetch(`/settings/banners/${id}`, {
                 method: 'DELETE',
@@ -4275,7 +4261,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(({ ok, data }) => {
                 if (!ok || !data.success) {
-                    alert(data.message || 'Помилка видалення');
+                    alert(data.message || _ts('js.delete_error'));
                     return;
                 }
 
@@ -4286,7 +4272,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     emptyMsg.style.display = 'block';
                 }
             })
-            .catch(() => alert('Помилка мережі'));
+            .catch(() => alert(_ts('js.network_error')));
         }
 
         function resetBannerForm() {
@@ -4373,16 +4359,16 @@ document.addEventListener('DOMContentLoaded', () => {
         btnReload.addEventListener('click', loadTaxReceipts);
 
         btnRegisterPending.addEventListener('click', () => {
-            if (!confirm('Зареєструвати усі чеки у податковій?')) return;
+            if (!confirm(_ts('js.register_all_receipts_confirm'))) return;
             
             fetch('/settings/tax-receipts/register-pending', { method: 'POST' })
                 .then(r => r.json())
                 .then(data => {
-                    alert(`Зареєстровано: ${data.registered}, Помилки: ${data.failed}`);
+                    alert(`${_ts('js.bulk_register_done')} ${data.registered}, ${_ts('js.bulk_register_errors')} ${data.failed}`);
                     loadTaxReceipts();
                     loadStatistics();
                 })
-                .catch(e => alert('Помилка: ' + e.message));
+                .catch(e => alert(_ts('js.error_with_message') + e.message));
         });
 
         btnApiSettings.addEventListener('click', () => {
@@ -4408,11 +4394,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        alert('Налаштування збережено!');
+                        alert(_ts('js.settings_saved'));
                         new (window.bootstrap.Modal)(apiSettingsModal).hide();
                     }
                 })
-                .catch(e => alert('Помилка: ' + e.message));
+                .catch(e => alert(_ts('js.error_with_message') + e.message));
         });
 
         form.addEventListener('submit', (e) => {
@@ -4437,16 +4423,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        alert('Чек додано!');
+                        alert(_ts('js.receipt_added'));
                         resetForm();
                         hideForm();
                         loadTaxReceipts();
                         loadStatistics();
                     } else {
-                        alert('Помилка: ' + (data.error || 'Невідома помилка'));
+                        alert(_ts('js.error_with_message') + (data.error || _ts('js.unknown_error')));
                     }
                 })
-                .catch(e => alert('Помилка: ' + e.message));
+                .catch(e => alert(_ts('js.error_with_message') + e.message));
         });
 
         tbody.addEventListener('click', (e) => {
@@ -4457,27 +4443,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const action = btn.dataset.action;
 
             if (action === 'delete') {
-                if (!confirm('Видалити чек?')) return;
+                if (!confirm(_ts('js.delete_receipt_confirm'))) return;
                 fetch(`/settings/tax-receipts/${id}`, { method: 'DELETE' })
                     .then(r => r.json())
                     .then(() => {
                         loadTaxReceipts();
                         loadStatistics();
                     })
-                    .catch(e => alert('Помилка: ' + e.message));
+                    .catch(e => alert(_ts('js.error_with_message') + e.message));
             } else if (action === 'register') {
                 fetch(`/settings/tax-receipts/${id}/register`, { method: 'POST' })
                     .then(r => r.json())
                     .then(data => {
                         if (data.success) {
-                            alert('Чек зареєстровано! ID: ' + data.tax_receipt_id);
+                            alert(_ts('js.receipt_registered') + data.tax_receipt_id);
                         } else {
-                            alert('Помилка реєстрації: ' + data.error);
+                            alert(_ts('js.registration_error') + data.error);
                         }
                         loadTaxReceipts();
                         loadStatistics();
                     })
-                    .catch(e => alert('Помилка: ' + e.message));
+                    .catch(e => alert(_ts('js.error_with_message') + e.message));
             }
         });
 
@@ -4489,7 +4475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     badge.textContent = data.total;
                 })
                 .catch(e => {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Помилка завантаження</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${escapeHtml(_ts('js.load_error'))}</td></tr>`;
                 });
         }
 
@@ -4515,10 +4501,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             emptyMsg.style.display = 'none';
             items.forEach(item => {
-                const statusBadge = 
-                    item.status === 'registered' ? '<span class="badge bg-success">✓ Зареєстровано</span>' :
-                    item.status === 'pending' ? '<span class="badge bg-warning text-dark">⏳ Очікування</span>' :
-                    '<span class="badge bg-danger">✗ Помилка</span>';
+                const statusBadge =
+                    item.status === 'registered' ? `<span class="badge bg-success">${escapeHtml(_ts('js.tax_status_registered'))}</span>` :
+                    item.status === 'pending' ? `<span class="badge bg-warning text-dark">${escapeHtml(_ts('js.tax_status_pending'))}</span>` :
+                    `<span class="badge bg-danger">${escapeHtml(_ts('js.tax_status_failed'))}</span>`;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -4528,7 +4514,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${statusBadge}</td>
                     <td>${item.registered_at ? item.registered_at : '—'}</td>
                     <td class="text-end">
-                        ${item.status === 'pending' ? `<button class="btn btn-sm btn-outline-success" data-action="register" data-id="${item.id}">📤 Зареєстр.</button>` : ''}
+                        ${item.status === 'pending' ? `<button class="btn btn-sm btn-outline-success" data-action="register" data-id="${item.id}">${escapeHtml(_ts('js.tax_btn_register'))}</button>` : ''}
                         <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${item.id}">🗑</button>
                     </td>
                 `;
@@ -4584,7 +4570,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isHtml = trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.startsWith('<');
 
                 return {
-                    message: isHtml ? 'Сервер повернув HTML замість JSON. Перевірте авторизацію або помилку на бекенді.' : trimmed,
+                    message: isHtml ? _ts('sitemap.parse_html_error') : trimmed,
                 };
             }
         }
@@ -4602,20 +4588,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     const data = await parseSitemapResponse(response);
 
                     if (!response.ok) {
-                        throw new Error(data.message || 'Не вдалося завантажити статус sitemap.');
+                        throw new Error(data.message || _ts('sitemap.load_status_failed'));
                     }
 
                     return data;
                 })
                 .then((data) => updateSitemapUi(data))
                 .catch((error) => {
-                    feedback.textContent = error.message || 'Не вдалося завантажити статус sitemap.';
+                    feedback.textContent = error.message || _ts('sitemap.load_status_failed');
                 });
         }
 
         function generateSitemap() {
             btnGenerate.disabled = true;
-            feedback.textContent = 'Генерація sitemap виконується...';
+            feedback.textContent = _ts('sitemap.generating');
 
             fetch(sitemapGenerateUrl, {
                 method: 'POST',
@@ -4631,14 +4617,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(({ ok, data }) => {
                     if (!ok || !data.success) {
-                        throw new Error(data.message || data.error || 'Помилка генерації sitemap');
+                        throw new Error(data.message || data.error || _ts('sitemap.generate_failed'));
                     }
 
                     updateSitemapUi(data);
-                    feedback.textContent = data.message || 'Sitemap згенеровано.';
+                    feedback.textContent = data.message || _ts('sitemap.generated');
                 })
                 .catch((error) => {
-                    feedback.textContent = error.message || 'Помилка генерації sitemap.';
+                    feedback.textContent = error.message || _ts('sitemap.generate_failed');
                 })
                 .finally(() => {
                     btnGenerate.disabled = false;
@@ -4649,7 +4635,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const exists = Boolean(data.exists ?? data.public_url);
             const publicUrl = data.public_url || '#';
 
-            statusText.textContent = exists ? 'Файл доступний' : 'Файл ще не створено';
+            statusText.textContent = exists ? _ts('sitemap.file_ready') : _ts('sitemap.file_missing');
             badge.textContent = exists ? 'XML' : '—';
             publicLink.href = publicUrl;
             publicLink.textContent = publicUrl;
