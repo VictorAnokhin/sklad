@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class Conf extends Model
@@ -27,14 +28,26 @@ class Conf extends Model
         return $this->belongsTo(LegacyUser::class, 'userid');
     }
 
-    // ── getPriceGroups: всі цінові групи для форми товару ─────────────────────
+    // ── Тип клієнта (conf.type = tgroup) — один запит для Settings і форми товару ──
 
-    public static function getPriceGroups($fid)
+    /**
+     * Ті самі записи, що змінна $tgroups у SettingsController@index («Тип клієнта»).
+     *
+     * @return \Illuminate\Support\Collection<int, \stdClass>
+     */
+    public static function tgroupsForFirma(string|int $fid)
     {
-        return self::where('type', 'tgroup')
-            ->where(fn($q) => $q->where('firma', $fid)->orWhere('constanta', '1'))
+        return DB::table('conf')
+            ->where('type', 'tgroup')
+            ->where('firma', $fid)
             ->orderBy('name')
             ->get();
+    }
+
+    /** Синонім {@see tgroupsForFirma} (використовується в Goods::showGoods). */
+    public static function getPriceGroups(string|int $fid)
+    {
+        return self::tgroupsForFirma($fid);
     }
 
     // ── getFilterTags: теги-фільтри для форми товару ──────────────────────────

@@ -48,8 +48,8 @@ class SettingsController extends Controller
         $reestrs = DB::table('conf')->where('type', 'reestr')->where('firma', $fid)->orderBy('name')->get()
             ->map(fn ($item) => Conf::decoratePaymentType($item));
 
-        // Client types — conf where type='tgroup'
-        $tgroups = DB::table('conf')->where('type', 'tgroup')->where('firma', $fid)->orderBy('name')->get();
+        // Client types — той самий набір, що Conf::tgroupsForFirma (форма товару / price)
+        $tgroups = Conf::tgroupsForFirma($fid);
 
         // Counterparty types — conf where type='tclient'
         $tclients = DB::table('conf')->where('type', 'tclient')->where('firma', $fid)->orderBy('name')->get();

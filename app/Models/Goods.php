@@ -383,6 +383,132 @@ class Goods extends Model
         return $comp;
     }
 
+    /**
+     * Стан селектів «Категорія / Підкатегорія» на goods/show з урахуванням idglava та idcaption:
+     * — підкатегорія: idglava = батько (верх), idcaption = дочірній field;
+     * — лише верхній рівень: idglava = 0, idcaption = id верхнього розділу;
+     * — відновлення батька, якщо idcaption є, а idglava порожній (legacy / імпорт).
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $tops
+     * @param  \Illuminate\Support\Collection  $subsGrouped  groupBy(idkeyfield) з Field::getCatalogSubs
+     * @return array{selectedTop: string, selectedSub: string, availableSubs: \Illuminate\Support\Collection<int, object>}
+     */
+    public static function resolveCatalogCategoryFormState(?object $comp, string|int $firmaId, Collection $tops, Collection $subsGrouped): array
+    {
+        $isEmpty = static function ($v): bool {
+            $s = trim((string) ($v ?? ''));
+
+            return $s === '' || $s === '0';
+        };
+
+        $topIdSet = $tops->pluck('id')->mapWithKeys(static fn ($id) => [(string) (int) $id => true]);
+
+        $findParentIdForSub = static function (string $subId) use ($subsGrouped): ?string {
+            foreach ($subsGrouped->keys() as $parentKey) {
+                $children = $subsGrouped->get($parentKey);
+                if (! $children) {
+                    continue;
+                }
+                foreach ($children as $child) {
+                    if ((string) (int) ($child->id ?? 0) === $subId) {
+                        return (string) (int) $parentKey;
+                    }
+                }
+            }
+
+            return null;
+        };
+
+        $pickSubs = static function (string $parentId) use ($subsGrouped): Collection {
+            if ($parentId === '' || $parentId === '0') {
+                return collect();
+            }
+            foreach ($subsGrouped->keys() as $key) {
+                if ((string) (int) $key === (string) (int) $parentId) {
+                    return collect($subsGrouped->get($key) ?? []);
+                }
+            }
+
+            return collect();
+        };
+
+        $idglava = $comp ? trim((string) ($comp->idglava ?? '')) : '';
+        $idcaption = $comp ? trim((string) ($comp->idcaption ?? '')) : '';
+
+        $selectedTop = '';
+        $selectedSub = '';
+
+        if (! $isEmpty($idglava)) {
+            $selectedTop = (string) (int) $idglava;
+            $selectedSub = $isEmpty($idcaption) ? '' : (string) (int) $idcaption;
+
+            if ($selectedSub !== '') {
+                $subsForTop = $pickSubs($selectedTop);
+                $belongs = $subsForTop->contains(
+                    static fn ($item) => (string) (int) ($item->id ?? 0) === $selectedSub
+                );
+                if (! $belongs) {
+                    $realParent = $findParentIdForSub($selectedSub);
+                    if ($realParent !== null) {
+                        $selectedTop = $realParent;
+                    }
+                }
+            }
+        } elseif (! $isEmpty($idcaption)) {
+            $cap = (string) (int) $idcaption;
+            if ($topIdSet->has($cap)) {
+                $selectedTop = $cap;
+                $selectedSub = '';
+            } else {
+                $parent = $findParentIdForSub($cap);
+                if ($parent === null) {
+                    $row = Field::query()
+                        ->where('keyfield', 'catalog')
+                        ->where('firma', $firmaId)
+                        ->where('id', (int) $cap)
+                        ->first();
+                    if ($row) {
+                        $pk = trim((string) ($row->idkeyfield ?? ''));
+                        if ($pk !== '' && $pk !== '0') {
+                            $parent = (string) (int) $pk;
+                        }
+                    }
+                }
+                if ($parent !== null) {
+                    $selectedTop = $parent;
+                    $selectedSub = $cap;
+                } else {
+                    $selectedTop = '';
+                    $selectedSub = $cap;
+                }
+            }
+        }
+
+        $availableSubs = $pickSubs($selectedTop);
+
+        if (! $isEmpty($selectedSub)) {
+            $hasSub = $availableSubs->contains(
+                static fn ($item) => (string) (int) ($item->id ?? 0) === (string) (int) $selectedSub
+            );
+            if (! $hasSub) {
+                $row = Field::query()
+                    ->where('keyfield', 'catalog')
+                    ->where('firma', $firmaId)
+                    ->where('id', (int) $selectedSub)
+                    ->first();
+                if ($row) {
+                    $availableSubs = $availableSubs->push($row)->sortBy('num')->values();
+                }
+            }
+        }
+
+        return [
+            'selectedTop' => $selectedTop,
+            'selectedSub' => $selectedSub,
+            'availableSubs' => $availableSubs,
+        ];
+    }
+
     // ── show: load single product + related data ──────────────────────────────
 
     public static function showGoods($pnum, $fid, ?string $locale = 'ru')
@@ -395,6 +521,7 @@ class Goods extends Model
         $tops = Field::applyLocaleToCatalogItems(Field::getCatalogTops($fid), $locale);
         $subs = Field::getCatalogSubs($fid)
             ->map(fn ($group) => Field::applyLocaleToCatalogItems($group, $locale));
+        $catForm = self::resolveCatalogCategoryFormState($comp, $fid, collect($tops), collect($subs));
         $news = News::getLatest($fid, 5, $locale);
         $filterTags = Conf::getFilterTags($fid);
 
@@ -405,6 +532,9 @@ class Goods extends Model
             'prices' => $prices,
             'tops' => $tops,
             'subs' => $subs,
+            'catalogSelectedTop' => $catForm['selectedTop'],
+            'catalogSelectedSub' => $catForm['selectedSub'],
+            'catalogAvailableSubs' => $catForm['availableSubs'],
             'news' => $news,
             'filterTags' => $filterTags,
         ];
@@ -473,6 +603,7 @@ class Goods extends Model
             'comp.pay',
             'comp.top',
             'comp.hit',
+            'comp.sklad',
             'comp.firma'
         )
             ->orderByDesc('comp.top')
@@ -509,6 +640,7 @@ class Goods extends Model
                     'pay' => (float) ($item->price_pay ?? 0),
                     'pay1' => (float) ($item->price_pay1 ?? 0),
                     'count' => (int) ($item->price_count ?? 0),
+                    'sklad' => (int) ((int) ($item->sklad ?? 0) === 1),
                     'image' => MediaUrl::image($item->nfoto),
                     'image_thumb' => MediaUrl::image($item->nfoto1),
                     'rating_avg' => (float) ($item->rating_avg ?? 0),
@@ -555,6 +687,7 @@ class Goods extends Model
                 'comp.nfoto7',
                 'comp.nfoto8',
                 'comp.nfoto9',
+                'comp.sklad',
                 'comp.htmlkeys',
                 'comp.htmlkeyspop',
                 'comp.htmldescr',
@@ -664,6 +797,7 @@ class Goods extends Model
             'wholesaleOldPrice' => (float) ($item->price_oldpay ?? 0),
             'wholesaleFrom' => (int) ($item->price_count ?? 0),
             'count' => (int) ($item->price_count ?? 0),
+            'sklad' => (int) ((int) ($item->sklad ?? 0) === 1),
             'image' => MediaUrl::image($item->nfoto ?? ''),
             'image_thumb' => MediaUrl::image($item->nfoto1 ?? ''),
             'images' => $images,
@@ -701,7 +835,8 @@ class Goods extends Model
                 'comp.nfoto',
                 'comp.nfoto1',
                 'comp.pay',
-                'comp.firma'
+                'comp.firma',
+                'comp.sklad'
             )
             ->orderBy('comp.hit', 'desc')
             ->offset($offset)
@@ -735,6 +870,7 @@ class Goods extends Model
                     'pay' => (float) ($item->price_pay ?? 0),
                     'pay1' => (float) ($item->price_pay1 ?? 0),
                     'count' => (int) ($item->price_count ?? 0),
+                    'sklad' => (int) ((int) ($item->sklad ?? 0) === 1),
                     'image' => MediaUrl::image($item->nfoto),
                     'image_thumb' => MediaUrl::image($item->nfoto1),
                     'rating_avg' => (float) ($item->rating_avg ?? 0),

@@ -502,21 +502,21 @@
                             </td>
                             <td>
                                 <input type="number" step="0.01" name="tpay[{{ $group->id }}]" class="form-control"
-                                    value="{{ $row->pay ?? $comp->pay ?? 0 }}">
+                                    value="{{ $row !== null ? $row->pay : 0 }}">
                             </td>
                             <td>
                                 <input type="number" step="0.01" name="tpay1[{{ $group->id }}]" class="form-control"
-                                    value="{{ $row->pay1 ?? $comp->pay1 ?? 0 }}">
+                                    value="{{ $row !== null ? $row->pay1 : 0 }}">
                             </td>
                             <td>
                                 <input type="number" step="0.01" name="toldpay[{{ $group->id }}]" class="form-control"
-                                    value="{{ $row->oldpay ?? 0 }}">
+                                    value="{{ $row !== null ? $row->oldpay : 0 }}">
                             </td>
                             <td>
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">від</span>
                                     <input type="number" step="0.001" name="tcount[{{ $group->id }}]" class="form-control"
-                                        value="{{ $row->count ?? 0 }}">
+                                        value="{{ $row !== null ? $row->count : 0 }}">
                                     <span class="input-group-text">шт.</span>
                                 </div>
                             </td>

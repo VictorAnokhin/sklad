@@ -25,11 +25,22 @@ class Price extends Model
 
     public static function getForGoods($pnum, $fid)
     {
-        if (!$pnum || $pnum === '0') return collect();
+        if (! $pnum || $pnum === '0') {
+            return collect();
+        }
 
-        return self::where('pnum', $pnum)
+        $pnumKey = (string) $pnum;
+        $validTgroups = Conf::getPriceGroups($fid)->pluck('id')->all();
+
+        if ($validTgroups === []) {
+            return collect();
+        }
+
+        $query = self::query()
+            ->where('pnum', $pnumKey)
             ->where('firma', $fid)
-            ->get()
-            ->keyBy('tgroup');
+            ->whereIn('tgroup', $validTgroups);
+
+        return $query->get()->keyBy('tgroup');
     }
 }
