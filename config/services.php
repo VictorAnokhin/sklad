@@ -47,7 +47,7 @@ return [
     ],
 
     'sui' => [
-        'zklogin_prover_url' => env('SUI_ZKLOGIN_PROVER_URL', 'https://prover-dev.mystenlabs.com/v1'),
+        'zklogin_prover_url' => env('SUI_ZKLOGIN_PROVER_URL', 'https://prover.mystenlabs.com/v1'),
         'verify_node_binary' => env('SUI_VERIFY_NODE_BINARY', 'node'),
     ],
 
