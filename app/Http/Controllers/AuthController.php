@@ -1884,6 +1884,10 @@ class AuthController extends Controller
 
     private function verifySuiPersonalMessageSignature(string $message, string $signature, string $address): bool
     {
+        if ($this->verifySuiEd25519PersonalMessageSignature($message, $signature, $address)) {
+            return true;
+        }
+
         $script = base_path('scripts/verify-sui-personal-message.mjs');
 
         if (! is_file($script)) {
@@ -1909,6 +1913,77 @@ class AuthController extends Controller
         }
 
         return trim($process->getOutput()) === '1';
+    }
+
+    private function verifySuiEd25519PersonalMessageSignature(string $message, string $signature, string $address): bool
+    {
+        if (! function_exists('sodium_crypto_sign_verify_detached') || ! function_exists('sodium_crypto_generichash')) {
+            Log::warning('Sui Ed25519 verification requires PHP sodium extension.');
+
+            return false;
+        }
+
+        $bytes = base64_decode($signature, true);
+        if ($bytes === false || strlen($bytes) !== 97) {
+            return false;
+        }
+
+        $schemeFlag = ord($bytes[0]);
+        if ($schemeFlag !== 0) {
+            return false;
+        }
+
+        $rawSignature = substr($bytes, 1, 64);
+        $publicKey = substr($bytes, 65, 32);
+
+        if (strlen($rawSignature) !== SODIUM_CRYPTO_SIGN_BYTES || strlen($publicKey) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
+            return false;
+        }
+
+        $normalizedAddress = $this->normalizeSuiAddressForVerification($address);
+        $derivedAddress = '0x' . bin2hex(sodium_crypto_generichash(chr($schemeFlag) . $publicKey, '', 32));
+        if ($normalizedAddress === '' || ! hash_equals($normalizedAddress, $derivedAddress)) {
+            return false;
+        }
+
+        $digest = sodium_crypto_generichash(
+            chr(3) . chr(0) . chr(0) . $this->encodeUleb128(strlen($message)) . $message,
+            '',
+            32
+        );
+
+        return sodium_crypto_sign_verify_detached($rawSignature, $digest, $publicKey);
+    }
+
+    private function normalizeSuiAddressForVerification(string $address): string
+    {
+        $trimmed = strtolower(trim($address));
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $hex = str_starts_with($trimmed, '0x') ? substr($trimmed, 2) : $trimmed;
+        if ($hex === '' || ! ctype_xdigit($hex) || strlen($hex) > 64) {
+            return '';
+        }
+
+        return '0x' . str_pad($hex, 64, '0', STR_PAD_LEFT);
+    }
+
+    private function encodeUleb128(int $value): string
+    {
+        $bytes = '';
+
+        do {
+            $byte = $value & 0x7f;
+            $value >>= 7;
+            if ($value !== 0) {
+                $byte |= 0x80;
+            }
+            $bytes .= chr($byte);
+        } while ($value !== 0);
+
+        return $bytes;
     }
 
     private function verifyEthereumSignature(string $message, string $signature, string $address): bool
