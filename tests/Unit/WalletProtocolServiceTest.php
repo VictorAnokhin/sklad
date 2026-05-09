@@ -309,4 +309,17 @@ class WalletProtocolServiceTest extends TestCase
         $this->assertSame([], $payload['assets']);
         $this->assertSame('Unsupported network', $payload['error']);
     }
+
+    public function test_it_does_not_call_zerion_for_protocol_positions_on_solana(): void
+    {
+        config()->set('services.zerion.api_key', 'test-key');
+
+        Http::fake();
+
+        $service = new WalletProtocolService(new ZerionWalletService());
+        $payload = $service->load('9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin', 'solana');
+
+        $this->assertSame([], $payload);
+        $this->assertCount(0, Http::recorded());
+    }
 }

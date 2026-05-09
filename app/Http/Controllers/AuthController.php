@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use kornrunner\Keccak;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 /**
@@ -929,7 +930,7 @@ class AuthController extends Controller
         $this->syncUserRoleStatus($user);
         $identity = $this->resolveOrCreateZkLoginIdentity($user, $payload);
 
-        $this->bindWalletToUser($user, $address, 'sui');
+        $this->bindWalletToUser($user, $address, 'sui', 1);
 
         if (Schema::hasTable('zklogin_identities')) {
             DB::table('zklogin_identities')
@@ -1135,13 +1136,13 @@ class AuthController extends Controller
         }
 
         $validated = $request->validate([
-            'address' => ['required', 'string', 'max:80'],
-            'signature' => ['required', 'string', 'max:512'],
+            'address' => ['required', 'string', 'max:120'],
+            'signature' => ['required', 'string', 'max:8192'],
             'network' => 'nullable|string|max:80',
-            'wallet_type' => ['nullable', 'string', 'in:evm,solana'],
+            'wallet_type' => ['nullable', 'string', 'in:eth,arbitrum,base,polygon,bnb,solana,sui'],
         ]);
 
-        $walletType = $this->normalizeWalletType($validated['wallet_type'] ?? null);
+        $walletType = $this->resolveLinkWalletType($validated);
         $address = $this->normalizeWalletAddress((string) $validated['address'], $walletType);
 
         if (!$this->isValidWalletAddress($address, $walletType)) {
@@ -1157,10 +1158,12 @@ class AuthController extends Controller
         $message = $this->makeWeb3Message('link', $nonce, $address, $walletType);
 
         if (!$this->verifyWalletSignature($message, (string) $validated['signature'], $address, $walletType)) {
-            return response()->json(['message' => 'Подпись кошелька не прошла проверку.'], 422);
+            return response()->json([
+                'message' => 'Подпись кошелька не прошла проверку. Если сообщение повторяется, убедитесь что на API установлены Node.js и зависимости (npm install в каталоге laravel-api), либо откройте консоль браузера.',
+            ], 422);
         }
 
-        $this->bindWalletToUser($user, $address, $validated['network'] ?? null);
+        $this->bindWalletToUser($user, $address, $this->storageNetworkForLinkedWallet($walletType), 0);
         Cache::forget($this->web3LinkNonceKey($user->id, $walletType, $address));
 
         return response()->json([
@@ -1202,11 +1205,12 @@ class AuthController extends Controller
         }
 
         $validated = $request->validate([
-            'address' => ['required', 'string', 'max:80'],
-            'wallet_type' => ['nullable', 'string', 'in:evm,solana'],
+            'address' => ['required', 'string', 'max:120'],
+            'wallet_type' => ['nullable', 'string', 'in:eth,arbitrum,base,polygon,bnb,solana,sui'],
+            'network' => 'nullable|string|max:80',
         ]);
 
-        $walletType = $this->normalizeWalletType($validated['wallet_type'] ?? null);
+        $walletType = $this->resolveLinkWalletType($validated);
         $address = $this->normalizeWalletAddress((string) $validated['address'], $walletType);
 
         if (!$this->isValidWalletAddress($address, $walletType)) {
@@ -1284,13 +1288,13 @@ class AuthController extends Controller
         }
 
         $validated = $request->validate([
-            'address' => ['nullable', 'string', 'max:80'],
-            'wallet_type' => ['nullable', 'string', 'in:evm,solana'],
+            'address' => ['nullable', 'string', 'max:120'],
+            'wallet_type' => ['nullable', 'string', 'in:eth,arbitrum,base,polygon,bnb,solana,sui'],
         ]);
 
-        $walletType = $this->normalizeWalletType($validated['wallet_type'] ?? null);
+        $walletTypeForNorm = $this->unlinkWalletTypeForAddressNormalization($validated['wallet_type'] ?? null);
         $address = !empty($validated['address'])
-            ? $this->normalizeWalletAddress((string) $validated['address'], $walletType)
+            ? $this->normalizeWalletAddress((string) $validated['address'], $walletTypeForNorm)
             : null;
 
         if (Schema::hasTable('user_wallets')) {
@@ -1298,6 +1302,10 @@ class AuthController extends Controller
 
             if (!empty($address)) {
                 $query->where('address', $address);
+                $storageNetwork = $this->unlinkStorageNetworkFilter($validated['wallet_type'] ?? null);
+                if ($storageNetwork !== null) {
+                    $query->where('network', $storageNetwork);
+                }
             }
 
             $query->delete();
@@ -1462,11 +1470,16 @@ class AuthController extends Controller
         ];
     }
 
-    private function bindWalletToUser(User $user, string $address, ?string $network = null): void
+    private function bindWalletToUser(User $user, string $address, ?string $network = null, int $web3auth = 0): void
     {
+        $web3authFlag = ((int) $web3auth) === 1 ? 1 : 0;
+
         if (Schema::hasTable('user_wallets')) {
+            $networkKey = $network !== null && trim($network) !== '' ? trim((string) $network) : 'eth';
+
             $exists = DB::table('user_wallets')
                 ->where('address', $address)
+                ->where('network', $networkKey)
                 ->where('user_id', '!=', $user->id)
                 ->exists();
 
@@ -1476,18 +1489,44 @@ class AuthController extends Controller
                 ], 422));
             }
 
-            DB::table('user_wallets')->updateOrInsert(
-                ['address' => $address],
-                [
+            $now = now();
+
+            $existing = DB::table('user_wallets')
+                ->where('user_id', $user->id)
+                ->where('address', $address)
+                ->where('network', $networkKey)
+                ->first();
+
+            $walletRow = [
+                'connected_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            if (Schema::hasColumn('user_wallets', 'web3auth')) {
+                $walletRow['web3auth'] = $web3authFlag;
+            }
+
+            if ($existing) {
+                DB::table('user_wallets')->where('id', $existing->id)->update($walletRow);
+            } else {
+                $insert = [
                     'user_id' => $user->id,
-                    'network' => $network,
-                    'connected_at' => now(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]
-            );
+                    'address' => $address,
+                    'network' => $networkKey,
+                    'connected_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+
+                if (Schema::hasColumn('user_wallets', 'web3auth')) {
+                    $insert['web3auth'] = $web3authFlag;
+                }
+
+                DB::table('user_wallets')->insert($insert);
+            }
 
             $this->syncPrimaryWalletColumns($user->fresh() ?? $user);
+
             return;
         }
 
@@ -1521,6 +1560,7 @@ class AuthController extends Controller
                         'address' => $user->wallet_address,
                         'network' => $user->wallet_network,
                         'connected_at' => optional($user->wallet_connected_at)->toIso8601String(),
+                        'web3auth' => 0,
                     ];
                 }
             }
@@ -1532,15 +1572,41 @@ class AuthController extends Controller
             ->where('user_id', $userId)
             ->orderByDesc('connected_at')
             ->orderByDesc('id')
-            ->get(['address', 'network', 'connected_at'])
+            ->get($this->userWalletSelectColumns())
             ->map(function ($wallet) {
-                return [
-                    'address' => $wallet->address,
-                    'network' => $wallet->network,
-                    'connected_at' => optional($wallet->connected_at)->toIso8601String(),
-                ];
+                return $this->mapUserWalletRow($wallet);
             })
             ->all();
+    }
+
+    /** @return string[] */
+    private function userWalletSelectColumns(): array
+    {
+        $cols = ['address', 'network', 'connected_at'];
+
+        if (Schema::hasTable('user_wallets') && Schema::hasColumn('user_wallets', 'web3auth')) {
+            $cols[] = 'web3auth';
+        }
+
+        return $cols;
+    }
+
+    /** @param object $wallet */
+    private function mapUserWalletRow($wallet): array
+    {
+        $row = [
+            'address' => $wallet->address,
+            'network' => $wallet->network,
+            'connected_at' => optional($wallet->connected_at)->toIso8601String(),
+        ];
+
+        if (property_exists($wallet, 'web3auth')) {
+            $row['web3auth'] = (int) $wallet->web3auth;
+        } else {
+            $row['web3auth'] = 0;
+        }
+
+        return $row;
     }
 
     private function syncPrimaryWalletColumns(User $user): void
@@ -1562,15 +1628,24 @@ class AuthController extends Controller
         ])->save();
     }
 
-    private function makeWeb3Message(string $purpose, string $nonce, string $address, string $walletType = 'evm'): string
+    private function makeWeb3Message(string $purpose, string $nonce, string $address, string $walletType = 'eth'): string
     {
         $action = $purpose === 'link' ? 'Bind wallet' : 'Login';
-        $network = $walletType === 'solana' ? 'Solana' : 'EVM';
+        $networkLabel = match ($walletType) {
+            'solana' => 'Solana',
+            'sui' => 'Sui',
+            'arbitrum' => 'Arbitrum',
+            'base' => 'Base',
+            'polygon' => 'Polygon',
+            'bnb' => 'BNB Chain',
+            'eth' => 'Ethereum',
+            default => 'Ethereum',
+        };
 
         return implode("\n", [
-            "AV8 Capital DAO",
+            'AV8 Capital DAO',
             "{$action} with wallet",
-            "Network: {$network}",
+            "Network: {$networkLabel}",
             "Address: {$address}",
             "Nonce: {$nonce}",
         ]);
@@ -1588,7 +1663,161 @@ class AuthController extends Controller
 
     private function normalizeWalletType(?string $walletType): string
     {
-        return strtolower(trim((string) $walletType)) === 'solana' ? 'solana' : 'evm';
+        $t = strtolower(trim((string) $walletType));
+
+        if ($t === 'solana') {
+            return 'solana';
+        }
+
+        return 'eth';
+    }
+
+    private function resolveLinkWalletType(array $validated): string
+    {
+        $raw = strtolower(trim((string) ($validated['wallet_type'] ?? '')));
+
+        if ($raw === 'solana') {
+            return 'solana';
+        }
+
+        if ($raw === 'sui') {
+            return 'sui';
+        }
+
+        if (in_array($raw, ['eth', 'arbitrum', 'base', 'polygon', 'bnb'], true)) {
+            return $raw;
+        }
+
+        $fromHint = $this->resolveEvmChainSlugFromNetworkHint($validated['network'] ?? null);
+        if ($fromHint !== null) {
+            return $fromHint;
+        }
+
+        return 'eth';
+    }
+
+    /**
+     * Map free-form network (chain name, hex id, decimal id, legacy labels) to a storage slug.
+     */
+    private function resolveEvmChainSlugFromNetworkHint(?string $network): ?string
+    {
+        $hint = strtolower(trim((string) $network));
+
+        if ($hint === '') {
+            return null;
+        }
+
+        if (in_array($hint, ['eth', 'ethereum', 'mainnet', 'eip155:1'], true)) {
+            return 'eth';
+        }
+
+        if (in_array($hint, ['arbitrum', 'arb', 'arbitrum one', 'eip155:42161'], true)) {
+            return 'arbitrum';
+        }
+
+        if (in_array($hint, ['base', 'eip155:8453'], true)) {
+            return 'base';
+        }
+
+        if (in_array($hint, ['polygon', 'matic', 'eip155:137'], true)) {
+            return 'polygon';
+        }
+
+        if (in_array($hint, ['bnb', 'bsc', 'binance', 'eip155:56'], true)) {
+            return 'bnb';
+        }
+
+        $hexMap = [
+            '0x1' => 'eth',
+            '0xa4b1' => 'arbitrum',
+            '0x2105' => 'base',
+            '0x89' => 'polygon',
+            '0x38' => 'bnb',
+        ];
+
+        if (isset($hexMap[$hint])) {
+            return $hexMap[$hint];
+        }
+
+        if (preg_match('/0x[a-f0-9]+/i', $hint, $hexMatch)) {
+            $hexToken = strtolower($hexMatch[0]);
+            if (isset($hexMap[$hexToken])) {
+                return $hexMap[$hexToken];
+            }
+        }
+
+        $decimalMap = [
+            '1' => 'eth',
+            '42161' => 'arbitrum',
+            '8453' => 'base',
+            '137' => 'polygon',
+            '56' => 'bnb',
+        ];
+
+        return $decimalMap[$hint] ?? null;
+    }
+
+    private function storageNetworkForLinkedWallet(string $walletType): string
+    {
+        return match ($walletType) {
+            'solana' => 'solana',
+            'sui' => 'sui',
+            default => $walletType,
+        };
+    }
+
+    private function isEvmWalletType(string $walletType): bool
+    {
+        return in_array($walletType, ['eth', 'arbitrum', 'base', 'polygon', 'bnb'], true);
+    }
+
+    private function unlinkWalletTypeForAddressNormalization(?string $walletTypeRaw): string
+    {
+        if ($walletTypeRaw === null || trim($walletTypeRaw) === '') {
+            return 'eth';
+        }
+
+        $t = strtolower(trim($walletTypeRaw));
+
+        if ($t === 'solana') {
+            return 'solana';
+        }
+
+        if ($t === 'sui') {
+            return 'sui';
+        }
+
+        if (in_array($t, ['eth', 'arbitrum', 'base', 'polygon', 'bnb'], true)) {
+            return $t;
+        }
+
+        return 'eth';
+    }
+
+    /**
+     * @return non-null string to filter one row, or null to delete all rows for this address (any network)
+     */
+    private function unlinkStorageNetworkFilter(?string $walletTypeRaw): ?string
+    {
+        if ($walletTypeRaw === null || trim((string) $walletTypeRaw) === '') {
+            return null;
+        }
+
+        $t = strtolower(trim((string) $walletTypeRaw));
+
+        if ($t === 'solana') {
+            return 'solana';
+        }
+
+        if ($t === 'sui') {
+            return 'sui';
+        }
+
+        if (in_array($t, ['eth', 'arbitrum', 'base', 'polygon', 'bnb'], true)) {
+            return $t;
+        }
+
+        return 'eth';
     }
 
     private function normalizeLookupWalletAddress(string $address): string
@@ -1604,6 +1833,16 @@ class AuthController extends Controller
             return $address;
         }
 
+        if ($walletType === 'sui') {
+            return $this->normalizeSuiWalletAddress($address);
+        }
+
+        if ($this->isEvmWalletType($walletType)) {
+            return str_starts_with(strtolower($address), '0x')
+                ? strtolower($address)
+                : $address;
+        }
+
         return str_starts_with(strtolower($address), '0x')
             ? strtolower($address)
             : $address;
@@ -1615,6 +1854,14 @@ class AuthController extends Controller
             return (bool) preg_match('/^[1-9A-HJ-NP-Za-km-z]{32,44}$/', $address);
         }
 
+        if ($walletType === 'sui') {
+            return $this->looksLikeSuiAddress($address);
+        }
+
+        if ($this->isEvmWalletType($walletType)) {
+            return (bool) preg_match('/^0x[a-fA-F0-9]{40}$/', $address);
+        }
+
         return (bool) preg_match('/^0x[a-fA-F0-9]{40}$/', $address);
     }
 
@@ -1624,7 +1871,44 @@ class AuthController extends Controller
             return $this->verifySolanaSignature($message, $signature, $address);
         }
 
+        if ($walletType === 'sui') {
+            return $this->verifySuiPersonalMessageSignature($message, $signature, $address);
+        }
+
+        if ($this->isEvmWalletType($walletType)) {
+            return $this->verifyEthereumSignature($message, $signature, $address);
+        }
+
         return $this->verifyEthereumSignature($message, $signature, $address);
+    }
+
+    private function verifySuiPersonalMessageSignature(string $message, string $signature, string $address): bool
+    {
+        $script = base_path('scripts/verify-sui-personal-message.mjs');
+
+        if (! is_file($script)) {
+            Log::warning('Sui personal message verification script is missing.', ['path' => $script]);
+
+            return false;
+        }
+
+        $node = trim((string) config('services.sui.verify_node_binary', 'node'));
+        $messageB64 = base64_encode($message);
+
+        $process = new Process([$node, $script, $messageB64, $signature, $address]);
+        $process->setWorkingDirectory(base_path());
+        $process->setTimeout(20);
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            Log::info('Sui personal message verification failed.', [
+                'stderr' => $process->getErrorOutput(),
+            ]);
+
+            return false;
+        }
+
+        return trim($process->getOutput()) === '1';
     }
 
     private function verifyEthereumSignature(string $message, string $signature, string $address): bool

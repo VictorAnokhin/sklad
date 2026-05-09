@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\Wallet;
 use App\Services\WalletPortfolioService;
+use App\Services\ZerionWalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -54,7 +55,7 @@ class WalletPortfolioServiceTest extends TestCase
             ]),
         ]);
 
-        $service = new WalletPortfolioService();
+        $service = new WalletPortfolioService(new ZerionWalletService());
         $payload = $service->getTokens('0xa79798c0637daea4ac7fccbd61371dbb08d1d002');
 
         $this->assertSame('0xa79798c0637daea4ac7fccbd61371dbb08d1d002', $payload['address']);
@@ -102,7 +103,7 @@ class WalletPortfolioServiceTest extends TestCase
             ],
         ]);
 
-        $service = new WalletPortfolioService();
+        $service = new WalletPortfolioService(new ZerionWalletService());
         $payload = $service->getTokens('0xa79798c0637daea4ac7fccbd61371dbb08d1d002');
 
         $this->assertCount(1, $payload['result']);

@@ -102,12 +102,14 @@ class ZerionWalletService
 
         try {
             return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($normalizedAddress, $normalizedChainId, $chainSlug, $configuredTokens) {
-                $positions = $this->fetchPositions($normalizedAddress, [
+                $positions = $this->fetchPositions($normalizedAddress, array_merge([
                     'currency' => 'usd',
-                    'filter[positions]' => 'no_filter',
                     'sort' => '-value',
-                    'filter[chain_ids]' => $chainSlug,
-                ]);
+                ], $this->positionsQueryFilters(
+                    $chainSlug,
+                    $this->addressLooksLikeSolana($normalizedAddress),
+                    'no_filter'
+                )));
 
                 $assets = collect($positions)
                     ->filter(fn (array $position) => $this->isWalletPosition($position))
@@ -125,12 +127,13 @@ class ZerionWalletService
                     $assets = collect();
                 } else {
                     $assets = $assets
-                        ->filter(function (array $asset) use ($allowedAddresses, $configuredAssets) {
+                        ->filter(function (array $asset) use ($allowedAddresses, $configuredAssets, $chainSlug) {
                             if (! empty($asset['is_native'])) {
                                 return true;
                             }
 
-                            $address = strtolower((string) ($asset['address'] ?? ''));
+                            $rawAddress = (string) ($asset['address'] ?? '');
+                            $address = $chainSlug === 'solana' ? $rawAddress : strtolower($rawAddress);
                             if ($address !== '' && in_array($address, $allowedAddresses, true)) {
                                 return true;
                             }
@@ -146,7 +149,7 @@ class ZerionWalletService
                         ->values();
                 }
 
-                $assets = $this->mergeConfiguredFallbackAssets($assets, $configuredAssets);
+                $assets = $this->mergeConfiguredFallbackAssets($assets, $configuredAssets, $chainSlug);
 
                 return [
                     'available' => $assets->isNotEmpty(),
@@ -232,7 +235,7 @@ class ZerionWalletService
             return [];
         }
 
-        if ($chainSlug === 'solana') {
+        if ($this->solanaProtocolsUnsupported($normalizedAddress, $chainSlug)) {
             return [];
         }
 
@@ -240,12 +243,10 @@ class ZerionWalletService
 
         try {
             return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($normalizedAddress, $chainSlug) {
-                $positions = $this->fetchPositions($normalizedAddress, [
+                $positions = $this->fetchPositions($normalizedAddress, array_merge([
                     'currency' => 'usd',
-                    'filter[positions]' => 'only_complex',
                     'sort' => '-value',
-                    'filter[chain_ids]' => $chainSlug,
-                ]);
+                ], $this->positionsQueryFilters($chainSlug, false, 'only_complex')));
 
                 $protocols = [];
 
@@ -314,12 +315,16 @@ class ZerionWalletService
         $cacheKey = sprintf('zerion:transparency:%s:%s', $walletAddress, md5(json_encode($normalizedChainSlugs)));
 
         return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($walletAddress, $normalizedChainSlugs) {
-            $positions = $this->fetchPositions($walletAddress, [
+            $chainIdsParam = $normalizedChainSlugs === [] ? null : implode(',', $normalizedChainSlugs);
+
+            $positions = $this->fetchPositions($walletAddress, array_merge([
                 'currency' => 'usd',
-                'filter[positions]' => 'no_filter',
                 'sort' => '-value',
-                'filter[chain_ids]' => $normalizedChainSlugs === [] ? null : implode(',', $normalizedChainSlugs),
-            ]);
+            ], $this->positionsQueryFilters(
+                $chainIdsParam,
+                $this->addressLooksLikeSolana($walletAddress),
+                'no_filter'
+            )));
 
             $tokenHoldings = [];
             $protocolHoldings = [];
@@ -363,6 +368,87 @@ class ZerionWalletService
                 'updated_at' => now()->toIso8601String(),
             ];
         });
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function fetchWalletPositions(string $address, string|int|null $chainId, string $positionsFilter = 'no_filter'): array
+    {
+        $normalizedChainId = $this->normalizeWalletChainId($chainId);
+        $chainSlug = $this->resolveChainSlug($normalizedChainId);
+        $normalizedAddress = $this->normalizeWalletAddress($address, $normalizedChainId);
+
+        if (! $this->isConfigured()) {
+            throw new \RuntimeException('Zerion API key is not configured.');
+        }
+
+        if ($normalizedChainId !== null && $chainSlug === null) {
+            return [];
+        }
+
+        $chainIdsParam = ($chainSlug !== null && $chainSlug !== '') ? $chainSlug : null;
+
+        return $this->fetchPositions($normalizedAddress, array_merge([
+            'currency' => 'usd',
+            'sort' => '-value',
+        ], $this->positionsQueryFilters(
+            $chainIdsParam,
+            $this->addressLooksLikeSolana($normalizedAddress),
+            $positionsFilter
+        )));
+    }
+
+    /**
+     * Zerion returns 400 for many Solana position queries unless filter[positions]=only_simple
+     * (protocol / aggregated filters are not supported for Solana in the public API).
+     *
+     * @return array<string, string>
+     */
+    private function positionsQueryFilters(?string $chainIdsFilter, bool $addressIsSolana, string $filter): array
+    {
+        $solanaContext = $addressIsSolana || $this->chainIdsFilterIncludesSolana($chainIdsFilter);
+
+        if ($solanaContext && in_array($filter, ['no_filter', 'only_complex'], true)) {
+            $filter = 'only_simple';
+        }
+
+        $params = ['filter[positions]' => $filter];
+
+        if ($chainIdsFilter !== null && $chainIdsFilter !== '') {
+            $params['filter[chain_ids]'] = $chainIdsFilter;
+        }
+
+        return $params;
+    }
+
+    private function chainIdsFilterIncludesSolana(?string $chainIdsFilter): bool
+    {
+        if ($chainIdsFilter === null || $chainIdsFilter === '') {
+            return false;
+        }
+
+        foreach (explode(',', $chainIdsFilter) as $part) {
+            if (strtolower(trim($part)) === 'solana') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function addressLooksLikeSolana(string $address): bool
+    {
+        return (bool) preg_match('/^[1-9A-HJ-NP-Za-km-z]{32,44}$/', trim($address));
+    }
+
+    private function solanaProtocolsUnsupported(string $address, ?string $chainSlug): bool
+    {
+        if ($chainSlug === 'solana') {
+            return true;
+        }
+
+        return $chainSlug === null && $this->addressLooksLikeSolana($address);
     }
 
     private function fetchPositions(string $address, array $params = []): array
@@ -643,9 +729,12 @@ class ZerionWalletService
                 continue;
             }
 
-            $address = strtolower(trim((string) data_get($implementation, 'address', '')));
+            $address = trim((string) data_get($implementation, 'address', ''));
+            if ($address === '') {
+                return null;
+            }
 
-            return $address !== '' ? $address : null;
+            return $chain === 'solana' ? $address : strtolower($address);
         }
 
         return null;
@@ -689,7 +778,7 @@ class ZerionWalletService
             ]);
     }
 
-    private function isConfigured(): bool
+    public function isConfigured(): bool
     {
         return trim((string) config('services.zerion.api_key', '')) !== '';
     }
@@ -715,7 +804,9 @@ class ZerionWalletService
                 }
 
                 return [
-                    'address' => strtolower(trim((string) ($token->color ?? ''))),
+                    'address' => $tokenChainSlug === 'solana'
+                        ? trim((string) ($token->color ?? ''))
+                        : strtolower(trim((string) ($token->color ?? ''))),
                     'symbol' => strtoupper(trim((string) ($token->name ?? ''))),
                     'name' => trim((string) ($token->doc ?? '')),
                     'decimals' => (int) ($token->status ?? 18),
@@ -745,10 +836,17 @@ class ZerionWalletService
             ->all();
     }
 
-    private function mergeConfiguredFallbackAssets($assets, $configuredAssets)
+    private function mergeConfiguredFallbackAssets($assets, $configuredAssets, ?string $chainSlug = null)
     {
         $existingAddresses = $assets
-            ->map(fn (array $asset) => strtolower((string) ($asset['address'] ?? '')))
+            ->map(function (array $asset) use ($chainSlug) {
+                $raw = trim((string) ($asset['address'] ?? ''));
+                if ($raw === '') {
+                    return '';
+                }
+
+                return $chainSlug === 'solana' ? $raw : strtolower($raw);
+            })
             ->filter()
             ->values()
             ->all();
@@ -756,7 +854,8 @@ class ZerionWalletService
         $fallbackAssets = $this->fallbackAssetsFromConfiguredTokens($configuredAssets);
 
         foreach ($fallbackAssets as $fallbackAsset) {
-            $fallbackAddress = strtolower((string) ($fallbackAsset['address'] ?? ''));
+            $rawFallback = trim((string) ($fallbackAsset['address'] ?? ''));
+            $fallbackAddress = $chainSlug === 'solana' ? $rawFallback : strtolower($rawFallback);
             if ($fallbackAddress !== '' && in_array($fallbackAddress, $existingAddresses, true)) {
                 continue;
             }

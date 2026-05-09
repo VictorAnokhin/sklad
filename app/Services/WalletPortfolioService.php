@@ -26,6 +26,11 @@ class WalletPortfolioService
         '0x38' => ['slug' => 'bsc', 'alchemy' => 'bnb-mainnet', 'coingecko_platform' => 'binance-smart-chain', 'coingecko_native_id' => 'binancecoin'],
     ];
 
+    public function __construct(
+        private readonly ZerionWalletService $zerionWalletService,
+    ) {
+    }
+
     public function getTokens(string $address, bool $includeSpam = false, bool $refresh = false): array
     {
         return $this->getTokensForSelection($address, $includeSpam, $refresh, false);
@@ -92,7 +97,9 @@ class WalletPortfolioService
                 'cached' => ! $refresh,
                 'include_spam' => $includeSpam,
                 'include_unselected' => $includeUnselected,
-                'supported_chains' => array_values(array_column(self::NETWORK_MAP, 'slug')),
+                'supported_chains' => $this->looksLikeSolanaAddress($wallet->address)
+                    ? ['solana']
+                    : array_values(array_column(self::NETWORK_MAP, 'slug')),
                 'synced_at' => optional($tokens->max('synced_at'))->toIso8601String(),
             ],
         ];
@@ -212,6 +219,12 @@ class WalletPortfolioService
 
     private function syncWalletTokens(Wallet $wallet): void
     {
+        if ($this->looksLikeSolanaAddress($wallet->address)) {
+            $this->syncSolanaWalletTokensFromZerion($wallet);
+
+            return;
+        }
+
         $apiKey = (string) config('services.alchemy.key', '');
         if ($apiKey === '') {
             throw new RuntimeException('Alchemy API key is not configured.');
@@ -304,6 +317,141 @@ class WalletPortfolioService
                 ->each
                 ->delete();
         });
+    }
+
+    private function syncSolanaWalletTokensFromZerion(Wallet $wallet): void
+    {
+        if (! $this->zerionWalletService->isConfigured()) {
+            throw new RuntimeException('Zerion API key is not configured.');
+        }
+
+        $positions = $this->zerionWalletService->fetchWalletPositions($wallet->address, 'solana', 'no_filter');
+
+        $tokens = collect($positions)
+            ->map(fn (array $position) => $this->mapZerionSolanaWalletPosition($position))
+            ->filter()
+            ->values();
+
+        DB::transaction(function () use ($wallet, $tokens) {
+            $existingTokens = $wallet->tokens()->get();
+            $existingSelections = $existingTokens
+                ->mapWithKeys(fn (WalletToken $token) => [$this->tokenKeyFromModel($token) => $token->is_selected])
+                ->all();
+            $existingCommissions = $this->supportsWalletTokenCommission()
+                ? $existingTokens
+                    ->mapWithKeys(fn (WalletToken $token) => [$this->tokenKeyFromModel($token) => (float) ($token->commission ?? 0)])
+                    ->all()
+                : [];
+
+            $incomingKeys = [];
+
+            $now = now();
+            foreach ($tokens as $token) {
+                $key = $this->tokenKeyFromArray($token);
+                $incomingKeys[] = $key;
+
+                $updateData = [
+                    'chain' => $token['chain'],
+                    'token_address' => $token['token_address'],
+                    'symbol' => $token['symbol'],
+                    'name' => $token['name'],
+                    'balance' => $token['balance'],
+                    'price_usd' => $token['price_usd'],
+                    'value_usd' => $token['value_usd'],
+                    'logo' => $token['logo'],
+                    'is_spam' => $token['is_spam'],
+                    'is_selected' => $existingSelections[$key] ?? true,
+                    'synced_at' => $now,
+                ];
+
+                if ($this->supportsWalletTokenDecimals()) {
+                    $updateData['decimals'] = $token['decimals'];
+                }
+
+                if ($this->supportsWalletTokenCommission()) {
+                    $updateData['commission'] = $existingCommissions[$key] ?? 0;
+                }
+
+                $wallet->tokens()->updateOrCreate([
+                    'chain' => $token['chain'],
+                    'token_address' => $token['token_address'],
+                    'symbol' => $token['symbol'],
+                    'name' => $token['name'],
+                ], $updateData);
+            }
+
+            $wallet->tokens()
+                ->get()
+                ->filter(fn (WalletToken $token) => ! in_array($this->tokenKeyFromModel($token), $incomingKeys, true))
+                ->each
+                ->delete();
+        });
+    }
+
+    private function looksLikeSolanaAddress(string $address): bool
+    {
+        return (bool) preg_match('/^[1-9A-HJ-NP-Za-km-z]{32,44}$/', trim($address));
+    }
+
+    private function mapZerionSolanaWalletPosition(array $position): ?array
+    {
+        if ((string) data_get($position, 'attributes.position_type', '') !== 'wallet') {
+            return null;
+        }
+
+        if ((string) data_get($position, 'relationships.chain.data.id', '') !== 'solana') {
+            return null;
+        }
+
+        $symbol = trim((string) data_get($position, 'attributes.fungible_info.symbol', data_get($position, 'attributes.name', '')));
+        $name = trim((string) data_get($position, 'attributes.fungible_info.name', data_get($position, 'attributes.name', $symbol)));
+        $decimals = (int) data_get($position, 'attributes.quantity.decimals', 9);
+        $amount = data_get($position, 'attributes.quantity.float');
+        $balance = is_numeric($amount)
+            ? $this->normalizeNumericString((string) $amount, 18)
+            : '0.000000000000000000';
+
+        $priceRaw = data_get($position, 'attributes.price');
+        $priceUsd = $this->nullableDecimal($priceRaw);
+
+        $valueUsd = null;
+        if (is_numeric(data_get($position, 'attributes.value'))) {
+            $valueUsd = $this->nullableDecimal(data_get($position, 'attributes.value'), 2);
+        } elseif ($priceUsd !== null && is_numeric($amount)) {
+            $valueUsd = $this->multiplyDecimalStrings($balance, $priceUsd, 2);
+        }
+
+        $tokenAddress = $this->extractSolanaMintFromZerionPosition($position);
+
+        return [
+            'chain' => 'solana',
+            'token_address' => $tokenAddress,
+            'symbol' => $symbol !== '' ? $symbol : 'TOKEN',
+            'name' => $name !== '' ? $name : ($symbol !== '' ? $symbol : 'Token'),
+            'decimals' => $decimals,
+            'balance' => $balance,
+            'price_usd' => $priceUsd,
+            'value_usd' => $valueUsd,
+            'logo' => $this->nullableString(data_get($position, 'attributes.fungible_info.icon.url')),
+            'is_spam' => false,
+        ];
+    }
+
+    private function extractSolanaMintFromZerionPosition(array $position): ?string
+    {
+        $implementations = (array) data_get($position, 'attributes.fungible_info.implementations', []);
+
+        foreach ($implementations as $implementation) {
+            if ((string) data_get($implementation, 'chain_id', '') !== 'solana') {
+                continue;
+            }
+
+            $addr = trim((string) data_get($implementation, 'address', ''));
+
+            return $addr !== '' ? $addr : null;
+        }
+
+        return null;
     }
 
     private function syncCoinGeckoPrices(Wallet $wallet): void
@@ -559,8 +707,17 @@ class WalletPortfolioService
 
     private function nullableTokenAddress(mixed $value): ?string
     {
-        $address = strtolower(trim((string) $value));
-        if ($address === '' || ! str_starts_with($address, '0x')) {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        if (preg_match('/^[1-9A-HJ-NP-Za-km-z]{32,44}$/', $raw)) {
+            return $raw;
+        }
+
+        $address = strtolower($raw);
+        if (! str_starts_with($address, '0x')) {
             return null;
         }
 
@@ -584,7 +741,16 @@ class WalletPortfolioService
 
     private function normalizeAddress(string $address): string
     {
-        $normalized = strtolower(trim($address));
+        $trimmed = trim($address);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        if ($this->looksLikeSolanaAddress($trimmed)) {
+            return $trimmed;
+        }
+
+        $normalized = strtolower($trimmed);
 
         return Str::startsWith($normalized, '0x') ? $normalized : '';
     }
@@ -736,9 +902,12 @@ class WalletPortfolioService
 
     private function tokenKeyFromArray(array $token): string
     {
+        $chain = strtolower((string) ($token['chain'] ?? ''));
+        $rawAddress = (string) ($token['token_address'] ?? 'native');
+
         return implode(':', [
-            strtolower((string) ($token['chain'] ?? '')),
-            strtolower((string) ($token['token_address'] ?? 'native')),
+            $chain,
+            $this->tokenAddressKey($rawAddress, $chain),
             strtolower(trim((string) ($token['symbol'] ?? ''))),
             strtolower(trim((string) ($token['name'] ?? ''))),
         ]);
@@ -746,11 +915,23 @@ class WalletPortfolioService
 
     private function tokenKeyFromModel(WalletToken $token): string
     {
+        $chain = strtolower((string) $token->chain);
+        $rawAddress = (string) ($token->token_address ?: 'native');
+
         return implode(':', [
-            strtolower((string) $token->chain),
-            strtolower((string) ($token->token_address ?: 'native')),
+            $chain,
+            $this->tokenAddressKey($rawAddress, $chain),
             strtolower(trim((string) ($token->symbol ?? ''))),
             strtolower(trim((string) ($token->name ?? ''))),
         ]);
+    }
+
+    private function tokenAddressKey(string $tokenAddress, string $chain): string
+    {
+        if ($tokenAddress === '' || strtolower($tokenAddress) === 'native') {
+            return 'native';
+        }
+
+        return $chain === 'solana' ? $tokenAddress : strtolower($tokenAddress);
     }
 }

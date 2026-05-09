@@ -87,6 +87,7 @@ class SettingsController extends Controller
                 'address' => $user->wallet_address,
                 'network' => $user->wallet_network,
                 'connected_at' => $user->wallet_connected_at,
+                'web3auth' => 0,
             ]]);
         }
 

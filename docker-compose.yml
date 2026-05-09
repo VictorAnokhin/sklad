@@ -9,6 +9,7 @@ services:
       - .:/var/www/html
       - ./storage:/var/www/html/storage
       - /var/www/html/vendor
+      - /var/www/html/node_modules
     environment:
       APP_ENV: local
       APP_DEBUG: "true"
@@ -40,6 +41,7 @@ services:
       - .:/var/www/html                         # live code sync (для разработки)
       - ./storage:/var/www/html/storage         # persist uploads & logs
       - /var/www/html/vendor                    # не перезаписывать vendor из хоста
+      - /var/www/html/node_modules              # не перезаписывать Node deps для Sui signature verification
     environment:
       APP_ENV: local
       APP_DEBUG: "true"

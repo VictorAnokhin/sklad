@@ -304,6 +304,18 @@
     return null;
   }
 
+  function evmLinkWalletTypeFromChainId(chainId) {
+    const id = normalizeChainId(chainId) || '0x1';
+    const map = {
+      '0x1': 'eth',
+      '0xa4b1': 'arbitrum',
+      '0x2105': 'base',
+      '0x89': 'polygon',
+      '0x38': 'bnb',
+    };
+    return map[id] || 'eth';
+  }
+
   function isEvmAddress(value) {
     if (typeof value !== 'string') return false;
     return /^0x[0-9a-fA-F]{40}$/.test(value.trim());
@@ -2101,7 +2113,7 @@
       return { linked: false, skipped: true };
     }
 
-    const normalizedType = walletType === 'solana' ? 'solana' : 'evm';
+    const normalizedType = walletType === 'solana' ? 'solana' : evmLinkWalletTypeFromChainId(chainId);
     const network = normalizedType === 'solana'
       ? 'solana'
       : (normalizeChainId(chainId) || '0x1');
@@ -2109,6 +2121,7 @@
     const challenge = await postJson(walletLinkChallengeUrl, {
       address,
       wallet_type: normalizedType,
+      network,
     });
 
     const signature = await signWalletPayload(provider, normalizedType, address, challenge.message);

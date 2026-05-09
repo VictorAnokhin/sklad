@@ -55,7 +55,16 @@ class WalletProtocolService
 
     private function normalizeAddress(string $address): string
     {
-        $normalized = strtolower(trim($address));
+        $trimmed = trim($address);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        if ((bool) preg_match('/^[1-9A-HJ-NP-Za-km-z]{32,44}$/', $trimmed)) {
+            return $trimmed;
+        }
+
+        $normalized = strtolower($trimmed);
 
         return str_starts_with($normalized, '0x') ? $normalized : '';
     }

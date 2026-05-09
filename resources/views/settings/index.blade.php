@@ -2980,7 +2980,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 autoLogin: false,
                 onConnected: async ({ address, chainId, provider, walletType }) => {
                     try {
-                        const normalizedType = walletType === 'solana' ? 'solana' : 'evm';
+                        const evmLinkWalletTypeFromChainId = (cid) => {
+                            let id = null;
+                            if (typeof cid === 'number' && Number.isFinite(cid)) {
+                                id = '0x' + cid.toString(16);
+                            } else if (typeof cid === 'string' && cid.trim()) {
+                                const raw = cid.trim().toLowerCase();
+                                if (raw.startsWith('0x')) {
+                                    const n = parseInt(raw, 16);
+                                    id = Number.isFinite(n) ? '0x' + n.toString(16) : null;
+                                } else if (/^\d+$/.test(raw)) {
+                                    const n = parseInt(raw, 10);
+                                    id = Number.isFinite(n) ? '0x' + n.toString(16) : null;
+                                }
+                            }
+                            if (!id) {
+                                id = '0x1';
+                            }
+                            const map = {
+                                '0x1': 'eth',
+                                '0xa4b1': 'arbitrum',
+                                '0x2105': 'base',
+                                '0x89': 'polygon',
+                                '0x38': 'bnb',
+                            };
+                            return map[id] || 'eth';
+                        };
+                        const normalizedType = walletType === 'solana' ? 'solana' : evmLinkWalletTypeFromChainId(chainId);
                         const network = normalizedType === 'solana'
                             ? 'Solana'
                             : (chainId ? `EVM ${chainId}` : 'EVM');
@@ -2988,6 +3014,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const challenge = await postJson('{{ route('wallet.challenge') }}', {
                             address,
                             wallet_type: normalizedType,
+                            network: chainId || null,
                         });
 
                         const signature = await window.appWallet.signMessage({

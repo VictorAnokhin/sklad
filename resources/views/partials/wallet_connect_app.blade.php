@@ -359,6 +359,18 @@
       return null;
     }
 
+    function evmLinkWalletTypeFromChainId(chainId) {
+      const id = normalizeChainId(chainId) || '0x1';
+      const map = {
+        '0x1': 'eth',
+        '0xa4b1': 'arbitrum',
+        '0x2105': 'base',
+        '0x89': 'polygon',
+        '0x38': 'bnb',
+      };
+      return map[id] || 'eth';
+    }
+
     function getInjectedProviders() {
       const mapped = new Map();
       const addProvider = (provider, info = null) => {
@@ -740,8 +752,9 @@
     }
 
     async function ensureWalletLinked(address, provider, options) {
-      const walletType = options?.walletType === 'solana' ? 'solana' : 'evm';
-      const chainId = walletType === 'solana'
+      const isSol = options?.walletType === 'solana';
+      const walletType = isSol ? 'solana' : evmLinkWalletTypeFromChainId(options?.chainId);
+      const chainId = isSol
         ? 'solana'
         : (normalizeChainId(options?.chainId) || '0x1');
 
@@ -752,6 +765,7 @@
       const challenge = await postJson(walletLinkChallengeUrl, {
         address,
         wallet_type: walletType,
+        network: chainId,
       });
 
       const signature = await signWalletMessage(provider, walletType, address, challenge.message);

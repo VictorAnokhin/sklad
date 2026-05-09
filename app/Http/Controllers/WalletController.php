@@ -79,7 +79,7 @@ class WalletController extends Controller
             'native_name' => 'Solana',
             'icon_url' => 'https://cryptologos.cc/logos/solana-sol-logo.svg',
             'supports_swap' => false,
-            'supports_protocols' => false,
+            'supports_protocols' => true,
         ],
     ];
 
@@ -149,7 +149,7 @@ class WalletController extends Controller
 
         return response()->json([
             'wallet' => [
-                'address' => strtolower($address),
+                'address' => $this->normalizeOverviewWalletAddress((string) $address),
                 'chain_id' => $chainId,
                 'source' => $profileWallet ? 'profile' : 'request',
             ],
@@ -297,6 +297,7 @@ class WalletController extends Controller
                     'network' => $user->wallet_network,
                     'chain_id' => Conf::normalizeWeb3ChainIdToHex($user->wallet_network),
                     'connected_at' => optional($user->wallet_connected_at)->toIso8601String(),
+                    'web3auth' => 0,
                 ];
             }
 
@@ -314,6 +315,7 @@ class WalletController extends Controller
                     'network' => $wallet->network,
                     'chain_id' => Conf::normalizeWeb3ChainIdToHex($wallet->network),
                     'connected_at' => optional($wallet->connected_at)->toIso8601String(),
+                    'web3auth' => property_exists($wallet, 'web3auth') ? (int) $wallet->web3auth : 0,
                 ];
             })
             ->toArray();
@@ -555,7 +557,7 @@ class WalletController extends Controller
                     'native_name' => 'Token',
                     'icon_url' => 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
                     'supports_swap' => $chainId !== 'solana',
-                    'supports_protocols' => $chainId !== 'solana',
+                    'supports_protocols' => true,
                 ];
 
                 return [
@@ -588,7 +590,8 @@ class WalletController extends Controller
     {
         $chainIdHex = Conf::normalizeWeb3ChainIdToHex($token->vision ?? null) ?? (string) ($token->vision ?? '');
         $chainIdDecimal = Conf::normalizeWeb3ChainIdToDecimalString($token->vision ?? null) ?? '';
-        $address = strtolower(trim((string) ($token->color ?? '')));
+        $rawColor = trim((string) ($token->color ?? ''));
+        $address = $chainIdHex === 'solana' ? $rawColor : strtolower($rawColor);
 
         if ($chainIdHex === '') {
             return null;
@@ -605,5 +608,16 @@ class WalletController extends Controller
             'coingecko_id' => trim((string) ($token->constanta ?? '')),
             'commission' => property_exists($token, 'commission') && $token->commission !== null ? (float) $token->commission : 0.0,
         ];
+    }
+
+    private function normalizeOverviewWalletAddress(string $address): string
+    {
+        $trimmed = trim($address);
+
+        if ((bool) preg_match('/^[1-9A-HJ-NP-Za-km-z]{32,44}$/', $trimmed)) {
+            return $trimmed;
+        }
+
+        return strtolower($trimmed);
     }
 }

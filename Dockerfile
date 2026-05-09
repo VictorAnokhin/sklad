@@ -3,7 +3,7 @@ FROM php:8.2-apache
 # ── System deps ───────────────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl zip unzip libpng-dev libonig-dev libxml2-dev \
-    libzip-dev libicu-dev libpq-dev libgmp-dev \
+    libzip-dev libicu-dev libpq-dev libgmp-dev nodejs npm \
     && docker-php-ext-install \
         pdo pdo_mysql mysqli mbstring exif pcntl bcmath gd zip intl gmp \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -21,10 +21,13 @@ COPY --from=composer:2.6 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 
 COPY composer.json composer.lock ./
+COPY package.json package-lock.json ./
 
-# ── Install PHP deps ──────────────────────────────────────────────────────────
+# ── Install PHP and Node deps ─────────────────────────────────────────────────
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts \
-    && composer clear-cache
+    && composer clear-cache \
+    && npm ci --omit=dev \
+    && npm cache clean --force
 
 COPY --chown=www-data:www-data . .
 
