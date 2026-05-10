@@ -600,19 +600,44 @@
                                 @php
                                     $existingRaFiles = [];
                                     if ($doc === 'RA' && !empty($document->docum)) {
-                                        $existingRaFiles = array_filter(explode(';', $document->docum));
+                                        $existingRaFiles = array_values(array_filter(array_map('trim', explode(';', (string) $document->docum))));
                                     }
-                                    $imageExtensions = '/\.(jpe?g|png|gif|webp|bmp)$/i';
+                                    $imageExtensions = '/\.(jpe?g|png|gif|webp|bmp)(\?.*)?$/i';
+                                    $publicRaFileUrl = static function (string $path): string {
+                                        $path = trim($path);
+                                        if ($path === '') {
+                                            return '';
+                                        }
+                                        if (preg_match('#^https?://#i', $path) === 1) {
+                                            return $path;
+                                        }
+                                        $normalizedPath = str_replace('\\', '/', $path);
+                                        if (str_starts_with($normalizedPath, '/storage/')) {
+                                            return $normalizedPath;
+                                        }
+                                        if (str_starts_with($normalizedPath, 'storage/')) {
+                                            return '/' . $normalizedPath;
+                                        }
+                                        if (str_starts_with($normalizedPath, 'documents/')) {
+                                            return asset('storage/' . ltrim($normalizedPath, '/'));
+                                        }
+                                        return asset(ltrim($normalizedPath, '/'));
+                                    };
                                 @endphp
                                 @foreach($existingRaFiles as $existingFile)
+                                    @php
+                                        $existingFileUrl = $publicRaFileUrl($existingFile);
+                                    @endphp
                                     <div class="file-preview-card existing-file-card" data-file-url="{{ $existingFile }}">
-                                        @if(preg_match($imageExtensions, $existingFile))
-                                            <img src="{{ $existingFile }}" alt="file preview">
+                                        @if($existingFileUrl !== '' && preg_match($imageExtensions, $existingFile))
+                                            <img src="{{ $existingFileUrl }}" alt="file preview">
                                         @else
                                             <div class="file-preview-icon">📎</div>
                                         @endif
                                         <div class="file-preview-name">{{ basename($existingFile) }}</div>
-                                        <a href="{{ $existingFile }}" target="_blank" rel="noopener noreferrer">Скачати</a>
+                                        @if($existingFileUrl !== '')
+                                            <a href="{{ $existingFileUrl }}" target="_blank" rel="noopener noreferrer">Скачати</a>
+                                        @endif
                                         <button type="button" class="file-preview-remove btn btn-sm btn-outline-danger" data-file-url="{{ $existingFile }}">×</button>
                                         <input type="hidden" name="existing_docum[]" value="{{ $existingFile }}">
                                     </div>

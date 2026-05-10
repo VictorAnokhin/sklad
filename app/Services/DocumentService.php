@@ -63,8 +63,10 @@ class DocumentService
             }
         }
 
-        // Handle file uploads for RA documents (multiple files with docum[] array)
-        $documPath = '';
+        // Handle file uploads for RA documents (multiple files with docum[] array).
+        // The z_document.docum column is shared by other document flows, so only
+        // write it here when RA explicitly manages attached file paths.
+        $documPath = null;
         if ($docType === 'RA') {
             $uploadedRAPaths = [];
             $existingDbDocum = DB::table($table)->where('id', $docId)->value('docum') ?? '';
@@ -124,7 +126,6 @@ class DocumentService
             'sklads' => $request->input('sklads', ''),
             'reteil' => $request->input('reteil', ''),
             'reestr' => $request->input('reestr', ''),
-            'docum' => $documPath,
             'typeproduct' => $request->input('typeproduct', ''),
             'manager' => $request->input('manager', session('login', '')),
             'money' => $request->input('money', ''),
@@ -134,6 +135,10 @@ class DocumentService
             'num' => $request->input('num', ''),
             'time' => $request->input('time', ''),
         ];
+
+        if ($docType === 'RA') {
+            $data['docum'] = $documPath ?? '';
+        }
 
         $existingColumns = Schema::getColumnListing($table);
         Log::info('saveHead columns info', [
