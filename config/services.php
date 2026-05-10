@@ -47,8 +47,28 @@ return [
     ],
 
     'sui' => [
-        'zklogin_prover_url' => env('SUI_ZKLOGIN_PROVER_URL', 'https://prover.mystenlabs.com/v1'),
+        'zklogin_prover_url' => env('SUI_ZKLOGIN_PROVER_URL', 'https://prover-dev.mystenlabs.com/v1'),
         'verify_node_binary' => env('SUI_VERIFY_NODE_BINARY', 'node'),
+        /** Fullnode JSON-RPC URL (same network as the SPA). Required for local gas sponsorship. */
+        'rpc_url' => env('SUI_RPC_URL', ''),
+        /** Bech32 export `suiprivkey1...` (Ed25519 or Secp256k1). Keep in .env only; funds this hot wallet with SUI for gas. */
+        'gas_sponsor_private_key' => env('SUI_GAS_SPONSOR_PRIVATE_KEY', ''),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Shinami (Sui zkLogin prover + Gas Station)
+    |--------------------------------------------------------------------------
+    |
+    | Wallet access key: Dashboard → API keys with Wallet / zkProver scope.
+    | Gas access key: key tied to a Gas Station fund on the target network.
+    | Region in SHINAMI_API_BASE must match the region where keys were created.
+    |
+    */
+    'shinami' => [
+        'api_base' => env('SHINAMI_API_BASE', 'https://api.us1.shinami.com'),
+        'wallet_access_key' => env('SHINAMI_WALLET_ACCESS_KEY', ''),
+        'gas_access_key' => env('SHINAMI_GAS_ACCESS_KEY', ''),
     ],
 
     'zerion' => [

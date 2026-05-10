@@ -3,10 +3,11 @@
     "type": "project",
     "description": "av8fund / autoagent / moysklad — Laravel 8 rewrite",
     "require": {
-        "php": "^8.0",
-        "laravel/framework": "^10.0",
+        "php": "^8.2",
         "guzzlehttp/guzzle": "^7.0",
+        "inodrahq/sui-sdk": "^1.0",
         "kornrunner/keccak": "^1.1",
+        "laravel/framework": "^10.0",
         "laravel/sanctum": "^3.3",
         "simplito/elliptic-php": "^1.0"
     },

@@ -90,7 +90,7 @@ return new class extends Migration
             $t->string('numz', 20)->default('0');
             $t->string('typez', 10)->default('');
             $t->string('docid', 20)->default('0');
-            $t->string('docum', 20)->default('');
+            $t->text('docum');
             $t->tinyInteger('provodka')->default(0);
             $t->tinyInteger('dostup')->default(1);
             $t->string('work', 10)->default('');

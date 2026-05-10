@@ -147,7 +147,7 @@ return new class extends Migration
             }
         });
 
-        $this->runMysqlStatement("ALTER TABLE `z_document` MODIFY `docum` varchar(220) NOT NULL DEFAULT ''");
+        $this->runMysqlStatement('ALTER TABLE `z_document` MODIFY `docum` TEXT NOT NULL');
         $this->runMysqlStatement("ALTER TABLE `z_document` MODIFY `money` varchar(50) NOT NULL DEFAULT ''");
         $this->runMysqlStatement("ALTER TABLE `z_document` MODIFY `oplata` varchar(50) NOT NULL DEFAULT ''");
         $this->runMysqlStatement("ALTER TABLE `z_document` MODIFY `oplata2` varchar(50) NOT NULL DEFAULT ''");

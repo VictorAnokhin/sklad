@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\GoodsController;
@@ -37,6 +39,24 @@ Route::middleware('api')->prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->post('/wallet/link', [AuthController::class, 'linkWallet']);
     Route::middleware('auth:sanctum')->post('/wallet/unlink', [AuthController::class, 'unlinkWallet']);
     Route::middleware('auth:sanctum')->post('/wallet/update-token-data', [WalletController::class, 'updateTokenData']);
+});
+
+Route::middleware(['api', 'sui.sponsor.log', 'auth:sanctum'])->post('/sui/shinami/sponsor-transaction', [AuthController::class, 'shinamiSponsorSuiTransaction']);
+
+Route::middleware('api')->post('/debug/frontend', function (Request $request) {
+    $payload = $request->validate([
+        'area' => ['nullable', 'string', 'max:80'],
+        'stage' => ['required', 'string', 'max:120'],
+        'data' => ['nullable', 'array'],
+    ]);
+
+    Log::info('Frontend diagnostic.', [
+        'area' => $payload['area'] ?? null,
+        'stage' => $payload['stage'],
+        'data' => $payload['data'] ?? [],
+    ]);
+
+    return response()->json(['ok' => true]);
 });
 
 // ── Goods API ─────────────────────────────────────────────────────────────

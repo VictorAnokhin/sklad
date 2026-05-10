@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\ShinamiClient;
+use App\Services\SuiLocalGasSponsorClient;
 use App\Services\SmsClubService;
 use Elliptic\EC;
 use Illuminate\Mail\Message;
@@ -775,11 +777,102 @@ class AuthController extends Controller
 
     public function zkLoginConfig()
     {
+        $shinamiProver = ShinamiClient::walletApiKey() !== null;
+
         return response()->json([
             'googleClientId' => (string) config('services.google.client_id', ''),
-            'proverUrl' => (string) config('services.sui.zklogin_prover_url', ''),
+            'proverUrl' => $shinamiProver ? '' : (string) config('services.sui.zklogin_prover_url', ''),
+            'proverProvider' => $shinamiProver ? 'shinami' : 'mysten',
+            'gasSponsorshipEnabled' => SuiLocalGasSponsorClient::isConfigured() || ShinamiClient::gasApiKey() !== null,
+            'gasSponsorshipProvider' => SuiLocalGasSponsorClient::isConfigured() ? 'local' : (ShinamiClient::gasApiKey() !== null ? 'shinami' : null),
             'enabled' => (string) config('services.google.client_id', '') !== '',
         ]);
+    }
+
+    public function shinamiSponsorSuiTransaction(Request $request)
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $validated = $request->validate([
+            'transactionKindBase64' => ['required', 'string', 'max:131072'],
+            'sender' => ['required', 'string', 'max:80'],
+            'gasBudget' => ['nullable', 'string', 'max:32'],
+            'gasPrice' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        $sender = $this->normalizeSuiWalletAddress((string) $validated['sender']);
+
+        if (! $this->userControlsSuiAddress($user, $sender)) {
+            return response()->json(['message' => 'Sender address is not linked to this account'], 403);
+        }
+
+        $gasBudget = isset($validated['gasBudget']) && $validated['gasBudget'] !== '' ? (string) $validated['gasBudget'] : null;
+        $gasPrice = isset($validated['gasPrice']) && $validated['gasPrice'] !== '' ? (string) $validated['gasPrice'] : null;
+        $txKind = (string) $validated['transactionKindBase64'];
+
+        Log::info('Sui gas sponsorship requested.', [
+            'provider' => SuiLocalGasSponsorClient::isConfigured() ? 'local' : (ShinamiClient::gasApiKey() !== null ? 'shinami' : null),
+            'fallback_provider' => SuiLocalGasSponsorClient::isConfigured() && ShinamiClient::gasApiKey() !== null ? 'shinami' : null,
+            'sender' => $sender,
+            'tx_kind_base64_len' => strlen($txKind),
+            'gas_budget' => $gasBudget,
+            'gas_price' => $gasPrice,
+        ]);
+
+        if (SuiLocalGasSponsorClient::isConfigured()) {
+            try {
+                $out = SuiLocalGasSponsorClient::sponsorTransactionBlock($txKind, $sender, $gasBudget, $gasPrice);
+            } catch (\RuntimeException $e) {
+                Log::warning('Local Sui gas sponsorship failed.', [
+                    'sender' => $sender,
+                    'message' => $e->getMessage(),
+                ]);
+
+                if (ShinamiClient::gasApiKey() === null) {
+                    return response()->json(['message' => $e->getMessage()], 502);
+                }
+
+                Log::info('Falling back to Shinami gas sponsorship.', [
+                    'sender' => $sender,
+                    'local_error' => $e->getMessage(),
+                ]);
+            }
+
+            if (isset($out)) {
+                Log::info('Local Sui gas sponsorship succeeded.', [
+                    'sender' => $sender,
+                    'tx_digest' => $out['txDigest'] ?? null,
+                ]);
+
+                return response()->json($out);
+            }
+        }
+
+        if (ShinamiClient::gasApiKey() === null) {
+            return response()->json(['message' => 'Gas sponsorship is not configured (set SUI_GAS_SPONSOR_PRIVATE_KEY + SUI_RPC_URL, or SHINAMI_GAS_ACCESS_KEY)'], 503);
+        }
+
+        try {
+            $out = ShinamiClient::sponsorTransactionBlock($txKind, $sender, $gasBudget, $gasPrice);
+        } catch (\RuntimeException $e) {
+            Log::warning('Shinami gas sponsorship failed.', [
+                'sender' => $sender,
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => $e->getMessage()], 502);
+        }
+
+        Log::info('Shinami gas sponsorship succeeded.', [
+            'sender' => $sender,
+            'tx_digest' => $out['txDigest'] ?? null,
+        ]);
+
+        return response()->json($out);
     }
 
     public function zkLoginGoogleSalt(Request $request)
@@ -857,6 +950,44 @@ class AuthController extends Controller
             return response()->json(['message' => 'Salt does not match the stored zkLogin identity.'], 422);
         }
 
+        if (ShinamiClient::walletApiKey() !== null) {
+            try {
+                Log::info('Shinami zkLogin proof requested.', [
+                    'max_epoch_type' => gettype($validated['maxEpoch']),
+                    'extended_ephemeral_public_key_len' => strlen((string) $validated['extendedEphemeralPublicKey']),
+                    'jwt_randomness_len' => strlen((string) $validated['jwtRandomness']),
+                    'salt_len' => strlen((string) $validated['salt']),
+                    'key_claim_name' => (string) ($validated['keyClaimName'] ?? 'sub'),
+                ]);
+
+                $result = ShinamiClient::zkProverRpc('shinami_zkp_createZkLoginProof', [
+                    (string) $validated['jwt'],
+                    (string) $validated['maxEpoch'],
+                    (string) $validated['extendedEphemeralPublicKey'],
+                    (string) $validated['jwtRandomness'],
+                    (string) $validated['salt'],
+                ]);
+            } catch (\RuntimeException $e) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                ], 502);
+            }
+
+            $zkProof = $result['zkProof'] ?? null;
+            if (! is_array($zkProof)) {
+                return response()->json([
+                    'message' => 'Shinami zkLogin prover returned an unexpected response.',
+                    'details' => $result,
+                ], 502);
+            }
+
+            return response()->json([
+                'proofPoints' => $zkProof['proofPoints'] ?? null,
+                'issBase64Details' => $zkProof['issBase64Details'] ?? null,
+                'headerBase64' => $zkProof['headerBase64'] ?? null,
+            ]);
+        }
+
         $proverUrl = trim((string) config('services.sui.zklogin_prover_url', ''));
 
         if ($proverUrl === '') {
@@ -884,10 +1015,32 @@ class AuthController extends Controller
 
         $json = $response->json();
 
-        if (!$response->ok() || !is_array($json)) {
+        if (! $response->ok()) {
+            $proverMessage = '';
+            if (is_array($json)) {
+                if (isset($json['message']) && is_scalar($json['message'])) {
+                    $proverMessage = (string) $json['message'];
+                } elseif (isset($json['error']) && is_scalar($json['error'])) {
+                    $proverMessage = (string) $json['error'];
+                }
+            }
+            $bodyPreview = $proverMessage === ''
+                ? Str::limit(trim((string) preg_replace('/\s+/', ' ', $response->body())), 500)
+                : '';
+
             return response()->json([
-                'message' => 'zkLogin proving service returned an invalid response.',
+                'message' => trim('zkLogin proving service rejected the request. ' . $proverMessage),
+                'status' => $response->status(),
                 'details' => $json,
+                'body' => $bodyPreview ?: null,
+            ], 502);
+        }
+
+        if (! is_array($json)) {
+            return response()->json([
+                'message' => 'zkLogin proving service returned a non-JSON response.',
+                'status' => $response->status(),
+                'body' => Str::limit(trim((string) preg_replace('/\s+/', ' ', $response->body())), 500),
             ], 502);
         }
 
@@ -1421,6 +1574,29 @@ class AuthController extends Controller
         return User::create(User::filterUsersColumns($userData));
     }
 
+    private function userControlsSuiAddress(User $user, string $normalizedSender): bool
+    {
+        $target = strtolower($normalizedSender);
+
+        $zk = $this->resolveZkLoginWalletAddress($user->id);
+        if ($zk && strtolower($zk) === $target) {
+            return true;
+        }
+
+        foreach ($this->userWallets($user->id) as $wallet) {
+            $addr = trim((string) ($wallet['address'] ?? ''));
+            if ($addr === '') {
+                continue;
+            }
+            $candidate = $this->normalizeSuiWalletAddress($addr);
+            if ($candidate && strtolower($candidate) === $target) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function resolveZkLoginWalletAddress(int|string $userId): ?string
     {
         if (! Schema::hasTable('zklogin_identities')) {
@@ -1591,13 +1767,37 @@ class AuthController extends Controller
         return $cols;
     }
 
+    /**
+     * DB::table rows expose timestamps as strings; optional()->toIso8601String() only works on DateTime.
+     */
+    private function formatWalletConnectedAt(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format(\DateTimeInterface::ATOM);
+        }
+
+        if (is_string($value)) {
+            try {
+                return (new \DateTimeImmutable($value))->format(\DateTimeInterface::ATOM);
+            } catch (\Throwable) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
     /** @param object $wallet */
     private function mapUserWalletRow($wallet): array
     {
         $row = [
             'address' => $wallet->address,
             'network' => $wallet->network,
-            'connected_at' => optional($wallet->connected_at)->toIso8601String(),
+            'connected_at' => $this->formatWalletConnectedAt($wallet->connected_at ?? null),
         ];
 
         if (property_exists($wallet, 'web3auth')) {
@@ -1621,11 +1821,20 @@ class AuthController extends Controller
                 ->first();
         }
 
-        $user->forceFill([
-            'wallet_address' => $primaryWallet->address ?? null,
-            'wallet_network' => $primaryWallet->network ?? null,
-            'wallet_connected_at' => $primaryWallet->connected_at ?? null,
-        ])->save();
+        $sync = [];
+        if (Schema::hasColumn('users', 'wallet_address')) {
+            $sync['wallet_address'] = $primaryWallet->address ?? null;
+        }
+        if (Schema::hasColumn('users', 'wallet_network')) {
+            $sync['wallet_network'] = $primaryWallet->network ?? null;
+        }
+        if (Schema::hasColumn('users', 'wallet_connected_at')) {
+            $sync['wallet_connected_at'] = $primaryWallet->connected_at ?? null;
+        }
+
+        if ($sync !== []) {
+            $user->forceFill($sync)->save();
+        }
     }
 
     private function makeWeb3Message(string $purpose, string $nonce, string $address, string $walletType = 'eth'): string

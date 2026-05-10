@@ -516,7 +516,7 @@ CREATE TABLE `z_document` (
   `status` varchar(50) NOT NULL,
   `money` varchar(50) NOT NULL,
   `reteil` varchar(50) NOT NULL,
-  `docum` varchar(220) NOT NULL,
+  `docum` text NOT NULL,
   `sms_flag` char(1) NOT NULL,
   `oplata` varchar(50) NOT NULL,
   `oplata2` varchar(50) NOT NULL,
