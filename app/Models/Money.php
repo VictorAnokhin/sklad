@@ -281,6 +281,7 @@ class Money extends Model
     {
         $data['firma'] = $fid;
         $data['money'] = (string)($data['money'] ?? '');
+        $data['docum'] = (string)($data['docum'] ?? '');
         $data['oplata'] = (string)($data['oplata'] ?? $data['money']);
         $data['reestr'] = (string)($data['reestr'] ?? '');
         $data['content'] = (string)($data['content'] ?? '');

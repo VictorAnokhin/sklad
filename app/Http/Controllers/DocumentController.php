@@ -362,6 +362,7 @@ class DocumentController extends Controller
                 'reestr' => $reestr,
                 'sklads' => $sklads,
                 'money' => $money,
+                'docum' => '',
                 'dostup' => 1,
                 'work' => session('work', '1'),
             ]);
@@ -780,6 +781,7 @@ class DocumentController extends Controller
                 'reestr' => $reestr,
                 'sklads' => $sklads,
                 'money' => $money,
+                'docum' => '',
                 'dostup' => 1,
                 'work' => session('work', '1'),
             ]);
