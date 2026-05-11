@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\AtomaClient;
+use App\Services\OpenAiClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -10,7 +10,7 @@ use Throwable;
 
 class AiChatController extends Controller
 {
-    public function chat(Request $request, AtomaClient $atoma): JsonResponse
+    public function chat(Request $request, OpenAiClient $openAi): JsonResponse
     {
         $payload = $request->validate([
             'message' => ['required', 'string', 'min:2', 'max:2000'],
@@ -26,12 +26,8 @@ class AiChatController extends Controller
         $page = (string) ($payload['page'] ?? 'unknown');
         $wallet = trim((string) ($payload['wallet'] ?? ''));
 
-        $messages = [
-            [
-                'role' => 'system',
-                'content' => $this->systemPrompt($language),
-            ],
-        ];
+        $instructions = $this->systemPrompt($language);
+        $messages = [];
 
         foreach (($payload['history'] ?? []) as $historyItem) {
             $messages[] = [
@@ -48,9 +44,9 @@ class AiChatController extends Controller
         ];
 
         try {
-            $result = $atoma->chat($messages);
+            $result = $openAi->chat($instructions, $messages);
         } catch (Throwable $e) {
-            Log::warning('Atoma chat failed.', [
+            Log::warning('OpenAI chat failed.', [
                 'message' => $e->getMessage(),
                 'page' => $page,
                 'wallet' => $wallet,
@@ -64,7 +60,7 @@ class AiChatController extends Controller
 
         return response()->json([
             'answer' => $result['answer'],
-            'provider' => 'atoma',
+            'provider' => 'openai',
             'model' => $result['model'],
             'usage' => $result['usage'],
             'billing' => [

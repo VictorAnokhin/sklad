@@ -78,6 +78,13 @@ return [
         'timeout' => (int) env('ATOMA_TIMEOUT', 60),
     ],
 
+    'openai' => [
+        'api_base' => env('OPENAI_API_BASE', 'https://api.openai.com'),
+        'api_key' => env('OPENAI_API_KEY', ''),
+        'model' => env('OPENAI_MODEL', 'gpt-5-mini'),
+        'timeout' => (int) env('OPENAI_TIMEOUT', 60),
+    ],
+
     'zerion' => [
         'api_key' => env('ZERION_API_KEY'),
         'wallet_address' => env('ZERION_WALLET_ADDRESS'),
