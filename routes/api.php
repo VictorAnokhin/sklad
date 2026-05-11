@@ -5,6 +5,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerCarouselController;
+use App\Http\Controllers\FundShareSettingsController;
+use App\Http\Controllers\FundTokenController;
 use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\RwaAdminCapController;
@@ -90,6 +92,12 @@ Route::get('/transparency/overview', [WalletController::class, 'transparencyOver
 Route::get('/rwa/admin-caps', [RwaAdminCapController::class, 'index']);
 Route::post('/rwa/admin-caps', [RwaAdminCapController::class, 'store']);
 Route::delete('/rwa/admin-caps/{id}', [RwaAdminCapController::class, 'destroy']);
+Route::get('/fund/tokens', [FundTokenController::class, 'index']);
+Route::post('/fund/tokens', [FundTokenController::class, 'store']);
+Route::put('/fund/tokens/{id}', [FundTokenController::class, 'update']);
+Route::delete('/fund/tokens/{id}', [FundTokenController::class, 'destroy']);
+Route::get('/fund/share-settings', [FundShareSettingsController::class, 'show']);
+Route::put('/fund/share-settings', [FundShareSettingsController::class, 'update']);
 
 // ── Orders (Zakaz) API ─────────────────────────────────────────────────────
 
