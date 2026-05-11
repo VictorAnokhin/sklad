@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\FundShareSettingsController;
@@ -60,6 +61,8 @@ Route::middleware('api')->post('/debug/frontend', function (Request $request) {
 
     return response()->json(['ok' => true]);
 });
+
+Route::middleware(['api', 'throttle:20,1'])->post('/ai/chat', [AiChatController::class, 'chat']);
 
 // ── Goods API ─────────────────────────────────────────────────────────────
 

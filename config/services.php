@@ -71,6 +71,13 @@ return [
         'gas_access_key' => env('SHINAMI_GAS_ACCESS_KEY', ''),
     ],
 
+    'atoma' => [
+        'api_base' => env('ATOMA_API_BASE', 'https://api.atoma.network'),
+        'api_key' => env('ATOMA_API_KEY', ''),
+        'model' => env('ATOMA_MODEL', 'openai/gpt-4o-mini'),
+        'timeout' => (int) env('ATOMA_TIMEOUT', 60),
+    ],
+
     'zerion' => [
         'api_key' => env('ZERION_API_KEY'),
         'wallet_address' => env('ZERION_WALLET_ADDRESS'),
