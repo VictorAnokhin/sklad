@@ -46,15 +46,23 @@ class AiChatController extends Controller
         try {
             $result = $openAi->chat($instructions, $messages);
         } catch (Throwable $e) {
+            $message = $e->getMessage();
             Log::warning('OpenAI chat failed.', [
-                'message' => $e->getMessage(),
+                'message' => $message,
                 'page' => $page,
                 'wallet' => $wallet,
             ]);
 
+            if (str_contains($message, 'OPENAI_API_KEY')) {
+                return response()->json([
+                    'message' => 'AI assistant is not configured. Add OPENAI_API_KEY on the Laravel backend.',
+                    'error' => config('app.debug') ? $message : null,
+                ], 503);
+            }
+
             return response()->json([
                 'message' => 'AI assistant is temporarily unavailable.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
+                'error' => config('app.debug') ? $message : null,
             ], 503);
         }
 

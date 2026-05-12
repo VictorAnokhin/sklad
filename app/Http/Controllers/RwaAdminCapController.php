@@ -41,22 +41,22 @@ class RwaAdminCapController extends Controller
 
         $validated = $request->validate([
             'network' => ['nullable', 'string', 'max:40'],
-            'package_id' => ['required', 'string', 'max:80', 'regex:/^0x[a-fA-F0-9]{64}$/'],
-            'admin_cap_id' => ['required', 'string', 'max:80', 'regex:/^0x[a-fA-F0-9]{64}$/'],
-            'owner_address' => ['required', 'string', 'max:80', 'regex:/^0x[a-fA-F0-9]{64}$/'],
+            'package_id' => ['required', 'string', 'max:80', 'regex:/^0x[a-fA-F0-9]{1,64}$/'],
+            'admin_cap_id' => ['required', 'string', 'max:80', 'regex:/^0x[a-fA-F0-9]{1,64}$/'],
+            'owner_address' => ['required', 'string', 'max:80', 'regex:/^0x[a-fA-F0-9]{1,64}$/'],
             'label' => ['nullable', 'string', 'max:120'],
             'tx_digest' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $adminCapId = strtolower($validated['admin_cap_id']);
+        $adminCapId = $this->normalizeSuiAddress($validated['admin_cap_id']);
         $now = now();
 
         DB::table('rwa_admin_caps')->updateOrInsert(
             ['admin_cap_id' => $adminCapId],
             [
                 'network' => trim((string) ($validated['network'] ?? 'testnet')) ?: 'testnet',
-                'package_id' => strtolower($validated['package_id']),
-                'owner_address' => strtolower($validated['owner_address']),
+                'package_id' => $this->normalizeSuiAddress($validated['package_id']),
+                'owner_address' => $this->normalizeSuiAddress($validated['owner_address']),
                 'label' => trim((string) ($validated['label'] ?? '')),
                 'tx_digest' => trim((string) ($validated['tx_digest'] ?? '')),
                 'created_by' => Auth::id(),
@@ -79,6 +79,17 @@ class RwaAdminCapController extends Controller
         $deleted = DB::table('rwa_admin_caps')->where('id', $id)->delete();
 
         return response()->json(['deleted' => $deleted > 0]);
+    }
+
+    private function normalizeSuiAddress(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        if (preg_match('/^0x([a-f0-9]{1,64})$/', $value, $matches)) {
+            return '0x'.str_pad($matches[1], 64, '0', STR_PAD_LEFT);
+        }
+
+        return $value;
     }
 
     private function mapRow(object $row): array

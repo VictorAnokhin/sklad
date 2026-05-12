@@ -109,7 +109,7 @@ class FundShareSettingsController extends Controller
             ]);
         }
 
-        $address = strtolower(trim((string) $request->header('X-Sui-Admin-Address', '')));
+        $address = $this->normalizeSuiAddress((string) $request->header('X-Sui-Admin-Address', ''));
         if (! preg_match('/^0x[a-f0-9]{64}$/', $address)) {
             throw ValidationException::withMessages([
                 'admin' => 'Connect a registered Sui admin wallet before changing fund share settings.',
@@ -125,6 +125,17 @@ class FundShareSettingsController extends Controller
                 'admin' => 'This wallet is not registered as an RWA AdminCap owner.',
             ]);
         }
+    }
+
+    private function normalizeSuiAddress(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        if (preg_match('/^0x([a-f0-9]{1,64})$/', $value, $matches)) {
+            return '0x'.str_pad($matches[1], 64, '0', STR_PAD_LEFT);
+        }
+
+        return $value;
     }
 
     private function defaults(string $network, string $packageId): array

@@ -29,12 +29,7 @@ class OpenAiClient
             'instructions' => $instructions,
             'input' => array_map(static fn (array $message): array => [
                 'role' => $message['role'],
-                'content' => [
-                    [
-                        'type' => 'input_text',
-                        'text' => $message['content'],
-                    ],
-                ],
+                'content' => $message['content'],
             ], $messages),
             'max_output_tokens' => (int) ($options['max_output_tokens'] ?? 900),
         ];
