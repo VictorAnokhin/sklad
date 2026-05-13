@@ -61,6 +61,9 @@ class FundPoolController extends Controller
                 'package_id' => strtolower(trim((string) ($validated['package_id'] ?? ''))),
                 'pool_registry_id' => strtolower(trim((string) ($validated['pool_registry_id'] ?? ''))),
                 'pool_admin_cap_id' => strtolower(trim((string) ($validated['pool_admin_cap_id'] ?? ''))),
+                'pool_accounting_id' => $this->normalizeOptionalSuiAddress((string) ($validated['pool_accounting_id'] ?? '')),
+                'basket_vault_id' => $this->normalizeOptionalSuiAddress((string) ($validated['basket_vault_id'] ?? '')),
+                'liquidity_wallet_address' => $this->normalizeOptionalSuiAddress((string) ($validated['liquidity_wallet_address'] ?? '')),
                 'coin_type' => $this->normalizeCoinType($validated['coin_type']),
                 'symbol' => strtoupper(trim((string) ($validated['symbol'] ?? 'USDC'))),
                 'name' => trim((string) $validated['name']),
@@ -105,6 +108,9 @@ class FundPoolController extends Controller
                 'pool_registry_id' => strtolower(trim((string) ($validated['pool_registry_id'] ?? ''))),
                 'pool_admin_cap_id' => strtolower(trim((string) ($validated['pool_admin_cap_id'] ?? ''))),
                 'pool_object_id' => strtolower(trim((string) $validated['pool_object_id'])),
+                'pool_accounting_id' => $this->normalizeOptionalSuiAddress((string) ($validated['pool_accounting_id'] ?? '')),
+                'basket_vault_id' => $this->normalizeOptionalSuiAddress((string) ($validated['basket_vault_id'] ?? '')),
+                'liquidity_wallet_address' => $this->normalizeOptionalSuiAddress((string) ($validated['liquidity_wallet_address'] ?? '')),
                 'coin_type' => $this->normalizeCoinType($validated['coin_type']),
                 'symbol' => strtoupper(trim((string) ($validated['symbol'] ?? 'USDC'))),
                 'name' => trim((string) $validated['name']),
@@ -183,6 +189,9 @@ class FundPoolController extends Controller
             'package_id' => ['nullable', 'string', 'max:80', 'regex:/^(|0x[a-fA-F0-9]{64})$/'],
             'pool_registry_id' => ['nullable', 'string', 'max:80', 'regex:/^(|0x[a-fA-F0-9]{64})$/'],
             'pool_admin_cap_id' => ['nullable', 'string', 'max:80', 'regex:/^(|0x[a-fA-F0-9]{64})$/'],
+            'pool_accounting_id' => ['nullable', 'string', 'max:80', 'regex:/^(|0x[a-fA-F0-9]{1,64})$/'],
+            'basket_vault_id' => ['nullable', 'string', 'max:80', 'regex:/^(|0x[a-fA-F0-9]{1,64})$/'],
+            'liquidity_wallet_address' => ['nullable', 'string', 'max:80', 'regex:/^(|0x[a-fA-F0-9]{1,64})$/'],
             'pool_object_id' => [
                 'required',
                 'string',
@@ -259,6 +268,13 @@ class FundPoolController extends Controller
         return $value;
     }
 
+    private function normalizeOptionalSuiAddress(string $value): string
+    {
+        $value = trim($value);
+
+        return $value === '' ? '' : $this->normalizeSuiAddress($value);
+    }
+
     private function mapRow(object $row): array
     {
         return [
@@ -268,6 +284,9 @@ class FundPoolController extends Controller
             'pool_registry_id' => (string) ($row->pool_registry_id ?? ''),
             'pool_admin_cap_id' => (string) ($row->pool_admin_cap_id ?? ''),
             'pool_object_id' => (string) ($row->pool_object_id ?? ''),
+            'pool_accounting_id' => (string) ($row->pool_accounting_id ?? ''),
+            'basket_vault_id' => (string) ($row->basket_vault_id ?? ''),
+            'liquidity_wallet_address' => (string) ($row->liquidity_wallet_address ?? ''),
             'coin_type' => (string) $row->coin_type,
             'symbol' => (string) ($row->symbol ?? 'USDC'),
             'name' => (string) $row->name,
