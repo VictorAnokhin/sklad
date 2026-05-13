@@ -67,7 +67,10 @@ return [
     */
     'shinami' => [
         'api_base' => env('SHINAMI_API_BASE', 'https://api.us1.shinami.com'),
-        'wallet_access_key' => env('SHINAMI_WALLET_ACCESS_KEY', ''),
+        'wallet_access_key' => env(
+            'SHINAMI_WALLET_ACCESS_KEY',
+            env('SHINAMI_ZKPROVER_ACCESS_KEY', env('SHINAMI_ACCESS_KEY', env('SHINAMI_API_KEY', '')))
+        ),
         'gas_access_key' => env('SHINAMI_GAS_ACCESS_KEY', ''),
     ],
 

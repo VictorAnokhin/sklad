@@ -1027,9 +1027,14 @@ class AuthController extends Controller
             $bodyPreview = $proverMessage === ''
                 ? Str::limit(trim((string) preg_replace('/\s+/', ' ', $response->body())), 500)
                 : '';
+            $message = trim('zkLogin proving service rejected the request. ' . $proverMessage);
+
+            if (str_contains(strtolower($message), 'audience') && str_contains(strtolower($message), 'not supported')) {
+                $message .= ' Current backend prover is Mysten, not Shinami. Set SHINAMI_WALLET_ACCESS_KEY or SHINAMI_ZKPROVER_ACCESS_KEY on Laravel and run php artisan optimize:clear.';
+            }
 
             return response()->json([
-                'message' => trim('zkLogin proving service rejected the request. ' . $proverMessage),
+                'message' => $message,
                 'status' => $response->status(),
                 'details' => $json,
                 'body' => $bodyPreview ?: null,
