@@ -27,6 +27,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('target_apy_bps')->default(0);
             $table->unsignedSmallInteger('realized_apy_bps')->default(0);
             $table->string('min_deposit_usdc', 80)->default('0');
+            $table->string('min_av8_balance', 80)->default('0');
             $table->unsignedSmallInteger('max_weight_bps')->default(10000);
             $table->boolean('active')->default(true);
             $table->string('logo_url', 500)->default('');
