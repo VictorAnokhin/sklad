@@ -29,6 +29,7 @@ class FundPoolController extends Controller
             ->when($coinType !== '', fn ($q) => $q->where('coin_type', $this->normalizeCoinType($coinType)))
             ->when(! $includeInactive, fn ($q) => $q->where('active', true))
             ->orderByDesc('active')
+            ->orderByDesc('is_default_deposit')
             ->orderBy('risk_level')
             ->orderBy('name')
             ->orderBy('id');
@@ -75,6 +76,7 @@ class FundPoolController extends Controller
                 'min_av8_balance' => trim((string) ($validated['min_av8_balance'] ?? '0')),
                 'max_weight_bps' => (int) ($validated['max_weight_bps'] ?? 10000),
                 'active' => (bool) ($validated['active'] ?? true),
+                'is_default_deposit' => (bool) ($validated['is_default_deposit'] ?? false),
                 'logo_url' => trim((string) ($validated['logo_url'] ?? '')),
                 'notes' => trim((string) ($validated['notes'] ?? '')) ?: null,
                 'created_by' => Auth::id(),
@@ -82,6 +84,7 @@ class FundPoolController extends Controller
                 'created_at' => $now,
             ]
         );
+        $this->clearOtherDefaultDepositPools($network, $poolObjectId, (bool) ($validated['is_default_deposit'] ?? false));
 
         $row = DB::table('fund_pools')
             ->where('network', $network)
@@ -123,6 +126,7 @@ class FundPoolController extends Controller
                 'min_av8_balance' => trim((string) ($validated['min_av8_balance'] ?? '0')),
                 'max_weight_bps' => (int) ($validated['max_weight_bps'] ?? 10000),
                 'active' => (bool) ($validated['active'] ?? true),
+                'is_default_deposit' => (bool) ($validated['is_default_deposit'] ?? false),
                 'logo_url' => trim((string) ($validated['logo_url'] ?? '')),
                 'notes' => trim((string) ($validated['notes'] ?? '')) ?: null,
                 'updated_at' => now(),
@@ -131,6 +135,7 @@ class FundPoolController extends Controller
         if ($updated === 0 && ! DB::table('fund_pools')->where('id', $id)->exists()) {
             return response()->json(['message' => 'Not found'], 404);
         }
+        $this->clearOtherDefaultDepositPools($network, strtolower(trim((string) $validated['pool_object_id'])), (bool) ($validated['is_default_deposit'] ?? false));
 
         $row = DB::table('fund_pools')->where('id', $id)->first();
 
@@ -217,6 +222,7 @@ class FundPoolController extends Controller
             'min_av8_balance' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
             'max_weight_bps' => ['nullable', 'integer', 'min:0', 'max:10000'],
             'active' => ['nullable', 'boolean'],
+            'is_default_deposit' => ['nullable', 'boolean'],
             'logo_url' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
@@ -278,6 +284,18 @@ class FundPoolController extends Controller
         return $value === '' ? '' : $this->normalizeSuiAddress($value);
     }
 
+    private function clearOtherDefaultDepositPools(string $network, string $poolObjectId, bool $isDefaultDeposit): void
+    {
+        if (! $isDefaultDeposit || ! Schema::hasColumn('fund_pools', 'is_default_deposit')) {
+            return;
+        }
+
+        DB::table('fund_pools')
+            ->where('network', $network)
+            ->whereRaw('LOWER(pool_object_id) <> ?', [strtolower($poolObjectId)])
+            ->update(['is_default_deposit' => false]);
+    }
+
     private function mapRow(object $row): array
     {
         return [
@@ -301,6 +319,7 @@ class FundPoolController extends Controller
             'min_av8_balance' => (string) ($row->min_av8_balance ?? '0'),
             'max_weight_bps' => (int) $row->max_weight_bps,
             'active' => (bool) $row->active,
+            'is_default_deposit' => (bool) ($row->is_default_deposit ?? false),
             'logo_url' => (string) ($row->logo_url ?? ''),
             'notes' => (string) ($row->notes ?? ''),
             'created_at' => $row->created_at ? (string) $row->created_at : null,
