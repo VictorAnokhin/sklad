@@ -71,6 +71,7 @@
     @stack('scripts')
 
     @include('partials.ai_chat_widget', ['fid' => 1])
+    @include('partials.ai_knowledge_base', ['fid' => 1])
 </body>
 
 </html>
