@@ -235,13 +235,12 @@ class DbQueryService
     /**
      * Поиск по базе знаний AI.
      *
-     * @param  int      $fid   ID проекта
-     * @param  string   $query Поисковый запрос
-     * @param  int|null $firma ID компании
-     * @param  int      $limit Максимальное количество результатов
+     * @param  int    $fid   ID проекта
+     * @param  string $query Поисковый запрос
+     * @param  int    $limit Максимальное количество результатов
      * @return array
      */
-    public function searchKnowledgeBase(int $fid, string $query, ?int $firma = null, int $limit = 5): array
+    public function searchKnowledgeBase(int $fid, string $query, int $limit = 5): array
     {
         try {
             $kb = AiKnowledgeBase::where('fid', $fid)
@@ -250,7 +249,6 @@ class DbQueryService
                     $q->where('title', 'like', "%{$query}%")
                       ->orWhere('content', 'like', "%{$query}%");
                 })
-                ->when($firma, fn ($q, $f) => $q->where('firma', $f))
                 ->limit($limit)
                 ->get(['id', 'title', 'content', 'category']);
 
@@ -479,7 +477,6 @@ class DbQueryService
                 'search_knowledge_base' => $this->searchKnowledgeBase(
                     $fid,
                     (string) ($arguments['query'] ?? ''),
-                    $firma,
                     (int) ($arguments['limit'] ?? 5),
                 ),
                 'get_goods_categories' => $this->getGoodsCategories($fid),

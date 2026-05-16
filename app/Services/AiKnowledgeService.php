@@ -12,13 +12,13 @@ use Throwable;
 class AiKnowledgeService
 {
     /**
-     * Получить контекст из базы знаний для проекта (fid) и/или компании (firma).
+     * Получить контекст из базы знаний для проекта (fid).
      *
      * Возвращает строку с релевантными записями для подстановки в system prompt.
      */
-    public function getContext(int $fid, ?int $firma = null, int $limit = 10): string
+    public function getContext(int $fid, int $limit = 10): string
     {
-        $records = $this->getActiveRecords($fid, $firma, $limit);
+        $records = $this->getActiveRecords($fid, $limit);
 
         if ($records->isEmpty()) {
             return '';
@@ -35,14 +35,13 @@ class AiKnowledgeService
     }
 
     /**
-     * Получить активные записи базы знаний для проекта и/или компании.
+     * Получить активные записи базы знаний для проекта.
      *
      * @return Collection<int, AiKnowledgeBase>
      */
-    public function getActiveRecords(int $fid, ?int $firma = null, int $limit = 10): Collection
+    public function getActiveRecords(int $fid, int $limit = 10): Collection
     {
         return AiKnowledgeBase::forFid($fid)
-            ->forFirma($firma)
             ->active()
             ->orderBy('category')
             ->orderBy('created_at', 'desc')
@@ -57,7 +56,6 @@ class AiKnowledgeService
     {
         return AiKnowledgeBase::create([
             'fid' => $fid,
-            'firma' => isset($data['firma']) ? (int) $data['firma'] : null,
             'title' => trim((string) ($data['title'] ?? '')),
             'content' => trim((string) ($data['content'] ?? '')),
             'category' => trim((string) ($data['category'] ?? 'general')),
@@ -71,14 +69,13 @@ class AiKnowledgeService
      *
      * Сохраняет пару вопрос-ответ как одну запись.
      */
-    public function exportToKnowledgeBase(int $fid, string $question, string $answer, string $category = 'chat_export', ?int $firma = null): AiKnowledgeBase
+    public function exportToKnowledgeBase(int $fid, string $question, string $answer, string $category = 'chat_export'): AiKnowledgeBase
     {
         $title = mb_substr($question, 0, 250);
         $content = "Вопрос: {$question}\nОтвет: {$answer}";
 
         // Если такой же вопрос уже есть — обновляем ответ
         $existing = AiKnowledgeBase::forFid($fid)
-            ->forFirma($firma)
             ->where('title', $title)
             ->where('category', $category)
             ->first();
@@ -94,7 +91,6 @@ class AiKnowledgeService
 
         return AiKnowledgeBase::create([
             'fid' => $fid,
-            'firma' => $firma,
             'title' => $title,
             'content' => $content,
             'category' => $category,
@@ -108,10 +104,9 @@ class AiKnowledgeService
      *
      * @return Collection<int, AiKnowledgeBase>
      */
-    public function search(int $fid, string $query, ?int $firma = null, int $limit = 5): Collection
+    public function search(int $fid, string $query, int $limit = 5): Collection
     {
         return AiKnowledgeBase::forFid($fid)
-            ->forFirma($firma)
             ->active()
             ->where(function ($q) use ($query) {
                 $q->where('title', 'like', "%{$query}%")
@@ -124,14 +119,14 @@ class AiKnowledgeService
 
     /**
      * Автоматическое обучение: извлекает полезные знания из диалога
-     * и сохраняет их в базу знаний для активного fid/firma.
+     * и сохраняет их в базу знаний для активного fid.
      *
      * Анализирует пару вопрос-ответ и, если это not-general информация,
      * создаёт запись в базе знаний.
      *
      * @param  array<int, array{role: string, content: string}>  $history  История диалога
      */
-    public function autoLearn(int $fid, ?int $firma, array $history): void
+    public function autoLearn(int $fid, array $history): void
     {
         if ($fid <= 0 || empty($history)) {
             return;
@@ -189,18 +184,16 @@ class AiKnowledgeService
             $category = $this->detectCategory($question, $answer);
 
             // Сохраняем в базу знаний
-            $this->exportToKnowledgeBase($fid, $question, $answer, $category, $firma);
+            $this->exportToKnowledgeBase($fid, $question, $answer, $category);
 
             Log::info('AI auto-learn: knowledge saved.', [
                 'fid' => $fid,
-                'firma' => $firma,
                 'category' => $category,
                 'question_length' => mb_strlen($question),
             ]);
         } catch (Throwable $e) {
             Log::warning('AI auto-learn failed.', [
                 'fid' => $fid,
-                'firma' => $firma,
                 'error' => $e->getMessage(),
             ]);
         }

@@ -7,29 +7,16 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Добавляет поле firma (ID компании) в таблицу ai_knowledge_base,
-     * чтобы знания можно было привязывать как к проекту (fid), так и к компании (firma).
+     * Миграция больше не добавляет поле firma — оно удалено в 2026_05_16_000050.
+     * Все запросы используют fid вместо firma.
      */
     public function up(): void
     {
-        if (!Schema::hasTable('ai_knowledge_base')) {
-            return;
-        }
-
-        if (Schema::hasColumn('ai_knowledge_base', 'firma')) {
-            return;
-        }
-
-        Schema::table('ai_knowledge_base', function (Blueprint $table) {
-            $table->integer('firma')->nullable()->index()->after('fid')
-                ->comment('ID компании (фирмы), к которой относится знание');
-        });
+        // No-op: колонка firma удалена из таблицы ai_knowledge_base
     }
 
     public function down(): void
     {
-        Schema::table('ai_knowledge_base', function (Blueprint $table) {
-            $table->dropColumn('firma');
-        });
+        // No-op
     }
 };

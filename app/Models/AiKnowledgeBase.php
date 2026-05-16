@@ -10,7 +10,6 @@ class AiKnowledgeBase extends Model
 
     protected $fillable = [
         'fid',
-        'firma',
         'title',
         'content',
         'category',
@@ -21,21 +20,11 @@ class AiKnowledgeBase extends Model
     protected $casts = [
         'active' => 'boolean',
         'fid' => 'integer',
-        'firma' => 'integer',
     ];
 
     public function scopeForFid($query, int $fid)
     {
         return $query->where('fid', $fid);
-    }
-
-    public function scopeForFirma($query, ?int $firma)
-    {
-        if ($firma !== null && $firma > 0) {
-            return $query->where('firma', $firma);
-        }
-
-        return $query;
     }
 
     public function scopeActive($query)

@@ -155,10 +155,10 @@ class ChatService
         $this->saveMessage($session->id, $fid, $firma, 'user', $message);
 
         // Загружаем контекст из базы знаний
-        $knowledgeContext = $this->loadKnowledgeContext($fid, $firma);
+        $knowledgeContext = $this->loadKnowledgeContext($fid);
 
         // Формируем system prompt
-        $instructions = $this->buildSystemPrompt($language, $fid, $firma, $knowledgeContext, $useDbTools);
+        $instructions = $this->buildSystemPrompt($language, $fid, $knowledgeContext, $useDbTools);
 
         // Загружаем историю для AI (из БД)
         $history = $session->getHistoryForAi(20);
@@ -199,7 +199,7 @@ class ChatService
         ]);
 
         // ── Автообучение: сохраняем полезные знания из диалога ──────
-        $this->knowledgeService->autoLearn($fid, $firma, $session->getHistoryForAi(5));
+        $this->knowledgeService->autoLearn($fid, $session->getHistoryForAi(5));
 
         return [
             'session_token' => $session->session_token,
@@ -255,13 +255,13 @@ class ChatService
     }
 
     /**
-     * Загрузить контекст из базы знаний для проекта и компании.
+     * Загрузить контекст из базы знаний для проекта.
      *
      * Если по переданному fid ничего не найдено, пробует session('fid') как fallback.
      * Это необходимо, когда фронтенд передаёт неверный fid (например, захардкоженный 1),
      * а реальные записи в БЗ привязаны к другому проекту (например, session('fid') = 2).
      */
-    private function loadKnowledgeContext(int $fid, ?int $firma): string
+    private function loadKnowledgeContext(int $fid): string
     {
         if ($fid <= 0) {
             $fid = (int) session('fid', 0);
@@ -272,7 +272,7 @@ class ChatService
         }
 
         try {
-            $context = $this->knowledgeService->getContext($fid, $firma);
+            $context = $this->knowledgeService->getContext($fid);
 
             // Если контекст пустой — пробуем session('fid') как fallback
             if ($context === '') {
@@ -281,10 +281,9 @@ class ChatService
                     Log::info('Knowledge base context empty for fid {fid}, trying session fid {sessionFid}.', [
                         'fid' => $fid,
                         'sessionFid' => $sessionFid,
-                        'firma' => $firma,
                     ]);
 
-                    $context = $this->knowledgeService->getContext($sessionFid, $firma);
+                    $context = $this->knowledgeService->getContext($sessionFid);
                 }
             }
 
@@ -292,7 +291,6 @@ class ChatService
         } catch (Throwable $e) {
             Log::warning('Failed to load knowledge base context.', [
                 'fid' => $fid,
-                'firma' => $firma,
                 'error' => $e->getMessage(),
             ]);
             return '';
@@ -304,17 +302,13 @@ class ChatService
      *
      * @param  bool  $useDbTools  Если true — в prompt добавляется инструкция по работе с БД
      */
-    private function buildSystemPrompt(string $language, int $fid, ?int $firma, string $knowledgeContext = '', bool $useDbTools = true): string
+    private function buildSystemPrompt(string $language, int $fid, string $knowledgeContext = '', bool $useDbTools = true): string
     {
         $answerLanguage = match ($language) {
             'ua' => 'українській',
             'en' => 'английском',
             default => 'русском',
         };
-
-        $firmaSection = ($firma !== null && $firma > 0)
-            ? "Контекст компании (firma): {$firma}\n"
-            : '';
 
         $knowledgeSection = $knowledgeContext !== ''
             ? "\n\nБаза знаний проекта (используй эти данные для ответа):\n{$knowledgeContext}"
@@ -355,7 +349,6 @@ DBTOOLS
 
 Контекст сессии:
 - ID проекта (fid): {$fid}
-{$firmaSection}
 Правила:
 - Объясняй коротко, практически и пошагово.
 - Не обещай доходность и не давай персональную финансовую рекомендацию.

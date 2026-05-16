@@ -16,9 +16,9 @@ class AiKnowledgeBaseController extends Controller
     ) {}
 
     /**
-     * GET /api/ai/knowledge-base?fid=12&firma=5
+     * GET /api/ai/knowledge-base?fid=12
      *
-     * Получить все записи базы знаний для проекта и/или компании.
+     * Получить все записи базы знаний для проекта.
      */
     public function index(Request $request): JsonResponse
     {
@@ -28,10 +28,7 @@ class AiKnowledgeBaseController extends Controller
             return response()->json(['message' => 'Parameter "fid" is required.'], 422);
         }
 
-        $firma = $request->has('firma') ? (int) $request->input('firma') : null;
-
         $query = AiKnowledgeBase::forFid($fid)
-            ->forFirma($firma)
             ->orderBy('created_at', 'desc');
 
         if ($request->has('category')) {
@@ -65,7 +62,6 @@ class AiKnowledgeBaseController extends Controller
     {
         $payload = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
-            'firma' => ['nullable', 'integer', 'min:1'],
             'title' => ['nullable', 'string', 'max:255'],
             'content' => ['required', 'string', 'min:10', 'max:10000'],
             'category' => ['nullable', 'string', 'max:80'],
@@ -78,7 +74,6 @@ class AiKnowledgeBaseController extends Controller
         } catch (Throwable $e) {
             Log::error('Failed to create knowledge base record.', [
                 'fid' => $payload['fid'],
-                'firma' => $payload['firma'] ?? null,
                 'error' => $e->getMessage(),
             ]);
 
@@ -189,7 +184,6 @@ class AiKnowledgeBaseController extends Controller
     {
         $payload = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
-            'firma' => ['nullable', 'integer', 'min:1'],
             'query' => ['required', 'string', 'min:2', 'max:200'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
@@ -197,7 +191,6 @@ class AiKnowledgeBaseController extends Controller
         $results = $this->knowledgeService->search(
             (int) $payload['fid'],
             (string) $payload['query'],
-            isset($payload['firma']) ? (int) $payload['firma'] : null,
             (int) ($payload['limit'] ?? 5),
         );
 
@@ -215,7 +208,6 @@ class AiKnowledgeBaseController extends Controller
     {
         $payload = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
-            'firma' => ['nullable', 'integer', 'min:1'],
             'question' => ['required', 'string', 'min:2', 'max:2000'],
             'answer' => ['required', 'string', 'min:2', 'max:10000'],
             'category' => ['nullable', 'string', 'max:80'],
@@ -227,12 +219,10 @@ class AiKnowledgeBaseController extends Controller
                 (string) $payload['question'],
                 (string) $payload['answer'],
                 (string) ($payload['category'] ?? 'chat_export'),
-                isset($payload['firma']) ? (int) $payload['firma'] : null,
             );
         } catch (Throwable $e) {
             Log::error('Failed to export chat to knowledge base.', [
                 'fid' => $payload['fid'],
-                'firma' => $payload['firma'] ?? null,
                 'error' => $e->getMessage(),
             ]);
 

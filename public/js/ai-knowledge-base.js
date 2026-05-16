@@ -8,7 +8,6 @@
 
   var CONFIG = {
     fid: 1,
-    firma: null,
     apiUrl: "/api/ai/knowledge-base",
     categoriesApiUrl: "/api/ai/knowledge-base/categories",
     searchUrl: "/api/ai/knowledge-base/search",
@@ -290,10 +289,6 @@
     if (state.categoryFilter) {
       params.set("category", state.categoryFilter);
     }
-    if (CONFIG.firma !== null && CONFIG.firma !== undefined) {
-      params.set("firma", CONFIG.firma);
-    }
-
     apiFetch(CONFIG.apiUrl + "?" + params.toString(), { method: "GET" })
       .then(function (res) {
         if (!res.ok) throw new Error(msg("loadError") + ": " + res.status);
@@ -322,9 +317,6 @@
     render();
 
     var body = { fid: CONFIG.fid, query: state.searchQuery.trim() };
-    if (CONFIG.firma !== null && CONFIG.firma !== undefined) {
-      body.firma = CONFIG.firma;
-    }
 
     apiFetch(CONFIG.searchUrl, {
       method: "POST",
@@ -401,9 +393,6 @@
       content: state.formContent,
       category: state.formCategory,
     };
-    if (CONFIG.firma !== null && CONFIG.firma !== undefined) {
-      body.firma = CONFIG.firma;
-    }
 
     apiFetch(url, { method: method, body: body })
       .then(function (res) {
@@ -435,9 +424,6 @@
       answer: state.exportAnswer.trim(),
       category: state.formCategory,
     };
-    if (CONFIG.firma !== null && CONFIG.firma !== undefined) {
-      body.firma = CONFIG.firma;
-    }
 
     apiFetch(CONFIG.exportUrl, { method: "POST", body: body })
       .then(function (res) {
@@ -929,7 +915,6 @@
   function init(userConfig) {
     if (userConfig) {
       if (userConfig.fid) CONFIG.fid = userConfig.fid;
-      if (userConfig.firma !== undefined) CONFIG.firma = userConfig.firma;
       if (userConfig.apiUrl) CONFIG.apiUrl = userConfig.apiUrl;
       if (userConfig.categoriesApiUrl) CONFIG.categoriesApiUrl = userConfig.categoriesApiUrl;
     }

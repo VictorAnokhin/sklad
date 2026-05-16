@@ -1128,7 +1128,7 @@
 </div>
 
 <!-- Модальное окно для управления базой знаний -->
-<div class="modal fade" id="modalKnowledgeBase" tabindex="-1" aria-labelledby="modalKnowledgeBaseLabel" aria-hidden="true" data-session-fid="{{ $fid ?? '' }}" data-session-firma="{{ session('firma', '') }}">
+<div class="modal fade" id="modalKnowledgeBase" tabindex="-1" aria-labelledby="modalKnowledgeBaseLabel" aria-hidden="true" data-session-fid="{{ $fid ?? '' }}">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center">
@@ -4895,7 +4895,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const CATEGORY_API_BASE = '/api/ai/knowledge-base/categories';
         const CSRF = () => document.querySelector('meta[name="csrf-token"]').content;
         const FID = () => document.getElementById('kb-fid')?.value || '';
-        const FIRMA = () => document.getElementById('kb-firma')?.value || '';
 
         // Category key → name map, populated from API
         window._kbCategoryMap = window._kbCategoryMap || {};
@@ -4906,15 +4905,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!modal) return;
 
-        // Inject hidden fid/firma inputs for reference
+        // Inject hidden fid input for reference
         if (!document.getElementById('kb-fid')) {
             const hf = document.createElement('input');
             hf.type = 'hidden'; hf.id = 'kb-fid';
-            document.body.appendChild(hf);
-        }
-        if (!document.getElementById('kb-firma')) {
-            const hf = document.createElement('input');
-            hf.type = 'hidden'; hf.id = 'kb-firma';
             document.body.appendChild(hf);
         }
 
@@ -5413,20 +5407,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Modal events
         modal.addEventListener('show.bs.modal', function () {
-            // Set fid/firma from session (available in page context)
+            // Set fid from session (available in page context)
             const fidEl = document.getElementById('kb-fid');
-            const firmaEl = document.getElementById('kb-firma');
             // Try to find fid from page context
             const pageFid = document.querySelector('[data-session-fid]')?.dataset?.sessionFid ||
                            window._pageFid ||
                            document.querySelector('input[name="fid"]')?.value ||
                            '';
 
-            const pageFirma = document.querySelector('[data-session-firma]')?.dataset?.sessionFirma ||
-                             window._pageFirma || '';
-
             if (fidEl) fidEl.value = pageFid;
-            if (firmaEl) firmaEl.value = pageFirma;
 
             hideForm();
             if (catArea) catArea.style.display = 'none';
