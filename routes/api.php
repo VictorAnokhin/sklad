@@ -81,19 +81,20 @@ Route::middleware(['api', 'throttle:30,1'])->group(function () {
 Route::middleware(['api', 'throttle:60,1'])->group(function () {
     Route::get('/ai/knowledge-base', [AiKnowledgeBaseController::class, 'index']);
     Route::post('/ai/knowledge-base', [AiKnowledgeBaseController::class, 'store']);
-    Route::get('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'show']);
-    Route::put('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'update']);
-    Route::delete('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'destroy']);
-    Route::post('/ai/knowledge-base/search', [AiKnowledgeBaseController::class, 'search']);
-    Route::post('/ai/chat/export', [AiKnowledgeBaseController::class, 'exportChat']);
 
-    // Knowledge Base Categories
+    // Knowledge Base Categories (must be before /{id} routes)
     Route::get('/ai/knowledge-base/categories', [AiKnowledgeCategoryController::class, 'index']);
     Route::get('/ai/knowledge-base/categories/all', [AiKnowledgeCategoryController::class, 'all']);
     Route::post('/ai/knowledge-base/categories', [AiKnowledgeCategoryController::class, 'store']);
     Route::get('/ai/knowledge-base/categories/{id}', [AiKnowledgeCategoryController::class, 'show']);
     Route::put('/ai/knowledge-base/categories/{id}', [AiKnowledgeCategoryController::class, 'update']);
     Route::delete('/ai/knowledge-base/categories/{id}', [AiKnowledgeCategoryController::class, 'destroy']);
+
+    Route::get('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'show']);
+    Route::put('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'update']);
+    Route::delete('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'destroy']);
+    Route::post('/ai/knowledge-base/search', [AiKnowledgeBaseController::class, 'search']);
+    Route::post('/ai/chat/export', [AiKnowledgeBaseController::class, 'exportChat']);
 });
 
 // ── Goods API ─────────────────────────────────────────────────────────────
