@@ -5531,6 +5531,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const url = isUpdate ? CATEGORY_API_BASE + '/' + id : CATEGORY_API_BASE;
 
                 const body = {
+                    fid: parseInt(FID()) || null,
                     key: catKey.value.trim(),
                     name: catName.value.trim(),
                     sort_order: parseInt(catSort.value) || 0,
