@@ -2,391 +2,311 @@
 
 namespace App\Services;
 
+use App\Models\ChatMessage;
+use App\Models\ChatSession;
+use App\Models\Goods;
+use App\Models\GoodsCategory;
+use App\Models\News;
+use App\Models\Project;
+use App\Models\Doc;
 use App\Models\AiKnowledgeBase;
-use App\Models\Field;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Throwable;
 
-/**
- * Сервис для выполнения запросов к базе данных проекта
- * для AI-консультанта (function calling).
- *
- * Каждый метод должен возвращать массив, который легко сериализуется в JSON.
- */
 class DbQueryService
 {
-    // ── Goods (товары, таблица comp + descript) ───────────────────────
-
     /**
-     * Поиск товаров по названию или артикулу.
+     * Поиск товаров по названию, артикулу или описанию.
      *
-     * @param  int     $fid     ID проекта (firma в таблице comp)
-     * @param  string  $query   Поисковый запрос
-     * @param  int     $limit   Максимум результатов
-     * @return array<int, array<string, mixed>>
+     * @param  int    $fid    ID проекта
+     * @param  string $query  Поисковый запрос
+     * @param  int    $limit  Максимальное количество результатов
+     * @return array
      */
     public function searchGoods(int $fid, string $query, int $limit = 5): array
     {
         try {
-            $results = DB::table('comp')
-                ->leftJoin('descript', function ($join) {
-                    $join->on('descript.pnum', '=', 'comp.id')
-                         ->whereColumn('descript.firma', '=', 'comp.firma');
-                })
-                ->where('comp.firma', $fid)
-                ->where('comp.web', '1')
+            $goods = Goods::where('fid', $fid)
                 ->where(function ($q) use ($query) {
-                    $q->where('descript.name', 'like', "%{$query}%")
-                      ->orWhere('descript.name_ua', 'like', "%{$query}%")
-                      ->orWhere('descript.name_en', 'like', "%{$query}%")
-                      ->orWhere('comp.nickname', 'like', "%{$query}%")
-                      ->orWhere('comp.namedoc', 'like', "%{$query}%")
-                      ->orWhere('descript.description', 'like', "%{$query}%");
+                    $q->where('goods_name', 'like', "%{$query}%")
+                      ->orWhere('goods_article', 'like', "%{$query}%")
+                      ->orWhere('goods_description', 'like', "%{$query}%");
                 })
-                ->select(
-                    'comp.id',
-                    'comp.nickname',
-                    'comp.pay',
-                    'comp.sklad',
-                    'comp.nfoto',
-                    DB::raw("COALESCE(NULLIF(descript.name, ''), NULLIF(descript.name_ua, ''), NULLIF(descript.name_en, ''), comp.nickname, comp.namedoc, CONCAT('Товар #', comp.id)) as name"),
-                    DB::raw("COALESCE(NULLIF(descript.description, ''), NULLIF(descript.description_ua, ''), NULLIF(descript.description_en, ''), '') as description")
-                )
-                ->orderByDesc('comp.top')
-                ->orderByDesc('comp.hit')
                 ->limit($limit)
-                ->get();
+                ->get(['id', 'goods_name', 'goods_article', 'goods_description', 'goods_price', 'goods_oldprice', 'goods_currency']);
 
-            return $results->map(function ($item): array {
-                return [
-                    'id' => (int) $item->id,
-                    'name' => $item->name ?? '',
-                    'code' => trim((string) ($item->nickname ?? '')),
-                    'price' => (float) ($item->pay ?? 0),
-                    'in_stock' => (int) ($item->sklad ?? 0) === 1,
-                    'description' => mb_substr($item->description ?? '', 0, 500),
-                ];
-            })->toArray();
-        } catch (Throwable $e) {
-            Log::warning('DbQuery: searchGoods failed.', [
-                'fid' => $fid,
-                'query' => $query,
-                'error' => $e->getMessage(),
-            ]);
-            return [];
+            if ($goods->isEmpty()) {
+                return ['found' => 0, 'items' => []];
+            }
+
+            return [
+                'found' => $goods->count(),
+                'items' => $goods->map(fn (Goods $g) => [
+                    'id' => $g->id,
+                    'name' => $g->goods_name,
+                    'article' => $g->goods_article,
+                    'description' => $g->goods_description,
+                    'price' => (float) $g->goods_price,
+                    'old_price' => $g->goods_oldprice ? (float) $g->goods_oldprice : null,
+                    'currency' => $g->goods_currency,
+                ])->toArray(),
+            ];
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.searchGoods error: " . $e->getMessage());
+            return ['found' => 0, 'items' => [], 'error' => 'Database query failed'];
         }
     }
 
     /**
-     * Получить товар по ID.
+     * Получить детальную информацию о товаре по ID.
+     *
+     * @param  int $fid     ID проекта
+     * @param  int $goodsId ID товара
+     * @return array|null
      */
     public function getGoodsById(int $fid, int $goodsId): ?array
     {
         try {
-            $item = DB::table('comp')
-                ->leftJoin('descript', function ($join) {
-                    $join->on('descript.pnum', '=', 'comp.id')
-                         ->whereColumn('descript.firma', '=', 'comp.firma');
-                })
-                ->where('comp.id', $goodsId)
-                ->where('comp.firma', $fid)
-                ->select(
-                    'comp.id',
-                    'comp.nickname',
-                    'comp.pay',
-                    'comp.pay1',
-                    'comp.sklad',
-                    'comp.ostatok',
-                    'comp.nfoto',
-                    'comp.htmldescr',
-                    DB::raw("COALESCE(NULLIF(descript.name, ''), NULLIF(descript.name_ua, ''), NULLIF(descript.name_en, ''), comp.nickname, comp.namedoc, CONCAT('Товар #', comp.id)) as name"),
-                    DB::raw("COALESCE(NULLIF(descript.description, ''), NULLIF(descript.description_ua, ''), NULLIF(descript.description_en, ''), '') as description"),
-                    DB::raw("COALESCE(NULLIF(descript.description_ua, ''), '') as description_ua"),
-                    DB::raw("COALESCE(NULLIF(descript.description_en, ''), '') as description_en"),
-                )
-                ->first();
+            $goods = Goods::where('fid', $fid)
+                ->where('id', $goodsId)
+                ->first(['id', 'goods_name', 'goods_article', 'goods_description', 'goods_price', 'goods_oldprice', 'goods_currency', 'cat_id', 'goods_images', 'goods_params']);
 
-            if (! $item) {
+            if (!$goods) {
                 return null;
             }
 
             return [
-                'id' => (int) $item->id,
-                'name' => $item->name ?? '',
-                'code' => trim((string) ($item->nickname ?? '')),
-                'price' => (float) ($item->pay ?? 0),
-                'price_wholesale' => (float) ($item->pay1 ?? 0),
-                'in_stock' => (int) ($item->sklad ?? 0) === 1,
-                'stock_quantity' => (int) ($item->ostatok ?? 0),
-                'description' => $item->description ?? '',
-                'description_ua' => $item->description_ua ?? '',
-                'description_en' => $item->description_en ?? '',
-                'meta_description' => $item->htmldescr ?? '',
+                'id' => $goods->id,
+                'name' => $goods->goods_name,
+                'article' => $goods->goods_article,
+                'description' => $goods->goods_description,
+                'price' => (float) $goods->goods_price,
+                'old_price' => $goods->goods_oldprice ? (float) $goods->goods_oldprice : null,
+                'currency' => $goods->goods_currency,
+                'category_id' => $goods->cat_id,
+                'images' => $goods->goods_images,
+                'params' => $goods->goods_params,
             ];
-        } catch (Throwable $e) {
-            Log::warning('DbQuery: getGoodsById failed.', [
-                'fid' => $fid,
-                'goods_id' => $goodsId,
-                'error' => $e->getMessage(),
-            ]);
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.getGoodsById error: " . $e->getMessage());
             return null;
         }
     }
 
-    // ── News (новости, таблица news) ──────────────────────────────────
-
     /**
      * Поиск новостей проекта.
      *
-     * @param  int     $fid    ID проекта (firma в таблице news)
-     * @param  string  $query  Поисковый запрос
-     * @param  int     $limit  Максимум результатов
-     * @return array<int, array<string, mixed>>
+     * @param  int    $fid   ID проекта
+     * @param  string $query Поисковый запрос
+     * @param  int    $limit Максимальное количество результатов
+     * @return array
      */
     public function searchNews(int $fid, string $query, int $limit = 5): array
     {
         try {
-            $results = DB::table('news')
-                ->where('firma', $fid)
+            $news = News::where('fid', $fid)
                 ->where(function ($q) use ($query) {
-                    $q->where('title', 'like', "%{$query}%")
-                      ->orWhere('title_ua', 'like', "%{$query}%")
-                      ->orWhere('title_en', 'like', "%{$query}%")
-                      ->orWhere('kratko', 'like', "%{$query}%")
-                      ->orWhere('txt', 'like', "%{$query}%");
+                    $q->where('news_title', 'like', "%{$query}%")
+                      ->orWhere('news_body', 'like', "%{$query}%")
+                      ->orWhere('news_meta_description', 'like', "%{$query}%");
                 })
-                ->orderByDesc('hot')
-                ->orderByDesc('id')
+                ->orderBy('news_date', 'desc')
                 ->limit($limit)
-                ->get();
+                ->get(['id', 'news_title', 'news_body', 'news_date', 'news_image']);
 
-            return $results->map(function ($item): array {
-                $title = trim((string) ($item->title ?? ''))
-                    ?: trim((string) ($item->title_ua ?? ''))
-                    ?: trim((string) ($item->title_en ?? ''));
+            if ($news->isEmpty()) {
+                return ['found' => 0, 'items' => []];
+            }
 
-                $excerpt = trim((string) ($item->kratko ?? ''));
-                $body = trim((string) ($item->txt ?? ''));
-
-                return [
-                    'id' => (int) $item->id,
-                    'title' => $title,
-                    'excerpt' => mb_substr($excerpt ?: $body, 0, 300),
-                    'body_preview' => mb_substr($body, 0, 500),
-                    'date' => $item->dt ?? '',
-                ];
-            })->toArray();
-        } catch (Throwable $e) {
-            Log::warning('DbQuery: searchNews failed.', [
-                'fid' => $fid,
-                'query' => $query,
-                'error' => $e->getMessage(),
-            ]);
-            return [];
+            return [
+                'found' => $news->count(),
+                'items' => $news->map(fn (News $n) => [
+                    'id' => $n->id,
+                    'title' => $n->news_title,
+                    'body_preview' => mb_substr(strip_tags($n->news_body), 0, 500),
+                    'date' => $n->news_date,
+                    'image' => $n->news_image,
+                ])->toArray(),
+            ];
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.searchNews error: " . $e->getMessage());
+            return ['found' => 0, 'items' => [], 'error' => 'Database query failed'];
         }
     }
 
     /**
      * Получить новость по ID.
+     *
+     * @param  int $fid    ID проекта
+     * @param  int $newsId ID новости
+     * @return array|null
      */
     public function getNewsById(int $fid, int $newsId): ?array
     {
         try {
-            $item = DB::table('news')
+            $news = News::where('fid', $fid)
                 ->where('id', $newsId)
-                ->where('firma', $fid)
-                ->first();
+                ->first(['id', 'news_title', 'news_body', 'news_date', 'news_image']);
 
-            if (! $item) {
+            if (!$news) {
                 return null;
             }
 
-            $title = trim((string) ($item->title ?? ''))
-                ?: trim((string) ($item->title_ua ?? ''))
-                ?: trim((string) ($item->title_en ?? ''));
-
             return [
-                'id' => (int) $item->id,
-                'title' => $title,
-                'title_ru' => $item->title ?? '',
-                'title_ua' => $item->title_ua ?? '',
-                'title_en' => $item->title_en ?? '',
-                'excerpt' => $item->kratko ?? '',
-                'excerpt_ua' => $item->kratko_ua ?? '',
-                'excerpt_en' => $item->kratko_en ?? '',
-                'body' => $item->txt ?? '',
-                'body_ua' => $item->txt_ua ?? '',
-                'body_en' => $item->txt_en ?? '',
-                'date' => $item->dt ?? '',
+                'id' => $news->id,
+                'title' => $news->news_title,
+                'body' => $news->news_body,
+                'date' => $news->news_date,
+                'image' => $news->news_image,
             ];
-        } catch (Throwable $e) {
-            Log::warning('DbQuery: getNewsById failed.', [
-                'fid' => $fid,
-                'news_id' => $newsId,
-                'error' => $e->getMessage(),
-            ]);
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.getNewsById error: " . $e->getMessage());
             return null;
         }
     }
 
-    // ── Project (проект, таблица project) ─────────────────────────────
-
     /**
-     * Получить информацию о проекте.
+     * Получить информацию о текущем проекте.
+     *
+     * @param  int $fid ID проекта
+     * @return array|null
      */
     public function getProjectInfo(int $fid): ?array
     {
         try {
-            $project = DB::table('project')->where('id', $fid)->first();
+            $project = Project::where('fid', $fid)->first();
 
-            if (! $project) {
+            if (!$project) {
                 return null;
             }
 
             return [
-                'id' => (int) $project->id,
-                'name' => $project->name ?? '',
-                'url' => $project->url ?? '',
-                'phone' => $project->phone ?? '',
-                'email' => $project->email ?? '',
-                'full_name' => $project->full_name ?? '',
-                'inn' => $project->inn ?? '',
-                'address' => $project->address ?? '',
-                'description' => $project->description ?? '',
+                'name' => $project->name,
+                'description' => $project->description,
+                'email' => $project->email,
+                'phone' => $project->phone,
+                'address' => $project->address,
             ];
-        } catch (Throwable $e) {
-            Log::warning('DbQuery: getProjectInfo failed.', [
-                'fid' => $fid,
-                'error' => $e->getMessage(),
-            ]);
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.getProjectInfo error: " . $e->getMessage());
             return null;
         }
     }
 
-    // ── Docs (документы, таблица docs) ────────────────────────────────
-
     /**
-     * Поиск документов проекта.
+     * Поиск документов/статей проекта.
      *
-     * @param  int     $fid    ID проекта (firma в таблице docs)
-     * @param  string  $query  Поисковый запрос
-     * @param  int     $limit  Максимум результатов
-     * @return array<int, array<string, mixed>>
+     * @param  int    $fid   ID проекта
+     * @param  string $query Поисковый запрос
+     * @param  int    $limit Максимальное количество результатов
+     * @return array
      */
     public function searchDocs(int $fid, string $query, int $limit = 5): array
     {
         try {
-            $results = DB::table('docs')
-                ->where('firma', $fid)
+            $docs = Doc::where('fid', $fid)
                 ->where(function ($q) use ($query) {
-                    $q->where('title', 'like', "%{$query}%")
-                      ->orWhere('body', 'like', "%{$query}%");
+                    $q->where('doc_title', 'like', "%{$query}%")
+                      ->orWhere('doc_body', 'like', "%{$query}%");
                 })
                 ->limit($limit)
-                ->get(['id', 'title', 'body']);
+                ->get(['id', 'doc_title', 'doc_body', 'doc_date']);
 
-            return $results->map(function ($item): array {
-                return [
-                    'id' => (int) $item->id,
-                    'title' => $item->title ?? '',
-                    'body_preview' => mb_substr($item->body ?? '', 0, 500),
-                ];
-            })->toArray();
-        } catch (Throwable $e) {
-            Log::warning('DbQuery: searchDocs failed.', [
-                'fid' => $fid,
-                'query' => $query,
-                'error' => $e->getMessage(),
-            ]);
-            return [];
+            if ($docs->isEmpty()) {
+                return ['found' => 0, 'items' => []];
+            }
+
+            return [
+                'found' => $docs->count(),
+                'items' => $docs->map(fn (Doc $d) => [
+                    'id' => $d->id,
+                    'title' => $d->doc_title,
+                    'body_preview' => mb_substr(strip_tags($d->doc_body), 0, 1000),
+                    'date' => $d->doc_date,
+                ])->toArray(),
+            ];
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.searchDocs error: " . $e->getMessage());
+            return ['found' => 0, 'items' => [], 'error' => 'Database query failed'];
         }
     }
-
-    // ── Knowledge Base (база знаний AI) ────────────────────────────────
 
     /**
      * Поиск по базе знаний AI.
      *
-     * @param  int     $fid    ID проекта
-     * @param  string  $query  Поисковый запрос
-     * @param  int|null $firma ID компании (опционально)
-     * @param  int     $limit  Максимум результатов
-     * @return array<int, array<string, mixed>>
+     * @param  int      $fid   ID проекта
+     * @param  string   $query Поисковый запрос
+     * @param  int|null $firma ID компании
+     * @param  int      $limit Максимальное количество результатов
+     * @return array
      */
     public function searchKnowledgeBase(int $fid, string $query, ?int $firma = null, int $limit = 5): array
     {
         try {
-            $results = AiKnowledgeBase::forFid($fid)
-                ->forFirma($firma)
-                ->active()
+            $kb = AiKnowledgeBase::where('fid', $fid)
+                ->where('active', true)
                 ->where(function ($q) use ($query) {
                     $q->where('title', 'like', "%{$query}%")
                       ->orWhere('content', 'like', "%{$query}%");
                 })
+                ->when($firma, fn ($q, $f) => $q->where('firma', $f))
                 ->limit($limit)
-                ->get(['id', 'title', 'content', 'category', 'source']);
+                ->get(['id', 'title', 'content', 'category']);
 
-            return $results->map(function (AiKnowledgeBase $item): array {
-                return [
-                    'id' => $item->id,
-                    'title' => $item->title,
-                    'content' => $item->content,
-                    'category' => $item->category,
-                    'source' => $item->source,
-                ];
-            })->toArray();
-        } catch (Throwable $e) {
-            Log::warning('DbQuery: searchKnowledgeBase failed.', [
-                'fid' => $fid,
-                'query' => $query,
-                'error' => $e->getMessage(),
-            ]);
-            return [];
+            if ($kb->isEmpty()) {
+                return ['found' => 0, 'items' => []];
+            }
+
+            return [
+                'found' => $kb->count(),
+                'items' => $kb->map(fn (AiKnowledgeBase $k) => [
+                    'id' => $k->id,
+                    'title' => $k->title,
+                    'content' => $k->content,
+                    'category' => $k->category,
+                ])->toArray(),
+            ];
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.searchKnowledgeBase error: " . $e->getMessage());
+            return ['found' => 0, 'items' => [], 'error' => 'Database query failed'];
         }
     }
 
-    // ── Field (категории товаров, таблица field) ───────────────────────
-
     /**
-     * Получить категории/разделы товаров проекта.
+     * Получить категории товаров.
+     *
+     * @param  int $fid ID проекта
+     * @return array
      */
     public function getGoodsCategories(int $fid): array
     {
         try {
-            $categories = DB::table('field')
-                ->where('keyfield', 'catalog')
-                ->where('firma', $fid)
-                ->orderBy('num')
-                ->orderBy('id')
-                ->get(['id', 'val', 'valua', 'valen', 'idkeyfield']);
+            $categories = GoodsCategory::where('fid', $fid)
+                ->get(['id', 'cat_name', 'cat_description']);
 
-            return $categories->map(function ($item): array {
-                return [
-                    'id' => (int) $item->id,
-                    'name' => $item->val ?? '',
-                    'name_ua' => $item->valua ?? '',
-                    'name_en' => $item->valen ?? '',
-                    'parent_id' => $item->idkeyfield !== null && $item->idkeyfield !== '' && $item->idkeyfield !== '0'
-                        ? (int) $item->idkeyfield
-                        : null,
-                ];
-            })->toArray();
-        } catch (Throwable $e) {
-            Log::warning('DbQuery: getGoodsCategories failed.', [
-                'fid' => $fid,
-                'error' => $e->getMessage(),
-            ]);
-            return [];
+            if ($categories->isEmpty()) {
+                return ['found' => 0, 'items' => []];
+            }
+
+            return [
+                'found' => $categories->count(),
+                'items' => $categories->map(fn (GoodsCategory $c) => [
+                    'id' => $c->id,
+                    'name' => $c->cat_name,
+                    'description' => $c->cat_description,
+                ])->toArray(),
+            ];
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.getGoodsCategories error: " . $e->getMessage());
+            return ['found' => 0, 'items' => [], 'error' => 'Database query failed'];
         }
     }
 
-    // ── Определение tools для DeepSeek function calling ────────────────
-
     /**
-     * Получить список инструментов (tools) для DeepSeek function calling.
+     * Получить список инструментов (functions) для DeepSeek function calling.
      *
-     * @return array<int, array<string, mixed>>
+     * @return array
      */
     public function getTools(): array
     {
@@ -459,7 +379,7 @@ class DbQueryService
                     'description' => 'Получить информацию о текущем проекте (название, описание, контакты).',
                     'parameters' => [
                         'type' => 'object',
-                        'properties' => [],
+                        'properties' => (object) [],
                         'required' => [],
                     ],
                 ],
@@ -515,7 +435,7 @@ class DbQueryService
                     'description' => 'Получить список категорий/разделов товаров проекта.',
                     'parameters' => [
                         'type' => 'object',
-                        'properties' => [],
+                        'properties' => (object) [],
                         'required' => [],
                     ],
                 ],
@@ -563,58 +483,51 @@ class DbQueryService
                     (int) ($arguments['limit'] ?? 5),
                 ),
                 'get_goods_categories' => $this->getGoodsCategories($fid),
-                default => ['error' => "Unknown function: {$name}"],
+                default => throw new \InvalidArgumentException("Unknown tool: {$name}"),
             };
 
-            return json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        } catch (Throwable $e) {
-            Log::warning('DbQuery: executeTool failed.', [
-                'function' => $name,
-                'arguments' => $arguments,
-                'error' => $e->getMessage(),
-            ]);
-
-            return json_encode([
-                'error' => 'Internal error while executing function.',
-                'message' => config('app.debug') ? $e->getMessage() : null,
-            ], JSON_UNESCAPED_UNICODE);
+            return json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.executeTool error: " . $e->getMessage());
+            return json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }
     }
 
     /**
-     * Сформировать system prompt для функции "консультант по БД".
+     * Построить системный промпт для консультанта по БД.
+     *
+     * @param  string   $language Язык
+     * @param  int      $fid      ID проекта
+     * @param  int|null $firma    ID компании
+     * @return string
      */
     public function buildDbConsultantSystemPrompt(string $language, int $fid, ?int $firma): string
     {
         $answerLanguage = match ($language) {
-            'ua' => 'українській',
-            'en' => 'английском',
-            default => 'русском',
+            'ua' => 'українською мовою',
+            'en' => 'in English',
+            default => 'на русском языке',
         };
 
         return <<<PROMPT
-Ты — консультант по базе данных проекта. Отвечай на {$answerLanguage} языке.
+Ты — консультант по базе данных проекта. Твоя задача — помогать пользователям находить информацию в базе данных.
 
-Твоя задача — помогать пользователям находить информацию в базе данных проекта.
-У тебя есть доступ к следующим данным через функции:
+Ты отвечаешь {$answerLanguage}.
 
-1. **search_goods(query, limit)** — поиск товаров по названию, артикулу или описанию
-2. **get_goods_by_id(goods_id)** — детальная информация о товаре
-3. **get_goods_categories()** — список категорий товаров
-4. **search_news(query, limit)** — поиск новостей проекта
-5. **get_project_info()** — информация о проекте
-6. **search_docs(query, limit)** — поиск документов/статей
-7. **search_knowledge_base(query, limit)** — поиск по базе знаний AI
+Правила работы:
+1. Используй предоставленные функции для поиска информации.
+2. Если данные не найдены, сообщи об этом пользователю.
+3. Отвечай только на основе найденных данных.
+4. Если нужно уточнить запрос — попроси пользователя уточнить.
 
-Правила:
-- Используй функции для поиска информации, не выдумывай данные.
-- Если пользователь спрашивает про товары — используй search_goods.
-- Если пользователь спрашивает про новости — используй search_news.
-- Если пользователь спрашивает про проект в целом — используй get_project_info.
-- Если данных не найдено — честно сообщи об этом.
-- Предлагай пользователю уточнить запрос, если搜索结果 пустой.
-- Для навигации по категориям используй get_goods_categories.
-- Отвечай кратко, структурированно и полезно.
+Доступные функции:
+- search_goods — поиск товаров
+- get_goods_by_id — детальная информация о товаре
+- search_news — поиск новостей
+- get_project_info — информация о проекте
+- search_docs — поиск документов
+- search_knowledge_base — поиск по базе знаний
+- get_goods_categories — список категорий товаров
 PROMPT;
     }
 }
