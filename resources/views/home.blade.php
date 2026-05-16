@@ -70,7 +70,12 @@
     <script src="{{ asset('js/javascript.js') }}"></script>
     @stack('scripts')
 
-    @include('partials.ai_chat_widget', ['fid' => 1])
+    {{--
+      AI Chat Widget — fid определяется автоматически из session('fid').
+      Если нужно явно указать проект, передайте параметр:
+      @include('partials.ai_chat_widget', ['fid' => 12])
+    --}}
+    @include('partials.ai_chat_widget')
     @include('partials.ai_knowledge_base', ['fid' => 1])
 </body>
 

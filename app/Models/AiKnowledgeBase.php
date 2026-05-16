@@ -31,7 +31,7 @@ class AiKnowledgeBase extends Model
 
     public function scopeForFirma($query, ?int $firma)
     {
-        if ($firma !== null) {
+        if ($firma !== null && $firma > 0) {
             return $query->where('firma', $firma);
         }
 

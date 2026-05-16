@@ -696,17 +696,59 @@
 
   // ── Init ───────────────────────────────────────────────
   function init(userConfig) {
+    // Приоритет 1: явно переданный fid/firma через init()
+    var hasExplicitFid = false;
     if (userConfig) {
-      if (userConfig.fid) CONFIG.fid = userConfig.fid;
+      if (userConfig.fid) {
+        CONFIG.fid = userConfig.fid;
+        hasExplicitFid = true;
+      }
       if (userConfig.firma !== undefined) CONFIG.firma = userConfig.firma;
       if (userConfig.apiUrl) CONFIG.apiUrl = userConfig.apiUrl;
       if (userConfig.voiceSttUrl) CONFIG.voiceSttUrl = userConfig.voiceSttUrl;
       if (userConfig.voiceTtsUrl) CONFIG.voiceTtsUrl = userConfig.voiceTtsUrl;
     }
 
+    // Приоритет 2: data-атрибуты со скрытого конфиг-элемента #ai-chat-config
+    // (устанавливается Blade из session('fid') — динамический fid проекта)
+    if (!hasExplicitFid) {
+      var configEl = document.getElementById("ai-chat-config");
+      if (configEl) {
+        var dataFid = configEl.getAttribute("data-fid");
+        if (dataFid !== null && dataFid !== "") {
+          var parsed = parseInt(dataFid, 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            CONFIG.fid = parsed;
+          }
+        }
+        var dataFirma = configEl.getAttribute("data-firma");
+        if (dataFirma !== null && dataFirma !== "" && dataFirma !== "null") {
+          var parsedFirma = parseInt(dataFirma, 10);
+          if (!isNaN(parsedFirma) && parsedFirma > 0) {
+            CONFIG.firma = parsedFirma;
+          }
+        }
+      }
+    }
+
     state.rows = [{ role: "assistant", content: msg("welcome") }];
 
     buildWidget();
+
+    // Приоритет 3: data-fid на корневом элементе виджета (если задан вручную)
+    if (!hasExplicitFid) {
+      var rootEl = document.getElementById("ai-chat-widget");
+      if (rootEl) {
+        var dataFid = rootEl.getAttribute("data-fid");
+        if (dataFid !== null && dataFid !== "") {
+          var parsed = parseInt(dataFid, 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            CONFIG.fid = parsed;
+          }
+        }
+      }
+    }
+
     renderMessages();
     bindEvents();
   }

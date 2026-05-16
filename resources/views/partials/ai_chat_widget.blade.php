@@ -1,9 +1,25 @@
-{{-- 
+{{--
   AI Chat Widget partial
-  Usage: @include('partials.ai_chat_widget', ['fid' => 1])
-  If $fid is omitted, defaults to 1.
-  Optionally pass $firma to associate with a specific company.
+
+  Usage (рекомендуемый — через data-атрибуты):
+      @include('partials.ai_chat_widget')
+
+  Usage (явное указание — для обратной совместимости):
+      @include('partials.ai_chat_widget', ['fid' => 12, 'firma' => 5])
+
+  Приоритет получения fid:
+    1. Явно переданный в AiChatWidget.init({ fid })
+    2. data-fid на #ai-chat-config (скрытый конфиг-элемент ниже)
+    3. data-fid на .ai-chat-widget (корневой элемент, создаётся JS)
+    4. Дефолтное значение 1
 --}}
+
+{{-- Скрытый конфиг-элемент для передачи параметров в JS-виджет --}}
+<div id="ai-chat-config"
+     data-fid="{{ $fid ?? session('fid', 1) }}"
+     data-firma="{{ $firma ?? session('fid', 'null') }}"
+     style="display:none;"
+     aria-hidden="true"></div>
 
 <link href="{{ asset('css/ai-chat-widget.css') }}" rel="stylesheet">
 <script src="{{ asset('js/ai-chat-widget.js') }}" defer></script>
@@ -11,8 +27,9 @@
 document.addEventListener('DOMContentLoaded', function () {
   if (typeof AiChatWidget !== 'undefined') {
     AiChatWidget.init({
-      fid: {{ $fid ?? 1 }},
-      firma: {{ $firma ?? session('fid', 'null') }},
+      // fid и firma теперь читаются из #ai-chat-config (data-атрибуты),
+      // что позволяет проекту (fid) определяться из сессии.
+      // Если нужно явно переопределить — передайте fid/firma сюда.
       apiUrl: '/api/ai/chat',
     });
   }

@@ -256,15 +256,39 @@ class ChatService
 
     /**
      * Загрузить контекст из базы знаний для проекта и компании.
+     *
+     * Если по переданному fid ничего не найдено, пробует session('fid') как fallback.
+     * Это необходимо, когда фронтенд передаёт неверный fid (например, захардкоженный 1),
+     * а реальные записи в БЗ привязаны к другому проекту (например, session('fid') = 2).
      */
     private function loadKnowledgeContext(int $fid, ?int $firma): string
     {
+        if ($fid <= 0) {
+            $fid = (int) session('fid', 0);
+        }
+
         if ($fid <= 0) {
             return '';
         }
 
         try {
-            return $this->knowledgeService->getContext($fid, $firma);
+            $context = $this->knowledgeService->getContext($fid, $firma);
+
+            // Если контекст пустой — пробуем session('fid') как fallback
+            if ($context === '') {
+                $sessionFid = (int) session('fid', 0);
+                if ($sessionFid > 0 && $sessionFid !== $fid) {
+                    Log::info('Knowledge base context empty for fid {fid}, trying session fid {sessionFid}.', [
+                        'fid' => $fid,
+                        'sessionFid' => $sessionFid,
+                        'firma' => $firma,
+                    ]);
+
+                    $context = $this->knowledgeService->getContext($sessionFid, $firma);
+                }
+            }
+
+            return $context;
         } catch (Throwable $e) {
             Log::warning('Failed to load knowledge base context.', [
                 'fid' => $fid,
