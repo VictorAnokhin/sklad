@@ -1254,11 +1254,11 @@
                     <table class="table table-hover table-sm align-middle">
                         <thead>
                             <tr>
-                                <th>{{ __('settings.knowledge_base.category_key_th') }}</th>
-                                <th>{{ __('settings.knowledge_base.category_name_th') }}</th>
-                                <th class="text-center">{{ __('settings.knowledge_base.category_sort_th') }}</th>
-                                <th class="text-center">{{ __('settings.knowledge_base.th_active') }}</th>
-                                <th class="text-end" style="width:140px;">{{ __('settings.common.actions') }}</th>
+                                <th class="kb-category-key-col">{{ __('settings.knowledge_base.category_key_th') }}</th>
+                                <th class="kb-category-name-col">{{ __('settings.knowledge_base.category_name_th') }}</th>
+                                <th class="text-center kb-category-sort-col">{{ __('settings.knowledge_base.category_sort_th') }}</th>
+                                <th class="text-center kb-category-active-col">{{ __('settings.knowledge_base.th_active') }}</th>
+                                <th class="text-end kb-category-actions-col">{{ __('settings.common.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody id="kb-category-tbody">
@@ -1410,6 +1410,23 @@
 </div>
 
 <style>
+    .kb-category-key-col {
+        width: 35%;
+    }
+    .kb-category-name-col {
+        width: 35%;
+    }
+    .kb-category-sort-col {
+        width: 10%;
+    }
+    .kb-category-active-col {
+        width: 10%;
+    }
+    .kb-category-actions-col {
+        width: 10%;
+        white-space: nowrap;
+    }
+
     .setting-card {
         cursor: pointer;
     }
