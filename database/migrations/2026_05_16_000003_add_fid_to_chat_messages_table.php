@@ -8,6 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('chat_messages')) {
+            return;
+        }
+
+        if (Schema::hasColumn('chat_messages', 'fid')) {
+            return;
+        }
+
         Schema::table('chat_messages', function (Blueprint $table) {
             $table->integer('fid')->nullable()->index()->comment('ID проекта')->after('chat_session_id');
         });

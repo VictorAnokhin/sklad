@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('wallet_tokens') || Schema::hasColumn('wallet_tokens', 'is_selected')) {
+            return;
+        }
+
         Schema::table('wallet_tokens', function (Blueprint $table) {
             $table->boolean('is_selected')->default(true)->after('is_spam');
         });

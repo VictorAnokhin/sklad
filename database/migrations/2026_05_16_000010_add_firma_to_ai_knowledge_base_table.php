@@ -12,6 +12,14 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('ai_knowledge_base')) {
+            return;
+        }
+
+        if (Schema::hasColumn('ai_knowledge_base', 'firma')) {
+            return;
+        }
+
         Schema::table('ai_knowledge_base', function (Blueprint $table) {
             $table->integer('firma')->nullable()->index()->after('fid')
                 ->comment('ID компании (фирмы), к которой относится знание');

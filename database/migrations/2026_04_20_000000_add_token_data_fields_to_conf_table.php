@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('conf') || Schema::hasColumn('conf', 'last_balance')) {
+            return;
+        }
+
         Schema::table('conf', function (Blueprint $table) {
             $table->decimal('last_balance', 36, 18)->nullable()->after('constanta');
             $table->decimal('last_price', 24, 8)->nullable()->after('last_balance');

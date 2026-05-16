@@ -11,6 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('chat_messages')) {
+            return;
+        }
+
+        if (Schema::hasColumn('chat_messages', 'firma')) {
+            return;
+        }
+
         Schema::table('chat_messages', function (Blueprint $table) {
             $table->integer('firma')->nullable()->index()->after('fid')
                 ->comment('ID компании (фирмы), контекст сообщения');
