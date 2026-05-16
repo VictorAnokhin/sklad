@@ -32,6 +32,7 @@ class AiChatController extends Controller
             'fid' => ['nullable', 'integer', 'min:1', 'max:999999'],
             'firma' => ['nullable', 'integer', 'min:1', 'max:999999'],
             'user_id' => ['nullable', 'integer', 'min:1'],
+            'use_db_tools' => ['nullable', 'boolean'],
             'history' => ['nullable', 'array', 'max:8'],
             'history.*.role' => ['required_with:history', 'string', 'in:user,assistant'],
             'history.*.content' => ['required_with:history', 'string', 'max:1600'],

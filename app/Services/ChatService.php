@@ -13,6 +13,7 @@ class ChatService
     public function __construct(
         private readonly AiKnowledgeService $knowledgeService,
         private readonly DeepSeekClient $deepseek,
+        private readonly DbQueryService $dbQuery,
     ) {}
 
     // ── Управление сессиями ─────────────────────────────────────────────
@@ -119,6 +120,7 @@ class ChatService
         $wallet = trim((string) ($payload['wallet'] ?? ''));
         $fid = (int) ($payload['fid'] ?? 0);
         $firma = isset($payload['firma']) ? (int) $payload['firma'] : null;
+        $useDbTools = (bool) ($payload['use_db_tools'] ?? true); // Включать ли доступ к БД
 
         // Определяем fid — из payload, из сессии чата или из PHP-сессии (рабочее пространство)
         if ($fid <= 0) {
@@ -156,7 +158,7 @@ class ChatService
         $knowledgeContext = $this->loadKnowledgeContext($fid, $firma);
 
         // Формируем system prompt
-        $instructions = $this->buildSystemPrompt($language, $fid, $firma, $knowledgeContext);
+        $instructions = $this->buildSystemPrompt($language, $fid, $firma, $knowledgeContext, $useDbTools);
 
         // Загружаем историю для AI (из БД)
         $history = $session->getHistoryForAi(20);
@@ -171,14 +173,29 @@ class ChatService
                 "Вопрос пользователя: {$message}",
         ];
 
-        // Отправляем запрос в DeepSeek
-        $result = $this->deepseek->chat($instructions, $history);
+        // ── Отправка с function calling (доступ к БД) или обычный запрос ──
+        if ($useDbTools && $fid > 0) {
+            // Получаем инструменты для доступа к БД
+            $tools = $this->dbQuery->getTools();
+
+            // Создаём executor для вызова функций БД
+            $toolExecutor = function (string $name, array $arguments) use ($fid, $firma): string {
+                return $this->dbQuery->executeTool($fid, $firma, $name, $arguments);
+            };
+
+            // Отправляем запрос с поддержкой function calling
+            $result = $this->deepseek->chatWithTools($instructions, $history, $tools, $toolExecutor);
+        } else {
+            // Обычный запрос без доступа к БД
+            $result = $this->deepseek->chat($instructions, $history);
+        }
 
         // Сохраняем ответ ассистента
         $this->saveMessage($session->id, $fid, $firma, 'assistant', $result['answer'], [
             'model' => $result['model'] ?? null,
             'usage' => $result['usage'] ?? null,
             'provider' => 'deepseek',
+            'db_tools_used' => $useDbTools && $fid > 0,
         ]);
 
         // ── Автообучение: сохраняем полезные знания из диалога ──────
@@ -190,6 +207,7 @@ class ChatService
             'provider' => 'deepseek',
             'model' => $result['model'],
             'usage' => $result['usage'],
+            'db_tools_enabled' => $useDbTools && $fid > 0,
             'billing' => [
                 'paid_by' => 'project',
                 'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
@@ -259,8 +277,10 @@ class ChatService
 
     /**
      * Сформировать system prompt для AI.
+     *
+     * @param  bool  $useDbTools  Если true — в prompt добавляется инструкция по работе с БД
      */
-    private function buildSystemPrompt(string $language, int $fid, ?int $firma, string $knowledgeContext = ''): string
+    private function buildSystemPrompt(string $language, int $fid, ?int $firma, string $knowledgeContext = '', bool $useDbTools = true): string
     {
         $answerLanguage = match ($language) {
             'ua' => 'українській',
@@ -285,6 +305,24 @@ class ChatService
 Не выдумывай информацию — если не знаешь, скажи об этом честно.
 LEARN;
 
+        // Инструкция по работе с базой данных проекта
+        $dbToolsInstruction = $useDbTools && $fid > 0 ? <<<'DBTOOLS'
+
+ДОПОЛНИТЕЛЬНЫЕ ВОЗМОЖНОСТИ: У тебя есть доступ к базе данных проекта через функции.
+
+Ты МОЖЕШЬ и ДОЛЖЕН использовать эти функции, когда пользователь спрашивает:
+- О товарах, ценах, наличии — используй search_goods или get_goods_by_id
+- О категориях товаров — используй get_goods_categories
+- О новостях проекта — используй search_news
+- О проекте в целом (контакты, описание) — используй get_project_info
+- О документах/статьях — используй search_docs
+- Если вопрос похож на тот, что уже задавали — используй search_knowledge_base
+
+ВАЖНО: Всегда используй функции для получения реальных данных из БД.
+НЕ выдумывай названия товаров, цены или другие данные — запроси их через функции.
+Если функция вернула пустой результат — честно скажи, что ничего не найдено.
+DBTOOLS : '';
+
         return <<<PROMPT
 Ты AI-консультант AV8Capital. Отвечай на {$answerLanguage} языке.
 
@@ -303,7 +341,7 @@ LEARN;
 - Если пользователь спрашивает про админку: объясни, что whitelist, веса корзины, RWA minting и rebalance доступны только админам с правами/owner cap.
 - Если данных не хватает, попроси открыть нужную страницу или подключить кошелёк.
 - Не выдумывай onchain-состояние. Если точный баланс или объект не передан в контексте, скажи, где его увидеть в интерфейсе.
-- Если в База знаний проекта есть информация по вопросу — используй её в первую очередь.{$knowledgeSection}{$learningInstruction}
+- Если в База знаний проекта есть информация по вопросу — используй её в первую очередь.{$knowledgeSection}{$dbToolsInstruction}{$learningInstruction}
 PROMPT;
     }
 
