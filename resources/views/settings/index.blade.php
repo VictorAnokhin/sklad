@@ -4912,7 +4912,8 @@ document.addEventListener('DOMContentLoaded', function () {
          * Load active categories from API and populate selects + category map.
          */
         function loadCategories() {
-            return fetch(CATEGORY_API_BASE, {
+            var fidParam = FID() ? '?fid=' + FID() : '';
+            return fetch(CATEGORY_API_BASE + fidParam, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             })
                 .then(r => r.json())
@@ -4966,7 +4967,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!catTbody) return;
             catTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">' + _kbs('loading') + '</td></tr>';
 
-            fetch(CATEGORY_API_BASE + '/all', {
+            var fidParam = FID() ? '?fid=' + FID() : '';
+            fetch(CATEGORY_API_BASE + '/all' + fidParam, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             })
                 .then(r => r.json())
