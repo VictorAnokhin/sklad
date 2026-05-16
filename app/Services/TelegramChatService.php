@@ -15,9 +15,15 @@ class TelegramChatService
      */
     private const TELEGRAM_TOKEN_PREFIX = 'tg_';
 
+    /**
+     * FID проекта аналитика (AV8 Capital research).
+     */
+    private const ANALYST_FID = 12;
+
     public function __construct(
         private readonly DeepSeekClient $deepseek,
         private readonly TelegramBotService $bot,
+        private readonly AnalystService $analyst,
     ) {}
 
     // ── Публичный API ──────────────────────────────────────────────────────
@@ -49,7 +55,7 @@ class TelegramChatService
             // Если команда не распознана — продолжаем как обычный диалог
         }
 
-        // ── Основной диалог с AI ──────────────────────────────────────────
+        // ── Основной диалог с AI-аналитиком ────────────────────────────────
         return $this->handleAiDialog($chatId, $text, $userId, $username);
     }
 
@@ -74,7 +80,7 @@ class TelegramChatService
     }
 
     /**
-     /start — приветствие и информация.
+     * /start — приветствие и информация.
      */
     private function cmdStart(int|string $chatId, string $username): string
     {
@@ -84,31 +90,39 @@ class TelegramChatService
         $name = ucfirst(mb_strtolower($username));
 
         return "👋 Привет, {$name}!\n\n"
-            . "Я — AI-финансовый помощник AV8 Capital.\n"
-            . "Задавай любые вопросы о финансах, инвестициях, криптовалютах, "
-            . "токенах Sui, нашем фонде и DeFi.\n\n"
-            . "📌 *Доступные команды:*\n"
+            . "Я — AI-аналитик AV8 Capital. 📊\n\n"
+            . "Мои возможности:\n"
+            . "🔍 *Изучать сайты и протоколы* — отправь URL, я проанализирую\n"
+            . "📰 *Собирать новости* — из открытых источников\n"
+            . "💾 *Сохранять данные* — в базу знаний проекта (fid=12)\n"
+            . "📊 *Анализировать* — DeFi-протоколы, токены, рынки\n"
+            . "📋 *Исследовать* — темы по запросу с отчётом\n\n"
+            . "📌 *Команды:*\n"
             . "/help — список команд\n"
-            . "/new — начать новый диалог (сбросить историю)\n"
-            . "/clear — очистить историю текущего диалога\n\n"
-            . "Чем могу помочь?";
+            . "/new — начать новый диалог\n"
+            . "/clear — очистить историю\n\n"
+            . "Просто напиши *тему для исследования* или *URL сайта* для анализа!";
     }
 
     /**
-     /help — список команд.
+     * /help — список команд.
      */
     private function cmdHelp(int|string $chatId): string
     {
         return "📋 *Доступные команды:*\n\n"
             . "/start — приветствие и запуск\n"
             . "/help — этот список\n"
-            . "/new — начать новый диалог (сбросить историю)\n"
-            . "/clear — очистить историю текущего диалога\n\n"
-            . "Просто напишите свой вопрос — и я отвечу как AI-финансовый помощник!";
+            . "/new — начать новый диалог\n"
+            . "/clear — очистить историю\n\n"
+            . "💡 *Примеры запросов:*\n"
+            . "• «Изучи протокол Suilend на Sui»\n"
+            . "• «Собери информацию о https://example.com»\n"
+            . "• «Сделай анализ рынка DeFi за неделю»\n"
+            . "• «Какие исследования уже есть?»";
     }
 
     /**
-     /clear — очистить историю текущего диалога (сообщения остаются, но AI их не видит).
+     * /clear — очистить историю текущего диалога.
      */
     private function cmdClear(int|string $chatId): string
     {
@@ -122,7 +136,7 @@ class TelegramChatService
     }
 
     /**
-     /new — начать новый диалог.
+     * /new — начать новый диалог.
      */
     private function cmdNew(int|string $chatId): string
     {
@@ -140,7 +154,7 @@ class TelegramChatService
     // ── AI диалог ──────────────────────────────────────────────────────────
 
     /**
-     * Обработать текстовое сообщение через DeepSeek.
+     * Обработать текстовое сообщение через DeepSeek с function calling.
      */
     private function handleAiDialog(
         int|string $chatId,
@@ -155,7 +169,7 @@ class TelegramChatService
             // Получаем или создаём сессию для этого чата
             $session = $this->resolveSession($chatId);
 
-            // Сохраняем сообщение пользователя
+            // Сохраняем сообщение пользователя с fid=12
             $this->saveUserMessage($session, $text);
 
             // Обновляем заголовок сессии
@@ -164,11 +178,25 @@ class TelegramChatService
             // Загружаем историю для AI
             $history = $session->getHistoryForAi(20);
 
-            // Формируем system prompt с контекстом AV8 Capital
-            $instructions = $this->buildSystemPrompt();
+            // Формируем system prompt аналитика
+            $instructions = $this->buildAnalystPrompt();
 
-            // Отправляем запрос к DeepSeek
-            $result = $this->deepseek->chat($instructions, $history);
+            // Получаем инструменты аналитика
+            $tools = $this->analyst->getTools();
+
+            // Создаём executor для вызова инструментов
+            $toolExecutor = function (string $name, array $arguments): string {
+                return $this->analyst->executeTool($name, $arguments);
+            };
+
+            // Отправляем запрос с поддержкой function calling
+            $result = $this->deepseek->chatWithTools(
+                $instructions,
+                $history,
+                $tools,
+                $toolExecutor,
+                ['max_tool_iterations' => 10],
+            );
 
             $answer = $result['answer'];
 
@@ -183,7 +211,6 @@ class TelegramChatService
                 'error' => $e->getMessage(),
             ]);
 
-            // Ошибка DeepSeek — вежливо сообщаем пользователю
             if (str_contains($e->getMessage(), 'DeepSeek')) {
                 return '⚠️ Извините, AI-сервис временно недоступен. Попробуйте позже.';
             }
@@ -204,9 +231,6 @@ class TelegramChatService
 
     /**
      * Получить или создать сессию чата для Telegram chat_id.
-     *
-     * Используем chat_id как часть session_token с префиксом 'tg_'.
-     * Это позволяет переиспользовать существующую модель ChatSession.
      */
     private function resolveSession(int|string $chatId, bool $forceNew = false): ChatSession
     {
@@ -222,11 +246,12 @@ class TelegramChatService
             }
         }
 
-        // Создаём новую сессию
+        // Создаём новую сессию с fid=12 для аналитика
         return ChatSession::create([
             'session_token' => $token,
+            'fid' => self::ANALYST_FID,
             'language' => 'ru',
-            'page' => 'telegram',
+            'page' => 'telegram_analyst',
             'status' => 'active',
         ]);
     }
@@ -237,7 +262,7 @@ class TelegramChatService
     {
         return ChatMessage::create([
             'chat_session_id' => $session->id,
-            'fid' => null,
+            'fid' => self::ANALYST_FID,
             'firma' => null,
             'role' => 'user',
             'content' => $text,
@@ -251,7 +276,7 @@ class TelegramChatService
     {
         return ChatMessage::create([
             'chat_session_id' => $session->id,
-            'fid' => null,
+            'fid' => self::ANALYST_FID,
             'firma' => null,
             'role' => 'assistant',
             'content' => $answer,
@@ -259,41 +284,79 @@ class TelegramChatService
                 'model' => $result['model'] ?? null,
                 'usage' => $result['usage'] ?? null,
                 'provider' => 'deepseek',
-                'source' => 'telegram',
+                'source' => 'telegram_analyst',
+                'tools_used' => true,
             ],
         ]);
     }
 
-    // ── System prompt ──────────────────────────────────────────────────────
+    // ── System prompt аналитика ────────────────────────────────────────────
 
     /**
-     * Сформировать system prompt для AI-финансового помощника.
+     * Сформировать system prompt для AI-аналитика.
      */
-    private function buildSystemPrompt(): string
+    private function buildAnalystPrompt(): string
     {
         return <<<'PROMPT'
-Ты — AI-финансовый помощник AV8 Capital. Отвечай на русском языке.
+ТЫ — AI-АНАЛИТИК AV8 Capital. Твоя основная задача — сбор и анализ данных из открытых источников.
 
-Твоя миссия: помогать пользователям разбираться в финансах, инвестициях, 
-криптовалютах, технологии Sui, DeFi-продуктах AV8 Capital и управлении капиталом.
+ТВОЙ ID ПРОЕКТА (fid): 12
+Все сохраняемые данные привязываются к проекту fid=12.
 
-Темы, в которых ты помогаешь:
-- Основы финансовой грамотности и инвестиций
-- Технология Sui (Move, смарт-контракты, zkLogin)
-- DeFi: AMM, пулы ликвидности, стекинг, фарминг
-- AV8 Capital: структура фонда, токены, RWA, корзина активов, mint/redeem
-- Криптовалюты: аналитика, тренды, безопасность
-- Управление портфелем, стратегии, риск-менеджмент
+ТВОИ ВОЗМОЖНОСТИ (через функции):
 
-Правила:
-- Отвечай понятно, структурированно, с примерами где уместно
-- Не давай персональных финансовых рекомендаций
-- Не запрашивай seed-фразы, private keys или секреты кошельков
-- Если не знаешь точного ответа — честно скажи об этом
-- Если вопрос требует onchain-данных (баланс, позиции), объясни, как их проверить в интерфейсе
-- Будь дружелюбным и helpful
+1. fetch_url(url) — Загрузить содержимое веб-страницы по URL.
+   Используй когда пользователь просит изучить сайт, протокол, документацию.
+   После загрузки проанализируй содержимое и сохрани результат через save_source.
 
-Используй эмодзи для улучшения читаемости, но не перебарщивай.
+2. save_source(url, title, summary, content_type) — Сохранить источник в БД.
+   Всегда сохраняй полезные источники после анализа.
+   content_type: website, news, documentation, protocol, social, api, other.
+
+3. search_sources(query) — Искать по сохранённым источникам.
+   Используй когда пользователь спрашивает о ранее изученном.
+
+4. start_research(topic) — Начать новое исследование по теме.
+   Создаёт сессию исследования, к которой прикрепляются источники.
+
+5. complete_research(research_id, summary) — Завершить исследование с итоговым отчётом.
+   В summary напиши полный анализ: ключевые выводы, метрики, риски.
+
+6. list_researches() — Показать все исследования.
+
+7. save_knowledge(title, content, category) — Сохранить аналитическую заметку в базу знаний.
+   Категории: defi, protocol, token, market, news, analysis, strategy, security.
+
+8. get_research_sources(research_id) — Получить все источники исследования.
+
+АЛГОРИТМ РАБОТЫ:
+
+1. Когда пользователь просит изучить что-то:
+   → Используй start_research, чтобы создать исследование
+   → Используй fetch_url для загрузки страниц
+   → После загрузки используй save_source для каждого источника
+   → В конце используй complete_research с полным анализом
+
+2. Когда пользователь даёт URL:
+   → Используй fetch_url для загрузки
+   → Проанализируй содержимое
+   → Используй save_source для сохранения
+   → Если это часть исследования — привяжи через research_id
+
+3. Когда спрашивают о сохранённых данных:
+   → Используй search_sources или list_researches
+
+4. Ценные инсайты и выводы:
+   → Используй save_knowledge для сохранения в базу знаний
+
+ПРАВИЛА:
+- Перед fetch_url объясни пользователю, что начинаешь загрузку
+- После fetch_url кратко суммируй содержимое
+- Всегда сохраняй источники через save_source после анализа
+- Используй эмодзи для наглядности (🌐 📊 📝 💾 🔍 📡)
+- Если сайт не загрузился — предложи альтернативный источник
+- Не выдумывай данные — используй только то, что получил из функций
+- Ответы давай на русском языке
 PROMPT;
     }
 }
