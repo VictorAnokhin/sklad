@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\AiKnowledgeBase;
+use App\Models\AiKnowledgeCategory;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -22,9 +24,9 @@ class AiKnowledgeService
             return '';
         }
 
-        $parts = $records->map(function (AiKnowledgeBase $item): string {
+        $parts = $records->map(function (AiKnowledgeBase $item) use ($fid): string {
             $title = $item->title ?: 'Без заголовка';
-            $category = $this->translateCategory($item->category);
+            $category = $this->translateCategory($item->category, $fid);
 
             return "[{$category}] {$title}\n{$item->content}";
         });
@@ -231,18 +233,16 @@ class AiKnowledgeService
         return 'general';
     }
 
-    private function translateCategory(string $category): string
+    private function translateCategory(string $category, ?int $fid = null): string
     {
-        return match ($category) {
-            'general' => 'Общее',
-            'invest' => 'Инвестиции',
-            'wallet' => 'Кошелёк',
-            'token' => 'Токены',
-            'fund' => 'Фонд',
-            'admin' => 'Администрирование',
-            'chat_export' => 'Из чата',
-            'faq' => 'FAQ',
-            default => $category,
-        };
+        $cacheKey = 'ai_knowledge_category_names_fid_' . ($fid ?? 'global');
+
+        $map = Cache::remember($cacheKey, 3600, function () use ($fid) {
+            return AiKnowledgeCategory::forFid($fid)
+                ->pluck('name', 'key')
+                ->toArray();
+        });
+
+        return $map[$category] ?? $category;
     }
 }

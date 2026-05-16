@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
       fid: {{ $fid ?? 1 }},
       firma: {{ $firma ?? session('fid', 'null') }},
       apiUrl: '/api/ai/knowledge-base',
+      categoriesApiUrl: '/api/ai/knowledge-base/categories',
     });
   }
 });

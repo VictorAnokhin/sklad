@@ -178,6 +178,16 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-4">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalKnowledgeBase" style="border-color: #a5b4fc;">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🧠 {{ __('settings.cards.knowledge_base.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.knowledge_base.description') }}</p>
+                    <span class="badge" style="background:#a5b4fc;color:#020617;" id="badge-knowledge-base">{{ $knowledgeBaseCount ?? 0 }}</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1112,6 +1122,151 @@
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для управления базой знаний -->
+<div class="modal fade" id="modalKnowledgeBase" tabindex="-1" aria-labelledby="modalKnowledgeBaseLabel" aria-hidden="true" data-session-fid="{{ $fid ?? '' }}" data-session-firma="{{ session('firma', '') }}">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header d-flex align-items-center">
+                <h5 class="modal-title" id="modalKnowledgeBaseLabel">🧠 {{ __('settings.cards.knowledge_base.modal_title') }}</h5>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-kb-add">+ {{ __('settings.common.add') }}</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btn-kb-manage-categories" title="{{ __('settings.knowledge_base.manage_categories') }}">⚙️ <span class="d-none d-md-inline">{{ __('settings.knowledge_base.manage_categories') }}</span></button>
+                <button type="button" class="btn-close ms-3" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
+            </div>
+
+            <!-- Форма добавления/редактирования -->
+            <div class="modal-body" id="kb-form-area" style="display:none;">
+                <form id="kb-form">
+                    <input type="hidden" id="kb-id" value="">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="kb-title">{{ __('settings.knowledge_base.title_label') }} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="kb-title" maxlength="255" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="kb-category">{{ __('settings.knowledge_base.category_label') }} <span class="text-danger">*</span></label>
+                            <select class="form-select" id="kb-category" required>
+                                <option value="">{{ __('settings.knowledge_base.select_category') }}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="kb-active" checked>
+                                <label class="form-check-label" for="kb-active">{{ __('settings.knowledge_base.active_label') }}</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="kb-content">{{ __('settings.knowledge_base.content_label') }} <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="kb-content" rows="6" minlength="10" maxlength="10000" required></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">💾 {{ __('settings.common.save') }}</button>
+                        <button type="button" class="btn btn-secondary" id="btn-kb-cancel">{{ __('settings.common.cancel') }}</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Список записей -->
+            <div class="modal-body" id="kb-list-area">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="kb-search-input" placeholder="{{ __('settings.knowledge_base.search_placeholder') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="kb-filter-category">
+                            <option value="">{{ __('settings.knowledge_base.all_categories') }}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-outline-primary w-100" id="btn-kb-search">🔍 {{ __('settings.knowledge_base.filter') }}</button>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-outline-secondary w-100" id="btn-kb-refresh">🔄 {{ __('settings.common.refresh') }}</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>{{ __('settings.knowledge_base.th_title') }}</th>
+                                <th>{{ __('settings.knowledge_base.th_category') }}</th>
+                                <th>{{ __('settings.knowledge_base.th_content') }}</th>
+                                <th>{{ __('settings.knowledge_base.th_active') }}</th>
+                                <th class="text-end" style="width:160px;">{{ __('settings.common.actions') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kb-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-muted" id="kb-empty-msg" style="display:none">{{ __('settings.knowledge_base.empty') }}</p>
+                <div id="kb-pagination" class="d-flex justify-content-center gap-2 mt-2"></div>
+            </div>
+
+            <!-- Управление категориями (скрыто по умолчанию) -->
+            <div class="modal-body" id="kb-category-area" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">⚙️ {{ __('settings.knowledge_base.manage_categories') }}</h6>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-success" id="btn-kb-category-add">+ {{ __('settings.common.add') }}</button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="btn-kb-category-back">← {{ __('settings.common.back') }}</button>
+                    </div>
+                </div>
+
+                <!-- Форма добавления/редактирования категории -->
+                <div id="kb-category-form-area" style="display:none;" class="card card-body mb-3 bg-light">
+                    <form id="kb-category-form">
+                        <input type="hidden" id="kb-category-id" value="">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label mb-1"><small>{{ __('settings.knowledge_base.category_key_label') }}</small></label>
+                                <input type="text" class="form-control form-control-sm" id="kb-category-key" maxlength="80" required placeholder="example_key">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label mb-1"><small>{{ __('settings.knowledge_base.category_name_label') }}</small></label>
+                                <input type="text" class="form-control form-control-sm" id="kb-category-name" maxlength="255" required placeholder="{{ __('settings.knowledge_base.category_name_placeholder') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label mb-1"><small>{{ __('settings.knowledge_base.category_sort_label') }}</small></label>
+                                <input type="number" class="form-control form-control-sm" id="kb-category-sort" value="0" min="0" max="65535">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="kb-category-active" checked>
+                                    <label class="form-check-label"><small>{{ __('settings.knowledge_base.active_label') }}</small></label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button type="submit" class="btn btn-sm btn-success">💾 {{ __('settings.common.save') }}</button>
+                            <button type="button" class="btn btn-sm btn-secondary" id="btn-kb-category-form-cancel">{{ __('settings.common.cancel') }}</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Список категорий -->
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>{{ __('settings.knowledge_base.category_key_th') }}</th>
+                                <th>{{ __('settings.knowledge_base.category_name_th') }}</th>
+                                <th class="text-center">{{ __('settings.knowledge_base.category_sort_th') }}</th>
+                                <th class="text-center">{{ __('settings.knowledge_base.th_active') }}</th>
+                                <th class="text-end" style="width:140px;">{{ __('settings.common.actions') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kb-category-tbody">
+                            <tr><td colspan="5" class="text-center text-muted">{{ __('settings.common.loading') }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-center text-muted" id="kb-category-empty" style="display:none">{{ __('settings.knowledge_base.no_categories') }}</p>
             </div>
         </div>
     </div>
@@ -4675,6 +4830,735 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const date = new Date(Number(value) * 1000);
             return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+        }
+    })();
+});
+
+// === База знаний (Knowledge Base) ===
+document.addEventListener('DOMContentLoaded', function () {
+    (() => {
+        const modal = document.getElementById('modalKnowledgeBase');
+        const formArea = document.getElementById('kb-form-area');
+        const listArea = document.getElementById('kb-list-area');
+        const catArea = document.getElementById('kb-category-area');
+        const form = document.getElementById('kb-form');
+        const tbody = document.getElementById('kb-tbody');
+        const emptyMsg = document.getElementById('kb-empty-msg');
+        const pagination = document.getElementById('kb-pagination');
+        const badge = document.getElementById('badge-knowledge-base');
+        const btnAdd = document.getElementById('btn-kb-add');
+        const btnManageCat = document.getElementById('btn-kb-manage-categories');
+        const btnCancel = document.getElementById('btn-kb-cancel');
+        const btnRefresh = document.getElementById('btn-kb-refresh');
+        const btnSearch = document.getElementById('btn-kb-search');
+        const searchInput = document.getElementById('kb-search-input');
+        const filterCategory = document.getElementById('kb-filter-category');
+
+        const kbId = document.getElementById('kb-id');
+        const kbTitle = document.getElementById('kb-title');
+        const kbCategory = document.getElementById('kb-category');
+        const kbContent = document.getElementById('kb-content');
+        const kbActive = document.getElementById('kb-active');
+
+        // Category management elements
+        const catFormArea = document.getElementById('kb-category-form-area');
+        const catForm = document.getElementById('kb-category-form');
+        const catTbody = document.getElementById('kb-category-tbody');
+        const catEmpty = document.getElementById('kb-category-empty');
+        const btnCatAdd = document.getElementById('btn-kb-category-add');
+        const btnCatBack = document.getElementById('btn-kb-category-back');
+        const btnCatFormCancel = document.getElementById('btn-kb-category-form-cancel');
+        const catId = document.getElementById('kb-category-id');
+        const catKey = document.getElementById('kb-category-key');
+        const catName = document.getElementById('kb-category-name');
+        const catSort = document.getElementById('kb-category-sort');
+        const catActive = document.getElementById('kb-category-active');
+
+        const API_BASE = '/api/ai/knowledge-base';
+        const CATEGORY_API_BASE = '/api/ai/knowledge-base/categories';
+        const CSRF = () => document.querySelector('meta[name="csrf-token"]').content;
+        const FID = () => document.getElementById('kb-fid')?.value || '';
+        const FIRMA = () => document.getElementById('kb-firma')?.value || '';
+
+        // Category key → name map, populated from API
+        window._kbCategoryMap = window._kbCategoryMap || {};
+
+        let currentPage = 1;
+        let lastSearchQuery = '';
+        let lastCategory = '';
+
+        if (!modal) return;
+
+        // Inject hidden fid/firma inputs for reference
+        if (!document.getElementById('kb-fid')) {
+            const hf = document.createElement('input');
+            hf.type = 'hidden'; hf.id = 'kb-fid';
+            document.body.appendChild(hf);
+        }
+        if (!document.getElementById('kb-firma')) {
+            const hf = document.createElement('input');
+            hf.type = 'hidden'; hf.id = 'kb-firma';
+            document.body.appendChild(hf);
+        }
+
+        function _kbs(path) {
+            const v = String(path || '').split('.').reduce(function (acc, key) {
+                return acc && acc[key] !== undefined ? acc[key] : undefined;
+            }, window.SettingsI18n?.knowledge_base || {});
+            return v !== undefined && v !== null ? v : path;
+        }
+
+        /**
+         * Load active categories from API and populate selects + category map.
+         */
+        function loadCategories() {
+            return fetch(CATEGORY_API_BASE, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then(r => r.json())
+                .then(function (data) {
+                    const cats = data.data || [];
+                    // Build category map
+                    const map = {};
+                    cats.forEach(function (c) { map[c.key] = c.name; });
+                    window._kbCategoryMap = map;
+
+                    // Populate form select (#kb-category)
+                    var formSelect = kbCategory;
+                    var currentVal = formSelect.value;
+                    formSelect.innerHTML = '<option value="">' + _kbs('select_category') + '</option>';
+                    cats.forEach(function (c) {
+                        var opt = document.createElement('option');
+                        opt.value = c.key;
+                        opt.textContent = c.name;
+                        formSelect.appendChild(opt);
+                    });
+                    // Restore value if still valid
+                    if (currentVal && map[currentVal]) {
+                        formSelect.value = currentVal;
+                    }
+
+                    // Populate filter select (#kb-filter-category)
+                    var filterSelect = filterCategory;
+                    var filterVal = filterSelect.value;
+                    filterSelect.innerHTML = '<option value="">' + _kbs('all_categories') + '</option>';
+                    cats.forEach(function (c) {
+                        var opt = document.createElement('option');
+                        opt.value = c.key;
+                        opt.textContent = c.name;
+                        filterSelect.appendChild(opt);
+                    });
+                    if (filterVal && map[filterVal]) {
+                        filterSelect.value = filterVal;
+                    }
+
+                    return cats;
+                })
+                .catch(function () {
+                    console.error('Failed to load categories');
+                });
+        }
+
+        /**
+         * Load all categories (including inactive) into the management table.
+         */
+        function loadCategoryList() {
+            if (!catTbody) return;
+            catTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">' + _kbs('loading') + '</td></tr>';
+
+            fetch(CATEGORY_API_BASE + '/all', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then(r => r.json())
+                .then(function (data) {
+                    const cats = data.data || [];
+                    catTbody.innerHTML = '';
+
+                    if (cats.length === 0) {
+                        catEmpty.style.display = 'block';
+                        return;
+                    }
+                    catEmpty.style.display = 'none';
+
+                    cats.forEach(function (c) {
+                        var tr = document.createElement('tr');
+                        var activeIcon = c.active ? '✅' : '❌';
+                        var toggleIcon = c.active ? '❌' : '✅';
+
+                        tr.innerHTML =
+                            '<td><code>' + escapeHtml(c.key) + '</code></td>' +
+                            '<td>' + escapeHtml(c.name) + '</td>' +
+                            '<td class="text-center">' + (c.sort_order || 0) + '</td>' +
+                            '<td class="text-center">' + activeIcon + '</td>' +
+                            '<td class="text-end">' +
+                                '<button class="btn btn-sm btn-outline-primary me-1 btn-cat-edit" data-id="' + c.id + '">✏️</button>' +
+                                '<button class="btn btn-sm btn-outline-warning me-1 btn-cat-toggle" data-id="' + c.id + '" data-active="' + (c.active ? '1' : '0') + '">' + toggleIcon + '</button>' +
+                                '<button class="btn btn-sm btn-outline-danger btn-cat-delete" data-id="' + c.id + '">🗑</button>' +
+                            '</td>';
+
+                        catTbody.appendChild(tr);
+                    });
+
+                    // Edit button handlers
+                    catTbody.querySelectorAll('.btn-cat-edit').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            var id = parseInt(this.dataset.id);
+                            fetch(CATEGORY_API_BASE + '/' + id, {
+                                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            })
+                                .then(function (r) { return r.json(); })
+                                .then(function (data) {
+                                    if (data.data) showCategoryForm(data.data);
+                                })
+                                .catch(function () { alert(_kbs('load_error')); });
+                        });
+                    });
+
+                    // Toggle active handler
+                    catTbody.querySelectorAll('.btn-cat-toggle').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            if (!confirm(_kbs('toggle_active_confirm'))) return;
+                            var id = parseInt(this.dataset.id);
+                            var newActive = this.dataset.active === '1' ? '0' : '1';
+                            fetch(CATEGORY_API_BASE + '/' + id, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': CSRF(),
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: JSON.stringify({ active: newActive === '1' }),
+                            })
+                                .then(function (r) { return r.json(); })
+                                .then(function (data) {
+                                    if (data.data) {
+                                        loadCategoryList();
+                                        loadCategories();
+                                    } else {
+                                        alert(_kbs('save_error'));
+                                    }
+                                })
+                                .catch(function () { alert(_kbs('save_error')); });
+                        });
+                    });
+
+                    // Delete handler
+                    catTbody.querySelectorAll('.btn-cat-delete').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            if (!confirm(_kbs('delete_confirm'))) return;
+                            var id = parseInt(this.dataset.id);
+                            fetch(CATEGORY_API_BASE + '/' + id, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': CSRF(),
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                            })
+                                .then(function (r) { return r.json(); })
+                                .then(function (data) {
+                                    if (data.message) {
+                                        loadCategoryList();
+                                        loadCategories();
+                                    } else {
+                                        alert(_kbs('delete_error'));
+                                    }
+                                })
+                                .catch(function () { alert(_kbs('delete_error')); });
+                        });
+                    });
+                })
+                .catch(function () {
+                    catTbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">' + _kbs('load_error') + '</td></tr>';
+                });
+        }
+
+        /**
+         * Show/hide category management area.
+         */
+        function showCategoryArea() {
+            if (catArea) {
+                listArea.style.display = 'none';
+                formArea.style.display = 'none';
+                catArea.style.display = 'block';
+                btnAdd.style.display = 'none';
+                hideCategoryForm();
+                loadCategoryList();
+            }
+        }
+
+        function hideCategoryArea() {
+            if (catArea) {
+                catArea.style.display = 'none';
+                listArea.style.display = 'block';
+                btnAdd.style.display = 'inline-block';
+                hideCategoryForm();
+            }
+        }
+
+        function showCategoryForm(record) {
+            if (!catFormArea) return;
+            catFormArea.style.display = 'block';
+
+            if (record) {
+                catId.value = record.id;
+                catKey.value = record.key || '';
+                catName.value = record.name || '';
+                catSort.value = record.sort_order || 0;
+                catActive.checked = record.active !== false;
+                catKey.readOnly = true;
+            } else {
+                catId.value = '';
+                catKey.value = '';
+                catName.value = '';
+                catSort.value = '0';
+                catActive.checked = true;
+                catKey.readOnly = false;
+            }
+        }
+
+        function hideCategoryForm() {
+            if (!catFormArea) return;
+            catFormArea.style.display = 'none';
+            catForm.reset();
+            catId.value = '';
+            catKey.readOnly = false;
+        }
+
+        // ── Knowledge Base CRUD ──
+
+        function showForm(record) {
+            formArea.style.display = 'block';
+            listArea.style.display = 'none';
+            btnAdd.style.display = 'none';
+
+            // Determine default category key
+            var defaultCat = 'general';
+            var keys = Object.keys(window._kbCategoryMap);
+            if (keys.length > 0) {
+                defaultCat = keys[0];
+            }
+
+            if (record) {
+                kbId.value = record.id;
+                kbTitle.value = record.title || '';
+                kbCategory.value = record.category || defaultCat;
+                kbContent.value = record.content || '';
+                kbActive.checked = record.active !== false;
+            } else {
+                kbId.value = '';
+                kbTitle.value = '';
+                kbCategory.value = defaultCat;
+                kbContent.value = '';
+                kbActive.checked = true;
+            }
+        }
+
+        function hideForm() {
+            formArea.style.display = 'none';
+            listArea.style.display = 'block';
+            btnAdd.style.display = 'inline-block';
+            form.reset();
+            kbId.value = '';
+        }
+
+        function loadRecords(page) {
+            page = page || currentPage;
+            const params = new URLSearchParams();
+            params.set('fid', FID() || '0');
+            params.set('per_page', '20');
+            params.set('page', String(page));
+
+            if (lastCategory) {
+                params.set('category', lastCategory);
+            }
+
+            fetch(API_BASE + '?' + params.toString(), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then(r => r.json())
+                .then(data => {
+                    renderRecords(data.data || [], data.meta || {});
+                    updateBadge(data.meta?.total || 0);
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">' + _kbs('load_error') + '</td></tr>';
+                });
+        }
+
+        function renderRecords(records, meta) {
+            tbody.innerHTML = '';
+            if (!records || records.length === 0) {
+                emptyMsg.style.display = 'block';
+                pagination.innerHTML = '';
+                return;
+            }
+            emptyMsg.style.display = 'none';
+
+            records.forEach(function (rec) {
+                const tr = document.createElement('tr');
+                const title = rec.title || '—';
+                const contentPreview = (rec.content || '').substring(0, 80) + ((rec.content || '').length > 80 ? '...' : '');
+                const catKey = rec.category || 'general';
+                // Use category map for display name, fall back to key
+                const catLabel = (window._kbCategoryMap && window._kbCategoryMap[catKey]) || catKey;
+                const activeLabel = rec.active ? '✅' : '❌';
+                const activeBtnLabel = rec.active ? '❌' : '✅';
+
+                tr.innerHTML =
+                    '<td>' + escapeHtml(title) + '</td>' +
+                    '<td><span class="badge" style="background:#a5b4fc;color:#020617;">' + escapeHtml(catLabel) + '</span></td>' +
+                    '<td><small class="text-muted">' + escapeHtml(contentPreview) + '</small></td>' +
+                    '<td>' + activeLabel + '</td>' +
+                    '<td class="text-end">' +
+                        '<button class="btn btn-sm btn-outline-primary me-1 btn-kb-edit" data-id="' + rec.id + '">✏️</button>' +
+                        '<button class="btn btn-sm btn-outline-warning me-1 btn-kb-toggle" data-id="' + rec.id + '" data-active="' + (rec.active ? '1' : '0') + '">' + activeBtnLabel + '</button>' +
+                        '<button class="btn btn-sm btn-outline-danger btn-kb-delete" data-id="' + rec.id + '">🗑</button>' +
+                    '</td>';
+
+                tbody.appendChild(tr);
+            });
+
+            // Add event listeners
+            tbody.querySelectorAll('.btn-kb-edit').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const id = parseInt(this.dataset.id);
+                    fetch(API_BASE + '/' + id, {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.data) showForm(data.data);
+                        })
+                        .catch(() => alert(_kbs('load_error')));
+                });
+            });
+
+            tbody.querySelectorAll('.btn-kb-toggle').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    if (!confirm(_kbs('toggle_active_confirm'))) return;
+                    const id = parseInt(this.dataset.id);
+                    const newActive = this.dataset.active === '1' ? '0' : '1';
+                    fetch(API_BASE + '/' + id, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': CSRF(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ active: newActive === '1' }),
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.data) {
+                                loadRecords(currentPage);
+                                loadTotalCount();
+                            } else {
+                                alert(_kbs('save_error'));
+                            }
+                        })
+                        .catch(() => alert(_kbs('save_error')));
+                });
+            });
+
+            tbody.querySelectorAll('.btn-kb-delete').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    if (!confirm(_kbs('delete_confirm'))) return;
+                    const id = parseInt(this.dataset.id);
+                    fetch(API_BASE + '/' + id, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': CSRF(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.message) {
+                                loadRecords(currentPage);
+                                loadTotalCount();
+                            } else {
+                                alert(_kbs('delete_error'));
+                            }
+                        })
+                        .catch(() => alert(_kbs('delete_error')));
+                });
+            });
+
+            // Pagination
+            renderPagination(meta);
+        }
+
+        function renderPagination(meta) {
+            pagination.innerHTML = '';
+            if (!meta || meta.last_page <= 1) return;
+
+            const prev = document.createElement('button');
+            prev.className = 'btn btn-sm btn-outline-secondary' + (meta.current_page <= 1 ? ' disabled' : '');
+            prev.textContent = '←';
+            prev.addEventListener('click', function () {
+                if (meta.current_page > 1) {
+                    currentPage = meta.current_page - 1;
+                    loadRecords(currentPage);
+                }
+            });
+            pagination.appendChild(prev);
+
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'btn btn-sm disabled';
+            pageInfo.textContent = meta.current_page + ' / ' + meta.last_page;
+            pagination.appendChild(pageInfo);
+
+            const next = document.createElement('button');
+            next.className = 'btn btn-sm btn-outline-secondary' + (meta.current_page >= meta.last_page ? ' disabled' : '');
+            next.textContent = '→';
+            next.addEventListener('click', function () {
+                if (meta.current_page < meta.last_page) {
+                    currentPage = meta.current_page + 1;
+                    loadRecords(currentPage);
+                }
+            });
+            pagination.appendChild(next);
+        }
+
+        function searchRecords() {
+            const query = searchInput.value.trim();
+            lastCategory = filterCategory.value;
+            lastSearchQuery = query;
+
+            if (!query && !lastCategory) {
+                currentPage = 1;
+                loadRecords(1);
+                return;
+            }
+
+            if (query.length < 2 && query.length > 0) return;
+
+            const params = {
+                fid: FID() || '0',
+                query: query || '',
+                limit: 50,
+            };
+
+            fetch(API_BASE + '/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': CSRF(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(params),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    const items = data.data || [];
+                    // Apply category filter client-side if set
+                    let filtered = items;
+                    if (lastCategory) {
+                        filtered = items.filter(function (r) { return r.category === lastCategory; });
+                    }
+                    renderRecords(filtered, { total: filtered.length, current_page: 1, last_page: 1 });
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">' + _kbs('load_error') + '</td></tr>';
+                });
+        }
+
+        function loadTotalCount() {
+            fetch(API_BASE + '?fid=' + (FID() || '0') + '&per_page=1', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then(r => r.json())
+                .then(data => {
+                    const total = data.meta?.total || 0;
+                    updateBadge(total);
+                })
+                .catch(() => {});
+        }
+
+        function updateBadge(count) {
+            if (badge) badge.textContent = String(count);
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str || '';
+            return div.innerHTML;
+        }
+
+        // ── Event Listeners ──
+
+        // Modal events
+        modal.addEventListener('show.bs.modal', function () {
+            // Set fid/firma from session (available in page context)
+            const fidEl = document.getElementById('kb-fid');
+            const firmaEl = document.getElementById('kb-firma');
+            // Try to find fid from page context
+            const pageFid = document.querySelector('[data-session-fid]')?.dataset?.sessionFid ||
+                           window._pageFid ||
+                           document.querySelector('input[name="fid"]')?.value ||
+                           '';
+
+            const pageFirma = document.querySelector('[data-session-firma]')?.dataset?.sessionFirma ||
+                             window._pageFirma || '';
+
+            if (fidEl) fidEl.value = pageFid;
+            if (firmaEl) firmaEl.value = pageFirma;
+
+            hideForm();
+            if (catArea) catArea.style.display = 'none';
+            currentPage = 1;
+            lastSearchQuery = '';
+            lastCategory = '';
+            searchInput.value = '';
+            filterCategory.value = '';
+            loadRecords(1);
+            loadCategories();
+        });
+
+        btnAdd.addEventListener('click', function () {
+            showForm(null);
+        });
+
+        // Manage categories button
+        if (btnManageCat) {
+            btnManageCat.addEventListener('click', function () {
+                if (catArea && catArea.style.display === 'block') {
+                    hideCategoryArea();
+                } else {
+                    showCategoryArea();
+                }
+            });
+        }
+
+        btnCancel.addEventListener('click', hideForm);
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const id = kbId.value;
+            const isUpdate = id !== '';
+            const method = isUpdate ? 'PUT' : 'POST';
+            const url = isUpdate ? API_BASE + '/' + id : API_BASE;
+
+            const body = {
+                fid: parseInt(FID()) || 0,
+                title: kbTitle.value.trim(),
+                category: kbCategory.value,
+                content: kbContent.value.trim(),
+                active: kbActive.checked,
+            };
+
+            fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': CSRF(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(body),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.data || data.message) {
+                        hideForm();
+                        loadRecords(1);
+                        loadTotalCount();
+                    } else {
+                        alert(data.message || _kbs('save_error'));
+                    }
+                })
+                .catch(() => alert(_kbs('save_error')));
+        });
+
+        btnRefresh.addEventListener('click', function () {
+            currentPage = 1;
+            lastSearchQuery = '';
+            lastCategory = '';
+            searchInput.value = '';
+            filterCategory.value = '';
+            loadRecords(1);
+        });
+
+        btnSearch.addEventListener('click', function () {
+            currentPage = 1;
+            searchRecords();
+        });
+
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                currentPage = 1;
+                searchRecords();
+            }
+        });
+
+        filterCategory.addEventListener('change', function () {
+            currentPage = 1;
+            lastCategory = this.value;
+            if (lastSearchQuery) {
+                searchRecords();
+            } else {
+                loadRecords(1);
+            }
+        });
+
+        // ── Category Management Event Listeners ──
+
+        if (btnCatAdd) {
+            btnCatAdd.addEventListener('click', function () {
+                showCategoryForm(null);
+            });
+        }
+
+        if (btnCatBack) {
+            btnCatBack.addEventListener('click', hideCategoryArea);
+        }
+
+        if (btnCatFormCancel) {
+            btnCatFormCancel.addEventListener('click', hideCategoryForm);
+        }
+
+        if (catForm) {
+            catForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const id = catId.value;
+                const isUpdate = id !== '';
+                const method = isUpdate ? 'PUT' : 'POST';
+                const url = isUpdate ? CATEGORY_API_BASE + '/' + id : CATEGORY_API_BASE;
+
+                const body = {
+                    key: catKey.value.trim(),
+                    name: catName.value.trim(),
+                    sort_order: parseInt(catSort.value) || 0,
+                    active: catActive.checked,
+                };
+
+                fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': CSRF(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify(body),
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.data || data.message) {
+                            hideCategoryForm();
+                            loadCategoryList();
+                            loadCategories();
+                        } else {
+                            alert(data.message || _kbs('save_error'));
+                        }
+                    })
+                    .catch(() => alert(_kbs('save_error')));
+            });
         }
     })();
 });

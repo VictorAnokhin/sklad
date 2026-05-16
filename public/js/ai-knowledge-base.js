@@ -10,6 +10,7 @@
     fid: 1,
     firma: null,
     apiUrl: "/api/ai/knowledge-base",
+    categoriesApiUrl: "/api/ai/knowledge-base/categories",
     searchUrl: "/api/ai/knowledge-base/search",
     exportUrl: "/api/ai/chat/export",
     perPage: 100,
@@ -55,6 +56,7 @@
         updateError: "Не удалось обновить запись",
         operationError: "Операция не удалась",
         button: "База знаний",
+        categoryLoadError: "Не удалось загрузить категории",
       },
       ua: {
         title: "База знань",
@@ -97,6 +99,7 @@
         updateError: "Не вдалося оновити запис",
         operationError: "Операція не вдалася",
         button: "База знань",
+        categoryLoadError: "Не вдалося завантажити категорії",
       },
       en: {
         title: "Knowledge Base",
@@ -139,22 +142,16 @@
         updateError: "Failed to update record",
         operationError: "Operation failed",
         button: "Knowledge Base",
+        categoryLoadError: "Failed to load categories",
       },
     },
-    categories: [
-      { value: "general", label: { ru: "Общее", ua: "Загальне", en: "General" } },
-      { value: "invest", label: { ru: "Инвестиции", ua: "Інвестиції", en: "Invest" } },
-      { value: "wallet", label: { ru: "Кошелёк", ua: "Гаманець", en: "Wallet" } },
-      { value: "token", label: { ru: "Токены", ua: "Токени", en: "Tokens" } },
-      { value: "fund", label: { ru: "Фонд", ua: "Фонд", en: "Fund" } },
-      { value: "admin", label: { ru: "Администрирование", ua: "Адміністрування", en: "Admin" } },
-      { value: "faq", label: { ru: "FAQ", ua: "FAQ", en: "FAQ" } },
-    ],
   };
 
   var state = {
     open: false,
     records: [],
+    categories: [],
+    categoriesLoaded: false,
     loading: false,
     error: "",
     searchQuery: "",
@@ -186,10 +183,10 @@
   }
 
   function catLabel(catValue) {
-    var lang = getLanguage();
-    for (var i = 0; i < CONFIG.categories.length; i++) {
-      if (CONFIG.categories[i].value === catValue) {
-        return CONFIG.categories[i].label[lang] || CONFIG.categories[i].label.ru || catValue;
+    if (state.categories.length === 0) return catValue;
+    for (var i = 0; i < state.categories.length; i++) {
+      if (state.categories[i].key === catValue) {
+        return state.categories[i].name || catValue;
       }
     }
     return catValue;
@@ -251,6 +248,36 @@
     return fetch(url, merged);
   }
 
+  function loadCategories() {
+    if (state.categoriesLoaded) return;
+
+    var params = new URLSearchParams({ fid: CONFIG.fid });
+    apiFetch(CONFIG.categoriesApiUrl + "?" + params.toString(), { method: "GET" })
+      .then(function (res) {
+        if (!res.ok) throw new Error(msg("categoryLoadError") + ": " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        state.categories = Array.isArray(data.data) ? data.data : [];
+        state.categoriesLoaded = true;
+        render();
+      })
+      .catch(function () {
+        // If categories fail to load, keep defaults for compatibility
+        state.categories = [
+          { key: "general", name: msg("allCategories") === "Все категории" ? "Общее" : "General" },
+          { key: "invest", name: "Invest" },
+          { key: "wallet", name: "Wallet" },
+          { key: "token", name: "Tokens" },
+          { key: "fund", name: "Fund" },
+          { key: "admin", name: "Admin" },
+          { key: "faq", name: "FAQ" },
+        ];
+        state.categoriesLoaded = true;
+        render();
+      });
+  }
+
   function loadRecords() {
     state.loading = true;
     state.error = "";
@@ -262,6 +289,9 @@
     });
     if (state.categoryFilter) {
       params.set("category", state.categoryFilter);
+    }
+    if (CONFIG.firma !== null && CONFIG.firma !== undefined) {
+      params.set("firma", CONFIG.firma);
     }
 
     apiFetch(CONFIG.apiUrl + "?" + params.toString(), { method: "GET" })
@@ -291,9 +321,14 @@
     state.error = "";
     render();
 
+    var body = { fid: CONFIG.fid, query: state.searchQuery.trim() };
+    if (CONFIG.firma !== null && CONFIG.firma !== undefined) {
+      body.firma = CONFIG.firma;
+    }
+
     apiFetch(CONFIG.searchUrl, {
       method: "POST",
-      body: { fid: CONFIG.fid, query: state.searchQuery.trim() },
+      body: body,
     })
       .then(function (res) {
         if (!res.ok) throw new Error(msg("searchError") + ": " + res.status);
@@ -316,7 +351,7 @@
     state.editRecordId = null;
     state.formTitle = "";
     state.formContent = "";
-    state.formCategory = "general";
+    state.formCategory = state.categories.length > 0 ? state.categories[0].key : "general";
     state.formError = "";
     renderModal();
   }
@@ -335,7 +370,7 @@
     state.modalMode = "export";
     state.exportQuestion = "";
     state.exportAnswer = "";
-    state.formCategory = "general";
+    state.formCategory = state.categories.length > 0 ? state.categories[0].key : "general";
     state.formError = "";
     renderModal();
   }
@@ -447,6 +482,18 @@
         state.error = err.message || msg("updateError");
         render();
       });
+  }
+
+  // ── Render category options ────────────────────────────
+  function renderCategoryOptions(selectEl, selectedValue) {
+    selectEl.innerHTML = "";
+    state.categories.forEach(function (cat) {
+      var opt = document.createElement("option");
+      opt.value = cat.key;
+      opt.textContent = cat.name || cat.key;
+      if (cat.key === selectedValue) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
   }
 
   // ── Render ─────────────────────────────────────────────
@@ -595,11 +642,7 @@
       var catGroup = createEl("div", { className: "kb-field" });
       catGroup.appendChild(createEl("label", { className: "kb-field-label" }, msg("categoryLabel")));
       var catSelect = createEl("select", { className: "kb-field-select" });
-      CONFIG.categories.forEach(function (cat) {
-        var opt = createEl("option", { value: cat.value }, catLabel(cat.value));
-        if (cat.value === state.formCategory) opt.selected = true;
-        catSelect.appendChild(opt);
-      });
+      renderCategoryOptions(catSelect, state.formCategory);
       catSelect.addEventListener("change", function (e) { state.formCategory = e.target.value; });
       catGroup.appendChild(catSelect);
       form.appendChild(catGroup);
@@ -675,11 +718,7 @@
       var ecatGroup = createEl("div", { className: "kb-field" });
       ecatGroup.appendChild(createEl("label", { className: "kb-field-label" }, msg("categoryLabel")));
       var ecatSelect = createEl("select", { className: "kb-field-select" });
-      CONFIG.categories.forEach(function (cat) {
-        var opt = createEl("option", { value: cat.value }, catLabel(cat.value));
-        if (cat.value === state.formCategory) opt.selected = true;
-        ecatSelect.appendChild(opt);
-      });
+      renderCategoryOptions(ecatSelect, state.formCategory);
       ecatSelect.addEventListener("change", function (e) { state.formCategory = e.target.value; });
       ecatGroup.appendChild(ecatSelect);
       exportForm.appendChild(ecatGroup);
@@ -784,14 +823,7 @@
 
     var catSelect = createEl("select", { className: "kb-cat-select" });
     catSelect.appendChild(createEl("option", { value: "" }, msg("allCategories")));
-    CONFIG.categories.forEach(function (cat) {
-      var opt = createEl("option", { value: cat.value }, catLabel(cat.value));
-      catSelect.appendChild(opt);
-    });
-    catSelect.addEventListener("change", function (e) {
-      state.categoryFilter = e.target.value;
-      loadRecords();
-    });
+    // Categories will be populated after load
     actionsBar.appendChild(catSelect);
 
     var addBtn = createEl("button", {
@@ -840,12 +872,32 @@
     elements.catSelect = catSelect;
   }
 
+  // ── Populate category filter dropdown ──────────────────
+  function populateCategoryFilter() {
+    var catSelect = elements.catSelect;
+    if (!catSelect) return;
+
+    // Keep the "All categories" option, remove the rest
+    while (catSelect.options.length > 1) {
+      catSelect.remove(1);
+    }
+
+    state.categories.forEach(function (cat) {
+      var opt = document.createElement("option");
+      opt.value = cat.key;
+      opt.textContent = cat.name || cat.key;
+      if (cat.key === state.categoryFilter) opt.selected = true;
+      catSelect.appendChild(opt);
+    });
+  }
+
   // ── Event bindings ─────────────────────────────────────
   function bindEvents() {
     elements.toggle.addEventListener("click", function () {
       state.open = !state.open;
       elements.window.classList.toggle("open", state.open);
       if (state.open) {
+        loadCategories();
         loadRecords();
         elements.searchInput.focus();
       }
@@ -855,15 +907,21 @@
       state.open = false;
       elements.window.classList.remove("open");
     });
+
+    // Category filter change
+    elements.catSelect.addEventListener("change", function (e) {
+      state.categoryFilter = e.target.value;
+      loadRecords();
+    });
   }
 
   // ── Watch footer updates ───────────────────────────────
   function watchFooter() {
-    // Update footer after each render cycle
     var origRender = render;
     render = function () {
       origRender();
       updateFooter();
+      populateCategoryFilter();
     };
   }
 
@@ -873,6 +931,7 @@
       if (userConfig.fid) CONFIG.fid = userConfig.fid;
       if (userConfig.firma !== undefined) CONFIG.firma = userConfig.firma;
       if (userConfig.apiUrl) CONFIG.apiUrl = userConfig.apiUrl;
+      if (userConfig.categoriesApiUrl) CONFIG.categoriesApiUrl = userConfig.categoriesApiUrl;
     }
 
     buildWidget();

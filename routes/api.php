@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\AiKnowledgeBaseController;
+use App\Http\Controllers\AiKnowledgeCategoryController;
 use App\Http\Controllers\AiVoiceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerCarouselController;
@@ -85,6 +86,14 @@ Route::middleware(['api', 'throttle:60,1'])->group(function () {
     Route::delete('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'destroy']);
     Route::post('/ai/knowledge-base/search', [AiKnowledgeBaseController::class, 'search']);
     Route::post('/ai/chat/export', [AiKnowledgeBaseController::class, 'exportChat']);
+
+    // Knowledge Base Categories
+    Route::get('/ai/knowledge-base/categories', [AiKnowledgeCategoryController::class, 'index']);
+    Route::get('/ai/knowledge-base/categories/all', [AiKnowledgeCategoryController::class, 'all']);
+    Route::post('/ai/knowledge-base/categories', [AiKnowledgeCategoryController::class, 'store']);
+    Route::get('/ai/knowledge-base/categories/{id}', [AiKnowledgeCategoryController::class, 'show']);
+    Route::put('/ai/knowledge-base/categories/{id}', [AiKnowledgeCategoryController::class, 'update']);
+    Route::delete('/ai/knowledge-base/categories/{id}', [AiKnowledgeCategoryController::class, 'destroy']);
 });
 
 // ── Goods API ─────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@
         'sitemap' => $settingsTrans['sitemap_modal'] ?? [],
         'accounts' => $settingsTrans['accounts'] ?? [],
         'catalog_modal' => $settingsTrans['catalog_modal'] ?? [],
+        'knowledge_base' => $settingsTrans['knowledge_base'] ?? [],
     ];
 @endphp
 <script>

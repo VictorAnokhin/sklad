@@ -109,6 +109,13 @@ class SettingsController extends Controller
         $bannerCarouselCount = Schema::hasTable('banner_carousels')
             ? (int) DB::table('banner_carousels')->where('firma', $fid)->count()
             : 0;
+
+        $knowledgeBaseCount = Schema::hasTable('ai_knowledge_base')
+            ? (int) DB::table('ai_knowledge_base')
+                ->where('fid', (int) $fid)
+                ->where('active', true)
+                ->count()
+            : 0;
         $accountsCount = Schema::hasTable('accounts')
             ? (int) Account::query()->count()
             : 0;
@@ -153,7 +160,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
