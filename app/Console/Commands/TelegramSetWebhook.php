@@ -62,8 +62,8 @@ class TelegramSetWebhook extends Command
         $this->line("  URL:        " . ($info['url'] ?: '(не установлен)'));
         $this->line("  Активен:    " . ($info['has_custom_certificate'] ? 'Да (сертификат)' : 'Нет'));
         $this->line("  Ожидающих:  " . ($info['pending_update_count'] ?? 0));
-        $this->line("  Последняя ошибка: " . ($info['last_error_date'] ? date('Y-m-d H:i:s', $info['last_error_date']) : '—'));
-        $this->line("  Сообщение ошибки: " . ($info['last_error_message'] ?: '—'));
+        $this->line("  Последняя ошибка: " . (!empty($info['last_error_date']) ? date('Y-m-d H:i:s', $info['last_error_date']) : '—'));
+        $this->line("  Сообщение ошибки: " . ($info['last_error_message'] ?? '—'));
         $this->newLine();
 
         return self::SUCCESS;
