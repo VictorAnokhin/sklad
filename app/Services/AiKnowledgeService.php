@@ -35,6 +35,161 @@ class AiKnowledgeService
     }
 
     /**
+     * Сохранить информацию с веб-страницы в базу знаний.
+     *
+     * Парсит страницу по URL через WebScraperService, затем сохраняет
+     * извлечённый контент в базу знаний для указанного fid.
+     *
+     * @param  int     $fid       ID проекта
+     * @param  string  $url       URL страницы для парсинга
+     * @param  string  $category  Категория знания (по умолчанию 'web_page')
+     * @return array{success: bool, record?: AiKnowledgeBase, error?: string, title?: string}
+     */
+    public function fetchAndSavePage(int $fid, string $url, string $category = 'web_page'): array
+    {
+        try {
+            // Парсим страницу
+            $scraper = app(WebScraperService::class);
+            $result = $scraper->fetchUrl($url);
+
+            if (! $result['success']) {
+                return [
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Не удалось загрузить страницу.',
+                ];
+            }
+
+            $title = $result['title'] ?? 'Без заголовка';
+            $content = $result['content'] ?? '';
+            $contentType = $result['content_type'] ?? 'website';
+
+            if (trim($content) === '') {
+                return [
+                    'success' => false,
+                    'error' => 'На странице не найдено текстового содержимого.',
+                ];
+            }
+
+            // Сохраняем в базу знаний
+            $record = $this->create($fid, [
+                'title' => $title,
+                'content' => sprintf(
+                    "Источник: %s (%s)\n\n%s",
+                    $url,
+                    $contentType === 'json' ? 'JSON API' : 'Веб-страница',
+                    $content
+                ),
+                'category' => $category,
+                'source' => 'web_scrape',
+                'active' => true,
+            ]);
+
+            Log::info('AI knowledge: web page saved.', [
+                'fid' => $fid,
+                'url' => $url,
+                'title' => $title,
+                'category' => $category,
+                'content_length' => mb_strlen($content),
+            ]);
+
+            return [
+                'success' => true,
+                'record' => $record,
+                'title' => $title,
+            ];
+        } catch (Throwable $e) {
+            Log::error('AI knowledge: failed to fetch and save page.', [
+                'fid' => $fid,
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Ошибка при обработке страницы: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Сохранить произвольную информацию в базу знаний.
+     *
+     * @param  int     $fid       ID проекта
+     * @param  string  $title     Заголовок/тема информации
+     * @param  string  $content   Содержание информации
+     * @param  string  $category  Категория знания
+     * @return array{success: bool, record?: AiKnowledgeBase, error?: string}
+     */
+    public function saveInformation(int $fid, string $title, string $content, string $category = 'manual'): array
+    {
+        try {
+            if (mb_strlen($content) < 10) {
+                return [
+                    'success' => false,
+                    'error' => 'Содержание слишком короткое (минимум 10 символов).',
+                ];
+            }
+
+            // Проверяем, есть ли уже запись с таким же заголовком
+            $existing = AiKnowledgeBase::forFid($fid)
+                ->where('title', $title)
+                ->where('category', $category)
+                ->first();
+
+            if ($existing) {
+                // Обновляем существующую запись
+                $existing->update([
+                    'content' => $content,
+                    'source' => 'manual',
+                ]);
+
+                Log::info('AI knowledge: existing record updated.', [
+                    'fid' => $fid,
+                    'id' => $existing->id,
+                    'title' => $title,
+                ]);
+
+                return [
+                    'success' => true,
+                    'record' => $existing->fresh(),
+                ];
+            }
+
+            // Создаём новую запись
+            $record = $this->create($fid, [
+                'title' => $title,
+                'content' => $content,
+                'category' => $category,
+                'source' => 'manual',
+                'active' => true,
+            ]);
+
+            Log::info('AI knowledge: information saved.', [
+                'fid' => $fid,
+                'id' => $record->id,
+                'title' => $title,
+                'category' => $category,
+            ]);
+
+            return [
+                'success' => true,
+                'record' => $record,
+            ];
+        } catch (Throwable $e) {
+            Log::error('AI knowledge: failed to save information.', [
+                'fid' => $fid,
+                'title' => $title,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Ошибка при сохранении информации: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Получить активные записи базы знаний для проекта.
      *
      * @return Collection<int, AiKnowledgeBase>

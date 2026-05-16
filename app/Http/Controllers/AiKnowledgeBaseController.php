@@ -176,6 +176,107 @@ class AiKnowledgeBaseController extends Controller
     }
 
     /**
+     * POST /api/ai/knowledge-base/fetch
+     *
+     * Загрузить веб-страницу по URL, извлечь текст и сохранить в базу знаний.
+     *
+     * Параметры:
+     * - fid (required) — ID проекта
+     * - url (required) — URL страницы для парсинга
+     * - category (optional) — категория знания (по умолчанию 'web_page')
+     */
+    public function fetchAndSave(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'url' => ['required', 'string', 'max:2000'],
+            'category' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        $fid = (int) $payload['fid'];
+        $url = (string) $payload['url'];
+        $category = (string) ($payload['category'] ?? 'web_page');
+
+        try {
+            $result = $this->knowledgeService->fetchAndSavePage($fid, $url, $category);
+
+            if (! $result['success']) {
+                return response()->json([
+                    'message' => $result['error'] ?? 'Failed to fetch and save page.',
+                ], 422);
+            }
+
+            return response()->json([
+                'data' => $result['record'],
+                'message' => 'Страница успешно сохранена в базу знаний.',
+            ], 201);
+        } catch (Throwable $e) {
+            Log::error('Failed to fetch and save page.', [
+                'fid' => $fid,
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to fetch and save page.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/ai/knowledge-base/save
+     *
+     * Сохранить произвольную информацию в базу знаний.
+     *
+     * Параметры:
+     * - fid (required) — ID проекта
+     * - title (required) — заголовок информации
+     * - content (required) — содержание
+     * - category (optional) — категория (по умолчанию 'manual')
+     */
+    public function saveInformation(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'title' => ['required', 'string', 'max:255'],
+            'content' => ['required', 'string', 'min:10', 'max:50000'],
+            'category' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        $fid = (int) $payload['fid'];
+        $title = (string) $payload['title'];
+        $content = (string) $payload['content'];
+        $category = (string) ($payload['category'] ?? 'manual');
+
+        try {
+            $result = $this->knowledgeService->saveInformation($fid, $title, $content, $category);
+
+            if (! $result['success']) {
+                return response()->json([
+                    'message' => $result['error'] ?? 'Failed to save information.',
+                ], 422);
+            }
+
+            return response()->json([
+                'data' => $result['record'],
+                'message' => 'Информация успешно сохранена в базу знаний.',
+            ], 201);
+        } catch (Throwable $e) {
+            Log::error('Failed to save information.', [
+                'fid' => $fid,
+                'title' => $title,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to save information.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
      * POST /api/ai/knowledge-base/search
      *
      * Поиск по базе знаний.

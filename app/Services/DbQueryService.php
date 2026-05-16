@@ -16,6 +16,13 @@ use Illuminate\Support\Facades\Log;
 
 class DbQueryService
 {
+    private AiKnowledgeService $knowledgeService;
+
+    public function __construct()
+    {
+        $this->knowledgeService = app(AiKnowledgeService::class);
+    }
+
     /**
      * Поиск товаров по названию, артикулу или описанию.
      *
@@ -301,6 +308,75 @@ class DbQueryService
         }
     }
 
+    // ── Парсинг веб-страниц и сохранение в базу знаний ─────────────────────
+
+    /**
+     * Загрузить веб-страницу и сохранить её содержимое в базу знаний.
+     *
+     * @param  int    $fid      ID проекта
+     * @param  string $url      URL страницы для парсинга
+     * @param  string $category Категория знания
+     * @return array
+     */
+    public function fetchAndSavePage(int $fid, string $url, string $category = 'web_page'): array
+    {
+        try {
+            $result = $this->knowledgeService->fetchAndSavePage($fid, $url, $category);
+
+            if (! $result['success']) {
+                return [
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Не удалось обработать страницу.',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'id' => $result['record']->id,
+                'title' => $result['title'] ?? 'Без заголовка',
+                'message' => 'Страница успешно сохранена в базу знаний.',
+            ];
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.fetchAndSavePage error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Ошибка: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Сохранить информацию в базу знаний проекта.
+     *
+     * @param  int    $fid      ID проекта
+     * @param  string $title    Заголовок
+     * @param  string $content  Содержание
+     * @param  string $category Категория
+     * @return array
+     */
+    public function saveToKnowledgeBase(int $fid, string $title, string $content, string $category = 'manual'): array
+    {
+        try {
+            $result = $this->knowledgeService->saveInformation($fid, $title, $content, $category);
+
+            if (! $result['success']) {
+                return [
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Не удалось сохранить информацию.',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'id' => $result['record']->id,
+                'title' => $title,
+                'message' => 'Информация успешно сохранена в базу знаний.',
+            ];
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.saveToKnowledgeBase error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Ошибка: ' . $e->getMessage()];
+        }
+    }
+
+    // ── Tools для DeepSeek Function Calling ──────────────────────────────
+
     /**
      * Получить список инструментов (functions) для DeepSeek function calling.
      *
@@ -438,6 +514,55 @@ class DbQueryService
                     ],
                 ],
             ],
+            // ── Новые инструменты: парсинг и сохранение в базу знаний ──
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'fetch_and_save_page',
+                    'description' => 'Загрузить веб-страницу по URL, извлечь текст и сохранить его в базу знаний проекта. Используй когда пользователь просит сохранить информацию с сайта или проанализировать страницу.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'url' => [
+                                'type' => 'string',
+                                'description' => 'Полный URL страницы для парсинга (https://...)',
+                            ],
+                            'category' => [
+                                'type' => 'string',
+                                'description' => 'Категория знания (по умолчанию web_page). Можно указать: faq, manual, docs, token, fund, invest, news',
+                                'default' => 'web_page',
+                            ],
+                        ],
+                        'required' => ['url'],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'save_to_knowledge_base',
+                    'description' => 'Сохранить информацию в базу знаний проекта. Используй когда пользователь предоставляет полезную информацию, которую следует запомнить для других пользователей.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'title' => [
+                                'type' => 'string',
+                                'description' => 'Заголовок или тема информации',
+                            ],
+                            'content' => [
+                                'type' => 'string',
+                                'description' => 'Содержание информации для сохранения',
+                            ],
+                            'category' => [
+                                'type' => 'string',
+                                'description' => 'Категория знания (по умолчанию manual). Можно указать: faq, manual, docs, token, fund, invest, news, chat_export',
+                                'default' => 'manual',
+                            ],
+                        ],
+                        'required' => ['title', 'content'],
+                    ],
+                ],
+            ],
         ];
     }
 
@@ -480,6 +605,17 @@ class DbQueryService
                     (int) ($arguments['limit'] ?? 5),
                 ),
                 'get_goods_categories' => $this->getGoodsCategories($fid),
+                'fetch_and_save_page' => $this->fetchAndSavePage(
+                    $fid,
+                    (string) ($arguments['url'] ?? ''),
+                    (string) ($arguments['category'] ?? 'web_page'),
+                ),
+                'save_to_knowledge_base' => $this->saveToKnowledgeBase(
+                    $fid,
+                    (string) ($arguments['title'] ?? ''),
+                    (string) ($arguments['content'] ?? ''),
+                    (string) ($arguments['category'] ?? 'manual'),
+                ),
                 default => throw new \InvalidArgumentException("Unknown tool: {$name}"),
             };
 
@@ -516,6 +652,7 @@ class DbQueryService
 2. Если данные не найдены, сообщи об этом пользователю.
 3. Отвечай только на основе найденных данных.
 4. Если нужно уточнить запрос — попроси пользователя уточнить.
+5. Ты также можешь парсить веб-страницы и сохранять информацию в базу знаний проекта.
 
 Доступные функции:
 - search_goods — поиск товаров
@@ -525,6 +662,8 @@ class DbQueryService
 - search_docs — поиск документов
 - search_knowledge_base — поиск по базе знаний
 - get_goods_categories — список категорий товаров
+- fetch_and_save_page — загрузить веб-страницу и сохранить в базу знаний
+- save_to_knowledge_base — сохранить информацию в базу знаний
 PROMPT;
     }
 }
