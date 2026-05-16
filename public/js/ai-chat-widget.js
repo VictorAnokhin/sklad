@@ -2,6 +2,10 @@
  * AI Chat Widget — vanilla JS, no framework dependencies.
  * Communicates with the Laravel /api/ai/chat endpoint.
  * Supports voice input (Speech-to-Text) and voice output (Text-to-Speech).
+ *
+ * Voice input modes:
+ *   1. Browser SpeechRecognition (Chrome/Edge/Android WebView)
+ *   2. MediaRecorder → Server Whisper API (iOS Safari, fallback)
  */
 (function () {
   "use strict";
@@ -10,6 +14,8 @@
     fid: 1,
     firma: null,
     apiUrl: "/api/ai/chat",
+    voiceSttUrl: "/api/ai/voice/stt",
+    voiceTtsUrl: "/api/ai/voice/tts",
     maxHistory: 6,
     messages: {
       ru: {
@@ -28,6 +34,8 @@
         voiceInputUnsupported: "Голосовой ввод не поддерживается в этом браузере",
         listen: "Озвучить ответ",
         stopListen: "Остановить",
+        serverRecording: "Запись…",
+        serverProcessing: "Распознаю речь…",
       },
       ua: {
         title: "AI консультант",
@@ -45,6 +53,8 @@
         voiceInputUnsupported: "Голосовий ввід не підтримується в цьому браузері",
         listen: "Озвучити відповідь",
         stopListen: "Зупинити",
+        serverRecording: "Запис…",
+        serverProcessing: "Розпізнаю мовлення…",
       },
       en: {
         title: "AI Assistant",
@@ -62,6 +72,8 @@
         voiceInputUnsupported: "Voice input is not supported in this browser",
         listen: "Read aloud",
         stopListen: "Stop",
+        serverRecording: "Recording…",
+        serverProcessing: "Processing speech…",
       },
     },
   };
@@ -70,11 +82,18 @@
     open: false,
     busy: false,
     rows: [],
-    recording: false,
+    recording: false,       // browser SpeechRecognition active
+    serverRecording: false,  // MediaRecorder active
+    serverProcessing: false, // waiting for Whisper API response
     speakingIndex: -1, // index of message currently being spoken, -1 = none
   };
 
   var elements = {};
+
+  // MediaRecorder refs
+  var mediaRecorder = null;
+  var mediaStream = null;
+  var audioChunks = [];
 
   // ── Helper: current language ────────────────────────────
   function getLanguage() {
@@ -132,6 +151,23 @@
     return wrapper.firstChild;
   }
 
+  // ── Audio context for TTS playback ──────────────────────
+  var audioCtx = null;
+
+  function playAudioBlob(blob) {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    var url = URL.createObjectURL(blob);
+    var audio = new Audio(url);
+    audio.onended = function () {
+      URL.revokeObjectURL(url);
+    };
+    audio.play().catch(function (err) {
+      console.error("[AI Chat] Audio playback error:", err);
+    });
+  }
+
   // ── Build widget DOM ────────────────────────────────────
   function buildWidget() {
     var widget = createEl("div", { className: "ai-chat-widget", id: "ai-chat-widget" });
@@ -182,9 +218,13 @@
       "aria-label": msg("voiceInput"),
       title: msg("voiceInput"),
     }, svgIcon("mic"));
-    // Hide mic button if SpeechRecognition is not supported
+    // Hide mic button if neither SpeechRecognition nor MediaRecorder is supported
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    var mediaRecorderSupported = typeof MediaRecorder !== "undefined" &&
+      (MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ||
+       MediaRecorder.isTypeSupported("audio/webm") ||
+       MediaRecorder.isTypeSupported("audio/mp4"));
+    if (!SpeechRecognition && !mediaRecorderSupported) {
       micBtn.style.display = "none";
     }
 
@@ -288,15 +328,52 @@
     elements.errorBar.style.display = "none";
   }
 
-  // ── Speech-to-Text (Voice Input) ──────────────────────
+  // ── Update mic button state ─────────────────────────────
+  function updateMicButton() {
+    if (!elements.micBtn) return;
+
+    var isActive = state.recording || state.serverRecording;
+    var isLoading = state.serverProcessing;
+
+    elements.micBtn.innerHTML = "";
+    if (isLoading) {
+      elements.micBtn.appendChild(svgIcon("spinner"));
+      elements.micBtn.classList.add("is-recording");
+      elements.micBtn.title = msg("serverProcessing");
+    } else if (isActive) {
+      elements.micBtn.appendChild(svgIcon("micOff"));
+      elements.micBtn.classList.add("is-recording");
+      elements.micBtn.title = msg("voiceInputActive");
+    } else {
+      elements.micBtn.appendChild(svgIcon("mic"));
+      elements.micBtn.classList.remove("is-recording");
+      elements.micBtn.title = msg("voiceInput");
+    }
+
+    // Update input placeholder
+    if (elements.input) {
+      if (state.serverProcessing) {
+        elements.input.placeholder = msg("serverProcessing");
+      } else if (state.serverRecording) {
+        elements.input.placeholder = msg("serverRecording");
+      } else if (state.recording) {
+        elements.input.placeholder = msg("voiceInputActive");
+      } else {
+        elements.input.placeholder = msg("placeholder");
+      }
+    }
+  }
+
+  // ── Speech-to-Text (Browser SpeechRecognition) ─────────
   var recognition = null;
 
   function startVoiceInput() {
-    if (state.recording || state.busy) return;
+    if (state.recording || state.serverRecording || state.busy) return;
 
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      showError(msg("voiceInputUnsupported"));
+      // Fallback to server-side MediaRecorder
+      startServerVoiceInput();
       return;
     }
 
@@ -308,11 +385,7 @@
       recognition.maxAlternatives = 1;
 
       state.recording = true;
-      elements.micBtn.classList.add("is-recording");
-      elements.micBtn.innerHTML = "";
-      elements.micBtn.appendChild(svgIcon("micOff"));
-      elements.micBtn.title = msg("voiceInputActive");
-      elements.input.placeholder = msg("voiceInputActive");
+      updateMicButton();
 
       recognition.onresult = function (event) {
         var transcript = "";
@@ -355,18 +428,121 @@
       recognition = null;
     }
     state.recording = false;
-    if (elements.micBtn) {
-      elements.micBtn.classList.remove("is-recording");
-      elements.micBtn.innerHTML = "";
-      elements.micBtn.appendChild(svgIcon("mic"));
-      elements.micBtn.title = msg("voiceInput");
+    updateMicButton();
+  }
+
+  // ── Speech-to-Text (Server-side: MediaRecorder → Whisper) ──
+  function startServerVoiceInput() {
+    if (state.recording || state.serverRecording || state.serverProcessing || state.busy) return;
+
+    if (typeof MediaRecorder === "undefined") {
+      showError(msg("voiceInputUnsupported"));
+      return;
     }
-    if (elements.input) {
-      elements.input.placeholder = msg("placeholder");
+
+    var mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
+
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(function (stream) {
+        mediaStream = stream;
+        audioChunks = [];
+
+        var recorder = new MediaRecorder(stream, { mimeType: mimeType });
+        mediaRecorder = recorder;
+
+        recorder.ondataavailable = function (event) {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+
+        recorder.onstop = function () {
+          state.serverRecording = false;
+          state.serverProcessing = true;
+          updateMicButton();
+
+          var blob = new Blob(audioChunks, { type: mimeType });
+
+          // Send to server Whisper API
+          sendServerStt(blob)
+            .then(function (text) {
+              if (text.trim()) {
+                elements.input.value = text;
+                updateMicButton();
+
+                // Auto-submit
+                if (text.trim().length >= 2 && !state.busy) {
+                  sendMessage(text.trim());
+                }
+              }
+            })
+            .catch(function (err) {
+              console.error("[AI Chat] Server STT failed:", err);
+              showError(msg("voiceInputUnsupported"));
+            })
+            .finally(function () {
+              state.serverProcessing = false;
+              updateMicButton();
+            });
+
+          // Cleanup stream
+          if (stream) {
+            stream.getTracks().forEach(function (track) { track.stop(); });
+            mediaStream = null;
+          }
+        };
+
+        recorder.start(1000); // Collect data every second
+        state.serverRecording = true;
+        updateMicButton();
+      })
+      .catch(function (err) {
+        console.error("[AI Chat] getUserMedia failed:", err);
+        showError(msg("voiceInputUnsupported"));
+      });
+  }
+
+  function stopServerVoiceInput() {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    } else {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(function (track) { track.stop(); });
+        mediaStream = null;
+      }
+      state.serverRecording = false;
+      updateMicButton();
     }
   }
 
-  // ── Text-to-Speech (Voice Output) ─────────────────────
+  function sendServerStt(blob) {
+    var formData = new FormData();
+    var extension = "webm";
+    if (blob.type.includes("mp4")) extension = "mp4";
+    formData.append("audio", blob, "recording." + extension);
+    formData.append("language", getLanguage());
+
+    return fetch(CONFIG.voiceSttUrl, {
+      method: "POST",
+      body: formData,
+    })
+      .then(function (res) {
+        if (!res.ok) return res.json().then(function (p) { throw new Error(p.message || "STT failed"); });
+        return res.json();
+      })
+      .then(function (data) {
+        if (typeof data.text !== "string" || !data.text.trim()) {
+          throw new Error("Empty transcription");
+        }
+        return data.text;
+      });
+  }
+
+  // ── Text-to-Speech (Browser SpeechSynthesis) ────────────
   var currentUtterance = null;
 
   function speakRow(index) {
@@ -509,6 +685,8 @@
       elements.micBtn.addEventListener("click", function () {
         if (state.recording) {
           stopVoiceInput();
+        } else if (state.serverRecording || state.serverProcessing) {
+          stopServerVoiceInput();
         } else {
           startVoiceInput();
         }
@@ -522,6 +700,8 @@
       if (userConfig.fid) CONFIG.fid = userConfig.fid;
       if (userConfig.firma !== undefined) CONFIG.firma = userConfig.firma;
       if (userConfig.apiUrl) CONFIG.apiUrl = userConfig.apiUrl;
+      if (userConfig.voiceSttUrl) CONFIG.voiceSttUrl = userConfig.voiceSttUrl;
+      if (userConfig.voiceTtsUrl) CONFIG.voiceTtsUrl = userConfig.voiceTtsUrl;
     }
 
     state.rows = [{ role: "assistant", content: msg("welcome") }];

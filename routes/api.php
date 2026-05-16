@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\AiKnowledgeBaseController;
+use App\Http\Controllers\AiVoiceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\FundPoolController;
@@ -63,6 +64,10 @@ Route::middleware('api')->post('/debug/frontend', function (Request $request) {
 
     return response()->json(['ok' => true]);
 });
+
+// ── AI Voice (Speech-to-Text & Text-to-Speech) ─────────────────────────────────────
+Route::middleware(['api', 'throttle:20,1'])->post('/ai/voice/stt', [AiVoiceController::class, 'stt']);
+Route::middleware(['api', 'throttle:20,1'])->post('/ai/voice/tts', [AiVoiceController::class, 'tts']);
 
 // ── AI Chat & Knowledge Base ─────────────────────────────────────────────────────
 Route::middleware(['api', 'throttle:20,1'])->post('/ai/chat', [AiChatController::class, 'chat']);

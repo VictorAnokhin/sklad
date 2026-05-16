@@ -86,6 +86,9 @@ return [
         'api_key' => env('OPENAI_API_KEY', ''),
         'model' => env('OPENAI_MODEL', 'gpt-5-mini'),
         'timeout' => (int) env('OPENAI_TIMEOUT', 60),
+        'tts_voice' => env('OPENAI_TTS_VOICE', 'nova'),
+        'tts_model' => env('OPENAI_TTS_MODEL', 'tts-1'),
+        'stt_model' => env('OPENAI_STT_MODEL', 'whisper-1'),
     ],
 
     'deepseek' => [
