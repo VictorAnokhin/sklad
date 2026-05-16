@@ -17,7 +17,7 @@
 {{-- Скрытый конфиг-элемент для передачи параметров в JS-виджет --}}
 <div id="ai-chat-config"
      data-fid="{{ $fid ?? session('fid', 1) }}"
-     data-firma="{{ $firma ?? session('fid', 'null') }}"
+     data-firma="{{ $firma ?? session('firma', 'null') }}"
      style="display:none;"
      aria-hidden="true"></div>
 
