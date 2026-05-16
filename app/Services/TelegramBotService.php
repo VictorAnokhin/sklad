@@ -204,6 +204,6 @@ class TelegramBotService
             throw new RuntimeException("Telegram API error: {$desc}");
         }
 
-        return $payload['result'] ?? $payload;
+        return is_array($payload['result'] ?? null) ? $payload['result'] : $payload;
     }
 }
