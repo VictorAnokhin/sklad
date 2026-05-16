@@ -69,6 +69,8 @@
     <script src="{{ asset('js/bootstrap.bundle.min.js') }}" crossorigin="anonymous"></script>
     <script src="{{ asset('js/javascript.js') }}"></script>
     @stack('scripts')
+
+    @include('partials.ai_chat_widget', ['fid' => 1])
 </body>
 
 </html>

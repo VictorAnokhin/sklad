@@ -88,6 +88,13 @@ return [
         'timeout' => (int) env('OPENAI_TIMEOUT', 60),
     ],
 
+    'deepseek' => [
+        'api_base' => env('DEEPSEEK_API_BASE', 'https://api.deepseek.com'),
+        'api_key' => env('DEEPSEEK_API_KEY', ''),
+        'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
+        'timeout' => (int) env('DEEPSEEK_TIMEOUT', 60),
+    ],
+
     'zerion' => [
         'api_key' => env('ZERION_API_KEY'),
         'wallet_address' => env('ZERION_WALLET_ADDRESS'),

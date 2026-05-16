@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\AiChatController;
+use App\Http\Controllers\AiKnowledgeBaseController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\FundPoolController;
@@ -63,7 +64,23 @@ Route::middleware('api')->post('/debug/frontend', function (Request $request) {
     return response()->json(['ok' => true]);
 });
 
+// ── AI Chat & Knowledge Base ─────────────────────────────────────────────────────
 Route::middleware(['api', 'throttle:20,1'])->post('/ai/chat', [AiChatController::class, 'chat']);
+Route::middleware(['api', 'throttle:30,1'])->group(function () {
+    Route::get('/ai/chat/sessions', [AiChatController::class, 'sessions']);
+    Route::get('/ai/chat/sessions/{sessionToken}/history', [AiChatController::class, 'history']);
+    Route::patch('/ai/chat/sessions/{sessionToken}/archive', [AiChatController::class, 'archive']);
+    Route::delete('/ai/chat/sessions/{sessionToken}', [AiChatController::class, 'destroy']);
+});
+Route::middleware(['api', 'throttle:60,1'])->group(function () {
+    Route::get('/ai/knowledge-base', [AiKnowledgeBaseController::class, 'index']);
+    Route::post('/ai/knowledge-base', [AiKnowledgeBaseController::class, 'store']);
+    Route::get('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'show']);
+    Route::put('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'update']);
+    Route::delete('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'destroy']);
+    Route::post('/ai/knowledge-base/search', [AiKnowledgeBaseController::class, 'search']);
+    Route::post('/ai/chat/export', [AiKnowledgeBaseController::class, 'exportChat']);
+});
 
 // ── Goods API ─────────────────────────────────────────────────────────────
 

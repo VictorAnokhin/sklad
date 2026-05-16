@@ -66,7 +66,7 @@ class FundPoolController extends Controller
                 'basket_vault_id' => $this->normalizeOptionalSuiAddress((string) ($validated['basket_vault_id'] ?? '')),
                 'liquidity_wallet_address' => $this->normalizeOptionalSuiAddress((string) ($validated['liquidity_wallet_address'] ?? '')),
                 'coin_type' => $this->normalizeCoinType($validated['coin_type']),
-                'symbol' => strtoupper(trim((string) ($validated['symbol'] ?? 'USDC'))),
+                'symbol' => $this->symbolFromCoinType($this->normalizeCoinType($validated['coin_type'])),
                 'name' => trim((string) $validated['name']),
                 'description' => trim((string) ($validated['description'] ?? '')) ?: null,
                 'risk_level' => (int) ($validated['risk_level'] ?? 1),
@@ -116,7 +116,7 @@ class FundPoolController extends Controller
                 'basket_vault_id' => $this->normalizeOptionalSuiAddress((string) ($validated['basket_vault_id'] ?? '')),
                 'liquidity_wallet_address' => $this->normalizeOptionalSuiAddress((string) ($validated['liquidity_wallet_address'] ?? '')),
                 'coin_type' => $this->normalizeCoinType($validated['coin_type']),
-                'symbol' => strtoupper(trim((string) ($validated['symbol'] ?? 'USDC'))),
+                'symbol' => $this->symbolFromCoinType($this->normalizeCoinType($validated['coin_type'])),
                 'name' => trim((string) $validated['name']),
                 'description' => trim((string) ($validated['description'] ?? '')) ?: null,
                 'risk_level' => (int) ($validated['risk_level'] ?? 1),
@@ -266,6 +266,17 @@ class FundPoolController extends Controller
         return implode('::', $parts);
     }
 
+    /**
+     * Derive a ticker symbol from a Sui coin type string.
+     * E.g. "0x2::sui::SUI" -> "SUI", "0xabc::usdc::USDC" -> "USDC".
+     */
+    private function symbolFromCoinType(string $coinType): string
+    {
+        $parts = explode('::', trim($coinType));
+        $last = end($parts);
+        return $last && strlen($last) <= 12 ? strtoupper($last) : 'TOKEN';
+    }
+
     private function normalizeSuiAddress(string $value): string
     {
         $value = strtolower(trim($value));
@@ -309,7 +320,7 @@ class FundPoolController extends Controller
             'basket_vault_id' => (string) ($row->basket_vault_id ?? ''),
             'liquidity_wallet_address' => (string) ($row->liquidity_wallet_address ?? ''),
             'coin_type' => (string) $row->coin_type,
-            'symbol' => (string) ($row->symbol ?? 'USDC'),
+            'symbol' => $this->symbolFromCoinType((string) $row->coin_type),
             'name' => (string) $row->name,
             'description' => (string) ($row->description ?? ''),
             'risk_level' => (int) $row->risk_level,

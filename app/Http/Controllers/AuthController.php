@@ -463,36 +463,43 @@ class AuthController extends Controller
     private function verifyGoogleCredential(string $credential, string $clientId): ?array
     {
         try {
-            $response = Http::timeout(10)
+            $response = \Illuminate\Support\Facades\Http::timeout(10)
                 ->acceptJson()
                 ->get('https://oauth2.googleapis.com/tokeninfo', [
                     'id_token' => $credential,
                 ]);
-        } catch (Throwable $e) {
-            return null;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Google JWT HTTP Exception', ['error' => $e->getMessage()]);
+            throw new \Exception('Google API unreachable: ' . $e->getMessage());
         }
 
         if (!$response->ok()) {
-            return null;
+            \Illuminate\Support\Facades\Log::error('Google JWT HTTP not ok', ['status' => $response->status(), 'body' => $response->body()]);
+            throw new \Exception('Google API rejected token. Status: ' . $response->status() . ' Body: ' . $response->body());
         }
 
         $payload = $response->json();
 
         if (!is_array($payload)) {
-            return null;
+            \Illuminate\Support\Facades\Log::error('Google JWT payload not array');
+            throw new \Exception('Google API returned invalid JSON');
         }
 
         if ((string) ($payload['aud'] ?? '') !== $clientId) {
-            return null;
+            \Illuminate\Support\Facades\Log::error('Google JWT audience mismatch', ['payload_aud' => $payload['aud'] ?? null, 'expected_client_id' => $clientId]);
+            throw new \Exception('Audience mismatch! Expected: ' . $clientId . ', got: ' . ($payload['aud'] ?? 'none'));
         }
 
         if ((string) ($payload['iss'] ?? '') !== 'https://accounts.google.com'
             && (string) ($payload['iss'] ?? '') !== 'accounts.google.com') {
-            return null;
+            \Illuminate\Support\Facades\Log::error('Google JWT issuer mismatch', ['payload_iss' => $payload['iss'] ?? null]);
+            throw new \Exception('Issuer mismatch! Got: ' . ($payload['iss'] ?? 'none'));
         }
 
         return $payload;
     }
+
+
 
     private function resolveGoogleUser(array $payload, ?string $fid = null): ?User
     {
@@ -743,10 +750,14 @@ class AuthController extends Controller
             return response()->json(['message' => 'Google login is not configured'], 503);
         }
 
-        $payload = $this->verifyGoogleCredential($request->string('credential')->toString(), $googleClientId);
+        try {
+            $payload = $this->verifyGoogleCredential($request->string('credential')->toString(), $googleClientId);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to verify Google account: ' . $e->getMessage()], 422);
+        }
 
         if (!$payload) {
-            return response()->json(['message' => 'Failed to verify Google account'], 422);
+            return response()->json(['message' => 'Failed to verify Google account (unknown error)'], 422);
         }
 
         $user = $this->resolveExistingGoogleUser($payload, $this->resolveAuthFid($request));
