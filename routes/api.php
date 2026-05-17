@@ -3,11 +3,14 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\AgentCommunicationController;
+use App\Http\Controllers\AgentTaskController;
 use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\AiKnowledgeBaseController;
 use App\Http\Controllers\AiKnowledgeCategoryController;
 use App\Http\Controllers\AiVoiceController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BackendAgentChatController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\FundPoolController;
 use App\Http\Controllers\FundShareSettingsController;
@@ -153,3 +156,24 @@ Route::post('/order', [ZakazController::class, 'store']);
 Route::post('/telegram/webhook/{secret?}', App\Http\Controllers\TelegramWebhookController::class);
 Route::get('/orders', [ZakazController::class, 'index']);
 Route::middleware('auth:sanctum')->get('/my-orders', [ZakazController::class, 'apiOrders']);
+
+// ── Agent System ────────────────────────────────────────────────────────────
+// Система агентов: BackendAgent, TelegramAgent, FrontendAgent
+// Задачи, коммуникации, чат с BackendAgent
+
+Route::prefix('agent')->middleware(['api', 'throttle:30,1'])->group(function () {
+
+    // ── BackendAgent Chat ────────────────────────────────────────────────
+    Route::post('/backend/chat', [BackendAgentChatController::class, 'chat']);
+    Route::get('/backend/tasks', [BackendAgentChatController::class, 'tasks']);
+
+    // ── Agent Tasks ──────────────────────────────────────────────────────
+    Route::post('/tasks', [AgentTaskController::class, 'store']);
+    Route::get('/tasks', [AgentTaskController::class, 'index']);
+    Route::get('/tasks/{uuid}', [AgentTaskController::class, 'show']);
+    Route::patch('/tasks/{uuid}/status', [AgentTaskController::class, 'updateStatus']);
+
+    // ── Agent Communications ─────────────────────────────────────────────
+    Route::get('/communications', [AgentCommunicationController::class, 'index']);
+    Route::post('/communications', [AgentCommunicationController::class, 'store']);
+});
