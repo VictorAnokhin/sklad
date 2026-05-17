@@ -14,12 +14,14 @@ class AiKnowledgeBase extends Model
         'content',
         'category',
         'source',
+        'tool_keys',
         'active',
     ];
 
     protected $casts = [
         'active' => 'boolean',
         'fid' => 'integer',
+        'tool_keys' => 'array',
     ];
 
     public function scopeForFid($query, int $fid)

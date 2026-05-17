@@ -54,6 +54,7 @@ class AiToolController extends Controller
             'description' => ['nullable', 'string', 'max:5000'],
             'schema' => ['required', 'array'],
             'active' => ['nullable', 'boolean'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:65535'],
         ]);
 
         // Проверка уникальности fid + key
@@ -73,6 +74,7 @@ class AiToolController extends Controller
                 'description' => $payload['description'] ?? null,
                 'schema' => $payload['schema'],
                 'active' => (bool) ($payload['active'] ?? true),
+                'sort_order' => (int) ($payload['sort_order'] ?? 0),
             ]);
         } catch (Throwable $e) {
             Log::error('Failed to create AI tool.', [
@@ -129,6 +131,7 @@ class AiToolController extends Controller
             'description' => ['nullable', 'string', 'max:5000'],
             'schema' => ['nullable', 'array'],
             'active' => ['nullable', 'boolean'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:65535'],
         ]);
 
         // Проверка уникальности при смене key или fid
@@ -152,7 +155,7 @@ class AiToolController extends Controller
 
         try {
             $data = [];
-            foreach (['fid', 'key', 'name', 'description', 'schema', 'active'] as $field) {
+            foreach (['fid', 'key', 'name', 'description', 'schema', 'active', 'sort_order'] as $field) {
                 if (array_key_exists($field, $payload)) {
                     $value = $payload[$field];
                     if ($field === 'fid') {

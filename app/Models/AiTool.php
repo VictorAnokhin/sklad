@@ -16,12 +16,14 @@ class AiTool extends Model
         'description',
         'schema',
         'active',
+        'sort_order',
     ];
 
     protected $casts = [
         'active' => 'boolean',
         'fid' => 'integer',
         'schema' => 'array',
+        'sort_order' => 'integer',
     ];
 
     /**
@@ -34,6 +36,7 @@ class AiTool extends Model
     {
         return self::forFid($fid)
             ->where('active', true)
+            ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
     }
@@ -47,6 +50,7 @@ class AiTool extends Model
     public static function getAllForFid(?int $fid = null): Collection
     {
         return self::forFid($fid)
+            ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
     }
