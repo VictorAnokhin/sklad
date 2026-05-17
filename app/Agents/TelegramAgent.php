@@ -10,6 +10,7 @@ use App\Services\AiClientFactory;
 use App\Services\TelegramBotService;
 use App\Services\AiKnowledgeService;
 use App\Services\AnalystService;
+use App\Services\WebScraperService;
 use App\Models\ChatMessage;
 use Illuminate\Support\Facades\Log;
 use Throwable;
