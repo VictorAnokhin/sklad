@@ -2,26 +2,27 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\HandleTelegramMessage;
 use App\Services\TelegramBotService;
-use App\Services\TelegramChatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Throwable;
 
 class TelegramWebhookController extends Controller
 {
     public function __construct(
         private readonly TelegramBotService $bot,
-        private readonly TelegramChatService $chatService,
     ) {}
 
     /**
      * Главный обработчик вебхука от Telegram.
      *
      * Telegram отправляет POST-запросы с JSON-телом.
-     * Мы проверяем секретный ключ в URL (query param ?secret=...),
-     * обрабатываем сообщение и возвращаем 200 OK.
+     * Мы проверяем секретный ключ в URL, ВСЕГДА возвращаем 200 OK
+     * и диспатчим обработку сообщения в фоновую очередь (Job).
+     *
+     * Это решает проблему "Read timeout expired", которая возникала,
+     * когда AI-обработка занимала больше времени, чем таймаут Telegram (~30 сек).
      *
      * @param  Request  $request
      * @param  string|null  $secret  Секретный ключ из URL
@@ -72,48 +73,17 @@ class TelegramWebhookController extends Controller
         $chatId = $message['chat']['id'];
         $text = trim($message['text']);
 
-        Log::info('Telegram webhook: incoming message.', [
+        Log::info('Telegram webhook: incoming message, dispatching to queue.', [
             'chat_id' => $chatId,
             'text_preview' => mb_substr($text, 0, 100),
         ]);
 
-        // ── 5. Показываем "печатает..." (в фоне) ─────────────────────────
-        try {
-            $this->bot->sendChatAction($chatId, 'typing');
-        } catch (Throwable $e) {
-            // Не критично, если не удалось отправить действие
-            Log::debug('Telegram webhook: sendChatAction failed.', [
-                'chat_id' => $chatId,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        // ── 5. Диспатчим обработку в очередь и сразу возвращаем 200 OK ────
+        // Это критически важно: Telegram ожидает ответ в течение ~30 секунд.
+        // AI-обработка (DeepSeek с function calling) может занимать >60 секунд,
+        // поэтому всю логику переносим в фоновый Job.
+        HandleTelegramMessage::dispatch($message);
 
-        // ── 6. Обрабатываем сообщение ──────────────────────────────────────
-        try {
-            $answer = $this->chatService->handleMessage($message);
-
-            if ($answer !== '') {
-                $this->bot->sendMessage($chatId, $answer);
-            }
-        } catch (Throwable $e) {
-            Log::error('Telegram webhook: message handling failed.', [
-                'chat_id' => $chatId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            // Пытаемся отправить пользователю сообщение об ошибке
-            try {
-                $this->bot->sendMessage(
-                    $chatId,
-                    '⚠️ Произошла внутренняя ошибка. Попробуйте позже или используйте /help.'
-                );
-            } catch (Throwable) {
-                // Игнорируем — если и это не удалось, уже ничего не сделаешь
-            }
-        }
-
-        // ── 7. Всегда возвращаем 200 OK — Telegram ждёт подтверждения ─────
         return response()->json(['ok' => true]);
     }
 }
