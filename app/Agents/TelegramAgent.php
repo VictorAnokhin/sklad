@@ -327,53 +327,16 @@ class TelegramAgent
     }
 
     /**
-     * Сформировать результат задачи, уведомить вызвавшего агента
-     * и отправить ответ пользователю в Telegram.
+     * Сформировать результат задачи. Доставкой результата в исходный канал
+     * занимается ProcessAgentTask после завершения executeTask().
      */
     private function taskResult(AgentTask $task, string $message): array
     {
-        // Отправляем результат обратно через оркестратор
-        $result = [
+        return [
             'answer' => $message,
             'message' => $message,
             'task_uuid' => $task->uuid,
         ];
-
-        try {
-            $this->orchestrator->sendTaskResult($task, $result);
-        } catch (Throwable $e) {
-            Log::warning('TelegramAgent: sendTaskResult failed.', [
-                'error' => $e->getMessage(),
-                'task_uuid' => $task->uuid,
-            ]);
-        }
-
-        // ✅ Отправляем результат напрямую пользователю в Telegram
-        try {
-            $chatId = $task->input_data['chat_id'] ?? null;
-            if ($chatId) {
-                $this->bot->sendChatAction($chatId, 'typing');
-                try {
-                    $this->bot->sendMarkdown($chatId, $message);
-                } catch (Throwable $markdownError) {
-                    Log::warning('TelegramAgent: markdown send failed, retrying as plain text.', [
-                        'chat_id' => $chatId,
-                        'task_uuid' => $task->uuid,
-                        'error' => $markdownError->getMessage(),
-                    ]);
-
-                    $this->bot->sendMessage($chatId, $message);
-                }
-            }
-        } catch (Throwable $e) {
-            Log::warning('TelegramAgent: failed to send result to user chat.', [
-                'chat_id' => $chatId ?? null,
-                'task_uuid' => $task->uuid,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        return $result;
     }
 
     // ── Обработка диалога ─────────────────────────────────────────
