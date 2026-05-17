@@ -8,6 +8,7 @@ use App\Http\Controllers\AgentTaskController;
 use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\AiKnowledgeBaseController;
 use App\Http\Controllers\AiKnowledgeCategoryController;
+use App\Http\Controllers\AiToolController;
 use App\Http\Controllers\AiVoiceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BackendAgentChatController;
@@ -100,6 +101,14 @@ Route::middleware(['api', 'throttle:60,1'])->group(function () {
     Route::post('/ai/knowledge-base/fetch', [AiKnowledgeBaseController::class, 'fetchAndSave']);
     Route::post('/ai/knowledge-base/save', [AiKnowledgeBaseController::class, 'saveInformation']);
     Route::post('/ai/chat/export', [AiKnowledgeBaseController::class, 'exportChat']);
+
+    // AI Tools (function calling definitions)
+    Route::get('/ai/tools', [AiToolController::class, 'index']);
+    Route::get('/ai/tools/all', [AiToolController::class, 'all']);
+    Route::post('/ai/tools', [AiToolController::class, 'store']);
+    Route::get('/ai/tools/{id}', [AiToolController::class, 'show']);
+    Route::put('/ai/tools/{id}', [AiToolController::class, 'update']);
+    Route::delete('/ai/tools/{id}', [AiToolController::class, 'destroy']);
 });
 
 // ── Goods API ─────────────────────────────────────────────────────────────
