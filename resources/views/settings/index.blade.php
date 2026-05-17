@@ -1181,6 +1181,14 @@
                 </form>
             </div>
 
+            <!-- Быстрые вкладки-фильтры -->
+            <div class="modal-body pt-0 pb-0" id="kb-tab-bar">
+                <div class="d-flex gap-1 flex-wrap mb-2 pb-1 border-bottom">
+                    <button type="button" class="btn btn-sm btn-kb-tab active" data-category="" data-tab="all">{{ __('settings.knowledge_base.all_tab') }}</button>
+                    <button type="button" class="btn btn-sm btn-kb-tab" data-category="telegram_instruction" data-tab="bot_instructions">{{ __('settings.knowledge_base.bot_instructions_tab') }}</button>
+                </div>
+            </div>
+
             <!-- Список записей -->
             <div class="modal-body" id="kb-list-area">
                 <div class="row g-2 mb-3">
@@ -1514,6 +1522,25 @@
 
     .setting-card {
         cursor: pointer;
+    }
+
+    .btn-kb-tab {
+        border: 1px solid transparent;
+        border-radius: 20px;
+        padding: 2px 14px;
+        font-size: 0.85rem;
+        transition: all .15s ease;
+        color: #6c757d;
+        background: transparent;
+    }
+    .btn-kb-tab:hover {
+        background: rgba(165, 180, 252, 0.15);
+        color: #4a5568;
+    }
+    .btn-kb-tab.active {
+        background: #a5b4fc;
+        color: #020617;
+        border-color: #a5b4fc;
     }
 
     .modal .form-label,
@@ -5764,6 +5791,10 @@ document.addEventListener('DOMContentLoaded', function () {
             lastCategory = '';
             searchInput.value = '';
             filterCategory.value = '';
+            // Reset tab buttons
+            document.querySelectorAll('.btn-kb-tab').forEach(function (btn) {
+                btn.classList.toggle('active', btn.dataset.category === '');
+            });
             loadRecords(1);
             loadCategories();
         });
@@ -5874,6 +5905,26 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 loadRecords(1);
             }
+        });
+
+        // ── Tab click handlers ──
+        document.querySelectorAll('.btn-kb-tab').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var cat = this.dataset.category || '';
+                // Update active state on tabs
+                document.querySelectorAll('.btn-kb-tab').forEach(function (b) {
+                    b.classList.toggle('active', b === btn);
+                });
+                // Update filter dropdown to match
+                filterCategory.value = cat;
+                currentPage = 1;
+                lastCategory = cat;
+                if (lastSearchQuery) {
+                    searchRecords();
+                } else {
+                    loadRecords(1);
+                }
+            });
         });
 
         // ── Category Management Event Listeners ──

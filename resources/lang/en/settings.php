@@ -363,6 +363,8 @@ return [
         'category_sort_th' => 'Sort',
         'no_categories' => 'No categories added',
         'loading' => 'Loading...',
+        'bot_instructions_tab' => '🤖 Bot Instructions',
+        'all_tab' => '📋 All',
         'tools_label' => 'Tools',
         'tools_loading' => 'Loading tools...',
         'tools_hint' => 'Select tools to activate when this query matches (Ctrl/Cmd+click for multi-select)',
