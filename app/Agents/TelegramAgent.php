@@ -353,7 +353,17 @@ class TelegramAgent
             $chatId = $task->input_data['chat_id'] ?? null;
             if ($chatId) {
                 $this->bot->sendChatAction($chatId, 'typing');
-                $this->bot->sendMarkdown($chatId, $message);
+                try {
+                    $this->bot->sendMarkdown($chatId, $message);
+                } catch (Throwable $markdownError) {
+                    Log::warning('TelegramAgent: markdown send failed, retrying as plain text.', [
+                        'chat_id' => $chatId,
+                        'task_uuid' => $task->uuid,
+                        'error' => $markdownError->getMessage(),
+                    ]);
+
+                    $this->bot->sendMessage($chatId, $message);
+                }
             }
         } catch (Throwable $e) {
             Log::warning('TelegramAgent: failed to send result to user chat.', [
