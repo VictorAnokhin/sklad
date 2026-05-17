@@ -11,6 +11,18 @@ class DeepSeekClient implements AiClientInterface
 {
     private ?string $modelOverride = null;
 
+    private ?float $temperatureOverride = null;
+
+    private ?int $maxTokensOverride = null;
+
+    /**
+     * Список моделей reasoning, которые не поддерживают tools, temperature и max_tokens.
+     */
+    private const REASONING_MODELS = [
+        'deepseek-reasoner',
+        'deepseek-r1',
+    ];
+
     /**
      * {@inheritdoc}
      */
@@ -35,8 +47,14 @@ class DeepSeekClient implements AiClientInterface
         callable $toolExecutor,
         array $options = [],
     ): array {
-        $apiKey = $this->getApiKey();
         $model = $this->resolveModel($options);
+
+        // Reasoning модели не поддерживают tools — делаем fallback на обычный chat
+        if ($this->isReasoningModel($model)) {
+            return $this->chat($instructions, $messages, $options);
+        }
+
+        $apiKey = $this->getApiKey();
         $config = $this->getConfig();
 
         // Формируем тело запроса с tools
@@ -155,7 +173,57 @@ class DeepSeekClient implements AiClientInterface
         return $this->resolveModel([]);
     }
 
+    /**
+     * {@inheritdoc}
+     */
+    public function setTemperature(?float $temperature): static
+    {
+        $this->temperatureOverride = $temperature;
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getTemperature(): ?float
+    {
+        return $this->temperatureOverride;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setMaxTokens(?int $maxTokens): static
+    {
+        $this->maxTokensOverride = $maxTokens;
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getMaxTokens(): ?int
+    {
+        return $this->maxTokensOverride;
+    }
+
     // ── Приватные методы ─────────────────────────────────────────────────
+
+    /**
+     * Проверить, является ли модель reasoning (не поддерживает tools, temperature, max_tokens).
+     */
+    private function isReasoningModel(string $model): bool
+    {
+        foreach (self::REASONING_MODELS as $reasoningModel) {
+            if (str_starts_with($model, $reasoningModel)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /**
      * Простой запрос (без tools).
@@ -222,7 +290,9 @@ class DeepSeekClient implements AiClientInterface
      */
     private function buildRequestBody(string $instructions, array $messages, string $model, array $options = []): array
     {
-        return [
+        $isReasoning = $this->isReasoningModel($model);
+
+        $body = [
             'model' => $model,
             'messages' => array_merge(
                 [['role' => 'system', 'content' => $instructions]],
@@ -231,10 +301,33 @@ class DeepSeekClient implements AiClientInterface
                     'content' => $message['content'],
                 ], $messages),
             ),
-            'temperature' => (float) ($options['temperature'] ?? 0.35),
-            'max_tokens' => (int) ($options['max_tokens'] ?? 1500),
             'stream' => false,
         ];
+
+        // Reasoning модели не поддерживают temperature и используют max_completion_tokens
+        if ($isReasoning) {
+            $maxTokens = $options['max_tokens']
+                ?? $this->maxTokensOverride
+                ?? null;
+
+            if ($maxTokens !== null) {
+                $body['max_completion_tokens'] = (int) $maxTokens;
+            }
+        } else {
+            $body['temperature'] = (float) (
+                $options['temperature']
+                ?? $this->temperatureOverride
+                ?? 0.35
+            );
+
+            $body['max_tokens'] = (int) (
+                $options['max_tokens']
+                ?? $this->maxTokensOverride
+                ?? 1500
+            );
+        }
+
+        return $body;
     }
 
     private function getApiKey(): string

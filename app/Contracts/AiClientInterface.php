@@ -46,4 +46,24 @@ interface AiClientInterface
      * Получить текущую модель.
      */
     public function getModel(): string;
+
+    /**
+     * Установить температуру генерации (переопределяет значение по умолчанию).
+     */
+    public function setTemperature(?float $temperature): static;
+
+    /**
+     * Получить текущую температуру.
+     */
+    public function getTemperature(): ?float;
+
+    /**
+     * Установить максимальное количество токенов (переопределяет значение по умолчанию).
+     */
+    public function setMaxTokens(?int $maxTokens): static;
+
+    /**
+     * Получить текущее максимальное количество токенов.
+     */
+    public function getMaxTokens(): ?int;
 }

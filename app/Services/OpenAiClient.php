@@ -11,6 +11,10 @@ class OpenAiClient implements AiClientInterface
 {
     private ?string $modelOverride = null;
 
+    private ?float $temperatureOverride = null;
+
+    private ?int $maxTokensOverride = null;
+
     /**
      * {@inheritdoc}
      */
@@ -27,8 +31,16 @@ class OpenAiClient implements AiClientInterface
                 'role' => $message['role'],
                 'content' => $message['content'],
             ], $messages),
-            'max_output_tokens' => (int) ($options['max_tokens'] ?? 900),
-            'temperature' => (float) ($options['temperature'] ?? 0.35),
+            'max_output_tokens' => (int) (
+                $options['max_tokens']
+                ?? $this->maxTokensOverride
+                ?? 900
+            ),
+            'temperature' => (float) (
+                $options['temperature']
+                ?? $this->temperatureOverride
+                ?? 0.35
+            ),
         ];
 
         try {
@@ -91,8 +103,16 @@ class OpenAiClient implements AiClientInterface
             ], $messages),
             'tools' => $this->convertTools($tools),
             'tool_choice' => 'auto',
-            'max_output_tokens' => (int) ($options['max_tokens'] ?? 2000),
-            'temperature' => (float) ($options['temperature'] ?? 0.35),
+            'max_output_tokens' => (int) (
+                $options['max_tokens']
+                ?? $this->maxTokensOverride
+                ?? 2000
+            ),
+            'temperature' => (float) (
+                $options['temperature']
+                ?? $this->temperatureOverride
+                ?? 0.35
+            ),
         ];
 
         $maxIterations = (int) ($options['max_tool_iterations'] ?? config('ai.tools.max_iterations', 10));
@@ -227,6 +247,42 @@ class OpenAiClient implements AiClientInterface
     public function getModel(): string
     {
         return $this->resolveModel([]);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setTemperature(?float $temperature): static
+    {
+        $this->temperatureOverride = $temperature;
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getTemperature(): ?float
+    {
+        return $this->temperatureOverride;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setMaxTokens(?int $maxTokens): static
+    {
+        $this->maxTokensOverride = $maxTokens;
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getMaxTokens(): ?int
+    {
+        return $this->maxTokensOverride;
     }
 
     // ── Приватные методы ─────────────────────────────────────────────────
