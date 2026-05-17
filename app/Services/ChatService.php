@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\AiClientInterface;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use Illuminate\Support\Collection;
@@ -10,11 +11,55 @@ use Throwable;
 
 class ChatService
 {
+    private AiClientInterface $ai;
+
     public function __construct(
         private readonly AiKnowledgeService $knowledgeService,
-        private readonly DeepSeekClient $deepseek,
         private readonly DbQueryService $dbQuery,
-    ) {}
+        private readonly AiClientFactory $aiFactory,
+    ) {
+        // По умолчанию используем канал 'web_chat'
+        $this->ai = $this->aiFactory->make('web_chat');
+    }
+
+    /**
+     * Переключить AI-клиента на другой канал/провайдер.
+     *
+     * @param  string  $channel  Ключ канала из config('ai.channels')
+     * @return $this
+     */
+    public function useChannel(string $channel): static
+    {
+        $this->ai = $this->aiFactory->make($channel);
+
+        return $this;
+    }
+
+    /**
+     * Переключить AI-клиента на конкретного провайдера.
+     *
+     * @param  string  $provider  Ключ провайдера (deepseek, openai, atoma)
+     * @param  string|null  $model  Опционально: модель
+     * @return $this
+     */
+    public function useProvider(string $provider, ?string $model = null): static
+    {
+        $this->ai = $this->aiFactory->makeForProvider($provider);
+
+        if ($model !== null) {
+            $this->ai->setModel($model);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Получить текущего AI-клиента.
+     */
+    public function getAiClient(): AiClientInterface
+    {
+        return $this->ai;
+    }
 
     // ── Управление сессиями ─────────────────────────────────────────────
 
@@ -120,9 +165,9 @@ class ChatService
         $wallet = trim((string) ($payload['wallet'] ?? ''));
         $fid = (int) ($payload['fid'] ?? 0);
         $firma = isset($payload['firma']) ? (int) $payload['firma'] : null;
-        $useDbTools = (bool) ($payload['use_db_tools'] ?? true); // Включать ли доступ к БД
+        $useDbTools = (bool) ($payload['use_db_tools'] ?? true);
 
-        // Определяем fid — из payload, из сессии чата или из PHP-сессии (рабочее пространство)
+        // Определяем fid
         if ($fid <= 0) {
             $fid = (int) ($session->fid ?? 0);
         }
@@ -130,12 +175,11 @@ class ChatService
             $fid = (int) (session('fid', 0));
         }
 
-        // Определяем firma — из payload или из сессии
+        // Определяем firma
         if ($firma === null || $firma <= 0) {
             $firma = $session->firma ?? null;
         }
         if ($firma === null || $firma <= 0) {
-            // Пробуем взять из PHP-сессии (рабочее пространство)
             $firma = (int) (session('fid', 0)) ?: null;
         }
 
@@ -160,7 +204,7 @@ class ChatService
         // Формируем system prompt
         $instructions = $this->buildSystemPrompt($language, $fid, $knowledgeContext, $useDbTools);
 
-        // Загружаем историю для AI (из БД)
+        // Загружаем историю для AI
         $history = $session->getHistoryForAi(20);
 
         // Добавляем текущее сообщение с контекстом страницы
@@ -173,38 +217,41 @@ class ChatService
                 "Вопрос пользователя: {$message}",
         ];
 
-        // ── Отправка с function calling (доступ к БД) или обычный запрос ──
+        // Получаем опции канала из конфига
+        $channelConfig = $this->aiFactory->getChannelConfig('web_chat');
+        $options = [
+            'temperature' => $channelConfig['temperature'] ?? 0.35,
+            'max_tokens'  => $channelConfig['max_tokens'] ?? 1500,
+        ];
+
+        // ── Отправка с function calling или обычный запрос ──
         if ($useDbTools && $fid > 0) {
-            // Получаем инструменты для доступа к БД
             $tools = $this->dbQuery->getTools();
 
-            // Создаём executor для вызова функций БД
             $toolExecutor = function (string $name, array $arguments) use ($fid, $firma): string {
                 return $this->dbQuery->executeTool($fid, $firma, $name, $arguments);
             };
 
-            // Отправляем запрос с поддержкой function calling
-            $result = $this->deepseek->chatWithTools($instructions, $history, $tools, $toolExecutor);
+            $result = $this->ai->chatWithTools($instructions, $history, $tools, $toolExecutor, $options);
         } else {
-            // Обычный запрос без доступа к БД
-            $result = $this->deepseek->chat($instructions, $history);
+            $result = $this->ai->chat($instructions, $history, $options);
         }
 
         // Сохраняем ответ ассистента
         $this->saveMessage($session->id, $fid, $firma, 'assistant', $result['answer'], [
             'model' => $result['model'] ?? null,
             'usage' => $result['usage'] ?? null,
-            'provider' => 'deepseek',
+            'provider' => $this->ai->getProviderName(),
             'db_tools_used' => $useDbTools && $fid > 0,
         ]);
 
-        // ── Автообучение: сохраняем полезные знания из диалога ──────
+        // ── Автообучение ──
         $this->knowledgeService->autoLearn($fid, $session->getHistoryForAi(5));
 
         return [
             'session_token' => $session->session_token,
             'answer' => $result['answer'],
-            'provider' => 'deepseek',
+            'provider' => $this->ai->getProviderName(),
             'model' => $result['model'],
             'usage' => $result['usage'],
             'db_tools_enabled' => $useDbTools && $fid > 0,
@@ -238,8 +285,6 @@ class ChatService
     // ── Внутренние методы ───────────────────────────────────────────────
 
     /**
-     * Сохранить сообщение в БД.
-     *
      * @param  array<string, mixed>|null  $metadata
      */
     private function saveMessage(int $sessionId, ?int $fid, ?int $firma, string $role, string $content, ?array $metadata = null): ChatMessage
@@ -254,13 +299,6 @@ class ChatService
         ]);
     }
 
-    /**
-     * Загрузить контекст из базы знаний для проекта.
-     *
-     * Если по переданному fid ничего не найдено, пробует session('fid') как fallback.
-     * Это необходимо, когда фронтенд передаёт неверный fid (например, захардкоженный 1),
-     * а реальные записи в БЗ привязаны к другому проекту (например, session('fid') = 2).
-     */
     private function loadKnowledgeContext(int $fid): string
     {
         if ($fid <= 0) {
@@ -274,7 +312,6 @@ class ChatService
         try {
             $context = $this->knowledgeService->getContext($fid);
 
-            // Если контекст пустой — пробуем session('fid') как fallback
             if ($context === '') {
                 $sessionFid = (int) session('fid', 0);
                 if ($sessionFid > 0 && $sessionFid !== $fid) {
@@ -299,8 +336,6 @@ class ChatService
 
     /**
      * Сформировать system prompt для AI.
-     *
-     * @param  bool  $useDbTools  Если true — в prompt добавляется инструкция по работе с БД
      */
     private function buildSystemPrompt(string $language, int $fid, string $knowledgeContext = '', bool $useDbTools = true): string
     {
@@ -314,7 +349,6 @@ class ChatService
             ? "\n\nБаза знаний проекта (используй эти данные для ответа):\n{$knowledgeContext}"
             : '';
 
-        // Инструкция для автообучения: AI помечает знания, которые стоит сохранить
         $learningInstruction = <<<'LEARN'
 
 ВАЖНО: Ты можешь помогать проекту накапливать знания.
@@ -323,7 +357,6 @@ class ChatService
 Не выдумывай информацию — если не знаешь, скажи об этом честно.
 LEARN;
 
-        // Инструкция по работе с базой данных проекта
         $dbToolsInstruction = $useDbTools && $fid > 0 ? <<<'DBTOOLS'
 
 ДОПОЛНИТЕЛЬНЫЕ ВОЗМОЖНОСТИ: У тебя есть доступ к базе данных проекта через функции.
@@ -338,19 +371,11 @@ LEARN;
 
 НОВЫЕ ВОЗМОЖНОСТИ (парсинг сайтов и сохранение знаний):
 
-1. fetch_and_save_page — Когда пользователь даёт URL сайта или просит проанализировать/сохранить страницу:
-   - Используй эту функцию, чтобы загрузить страницу, извлечь текст и сохранить в базу знаний
-   - После сохранения сообщи пользователю, что страница обработана
-   - Если контент полезен, предложи пользователю задать вопросы по содержанию
-
-2. save_to_knowledge_base — Когда пользователь предоставляет полезную информацию:
-   - Используй эту функцию, чтобы сохранить информацию в базу знаний проекта
-   - Подходит для: инструкций, часто задаваемых вопросов, описаний процессов
-   - Сохраняй информацию, которая будет полезна другим пользователям
+1. fetch_and_save_page — Когда пользователь даёт URL сайта или просит проанализировать/сохранить страницу
+2. save_to_knowledge_base — Когда пользователь предоставляет полезную информацию
 
 ВАЖНО: Всегда используй функции для получения реальных данных из БД.
 НЕ выдумывай названия товаров, цены или другие данные — запроси их через функции.
-Если функция вернула пустой результат — честно скажи, что ничего не найдено.
 DBTOOLS
         : '';
 

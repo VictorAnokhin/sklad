@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\AiClientInterface;
 use App\Models\ChatSession;
 use App\Models\ChatMessage;
 use Illuminate\Support\Facades\Log;
@@ -20,11 +21,41 @@ class TelegramChatService
      */
     private const ANALYST_FID = 12;
 
+    private readonly AiClientInterface $ai;
+
     public function __construct(
-        private readonly DeepSeekClient $deepseek,
+        private readonly AiClientFactory $aiFactory,
         private readonly TelegramBotService $bot,
         private readonly AnalystService $analyst,
-    ) {}
+    ) {
+        $this->ai = $this->aiFactory->make('telegram');
+    }
+
+    /**
+     * Переключить AI-клиент на другой канал (например, 'web_chat', 'agent').
+     */
+    public function useChannel(string $channel): static
+    {
+        $this->ai = $this->aiFactory->make($channel);
+        return $this;
+    }
+
+    /**
+     * Переключить AI-клиент на конкретного провайдера.
+     */
+    public function useProvider(string $provider, ?string $model = null): static
+    {
+        $this->ai = $this->aiFactory->makeForProvider($provider, $model);
+        return $this;
+    }
+
+    /**
+     * Получить текущий AI-клиент.
+     */
+    public function getAiClient(): AiClientInterface
+    {
+        return $this->ai;
+    }
 
     // ── Публичный API ──────────────────────────────────────────────────────
 
@@ -154,7 +185,7 @@ class TelegramChatService
     // ── AI диалог ──────────────────────────────────────────────────────────
 
     /**
-     * Обработать текстовое сообщение через DeepSeek с function calling.
+     * Обработать текстовое сообщение через AI с function calling.
      */
     private function handleAiDialog(
         int|string $chatId,
@@ -190,7 +221,7 @@ class TelegramChatService
             };
 
             // Отправляем запрос с поддержкой function calling
-            $result = $this->deepseek->chatWithTools(
+            $result = $this->ai->chatWithTools(
                 $instructions,
                 $history,
                 $tools,
@@ -211,11 +242,7 @@ class TelegramChatService
                 'error' => $e->getMessage(),
             ]);
 
-            if (str_contains($e->getMessage(), 'DeepSeek')) {
-                return '⚠️ Извините, AI-сервис временно недоступен. Попробуйте позже.';
-            }
-
-            return '⚠️ Произошла ошибка при обработке запроса. Попробуйте ещё раз.';
+            return '⚠️ Извините, AI-сервис временно недоступен. Попробуйте позже.';
         } catch (Throwable $e) {
             Log::error('Telegram: unexpected error in AI dialog.', [
                 'chat_id' => $chatId,
@@ -283,7 +310,7 @@ class TelegramChatService
             'metadata' => [
                 'model' => $result['model'] ?? null,
                 'usage' => $result['usage'] ?? null,
-                'provider' => 'deepseek',
+                'provider' => $this->ai->getProviderName(),
                 'source' => 'telegram_analyst',
                 'tools_used' => true,
             ],
