@@ -20,7 +20,11 @@
         "files": ["app/Helpers/helpers.php"]
     },
     "autoload-dev": {
-        "psr-4": { "Tests\\": "tests/" }
+        "psr-4": {
+            "Tests\\": "tests/",
+            "Database\\Seeders\\": "database/seeders/",
+            "Database\\Factories\\": "database/factories/"
+        }
     },
     "scripts": {
         "post-autoload-dump": [
