@@ -16,6 +16,12 @@ class TelegramAgent
 {
     const ANALYST_FID = 12;
 
+    /** Максимальное количество повторяющихся ответов AI до принудительного прерывания */
+    const MAX_CONSECUTIVE_SIMILAR_ANSWERS = 2;
+
+    /** Минимальная длина ответа для проверки на повторение */
+    const MIN_ANSWER_LENGTH_FOR_COMPARISON = 30;
+
     private readonly AiClientInterface $ai;
 
     public function __construct(
@@ -72,7 +78,7 @@ class TelegramAgent
             return $this->handleCommand($chatId, $text, $username);
         }
 
-        // ── Диалог: DeepSeek + tools (как сейчас TelegramChatService) ──
+        // ── Диалог: DeepSeek + tools ──
         return $this->handleAiDialog($chatId, $text, $message);
     }
 
@@ -186,8 +192,12 @@ class TelegramAgent
         // Сохраняем сообщение пользователя
         $this->saveUserMessage($session, $text);
 
-        // Загружаем историю
-        $history = $session->getHistoryForAi(20);
+        // ════════════════════════════════════════════════════════════════
+        //  ДЕТЕКЦИЯ ЦИКЛИЧНОСТИ: проверяем, не зациклился ли AI
+        // ════════════════════════════════════════════════════════════════
+        if ($this->detectLoop($session, $text)) {
+            return $this->breakTheLoop($chatId, $session);
+        }
 
         // Загружаем knowledge base
         $knowledgeContext = $this->knowledgeService->getContext($fid);
@@ -211,6 +221,9 @@ class TelegramAgent
             );
         }
 
+        // Загружаем историю
+        $history = $session->getHistoryForAi(20);
+
         // Формируем system prompt с инструментами БД
         $systemPrompt = $this->buildAnalystPrompt($knowledgeContext);
 
@@ -226,11 +239,166 @@ class TelegramAgent
 
         $answer = $result['answer'] ?? '⚠️ Не удалось получить ответ. Попробуйте переформулировать вопрос.';
 
+        // ════════════════════════════════════════════════════════════════
+        //  ПРОВЕРКА: не вернул ли AI такой же ответ, как в прошлый раз
+        // ════════════════════════════════════════════════════════════════
+        if ($this->isAnswerRepeatOfLast($session, $answer)) {
+            // Ответ повторяется — не обращаемся к AI снова, а прерываем цикл
+            return $this->breakTheLoop($chatId, $session);
+        }
+
         // Сохраняем ответ ассистента
         $this->saveAssistantMessage($session, $answer, $result);
 
         // Отправляем ответ
         return $this->bot->sendMarkdown($chatId, $answer);
+    }
+
+    /**
+     * Детекция циклического поведения на основе истории сообщений.
+     *
+     * Анализирует последние N сообщений и определяет, не зациклился ли AI
+     * на повторении одних и тех же вопросов или утверждений.
+     */
+    private function detectLoop(ChatSession $session, string $currentUserText): bool
+    {
+        // Получаем последние 6 сообщений ассистента
+        $recentAssistantMessages = $session->messages()
+            ->where('role', 'assistant')
+            ->orderByDesc('created_at')
+            ->limit(self::MAX_CONSECUTIVE_SIMILAR_ANSWERS + 1)
+            ->get()
+            ->pluck('content')
+            ->toArray();
+
+        // Если меньше 2 сообщений — нет смысла проверять
+        if (count($recentAssistantMessages) < 2) {
+            return false;
+        }
+
+        // Проверяем, не повторяются ли последние сообщения ассистента
+        $similarCount = 0;
+        for ($i = 0; $i < count($recentAssistantMessages) - 1; $i++) {
+            if ($this->areTextsSimilar($recentAssistantMessages[$i], $recentAssistantMessages[$i + 1])) {
+                $similarCount++;
+            }
+        }
+
+        // Если все последовательные ответы ассистента похожи друг на друга — цикл
+        if ($similarCount >= self::MAX_CONSECUTIVE_SIMILAR_ANSWERS) {
+            Log::warning('TelegramAgent: detected AI loop', [
+                'session_id' => $session->id,
+                'similar_count' => $similarCount,
+            ]);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Проверить, повторяет ли новый ответ последнее сообщение ассистента.
+     */
+    private function isAnswerRepeatOfLast(ChatSession $session, string $newAnswer): bool
+    {
+        $lastAssistantMessage = $session->messages()
+            ->where('role', 'assistant')
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (! $lastAssistantMessage) {
+            return false;
+        }
+
+        return $this->areTextsSimilar($lastAssistantMessage->content, $newAnswer);
+    }
+
+    /**
+     * Сравнить два текста на схожесть.
+     * Использует несколько эвристик: длина, ключевые слова, процент совпадения.
+     */
+    private function areTextsSimilar(string $text1, string $text2): bool
+    {
+        $t1 = trim($text1);
+        $t2 = trim($text2);
+
+        // Если оба пустые — считаем повторением
+        if ($t1 === '' && $t2 === '') {
+            return true;
+        }
+
+        // Если один пустой, другой нет — не повтор
+        if ($t1 === '' || $t2 === '') {
+            return false;
+        }
+
+        // Если тексты идентичны — 100% повторение
+        if ($t1 === $t2) {
+            return true;
+        }
+
+        // Если тексты слишком короткие — сравниваем посимвольно
+        if (mb_strlen($t1) < self::MIN_ANSWER_LENGTH_FOR_COMPARISON || mb_strlen($t2) < self::MIN_ANSWER_LENGTH_FOR_COMPARISON) {
+            $similarity = similar_text($t1, $t2, $percent);
+            return $percent > 80;
+        }
+
+        // Для длинных текстов: извлекаем ключевые фразы и сравниваем
+        $similarity = similar_text($t1, $t2, $percent);
+        if ($percent > 85) {
+            return true;
+        }
+
+        // Дополнительная проверка: если оба текста содержат одинаковые вопросительные конструкции
+        $questionWords = ['Что именно', 'Хотите', 'уточнить', 'Запустить', 'выполнить', '?:'];
+        $t1HasQuestion = false;
+        $t2HasQuestion = false;
+
+        foreach ($questionWords as $word) {
+            if (mb_stripos($t1, $word) !== false) {
+                $t1HasQuestion = true;
+            }
+            if (mb_stripos($t2, $word) !== false) {
+                $t2HasQuestion = true;
+            }
+        }
+
+        // Если оба текста — вопросы с переспросом, и они похожи более чем на 60% — считаем циклом
+        if ($t1HasQuestion && $t2HasQuestion && $percent > 60) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Принудительно прервать цикл: отправить пользователю сообщение о проблеме.
+     */
+    private function breakTheLoop(int|string $chatId, ChatSession $session): string
+    {
+        // Не сохраняем циклический ответ — очищаем последнее сообщение ассистента
+        // и отправляем финальное предложение начать заново
+        $session->messages()
+            ->where('role', 'assistant')
+            ->orderByDesc('created_at')
+            ->limit(self::MAX_CONSECUTIVE_SIMILAR_ANSWERS)
+            ->delete();
+
+        $message = "⚠️ *Кажется, я зашёл в тупик.* Давайте начнём диалог заново.\n\n"
+            . "Напишите ваш вопрос конкретно, например:\n"
+            . "• «Покажи список товаров»\n"
+            . "• «Найди клиента по номеру телефона»\n"
+            . "• «Какой баланс у клиента?»\n"
+            . "• «Создай заказ»\n\n"
+            . "Или используйте /clear чтобы очистить историю, /new для нового диалога.";
+
+        $this->saveAssistantMessage($session, $message, [
+            'model' => 'loop_breaker',
+            'usage' => [],
+            'provider' => $this->ai->getProviderName(),
+        ]);
+
+        return $this->bot->sendMarkdown($chatId, $message);
     }
 
     /**
@@ -383,29 +551,19 @@ class TelegramAgent
 - Отвечай на русском языке, если не указано иное.
 - Если в базе знаний есть информация по вопросу — используй её в первую очередь.
 - Не выдумывай данные — используй только то, что получил из функций и базы знаний.
+- Если пользователь задаёт вопрос, на который можно ответить сразу — отвечай сразу, не задавай уточняющих вопросов без необходимости.
+- НЕ повторяй один и тот же вопрос или ответ несколько раз. Если ты уже спрашивал уточнение — запомни это и не спрашивай то же самое снова.
 
-КРИТИЧЕСКИ ВАЖНО — ИНСТРУМЕНТЫ:
-- Тебе доступны инструменты (функции), но ты НИКОГДА не вызываешь их самостоятельно.
-- Ты вызываешь инструмент ТОЛЬКО когда пользователь дал ПРЯМУЮ команду.
-  Примеры прямых команд: "начни исследование", "запусти анализ", "сохрани это", "опубликуй", "выполни".
-  Примеры НЕ команд: "изучи это", "посмотри", "интересно было бы", "нужно изучить".
-- Если формулировка пользователя размыта (например, "нужно изучить X"), ты НЕ запускаешь инструмент. Вместо этого уточняешь: "Что именно вас интересует? Запустить исследование по этой теме?"
+ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ БД:
+- Ты можешь и должен использовать query_db, get_tables, get_table_schema для ответа на вопросы пользователя о данных.
+- Если пользователь просит "показать", "найти", "вывести", "список", "сколько", "какой" — это прямое указание использовать инструменты БД.
+- Пример: пользователь пишет "покажи товары" → ты вызываешь query_db("SELECT * FROM comp LIMIT 10").
+- Пример: пользователь пишет "какая структура таблицы comp" → ты вызываешь get_table_schema("comp").
+- Пример: пользователь пишет "найди клиента Иванова" → ты вызываешь query_db с LIKE-поиском.
+- НЕ нужно спрашивать подтверждения перед выполнением запроса, если запрос пользователя очевиден.
 
 СОХРАНЕНИЕ ЗНАНИЙ:
 - Если пользователь делится полезной информацией, на которую нет ответа в БД — предложи сохранить через save_knowledge.
-
-ПРИМЕР ДИАЛОГА:
-Пользователь: "нужно изучить балансы пользователей"
-Ты: "Что именно вас интересует в балансах пользователей? Запустить анализ текущих балансов?"
-
-Пользователь: "запускай исследование"
-Ты: ✅ Запускаешь инструмент query_db или get_tables
-
-Пользователь: "интересно было бы посмотреть на структуру таблицы comp"
-Ты: "Хотите, чтобы я выполнил запрос и показал структуру таблицы comp?"
-
-Пользователь: "да, выполни"
-Ты: ✅ Запускаешь get_table_schema("comp")
 PROMPT;
 
         $knowledgeSection = $knowledgeContext !== ''
