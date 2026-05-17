@@ -46,7 +46,16 @@ class AgentOrchestrator
             ]),
             messageType: 'task_request',
             taskId: $task->id,
-            metadata: ['task_uuid' => $task->uuid],
+            metadata: [
+                'task_uuid' => $task->uuid,
+                'session_token' => $sessionToken,
+                'reply_to' => [
+                    'agent' => $sourceAgent,
+                    'session_token' => $sessionToken,
+                    'chat_id' => $inputData['chat_id'] ?? null,
+                    'channel' => $inputData['response_channel'] ?? $inputData['channel'] ?? null,
+                ],
+            ],
         );
 
         // WebSocket-уведомление
@@ -115,13 +124,21 @@ class AgentOrchestrator
     /**
      * Получить сообщения для агента.
      */
-    public function getCommunications(string $agentName, int $fid, int $limit = 50): Collection
+    public function getCommunications(string $agentName, int $fid, int $limit = 50, ?string $sessionToken = null): Collection
     {
-        return AgentCommunication::forAgent($agentName)
+        $query = AgentCommunication::forAgent($agentName)
             ->forFid($fid)
             ->orderByDesc('created_at')
-            ->limit($limit)
-            ->get();
+            ->limit($limit);
+
+        if ($sessionToken !== null && $sessionToken !== '') {
+            $query->where(function ($query) use ($sessionToken) {
+                $query->where('metadata->session_token', $sessionToken)
+                    ->orWhereHas('task', fn ($taskQuery) => $taskQuery->where('session_token', $sessionToken));
+            });
+        }
+
+        return $query->get();
     }
 
     /**
@@ -179,6 +196,13 @@ class AgentOrchestrator
                 'task_uuid' => $task->uuid,
                 'task_type' => $task->task_type,
                 'status' => $task->status,
+                'session_token' => $task->session_token,
+                'reply_to' => [
+                    'agent' => $task->source_agent,
+                    'session_token' => $task->session_token,
+                    'chat_id' => $task->input_data['chat_id'] ?? null,
+                    'channel' => $task->input_data['response_channel'] ?? $task->input_data['channel'] ?? null,
+                ],
             ],
         );
     }

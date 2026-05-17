@@ -24,12 +24,14 @@ class AgentCommunicationController extends Controller
             'agent' => ['required', 'string', 'max:50'],
             'fid'   => ['required', 'integer', 'min:1'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'session_token' => ['nullable', 'string', 'max:100'],
         ]);
 
         $communications = $this->orchestrator->getCommunications(
             agentName: $payload['agent'],
             fid:       (int) $payload['fid'],
             limit:     (int) ($payload['limit'] ?? 50),
+            sessionToken: $payload['session_token'] ?? null,
         );
 
         return response()->json([
