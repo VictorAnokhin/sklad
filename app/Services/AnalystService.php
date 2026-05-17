@@ -31,6 +31,9 @@ class AnalystService
             $this->toolListResearches(),
             $this->toolSaveKnowledge(),
             $this->toolGetResearchSources(),
+            $this->toolPublishArticle(),
+            $this->toolPublishNews(),
+            $this->toolPublishReview(),
         ];
     }
 
@@ -48,6 +51,9 @@ class AnalystService
             'list_researches' => $this->executeListResearches($arguments),
             'save_knowledge' => $this->executeSaveKnowledge($arguments),
             'get_research_sources' => $this->executeGetResearchSources($arguments),
+            'publish_article' => $this->executePublishArticle($arguments),
+            'publish_news' => $this->executePublishNews($arguments),
+            'publish_review' => $this->executePublishReview($arguments),
             default => json_encode(['error' => "Unknown tool: {$name}"]),
         };
     }
@@ -498,5 +504,250 @@ class AnalystService
             Log::error('Analyst: get_research_sources failed.', ['error' => $e->getMessage()]);
             return json_encode(['error' => 'Ошибка получения источников: ' . $e->getMessage()]);
         }
+    }
+
+    // ── Инструменты публикации (для TelegramAgent) ──────────────────────────
+
+    private function toolPublishArticle(): array
+    {
+        return [
+            'type' => 'function',
+            'function' => [
+                'name' => 'publish_article',
+                'description' => 'Опубликовать аналитическую статью в базу знаний проекта. Статья становится доступна всем агентам и в /settings → База знаний.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Заголовок статьи',
+                        ],
+                        'content' => [
+                            'type' => 'string',
+                            'description' => 'Полный текст статьи',
+                        ],
+                        'summary' => [
+                            'type' => 'string',
+                            'description' => 'Краткое описание (2-3 предложения)',
+                        ],
+                        'fid' => [
+                            'type' => 'integer',
+                            'description' => 'ID проекта (fid), к которому относится статья. Определи из контекста',
+                            'default' => 12,
+                        ],
+                    ],
+                    'required' => ['title', 'content', 'summary'],
+                ],
+            ],
+        ];
+    }
+
+    private function toolPublishNews(): array
+    {
+        return [
+            'type' => 'function',
+            'function' => [
+                'name' => 'publish_news',
+                'description' => 'Опубликовать новость в базу знаний проекта. Новость становится доступна всем агентам.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Заголовок новости',
+                        ],
+                        'content' => [
+                            'type' => 'string',
+                            'description' => 'Текст новости',
+                        ],
+                        'summary' => [
+                            'type' => 'string',
+                            'description' => 'Краткое описание',
+                        ],
+                        'source_url' => [
+                            'type' => 'string',
+                            'description' => 'URL источника новости (если есть)',
+                        ],
+                        'fid' => [
+                            'type' => 'integer',
+                            'description' => 'ID проекта (fid)',
+                            'default' => 12,
+                        ],
+                    ],
+                    'required' => ['title', 'content'],
+                ],
+            ],
+        ];
+    }
+
+    private function toolPublishReview(): array
+    {
+        return [
+            'type' => 'function',
+            'function' => [
+                'name' => 'publish_review',
+                'description' => 'Опубликовать обзор/рецензию на продукт, протокол или сервис в базу знаний.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Заголовок обзора',
+                        ],
+                        'content' => [
+                            'type' => 'string',
+                            'description' => 'Полный текст обзора: анализ, метрики, плюсы/минусы, выводы',
+                        ],
+                        'summary' => [
+                            'type' => 'string',
+                            'description' => 'Краткое резюме',
+                        ],
+                        'rating' => [
+                            'type' => 'integer',
+                            'description' => 'Оценка от 1 до 10',
+                            'default' => null,
+                        ],
+                        'fid' => [
+                            'type' => 'integer',
+                            'description' => 'ID проекта (fid)',
+                            'default' => 12,
+                        ],
+                    ],
+                    'required' => ['title', 'content', 'summary'],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Сохранить публикацию в AiKnowledgeBase и в analyst_sources.
+     */
+    private function savePublication(string $title, string $content, string $summary, int $fid, string $category, ?string $sourceUrl = null, ?int $rating = null): array
+    {
+        $saved = [
+            'knowledge_base' => false,
+            'analyst_source' => false,
+        ];
+
+        // Сохраняем в AiKnowledgeBase
+        try {
+            \App\Models\AiKnowledgeBase::create([
+                'fid' => $fid,
+                'title' => $title,
+                'content' => $content,
+                'category' => $category,
+                'source' => 'telegram_agent',
+                'active' => true,
+            ]);
+            $saved['knowledge_base'] = true;
+        } catch (Throwable $e) {
+            Log::warning("Analyst: savePublication (AiKnowledgeBase, {$category}) failed.", [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Сохраняем в analyst_sources
+        try {
+            $extra = ['category' => $category];
+            if ($rating !== null) {
+                $extra['rating'] = $rating;
+            }
+            if ($sourceUrl !== null) {
+                $extra['source_url'] = $sourceUrl;
+            }
+
+            \App\Models\AnalystSource::create([
+                'fid' => $fid,
+                'url' => $sourceUrl,
+                'title' => $title,
+                'content' => $content,
+                'summary' => $summary,
+                'content_type' => $category,
+                'metadata' => $extra,
+            ]);
+            $saved['analyst_source'] = true;
+        } catch (Throwable $e) {
+            Log::warning("Analyst: savePublication (AnalystSource, {$category}) failed.", [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $saved;
+    }
+
+    private function executePublishArticle(array $args): string
+    {
+        $title = trim((string) ($args['title'] ?? ''));
+        $content = trim((string) ($args['content'] ?? ''));
+        $summary = trim((string) ($args['summary'] ?? ''));
+        $fid = (int) ($args['fid'] ?? self::DEFAULT_FID);
+
+        if ($title === '' || $content === '') {
+            return json_encode(['error' => 'title and content are required']);
+        }
+
+        $saved = $this->savePublication($title, $content, $summary, $fid, 'article');
+
+        return json_encode([
+            'success' => $saved['knowledge_base'] || $saved['analyst_source'],
+            'title' => $title,
+            'fid' => $fid,
+            'category' => 'article',
+            'saved_to' => $saved,
+            'message' => "Статья «{$title}» опубликована в проекте fid={$fid}.",
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    private function executePublishNews(array $args): string
+    {
+        $title = trim((string) ($args['title'] ?? ''));
+        $content = trim((string) ($args['content'] ?? ''));
+        $summary = trim((string) ($args['summary'] ?? ''));
+        $sourceUrl = trim((string) ($args['source_url'] ?? ''));
+        $fid = (int) ($args['fid'] ?? self::DEFAULT_FID);
+
+        if ($title === '' || $content === '') {
+            return json_encode(['error' => 'title and content are required']);
+        }
+
+        $saved = $this->savePublication(
+            $title, $content, $summary, $fid,
+            category: 'news',
+            sourceUrl: $sourceUrl ?: null,
+        );
+
+        return json_encode([
+            'success' => $saved['knowledge_base'] || $saved['analyst_source'],
+            'title' => $title,
+            'fid' => $fid,
+            'category' => 'news',
+            'saved_to' => $saved,
+            'message' => "Новость «{$title}» опубликована в проекте fid={$fid}.",
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    private function executePublishReview(array $args): string
+    {
+        $title = trim((string) ($args['title'] ?? ''));
+        $content = trim((string) ($args['content'] ?? ''));
+        $summary = trim((string) ($args['summary'] ?? ''));
+        $fid = (int) ($args['fid'] ?? self::DEFAULT_FID);
+        $rating = isset($args['rating']) ? (int) $args['rating'] : null;
+
+        if ($title === '' || $content === '') {
+            return json_encode(['error' => 'title and content are required']);
+        }
+
+        $saved = $this->savePublication($title, $content, $summary, $fid, category: 'review', rating: $rating);
+
+        return json_encode([
+            'success' => $saved['knowledge_base'] || $saved['analyst_source'],
+            'title' => $title,
+            'fid' => $fid,
+            'category' => 'review',
+            'rating' => $rating,
+            'saved_to' => $saved,
+            'message' => "Обзор «{$title}» опубликован в проекте fid={$fid}.",
+        ], JSON_UNESCAPED_UNICODE);
     }
 }
