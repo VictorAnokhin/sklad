@@ -12,26 +12,64 @@ use Throwable;
 class AiKnowledgeService
 {
     /**
+     * Категория для инструкций Telegram-бота.
+     */
+    private const INSTRUCTION_CATEGORY = 'telegram_instruction';
+
+    /**
      * Получить контекст из базы знаний для проекта (fid).
      *
      * Возвращает строку с релевантными записями для подстановки в system prompt.
+     * Инструкции для Telegram-бота (категория telegram_instruction) загружаются
+     * отдельно и без лимита, остальные записи — с лимитом.
      */
     public function getContext(int $fid, int $limit = 10): string
     {
-        $records = $this->getActiveRecords($fid, $limit);
+        $parts = collect();
 
-        if ($records->isEmpty()) {
-            return '';
+        // 1. Загружаем инструкции Telegram-бота (без лимита, все активные)
+        $instructions = $this->getInstructions($fid);
+        if ($instructions->isNotEmpty()) {
+            $instructionParts = $instructions->map(function (AiKnowledgeBase $item) use ($fid): string {
+                $title = $item->title ?: 'Без заголовка';
+                $category = $this->translateCategory($item->category, $fid);
+
+                return "📋 ИНСТРУКЦИЯ: {$title}\n{$item->content}";
+            });
+            $parts->push("— — —\n🧠 ИНСТРУКЦИИ ТЕЛЕГРАМ-БОТА (настраиваются в /settings):\n{$instructionParts->implode("\n\n")}\n— — —");
         }
 
-        $parts = $records->map(function (AiKnowledgeBase $item) use ($fid): string {
-            $title = $item->title ?: 'Без заголовка';
-            $category = $this->translateCategory($item->category, $fid);
+        // 2. Загружаем остальные записи БЗ (с лимитом)
+        $records = $this->getActiveRecords($fid, $limit, [self::INSTRUCTION_CATEGORY]);
 
-            return "[{$category}] {$title}\n{$item->content}";
-        });
+        if ($records->isNotEmpty()) {
+            $recordParts = $records->map(function (AiKnowledgeBase $item) use ($fid): string {
+                $title = $item->title ?: 'Без заголовка';
+                $category = $this->translateCategory($item->category, $fid);
 
-        return "— — —\nБаза знаний проекта:\n{$parts->implode("\n\n")}\n— — —";
+                return "[{$category}] {$title}\n{$item->content}";
+            });
+            $parts->push("— — —\n📚 База знаний проекта:\n{$recordParts->implode("\n\n")}\n— — —");
+        }
+
+        return $parts->implode("\n\n");
+    }
+
+    /**
+     * Получить инструкции для Telegram-бота.
+     *
+     * Загружает ВСЕ активные записи категории telegram_instruction без лимита.
+     * Эти записи определяют поведение бота и могут редактироваться через /settings.
+     *
+     * @return Collection<int, AiKnowledgeBase>
+     */
+    public function getInstructions(int $fid): Collection
+    {
+        return AiKnowledgeBase::forFid($fid)
+            ->active()
+            ->byCategory(self::INSTRUCTION_CATEGORY)
+            ->orderBy('created_at', 'asc')
+            ->get();
     }
 
     /**
@@ -193,16 +231,21 @@ class AiKnowledgeService
     /**
      * Получить активные записи базы знаний для проекта.
      *
+     * @param  array<int, string>  $excludeCategories  Категории, которые нужно исключить
      * @return Collection<int, AiKnowledgeBase>
      */
-    public function getActiveRecords(int $fid, int $limit = 10): Collection
+    public function getActiveRecords(int $fid, int $limit = 10, array $excludeCategories = []): Collection
     {
-        return AiKnowledgeBase::forFid($fid)
+        $query = AiKnowledgeBase::forFid($fid)
             ->active()
             ->orderBy('category')
-            ->orderBy('created_at', 'desc')
-            ->limit($limit)
-            ->get();
+            ->orderBy('created_at', 'desc');
+
+        if (!empty($excludeCategories)) {
+            $query->whereNotIn('category', $excludeCategories);
+        }
+
+        return $query->limit($limit)->get();
     }
 
     /**
