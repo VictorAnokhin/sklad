@@ -2,20 +2,25 @@
 
 namespace App\Agents;
 
+use App\Contracts\AiClientInterface;
 use App\Models\AgentTask;
 use App\Services\AgentOrchestrator;
+use App\Services\AiClientFactory;
 use App\Services\AiKnowledgeService;
 use App\Services\ChatService;
-use App\Services\DeepSeekClient;
 
 class FrontendAgent
 {
+    private readonly AiClientInterface $ai;
+
     public function __construct(
         private ChatService $chatService,
         private AiKnowledgeService $knowledgeService,
-        private DeepSeekClient $deepseek,
+        private AiClientFactory $aiFactory,
         private AgentOrchestrator $orchestrator,
-    ) {}
+    ) {
+        $this->ai = $this->aiFactory->make('agent');
+    }
 
     /**
      * Обработать сообщение из веб-чата.
@@ -123,13 +128,13 @@ class FrontendAgent
 
         $knowledge = $this->knowledgeService->getContext($fid);
 
-        $result = $this->deepseek->chat(
+        $result = $this->ai->chat(
             instructions: "Ты — FrontendAgent, помощник на сайте. Отвечай кратко и по делу. Контекст: {$knowledge}",
             messages: [['role' => 'user', 'content' => $question]],
         );
 
         return [
-            'answer' => $result['response'] ?? 'Не удалось получить ответ.',
+            'answer' => $result['answer'] ?? 'Не удалось получить ответ.',
         ];
     }
 }

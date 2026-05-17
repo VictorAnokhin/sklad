@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\ChatSession;
 use App\Services\ChatService;
-use App\Services\DeepSeekClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;

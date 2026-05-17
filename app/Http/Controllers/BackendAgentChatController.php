@@ -6,7 +6,6 @@ use App\Agents\BackendAgent;
 use App\Models\AgentTask;
 use App\Services\AgentOrchestrator;
 use App\Services\ChatService;
-use App\Services\DeepSeekClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +17,6 @@ class BackendAgentChatController extends Controller
         private readonly BackendAgent       $backendAgent,
         private readonly AgentOrchestrator  $orchestrator,
         private readonly ChatService        $chatService,
-        private readonly DeepSeekClient     $deepSeek,
     ) {}
 
     /**

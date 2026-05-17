@@ -2,16 +2,17 @@
 
 namespace App\Services;
 
+use App\Contracts\AiClientInterface;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Throwable;
 
-class DeepSeekClient
+class DeepSeekClient implements AiClientInterface
 {
+    private ?string $modelOverride = null;
+
     /**
-     * @param  string  $instructions  System prompt
-     * @param  array<int, array{role: string, content: string}>  $messages
-     * @return array{answer: string, model: string, usage: array<string, mixed>}
+     * {@inheritdoc}
      */
     public function chat(string $instructions, array $messages, array $options = []): array
     {
@@ -25,15 +26,7 @@ class DeepSeekClient
     }
 
     /**
-     * Отправить запрос с поддержкой function calling (tools).
-     *
-     * Позволяет AI вызывать функции для получения данных из БД.
-     *
-     * @param  string  $instructions  System prompt
-     * @param  array<int, array{role: string, content: string}>  $messages
-     * @param  array<int, array<string, mixed>>  $tools  Список инструментов (functions)
-     * @param  callable(string $name, array $arguments): string  $toolExecutor  Функция выполнения инструментов
-     * @return array{answer: string, model: string, usage: array<string, mixed>}
+     * {@inheritdoc}
      */
     public function chatWithTools(
         string $instructions,
@@ -43,20 +36,21 @@ class DeepSeekClient
         array $options = [],
     ): array {
         $apiKey = $this->getApiKey();
-        $model = $this->getModel($options);
+        $model = $this->resolveModel($options);
+        $config = $this->getConfig();
 
         // Формируем тело запроса с tools
         $body = $this->buildRequestBody($instructions, $messages, $model, $options);
         $body['tools'] = $tools;
         $body['tool_choice'] = 'auto';
 
-        // Максимальное количество итераций tool calling (предотвращает бесконечный цикл)
-        $maxIterations = (int) ($options['max_tool_iterations'] ?? 5);
+        // Максимальное количество итераций tool calling
+        $maxIterations = (int) ($options['max_tool_iterations'] ?? config('ai.tools.max_iterations', 10));
         $iteration = 0;
 
         do {
             $iteration++;
-            $payload = $this->sendHttpRequest($body, $apiKey);
+            $payload = $this->sendHttpRequest($body, $apiKey, $config);
             $choice = $payload['choices'][0] ?? [];
             $message = $choice['message'] ?? [];
 
@@ -69,7 +63,6 @@ class DeepSeekClient
                     throw new RuntimeException('DeepSeek response did not contain an assistant message.');
                 }
 
-                // Добавляем сообщение ассистента в историю
                 $body['messages'][] = [
                     'role' => 'assistant',
                     'content' => $content ?: '...',
@@ -82,8 +75,7 @@ class DeepSeekClient
                 ];
             }
 
-            // ── Обработка tool_calls ──────────────────────────────────
-            // Добавляем сообщение ассистента с tool_calls в историю
+            // ── Обработка tool_calls ──
             $assistantMessage = [
                 'role' => 'assistant',
                 'content' => $content ?: null,
@@ -120,11 +112,10 @@ class DeepSeekClient
 
             // Если превысили лимит итераций — завершаем
             if ($iteration >= $maxIterations) {
-                // Запрашиваем финальный ответ без tools
                 $finalBody = $body;
                 unset($finalBody['tools'], $finalBody['tool_choice']);
 
-                $payload = $this->sendHttpRequest($finalBody, $apiKey);
+                $payload = $this->sendHttpRequest($finalBody, $apiKey, $config);
                 $finalContent = trim((string) data_get($payload, 'choices.0.message.content', ''));
 
                 return [
@@ -133,28 +124,79 @@ class DeepSeekClient
                     'usage' => is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : [],
                 ];
             }
-
-            // Продолжаем цикл — отправляем следующий запрос с обновлённой историей
         } while ($iteration < $maxIterations);
 
         throw new RuntimeException('DeepSeek tool calling exceeded maximum iterations.');
     }
 
     /**
-     * Отправить единичный HTTP-запрос к DeepSeek API.
+     * {@inheritdoc}
+     */
+    public function getProviderName(): string
+    {
+        return 'deepseek';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setModel(?string $model): static
+    {
+        $this->modelOverride = $model;
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getModel(): string
+    {
+        return $this->resolveModel([]);
+    }
+
+    // ── Приватные методы ─────────────────────────────────────────────────
+
+    /**
+     * Простой запрос (без tools).
+     */
+    private function sendRequest(string $instructions, array $messages, array $options = []): array
+    {
+        $apiKey = $this->getApiKey();
+        $model = $this->resolveModel($options);
+        $config = $this->getConfig();
+        $body = $this->buildRequestBody($instructions, $messages, $model, $options);
+
+        $payload = $this->sendHttpRequest($body, $apiKey, $config);
+
+        $answer = trim((string) data_get($payload, 'choices.0.message.content', ''));
+        if ($answer === '') {
+            throw new RuntimeException('DeepSeek response did not contain an assistant message.');
+        }
+
+        return [
+            'answer' => $answer,
+            'model' => (string) data_get($payload, 'model', $model),
+            'usage' => is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : [],
+        ];
+    }
+
+    /**
+     * Отправить HTTP-запрос к DeepSeek API.
      *
      * @param  array<string, mixed>  $body
+     * @param  array<string, mixed>  $config
      * @return array<string, mixed>
      */
-    private function sendHttpRequest(array $body, string $apiKey): array
+    private function sendHttpRequest(array $body, string $apiKey, array $config): array
     {
         try {
             $response = Http::acceptJson()
                 ->asJson()
                 ->withToken($apiKey)
-                ->timeout((int) config('services.deepseek.timeout', 60))
+                ->timeout((int) ($config['timeout'] ?? 60))
                 ->connectTimeout(15)
-                ->post($this->apiBase().'/v1/chat/completions', $body);
+                ->post($config['api_base'].'/v1/chat/completions', $body);
         } catch (Throwable $e) {
             throw new RuntimeException('DeepSeek request failed: '.$e->getMessage(), 0, $e);
         }
@@ -170,29 +212,6 @@ class DeepSeekClient
         }
 
         return $payload;
-    }
-
-    /**
-     * Простой запрос (без tools).
-     */
-    private function sendRequest(string $instructions, array $messages, array $options = []): array
-    {
-        $apiKey = $this->getApiKey();
-        $model = $this->getModel($options);
-        $body = $this->buildRequestBody($instructions, $messages, $model, $options);
-
-        $payload = $this->sendHttpRequest($body, $apiKey);
-
-        $answer = trim((string) data_get($payload, 'choices.0.message.content', ''));
-        if ($answer === '') {
-            throw new RuntimeException('DeepSeek response did not contain an assistant message.');
-        }
-
-        return [
-            'answer' => $answer,
-            'model' => (string) data_get($payload, 'model', $model),
-            'usage' => is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : [],
-        ];
     }
 
     /**
@@ -220,24 +239,54 @@ class DeepSeekClient
 
     private function getApiKey(): string
     {
-        $apiKey = trim((string) config('services.deepseek.api_key', ''));
+        $apiKey = trim((string) config('ai.providers.deepseek.api_key', ''));
+        if ($apiKey === '') {
+            $apiKey = trim((string) config('services.deepseek.api_key', ''));
+        }
         if ($apiKey === '') {
             throw new RuntimeException('DeepSeek API key is not configured (DEEPSEEK_API_KEY).');
         }
+
         return $apiKey;
     }
 
-    private function getModel(array $options = []): string
+    /**
+     * Получить конфигурацию провайдера.
+     *
+     * @return array<string, mixed>
+     */
+    private function getConfig(): array
     {
-        $model = trim((string) ($options['model'] ?? config('services.deepseek.model', '')));
-        if ($model === '') {
-            throw new RuntimeException('DeepSeek model is not configured (DEEPSEEK_MODEL).');
+        $config = config('ai.providers.deepseek');
+        if ($config === null || empty($config['api_key'])) {
+            // Fallback на старый config/services.php
+            $config = config('services.deepseek');
         }
-        return $model;
+
+        return [
+            'api_base' => rtrim((string) ($config['api_base'] ?? 'https://api.deepseek.com'), '/'),
+            'api_key'  => (string) ($config['api_key'] ?? ''),
+            'model'    => (string) ($config['model'] ?? 'deepseek-chat'),
+            'timeout'  => (int) ($config['timeout'] ?? 60),
+        ];
     }
 
-    private function apiBase(): string
+    /**
+     * Разрешить модель: приоритет — options > modelOverride > config.
+     */
+    private function resolveModel(array $options): string
     {
-        return rtrim((string) config('services.deepseek.api_base', 'https://api.deepseek.com'), '/');
+        $model = trim((string) ($options['model'] ?? ''));
+        if ($model !== '') {
+            return $model;
+        }
+
+        if ($this->modelOverride !== null) {
+            return $this->modelOverride;
+        }
+
+        $config = $this->getConfig();
+
+        return $config['model'];
     }
 }

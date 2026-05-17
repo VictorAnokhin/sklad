@@ -2,10 +2,11 @@
 
 namespace App\Agents;
 
+use App\Contracts\AiClientInterface;
 use App\Models\AgentTask;
 use App\Models\ChatSession;
 use App\Services\AgentOrchestrator;
-use App\Services\DeepSeekClient;
+use App\Services\AiClientFactory;
 use App\Services\TelegramBotService;
 use App\Services\AiKnowledgeService;
 use App\Models\ChatMessage;
@@ -15,12 +16,42 @@ class TelegramAgent
 {
     const ANALYST_FID = 12;
 
+    private readonly AiClientInterface $ai;
+
     public function __construct(
         private TelegramBotService $bot,
-        private DeepSeekClient $deepseek,
+        private AiClientFactory $aiFactory,
         private AiKnowledgeService $knowledgeService,
         private AgentOrchestrator $orchestrator,
-    ) {}
+    ) {
+        $this->ai = $this->aiFactory->make('telegram');
+    }
+
+    /**
+     * Переключить AI-клиент на другой канал.
+     */
+    public function useChannel(string $channel): static
+    {
+        $this->ai = $this->aiFactory->make($channel);
+        return $this;
+    }
+
+    /**
+     * Переключить AI-клиент на конкретного провайдера.
+     */
+    public function useProvider(string $provider, ?string $model = null): static
+    {
+        $this->ai = $this->aiFactory->makeForProvider($provider, $model);
+        return $this;
+    }
+
+    /**
+     * Получить текущий AI-клиент.
+     */
+    public function getAiClient(): AiClientInterface
+    {
+        return $this->ai;
+    }
 
     /**
      * Обработать входящее сообщение из Telegram.
@@ -183,8 +214,8 @@ class TelegramAgent
         // Формируем system prompt с инструментами БД
         $systemPrompt = $this->buildAnalystPrompt($knowledgeContext);
 
-        // Вызываем DeepSeek с tools
-        $result = $this->deepseek->chatWithTools(
+        // Вызываем AI с поддержкой function calling
+        $result = $this->ai->chat(
             instructions: $systemPrompt,
             messages: $history,
             options: [
@@ -193,7 +224,7 @@ class TelegramAgent
             ],
         );
 
-        $answer = $result['response'] ?? '⚠️ Не удалось получить ответ. Попробуйте переформулировать вопрос.';
+        $answer = $result['answer'] ?? '⚠️ Не удалось получить ответ. Попробуйте переформулировать вопрос.';
 
         // Сохраняем ответ ассистента
         $this->saveAssistantMessage($session, $answer, $result);
@@ -278,8 +309,9 @@ class TelegramAgent
             'role' => 'assistant',
             'content' => $answer,
             'metadata' => [
-                'sources' => $result['sources'] ?? [],
-                'knowledge_updated' => $result['knowledge_updated'] ?? false,
+                'model' => $result['model'] ?? null,
+                'usage' => $result['usage'] ?? null,
+                'provider' => $this->ai->getProviderName(),
             ],
         ]);
     }
