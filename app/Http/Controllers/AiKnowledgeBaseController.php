@@ -66,6 +66,8 @@ class AiKnowledgeBaseController extends Controller
             'content' => ['required', 'string', 'min:10', 'max:10000'],
             'category' => ['nullable', 'string', 'max:80'],
             'source' => ['nullable', 'string', 'max:80'],
+            'tool_keys' => ['nullable', 'array'],
+            'tool_keys.*' => ['string', 'max:80'],
             'active' => ['nullable', 'boolean'],
         ]);
 
@@ -122,6 +124,8 @@ class AiKnowledgeBaseController extends Controller
             'title' => ['nullable', 'string', 'max:255'],
             'content' => ['nullable', 'string', 'min:10', 'max:10000'],
             'category' => ['nullable', 'string', 'max:80'],
+            'tool_keys' => ['nullable', 'array'],
+            'tool_keys.*' => ['string', 'max:80'],
             'active' => ['nullable', 'boolean'],
         ]);
 

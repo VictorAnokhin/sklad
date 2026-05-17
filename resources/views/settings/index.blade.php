@@ -1167,6 +1167,13 @@
                         <label class="form-label" for="kb-content">{{ __('settings.knowledge_base.content_label') }} <span class="text-danger">*</span></label>
                         <textarea class="form-control" id="kb-content" rows="6" minlength="10" maxlength="10000" required></textarea>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ __('settings.knowledge_base.tools_label') }}</label>
+                        <select class="form-select" id="kb-tools" multiple size="4">
+                            <option value="">{{ __('settings.knowledge_base.tools_loading') }}</option>
+                        </select>
+                        <small class="text-muted">{{ __('settings.knowledge_base.tools_hint') }}</small>
+                    </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-success">💾 {{ __('settings.common.save') }}</button>
                         <button type="button" class="btn btn-secondary" id="btn-kb-cancel">{{ __('settings.common.cancel') }}</button>
@@ -1200,6 +1207,7 @@
                                 <th>{{ __('settings.knowledge_base.th_title') }}</th>
                                 <th>{{ __('settings.knowledge_base.th_category') }}</th>
                                 <th>{{ __('settings.knowledge_base.th_content') }}</th>
+                                <th>{{ __('settings.knowledge_base.tools_label') }}</th>
                                 <th>{{ __('settings.knowledge_base.th_active') }}</th>
                                 <th class="text-end" style="width:160px;">{{ __('settings.common.actions') }}</th>
                             </tr>
@@ -1333,12 +1341,13 @@
                                 <th class="kb-tool-key-col">{{ __('settings.tools.th_key') }}</th>
                                 <th class="kb-tool-name-col">{{ __('settings.tools.th_name') }}</th>
                                 <th class="kb-tool-desc-col">{{ __('settings.tools.th_description') }}</th>
+                                <th class="text-center kb-tool-sort-col" style="width:50px;">{{ __('settings.common.sort') ?? 'Sort' }}</th>
                                 <th class="text-center kb-tool-active-col" style="width:60px;">{{ __('settings.tools.th_active') }}</th>
                                 <th class="text-end kb-tool-actions-col" style="width:160px;">{{ __('settings.common.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody id="kb-tool-tbody">
-                            <tr><td colspan="5" class="text-center text-muted">{{ __('settings.tools.loading') }}</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted">{{ __('settings.tools.loading') }}</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -4952,6 +4961,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const kbCategory = document.getElementById('kb-category');
         const kbContent = document.getElementById('kb-content');
         const kbActive = document.getElementById('kb-active');
+        const kbTools = document.getElementById('kb-tools');
 
         // Category management elements
         const catFormArea = document.getElementById('kb-category-form-area');
@@ -5070,6 +5080,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 })
                 .catch(function () {
                     console.error('Failed to load categories');
+                });
+        }
+
+        /**
+         * Load available tools into the KB form multi-select.
+         */
+        function loadToolsSelect() {
+            if (!kbTools) return;
+            kbTools.innerHTML = '<option value="">' + _kbs('tools_loading') + '</option>';
+            var fidParam = FID() ? '?fid=' + FID() : '';
+            fetch(TOOLS_API_BASE + '/all' + fidParam, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var tools = data.data || [];
+                    kbTools.innerHTML = '';
+                    tools.forEach(function (t) {
+                        if (!t.active) return;
+                        var opt = document.createElement('option');
+                        opt.value = t.key;
+                        opt.textContent = t.key + ' — ' + t.name;
+                        kbTools.appendChild(opt);
+                    });
+                })
+                .catch(function () {
+                    kbTools.innerHTML = '<option value="">' + _kbs('load_error') + '</option>';
                 });
         }
 
@@ -5275,6 +5312,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 toolDescription.value = record.description || '';
                 toolSchema.value = JSON.stringify(record.schema || {}, null, 4);
                 toolActive.checked = record.active !== false;
+                toolSort.value = record.sort_order ?? 0;
                 toolKey.readOnly = true;
             } else {
                 toolId.value = '';
@@ -5283,6 +5321,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 toolDescription.value = '';
                 toolSchema.value = '';
                 toolActive.checked = true;
+                toolSort.value = 0;
                 toolKey.readOnly = false;
             }
         }
@@ -5324,6 +5363,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             '<td><code>' + escapeHtml(t.key) + '</code></td>' +
                             '<td>' + escapeHtml(t.name) + '</td>' +
                             '<td><small class="text-muted">' + escapeHtml(descPreview || _kbt('no_schema')) + '</small></td>' +
+                            '<td class="text-center"><small class="text-muted">' + (t.sort_order ?? 0) + '</small></td>' +
                             '<td class="text-center">' + activeIcon + '</td>' +
                             '<td class="text-end">' +
                                 '<button class="btn btn-sm btn-outline-primary me-1 btn-tool-edit" data-id="' + t.id + '">✏️</button>' +
@@ -5421,18 +5461,37 @@ document.addEventListener('DOMContentLoaded', function () {
                 defaultCat = keys[0];
             }
 
+            // Load available tools into multi-select
+            loadToolsSelect();
+
             if (record) {
                 kbId.value = record.id;
                 kbTitle.value = record.title || '';
                 kbCategory.value = record.category || defaultCat;
                 kbContent.value = record.content || '';
                 kbActive.checked = record.active !== false;
+                // Select linked tools
+                var toolKeys = record.tool_keys || [];
+                if (kbTools && toolKeys.length > 0) {
+                    // Wait for tools to load, then select
+                    var checkLoaded = setInterval(function () {
+                        if (kbTools.options.length > 0 && kbTools.options[0].value !== '') {
+                            clearInterval(checkLoaded);
+                            Array.from(kbTools.options).forEach(function (opt) {
+                                if (toolKeys.indexOf(opt.value) !== -1) {
+                                    opt.selected = true;
+                                }
+                            });
+                        }
+                    }, 50);
+                }
             } else {
                 kbId.value = '';
                 kbTitle.value = '';
                 kbCategory.value = defaultCat;
                 kbContent.value = '';
                 kbActive.checked = true;
+                if (kbTools) kbTools.selectedIndex = -1;
             }
         }
 
@@ -5487,10 +5546,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 const activeLabel = rec.active ? '✅' : '❌';
                 const activeBtnLabel = rec.active ? '❌' : '✅';
 
+                // Build tool keys badges
+                var toolKeys = rec.tool_keys || [];
+                var toolsHtml = '';
+                if (toolKeys.length > 0) {
+                    toolsHtml = toolKeys.map(function (k) {
+                        return '<span class="badge bg-info me-1" style="font-size:0.7rem;">' + escapeHtml(k) + '</span>';
+                    }).join('');
+                } else {
+                    toolsHtml = '<span class="text-muted" style="font-size:0.75rem;">—</span>';
+                }
+
                 tr.innerHTML =
                     '<td>' + escapeHtml(title) + '</td>' +
                     '<td><span class="badge" style="background:#a5b4fc;color:#020617;">' + escapeHtml(catLabel) + '</span></td>' +
                     '<td><small class="text-muted">' + escapeHtml(contentPreview) + '</small></td>' +
+                    '<td style="max-width:140px;">' + toolsHtml + '</td>' +
                     '<td>' + activeLabel + '</td>' +
                     '<td class="text-end">' +
                         '<button class="btn btn-sm btn-outline-primary me-1 btn-kb-edit" data-id="' + rec.id + '">✏️</button>' +
@@ -5734,11 +5805,20 @@ document.addEventListener('DOMContentLoaded', function () {
             const method = isUpdate ? 'PUT' : 'POST';
             const url = isUpdate ? API_BASE + '/' + id : API_BASE;
 
+            // Collect selected tool keys
+            var selectedTools = [];
+            if (kbTools) {
+                Array.from(kbTools.selectedOptions).forEach(function (opt) {
+                    if (opt.value) selectedTools.push(opt.value);
+                });
+            }
+
             const body = {
                 fid: parseInt(FID()) || 0,
                 title: kbTitle.value.trim(),
                 category: kbCategory.value,
                 content: kbContent.value.trim(),
+                tool_keys: selectedTools,
                 active: kbActive.checked,
             };
 
@@ -5893,6 +5973,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     description: toolDescription.value.trim(),
                     schema: schemaObj,
                     active: toolActive.checked,
+                    sort_order: parseInt(toolSort.value) || 0,
                 };
 
                 fetch(url, {

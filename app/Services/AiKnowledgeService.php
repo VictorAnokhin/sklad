@@ -137,10 +137,11 @@ class AiKnowledgeService
                 ->first();
 
             if ($existing) {
-                // Обновляем существующую запись
+                // Обновляем существующую запись, сохраняя tool_keys
                 $existing->update([
                     'content' => $content,
                     'source' => 'manual',
+                    'tool_keys' => $existing->tool_keys ?? [],
                 ]);
 
                 Log::info('AI knowledge: existing record updated.', [
@@ -215,6 +216,7 @@ class AiKnowledgeService
             'content' => trim((string) ($data['content'] ?? '')),
             'category' => trim((string) ($data['category'] ?? 'general')),
             'source' => trim((string) ($data['source'] ?? 'manual')),
+            'tool_keys' => $data['tool_keys'] ?? [],
             'active' => (bool) ($data['active'] ?? true),
         ]);
     }
