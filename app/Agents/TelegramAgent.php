@@ -326,7 +326,8 @@ class TelegramAgent
     }
 
     /**
-     * Сформировать результат задачи и уведомить вызвавшего агента.
+     * Сформировать результат задачи, уведомить вызвавшего агента
+     * и отправить ответ пользователю в Telegram.
      */
     private function taskResult(AgentTask $task, string $message): array
     {
@@ -341,6 +342,22 @@ class TelegramAgent
             $this->orchestrator->sendTaskResult($task, $result);
         } catch (Throwable $e) {
             Log::warning('TelegramAgent: sendTaskResult failed.', [
+                'error' => $e->getMessage(),
+                'task_uuid' => $task->uuid,
+            ]);
+        }
+
+        // ✅ Отправляем результат напрямую пользователю в Telegram
+        try {
+            $chatId = $task->input_data['chat_id'] ?? null;
+            if ($chatId) {
+                $this->bot->sendChatAction($chatId, 'typing');
+                $this->bot->sendMarkdown($chatId, $message);
+            }
+        } catch (Throwable $e) {
+            Log::warning('TelegramAgent: failed to send result to user chat.', [
+                'chat_id' => $chatId ?? null,
+                'task_uuid' => $task->uuid,
                 'error' => $e->getMessage(),
             ]);
         }
