@@ -364,4 +364,41 @@ return [
         'no_categories' => 'Категорії не додані',
         'loading' => 'Завантаження...',
     ],
+
+    'tools' => [
+        'modal_title' => '🔧 Інструменти AI',
+        'tab_label' => 'Інструменти',
+        'add' => 'Додати інструмент',
+        'edit' => 'Редагувати інструмент',
+        'key_label' => 'Ключ (ім\'я функції)',
+        'name_label' => 'Назва',
+        'description_label' => 'Опис',
+        'schema_label' => 'JSON-схема (parameters)',
+        'schema_placeholder' => '{
+    "type": "object",
+    "properties": {
+        "param1": {
+            "type": "string",
+            "description": "Опис параметра"
+        }
+    },
+    "required": ["param1"]
+}',
+        'active_label' => 'Активно',
+        'th_key' => 'Ключ',
+        'th_name' => 'Назва',
+        'th_active' => 'Актив.',
+        'th_description' => 'Опис',
+        'empty' => 'Інструменти не додані',
+        'delete_confirm' => 'Видалити інструмент?',
+        'toggle_active_confirm' => 'Змінити статус активності?',
+        'saved' => 'Інструмент збережено',
+        'deleted' => 'Інструмент видалено',
+        'load_error' => 'Помилка завантаження інструментів',
+        'save_error' => 'Помилка збереження інструмента',
+        'delete_error' => 'Помилка видалення інструмента',
+        'no_schema' => 'Схема не задана',
+        'invalid_json' => 'Невірний формат JSON',
+        'loading' => 'Завантаження...',
+    ],
 ];

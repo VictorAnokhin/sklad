@@ -364,4 +364,41 @@ return [
         'no_categories' => 'No categories added',
         'loading' => 'Loading...',
     ],
+
+    'tools' => [
+        'modal_title' => '🔧 AI Tools',
+        'tab_label' => 'Tools',
+        'add' => 'Add tool',
+        'edit' => 'Edit tool',
+        'key_label' => 'Key (function name)',
+        'name_label' => 'Name',
+        'description_label' => 'Description',
+        'schema_label' => 'JSON Schema (parameters)',
+        'schema_placeholder' => '{
+    "type": "object",
+    "properties": {
+        "param1": {
+            "type": "string",
+            "description": "Parameter description"
+        }
+    },
+    "required": ["param1"]
+}',
+        'active_label' => 'Active',
+        'th_key' => 'Key',
+        'th_name' => 'Name',
+        'th_active' => 'Active',
+        'th_description' => 'Description',
+        'empty' => 'No tools added yet',
+        'delete_confirm' => 'Delete tool?',
+        'toggle_active_confirm' => 'Toggle active status?',
+        'saved' => 'Tool saved',
+        'deleted' => 'Tool deleted',
+        'load_error' => 'Failed to load tools',
+        'save_error' => 'Failed to save tool',
+        'delete_error' => 'Failed to delete tool',
+        'no_schema' => 'No schema defined',
+        'invalid_json' => 'Invalid JSON format',
+        'loading' => 'Loading...',
+    ],
 ];

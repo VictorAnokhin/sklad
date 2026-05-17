@@ -1,0 +1,93 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
+
+class AiTool extends Model
+{
+    protected $table = 'ai_tools';
+
+    protected $fillable = [
+        'fid',
+        'key',
+        'name',
+        'description',
+        'schema',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+        'fid' => 'integer',
+        'schema' => 'array',
+    ];
+
+    /**
+     * Получить активные инструменты для проекта (fid) или глобальные (fid = null).
+     *
+     * @param  int|null  $fid  ID проекта. Если null — возвращаются только глобальные.
+     * @return Collection<int, AiTool>
+     */
+    public static function getActive(?int $fid = null): Collection
+    {
+        return self::forFid($fid)
+            ->where('active', true)
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Получить все инструменты для проекта (fid) или глобальные (fid = null).
+     *
+     * @param  int|null  $fid  ID проекта. Если null — возвращаются только глобальные.
+     * @return Collection<int, AiTool>
+     */
+    public static function getAllForFid(?int $fid = null): Collection
+    {
+        return self::forFid($fid)
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Scope: фильтр по fid.
+     * Если fid = null — возвращаются только глобальные инструменты (fid IS NULL).
+     * Если fid задан — возвращаются инструменты этого проекта (fid = ...).
+     */
+    public function scopeForFid($query, ?int $fid)
+    {
+        if ($fid === null) {
+            return $query->whereNull('fid');
+        }
+
+        return $query->where(function ($q) use ($fid) {
+            $q->where('fid', $fid)
+              ->orWhereNull('fid');
+        });
+    }
+
+    /**
+     * Получить отформатированный список инструментов для system prompt AI.
+     * Возвращает массив в формате OpenAI function calling.
+     *
+     * @param  int|null  $fid
+     * @return array
+     */
+    public static function getToolsForPrompt(?int $fid = null): array
+    {
+        $tools = self::getActive($fid);
+
+        return $tools->map(function (AiTool $tool) {
+            return [
+                'type' => 'function',
+                'function' => [
+                    'name' => $tool->key,
+                    'description' => $tool->description ?? $tool->name,
+                    'parameters' => $tool->schema,
+                ],
+            ];
+        })->values()->toArray();
+    }
+}

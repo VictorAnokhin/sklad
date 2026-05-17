@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\AiClientInterface;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
+use App\Models\AiTool;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -226,7 +227,14 @@ class ChatService
 
         // ── Отправка с function calling или обычный запрос ──
         if ($useDbTools && $fid > 0) {
+            // Базовые инструменты из DbQueryService
             $tools = $this->dbQuery->getTools();
+
+            // Пользовательские инструменты из таблицы ai_tools
+            $customTools = AiTool::getToolsForPrompt($fid);
+            if (!empty($customTools)) {
+                $tools = array_merge($tools, $customTools);
+            }
 
             $toolExecutor = function (string $name, array $arguments) use ($fid, $firma): string {
                 return $this->dbQuery->executeTool($fid, $firma, $name, $arguments);

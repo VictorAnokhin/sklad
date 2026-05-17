@@ -1131,11 +1131,14 @@
 <div class="modal fade" id="modalKnowledgeBase" tabindex="-1" aria-labelledby="modalKnowledgeBaseLabel" aria-hidden="true" data-session-fid="{{ $fid ?? '' }}">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content glass-card border-0">
-            <div class="modal-header d-flex align-items-center">
+            <div class="modal-header d-flex align-items-center flex-wrap gap-1">
                 <h5 class="modal-title" id="modalKnowledgeBaseLabel">🧠 {{ __('settings.cards.knowledge_base.modal_title') }}</h5>
-                <button type="button" class="btn btn-sm btn-primary" id="btn-kb-add">+ {{ __('settings.common.add') }}</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btn-kb-manage-categories" title="{{ __('settings.knowledge_base.manage_categories') }}">⚙️ <span class="d-none d-md-inline">{{ __('settings.knowledge_base.manage_categories') }}</span></button>
-                <button type="button" class="btn-close ms-3" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
+                <div class="d-flex align-items-center gap-1 ms-auto">
+                    <button type="button" class="btn btn-sm btn-primary" id="btn-kb-add">+ {{ __('settings.common.add') }}</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-kb-manage-categories" title="{{ __('settings.knowledge_base.manage_categories') }}">⚙️ <span class="d-none d-md-inline">{{ __('settings.knowledge_base.manage_categories') }}</span></button>
+                    <button type="button" class="btn btn-sm btn-outline-info" id="btn-kb-manage-tools" title="{{ __('settings.tools.modal_title') }}">🔧 <span class="d-none d-md-inline">{{ __('settings.tools.tab_label') }}</span></button>
+                    <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
+                </div>
             </div>
 
             <!-- Форма добавления/редактирования -->
@@ -1267,6 +1270,79 @@
                     </table>
                 </div>
                 <p class="text-center text-muted" id="kb-category-empty" style="display:none">{{ __('settings.knowledge_base.no_categories') }}</p>
+            </div>
+
+            <!-- Управление инструментами (скрыто по умолчанию) -->
+            <div class="modal-body" id="kb-tools-area" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">🔧 {{ __('settings.tools.modal_title') }}</h6>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-success" id="btn-kb-tool-add">+ {{ __('settings.common.add') }}</button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="btn-kb-tool-back">← {{ __('settings.common.back') }}</button>
+                    </div>
+                </div>
+
+                <!-- Форма добавления/редактирования инструмента -->
+                <div id="kb-tool-form-area" style="display:none;" class="card card-body mb-3 bg-light">
+                    <form id="kb-tool-form">
+                        <input type="hidden" id="kb-tool-id" value="">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label mb-1"><small>{{ __('settings.tools.key_label') }} <span class="text-danger">*</span></small></label>
+                                <input type="text" class="form-control form-control-sm" id="kb-tool-key" maxlength="80" required placeholder="function_name">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label mb-1"><small>{{ __('settings.tools.name_label') }} <span class="text-danger">*</span></small></label>
+                                <input type="text" class="form-control form-control-sm" id="kb-tool-name" maxlength="255" required placeholder="{{ __('settings.tools.name_label') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label mb-1"><small>{{ __('settings.common.sort') ?? 'Sort' }}</small></label>
+                                <input type="number" class="form-control form-control-sm" id="kb-tool-sort" value="0" min="0" max="65535">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="kb-tool-active" checked>
+                                    <label class="form-check-label"><small>{{ __('settings.tools.active_label') }}</small></label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-12">
+                                <label class="form-label mb-1"><small>{{ __('settings.tools.description_label') }}</small></label>
+                                <textarea class="form-control form-control-sm" id="kb-tool-description" rows="2" maxlength="5000" placeholder="{{ __('settings.tools.description_label') }}"></textarea>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-12">
+                                <label class="form-label mb-1"><small>{{ __('settings.tools.schema_label') }} <span class="text-danger">*</span></small></label>
+                                <textarea class="form-control form-control-sm font-monospace" id="kb-tool-schema" rows="6" required placeholder='{{ __('settings.tools.schema_placeholder') }}'></textarea>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button type="submit" class="btn btn-sm btn-success">💾 {{ __('settings.common.save') }}</button>
+                            <button type="button" class="btn btn-sm btn-secondary" id="btn-kb-tool-form-cancel">{{ __('settings.common.cancel') }}</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Список инструментов -->
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th class="kb-tool-key-col">{{ __('settings.tools.th_key') }}</th>
+                                <th class="kb-tool-name-col">{{ __('settings.tools.th_name') }}</th>
+                                <th class="kb-tool-desc-col">{{ __('settings.tools.th_description') }}</th>
+                                <th class="text-center kb-tool-active-col" style="width:60px;">{{ __('settings.tools.th_active') }}</th>
+                                <th class="text-end kb-tool-actions-col" style="width:160px;">{{ __('settings.common.actions') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kb-tool-tbody">
+                            <tr><td colspan="5" class="text-center text-muted">{{ __('settings.tools.loading') }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-center text-muted" id="kb-tool-empty" style="display:none">{{ __('settings.tools.empty') }}</p>
             </div>
         </div>
     </div>
@@ -4891,8 +4967,27 @@ document.addEventListener('DOMContentLoaded', function () {
         const catSort = document.getElementById('kb-category-sort');
         const catActive = document.getElementById('kb-category-active');
 
+        // Tools management elements
+        const toolsArea = document.getElementById('kb-tools-area');
+        const toolFormArea = document.getElementById('kb-tool-form-area');
+        const toolForm = document.getElementById('kb-tool-form');
+        const toolTbody = document.getElementById('kb-tool-tbody');
+        const toolEmpty = document.getElementById('kb-tool-empty');
+        const btnToolAdd = document.getElementById('btn-kb-tool-add');
+        const btnToolBack = document.getElementById('btn-kb-tool-back');
+        const btnToolFormCancel = document.getElementById('btn-kb-tool-form-cancel');
+        const btnManageTools = document.getElementById('btn-kb-manage-tools');
+        const toolId = document.getElementById('kb-tool-id');
+        const toolKey = document.getElementById('kb-tool-key');
+        const toolName = document.getElementById('kb-tool-name');
+        const toolSort = document.getElementById('kb-tool-sort');
+        const toolDescription = document.getElementById('kb-tool-description');
+        const toolSchema = document.getElementById('kb-tool-schema');
+        const toolActive = document.getElementById('kb-tool-active');
+
         const API_BASE = '/api/ai/knowledge-base';
         const CATEGORY_API_BASE = '/api/ai/knowledge-base/categories';
+        const TOOLS_API_BASE = '/api/ai/tools';
         const CSRF = () => document.querySelector('meta[name="csrf-token"]').content;
         const FID = () => document.getElementById('kb-fid')?.value || '';
 
@@ -4916,6 +5011,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const v = String(path || '').split('.').reduce(function (acc, key) {
                 return acc && acc[key] !== undefined ? acc[key] : undefined;
             }, window.SettingsI18n?.knowledge_base || {});
+            return v !== undefined && v !== null ? v : path;
+        }
+
+        function _kbt(path) {
+            const v = String(path || '').split('.').reduce(function (acc, key) {
+                return acc && acc[key] !== undefined ? acc[key] : undefined;
+            }, window.SettingsI18n?.tools || {});
             return v !== undefined && v !== null ? v : path;
         }
 
@@ -5137,6 +5239,172 @@ document.addEventListener('DOMContentLoaded', function () {
             catForm.reset();
             catId.value = '';
             catKey.readOnly = false;
+        }
+
+        // ── Tools CRUD ──
+
+        function showToolArea() {
+            if (toolsArea) {
+                listArea.style.display = 'none';
+                formArea.style.display = 'none';
+                catArea.style.display = 'none';
+                toolsArea.style.display = 'block';
+                btnAdd.style.display = 'none';
+                hideToolForm();
+                loadTools();
+            }
+        }
+
+        function hideToolArea() {
+            if (toolsArea) {
+                toolsArea.style.display = 'none';
+                listArea.style.display = 'block';
+                btnAdd.style.display = 'inline-block';
+                hideToolForm();
+            }
+        }
+
+        function showToolForm(record) {
+            if (!toolFormArea) return;
+            toolFormArea.style.display = 'block';
+
+            if (record) {
+                toolId.value = record.id;
+                toolKey.value = record.key || '';
+                toolName.value = record.name || '';
+                toolDescription.value = record.description || '';
+                toolSchema.value = JSON.stringify(record.schema || {}, null, 4);
+                toolActive.checked = record.active !== false;
+                toolKey.readOnly = true;
+            } else {
+                toolId.value = '';
+                toolKey.value = '';
+                toolName.value = '';
+                toolDescription.value = '';
+                toolSchema.value = '';
+                toolActive.checked = true;
+                toolKey.readOnly = false;
+            }
+        }
+
+        function hideToolForm() {
+            if (!toolFormArea) return;
+            toolFormArea.style.display = 'none';
+            toolForm.reset();
+            toolId.value = '';
+            toolKey.readOnly = false;
+        }
+
+        function loadTools() {
+            if (!toolTbody) return;
+            toolTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">' + _kbt('loading') + '</td></tr>';
+
+            var fidParam = FID() ? '?fid=' + FID() : '';
+            fetch(TOOLS_API_BASE + '/all' + fidParam, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    const tools = data.data || [];
+                    toolTbody.innerHTML = '';
+
+                    if (tools.length === 0) {
+                        toolEmpty.style.display = 'block';
+                        return;
+                    }
+                    toolEmpty.style.display = 'none';
+
+                    tools.forEach(function (t) {
+                        var tr = document.createElement('tr');
+                        var activeIcon = t.active ? '✅' : '❌';
+                        var toggleIcon = t.active ? '❌' : '✅';
+                        var descPreview = (t.description || '').substring(0, 60) + ((t.description || '').length > 60 ? '...' : '');
+
+                        tr.innerHTML =
+                            '<td><code>' + escapeHtml(t.key) + '</code></td>' +
+                            '<td>' + escapeHtml(t.name) + '</td>' +
+                            '<td><small class="text-muted">' + escapeHtml(descPreview || _kbt('no_schema')) + '</small></td>' +
+                            '<td class="text-center">' + activeIcon + '</td>' +
+                            '<td class="text-end">' +
+                                '<button class="btn btn-sm btn-outline-primary me-1 btn-tool-edit" data-id="' + t.id + '">✏️</button>' +
+                                '<button class="btn btn-sm btn-outline-warning me-1 btn-tool-toggle" data-id="' + t.id + '" data-active="' + (t.active ? '1' : '0') + '">' + toggleIcon + '</button>' +
+                                '<button class="btn btn-sm btn-outline-danger btn-tool-delete" data-id="' + t.id + '">🗑</button>' +
+                            '</td>';
+
+                        toolTbody.appendChild(tr);
+                    });
+
+                    // Edit button handlers
+                    toolTbody.querySelectorAll('.btn-tool-edit').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            var id = parseInt(this.dataset.id);
+                            fetch(TOOLS_API_BASE + '/' + id, {
+                                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            })
+                                .then(function (r) { return r.json(); })
+                                .then(function (data) {
+                                    if (data.data) showToolForm(data.data);
+                                })
+                                .catch(function () { alert(_kbt('load_error')); });
+                        });
+                    });
+
+                    // Toggle active handler
+                    toolTbody.querySelectorAll('.btn-tool-toggle').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            if (!confirm(_kbt('toggle_active_confirm'))) return;
+                            var id = parseInt(this.dataset.id);
+                            var newActive = this.dataset.active === '1' ? '0' : '1';
+                            fetch(TOOLS_API_BASE + '/' + id, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': CSRF(),
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: JSON.stringify({ active: newActive === '1' }),
+                            })
+                                .then(function (r) { return r.json(); })
+                                .then(function (data) {
+                                    if (data.data) {
+                                        loadTools();
+                                    } else {
+                                        alert(_kbt('save_error'));
+                                    }
+                                })
+                                .catch(function () { alert(_kbt('save_error')); });
+                        });
+                    });
+
+                    // Delete handler
+                    toolTbody.querySelectorAll('.btn-tool-delete').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            if (!confirm(_kbt('delete_confirm'))) return;
+                            var id = parseInt(this.dataset.id);
+                            fetch(TOOLS_API_BASE + '/' + id, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': CSRF(),
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                            })
+                                .then(function (r) { return r.json(); })
+                                .then(function (data) {
+                                    if (data.message) {
+                                        loadTools();
+                                    } else {
+                                        alert(_kbt('delete_error'));
+                                    }
+                                })
+                                .catch(function () { alert(_kbt('delete_error')); });
+                        });
+                    });
+                })
+                .catch(function () {
+                    toolTbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">' + _kbt('load_error') + '</td></tr>';
+                });
         }
 
         // ── Knowledge Base CRUD ──
@@ -5419,6 +5687,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             hideForm();
             if (catArea) catArea.style.display = 'none';
+            if (toolsArea) toolsArea.style.display = 'none';
             currentPage = 1;
             lastSearchQuery = '';
             lastCategory = '';
@@ -5438,7 +5707,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (catArea && catArea.style.display === 'block') {
                     hideCategoryArea();
                 } else {
+                    if (toolsArea) toolsArea.style.display = 'none';
                     showCategoryArea();
+                }
+            });
+        }
+
+        // Manage tools button
+        if (btnManageTools) {
+            btnManageTools.addEventListener('click', function () {
+                if (toolsArea && toolsArea.style.display === 'block') {
+                    hideToolArea();
+                } else {
+                    if (catArea) catArea.style.display = 'none';
+                    showToolArea();
                 }
             });
         }
@@ -5567,6 +5849,73 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     })
                     .catch(() => alert(_kbs('save_error')));
+            });
+        }
+
+        // ── Tools Event Listeners ──
+
+        if (btnToolAdd) {
+            btnToolAdd.addEventListener('click', function () {
+                showToolForm(null);
+            });
+        }
+
+        if (btnToolBack) {
+            btnToolBack.addEventListener('click', hideToolArea);
+        }
+
+        if (btnToolFormCancel) {
+            btnToolFormCancel.addEventListener('click', hideToolForm);
+        }
+
+        if (toolForm) {
+            toolForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const id = toolId.value;
+                const isUpdate = id !== '';
+                const method = isUpdate ? 'PUT' : 'POST';
+                const url = isUpdate ? TOOLS_API_BASE + '/' + id : TOOLS_API_BASE;
+
+                // Parse schema JSON
+                var schemaRaw = toolSchema.value.trim();
+                var schemaObj;
+                try {
+                    schemaObj = JSON.parse(schemaRaw);
+                } catch (err) {
+                    alert(_kbt('save_error') + ': ' + _kbt('invalid_json'));
+                    return;
+                }
+
+                const body = {
+                    fid: parseInt(FID()) || null,
+                    key: toolKey.value.trim(),
+                    name: toolName.value.trim(),
+                    description: toolDescription.value.trim(),
+                    schema: schemaObj,
+                    active: toolActive.checked,
+                };
+
+                fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': CSRF(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify(body),
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.data || data.message) {
+                            hideToolForm();
+                            loadTools();
+                            alert(_kbt('saved'));
+                        } else {
+                            alert(data.message || _kbt('save_error'));
+                        }
+                    })
+                    .catch(function () { alert(_kbt('save_error')); });
             });
         }
     })();
