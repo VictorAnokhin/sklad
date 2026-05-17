@@ -58,6 +58,16 @@ class AiClientFactory
             $client->setModel($modelOverride);
         }
 
+        // Устанавливаем температуру, если указана
+        if ($temperature !== null) {
+            $client->setTemperature((float) $temperature);
+        }
+
+        // Устанавливаем max_tokens, если указаны
+        if ($maxTokens !== null) {
+            $client->setMaxTokens((int) $maxTokens);
+        }
+
         return $client;
     }
 
