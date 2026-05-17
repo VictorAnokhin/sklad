@@ -86,6 +86,32 @@ class AgentQueueStatus extends Command
                 );
         }
 
+        if (Schema::hasTable('agent_communications')) {
+            $this->info("Latest {$limit} agent communications");
+            $communications = DB::table('agent_communications')
+                ->latest('id')
+                ->limit($limit)
+                ->get()
+                ->map(fn ($communication) => [
+                    $communication->id,
+                    $communication->task_id ?? '',
+                    $communication->source_agent,
+                    $communication->target_agent,
+                    $communication->message_type,
+                    $communication->status,
+                    $communication->created_at ?? '',
+                    mb_substr((string) $communication->content, 0, 180),
+                ])
+                ->all();
+
+            $communications === []
+                ? $this->line('none')
+                : $this->table(
+                    ['id', 'task_id', 'source', 'target', 'type', 'status', 'created', 'content'],
+                    $communications,
+                );
+        }
+
         if (Schema::hasTable('failed_jobs')) {
             $this->info("Latest {$limit} failed jobs");
             $failed = DB::table('failed_jobs')
