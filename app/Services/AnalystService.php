@@ -9,7 +9,11 @@ use Throwable;
 
 class AnalystService
 {
-    private const DEFAULT_FID = 12;
+    /**
+     * FID по умолчанию для сохранения данных, если явно не указан.
+     * Используется, когда запрос приходит без привязки к проекту.
+     */
+    private const DEFAULT_FID = 1;
 
     public function __construct(
         private readonly WebScraperService $scraper,
@@ -39,6 +43,8 @@ class AnalystService
 
     /**
      * Исполнить tool по имени.
+     *
+     * @param  array<string, mixed>  $arguments  Аргументы должны содержать 'fid' для сохранения данных
      */
     public function executeTool(string $name, array $arguments): string
     {
@@ -56,6 +62,14 @@ class AnalystService
             'publish_review' => $this->executePublishReview($arguments),
             default => json_encode(['error' => "Unknown tool: {$name}"]),
         };
+    }
+
+    /**
+     * Извлечь FID из аргументов или вернуть DEFAULT_FID.
+     */
+    private function resolveFid(array $args): int
+    {
+        return (int) ($args['fid'] ?? self::DEFAULT_FID);
     }
 
     // ── Определения tools ──────────────────────────────────────────────────
@@ -108,6 +122,11 @@ class AnalystService
                             'description' => 'Тип контента: website, news, documentation, protocol, social, api, other',
                             'enum' => ['website', 'news', 'documentation', 'protocol', 'social', 'api', 'other'],
                         ],
+                        'fid' => [
+                            'type' => 'integer',
+                            'description' => 'ID проекта (fid), к которому относится источник',
+                            'default' => 1,
+                        ],
                     ],
                     'required' => ['url', 'title', 'summary', 'content_type'],
                 ],
@@ -121,7 +140,7 @@ class AnalystService
             'type' => 'function',
             'function' => [
                 'name' => 'search_sources',
-                'description' => 'Поиск по сохранённым источникам. Позволяет найти ранее собранную информацию по ключевым словам.',
+                'description' => 'Поиск по сохранённым источникам. Позволяет найти ранее собранную информацию по ключевым словам. Ищет по ВСЕМ проектам.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -154,6 +173,11 @@ class AnalystService
                         'topic' => [
                             'type' => 'string',
                             'description' => 'Тема исследования (например: "Анализ протокола Suilend", "Обзор DeFi на Sui")',
+                        ],
+                        'fid' => [
+                            'type' => 'integer',
+                            'description' => 'ID проекта (fid)',
+                            'default' => 1,
                         ],
                     ],
                     'required' => ['topic'],
@@ -193,7 +217,7 @@ class AnalystService
             'type' => 'function',
             'function' => [
                 'name' => 'list_researches',
-                'description' => 'Получить список всех исследований (завершённых и в процессе).',
+                'description' => 'Получить список всех исследований (завершённых и в процессе) по ВСЕМ проектам.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -231,6 +255,11 @@ class AnalystService
                             'type' => 'string',
                             'description' => 'Категория: defi, protocol, token, market, news, analysis, strategy, security',
                             'default' => 'analysis',
+                        ],
+                        'fid' => [
+                            'type' => 'integer',
+                            'description' => 'ID проекта (fid), к которому относится знание',
+                            'default' => 1,
                         ],
                     ],
                     'required' => ['title', 'content'],
@@ -277,9 +306,11 @@ class AnalystService
 
     private function executeSaveSource(array $args): string
     {
+        $fid = $this->resolveFid($args);
+
         try {
             $source = AnalystSource::create([
-                'fid' => self::DEFAULT_FID,
+                'fid' => $fid,
                 'url' => $args['url'] ?? '',
                 'title' => $args['title'] ?? '',
                 'summary' => $args['summary'] ?? '',
@@ -290,11 +321,12 @@ class AnalystService
             return json_encode([
                 'success' => true,
                 'id' => $source->id,
-                'message' => "Источник сохранён: {$source->title}",
+                'fid' => $fid,
+                'message' => "Источник сохранён в проекте fid={$fid}: {$source->title}",
             ], JSON_UNESCAPED_UNICODE);
 
         } catch (Throwable $e) {
-            Log::error('Analyst: save_source failed.', ['error' => $e->getMessage()]);
+            Log::error('Analyst: save_source failed.', ['fid' => $fid, 'error' => $e->getMessage()]);
             return json_encode(['error' => 'Ошибка сохранения источника: ' . $e->getMessage()]);
         }
     }
@@ -303,20 +335,23 @@ class AnalystService
     {
         $query = trim((string) ($args['query'] ?? ''));
         $limit = min((int) ($args['limit'] ?? 10), 50);
+        $fid = $this->resolveFid($args);
 
         if ($query === '') {
             return json_encode(['error' => 'Query is required']);
         }
 
         try {
-            $sources = AnalystSource::forFid(self::DEFAULT_FID)
-                ->search($query)
+            // Поиск по ВСЕМ проектам (не фильтруем по fid)
+            $sources = AnalystSource::search($query)
                 ->orderBy('created_at', 'desc')
                 ->limit($limit)
-                ->get(['id', 'title', 'url', 'summary', 'content_type', 'created_at']);
+                ->get(['id', 'fid', 'title', 'url', 'summary', 'content_type', 'created_at']);
 
             return json_encode([
                 'found' => $sources->count(),
+                'search_fid' => $fid,
+                'searched_all_projects' => true,
                 'sources' => $sources->toArray(),
             ], JSON_UNESCAPED_UNICODE);
 
@@ -329,6 +364,7 @@ class AnalystService
     private function executeStartResearch(array $args): string
     {
         $topic = trim((string) ($args['topic'] ?? ''));
+        $fid = $this->resolveFid($args);
 
         if ($topic === '') {
             return json_encode(['error' => 'Topic is required']);
@@ -336,7 +372,7 @@ class AnalystService
 
         try {
             $research = AnalystResearch::create([
-                'fid' => self::DEFAULT_FID,
+                'fid' => $fid,
                 'topic' => $topic,
                 'status' => 'in_progress',
             ]);
@@ -344,12 +380,13 @@ class AnalystService
             return json_encode([
                 'success' => true,
                 'id' => $research->id,
+                'fid' => $fid,
                 'topic' => $research->topic,
-                'message' => "Исследование «{$topic}» начато. ID: {$research->id}",
+                'message' => "Исследование «{$topic}» начато в проекте fid={$fid}. ID: {$research->id}",
             ], JSON_UNESCAPED_UNICODE);
 
         } catch (Throwable $e) {
-            Log::error('Analyst: start_research failed.', ['error' => $e->getMessage()]);
+            Log::error('Analyst: start_research failed.', ['fid' => $fid, 'error' => $e->getMessage()]);
             return json_encode(['error' => 'Ошибка создания исследования: ' . $e->getMessage()]);
         }
     }
@@ -379,6 +416,7 @@ class AnalystService
             return json_encode([
                 'success' => true,
                 'id' => $research->id,
+                'fid' => $research->fid,
                 'topic' => $research->topic,
                 'sources_count' => $research->sources()->count(),
                 'message' => "Исследование «{$research->topic}» завершено.",
@@ -393,17 +431,20 @@ class AnalystService
     private function executeListResearches(array $args): string
     {
         $limit = min((int) ($args['limit'] ?? 20), 50);
+        $fid = $this->resolveFid($args);
 
         try {
-            $researches = AnalystResearch::forFid(self::DEFAULT_FID)
-                ->orderBy('created_at', 'desc')
+            // Показываем исследования ВСЕХ проектов
+            $researches = AnalystResearch::orderBy('created_at', 'desc')
                 ->limit($limit)
                 ->get();
 
             return json_encode([
                 'found' => $researches->count(),
+                'listed_all_projects' => true,
                 'researches' => $researches->map(fn (AnalystResearch $r) => [
                     'id' => $r->id,
+                    'fid' => $r->fid,
                     'topic' => $r->topic,
                     'summary' => $r->summary,
                     'status' => $r->status,
@@ -424,6 +465,7 @@ class AnalystService
         $title = trim((string) ($args['title'] ?? ''));
         $content = trim((string) ($args['content'] ?? ''));
         $category = trim((string) ($args['category'] ?? 'analysis'));
+        $fid = $this->resolveFid($args);
 
         if ($title === '' || $content === '') {
             return json_encode(['error' => 'title and content are required']);
@@ -432,7 +474,7 @@ class AnalystService
         try {
             // Сохраняем как в analyst_sources (для контекста аналитика)
             $source = AnalystSource::create([
-                'fid' => self::DEFAULT_FID,
+                'fid' => $fid,
                 'url' => null,
                 'title' => $title,
                 'content' => $content,
@@ -446,7 +488,7 @@ class AnalystService
             if (class_exists(\App\Models\AiKnowledgeBase::class)) {
                 try {
                     \App\Models\AiKnowledgeBase::create([
-                        'fid' => self::DEFAULT_FID,
+                        'fid' => $fid,
                         'title' => $title,
                         'content' => $content,
                         'category' => $category,
@@ -455,19 +497,20 @@ class AnalystService
                     ]);
                     $kbSaved = true;
                 } catch (Throwable $e) {
-                    Log::warning('Analyst: failed to save to AiKnowledgeBase.', ['error' => $e->getMessage()]);
+                    Log::warning('Analyst: failed to save to AiKnowledgeBase.', ['fid' => $fid, 'error' => $e->getMessage()]);
                 }
             }
 
             return json_encode([
                 'success' => true,
                 'source_id' => $source->id,
+                'fid' => $fid,
                 'knowledge_base_saved' => $kbSaved,
-                'message' => "Знание «{$title}» сохранено.",
+                'message' => "Знание «{$title}» сохранено в проекте fid={$fid}.",
             ], JSON_UNESCAPED_UNICODE);
 
         } catch (Throwable $e) {
-            Log::error('Analyst: save_knowledge failed.', ['error' => $e->getMessage()]);
+            Log::error('Analyst: save_knowledge failed.', ['fid' => $fid, 'error' => $e->getMessage()]);
             return json_encode(['error' => 'Ошибка сохранения знания: ' . $e->getMessage()]);
         }
     }
@@ -489,7 +532,7 @@ class AnalystService
 
             $sources = $research->sources()
                 ->orderBy('created_at', 'desc')
-                ->get(['id', 'title', 'url', 'summary', 'content_type', 'created_at']);
+                ->get(['id', 'fid', 'title', 'url', 'summary', 'content_type', 'created_at']);
 
             return json_encode([
                 'research_id' => $research->id,
@@ -533,7 +576,7 @@ class AnalystService
                         'fid' => [
                             'type' => 'integer',
                             'description' => 'ID проекта (fid), к которому относится статья. Определи из контекста',
-                            'default' => 12,
+                            'default' => 1,
                         ],
                     ],
                     'required' => ['title', 'content', 'summary'],
@@ -571,7 +614,7 @@ class AnalystService
                         'fid' => [
                             'type' => 'integer',
                             'description' => 'ID проекта (fid)',
-                            'default' => 12,
+                            'default' => 1,
                         ],
                     ],
                     'required' => ['title', 'content'],
@@ -610,7 +653,7 @@ class AnalystService
                         'fid' => [
                             'type' => 'integer',
                             'description' => 'ID проекта (fid)',
-                            'default' => 12,
+                            'default' => 1,
                         ],
                     ],
                     'required' => ['title', 'content', 'summary'],
@@ -642,6 +685,7 @@ class AnalystService
             $saved['knowledge_base'] = true;
         } catch (Throwable $e) {
             Log::warning("Analyst: savePublication (AiKnowledgeBase, {$category}) failed.", [
+                'fid' => $fid,
                 'error' => $e->getMessage(),
             ]);
         }
@@ -668,6 +712,7 @@ class AnalystService
             $saved['analyst_source'] = true;
         } catch (Throwable $e) {
             Log::warning("Analyst: savePublication (AnalystSource, {$category}) failed.", [
+                'fid' => $fid,
                 'error' => $e->getMessage(),
             ]);
         }
@@ -680,7 +725,7 @@ class AnalystService
         $title = trim((string) ($args['title'] ?? ''));
         $content = trim((string) ($args['content'] ?? ''));
         $summary = trim((string) ($args['summary'] ?? ''));
-        $fid = (int) ($args['fid'] ?? self::DEFAULT_FID);
+        $fid = $this->resolveFid($args);
 
         if ($title === '' || $content === '') {
             return json_encode(['error' => 'title and content are required']);
@@ -704,7 +749,7 @@ class AnalystService
         $content = trim((string) ($args['content'] ?? ''));
         $summary = trim((string) ($args['summary'] ?? ''));
         $sourceUrl = trim((string) ($args['source_url'] ?? ''));
-        $fid = (int) ($args['fid'] ?? self::DEFAULT_FID);
+        $fid = $this->resolveFid($args);
 
         if ($title === '' || $content === '') {
             return json_encode(['error' => 'title and content are required']);
@@ -731,7 +776,7 @@ class AnalystService
         $title = trim((string) ($args['title'] ?? ''));
         $content = trim((string) ($args['content'] ?? ''));
         $summary = trim((string) ($args['summary'] ?? ''));
-        $fid = (int) ($args['fid'] ?? self::DEFAULT_FID);
+        $fid = $this->resolveFid($args);
         $rating = isset($args['rating']) ? (int) $args['rating'] : null;
 
         if ($title === '' || $content === '') {

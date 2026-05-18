@@ -12,18 +12,23 @@ use App\Services\AiKnowledgeService;
 use App\Services\AnalystService;
 use App\Services\WebScraperService;
 use App\Models\ChatMessage;
+use App\Traits\ChatLoopDetectionTrait;
+use App\Traits\ChatSessionManagerTrait;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class TelegramAgent
 {
+    use ChatLoopDetectionTrait;
+    use ChatSessionManagerTrait;
+
     const ANALYST_FID = 12;
 
-    /** Максимальное количество повторяющихся ответов AI до принудительного прерывания */
-    const MAX_CONSECUTIVE_SIMILAR_ANSWERS = 2;
+    /** @var array<string, int> Счётчик вызовов tools для rate limiting */
+    private array $toolCallCount = [];
 
-    /** Минимальная длина ответа для проверки на повторение */
-    const MIN_ANSWER_LENGTH_FOR_COMPARISON = 30;
+    /** @var int Максимальное количество вызовов tools за один диалог */
+    private const MAX_TOOL_CALLS = 25;
 
     private readonly AiClientInterface $ai;
 
@@ -35,6 +40,25 @@ class TelegramAgent
         private AnalystService $analyst,
     ) {
         $this->ai = $this->aiFactory->make('telegram');
+        // Настройки трейта ChatSessionManagerTrait
+        $this->telegramTokenPrefix = 'tg_agent_';
+        $this->defaultAnalystFid = self::ANALYST_FID;
+    }
+
+    /**
+     * Получить имя провайдера для метаданных (требуется трейтами).
+     */
+    protected function getProviderNameForMetadata(): string
+    {
+        return $this->ai?->getProviderName() ?? 'unknown';
+    }
+
+    /**
+     * Получить экземпляр бота (требуется ChatLoopDetectionTrait::breakTheLoop).
+     */
+    protected function getBot(): TelegramBotService
+    {
+        return $this->bot;
     }
 
     /**
@@ -72,6 +96,7 @@ class TelegramAgent
         $chatId = $message['chat']['id'] ?? 0;
         $text = trim($message['text'] ?? '');
         $username = $message['from']['username'] ?? ($message['chat']['username'] ?? '');
+        $fid = $message['fid'] ?? self::ANALYST_FID;
 
         if (empty($text)) {
             return '';
@@ -81,14 +106,17 @@ class TelegramAgent
             return $this->handleCommand($chatId, $text, $username);
         }
 
-        return $this->handleAiDialog($chatId, $text, $message);
+        return $this->handleAiDialog($chatId, $text, $message, $fid);
     }
 
     /**
-     * Выполнить задачу, делегированную от другого агента (TelegramChatService, BackendAgent).
+     * Выполнить задачу, делегированную от другого агента.
+     * Сохраняет данные под fid из задачи.
      */
     public function executeTask(AgentTask $task): array
     {
+        $this->toolCallCount = [];
+
         return match ($task->task_type) {
             'send_message' => $this->sendTelegramMessage($task),
             'forward_to_user' => $this->forwardToUser($task),
@@ -169,12 +197,10 @@ class TelegramAgent
 
     private function cmdClear(int|string $chatId): string
     {
-        // Архивируем текущую активную сессию (если есть)
         ChatSession::where('session_token', 'like', 'tg_agent_' . $chatId . '%')
             ->where('status', 'active')
             ->update(['status' => 'archived']);
 
-        // Создаём новую сессию с уникальным токеном
         $this->resolveSession($chatId, true);
 
         return $this->bot->sendMessage($chatId, "🧹 История диалога очищена. Задавайте новый вопрос!");
@@ -182,12 +208,10 @@ class TelegramAgent
 
     private function cmdNew(int|string $chatId): string
     {
-        // Архивируем все активные сессии для этого чата
         ChatSession::where('session_token', 'like', 'tg_agent_' . $chatId . '%')
             ->where('status', 'active')
             ->update(['status' => 'archived']);
 
-        // Создаём новую сессию с уникальным токеном
         $this->resolveSession($chatId, true);
 
         return $this->bot->sendMessage($chatId, "🆕 Начинаем новый диалог. Задавайте вопрос!");
@@ -197,14 +221,15 @@ class TelegramAgent
 
     /**
      * Изучить сайт: парсит, сохраняет источник, возвращает отчёт.
+     * Сохраняет данные под fid из задачи.
      */
     private function executeStudyWebsite(AgentTask $task): array
     {
         $url = $task->input_data['url'] ?? '';
         $query = $task->input_data['query'] ?? '';
+        $fid = $task->fid;
 
         try {
-            // Загружаем страницу через WebScraperService
             $scraper = app(WebScraperService::class);
             $result = $scraper->fetchUrl($url);
 
@@ -215,19 +240,21 @@ class TelegramAgent
             $content = $result['content'] ?? '';
             $title = $result['title'] ?? $url;
 
-            // Сохраняем источник
+            // Сохраняем источник с fid из задачи
             $sourceResult = $this->analyst->executeTool('save_source', [
                 'url' => $url,
                 'title' => $title,
                 'summary' => mb_substr($content, 0, 500),
                 'content_type' => 'website',
+                'fid' => $fid,
             ]);
 
-            // Сохраняем в базу знаний
+            // Сохраняем в базу знаний с fid из задачи
             $kbResult = $this->analyst->executeTool('save_knowledge', [
                 'title' => "Анализ сайта: {$title}",
                 'content' => "URL: {$url}\n\n{$content}",
                 'category' => 'analysis',
+                'fid' => $fid,
             ]);
 
             $summary = mb_substr($content, 0, 2000);
@@ -235,6 +262,7 @@ class TelegramAgent
             $report = "📄 *Отчёт по изучению сайта*\n\n"
                 . "**URL:** {$url}\n"
                 . "**Заголовок:** {$title}\n"
+                . "**Проект (fid):** {$fid}\n"
                 . "**Содержимое:**\n{$summary}\n\n"
                 . "✅ Источник сохранён\n"
                 . "✅ Информация добавлена в базу знаний";
@@ -244,6 +272,7 @@ class TelegramAgent
         } catch (Throwable $e) {
             Log::error('TelegramAgent: study_website failed.', [
                 'url' => $url,
+                'fid' => $fid,
                 'error' => $e->getMessage(),
             ]);
 
@@ -252,31 +281,32 @@ class TelegramAgent
     }
 
     /**
-     * Сохранить данные в базу знаний.
+     * Сохранить данные в базу знаний. Сохраняет под fid из задачи.
      */
     private function executeSaveToKnowledge(AgentTask $task): array
     {
         $query = $task->input_data['query'] ?? '';
+        $fid = $task->fid;
 
         $result = $this->analyst->executeTool('save_knowledge', [
             'title' => 'Запись из TelegramAgent',
             'content' => $query,
             'category' => 'analysis',
+            'fid' => $fid,
         ]);
 
-        return $this->taskResult($task, "✅ Данные сохранены в базу знаний.\n{$result}");
+        return $this->taskResult($task, "✅ Данные сохранены в базу знаний (fid={$fid}).\n{$result}");
     }
 
     /**
-     * Массовый анализ.
+     * Массовый анализ. Передаёт fid дальше.
      */
     private function executeMassAnalysis(AgentTask $task): array
     {
-        $query = $task->input_data['query'] ?? '';
+        $fid = $task->fid;
 
-        // Делегируем BackendAgent для массового анализа
         $backendTask = $this->delegateToBackend(
-            fid: $task->fid,
+            fid: $fid,
             taskType: 'mass_analysis',
             inputData: $task->input_data,
             sessionToken: $task->session_token,
@@ -284,36 +314,37 @@ class TelegramAgent
 
         return $this->taskResult($task,
             "⏳ Задача массового анализа передана BackendAgent (ID: {$backendTask->uuid}). "
-            . "Результат будет доступен позже."
+            . "Проект fid={$fid}. Результат будет доступен позже."
         );
     }
 
     /**
      * Сложный вопрос — анализируем через AI.
+     * Использует fid из задачи.
      */
     private function executeComplexQuestion(AgentTask $task): array
     {
         $query = $task->input_data['query'] ?? '';
         $chatId = $task->input_data['chat_id'] ?? 0;
+        $fid = $task->fid;
 
         try {
-            $fid = $task->fid;
-
-            // Создаём временную сессию для AI
-            $session = $this->resolveSession($chatId);
+            // Создаём временную сессию для AI с fid из задачи
+            $session = $this->resolveSession($chatId, false, $fid);
             $this->saveUserMessage($session, $query);
 
-            // Загружаем knowledge для контекста (без привязки к fid)
-            $knowledgeContext = $this->knowledgeService->getContext(null);
+            // Загружаем knowledge для контекста с привязкой к fid
+            $knowledgeContext = $this->knowledgeService->getContext($fid);
 
-            // Получаем историю
             $history = $session->getHistoryForAi(20);
 
-            // Формируем промпт
-            $instructions = $this->buildAnalystPrompt($knowledgeContext);
+            $instructions = $this->buildAnalystPrompt($knowledgeContext, $fid);
             $tools = $this->analyst->getTools();
 
-            $toolExecutor = function (string $name, array $arguments): string {
+            $toolExecutor = function (string $name, array $arguments) use ($fid): string {
+                $this->checkToolRateLimit();
+                // Передаём fid из задачи в каждый вызов tool
+                $arguments['fid'] = $fid;
                 return $this->analyst->executeTool($name, $arguments);
             };
 
@@ -332,6 +363,7 @@ class TelegramAgent
 
         } catch (Throwable $e) {
             Log::error('TelegramAgent: complex_question failed.', [
+                'fid' => $fid,
                 'error' => $e->getMessage(),
             ]);
             return $this->taskResult($task, '❌ Ошибка обработки запроса: ' . $e->getMessage());
@@ -339,8 +371,18 @@ class TelegramAgent
     }
 
     /**
-     * Сформировать результат задачи. Доставкой результата в исходный канал
-     * занимается ProcessAgentTask после завершения executeTask().
+     * Проверка лимита вызовов tools.
+     */
+    private function checkToolRateLimit(): void
+    {
+        $this->toolCallCount['total'] = ($this->toolCallCount['total'] ?? 0) + 1;
+        if ($this->toolCallCount['total'] > self::MAX_TOOL_CALLS) {
+            throw new \RuntimeException('Превышен лимит вызовов инструментов за один запрос.');
+        }
+    }
+
+    /**
+     * Сформировать результат задачи.
      */
     private function taskResult(AgentTask $task, string $message): array
     {
@@ -353,11 +395,9 @@ class TelegramAgent
 
     // ── Обработка диалога ─────────────────────────────────────────
 
-    private function handleAiDialog(int|string $chatId, string $text, array $message): string
+    private function handleAiDialog(int|string $chatId, string $text, array $message, int $fid): string
     {
         $this->bot->sendChatAction($chatId, 'typing');
-
-        $fid = $message['fid'] ?? self::ANALYST_FID;
 
         // Определяем fid из контекста, если не задан явно
         if ($fid === self::ANALYST_FID) {
@@ -367,18 +407,14 @@ class TelegramAgent
             }
         }
 
-        $session = $this->resolveSession($chatId);
+        $session = $this->resolveSession($chatId, false, $fid);
 
-        // ════════════════════════════════════════════════════════════════
-        //  ТРАНСФОРМАЦИЯ КОМАНД ВЫБОРА
-        // ════════════════════════════════════════════════════════════════
+        // Трансформация команд выбора
         if (preg_match('/^\/(choose|go)\s*(\d+)/i', $text, $m)) {
             $text = "Я выбираю вариант {$m[2]}. Выполни это действие и покажи результат.";
         }
 
-        // ════════════════════════════════════════════════════════════════
-        //  РУЧНОЙ ВЫХОД ИЗ ЦИКЛА
-        // ════════════════════════════════════════════════════════════════
+        // Ручной выход из цикла
         if ($this->isBreakKeyword($text)) {
             return $this->breakTheLoop($chatId, $session);
         }
@@ -390,20 +426,22 @@ class TelegramAgent
             return $this->breakTheLoop($chatId, $session);
         }
 
-        // Загружаем knowledge base (без привязки к fid)
-        $knowledgeContext = $this->knowledgeService->getContext(null);
+        // Загружаем knowledge base с привязкой к fid
+        $knowledgeContext = $this->knowledgeService->getContext($fid);
 
         // Загружаем историю
         $history = $session->getHistoryForAi(20);
 
-        // Формируем system prompt с инструментами
-        $systemPrompt = $this->buildAnalystPrompt($knowledgeContext);
+        // Формируем system prompt с динамическим fid
+        $systemPrompt = $this->buildAnalystPrompt($knowledgeContext, $fid);
 
         // Получаем инструменты аналитика
         $tools = $this->analyst->getTools();
 
-        // Executor для вызова инструментов
-        $toolExecutor = function (string $name, array $arguments): string {
+        // Executor с передачей fid и rate limiting
+        $toolExecutor = function (string $name, array $arguments) use ($fid): string {
+            $this->checkToolRateLimit();
+            $arguments['fid'] = $fid;
             return $this->analyst->executeTool($name, $arguments);
         };
 
@@ -435,254 +473,14 @@ class TelegramAgent
 
     /**
      * Попытаться определить fid из текста запроса.
-     * Анализирует упоминания проектов, fid-номеров и т.д.
      */
     private function detectFidFromContext(string $text): ?int
     {
-        // Явное упоминание fid
         if (preg_match('/fid[=:\s]*(\d+)/i', $text, $m)) {
             return (int) $m[1];
         }
 
-        // По ключевым словам можно добавить маппинг проектов
-        // Пока возвращаем ANALYST_FID по умолчанию
         return null;
-    }
-
-    // ── Loop Detection ────────────────────────────────────────────
-
-    private function detectLoop(ChatSession $session, string $currentUserText): bool
-    {
-        $recentAssistantMessages = $session->messages()
-            ->where('role', 'assistant')
-            ->orderByDesc('created_at')
-            ->limit(self::MAX_CONSECUTIVE_SIMILAR_ANSWERS + 1)
-            ->get()
-            ->pluck('content')
-            ->toArray();
-
-        if (count($recentAssistantMessages) < 2) {
-            return false;
-        }
-
-        $similarCount = 0;
-        for ($i = 0; $i < count($recentAssistantMessages) - 1; $i++) {
-            if ($this->areTextsSimilar($recentAssistantMessages[$i], $recentAssistantMessages[$i + 1])) {
-                $similarCount++;
-            }
-        }
-
-        if ($similarCount >= self::MAX_CONSECUTIVE_SIMILAR_ANSWERS) {
-            Log::warning('TelegramAgent: detected AI loop', [
-                'session_id' => $session->id,
-                'similar_count' => $similarCount,
-            ]);
-            return true;
-        }
-
-        return false;
-    }
-
-    private function isAnswerRepeatOfLast(ChatSession $session, string $newAnswer): bool
-    {
-        $lastAssistantMessage = $session->messages()
-            ->where('role', 'assistant')
-            ->orderByDesc('created_at')
-            ->first();
-
-        if (! $lastAssistantMessage) {
-            return false;
-        }
-
-        return $this->areTextsSimilar($lastAssistantMessage->content, $newAnswer);
-    }
-
-    private function areTextsSimilar(string $text1, string $text2): bool
-    {
-        $t1 = trim($text1);
-        $t2 = trim($text2);
-
-        if ($t1 === '' && $t2 === '') {
-            return true;
-        }
-
-        if ($t1 === '' || $t2 === '') {
-            return false;
-        }
-
-        // 1. Полное совпадение
-        if ($t1 === $t2) {
-            return true;
-        }
-
-        // 2. Короткие ответы — высокий порог схожести
-        if (mb_strlen($t1) < self::MIN_ANSWER_LENGTH_FOR_COMPARISON || mb_strlen($t2) < self::MIN_ANSWER_LENGTH_FOR_COMPARISON) {
-            similar_text($t1, $t2, $percent);
-            return $percent > 80;
-        }
-
-        // 3. Стандартное текстуальное сравнение
-        similar_text($t1, $t2, $percent);
-        if ($percent > 85) {
-            return true;
-        }
-
-        // 4. Детекция вопросов выбора (главная причина зацикливания)
-        $questionWords = [
-            'Что именно', 'Хотите', 'уточнить', 'Запустить', 'выполнить',
-            '?:', 'выбери', 'выбирай', 'Вариант', 'вариант',
-            'Выберите', 'pick', 'choose', 'какой', 'Что скажешь',
-            'куда нырнём', 'направление', 'предпочитаешь',
-        ];
-        $t1HasQuestion = false;
-        $t2HasQuestion = false;
-
-        foreach ($questionWords as $word) {
-            if (mb_stripos($t1, $word) !== false) {
-                $t1HasQuestion = true;
-            }
-            if (mb_stripos($t2, $word) !== false) {
-                $t2HasQuestion = true;
-            }
-        }
-
-        // Если оба сообщения содержат вопросительные слова выбора
-        if ($t1HasQuestion && $t2HasQuestion && $percent > 50) {
-            return true;
-        }
-
-        // 5. Детекция повторяющихся нумерованных списков выбора
-        $choicePattern = '/(?:^|\n)\s*(?:\d+[\.\)]|Вариант\s*\d+|—)\s*/miu';
-        $hasChoiceList1 = preg_match($choicePattern, $t1);
-        $hasChoiceList2 = preg_match($choicePattern, $t2);
-
-        if ($hasChoiceList1 && $hasChoiceList2 && $percent > 40) {
-            Log::debug('TelegramAgent: detected choice list repetition.', [
-                'percent' => $percent,
-            ]);
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Проверить, является ли текст командой ручного выхода из цикла.
-     */
-    private function isBreakKeyword(string $text): bool
-    {
-        $normalized = mb_strtolower(trim($text));
-
-        $keywords = [
-            '--break',
-            'стоп',
-            'хватит',
-            'выйти из цикла',
-            'остановись',
-            'прекрати',
-            'break',
-            '/stop',
-            '/exit',
-        ];
-
-        foreach ($keywords as $keyword) {
-            if ($normalized === $keyword) {
-                return true;
-            }
-        }
-
-        // Также срабатывает на фразы, начинающиеся с этих слов
-        $prefixes = [
-            '--break',
-            'стоп',
-            'хватит',
-            'выйти из цикла',
-            'остановись',
-        ];
-
-        foreach ($prefixes as $prefix) {
-            if (str_starts_with($normalized, $prefix)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function breakTheLoop(int|string $chatId, ChatSession $session): string
-    {
-        $session->messages()
-            ->where('role', 'assistant')
-            ->orderByDesc('created_at')
-            ->limit(self::MAX_CONSECUTIVE_SIMILAR_ANSWERS)
-            ->delete();
-
-        $message = "⚠️ *Кажется, я зашёл в тупик.* Давайте начнём диалог заново.\n\n"
-            . "Напишите ваш вопрос конкретно, например:\n"
-            . "• «Изучи сайт example.com»\n"
-            . "• «Опубликуй статью о DeFi»\n"
-            . "• «Найди информацию в базе знаний»\n\n"
-            . "Или используйте /clear чтобы очистить историю, /new для нового диалога.";
-
-        $this->saveAssistantMessage($session, $message, [
-            'model' => 'loop_breaker',
-            'usage' => [],
-            'provider' => $this->ai->getProviderName(),
-        ]);
-
-        return $this->bot->sendMarkdown($chatId, $message);
-    }
-
-    // ── Сессии ────────────────────────────────────────────────────
-
-    private function resolveSession(int|string $chatId, bool $forceNew = false): ChatSession
-    {
-        $token = 'tg_agent_' . $chatId;
-
-        if (!$forceNew) {
-            $session = ChatSession::resolveByToken($token);
-            if ($session) {
-                return $session;
-            }
-        }
-
-        // Если токен уже занят (в т.ч. archived-записью от cmdClear/cmdNew),
-        // генерируем уникальный суффикс, чтобы избежать Duplicate entry.
-        $newToken = ChatSession::where('session_token', $token)->exists()
-            ? $token . '_' . now()->timestamp
-            : $token;
-
-        return ChatSession::createSession([
-            'session_token' => $newToken,
-            'fid' => self::ANALYST_FID,
-            'language' => 'ru',
-            'status' => 'active',
-        ]);
-    }
-
-    private function saveUserMessage(ChatSession $session, string $text): ChatMessage
-    {
-        return ChatMessage::create([
-            'chat_session_id' => $session->id,
-            'fid' => $session->fid,
-            'role' => 'user',
-            'content' => $text,
-        ]);
-    }
-
-    private function saveAssistantMessage(ChatSession $session, string $answer, array $result): ChatMessage
-    {
-        return ChatMessage::create([
-            'chat_session_id' => $session->id,
-            'fid' => $session->fid,
-            'role' => 'assistant',
-            'content' => $answer,
-            'metadata' => [
-                'model' => $result['model'] ?? null,
-                'usage' => $result['usage'] ?? null,
-                'provider' => $this->ai->getProviderName(),
-            ],
-        ]);
     }
 
     // ── Отправка сообщений (задачи от других агентов) ────────────
@@ -707,11 +505,11 @@ class TelegramAgent
         return ['sent' => true, 'chat_id' => $chatId];
     }
 
-    // ── System Prompt ЗНАТОК-ПИСАТЕЛЬ ────────────────────────────
+    // ── System Prompt ─────────────────────────────────────────────
 
-    private function buildAnalystPrompt(string $knowledgeContext = ''): string
+    private function buildAnalystPrompt(string $knowledgeContext = '', int $currentFid = self::ANALYST_FID): string
     {
-        $prompt = <<<'PROMPT'
+        $prompt = <<<PROMPT
 ТЫ — TelegramAgent, ЗНАТОК-ПИСАТЕЛЬ AV8 Capital.
 
 ТВОЯ РОЛЬ:
@@ -726,68 +524,70 @@ class TelegramAgent
 Используй базу знаний для поиска информации и сохранения результатов.
 
 🔍 ОПРЕДЕЛЕНИЕ ПРОЕКТА (fid):
+- Текущий проект (fid): {$currentFid}
+- Все сохраняемые данные привязываются к проекту fid={$currentFid}
 - Если в запросе явно указан fid — используй его
 - Если не указан — попробуй определить из контекста (упоминание проекта, компании)
-- По умолчанию используй fid=12 (AV8 Capital research)
+- По умолчанию используй fid={$currentFid}
 - Сохраняй данные под тем fid, которому соответствует информация
 
 ТВОИ ИНСТРУМЕНТЫ:
 
 🌐 ИЗУЧЕНИЕ САЙТОВ:
 1. fetch_url(url) — Загрузить содержимое веб-страницы
-2. save_source(url, title, summary, content_type) — Сохранить источник в БД
-3. search_sources(query) — Поиск по сохранённым источникам
+2. save_source(url, title, summary, content_type, fid) — Сохранить источник в БД (указывай fid={$currentFid})
+3. search_sources(query) — Поиск по сохранённым источникам (ищет по всем проектам)
 
 📝 ПУБЛИКАЦИИ:
-4. publish_article(title, content, summary, fid) — Опубликовать аналитическую статью
-5. publish_news(title, content, summary, source_url, fid) — Опубликовать новость
-6. publish_review(title, content, summary, rating, fid) — Опубликовать обзор с оценкой
+4. publish_article(title, content, summary, fid) — Опубликовать аналитическую статью (указывай fid={$currentFid})
+5. publish_news(title, content, summary, source_url, fid) — Опубликовать новость (указывай fid={$currentFid})
+6. publish_review(title, content, summary, rating, fid) — Опубликовать обзор с оценкой (указывай fid={$currentFid})
 
 📊 ИССЛЕДОВАНИЯ:
-7. start_research(topic) — Начать исследование
+7. start_research(topic, fid) — Начать исследование (указывай fid={$currentFid})
 8. complete_research(research_id, summary) — Завершить с отчётом
-9. list_researches() — Список исследований
+9. list_researches() — Список исследований (по всем проектам)
 10. get_research_sources(research_id) — Источники исследования
 
 💾 БАЗА ЗНАНИЙ:
-11. save_knowledge(title, content, category) — Сохранить заметку в БЗ
+11. save_knowledge(title, content, category, fid) — Сохранить заметку в БЗ (указывай fid={$currentFid})
 
 АЛГОРИТМ РАБОТЫ ЗНАТОКА-ПИСАТЕЛЯ:
 
 1. Когда нужно изучить сайт/ресурс:
    → Используй fetch_url для загрузки
    → Проанализируй содержимое
-   → Используй save_source для сохранения
-   → Используй save_knowledge для ключевых выводов
+   → Используй save_source для сохранения (с текущим fid)
+   → Используй save_knowledge для ключевых выводов (с текущим fid)
 
 2. Когда нужно опубликовать:
-   → Для аналитической статьи: publish_article
-   → Для новости: publish_news
-   → Для обзора: publish_review (с оценкой)
+   → Для аналитической статьи: publish_article (с текущим fid)
+   → Для новости: publish_news (с текущим fid)
+   → Для обзора: publish_review (с текущим fid)
 
 3. Когда нужно найти информацию:
-   → Используй search_sources для поиска
+   → Используй search_sources для поиска (по всем проектам)
    → Используй list_researches для списка исследований
 
 4. Когда нужно сделать исследование:
-   → start_research → fetch_url (многократно) → save_source → complete_research
+   → start_research (с текущим fid) → fetch_url (многократно) → save_source → complete_research
 
 ПРАВИЛА:
 - Перед fetch_url объясни пользователю, что начинаешь загрузку
 - После fetch_url суммируй содержимое
-- Сохраняй источники через save_source
-- Публикации сохраняй в базу знаний (publish_*)
+- Сохраняй источники через save_source с правильным fid
+- Публикации сохраняй в базу знаний (publish_*) с правильным fid
 - Используй эмодзи для наглядности (🌐 📝 📊 💾 🔍 📡)
 - Не выдумывай данные — используй только то, что получил из функций
 - Ответы давай на русском языке
 
 ⚠️ ЗАЩИТА ОТ ЗАЦИКЛИВАНИЯ:
-- НЕ повторяй список вариантов, если пользователь уже сделал выбор. Если он написал «Вариант 1» или просто «1» — сразу выполняй выбранное действие, а не показывай список снова.
+- НЕ повторяй список вариантов, если пользователь уже сделал выбор.
 - Если пользователь не может определиться — предложи конкретный вариант по умолчанию (Вариант 1) и сразу начинай выполнение.
-- Ты НЕ должен генерировать нумерованные списки вариантов более 2 раз подряд. Если ты уже показывал список вариантов в предыдущем ответе — не повторяй его, а сразу приступай к выполнению.
+- Ты НЕ должен генерировать нумерованные списки вариантов более 2 раз подряд.
 - Не задавай уточняющие вопросы, если их можно избежать — сразу действуй.
-- Если пользователь вводит «--break», «стоп», «хватит» — это команда принудительного выхода из цикла, и диалог будет сброшен.
-- Команда /choose N (например /choose 1) означает, что пользователь выбрал вариант N — сразу выполняй его.
+- Если пользователь вводит «--break», «стоп», «хватит» — это команда принудительного выхода из цикла.
+- Команда /choose N означает, что пользователь выбрал вариант N — сразу выполняй его.
 PROMPT;
 
         $knowledgeSection = $knowledgeContext !== ''

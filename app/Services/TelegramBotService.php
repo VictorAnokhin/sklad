@@ -57,12 +57,47 @@ class TelegramBotService
         ], $extra));
     }
 
+    // ── MarkdownV2 ──────────────────────────────────────────────────────────
+
     /**
-     * Отправить Markdown-сообщение (без экранирования — вся разметка в $text).
+     * Экранировать спецсимволы для MarkdownV2.
+     *
+     * Telegram MarkdownV2 требует экранирования символов:
+     * _ * [ ] ( ) ~ ` > # + - = | { } . !
+     *
+     * @see https://core.telegram.org/bots/api#markdownv2-style
+     */
+    public static function escapeMarkdownV2(string $text): string
+    {
+        $specialChars = [
+            '_', '*', '[', ']', '(', ')', '~', '`', '>',
+            '#', '+', '-', '=', '|', '{', '}', '.', '!',
+        ];
+
+        $escaped = [];
+        foreach ($specialChars as $char) {
+            $escaped[$char] = '\\' . $char;
+        }
+
+        return str_replace(
+            array_keys($escaped),
+            array_values($escaped),
+            $text
+        );
+    }
+
+    /**
+     * Отправить MarkdownV2-сообщение с автоматическим экранированием текста.
+     *
+     * Если в $text нужно передать собственную разметку (жирный, курсив, ссылки),
+     * используйте `parse_mode: MarkdownV2` через обычный sendMessage с $extra.
+     * Этот метод экранирует ВЕСЬ текст, что безопасно для произвольного контента.
      */
     public function sendMarkdown(int|string $chatId, string $text, array $extra = []): array
     {
-        return $this->sendMessage($chatId, $text, array_merge([
+        $safeText = self::escapeMarkdownV2($text);
+
+        return $this->sendMessage($chatId, $safeText, array_merge([
             'parse_mode' => 'MarkdownV2',
         ], $extra));
     }

@@ -61,12 +61,25 @@ class TelegramWebhookController extends Controller
             return response()->json(['error' => 'Invalid payload'], 400);
         }
 
-        // ── 4. Извлекаем сообщение ────────────────────────────────────────
+        // ── 4. Извлекаем ID проекта (fid) из query-параметра URL ──────────
+        // Webhook URL может содержать ?fid=N для привязки бота к проекту.
+        // Например: /telegram/webhook/{secret}?fid=2
+        $fid = (int) $request->query('fid', 0);
+        if ($fid > 0) {
+            Log::info('Telegram webhook: using fid from URL query.', ['fid' => $fid]);
+        }
+
+        // ── 5. Извлекаем сообщение ────────────────────────────────────────
         $message = $update['message'] ?? [];
+
+        // ── 6. Обработка callback_query (нажатие на Inline-кнопку) ─────────
+        if (empty($message) && isset($update['callback_query'])) {
+            return $this->handleCallbackQuery($update['callback_query'], $fid);
+        }
 
         if (empty($message) || empty($message['text'])) {
             // Telegram может присылать другие типы обновлений (edited_message,
-            // callback_query, inline_query и т.д.) — игнорируем их.
+            // inline_query, my_chat_member и т.д.) — игнорируем их.
             return response()->json(['ok' => true]);
         }
 
@@ -75,14 +88,64 @@ class TelegramWebhookController extends Controller
 
         Log::info('Telegram webhook: incoming message, dispatching to queue.', [
             'chat_id' => $chatId,
+            'fid' => $fid > 0 ? $fid : 'default',
             'text_preview' => mb_substr($text, 0, 100),
         ]);
 
-        // ── 5. Диспатчим обработку в очередь и сразу возвращаем 200 OK ────
+        // ── 7. Диспатчим обработку в очередь и сразу возвращаем 200 OK ────
         // Это критически важно: Telegram ожидает ответ в течение ~30 секунд.
         // AI-обработка (DeepSeek с function calling) может занимать >60 секунд,
         // поэтому всю логику переносим в фоновый Job.
-        HandleTelegramMessage::dispatch($message);
+        HandleTelegramMessage::dispatch($message, $fid > 0 ? $fid : null);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Обработать callback_query — нажатие пользователем Inline-кнопки.
+     *
+     * Превращает callback_data в текстовое сообщение и диспатчит
+     * тот же HandleTelegramMessage для обработки AI-аналитиком.
+     *
+     * @param  array<string, mixed>  $callbackQuery
+     * @param  int  $fid  ID проекта из query-параметра
+     * @return JsonResponse
+     */
+    private function handleCallbackQuery(array $callbackQuery, int $fid = 0): JsonResponse
+    {
+        $callbackData = $callbackQuery['data'] ?? '';
+        $chatId = $callbackQuery['message']['chat']['id'] ?? 0;
+        $callbackId = $callbackQuery['id'] ?? '';
+
+        if ($callbackData === '' || $chatId === 0) {
+            return response()->json(['ok' => true]);
+        }
+
+        Log::info('Telegram webhook: callback_query received.', [
+            'chat_id' => $chatId,
+            'callback_id' => $callbackId,
+            'data' => $callbackData,
+            'fid' => $fid > 0 ? $fid : 'default',
+        ]);
+
+        // Строим фейковое message из callback, чтобы AI мог его обработать
+        $fabricatedMessage = [
+            'message_id' => $callbackQuery['message']['message_id'] ?? 0,
+            'chat' => $callbackQuery['message']['chat'] ?? [],
+            'from' => $callbackQuery['from'] ?? [],
+            'text' => $callbackData,
+            'date' => $callbackQuery['message']['date'] ?? time(),
+        ];
+
+        // Отвечаем на callback, чтобы Telegram перестал показывать "loading"
+        try {
+            $this->bot->sendMessage($chatId, "⏳ Обрабатываю ваш выбор...");
+        } catch (\Throwable) {
+            // Игнорируем ошибку ответа на callback
+        }
+
+        // Диспатчим как обычное сообщение
+        HandleTelegramMessage::dispatch($fabricatedMessage, $fid > 0 ? $fid : null);
 
         return response()->json(['ok' => true]);
     }
