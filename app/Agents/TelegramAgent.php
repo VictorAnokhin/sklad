@@ -334,10 +334,13 @@ class TelegramAgent
         try {
             // Создаём временную сессию для AI с fid из задачи
             $session = $this->resolveSession($chatId, false, $fid);
+            if ((int) ($session->fid ?? 0) !== (int) $fid) {
+                $session->update(['fid' => (int) $fid]);
+            }
             $this->saveUserMessage($session, $query);
 
             // Загружаем knowledge для контекста с привязкой к fid
-            $knowledgeContext = $this->knowledgeService->getContext(null);
+            $knowledgeContext = $this->knowledgeService->getContext($fid);
 
             $history = $session->getHistoryForAi(20);
 
@@ -429,6 +432,9 @@ class TelegramAgent
         }
 
         $session = $this->resolveSession($chatId, false, $fid);
+        if ((int) ($session->fid ?? 0) !== (int) $fid) {
+            $session->update(['fid' => (int) $fid]);
+        }
 
         // Трансформация команд выбора
         if (preg_match('/^\/(choose|go)\s*(\d+)/i', $text, $m)) {
@@ -448,7 +454,7 @@ class TelegramAgent
         }
 
         // Загружаем knowledge base с привязкой к fid
-        $knowledgeContext = $this->knowledgeService->getContext(null);
+        $knowledgeContext = $this->knowledgeService->getContext($fid);
 
         // Загружаем историю
         $history = $session->getHistoryForAi(20);
@@ -629,8 +635,10 @@ class TelegramAgent
      */
     private function detectFidFromContext(string $text): ?int
     {
-        if (preg_match('/fid[=:\s]*(\d+)/i', $text, $m)) {
-            return (int) $m[1];
+        if (preg_match('/(?:fid|фид|project\s*fid|проект)\s*[=:\-]?\s*(\d{1,9})/iu', $text, $m)) {
+            $fid = (int) $m[1];
+
+            return $fid > 0 ? $fid : null;
         }
 
         return null;

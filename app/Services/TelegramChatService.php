@@ -220,10 +220,13 @@ class TelegramChatService
             $this->toolCallCount = [];
             $this->sendTyping($chatId);
 
-            $fid = self::ANALYST_FID;
+            $fid = $this->detectFidFromContext($text) ?? self::ANALYST_FID;
 
             // Получаем или создаём сессию с привязкой к fid
             $session = $this->resolveSession($chatId, false, $fid);
+            if ((int) ($session->fid ?? 0) !== $fid) {
+                $session->update(['fid' => $fid]);
+            }
 
             // Трансформация команд выбора
             if (preg_match('/^\/(choose|go)\s*(\d+)/i', $text, $m)) {
@@ -249,11 +252,11 @@ class TelegramChatService
             $intent = $this->intentDetector->detect($text, 'telegram', 'ru');
 
             // Загружаем контекст из Базы Знаний с привязкой к fid (с кэшированием)
-            $knowledgeContext = $this->loadKnowledgeContext();
+            $knowledgeContext = $this->loadKnowledgeContext($fid);
 
             // Делегирование TelegramAgent
             if ($this->shouldDelegateToAgent($text, $intent)) {
-                return $this->delegateToAgent($text, $chatId, self::ANALYST_FID, $session, $intent);
+                return $this->delegateToAgent($text, $chatId, $fid, $session, $intent);
             }
 
             // Загружаем историю для AI
@@ -266,9 +269,9 @@ class TelegramChatService
             $tools = $this->analyst->getTools();
 
             // Executor с передачей fid и rate limiting
-            $toolExecutor = function (string $name, array $arguments): string {
+            $toolExecutor = function (string $name, array $arguments) use ($fid): string {
                 $this->checkToolRateLimit();
-                $arguments['fid'] = self::ANALYST_FID;
+                $arguments['fid'] = $fid;
                 return $this->analyst->executeTool($name, $arguments);
             };
 
@@ -448,9 +451,9 @@ class TelegramChatService
 
         $delegateKeywords = [
             'изучи сайт', 'проанализируй сайт', 'просмотри сайт',
-            'сохрани в базу знаний',
+            'сохрани в базу знаний', 'сохрани в базе знаний',
             'массовый анализ',
-            'изучи', 'спарси', 'просмотри',
+            'изучи', 'спарси', 'просмотри', 'анализ сайт', 'анализа сайт',
         ];
 
         foreach ($delegateKeywords as $keyword) {
@@ -472,7 +475,7 @@ class TelegramChatService
         }
 
         if (preg_match('/\b[a-z0-9]([a-z0-9\-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9\-]*[a-z0-9])?)*\.[a-z]{2,}(?:\/[^\s]*)?/i', $text, $matches)) {
-            return rtrim($matches[0], ',.!?:;');
+            return 'https://' . rtrim($matches[0], ',.!?:;');
         }
 
         return null;
@@ -488,6 +491,7 @@ class TelegramChatService
         }
 
         return match (true) {
+            $this->extractUrlFromText($text) !== null && preg_match('/сайт|url|изучи|исслед|анализ|проанализируй|спарси/i', $text) => 'study_website',
             preg_match('/изучи сайт|проанализируй сайт|просмотри сайт|спарси/i', $text) => 'study_website',
             preg_match('/сохрани.*баз[уе].*знан/i', $text) => 'save_to_knowledge',
             preg_match('/массов|все товар|все проект/i', $text) => 'mass_analysis',
@@ -497,25 +501,38 @@ class TelegramChatService
 
     private function buildDelegatedQuery(string $text, array $intent, string $taskType): string
     {
+        $fid = $this->detectFidFromContext($text) ?? self::ANALYST_FID;
+
         if (($intent['type'] ?? '') === WebChatIntentDetector::PUBLISH_NEWS) {
             $topic = trim((string) ($intent['topic'] ?? ''));
 
-            return "Задача из Telegram-чата. Нужно подготовить и при необходимости опубликовать материал для проекта fid=1.\n"
+            return "Задача из Telegram-чата. Нужно подготовить и при необходимости опубликовать материал для проекта fid={$fid}.\n"
                 . ($topic !== '' ? "Тема: {$topic}\n" : '')
                 . "Исходный запрос пользователя: {$text}\n\n"
                 . "Работай как аналитик и помощник AV8 Capital: проверь сохранённые источники/знания, при необходимости загрузи открытые источники, затем подготовь законченный текст. "
-                . "Если запрос явно просит новость или статью — используй publish_news или publish_article с fid=1. "
+                . "Если запрос явно просит новость или статью — используй publish_news или publish_article с fid={$fid}. "
                 . "Не переводи задачу оператору из-за пустого TELEGRAM_OPERATOR_CHAT_ID.";
         }
 
         if (($intent['type'] ?? '') === WebChatIntentDetector::RESEARCH && $taskType === 'complex_question') {
-            return "Задача из Telegram-чата. Проведи исследование для проекта fid=1.\n"
+            return "Задача из Telegram-чата. Проведи исследование для проекта fid={$fid}.\n"
                 . "Исходный запрос пользователя: {$text}\n\n"
                 . "Сначала проверь сохранённые источники/знания, затем при необходимости загрузи открытые источники. "
                 . "Сохрани полезные данные и верни короткий человеческий отчёт без технических заготовок.";
         }
 
         return $text;
+    }
+
+    private function detectFidFromContext(string $text): ?int
+    {
+        if (preg_match('/(?:fid|фид|project\s*fid|проект)\s*[=:\-]?\s*(\d{1,9})/iu', $text, $m)) {
+            $fid = (int) $m[1];
+
+            return $fid > 0 ? $fid : null;
+        }
+
+        return null;
     }
 
     // ── Управление сессиями ────────────────────────────────────────────────
