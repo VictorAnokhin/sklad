@@ -589,11 +589,13 @@ class TelegramChatService
             }
         }
 
-        // При forceNew=true (cmdClear / cmdNew) старый session_token уже занят archived-записью,
-        // поэтому генерируем уникальный токен с суффиксом.
-        $newToken = $forceNew
-            ? $token . '_' . now()->timestamp
-            : $token;
+        // Если токен уже занят (в т.ч. archived-записью от cmdClear/cmdNew),
+        // генерируем уникальный суффикс, чтобы избежать Duplicate entry.
+        if (ChatSession::where('session_token', $token)->exists()) {
+            $newToken = $token . '_' . now()->timestamp;
+        } else {
+            $newToken = $token;
+        }
 
         return ChatSession::create([
             'session_token' => $newToken,
