@@ -142,7 +142,10 @@ class TelegramChatService
             . "/start — приветствие и запуск\n"
             . "/help — этот список\n"
             . "/new — начать новый диалог\n"
-            . "/clear — очистить историю\n\n"
+            . "/clear — очистить историю\n"
+            . "/choose N — выбрать вариант N из предложенного списка\n"
+            . "/go N — то же, что /choose\n"
+            . "—break — принудительный выход из цикла\n\n"
             . "💡 *Примеры запросов:*\n"
             . "• «Изучи протокол Suilend на Sui»\n"
             . "• «Собери информацию о https://example.com»\n"
@@ -191,6 +194,21 @@ class TelegramChatService
             if ((int) $session->fid !== $fid) {
                 $session->update(['fid' => $fid]);
                 $session->refresh();
+            }
+
+            // ════════════════════════════════════════════════════════════════
+            //  ТРАНСФОРМАЦИЯ КОМАНД ВЫБОРА
+            // ════════════════════════════════════════════════════════════════
+            // /choose 1, /go 2 → "Я выбираю вариант 1"
+            if (preg_match('/^\/(choose|go)\s*(\d+)/i', $text, $m)) {
+                $text = "Я выбираю вариант {$m[2]}. Выполни это действие и покажи результат.";
+            }
+
+            // ════════════════════════════════════════════════════════════════
+            //  РУЧНОЙ ВЫХОД ИЗ ЦИКЛА
+            // ════════════════════════════════════════════════════════════════
+            if ($this->isBreakKeyword($text)) {
+                return $this->breakTheLoop($chatId, $session);
             }
 
             // Сохраняем сообщение пользователя
@@ -352,6 +370,9 @@ class TelegramChatService
 
     /**
      * Сравнить два текста на схожесть.
+     *
+     * Определяет повторяющиеся ответы AI — как текстуально похожие,
+     * так и структурно (например, повторяющиеся списки вариантов выбора).
      */
     private function areTextsSimilar(string $text1, string $text2): bool
     {
@@ -366,21 +387,30 @@ class TelegramChatService
             return false;
         }
 
+        // 1. Полное совпадение
         if ($t1 === $t2) {
             return true;
         }
 
+        // 2. Короткие ответы — высокий порог схожести
         if (mb_strlen($t1) < self::MIN_ANSWER_LENGTH_FOR_COMPARISON || mb_strlen($t2) < self::MIN_ANSWER_LENGTH_FOR_COMPARISON) {
             similar_text($t1, $t2, $percent);
             return $percent > 80;
         }
 
+        // 3. Стандартное текстуальное сравнение
         similar_text($t1, $t2, $percent);
         if ($percent > 85) {
             return true;
         }
 
-        $questionWords = ['Что именно', 'Хотите', 'уточнить', 'Запустить', 'выполнить', '?:'];
+        // 4. Детекция вопросов выбора (главная причина зацикливания)
+        $questionWords = [
+            'Что именно', 'Хотите', 'уточнить', 'Запустить', 'выполнить',
+            '?:', 'выбери', 'выбирай', 'Вариант', 'вариант',
+            'Выберите', 'pick', 'choose', 'какой', 'Что скажешь',
+            'куда нырнём', 'направление', 'предпочитаешь',
+        ];
         $t1HasQuestion = false;
         $t2HasQuestion = false;
 
@@ -393,8 +423,64 @@ class TelegramChatService
             }
         }
 
-        if ($t1HasQuestion && $t2HasQuestion && $percent > 60) {
+        // Если оба сообщения содержат вопросительные слова выбора
+        if ($t1HasQuestion && $t2HasQuestion && $percent > 50) {
             return true;
+        }
+
+        // 5. Детекция повторяющихся нумерованных списков выбора
+        $choicePattern = '/(?:^|\n)\s*(?:\d+[\.\)]|Вариант\s*\d+|—)\s*/miu';
+        $hasChoiceList1 = preg_match($choicePattern, $t1);
+        $hasChoiceList2 = preg_match($choicePattern, $t2);
+
+        if ($hasChoiceList1 && $hasChoiceList2 && $percent > 40) {
+            Log::debug('TelegramChatService: detected choice list repetition.', [
+                'percent' => $percent,
+            ]);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Проверить, является ли текст командой ручного выхода из цикла.
+     */
+    private function isBreakKeyword(string $text): bool
+    {
+        $normalized = mb_strtolower(trim($text));
+
+        $keywords = [
+            '--break',
+            'стоп',
+            'хватит',
+            'выйти из цикла',
+            'остановись',
+            'прекрати',
+            'break',
+            '/stop',
+            '/exit',
+        ];
+
+        foreach ($keywords as $keyword) {
+            if ($normalized === $keyword) {
+                return true;
+            }
+        }
+
+        // Также срабатывает на фразы, начинающиеся с этих слов
+        $prefixes = [
+            '--break',
+            'стоп',
+            'хватит',
+            'выйти из цикла',
+            'остановись',
+        ];
+
+        foreach ($prefixes as $prefix) {
+            if (str_starts_with($normalized, $prefix)) {
+                return true;
+            }
         }
 
         return false;
@@ -668,6 +754,14 @@ class TelegramChatService
 - Всегда сохраняй источники через save_source после анализа
 - Не выдумывай данные — используй только то, что получил из функций
 - Ответы давай на русском языке
+
+⚠️ ЗАЩИТА ОТ ЗАЦИКЛИВАНИЯ:
+- НЕ повторяй список вариантов, если пользователь уже сделал выбор. Если он написал «Вариант 1» или просто «1» — сразу выполняй выбранное действие, а не показывай список снова.
+- Если пользователь не может определиться — предложи конкретный вариант по умолчанию (Вариант 1) и сразу начинай выполнение.
+- Ты НЕ должен генерировать нумерованные списки вариантов более 2 раз подряд. Если ты уже показывал список вариантов в предыдущем ответе — не повторяй его, а сразу приступай к выполнению.
+- Не задавай уточняющие вопросы, если их можно избежать — сразу действуй.
+- Если пользователь вводит «--break», «стоп», «хватит» — это команда принудительного выхода из цикла, и диалог будет сброшен.
+- Команда /choose N (например /choose 1) означает, что пользователь выбрал вариант N — сразу выполняй его.
 PROMPT;
 
         $knowledgeSection = $knowledgeContext !== ''
