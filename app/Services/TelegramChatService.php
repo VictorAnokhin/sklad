@@ -207,7 +207,7 @@ class TelegramChatService
             }
 
             // Загружаем контекст из Базы Знаний (инструкции + записи)
-            $knowledgeContext = $this->loadKnowledgeContext($fid);
+            $knowledgeContext = $this->loadKnowledgeContext();
 
             // ════════════════════════════════════════════════════════════════
             //  ДЕЛЕГИРОВАНИЕ TelegramAgent
@@ -544,28 +544,16 @@ class TelegramChatService
         return $configured > 0 ? $configured : self::ANALYST_FID;
     }
 
-    private function loadKnowledgeContext(int $fid): string
+    /**
+     * Загрузить контекст из Базы Знаний без привязки к fid.
+     * Telegram-бот читает информацию всех проектов.
+     */
+    private function loadKnowledgeContext(): string
     {
-        if ($fid <= 0) {
-            return '';
-        }
-
         try {
-            $context = $this->knowledgeService->getContext($fid);
-
-            if ($context === '' && $fid !== self::ANALYST_FID) {
-                Log::info('TelegramChatService: knowledge context empty, trying analyst fid fallback.', [
-                    'fid' => $fid,
-                    'fallback_fid' => self::ANALYST_FID,
-                ]);
-
-                $context = $this->knowledgeService->getContext(self::ANALYST_FID);
-            }
-
-            return $context;
+            return $this->knowledgeService->getContext(null);
         } catch (Throwable $e) {
             Log::warning('TelegramChatService: failed to load knowledge context.', [
-                'fid' => $fid,
                 'error' => $e->getMessage(),
             ]);
 
