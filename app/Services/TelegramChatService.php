@@ -155,9 +155,12 @@ class TelegramChatService
 
     private function cmdClear(int|string $chatId): string
     {
-        $session = $this->resolveSession($chatId);
+        // Архивируем текущую активную сессию (если есть)
+        ChatSession::where('session_token', 'like', self::TELEGRAM_TOKEN_PREFIX . $chatId . '%')
+            ->where('status', 'active')
+            ->update(['status' => 'archived']);
 
-        $session->update(['status' => 'archived']);
+        // Создаём новую сессию с уникальным токеном
         $this->resolveSession($chatId, true);
 
         return "🧹 История диалога очищена. Можете задавать новые вопросы!";
