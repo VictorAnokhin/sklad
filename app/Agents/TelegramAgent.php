@@ -638,9 +638,6 @@ class TelegramAgent
     private function resolveSession(int|string $chatId, bool $forceNew = false): ChatSession
     {
         $token = 'tg_agent_' . $chatId;
-        $newToken = $forceNew
-            ? $token . '_' . now()->timestamp
-            : $token;
 
         if (!$forceNew) {
             $session = ChatSession::resolveByToken($token);
@@ -648,6 +645,12 @@ class TelegramAgent
                 return $session;
             }
         }
+
+        // Если токен уже занят (в т.ч. archived-записью от cmdClear/cmdNew),
+        // генерируем уникальный суффикс, чтобы избежать Duplicate entry.
+        $newToken = ChatSession::where('session_token', $token)->exists()
+            ? $token . '_' . now()->timestamp
+            : $token;
 
         return ChatSession::createSession([
             'session_token' => $newToken,
