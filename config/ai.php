@@ -84,7 +84,7 @@ return [
             'provider'    => env('AI_WEB_CHAT_PROVIDER', 'deepseek'),
             'model'       => env('AI_WEB_CHAT_MODEL', null),
             'temperature' => (float) env('AI_WEB_CHAT_TEMPERATURE', 0.35),
-            'max_tokens'  => (int) env('AI_WEB_CHAT_MAX_TOKENS', 1500),
+            'max_tokens'  => (int) env('AI_WEB_CHAT_MAX_TOKENS', 700),
         ],
 
         /*
