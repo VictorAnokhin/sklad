@@ -351,13 +351,27 @@ class TelegramAgent
                 return $this->analyst->executeTool($name, $arguments);
             };
 
-            $result = $this->ai->chatWithTools(
-                $instructions,
-                $history,
-                $tools,
-                $toolExecutor,
-                ['max_tool_iterations' => 10],
-            );
+            try {
+                $result = $this->ai->chatWithTools(
+                    $instructions,
+                    $history,
+                    $tools,
+                    $toolExecutor,
+                    ['max_tool_iterations' => 10],
+                );
+            } catch (\RuntimeException $e) {
+                Log::warning('TelegramAgent tools request failed, retrying without tools.', [
+                    'task_uuid' => $task->uuid,
+                    'fid' => $fid,
+                    'error' => $e->getMessage(),
+                ]);
+
+                $result = $this->ai->chat(
+                    $instructions,
+                    $history,
+                    ['max_tokens' => config('ai.channels.telegram.max_tokens', 2000)],
+                );
+            }
 
             $answer = $result['answer'] ?? '⚠️ Не удалось получить ответ.';
             $this->saveAssistantMessage($session, $answer, $result);
@@ -404,7 +418,7 @@ class TelegramAgent
 
     private function handleAiDialog(int|string $chatId, string $text, array $message, int $fid): string
     {
-        $this->bot->sendChatAction($chatId, 'typing');
+        $this->sendTyping($chatId);
 
         // Определяем fid из контекста, если не задан явно
         if ($fid === self::ANALYST_FID) {
@@ -452,18 +466,35 @@ class TelegramAgent
             return $this->analyst->executeTool($name, $arguments);
         };
 
-        // Вызываем AI с function calling
-        $result = $this->ai->chatWithTools(
-            instructions: $systemPrompt,
-            messages: $history,
-            tools: $tools,
-            toolExecutor: $toolExecutor,
-            options: [
-                'temperature' => 0.3,
+        // Вызываем AI с function calling. Если tools недоступны, fallback на обычный chat.
+        try {
+            $result = $this->ai->chatWithTools(
+                instructions: $systemPrompt,
+                messages: $history,
+                tools: $tools,
+                toolExecutor: $toolExecutor,
+                options: [
+                    'temperature' => 0.3,
+                    'fid' => $fid,
+                    'max_tool_iterations' => 10,
+                ],
+            );
+        } catch (\RuntimeException $e) {
+            Log::warning('TelegramAgent direct tools request failed, retrying without tools.', [
+                'chat_id' => $chatId,
                 'fid' => $fid,
-                'max_tool_iterations' => 10,
-            ],
-        );
+                'error' => $e->getMessage(),
+            ]);
+
+            $result = $this->ai->chat(
+                $systemPrompt,
+                $history,
+                [
+                    'temperature' => 0.3,
+                    'max_tokens' => config('ai.channels.telegram.max_tokens', 2000),
+                ],
+            );
+        }
 
         $answer = $result['answer'] ?? '⚠️ Не удалось получить ответ. Попробуйте переформулировать вопрос.';
 
@@ -498,6 +529,18 @@ class TelegramAgent
             ]);
 
             $this->bot->sendMessage($chatId, $message);
+        }
+    }
+
+    private function sendTyping(int|string $chatId): void
+    {
+        try {
+            $this->bot->sendChatAction($chatId, 'typing');
+        } catch (Throwable $e) {
+            Log::debug('TelegramAgent: sendChatAction skipped.', [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
