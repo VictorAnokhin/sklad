@@ -169,17 +169,26 @@ class TelegramAgent
 
     private function cmdClear(int|string $chatId): string
     {
-        $session = $this->resolveSession($chatId);
-        if ($session) {
-            $session->messages()->delete();
-        }
+        // Архивируем текущую активную сессию (если есть)
+        ChatSession::where('session_token', 'like', 'tg_agent_' . $chatId . '%')
+            ->where('status', 'active')
+            ->update(['status' => 'archived']);
 
-        return $this->bot->sendMessage($chatId, "🧹 История диалога очищена.");
+        // Создаём новую сессию с уникальным токеном
+        $this->resolveSession($chatId, true);
+
+        return $this->bot->sendMessage($chatId, "🧹 История диалога очищена. Задавайте новый вопрос!");
     }
 
     private function cmdNew(int|string $chatId): string
     {
-        $this->resolveSession($chatId, forceNew: true);
+        // Архивируем все активные сессии для этого чата
+        ChatSession::where('session_token', 'like', 'tg_agent_' . $chatId . '%')
+            ->where('status', 'active')
+            ->update(['status' => 'archived']);
+
+        // Создаём новую сессию с уникальным токеном
+        $this->resolveSession($chatId, true);
 
         return $this->bot->sendMessage($chatId, "🆕 Начинаем новый диалог. Задавайте вопрос!");
     }
