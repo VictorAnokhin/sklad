@@ -494,8 +494,9 @@ class TelegramChatService
 
         $chatId = $message['chat']['id'] ?? null;
         if ($chatId !== null) {
-            $session = ChatSession::where('session_token', 'tg_' . $chatId)
+            $session = ChatSession::where('session_token', 'like', 'tg_' . $chatId . '%')
                 ->where('status', 'active')
+                ->orderByDesc('created_at')
                 ->first();
 
             if ($session && (int) $session->fid > 0 && (int) $session->fid !== $this->defaultAnalystFid) {
@@ -511,8 +512,9 @@ class TelegramChatService
      */
     private function resolveFidForSession(int|string $chatId): int
     {
-        $session = ChatSession::where('session_token', 'tg_' . $chatId)
+        $session = ChatSession::where('session_token', 'like', 'tg_' . $chatId . '%')
             ->where('status', 'active')
+            ->orderByDesc('created_at')
             ->first();
 
         if ($session && (int) $session->fid > 0) {

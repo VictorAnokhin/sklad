@@ -5,6 +5,7 @@ namespace App\Traits;
 use App\Models\ChatSession;
 use App\Models\ChatMessage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -38,9 +39,12 @@ trait ChatSessionManagerTrait
      */
     protected function resolveSession(int|string $chatId, bool $forceNew = false, ?int $fid = null): ChatSession
     {
+        $baseToken = $this->telegramTokenPrefix . $chatId;
+
         if (! $forceNew) {
-            $session = ChatSession::where('session_token', $this->telegramTokenPrefix . $chatId)
+            $session = ChatSession::where('session_token', 'like', $baseToken . '%')
                 ->where('status', 'active')
+                ->orderByDesc('created_at')
                 ->first();
 
             if ($session !== null) {
@@ -48,9 +52,14 @@ trait ChatSessionManagerTrait
             }
         }
 
+        $sessionToken = $baseToken;
+        if ($forceNew || ChatSession::where('session_token', $sessionToken)->exists()) {
+            $sessionToken = $baseToken . '_' . Str::lower(Str::random(8));
+        }
+
         // Создаём новую сессию
         $attributes = [
-            'session_token' => $this->telegramTokenPrefix . $chatId,
+            'session_token' => $sessionToken,
             'status' => 'active',
         ];
 
