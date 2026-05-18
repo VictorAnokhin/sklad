@@ -96,6 +96,7 @@ return [
             'model'       => env('AI_TELEGRAM_MODEL', null),
             'temperature' => (float) env('AI_TELEGRAM_TEMPERATURE', 0.3),
             'max_tokens'  => (int) env('AI_TELEGRAM_MAX_TOKENS', 2000),
+            'fid'         => (int) env('AI_TELEGRAM_FID', 12),
         ],
 
         /*
