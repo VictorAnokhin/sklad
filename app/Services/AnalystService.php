@@ -670,6 +670,8 @@ class AnalystService
         $saved = [
             'knowledge_base' => false,
             'analyst_source' => false,
+            'news' => false,
+            'news_id' => null,
         ];
 
         // Сохраняем в AiKnowledgeBase
@@ -717,6 +719,34 @@ class AnalystService
             ]);
         }
 
+        if (in_array($category, ['article', 'news'], true)) {
+            try {
+                $saved['news_id'] = \App\Models\News::saveNews(0, (string) $fid, [
+                    'title' => $title,
+                    'kratko' => $summary !== '' ? $summary : mb_substr(strip_tags($content), 0, 300),
+                    'txt' => $content,
+                    'dt' => date('d-m-Y'),
+                    'time' => date('H:i:s'),
+                    'firma' => $fid,
+                    'view' => 1,
+                    'hot' => 0,
+                    'always' => 0,
+                    'article' => $category === 'article' ? 1 : 0,
+                    'tags' => $category,
+                    'htmlkeys' => trim($category . ' ' . ($sourceUrl ?? '')),
+                    'codesocnet' => '',
+                    'author' => 0,
+                    'top' => '',
+                ]);
+                $saved['news'] = true;
+            } catch (Throwable $e) {
+                Log::warning("Analyst: savePublication (news table, {$category}) failed.", [
+                    'fid' => $fid,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         return $saved;
     }
 
@@ -734,7 +764,7 @@ class AnalystService
         $saved = $this->savePublication($title, $content, $summary, $fid, 'article');
 
         return json_encode([
-            'success' => $saved['knowledge_base'] || $saved['analyst_source'],
+            'success' => $saved['knowledge_base'] || $saved['analyst_source'] || $saved['news'],
             'title' => $title,
             'fid' => $fid,
             'category' => 'article',
@@ -762,7 +792,7 @@ class AnalystService
         );
 
         return json_encode([
-            'success' => $saved['knowledge_base'] || $saved['analyst_source'],
+            'success' => $saved['knowledge_base'] || $saved['analyst_source'] || $saved['news'],
             'title' => $title,
             'fid' => $fid,
             'category' => 'news',
@@ -786,7 +816,7 @@ class AnalystService
         $saved = $this->savePublication($title, $content, $summary, $fid, category: 'review', rating: $rating);
 
         return json_encode([
-            'success' => $saved['knowledge_base'] || $saved['analyst_source'],
+            'success' => $saved['knowledge_base'] || $saved['analyst_source'] || $saved['news'],
             'title' => $title,
             'fid' => $fid,
             'category' => 'review',
