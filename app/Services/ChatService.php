@@ -18,6 +18,7 @@ class ChatService
         private readonly AiKnowledgeService $knowledgeService,
         private readonly DbQueryService $dbQuery,
         private readonly AiClientFactory $aiFactory,
+        private readonly AgentOrchestrator $orchestrator,
     ) {
         // По умолчанию используем канал 'web_chat'
         $this->ai = $this->aiFactory->make('web_chat');
@@ -256,6 +257,45 @@ class ChatService
         // ── Автообучение ──
         $this->knowledgeService->autoLearn($fid, $session->getHistoryForAi(5));
 
+        if ($this->shouldDelegateToTelegramAgent($message, (string) $result['answer'], $knowledgeContext)) {
+            $task = $this->orchestrator->createTask(
+                sourceAgent: 'frontend',
+                targetAgent: 'telegram',
+                fid: $fid,
+                taskType: 'complex_question',
+                inputData: [
+                    'query' => $message,
+                    'question' => $message,
+                    'language' => $language,
+                    'response_channel' => 'web_chat',
+                ],
+                sessionToken: $session->session_token,
+                priority: 1,
+            );
+
+            $delegatedAnswer = "⏳ В базе проекта не нашлось достаточной информации. Я передал вопрос TelegramAgent; если он не найдёт быстрый ответ, он спросит оператора в Telegram.";
+
+            $this->saveMessage($session->id, $fid, $firma, 'assistant', $delegatedAnswer, [
+                'source' => 'telegram_agent_delegation',
+                'task_uuid' => $task->uuid,
+            ]);
+
+            return [
+                'session_token' => $session->session_token,
+                'answer' => $delegatedAnswer,
+                'provider' => $this->ai->getProviderName(),
+                'model' => $result['model'],
+                'usage' => $result['usage'],
+                'db_tools_enabled' => $useDbTools && $fid > 0,
+                'delegated' => true,
+                'task_uuid' => $task->uuid,
+                'billing' => [
+                    'paid_by' => 'project',
+                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+                ],
+            ];
+        }
+
         return [
             'session_token' => $session->session_token,
             'answer' => $result['answer'],
@@ -268,6 +308,32 @@ class ChatService
                 'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
             ],
         ];
+    }
+
+    private function shouldDelegateToTelegramAgent(string $question, string $answer, string $knowledgeContext): bool
+    {
+        if ($knowledgeContext !== '') {
+            return false;
+        }
+
+        $text = mb_strtolower($question . "\n" . $answer);
+
+        foreach ([
+            'не знаю',
+            'нет информации',
+            'не нашел',
+            'не нашёл',
+            'недостаточно данных',
+            'недостаточно информации',
+            'не удалось найти',
+            'уточните',
+        ] as $marker) {
+            if (mb_stripos($text, $marker) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ── История сообщений ───────────────────────────────────────────────

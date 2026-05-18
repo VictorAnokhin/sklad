@@ -4,8 +4,8 @@ namespace App\Services;
 
 use App\Contracts\AiClientInterface;
 use App\Models\AgentTask;
-use App\Models\ChatSession;
 use App\Models\ChatMessage;
+use App\Models\ChatSession;
 use App\Traits\ChatLoopDetectionTrait;
 use App\Traits\ChatSessionManagerTrait;
 use Illuminate\Support\Facades\Cache;
@@ -21,7 +21,7 @@ class TelegramChatService
     /**
      * FID проекта аналитика по умолчанию.
      */
-    private const ANALYST_FID = 12;
+    private const ANALYST_FID = 1;
 
     /** @var array<string, int> Счётчик вызовов tools для rate limiting */
     private array $toolCallCount = [];
@@ -32,7 +32,7 @@ class TelegramChatService
     /** @var int Кэширование knowledge context в секундах */
     private const KNOWLEDGE_CACHE_TTL = 300;
 
-    private readonly AiClientInterface $ai;
+    private AiClientInterface $ai;
 
     public function __construct(
         private readonly AiClientFactory $aiFactory,
@@ -111,6 +111,10 @@ class TelegramChatService
 
         // ── Команды ──────────────────────────────────────────────────────
         if (str_starts_with($text, '/')) {
+            if (preg_match('/^\/answer\s+([0-9a-f-]{36})\s+(.+)/isu', $text, $matches)) {
+                return $this->completeHumanAnswer($chatId, $matches[1], trim($matches[2]));
+            }
+
             $response = $this->handleCommand($chatId, $text, $userId, $username);
             if ($response !== null) {
                 return $response;
@@ -215,7 +219,7 @@ class TelegramChatService
             $this->toolCallCount = [];
             $this->bot->sendChatAction($chatId, 'typing');
 
-            $fid = $this->resolveFid($message);
+            $fid = self::ANALYST_FID;
 
             // Получаем или создаём сессию с привязкой к fid
             $session = $this->resolveSession($chatId, false, $fid);
@@ -242,11 +246,11 @@ class TelegramChatService
             }
 
             // Загружаем контекст из Базы Знаний с привязкой к fid (с кэшированием)
-            $knowledgeContext = $this->loadKnowledgeContext($fid);
+            $knowledgeContext = $this->loadKnowledgeContext();
 
             // Делегирование TelegramAgent
             if ($this->shouldDelegateToAgent($text)) {
-                return $this->delegateToAgent($text, $chatId, $fid, $session);
+                return $this->delegateToAgent($text, $chatId, self::ANALYST_FID, $session);
             }
 
             // Загружаем историю для AI
@@ -259,9 +263,9 @@ class TelegramChatService
             $tools = $this->analyst->getTools();
 
             // Executor с передачей fid и rate limiting
-            $toolExecutor = function (string $name, array $arguments) use ($fid): string {
+            $toolExecutor = function (string $name, array $arguments): string {
                 $this->checkToolRateLimit();
-                $arguments['fid'] = $fid;
+                $arguments['fid'] = self::ANALYST_FID;
                 return $this->analyst->executeTool($name, $arguments);
             };
 
@@ -305,6 +309,50 @@ class TelegramChatService
 
             return '⚠️ Произошла непредвиденная ошибка. Попробуйте позже.';
         }
+    }
+
+    private function completeHumanAnswer(int|string $chatId, string $taskUuid, string $answer): string
+    {
+        if ($answer === '') {
+            return 'Ответ пустой. Используйте: /answer <uuid> <текст ответа>';
+        }
+
+        $task = AgentTask::where('uuid', $taskUuid)
+            ->where('status', 'waiting_human')
+            ->first();
+
+        if (! $task) {
+            return "Задача {$taskUuid} не найдена или уже закрыта.";
+        }
+
+        $session = $task->session_token ? ChatSession::resolveByToken($task->session_token) : null;
+
+        if ($session) {
+            ChatMessage::create([
+                'chat_session_id' => $session->id,
+                'fid' => $task->fid,
+                'firma' => $session->firma,
+                'role' => 'assistant',
+                'content' => $answer,
+                'metadata' => [
+                    'source' => 'telegram_human_answer',
+                    'task_uuid' => $task->uuid,
+                    'source_chat_id' => (string) $chatId,
+                ],
+            ]);
+        }
+
+        $result = [
+            'answer' => $answer,
+            'message' => $answer,
+            'human_answer' => true,
+            'task_uuid' => $task->uuid,
+        ];
+
+        $this->orchestrator->updateTaskStatus($task->id, 'completed', $result);
+        $this->orchestrator->sendTaskResult($task->fresh(), $result);
+
+        return "✅ Ответ передан в веб-чат по задаче {$task->uuid}.";
     }
 
     /**
@@ -428,7 +476,7 @@ class TelegramChatService
             }
         }
 
-        return $this->defaultFid();
+        return self::ANALYST_FID;
     }
 
     /**
@@ -444,12 +492,12 @@ class TelegramChatService
             return (int) $session->fid;
         }
 
-        return $this->defaultFid();
+        return self::ANALYST_FID;
     }
 
     private function defaultFid(): int
     {
-        $configured = (int) config('ai.channels.telegram.fid', $this->defaultAnalystFid);
+        $configured = (int) config('ai.channels.telegram.fid', self::ANALYST_FID);
 
         return $configured > 0 ? $configured : $this->defaultAnalystFid;
     }
@@ -457,9 +505,11 @@ class TelegramChatService
     /**
      * Загрузить контекст из Базы Знаний с привязкой к fid и кэшированием.
      */
-    private function loadKnowledgeContext(int $fid): string
+    private function loadKnowledgeContext(?int $fid = null): string
     {
-        $cacheKey = 'telegram_knowledge_context_fid_' . $fid;
+        $cacheKey = $fid === null
+            ? 'telegram_knowledge_context_global'
+            : 'telegram_knowledge_context_fid_' . $fid;
 
         try {
             return Cache::remember($cacheKey, self::KNOWLEDGE_CACHE_TTL, function () use ($fid): string {

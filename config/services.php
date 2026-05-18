@@ -129,6 +129,7 @@ return [
         'bot_token' => env('TELEGRAM_BOT_TOKEN', ''),
         'webhook_secret' => env('WEBHOOK_SECRET', ''),
         'server_url' => env('SERVER_URL', ''),
+        'operator_chat_id' => env('TELEGRAM_OPERATOR_CHAT_ID', ''),
     ],
 
 ];

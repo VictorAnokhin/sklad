@@ -75,7 +75,9 @@ trait ChatSessionManagerTrait
     {
         try {
             ChatMessage::create([
-                'session_token' => $session->session_token,
+                'chat_session_id' => $session->id,
+                'fid' => $session->fid,
+                'firma' => $session->firma,
                 'role' => 'user',
                 'content' => $text,
             ]);
@@ -102,7 +104,9 @@ trait ChatSessionManagerTrait
             ];
 
             ChatMessage::create([
-                'session_token' => $session->session_token,
+                'chat_session_id' => $session->id,
+                'fid' => $session->fid,
+                'firma' => $session->firma,
                 'role' => 'assistant',
                 'content' => $answer,
                 'metadata' => $metadata,
