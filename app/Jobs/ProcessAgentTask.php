@@ -53,6 +53,12 @@ class ProcessAgentTask implements ShouldQueue
             // Выполняем задачу
             $result = $agent->executeTask($task);
 
+            if (($result['status'] ?? null) === 'waiting_human') {
+                $task = $orchestrator->updateTaskStatus($task->id, 'waiting_human', $result);
+                $this->deliverResultToChatSession($task, $result);
+                return;
+            }
+
             // Обновляем задачу со статусом completed
             $task = $orchestrator->updateTaskStatus($task->id, 'completed', $result);
 

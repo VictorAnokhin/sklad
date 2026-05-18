@@ -22,7 +22,7 @@ class AgentTaskController extends Controller
     public function store(Request $request): JsonResponse
     {
         $payload = $request->validate([
-            'source_agent'  => ['required', 'string', 'max:50', 'in:backend,telegram,frontend,system'],
+            'source_agent'  => ['required', 'string', 'max:50', 'in:backend,telegram,frontend,system,telegram_expert'],
             'target_agent'  => ['required', 'string', 'max:50', 'in:backend,telegram,frontend'],
             'fid'           => ['required', 'integer', 'min:1'],
             'task_type'     => ['required', 'string', 'max:50'],
@@ -150,7 +150,7 @@ class AgentTaskController extends Controller
     public function updateStatus(Request $request, string $uuid): JsonResponse
     {
         $payload = $request->validate([
-            'status'        => ['required', 'string', 'in:pending,processing,completed,failed'],
+            'status'        => ['required', 'string', 'in:pending,processing,waiting_human,completed,failed'],
             'output_data'   => ['nullable', 'array'],
             'error_message' => ['nullable', 'string', 'max:2000'],
         ]);

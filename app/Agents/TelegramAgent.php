@@ -11,7 +11,6 @@ use App\Services\TelegramBotService;
 use App\Services\AiKnowledgeService;
 use App\Services\AnalystService;
 use App\Services\WebScraperService;
-use App\Models\ChatMessage;
 use App\Traits\ChatLoopDetectionTrait;
 use App\Traits\ChatSessionManagerTrait;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +21,7 @@ class TelegramAgent
     use ChatLoopDetectionTrait;
     use ChatSessionManagerTrait;
 
-    const ANALYST_FID = 12;
+    const ANALYST_FID = 1;
 
     /** @var array<string, int> Счётчик вызовов tools для rate limiting */
     private array $toolCallCount = [];
@@ -30,7 +29,7 @@ class TelegramAgent
     /** @var int Максимальное количество вызовов tools за один диалог */
     private const MAX_TOOL_CALLS = 25;
 
-    private readonly AiClientInterface $ai;
+    private AiClientInterface $ai;
 
     public function __construct(
         private TelegramBotService $bot,
@@ -158,7 +157,7 @@ class TelegramAgent
             str_starts_with($text, '/help')   => $this->cmdHelp($chatId),
             str_starts_with($text, '/clear')  => $this->cmdClear($chatId),
             str_starts_with($text, '/new')    => $this->cmdNew($chatId),
-            default                           => $this->bot->sendMessage($chatId, "Неизвестная команда. Используйте /help"),
+            default                           => $this->sendPlainAndReturn($chatId, "Неизвестная команда. Используйте /help"),
         };
     }
 
@@ -173,7 +172,9 @@ class TelegramAgent
             . "📰 *Работать с новостями*\n\n"
             . "Команды: /help — помощь, /clear — очистить историю, /new — новый диалог.";
 
-        return $this->bot->sendMarkdown($chatId, $welcome);
+        $this->sendMarkdownWithFallback($chatId, $welcome);
+
+        return $welcome;
     }
 
     private function cmdHelp(int|string $chatId): string
@@ -192,7 +193,9 @@ class TelegramAgent
             . "• «Напиши обзор протокола Suilend»\n"
             . "• «Сделай анализ рынка»";
 
-        return $this->bot->sendMarkdown($chatId, $help);
+        $this->sendMarkdownWithFallback($chatId, $help);
+
+        return $help;
     }
 
     private function cmdClear(int|string $chatId): string
@@ -203,7 +206,7 @@ class TelegramAgent
 
         $this->resolveSession($chatId, true);
 
-        return $this->bot->sendMessage($chatId, "🧹 История диалога очищена. Задавайте новый вопрос!");
+        return $this->sendPlainAndReturn($chatId, "🧹 История диалога очищена. Задавайте новый вопрос!");
     }
 
     private function cmdNew(int|string $chatId): string
@@ -214,7 +217,7 @@ class TelegramAgent
 
         $this->resolveSession($chatId, true);
 
-        return $this->bot->sendMessage($chatId, "🆕 Начинаем новый диалог. Задавайте вопрос!");
+        return $this->sendPlainAndReturn($chatId, "🆕 Начинаем новый диалог. Задавайте вопрос!");
     }
 
     // ── Обработка задач от TelegramChatService ────────────────────
@@ -334,7 +337,7 @@ class TelegramAgent
             $this->saveUserMessage($session, $query);
 
             // Загружаем knowledge для контекста с привязкой к fid
-            $knowledgeContext = $this->knowledgeService->getContext($fid);
+            $knowledgeContext = $this->knowledgeService->getContext(null);
 
             $history = $session->getHistoryForAi(20);
 
@@ -358,6 +361,10 @@ class TelegramAgent
 
             $answer = $result['answer'] ?? '⚠️ Не удалось получить ответ.';
             $this->saveAssistantMessage($session, $answer, $result);
+
+            if ($this->shouldAskHuman($answer, $query)) {
+                return $this->requestHumanAnswer($task, $query);
+            }
 
             return $this->taskResult($task, $answer);
 
@@ -427,7 +434,7 @@ class TelegramAgent
         }
 
         // Загружаем knowledge base с привязкой к fid
-        $knowledgeContext = $this->knowledgeService->getContext($fid);
+        $knowledgeContext = $this->knowledgeService->getContext(null);
 
         // Загружаем историю
         $history = $session->getHistoryForAi(20);
@@ -468,7 +475,79 @@ class TelegramAgent
         // Сохраняем ответ
         $this->saveAssistantMessage($session, $answer, $result);
 
-        return $this->bot->sendMarkdown($chatId, $answer);
+        $this->sendMarkdownWithFallback($chatId, $answer);
+
+        return $answer;
+    }
+
+    private function sendPlainAndReturn(int|string $chatId, string $message): string
+    {
+        $this->bot->sendMessage($chatId, $message);
+
+        return $message;
+    }
+
+    private function sendMarkdownWithFallback(int|string $chatId, string $message): void
+    {
+        try {
+            $this->bot->sendMarkdown($chatId, $message);
+        } catch (Throwable $markdownError) {
+            Log::warning('TelegramAgent: markdown send failed, retrying as plain text.', [
+                'chat_id' => $chatId,
+                'error' => $markdownError->getMessage(),
+            ]);
+
+            $this->bot->sendMessage($chatId, $message);
+        }
+    }
+
+    private function shouldAskHuman(string $answer, string $query): bool
+    {
+        $text = mb_strtolower($answer . "\n" . $query);
+
+        foreach ([
+            'не нашел',
+            'не нашёл',
+            'нет информации',
+            'недостаточно информации',
+            'не удалось найти',
+            'не могу найти',
+            'уточните у оператора',
+        ] as $marker) {
+            if (mb_stripos($text, $marker) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function requestHumanAnswer(AgentTask $task, string $question): array
+    {
+        $operatorChatId = $task->input_data['operator_chat_id']
+            ?? config('services.telegram.operator_chat_id', '');
+
+        if (! $operatorChatId) {
+            return $this->taskResult(
+                $task,
+                'Не нашёл быстрый ответ и не смог спросить оператора: TELEGRAM_OPERATOR_CHAT_ID не настроен.'
+            );
+        }
+
+        $message = "❓ Запрос из веб-чата\n"
+            . "Задача: {$task->uuid}\n"
+            . "fid: {$task->fid}\n\n"
+            . "{$question}\n\n"
+            . "Ответьте командой:\n"
+            . "/answer {$task->uuid} ваш ответ";
+
+        $this->bot->sendMessage($operatorChatId, $message);
+
+        return [
+            'status' => 'waiting_human',
+            'message' => 'Я передал вопрос оператору в Telegram. Ответ появится в этом чате, когда оператор ответит.',
+            'task_uuid' => $task->uuid,
+        ];
     }
 
     /**
