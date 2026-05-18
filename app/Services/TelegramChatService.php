@@ -217,7 +217,7 @@ class TelegramChatService
     ): string {
         try {
             $this->toolCallCount = [];
-            $this->bot->sendChatAction($chatId, 'typing');
+            $this->sendTyping($chatId);
 
             $fid = self::ANALYST_FID;
 
@@ -269,14 +269,29 @@ class TelegramChatService
                 return $this->analyst->executeTool($name, $arguments);
             };
 
-            // Отправляем запрос с поддержкой function calling
-            $result = $this->ai->chatWithTools(
-                $instructions,
-                $history,
-                $tools,
-                $toolExecutor,
-                ['max_tool_iterations' => 10],
-            );
+            // Отправляем запрос с поддержкой function calling.
+            // Если провайдер отклоняет tools, отвечаем обычным AI-запросом.
+            try {
+                $result = $this->ai->chatWithTools(
+                    $instructions,
+                    $history,
+                    $tools,
+                    $toolExecutor,
+                    ['max_tool_iterations' => 10],
+                );
+            } catch (RuntimeException $e) {
+                Log::warning('Telegram AI tools request failed, retrying without tools.', [
+                    'chat_id' => $chatId,
+                    'fid' => $fid,
+                    'error' => $e->getMessage(),
+                ]);
+
+                $result = $this->ai->chat(
+                    $instructions,
+                    $history,
+                    ['max_tokens' => config('ai.channels.telegram.max_tokens', 2000)],
+                );
+            }
 
             $answer = $result['answer'] ?? '⚠️ Не удалось получить ответ. Попробуйте переформулировать вопрос.';
 
@@ -308,6 +323,18 @@ class TelegramChatService
             ]);
 
             return '⚠️ Произошла непредвиденная ошибка. Попробуйте позже.';
+        }
+    }
+
+    private function sendTyping(int|string $chatId): void
+    {
+        try {
+            $this->bot->sendChatAction($chatId, 'typing');
+        } catch (Throwable $e) {
+            Log::debug('Telegram: sendChatAction skipped.', [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
