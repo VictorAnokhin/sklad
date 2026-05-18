@@ -629,6 +629,9 @@ class TelegramAgent
     private function resolveSession(int|string $chatId, bool $forceNew = false): ChatSession
     {
         $token = 'tg_agent_' . $chatId;
+        $newToken = $forceNew
+            ? $token . '_' . now()->timestamp
+            : $token;
 
         if (!$forceNew) {
             $session = ChatSession::resolveByToken($token);
@@ -638,7 +641,7 @@ class TelegramAgent
         }
 
         return ChatSession::createSession([
-            'session_token' => $token,
+            'session_token' => $newToken,
             'fid' => self::ANALYST_FID,
             'language' => 'ru',
             'status' => 'active',

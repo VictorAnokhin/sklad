@@ -586,8 +586,14 @@ class TelegramChatService
             }
         }
 
+        // При forceNew=true (cmdClear / cmdNew) старый session_token уже занят archived-записью,
+        // поэтому генерируем уникальный токен с суффиксом.
+        $newToken = $forceNew
+            ? $token . '_' . now()->timestamp
+            : $token;
+
         return ChatSession::create([
-            'session_token' => $token,
+            'session_token' => $newToken,
             'fid' => $this->defaultFid(),
             'language' => 'ru',
             'page' => 'telegram_analyst',
