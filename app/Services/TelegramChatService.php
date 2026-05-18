@@ -40,6 +40,7 @@ class TelegramChatService
         private readonly AnalystService $analyst,
         private readonly AiKnowledgeService $knowledgeService,
         private readonly AgentOrchestrator $orchestrator,
+        private readonly WebChatIntentDetector $intentDetector,
     ) {
         $this->ai = $this->aiFactory->make('telegram');
         // Настройки трейта ChatSessionManagerTrait
@@ -245,19 +246,21 @@ class TelegramChatService
                 return $this->breakTheLoop($chatId, $session);
             }
 
+            $intent = $this->intentDetector->detect($text, 'telegram', 'ru');
+
             // Загружаем контекст из Базы Знаний с привязкой к fid (с кэшированием)
             $knowledgeContext = $this->loadKnowledgeContext();
 
             // Делегирование TelegramAgent
-            if ($this->shouldDelegateToAgent($text)) {
-                return $this->delegateToAgent($text, $chatId, self::ANALYST_FID, $session);
+            if ($this->shouldDelegateToAgent($text, $intent)) {
+                return $this->delegateToAgent($text, $chatId, self::ANALYST_FID, $session, $intent);
             }
 
             // Загружаем историю для AI
             $history = $session->getHistoryForAi(20);
 
             // Формируем system prompt с динамическим fid
-            $instructions = $this->buildAnalystPrompt($knowledgeContext, $fid);
+            $instructions = $this->buildAnalystPrompt($knowledgeContext, $fid, $intent);
 
             // Получаем инструменты аналитика
             $tools = $this->analyst->getTools();
@@ -398,14 +401,17 @@ class TelegramChatService
     /**
      * Делегировать задачу TelegramAgent с передачей fid.
      */
-    private function delegateToAgent(string $text, int|string $chatId, int $fid, ChatSession $session): string
+    private function delegateToAgent(string $text, int|string $chatId, int $fid, ChatSession $session, array $intent = []): string
     {
-        $taskType = $this->detectTaskType($text);
+        $taskType = $this->detectTaskType($text, $intent);
 
         $inputData = [
-            'query' => $text,
+            'query' => $this->buildDelegatedQuery($text, $intent, $taskType),
+            'question' => $text,
             'chat_id' => $chatId,
             'language' => 'ru',
+            'channel' => 'telegram',
+            'intent' => $intent,
         ];
 
         if ($taskType === 'study_website') {
@@ -424,15 +430,22 @@ class TelegramChatService
             sessionToken: $session->session_token,
         );
 
-        return "⏳ Задача принята. Я делегировал её TelegramAgent (ID: {$task->uuid}). "
-            . "Проект fid={$fid}. Он изучит ресурс, сохранит данные и предоставит отчёт.";
+        if (($intent['type'] ?? '') === WebChatIntentDetector::PUBLISH_NEWS) {
+            return "⏳ Принял. Передал задачу автору-аналитику: он проверит источники, подготовит материал и при необходимости опубликует статью или новость в проекте fid={$fid}. ID задачи: {$task->uuid}.";
+        }
+
+        return "⏳ Принял. Передал задачу аналитику-помощнику: он проверит источники, сохранит полезные данные и вернёт результат сюда. ID задачи: {$task->uuid}.";
     }
 
     /**
      * Определить, нужно ли делегировать задачу TelegramAgent.
      */
-    private function shouldDelegateToAgent(string $text): bool
+    private function shouldDelegateToAgent(string $text, array $intent = []): bool
     {
+        if (in_array(($intent['type'] ?? ''), [WebChatIntentDetector::RESEARCH, WebChatIntentDetector::PUBLISH_NEWS], true)) {
+            return true;
+        }
+
         $delegateKeywords = [
             'изучи сайт', 'проанализируй сайт', 'просмотри сайт',
             'сохрани в базу знаний',
@@ -468,14 +481,41 @@ class TelegramChatService
     /**
      * Определить тип задачи для TelegramAgent.
      */
-    private function detectTaskType(string $text): string
+    private function detectTaskType(string $text, array $intent = []): string
     {
+        if (($intent['type'] ?? '') === WebChatIntentDetector::PUBLISH_NEWS) {
+            return 'complex_question';
+        }
+
         return match (true) {
             preg_match('/изучи сайт|проанализируй сайт|просмотри сайт|спарси/i', $text) => 'study_website',
             preg_match('/сохрани.*баз[уе].*знан/i', $text) => 'save_to_knowledge',
             preg_match('/массов|все товар|все проект/i', $text) => 'mass_analysis',
             default => 'complex_question',
         };
+    }
+
+    private function buildDelegatedQuery(string $text, array $intent, string $taskType): string
+    {
+        if (($intent['type'] ?? '') === WebChatIntentDetector::PUBLISH_NEWS) {
+            $topic = trim((string) ($intent['topic'] ?? ''));
+
+            return "Задача из Telegram-чата. Нужно подготовить и при необходимости опубликовать материал для проекта fid=1.\n"
+                . ($topic !== '' ? "Тема: {$topic}\n" : '')
+                . "Исходный запрос пользователя: {$text}\n\n"
+                . "Работай как аналитик и помощник AV8 Capital: проверь сохранённые источники/знания, при необходимости загрузи открытые источники, затем подготовь законченный текст. "
+                . "Если запрос явно просит новость или статью — используй publish_news или publish_article с fid=1. "
+                . "Не переводи задачу оператору из-за пустого TELEGRAM_OPERATOR_CHAT_ID.";
+        }
+
+        if (($intent['type'] ?? '') === WebChatIntentDetector::RESEARCH && $taskType === 'complex_question') {
+            return "Задача из Telegram-чата. Проведи исследование для проекта fid=1.\n"
+                . "Исходный запрос пользователя: {$text}\n\n"
+                . "Сначала проверь сохранённые источники/знания, затем при необходимости загрузи открытые источники. "
+                . "Сохрани полезные данные и верни короткий человеческий отчёт без технических заготовок.";
+        }
+
+        return $text;
     }
 
     // ── Управление сессиями ────────────────────────────────────────────────
@@ -580,13 +620,27 @@ class TelegramChatService
     /**
      * Сформировать system prompt для AI-эксперта с динамическим fid.
      */
-    private function buildAnalystPrompt(string $knowledgeContext = '', int $currentFid = self::ANALYST_FID): string
+    private function buildAnalystPrompt(string $knowledgeContext = '', int $currentFid = self::ANALYST_FID, array $intent = []): string
     {
+        $intentType = (string) ($intent['type'] ?? WebChatIntentDetector::FAQ);
+        $intentTopic = (string) ($intent['topic'] ?? '');
+        $intentInstruction = $this->intentInstruction($intentType);
+
         $prompt = <<<PROMPT
-ТЫ — AI-ЭКСПЕРТ AV8 Capital. Твоя специализация — глубокая аналитика, исследования и накопление базы знаний.
+ТЫ — AI-АНАЛИТИК И ПОМОЩНИК AV8 Capital.
+
+Твоя специализация — человеческое общение, глубокая аналитика, исследования, накопление базы знаний и подготовка материалов.
+Ты ведёшь себя одинаково в Telegram и вебчате laravel-api: спокойно, по делу, без роботизированных заготовок.
 
 ТВОЙ ID ПРОЕКТА (fid): {$currentFid}
 Все сохраняемые данные привязываются к проекту fid={$currentFid}.
+
+ТЕКУЩЕЕ НАМЕРЕНИЕ ПОЛЬЗОВАТЕЛЯ:
+- type: {$intentType}
+- topic: {$intentTopic}
+
+МАРШРУТ ОТВЕТА:
+{$intentInstruction}
 
 🧠 КОНФИГУРАЦИЯ:
 Твои правила работы и инструкции задаются администратором через панель /settings → База знаний → категория «telegram_instruction».
@@ -612,6 +666,9 @@ class TelegramChatService
 6. list_researches() — Показать все исследования (по всем проектам).
 7. save_knowledge(title, content, category, fid) — Сохранить заметку в БЗ (fid={$currentFid}).
 8. get_research_sources(research_id) — Получить все источники исследования.
+9. publish_article(title, content, summary, fid) — Опубликовать аналитическую статью в базе знаний и разделе новостей.
+10. publish_news(title, content, summary, source_url, fid) — Опубликовать новостной материал в базе знаний и разделе новостей.
+11. publish_review(title, content, summary, rating, fid) — Опубликовать обзор/рецензию.
 
 АЛГОРИТМ РАБОТЫ ЭКСПЕРТА:
 
@@ -629,8 +686,17 @@ class TelegramChatService
    → Если задача требует детального изучения сайта — делегируй
    → После получения отчёта — проанализируй и сохрани выводы
 
+4. Публикации:
+   → Если пользователь просит «новость», «новостную статью», «материал», «опубликуй» — подготовь готовый текст и вызови publish_news или publish_article.
+   → Не отвечай техническими заготовками вроде «начинаю загрузку» как финальным результатом.
+   → Если источников недостаточно, сначала используй search_sources/fetch_url, затем публикуй только проверяемые факты.
+   → После публикации кратко сообщи заголовок, fid и что материал сохранён в разделе новостей.
+
 ПРАВИЛА ЭКСПЕРТА:
-- Твоя задача — анализ, исследования, накопление базы знаний
+- Твоя задача — анализ, исследования, накопление базы знаний и помощь пользователю следующим понятным шагом
+- Пиши естественно: без «как ИИ», без канцелярита, без повторения вопроса пользователя
+- Обычно отвечай 2-5 короткими предложениями или 3-5 пунктами
+- Если нужно уточнение — задай один короткий вопрос
 - Используй эмодзи для наглядности (📊 🔍 💾 📡 🌐 📝)
 - Всегда сохраняй источники через save_source с правильным fid
 - Не выдумывай данные — используй только то, что получил из функций
@@ -649,5 +715,19 @@ PROMPT;
             : '';
 
         return $prompt . $knowledgeSection;
+    }
+
+    private function intentInstruction(string $intentType): string
+    {
+        return match ($intentType) {
+            WebChatIntentDetector::SMALL_TALK => '- Ответь тепло и коротко. Не запускай исследование без явной просьбы.',
+            WebChatIntentDetector::FAQ => '- Дай короткий фактологический ответ. Если есть база знаний или sources, используй их.',
+            WebChatIntentDetector::HOW_TO => '- Дай один понятный следующий шаг или короткую инструкцию. Не перегружай вариантами.',
+            WebChatIntentDetector::SUPPORT => '- Признай проблему, попроси один недостающий факт при необходимости и предложи ближайшее действие.',
+            WebChatIntentDetector::RESEARCH => '- Сначала ищи существующие данные. Если нужно глубокое изучение, делегируй TelegramAgent и не имитируй процесс словами.',
+            WebChatIntentDetector::PUBLISH_NEWS => '- Подготовка и публикация материалов должна идти через publish_news/publish_article или делегирование TelegramAgent.',
+            WebChatIntentDetector::WALLET_ACTION => '- Не выдумывай onchain-состояние, не проси секреты, объясняй только безопасный следующий шаг.',
+            default => '- Ответь по сути и используй базу знаний при наличии.',
+        };
     }
 }

@@ -164,7 +164,7 @@ class AiKnowledgeService
      * @param  string  $category  Категория знания
      * @return array{success: bool, record?: AiKnowledgeBase, error?: string}
      */
-    public function saveInformation(int $fid, string $title, string $content, string $category = 'manual'): array
+    public function saveInformation(int $fid, string $title, string $content, string $category = 'manual', string $source = 'manual'): array
     {
         try {
             if (mb_strlen($content) < 10) {
@@ -184,7 +184,7 @@ class AiKnowledgeService
                 // Обновляем существующую запись, сохраняя tool_keys
                 $existing->update([
                     'content' => $content,
-                    'source' => 'manual',
+                    'source' => $source,
                     'tool_keys' => $existing->tool_keys ?? [],
                 ]);
 
@@ -205,7 +205,7 @@ class AiKnowledgeService
                 'title' => $title,
                 'content' => $content,
                 'category' => $category,
-                'source' => 'manual',
+                'source' => $source,
                 'active' => true,
             ]);
 
