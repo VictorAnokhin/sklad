@@ -184,10 +184,14 @@ class TelegramChatService
         try {
             $this->bot->sendChatAction($chatId, 'typing');
 
-            $fid = $message['fid'] ?? self::ANALYST_FID;
+            $fid = $this->resolveFid($message);
 
             // Получаем или создаём сессию
             $session = $this->resolveSession($chatId);
+            if ((int) $session->fid !== $fid) {
+                $session->update(['fid' => $fid]);
+                $session->refresh();
+            }
 
             // Сохраняем сообщение пользователя
             $this->saveUserMessage($session, $text);
@@ -203,7 +207,7 @@ class TelegramChatService
             }
 
             // Загружаем контекст из Базы Знаний (инструкции + записи)
-            $knowledgeContext = $this->knowledgeService->getContext($fid);
+            $knowledgeContext = $this->loadKnowledgeContext($fid);
 
             // ════════════════════════════════════════════════════════════════
             //  ДЕЛЕГИРОВАНИЕ TelegramAgent
@@ -487,17 +491,86 @@ class TelegramChatService
                 ->first();
 
             if ($session !== null) {
+                $defaultFid = $this->defaultFid();
+                if ($defaultFid !== self::ANALYST_FID && (int) $session->fid === self::ANALYST_FID) {
+                    $session->update(['fid' => $defaultFid]);
+                }
+
                 return $session;
             }
         }
 
         return ChatSession::create([
             'session_token' => $token,
-            'fid' => self::ANALYST_FID,
+            'fid' => $this->defaultFid(),
             'language' => 'ru',
             'page' => 'telegram_analyst',
             'status' => 'active',
         ]);
+    }
+
+    /**
+     * Resolve Telegram project context. Default is still 12 for the analyst bot,
+     * but production can point TelegramChat at the same project knowledge base as
+     * the web chat via AI_TELEGRAM_FID.
+     *
+     * @param  array<string, mixed>  $message
+     */
+    private function resolveFid(array $message): int
+    {
+        $fid = (int) ($message['fid'] ?? 0);
+        if ($fid > 0) {
+            return $fid;
+        }
+
+        $chatId = $message['chat']['id'] ?? null;
+        if ($chatId !== null) {
+            $session = ChatSession::where('session_token', self::TELEGRAM_TOKEN_PREFIX . $chatId)
+                ->where('status', 'active')
+                ->first();
+
+            if ($session && (int) $session->fid > 0 && (int) $session->fid !== self::ANALYST_FID) {
+                return (int) $session->fid;
+            }
+        }
+
+        return $this->defaultFid();
+    }
+
+    private function defaultFid(): int
+    {
+        $configured = (int) config('ai.channels.telegram.fid', self::ANALYST_FID);
+
+        return $configured > 0 ? $configured : self::ANALYST_FID;
+    }
+
+    private function loadKnowledgeContext(int $fid): string
+    {
+        if ($fid <= 0) {
+            return '';
+        }
+
+        try {
+            $context = $this->knowledgeService->getContext($fid);
+
+            if ($context === '' && $fid !== self::ANALYST_FID) {
+                Log::info('TelegramChatService: knowledge context empty, trying analyst fid fallback.', [
+                    'fid' => $fid,
+                    'fallback_fid' => self::ANALYST_FID,
+                ]);
+
+                $context = $this->knowledgeService->getContext(self::ANALYST_FID);
+            }
+
+            return $context;
+        } catch (Throwable $e) {
+            Log::warning('TelegramChatService: failed to load knowledge context.', [
+                'fid' => $fid,
+                'error' => $e->getMessage(),
+            ]);
+
+            return '';
+        }
     }
 
     // ── Сохранение сообщений ────────────────────────────────────────────────
@@ -506,7 +579,7 @@ class TelegramChatService
     {
         return ChatMessage::create([
             'chat_session_id' => $session->id,
-            'fid' => self::ANALYST_FID,
+            'fid' => $session->fid ?: $this->defaultFid(),
             'firma' => null,
             'role' => 'user',
             'content' => $text,
@@ -520,7 +593,7 @@ class TelegramChatService
     {
         return ChatMessage::create([
             'chat_session_id' => $session->id,
-            'fid' => self::ANALYST_FID,
+            'fid' => $session->fid ?: $this->defaultFid(),
             'firma' => null,
             'role' => 'assistant',
             'content' => $answer,
