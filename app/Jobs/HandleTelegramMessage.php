@@ -19,18 +19,31 @@ class HandleTelegramMessage implements ShouldQueue
     /** Данные сообщения от Telegram */
     public array $message;
 
+    /** ID проекта (fid), переданный из вебхука */
+    public ?int $fid;
+
     public int $tries = 1;
 
     public int $timeout = 300;
 
-    public function __construct(array $message)
+    public function __construct(array $message, ?int $fid = null)
     {
         $this->message = $message;
+        $this->fid = $fid;
+
+        // Если fid передан, добавляем его в сообщение для TelegramChatService
+        if ($fid !== null && $fid > 0) {
+            $this->message['fid'] = $fid;
+        }
     }
 
     /**
      * Обработать входящее сообщение из Telegram.
      * Выполняется в фоновой очереди, чтобы Telegram не ждал ответа.
+     *
+     * sendChatAction (печатает...) НЕ вызываем здесь —
+     * он уже отправляется внутри TelegramChatService::handleAiDialog()
+     * при старте обработки AI-запроса, чтобы избежать дублирования.
      */
     public function handle(
         TelegramChatService $chatService,
@@ -45,18 +58,9 @@ class HandleTelegramMessage implements ShouldQueue
 
         Log::info('HandleTelegramMessage: processing message', [
             'chat_id' => $chatId,
+            'fid' => $this->fid,
             'text_preview' => mb_substr($text, 0, 100),
         ]);
-
-        // Показываем "печатает..."
-        try {
-            $bot->sendChatAction($chatId, 'typing');
-        } catch (Throwable $e) {
-            Log::debug('HandleTelegramMessage: sendChatAction failed', [
-                'chat_id' => $chatId,
-                'error' => $e->getMessage(),
-            ]);
-        }
 
         try {
             $answer = $chatService->handleMessage($this->message);
@@ -67,6 +71,7 @@ class HandleTelegramMessage implements ShouldQueue
         } catch (Throwable $e) {
             Log::error('HandleTelegramMessage: processing failed', [
                 'chat_id' => $chatId,
+                'fid' => $this->fid,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
