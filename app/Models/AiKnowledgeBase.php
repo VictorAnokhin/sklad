@@ -24,8 +24,14 @@ class AiKnowledgeBase extends Model
         'tool_keys' => 'array',
     ];
 
-    public function scopeForFid($query, int $fid)
+    /**
+     * Фильтр по проекту (fid). Если $fid === null — не фильтровать.
+     */
+    public function scopeForFid($query, ?int $fid)
     {
+        if ($fid === null) {
+            return $query;
+        }
         return $query->where('fid', $fid);
     }
 

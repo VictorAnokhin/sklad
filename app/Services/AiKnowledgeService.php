@@ -23,7 +23,10 @@ class AiKnowledgeService
      * Инструкции для Telegram-бота (категория telegram_instruction) загружаются
      * отдельно и без лимита, остальные записи — с лимитом.
      */
-    public function getContext(int $fid, int $limit = 10): string
+    /**
+     * @param  int|null  $fid  ID проекта. null — получить записи всех проектов.
+     */
+    public function getContext(?int $fid = null, int $limit = 10): string
     {
         $parts = collect();
 
@@ -63,7 +66,10 @@ class AiKnowledgeService
      *
      * @return Collection<int, AiKnowledgeBase>
      */
-    public function getInstructions(int $fid): Collection
+    /**
+     * @param  int|null  $fid  ID проекта. null — получить инструкции всех проектов.
+     */
+    public function getInstructions(?int $fid = null): Collection
     {
         return AiKnowledgeBase::forFid($fid)
             ->active()
@@ -234,7 +240,10 @@ class AiKnowledgeService
      * @param  array<int, string>  $excludeCategories  Категории, которые нужно исключить
      * @return Collection<int, AiKnowledgeBase>
      */
-    public function getActiveRecords(int $fid, int $limit = 10, array $excludeCategories = []): Collection
+    /**
+     * @param  int|null  $fid  ID проекта. null — получить записи всех проектов.
+     */
+    public function getActiveRecords(?int $fid = null, int $limit = 10, array $excludeCategories = []): Collection
     {
         $query = AiKnowledgeBase::forFid($fid)
             ->active()
@@ -304,7 +313,10 @@ class AiKnowledgeService
      *
      * @return Collection<int, AiKnowledgeBase>
      */
-    public function search(int $fid, string $query, int $limit = 5): Collection
+    /**
+     * @param  int|null  $fid  ID проекта. null — искать по всем проектам.
+     */
+    public function search(?int $fid = null, string $query = '', int $limit = 5): Collection
     {
         return AiKnowledgeBase::forFid($fid)
             ->active()

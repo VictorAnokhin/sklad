@@ -291,8 +291,8 @@ class TelegramAgent
             $session = $this->resolveSession($chatId);
             $this->saveUserMessage($session, $query);
 
-            // Загружаем knowledge для контекста
-            $knowledgeContext = $this->knowledgeService->getContext($fid);
+            // Загружаем knowledge для контекста (без привязки к fid)
+            $knowledgeContext = $this->knowledgeService->getContext(null);
 
             // Получаем историю
             $history = $session->getHistoryForAi(20);
@@ -363,8 +363,8 @@ class TelegramAgent
             return $this->breakTheLoop($chatId, $session);
         }
 
-        // Загружаем knowledge base
-        $knowledgeContext = $this->knowledgeService->getContext($fid);
+        // Загружаем knowledge base (без привязки к fid)
+        $knowledgeContext = $this->knowledgeService->getContext(null);
 
         // Загружаем историю
         $history = $session->getHistoryForAi(20);
