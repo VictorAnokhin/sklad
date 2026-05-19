@@ -19,12 +19,12 @@
     maxHistory: 6,
     messages: {
       ru: {
-        title: "AI консультант",
-        subtitle: "DeepSeek",
+        title: "Консультант",
+        subtitle: "",
         thinking: "Думаю…",
         placeholder: "Напишите сообщение…",
         sendLabel: "Отправить",
-        button: "AI консультант",
+        button: "Консультант",
         collapse: "Свернуть",
         welcome:
           "Спросите об AV8Capital, услугах для микро-бизнеса, финансовом учёте или как пользоваться системой.",
@@ -38,12 +38,12 @@
         serverProcessing: "Распознаю речь…",
       },
       ua: {
-        title: "AI консультант",
-        subtitle: "DeepSeek",
+        title: "Консультант",
+        subtitle: "",
         thinking: "Думаю…",
         placeholder: "Напишіть повідомлення…",
         sendLabel: "Надіслати",
-        button: "AI консультант",
+        button: "Консультант",
         collapse: "Згорнути",
         welcome:
           "Запитайте про AV8Capital, послуги для мікро-бізнесу, фінансовий облік або як користуватися системою.",
@@ -57,12 +57,12 @@
         serverProcessing: "Розпізнаю мовлення…",
       },
       en: {
-        title: "AI Assistant",
-        subtitle: "DeepSeek",
+        title: "Consultant",
+        subtitle: "",
         thinking: "Thinking…",
         placeholder: "Type a message…",
         sendLabel: "Send",
-        button: "AI Assistant",
+        button: "Consultant",
         collapse: "Collapse",
         welcome:
           "Ask about AV8Capital, micro-business services, financial accounting, or how to use the system.",
@@ -179,10 +179,11 @@
     var header = createEl("div", { className: "ai-chat-header" });
     var headerLeft = createEl("div", { className: "ai-chat-header-left" });
     var avatar = createEl("div", { className: "ai-chat-avatar" }, svgIcon("bot"));
-    var titleBlock = createEl("div", null, [
-      createEl("div", { className: "ai-chat-title" }, msg("title")),
-      createEl("div", { className: "ai-chat-subtitle" }, msg("subtitle")),
-    ]);
+    var titleChildren = [createEl("div", { className: "ai-chat-title" }, msg("title"))];
+    if (msg("subtitle")) {
+      titleChildren.push(createEl("div", { className: "ai-chat-subtitle" }, msg("subtitle")));
+    }
+    var titleBlock = createEl("div", null, titleChildren);
     headerLeft.appendChild(avatar);
     headerLeft.appendChild(titleBlock);
     var collapseBtn = createEl("button", {
