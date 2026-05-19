@@ -28,7 +28,7 @@
         collapse: "Свернуть",
         welcome:
           "Спросите об AV8Capital, услугах для микро-бизнеса, финансовом учёте или как пользоваться системой.",
-        error: "AI-ассистент временно недоступен. Попробуйте позже.",
+        error: "Консультант временно недоступен. Попробуйте позже.",
         voiceInput: "Голосовой ввод",
         voiceInputActive: "Говорите…",
         voiceInputUnsupported: "Голосовой ввод не поддерживается в этом браузере",
@@ -47,7 +47,7 @@
         collapse: "Згорнути",
         welcome:
           "Запитайте про AV8Capital, послуги для мікро-бізнесу, фінансовий облік або як користуватися системою.",
-        error: "AI-асистент тимчасово недоступний. Спробуйте пізніше.",
+        error: "Консультант тимчасово недоступний. Спробуйте пізніше.",
         voiceInput: "Голосовий ввід",
         voiceInputActive: "Говоріть…",
         voiceInputUnsupported: "Голосовий ввід не підтримується в цьому браузері",
@@ -66,7 +66,7 @@
         collapse: "Collapse",
         welcome:
           "Ask about AV8Capital, micro-business services, financial accounting, or how to use the system.",
-        error: "AI assistant is temporarily unavailable. Please try again later.",
+        error: "Consultant is temporarily unavailable. Please try again later.",
         voiceInput: "Voice input",
         voiceInputActive: "Speak now…",
         voiceInputUnsupported: "Voice input is not supported in this browser",
