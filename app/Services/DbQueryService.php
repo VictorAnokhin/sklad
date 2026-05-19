@@ -604,6 +604,28 @@ class DbQueryService
                     ],
                 ],
             ],
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'open_catalog_category',
+                    'description' => 'Найти подходящий раздел каталога по названию, типу номера, марке авто или описанию. Возвращает ui_action для навигации на фронте. Используй когда пользователь просит показать номера определённого типа (например "еврономер", "укрномер", "mitsubishi l200", "квадратные", "укороченные"), открыть раздел каталога или найти подходящую категорию товаров.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'query' => [
+                                'type' => 'string',
+                                'description' => 'Запрос: тип номера, марка/модель авто, название раздела или описание того, что нужно найти',
+                            ],
+                            'locale' => [
+                                'type' => 'string',
+                                'description' => 'Язык (ru, ua, en). По умолчанию ru',
+                                'default' => 'ru',
+                            ],
+                        ],
+                        'required' => ['query'],
+                    ],
+                ],
+            ],
             // ── Новые инструменты: парсинг и сохранение в базу знаний ──
             [
                 'type' => 'function',
@@ -695,6 +717,11 @@ class DbQueryService
                     (int) ($arguments['limit'] ?? 5),
                 ),
                 'get_goods_categories' => $this->getGoodsCategories($fid),
+                'open_catalog_category' => $this->openCatalogCategory(
+                    $fid,
+                    (string) ($arguments['query'] ?? ''),
+                    (string) ($arguments['locale'] ?? 'ru'),
+                ),
                 'fetch_and_save_page' => $this->fetchAndSavePage(
                     $fid,
                     (string) ($arguments['url'] ?? ''),
@@ -714,6 +741,179 @@ class DbQueryService
             Log::error("DbQueryService.executeTool error: " . $e->getMessage());
             return json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }
+    }
+
+    // ── Helpers для openCatalogCategory ─────────────────────────────────────
+
+    /**
+     * Развернуть дерево каталога в плоский список, сохраняя путь родительских узлов.
+     *
+     * @param  array<int, array>  $tree
+     * @param  array<int, array>  $parentPath  Накопленный путь родителей (для рекурсии)
+     * @return array<int, array>
+     */
+    private function flattenCatalogTree(array $tree, array $parentPath = []): array
+    {
+        $result = [];
+
+        foreach ($tree as $node) {
+            $children = $node['children'] ?? [];
+            unset($node['children']);
+
+            // Сохраняем slug каждого родителя для построения полного пути
+            $node['_parentPath'] = array_map(function (array $parent): array {
+                return ['slug' => $this->getSectionSlug($parent)];
+            }, $parentPath);
+
+            $result[] = $node;
+
+            if ($children !== []) {
+                $newParentPath = array_merge($parentPath, [$node]);
+                $result = array_merge($result, $this->flattenCatalogTree($children, $newParentPath));
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Собрать путь к разделу (цепочка родитель → ребенок).
+     *
+     * @param  array  $node  Элемент каталога
+     * @return string  Например "avtonomera/mitsubishi/l200"
+     */
+    private function buildCatalogPath(array $node): string
+    {
+        $segments = [];
+
+        // Родительские сегменты из _parentPath
+        $parentPath = $node['_parentPath'] ?? [];
+        foreach ($parentPath as $parent) {
+            if (isset($parent['slug'])) {
+                $segments[] = $parent['slug'];
+            }
+        }
+
+        // Сегмент текущего узла
+        $segments[] = $this->getSectionSlug($node);
+
+        return implode('/', $segments);
+    }
+
+    /**
+     * Получить slug для секции (link > name).
+     */
+    private function getSectionSlug(array $section): string
+    {
+        $link = trim((string) ($section['link'] ?? ''));
+        if ($link !== '') {
+            return $link;
+        }
+
+        $name = trim((string) ($section['name'] ?? ''));
+        if ($name === '') {
+            return (string) ($section['id'] ?? '0');
+        }
+
+        return $this->slugify($name);
+    }
+
+    /**
+     * Простейшая транслитерация + slug.
+     */
+    private function slugify(string $text): string
+    {
+        $map = [
+            'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
+            'е' => 'e', 'ё' => 'e', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
+            'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n',
+            'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't',
+            'у' => 'u', 'ф' => 'f', 'х' => 'kh', 'ц' => 'ts', 'ч' => 'ch',
+            'ш' => 'sh', 'щ' => 'shch', 'ъ' => '', 'ы' => 'y', 'ь' => '',
+            'э' => 'e', 'ю' => 'yu', 'я' => 'ya',
+            'А' => 'a', 'Б' => 'b', 'В' => 'v', 'Г' => 'g', 'Д' => 'd',
+            'Е' => 'e', 'Ё' => 'e', 'Ж' => 'zh', 'З' => 'z', 'И' => 'i',
+            'Й' => 'y', 'К' => 'k', 'Л' => 'l', 'М' => 'm', 'Н' => 'n',
+            'О' => 'o', 'П' => 'p', 'Р' => 'r', 'С' => 's', 'Т' => 't',
+            'У' => 'u', 'Ф' => 'f', 'Х' => 'kh', 'Ц' => 'ts', 'Ч' => 'ch',
+            'Ш' => 'sh', 'Щ' => 'shch', 'Ъ' => '', 'Ы' => 'y', 'Ь' => '',
+            'Э' => 'e', 'Ю' => 'yu', 'Я' => 'ya',
+        ];
+
+        $text = strtr($text, $map);
+        $text = mb_strtolower($text);
+        $text = preg_replace('/[^a-z0-9_-]/u', '-', $text) ?? $text;
+        $text = preg_replace('/-+/', '-', $text) ?? $text;
+        $text = trim($text, '-');
+
+        return $text;
+    }
+
+    /**
+     * Нормализовать текст для поискового сравнения.
+     */
+    private function normalizeCatalogSearchText(string $text): string
+    {
+        $text = mb_strtolower(trim($text));
+
+        $map = [
+            'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
+            'е' => 'e', 'ё' => 'e', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
+            'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n',
+            'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't',
+            'у' => 'u', 'ф' => 'f', 'х' => 'kh', 'ц' => 'ts', 'ч' => 'ch',
+            'ш' => 'sh', 'щ' => 'shch', 'ъ' => '', 'ы' => 'y', 'ь' => '',
+            'э' => 'e', 'ю' => 'yu', 'я' => 'ya',
+        ];
+
+        $text = strtr($text, $map);
+        $text = preg_replace('/[^a-z0-9\s]/u', ' ', $text) ?? $text;
+        $text = preg_replace('/\s+/', ' ', $text) ?? $text;
+
+        return trim($text);
+    }
+
+    /**
+     * Оценка совпадения запроса с текстом раздела.
+     *
+     * @return int  Количество баллов (чем больше, тем точнее)
+     */
+    private function catalogMatchScore(string $normalizedQuery, string $haystack): int
+    {
+        $queryWords = array_unique(array_filter(explode(' ', $normalizedQuery)));
+        $haystackWords = array_unique(array_filter(explode(' ', $haystack)));
+
+        if ($queryWords === [] || $haystackWords === []) {
+            return 0;
+        }
+
+        $score = 0;
+
+        // Полное совпадение запроса
+        if (str_contains($haystack, $normalizedQuery)) {
+            $score += 20;
+        }
+
+        foreach ($queryWords as $word) {
+            if (mb_strlen($word) < 2) {
+                continue;
+            }
+
+            // Слово найдено в haystack
+            if (str_contains($haystack, $word)) {
+                $score += 5;
+            }
+
+            // Слово начинается так же
+            foreach ($haystackWords as $hw) {
+                if (str_starts_with($hw, $word)) {
+                    $score += 3;
+                    break;
+                }
+            }
+        }
+
+        return $score;
     }
 
     /**
@@ -752,6 +952,7 @@ class DbQueryService
 - search_docs — поиск документов
 - search_knowledge_base — поиск по базе знаний
 - get_goods_categories — список категорий товаров
+- open_catalog_category — найти подходящий раздел каталога по названию/типу и вернуть ссылку для перехода
 - fetch_and_save_page — загрузить веб-страницу и сохранить в базу знаний
 - save_to_knowledge_base — сохранить информацию в базу знаний
 PROMPT;

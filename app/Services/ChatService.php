@@ -17,6 +17,14 @@ class ChatService
 
     private AiClientInterface $ai;
 
+    /**
+     * Перехваченные ui_action из вызовов инструментов модели.
+     * Заполняется в toolExecutor, сбрасывается перед каждым sendMessage.
+     *
+     * @var array<int, array{type: string, path: string, label: string, source: string}>
+     */
+    private array $capturedActions = [];
+
     public function __construct(
         private readonly AiKnowledgeService $knowledgeService,
         private readonly WebChatKnowledgeCurator $knowledgeCurator,
@@ -242,8 +250,27 @@ class ChatService
                 $tools = array_merge($tools, $this->filterToolsForIntent($customTools, $intent['type']));
             }
 
+            // Сбрасываем перехваченные действия перед новым раундом
+            $this->capturedActions = [];
+
             $toolExecutor = function (string $name, array $arguments) use ($fid, $firma): string {
-                return $this->dbQuery->executeTool($fid, $firma, $name, $arguments);
+                $resultJson = $this->dbQuery->executeTool($fid, $firma, $name, $arguments);
+
+                // Перехватываем ui_action из инструмента open_catalog_category
+                if ($name === 'open_catalog_category') {
+                    try {
+                        $decoded = json_decode($resultJson, true);
+                        if (is_array($decoded) && !empty($decoded['ui_action'])) {
+                            $this->capturedActions[] = $decoded['ui_action'];
+                        }
+                    } catch (Throwable $e) {
+                        Log::debug('ChatService: failed to parse open_catalog_category result.', [
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+
+                return $resultJson;
             };
 
             $result = !empty($tools)
@@ -312,6 +339,7 @@ class ChatService
                 'task_uuid' => $task->uuid,
                 'intent' => $intent,
                 'knowledge_curation' => $knowledgeCuration,
+                'actions' => $this->capturedActions,
                 'billing' => [
                     'paid_by' => 'project',
                     'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
@@ -328,6 +356,7 @@ class ChatService
             'db_tools_enabled' => $useDbTools && $fid > 0,
             'intent' => $intent,
             'knowledge_curation' => $knowledgeCuration,
+            'actions' => $this->capturedActions,
             'billing' => [
                 'paid_by' => 'project',
                 'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
@@ -587,6 +616,7 @@ class ChatService
                 'get_project_info',
                 'get_goods_categories',
                 'search_goods',
+                'open_catalog_category',
             ],
             WebChatIntentDetector::SUPPORT => [
                 'search_knowledge_base',
@@ -651,6 +681,7 @@ LEARN;
 Ты МОЖЕШЬ и ДОЛЖЕН использовать эти функции, когда пользователь спрашивает:
 - О товарах, ценах, наличии — используй search_goods или get_goods_by_id
 - О категориях товаров — используй get_goods_categories
+- Об определённом типе номеров, разделе каталога или марке авто — используй open_catalog_category. Этот инструмент сам найдёт подходящий раздел и вернёт ссылку для перехода.
 - О новостях проекта — используй search_news
 - О проекте в целом (контакты, описание) — используй get_project_info
 - О документах/статьях — используй search_docs
