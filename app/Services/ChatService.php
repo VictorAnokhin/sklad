@@ -170,7 +170,7 @@ class ChatService
         $language = trim((string) ($payload['language'] ?? 'ru'));
         $page = trim((string) ($payload['page'] ?? 'unknown'));
         $wallet = trim((string) ($payload['wallet'] ?? ''));
-        $fid = self::ANALYST_FID;
+        $fid = $this->resolveFid($payload, $session);
         $firma = isset($payload['firma']) ? (int) $payload['firma'] : null;
         $useDbTools = (bool) ($payload['use_db_tools'] ?? true);
 
@@ -330,6 +330,32 @@ class ChatService
                 'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
             ],
         ];
+    }
+
+    /**
+     * Определить fid веб-чата без жесткой привязки к аналитическому проекту.
+     *
+     * Приоритет:
+     * 1. fid из payload (например, data-fid виджета);
+     * 2. fid существующей chat-сессии;
+     * 3. session('fid') текущего Laravel-пользователя.
+     */
+    private function resolveFid(array $payload, ChatSession $session): int
+    {
+        $candidates = [
+            $payload['fid'] ?? null,
+            $session->fid ?? null,
+            session('fid'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $fid = (int) $candidate;
+            if ($fid > 0) {
+                return $fid;
+            }
+        }
+
+        return self::ANALYST_FID;
     }
 
     private function shouldDelegateToTelegramAgent(string $question, string $answer, string $knowledgeContext, array $intent = []): bool

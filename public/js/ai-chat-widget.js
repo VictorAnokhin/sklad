@@ -11,7 +11,7 @@
   "use strict";
 
   var CONFIG = {
-    fid: 1,
+    fid: null,
     firma: null,
     apiUrl: "/api/ai/chat",
     voiceSttUrl: "/api/ai/voice/stt",
@@ -613,14 +613,21 @@
       .slice(-CONFIG.maxHistory)
       .map(function (r) { return { role: r.role, content: r.content }; });
 
-    var payload = JSON.stringify({
+    var payload = {
       message: message.trim(),
       language: getLanguage(),
       page: window.location.pathname,
-      fid: CONFIG.fid,
-      firma: CONFIG.firma,
       history: history,
-    });
+    };
+
+    if (CONFIG.fid !== null && CONFIG.fid !== undefined && parseInt(CONFIG.fid, 10) > 0) {
+      payload.fid = parseInt(CONFIG.fid, 10);
+    }
+    if (CONFIG.firma !== null && CONFIG.firma !== undefined && parseInt(CONFIG.firma, 10) > 0) {
+      payload.firma = parseInt(CONFIG.firma, 10);
+    }
+
+    payload = JSON.stringify(payload);
 
     fetch(CONFIG.apiUrl, {
       method: "POST",

@@ -11,12 +11,12 @@
     1. Явно переданный в AiChatWidget.init({ fid })
     2. data-fid на #ai-chat-config (скрытый конфиг-элемент ниже)
     3. data-fid на .ai-chat-widget (корневой элемент, создаётся JS)
-    4. Дефолтное значение 1
+    4. session('fid') на backend, если frontend не передал fid
 --}}
 
 {{-- Скрытый конфиг-элемент для передачи параметров в JS-виджет --}}
 <div id="ai-chat-config"
-     data-fid="{{ $fid ?? session('fid', 1) }}"
+     data-fid="{{ $fid ?? session('fid') ?? '' }}"
      data-firma="{{ $firma ?? session('firma', 'null') }}"
      style="display:none;"
      aria-hidden="true"></div>

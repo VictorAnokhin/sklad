@@ -42,10 +42,14 @@ trait ChatSessionManagerTrait
         $baseToken = $this->telegramTokenPrefix . $chatId;
 
         if (! $forceNew) {
-            $session = ChatSession::where('session_token', 'like', $baseToken . '%')
-                ->where('status', 'active')
-                ->orderByDesc('created_at')
-                ->first();
+            $query = ChatSession::where('session_token', 'like', $baseToken . '%')
+                ->where('status', 'active');
+
+            if ($fid !== null && $fid > 0) {
+                $query->where('fid', $fid);
+            }
+
+            $session = $query->orderByDesc('created_at')->first();
 
             if ($session !== null) {
                 return $session;

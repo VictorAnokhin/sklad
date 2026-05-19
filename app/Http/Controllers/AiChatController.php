@@ -73,7 +73,7 @@ class AiChatController extends Controller
         $userId = $user !== null ? $user->id : null;
         $sessionToken = trim((string) ($request->query('session_token', '')));
         $fidParam = $request->query('fid');
-        $fid = $fidParam !== null ? (int) $fidParam : 1;
+        $fid = $fidParam !== null ? (int) $fidParam : ((int) session('fid') ?: null);
 
         $sessions = $this->chatService->getUserSessions($userId, $sessionToken, $fid);
 
