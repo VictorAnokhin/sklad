@@ -220,7 +220,11 @@ class TelegramChatService
             $this->toolCallCount = [];
             $this->sendTyping($chatId);
 
-            $fid = $this->detectFidFromContext($text) ?? self::ANALYST_FID;
+            $fid = $this->resolveFid($message);
+            $detectedFid = $this->detectFidFromContext($text);
+            if ($detectedFid !== null) {
+                $fid = $detectedFid;
+            }
 
             // Получаем или создаём сессию с привязкой к fid
             $session = $this->resolveSession($chatId, false, $fid);
@@ -409,7 +413,7 @@ class TelegramChatService
         $taskType = $this->detectTaskType($text, $intent);
 
         $inputData = [
-            'query' => $this->buildDelegatedQuery($text, $intent, $taskType),
+            'query' => $this->buildDelegatedQuery($text, $intent, $taskType, $fid),
             'question' => $text,
             'chat_id' => $chatId,
             'language' => 'ru',
@@ -499,10 +503,8 @@ class TelegramChatService
         };
     }
 
-    private function buildDelegatedQuery(string $text, array $intent, string $taskType): string
+    private function buildDelegatedQuery(string $text, array $intent, string $taskType, int $fid): string
     {
-        $fid = $this->detectFidFromContext($text) ?? self::ANALYST_FID;
-
         if (($intent['type'] ?? '') === WebChatIntentDetector::PUBLISH_NEWS) {
             $topic = trim((string) ($intent['topic'] ?? ''));
 
@@ -561,7 +563,7 @@ class TelegramChatService
             }
         }
 
-        return self::ANALYST_FID;
+        return $this->defaultFid();
     }
 
     /**
@@ -578,7 +580,7 @@ class TelegramChatService
             return (int) $session->fid;
         }
 
-        return self::ANALYST_FID;
+        return $this->defaultFid();
     }
 
     private function defaultFid(): int
