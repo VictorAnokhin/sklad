@@ -253,8 +253,11 @@ class ChatService
             $result = $this->ai->chat($instructions, $history, $options);
         }
 
+        $answer = $this->sanitizePublicAnswer((string) ($result['answer'] ?? ''));
+        $result['answer'] = $answer;
+
         // Сохраняем ответ ассистента
-        $this->saveMessage($session->id, $fid, $firma, 'assistant', $result['answer'], [
+        $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
             'model' => $result['model'] ?? null,
             'usage' => $result['usage'] ?? null,
             'provider' => $this->ai->getProviderName(),
@@ -266,7 +269,7 @@ class ChatService
         $knowledgeCuration = $this->knowledgeCurator->curateFromTurn(
             fid: $fid,
             question: $message,
-            answer: (string) $result['answer'],
+            answer: $answer,
             page: $page,
             language: $language,
             recentHistory: $session->getHistoryForAi(8),
@@ -318,7 +321,7 @@ class ChatService
 
         return [
             'session_token' => $session->session_token,
-            'answer' => $result['answer'],
+            'answer' => $answer,
             'provider' => $this->ai->getProviderName(),
             'model' => $result['model'],
             'usage' => $result['usage'],
@@ -725,5 +728,18 @@ PROMPT;
     {
         return trim((string) config('services.sui.gas_sponsor_private_key', '')) !== ''
             || trim((string) config('services.shinami.gas_access_key', '')) !== '';
+    }
+
+    private function sanitizePublicAnswer(string $answer): string
+    {
+        $answer = trim($answer);
+
+        if ($answer === '') {
+            return 'Консультант временно не смог подготовить ответ. Попробуйте переформулировать вопрос.';
+        }
+
+        $answer = preg_replace('/\bDeepSeek\b/iu', 'консультант', $answer) ?? $answer;
+
+        return preg_replace('/\bAI[-\s]?ассистент\b/iu', 'консультант', $answer) ?? $answer;
     }
 }

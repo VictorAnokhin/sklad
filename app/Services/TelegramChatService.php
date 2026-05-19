@@ -258,6 +258,17 @@ class TelegramChatService
             // Загружаем контекст из Базы Знаний с привязкой к fid (с кэшированием)
             $knowledgeContext = $this->loadKnowledgeContext($fid);
 
+            if ($this->isFidDiagnosticQuestion($text)) {
+                $answer = $this->buildFidDiagnosticAnswer($fid, $session, $knowledgeContext);
+
+                $this->saveAssistantMessage($session, $answer, [
+                    'model' => 'telegram-diagnostic',
+                    'usage' => null,
+                ]);
+
+                return $answer;
+            }
+
             // Делегирование TelegramAgent
             if ($this->shouldDelegateToAgent($text, $intent)) {
                 return $this->delegateToAgent($text, $chatId, $fid, $session, $intent);
@@ -303,7 +314,10 @@ class TelegramChatService
                 );
             }
 
-            $answer = $result['answer'] ?? '⚠️ Не удалось получить ответ. Попробуйте переформулировать вопрос.';
+            $answer = $this->humanizeTelegramAnswer(
+                (string) ($result['answer'] ?? 'Не удалось получить ответ. Попробуйте переформулировать вопрос.'),
+                $intent,
+            );
 
             // Проверка: не повторяет ли AI ответ
             if ($this->isAnswerRepeatOfLast($session, $answer)) {
@@ -537,6 +551,40 @@ class TelegramChatService
         return null;
     }
 
+    private function isFidDiagnosticQuestion(string $text): bool
+    {
+        $normalized = mb_strtolower(trim($text));
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        $mentionsFid = str_contains($normalized, 'fid') || str_contains($normalized, 'фид');
+        if (! $mentionsFid) {
+            return false;
+        }
+
+        return str_contains($normalized, 'баз')
+            || str_contains($normalized, 'знан')
+            || str_contains($normalized, 'контекст')
+            || str_contains($normalized, 'проект')
+            || str_contains($normalized, 'работаешь')
+            || str_contains($normalized, 'працюєш')
+            || str_contains($normalized, 'какой')
+            || str_contains($normalized, 'який');
+    }
+
+    private function buildFidDiagnosticAnswer(int $fid, ChatSession $session, string $knowledgeContext): string
+    {
+        $hasKnowledgeContext = trim($knowledgeContext) !== '';
+
+        return "Работаю с базой знаний проекта fid={$fid}.\n"
+            . "История этого Telegram-диалога ведётся отдельно для этого проекта.\n"
+            . ($hasKnowledgeContext
+                ? 'Контекст базы знаний для этого fid загружен.'
+                : 'Контекст базы знаний для этого fid пока пуст или недоступен.');
+    }
+
     // ── Управление сессиями ────────────────────────────────────────────────
 
     /**
@@ -713,10 +761,15 @@ class TelegramChatService
 
 ПРАВИЛА ЭКСПЕРТА:
 - Твоя задача — анализ, исследования, накопление базы знаний и помощь пользователю следующим понятным шагом
+- Веди диалог как живой аналитик-помощник: сначала отвечай на намерение человека, потом давай ближайший полезный шаг
 - Пиши естественно: без «как ИИ», без канцелярита, без повторения вопроса пользователя
+- Не раскрывай внутреннюю кухню: не пиши DeepSeek, модель, provider, tools, function calling, webhook, job, queue
+- Не называй TelegramAgent пользователю без необходимости; если задача делегирована, говори «передал помощнику» или «взял в работу»
+- Не имитируй процесс словами. Запрещены финальные ответы вида «Начинаю загрузку», «Шаг 1», «Пожалуйста, подождите», если за ними нет готового результата
+- Если задача долгая, коротко скажи, что принято в работу, что будет сделано и где будет сохранён результат
 - Обычно отвечай 2-5 короткими предложениями или 3-5 пунктами
 - Если нужно уточнение — задай один короткий вопрос
-- Используй эмодзи для наглядности (📊 🔍 💾 📡 🌐 📝)
+- Используй эмодзи редко, только если они помогают понять статус
 - Всегда сохраняй источники через save_source с правильным fid
 - Не выдумывай данные — используй только то, что получил из функций
 - Ответы давай на русском языке
@@ -748,5 +801,52 @@ PROMPT;
             WebChatIntentDetector::WALLET_ACTION => '- Не выдумывай onchain-состояние, не проси секреты, объясняй только безопасный следующий шаг.',
             default => '- Ответь по сути и используй базу знаний при наличии.',
         };
+    }
+
+    /**
+     * Убирает из Telegram-ответов служебные заготовки, которые ломают ощущение живого диалога.
+     *
+     * @param  array<string, mixed>  $intent
+     */
+    private function humanizeTelegramAnswer(string $answer, array $intent = []): string
+    {
+        $answer = trim($answer);
+
+        if ($answer === '') {
+            return 'Не получилось подготовить ответ. Переформулируйте запрос, и я попробую ещё раз.';
+        }
+
+        $answer = preg_replace('/\bDeepSeek\b/iu', 'AI-сервис', $answer) ?? $answer;
+        $answer = preg_replace('/\bTelegramAgent\b/u', 'помощник', $answer) ?? $answer;
+
+        $normalized = mb_strtolower($answer);
+        $looksLikeProgressStub = (
+            str_contains($normalized, 'начинаю ')
+            || str_contains($normalized, 'шаг 1')
+            || str_contains($normalized, 'пожалуйста, подожд')
+            || str_contains($normalized, 'получу данные')
+            || str_contains($normalized, 'загружаю ')
+        ) && (
+            ! str_contains($normalized, 'готово')
+            && ! str_contains($normalized, 'наш')
+            && ! str_contains($normalized, 'сохран')
+            && ! str_contains($normalized, 'опублик')
+        );
+
+        if (! $looksLikeProgressStub) {
+            return $answer;
+        }
+
+        $intentType = (string) ($intent['type'] ?? '');
+
+        if ($intentType === WebChatIntentDetector::PUBLISH_NEWS) {
+            return 'Принял задачу на материал. Проверю источники, подготовлю текст и сохраню результат в базе знаний проекта.';
+        }
+
+        if ($intentType === WebChatIntentDetector::RESEARCH) {
+            return 'Принял исследование в работу. Сначала проверю базу знаний проекта, затем источники, и верну короткий отчёт с тем, что удалось найти.';
+        }
+
+        return 'Принял. Проверю данные по проекту и отвечу по сути без технических шагов.';
     }
 }

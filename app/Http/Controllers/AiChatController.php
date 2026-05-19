@@ -50,13 +50,13 @@ class AiChatController extends Controller
 
             if (str_contains($message, 'DEEPSEEK_API_KEY')) {
                 return response()->json([
-                    'message' => 'AI assistant is not configured. Add DEEPSEEK_API_KEY on the Laravel backend.',
+                    'message' => 'Consultant is not configured on the server.',
                     'error' => config('app.debug') ? $message : null,
                 ], 503);
             }
 
             return response()->json([
-                'message' => 'AI assistant is temporarily unavailable.',
+                'message' => 'Consultant is temporarily unavailable.',
                 'error' => config('app.debug') ? $message : null,
             ], 503);
         }
