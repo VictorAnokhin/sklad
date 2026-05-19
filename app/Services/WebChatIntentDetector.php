@@ -70,6 +70,10 @@ class WebChatIntentDetector
             return $this->result(self::WALLET_ACTION, 0.84, $topic, 'wallet_or_transaction_flow', true);
         }
 
+        if ($this->containsAny($text, ['покажи', 'показать', 'найди', 'найти', 'подбери', 'подобрать', 'открой', 'відкрий', 'покажи', 'знайди', 'show me', 'find me'])) {
+            return $this->result(self::HOW_TO, 0.86, $topic, 'catalog_navigation_request', true);
+        }
+
         if ($this->containsAny($text, ['ошибка', 'не работает', 'не открывается', 'завис', 'проблем', 'баг', 'support', 'помоги'])) {
             return $this->result(self::SUPPORT, 0.84, $topic, 'support_problem', true);
         }

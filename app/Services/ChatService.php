@@ -211,6 +211,14 @@ class ChatService
             return $this->delegateEditorialTask($session, $fid, $firma, $message, $language, $page, $intent);
         }
 
+        if ($useDbTools && $fid > 0 && $this->isCatalogNavigationIntent($intent)) {
+            return $this->handleCatalogNavigationRequest($session, $fid, $firma, $message, $language, $page, $intent);
+        }
+
+        if ($useDbTools && $fid > 0 && $this->shouldResolveProductSelectionNow($session, $message)) {
+            return $this->handleProductSelectionSearchRequest($session, $fid, $firma, $message, $language, $intent);
+        }
+
         // Загружаем контекст из базы знаний
         $knowledgeContext = $this->loadKnowledgeContext($fid);
 
@@ -249,6 +257,7 @@ class ChatService
             if (!empty($customTools)) {
                 $tools = array_merge($tools, $this->filterToolsForIntent($customTools, $intent['type']));
             }
+            $tools = $this->dedupeToolsByName($tools);
 
             // Сбрасываем перехваченные действия перед новым раундом
             $this->capturedActions = [];
@@ -256,8 +265,8 @@ class ChatService
             $toolExecutor = function (string $name, array $arguments) use ($fid, $firma): string {
                 $resultJson = $this->dbQuery->executeTool($fid, $firma, $name, $arguments);
 
-                // Перехватываем ui_action из инструмента open_catalog_category
-                if ($name === 'open_catalog_category') {
+                // Перехватываем ui_action из инструментов каталога
+                if (in_array($name, ['open_catalog_category', 'search_catalog_products'], true)) {
                     try {
                         $decoded = json_decode($resultJson, true);
                         if (is_array($decoded) && !empty($decoded['ui_action'])) {
@@ -392,6 +401,10 @@ class ChatService
 
     private function shouldDelegateToTelegramAgent(string $question, string $answer, string $knowledgeContext, array $intent = []): bool
     {
+        if ($this->isCatalogNavigationIntent($intent) || !empty($this->capturedActions)) {
+            return false;
+        }
+
         if (in_array(($intent['type'] ?? ''), [WebChatIntentDetector::RESEARCH, WebChatIntentDetector::PUBLISH_NEWS], true)) {
             return true;
         }
@@ -418,6 +431,190 @@ class ChatService
         }
 
         return false;
+    }
+
+    private function isCatalogNavigationIntent(array $intent): bool
+    {
+        return ($intent['reason'] ?? '') === 'catalog_navigation_request';
+    }
+
+    private function shouldResolveProductSelectionNow(ChatSession $session, string $message): bool
+    {
+        $messageText = mb_strtolower($message);
+        $hasConcreteMaterial = preg_match('/\b(алюмин|алюмини|пластик|пластиков|металл|метал)\w*/iu', $messageText) === 1;
+        if (!$hasConcreteMaterial) {
+            return false;
+        }
+
+        $historyText = mb_strtolower(implode("\n", array_column($session->getHistoryForAi(8), 'content')));
+
+        return str_contains($historyText, 'номер')
+            || str_contains($historyText, 'знак')
+            || str_contains($historyText, 'сувенир')
+            || str_contains($historyText, 'каталог');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function handleProductSelectionSearchRequest(
+        ChatSession $session,
+        int $fid,
+        ?int $firma,
+        string $message,
+        string $language,
+        array $intent,
+    ): array {
+        $historyText = mb_strtolower(implode("\n", array_column($session->getHistoryForAi(8), 'content')));
+        $messageText = mb_strtolower($message);
+
+        $queryParts = ['номерные знаки'];
+        $filters = [];
+        $excludeTerms = [];
+
+        if (str_contains($historyText, 'сувенир') || str_contains($messageText, 'сувенир')) {
+            $queryParts[] = 'сувенирные';
+            $filters[] = 'сувенирные';
+        }
+
+        if (preg_match('/алюмин\w*/iu', $messageText)) {
+            $queryParts[] = 'алюминий';
+            $filters[] = 'алюминий';
+        }
+
+        if (preg_match('/пластик\w*/iu', $messageText)) {
+            $queryParts[] = 'пластик';
+            $filters[] = 'пластик';
+        }
+
+        if (preg_match('/\b(нет|не|без)\b/iu', $messageText) && str_contains($historyText, 'пластик')) {
+            $excludeTerms[] = 'пластик';
+            $filters = array_values(array_filter($filters, fn (string $item): bool => $item !== 'пластик'));
+        }
+
+        $query = implode(' ', array_values(array_unique($queryParts)));
+        $this->capturedActions = [];
+
+        $resultJson = $this->dbQuery->executeTool($fid, $firma, 'search_catalog_products', [
+            'query' => $query,
+            'category_query' => 'номерные знаки',
+            'filters' => array_values(array_unique($filters)),
+            'exclude_terms' => array_values(array_unique($excludeTerms)),
+            'locale' => $language !== '' ? $language : 'ru',
+        ]);
+
+        $toolResult = json_decode($resultJson, true);
+        if (!is_array($toolResult)) {
+            $toolResult = [
+                'success' => false,
+                'message' => 'Не удалось обработать подбор товаров.',
+            ];
+        }
+
+        if (!empty($toolResult['ui_action']) && is_array($toolResult['ui_action'])) {
+            $this->capturedActions[] = $toolResult['ui_action'];
+        }
+
+        $answer = (string) ($toolResult['message'] ?? '');
+        if ($answer === '') {
+            $answer = !empty($this->capturedActions)
+                ? 'Такие варианты подходят? Показываю в каталоге.'
+                : 'Не удалось подобрать товары по этим признакам.';
+        }
+
+        if (!empty($this->capturedActions) && !str_contains($answer, '?')) {
+            $answer .= ' Такие подходят?';
+        }
+
+        $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
+            'provider' => 'db_tools',
+            'db_tools_used' => true,
+            'tool' => 'search_catalog_products',
+            'intent' => $intent,
+            'actions' => $this->capturedActions,
+        ]);
+
+        return [
+            'session_token' => $session->session_token,
+            'answer' => $answer,
+            'provider' => 'db_tools',
+            'model' => null,
+            'usage' => null,
+            'db_tools_enabled' => true,
+            'intent' => $intent,
+            'knowledge_curation' => null,
+            'actions' => $this->capturedActions,
+            'billing' => [
+                'paid_by' => 'project',
+                'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+            ],
+        ];
+    }
+
+    /**
+     * For catalog navigation, do not wait for the model to choose the tool.
+     * The backend tool returns a safe ui_action that the frontend can execute.
+     *
+     * @return array<string, mixed>
+     */
+    private function handleCatalogNavigationRequest(
+        ChatSession $session,
+        int $fid,
+        ?int $firma,
+        string $message,
+        string $language,
+        string $page,
+        array $intent,
+    ): array {
+        $this->capturedActions = [];
+
+        $resultJson = $this->dbQuery->executeTool($fid, $firma, 'open_catalog_category', [
+            'query' => $message,
+            'locale' => $language !== '' ? $language : 'ru',
+        ]);
+
+        $toolResult = json_decode($resultJson, true);
+        if (!is_array($toolResult)) {
+            $toolResult = [
+                'success' => false,
+                'message' => 'Не удалось обработать запрос каталога.',
+            ];
+        }
+
+        if (!empty($toolResult['ui_action']) && is_array($toolResult['ui_action'])) {
+            $this->capturedActions[] = $toolResult['ui_action'];
+        }
+
+        $answer = (string) ($toolResult['message'] ?? '');
+        if ($answer === '') {
+            $answer = !empty($this->capturedActions)
+                ? 'Открываю подходящий раздел каталога.'
+                : 'Не удалось подобрать раздел каталога.';
+        }
+
+        $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
+            'provider' => 'db_tools',
+            'db_tools_used' => true,
+            'tool' => 'open_catalog_category',
+            'intent' => $intent,
+            'actions' => $this->capturedActions,
+        ]);
+
+        return [
+            'session_token' => $session->session_token,
+            'answer' => $answer,
+            'provider' => 'db_tools',
+            'model' => null,
+            'usage' => null,
+            'db_tools_enabled' => true,
+            'intent' => $intent,
+            'knowledge_curation' => null,
+            'actions' => $this->capturedActions,
+            'billing' => [
+                'paid_by' => 'project',
+                'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+            ],
+        ];
     }
 
     private function shouldCreateEditorialTask(array $intent, string $message): bool
@@ -600,6 +797,30 @@ class ChatService
     }
 
     /**
+     * Keep one definition per function name. Later definitions win, so an
+     * ai_tools record from /settings can override the built-in schema/description
+     * while execution still routes through DbQueryService::executeTool().
+     *
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array<int, array<string, mixed>>
+     */
+    private function dedupeToolsByName(array $tools): array
+    {
+        $byName = [];
+
+        foreach ($tools as $tool) {
+            $name = (string) data_get($tool, 'function.name', '');
+            if ($name === '') {
+                continue;
+            }
+
+            $byName[$name] = $tool;
+        }
+
+        return array_values($byName);
+    }
+
+    /**
      * @return array<int, string>
      */
     private function allowedToolNamesForIntent(string $intentType): array
@@ -617,11 +838,16 @@ class ChatService
                 'get_goods_categories',
                 'search_goods',
                 'open_catalog_category',
+                'search_catalog_products',
             ],
             WebChatIntentDetector::SUPPORT => [
                 'search_knowledge_base',
                 'search_docs',
                 'get_project_info',
+                'get_goods_categories',
+                'search_goods',
+                'open_catalog_category',
+                'search_catalog_products',
                 'save_to_knowledge_base',
             ],
             WebChatIntentDetector::WALLET_ACTION => [
@@ -681,7 +907,8 @@ LEARN;
 Ты МОЖЕШЬ и ДОЛЖЕН использовать эти функции, когда пользователь спрашивает:
 - О товарах, ценах, наличии — используй search_goods или get_goods_by_id
 - О категориях товаров — используй get_goods_categories
-- Об определённом типе номеров, разделе каталога или марке авто — используй open_catalog_category. Этот инструмент сам найдёт подходящий раздел и вернёт ссылку для перехода.
+- Об определённом типе номеров, разделе каталога или марке авто — используй open_catalog_category. Особенно для фраз "покажи ...", "найди ...", "подбери ...", "открой ...". Этот инструмент сам найдёт подходящий раздел или вернёт поиск по каталогу и ui_action для перехода.
+- Для диалогового подбора товара используй search_catalog_products. Если пользователь говорит "хочу заказать номерные знаки", сначала уточни 1 важный параметр (например стандартные или сувенирные). Когда пользователь уточнил тип/материал/назначение, собери итоговый query только из положительных признаков и вызови search_catalog_products. Отвергнутые признаки клади в exclude_terms, например "нет, на алюминии" после вопроса про пластик означает filters=["алюминий"], exclude_terms=["пластик"].
 - О новостях проекта — используй search_news
 - О проекте в целом (контакты, описание) — используй get_project_info
 - О документах/статьях — используй search_docs

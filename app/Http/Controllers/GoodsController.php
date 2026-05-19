@@ -98,6 +98,20 @@ class GoodsController extends Controller
         return $out;
     }
 
+    /**
+     * @param array<int, array{0: int, 1: int}> $pairs
+     * @return array<int, array<int, int>>
+     */
+    private function groupHtmlkeyspopFilterPairs(array $pairs): array
+    {
+        $grouped = [];
+        foreach ($pairs as [$groupId, $valueId]) {
+            $grouped[$groupId][] = $valueId;
+        }
+
+        return array_map(static fn (array $values) => array_values(array_unique($values)), $grouped);
+    }
+
     // ── Search (Web API — for Accessories page) ──────────────────────────────
 
     public function searchWeb(Request $request)
@@ -105,6 +119,7 @@ class GoodsController extends Controller
         $q = trim((string) $request->input('q', ''));
         $htmlkeyspopRaw = (string) $request->input('htmlkeyspop', '');
         $filterPairs = $this->parseHtmlkeyspopFilterPairs($htmlkeyspopRaw);
+        $filterGroups = $this->groupHtmlkeyspopFilterPairs($filterPairs);
 
         $qOk = mb_strlen($q) >= 2;
         $filtersOk = $filterPairs !== [];
@@ -126,7 +141,7 @@ class GoodsController extends Controller
                     ->where('d.firma', '=', $fid);
             })
             ->where('comp.firma', $fid)
-            ->where(function ($outer) use ($qOk, $q, $filterPairs) {
+            ->where(function ($outer) use ($qOk, $q, $filterGroups) {
                 if ($qOk) {
                     $outer->where(function ($query) use ($q) {
                         $query->where('d.name', 'LIKE', "%{$q}%")
@@ -138,9 +153,13 @@ class GoodsController extends Controller
                             ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$q}%");
                     });
                 }
-                foreach ($filterPairs as [$groupId, $valueId]) {
-                    $needle = $groupId . ':' . $valueId;
-                    $outer->where('comp.htmlkeyspop', 'LIKE', '%' . $needle . '%');
+                foreach ($filterGroups as $groupId => $valueIds) {
+                    $outer->where(function ($groupQuery) use ($groupId, $valueIds) {
+                        foreach ($valueIds as $valueId) {
+                            $needle = $groupId . ':' . $valueId;
+                            $groupQuery->orWhere('comp.htmlkeyspop', 'LIKE', '%' . $needle . '%');
+                        }
+                    });
                 }
             })
             ->select(

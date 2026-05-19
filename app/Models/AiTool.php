@@ -89,9 +89,37 @@ class AiTool extends Model
                 'function' => [
                     'name' => $tool->key,
                     'description' => $tool->description ?? $tool->name,
-                    'parameters' => $tool->schema,
+                    'parameters' => self::normalizeJsonSchema($tool->schema),
                 ],
             ];
         })->values()->toArray();
+    }
+
+    /**
+     * DeepSeek/OpenAI expect function parameters to be a JSON Schema object.
+     * Admin UI can save an empty schema as [] in JSON, so normalize that shape.
+     *
+     * @param  mixed  $schema
+     * @return array<string, mixed>
+     */
+    private static function normalizeJsonSchema(mixed $schema): array
+    {
+        if (! is_array($schema) || $schema === []) {
+            return [
+                'type' => 'object',
+                'properties' => (object) [],
+                'required' => [],
+            ];
+        }
+
+        $schema['type'] = $schema['type'] ?? 'object';
+        $schema['properties'] = isset($schema['properties']) && is_array($schema['properties'])
+            ? (object) $schema['properties']
+            : ($schema['properties'] ?? (object) []);
+        $schema['required'] = isset($schema['required']) && is_array($schema['required'])
+            ? array_values($schema['required'])
+            : [];
+
+        return $schema;
     }
 }
