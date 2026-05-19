@@ -692,7 +692,6 @@ class Goods extends Model
             })
             ->where('comp.web', '1')
             ->where('comp.firma', $fid)
-            ->where('comp.hit', 1)
             ->select(
                 'comp.id',
                 'comp.nickname',
