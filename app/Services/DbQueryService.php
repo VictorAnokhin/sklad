@@ -4,8 +4,8 @@ namespace App\Services;
 
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
+use App\Models\Field;
 use App\Models\Goods;
-use App\Models\GoodsCategory;
 use App\Models\News;
 use App\Models\Project;
 use App\Models\Doc;
@@ -287,8 +287,7 @@ class DbQueryService
     public function getGoodsCategories(int $fid): array
     {
         try {
-            $categories = GoodsCategory::where('fid', $fid)
-                ->get(['id', 'cat_name', 'cat_description']);
+            $categories = Field::getCatalogTree($fid, 'ru');
 
             if ($categories->isEmpty()) {
                 return ['found' => 0, 'items' => []];
@@ -296,15 +295,106 @@ class DbQueryService
 
             return [
                 'found' => $categories->count(),
-                'items' => $categories->map(fn (GoodsCategory $c) => [
-                    'id' => $c->id,
-                    'name' => $c->cat_name,
-                    'description' => $c->cat_description,
+                'items' => $categories->map(fn (array $c) => [
+                    'id' => $c['id'] ?? null,
+                    'name' => $c['name'] ?? '',
+                    'description' => $c['description'] ?? '',
+                    'children' => $c['children'] ?? [],
                 ])->toArray(),
             ];
         } catch (\Throwable $e) {
             Log::error("DbQueryService.getGoodsCategories error: " . $e->getMessage());
             return ['found' => 0, 'items' => [], 'error' => 'Database query failed'];
+        }
+    }
+
+    /**
+     * Найти раздел каталога по смыслу запроса и вернуть UI-действие для фронта.
+     *
+     * @param  int     $fid     ID проекта
+     * @param  string  $query   Запрос пользователя: тип номера, категория или описание
+     * @param  string  $locale  ru|ua|en
+     * @return array
+     */
+    public function openCatalogCategory(int $fid, string $query, string $locale = 'ru'): array
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return [
+                'success' => false,
+                'message' => 'Уточните, какой тип номера или раздел каталога нужно открыть.',
+            ];
+        }
+
+        try {
+            $tree = Field::getCatalogTree($fid, $locale);
+            $candidates = $this->flattenCatalogTree($tree->all());
+
+            if ($candidates === []) {
+                return [
+                    'success' => false,
+                    'message' => 'Каталог проекта пока пуст.',
+                ];
+            }
+
+            $normalizedQuery = $this->normalizeCatalogSearchText($query);
+            $best = null;
+            $bestScore = 0;
+
+            foreach ($candidates as $candidate) {
+                $haystack = $this->normalizeCatalogSearchText(implode(' ', [
+                    $candidate['name'] ?? '',
+                    $candidate['name_ru'] ?? '',
+                    $candidate['name_ua'] ?? '',
+                    $candidate['name_en'] ?? '',
+                    $candidate['description'] ?? '',
+                    $candidate['description_ru'] ?? '',
+                    $candidate['description_ua'] ?? '',
+                    $candidate['description_en'] ?? '',
+                    implode(' ', array_column($candidate['path'], 'name')),
+                ]));
+
+                $score = $this->catalogMatchScore($normalizedQuery, $haystack);
+                if ($score > $bestScore) {
+                    $best = $candidate;
+                    $bestScore = $score;
+                }
+            }
+
+            if ($best === null || $bestScore < 2) {
+                return [
+                    'success' => false,
+                    'message' => 'Не нашёл точный раздел под этот тип номера.',
+                    'candidates' => array_slice(array_map(fn (array $item) => [
+                        'id' => $item['id'],
+                        'name' => $item['name'],
+                        'path' => $this->buildCatalogPath($item),
+                    ], $candidates), 0, 8),
+                ];
+            }
+
+            $path = $this->buildCatalogPath($best);
+
+            return [
+                'success' => true,
+                'category' => [
+                    'id' => $best['id'],
+                    'name' => $best['name'],
+                    'path' => $path,
+                    'score' => $bestScore,
+                ],
+                'ui_action' => [
+                    'type' => 'navigate',
+                    'path' => $path,
+                    'label' => 'Открыть раздел',
+                    'source' => 'open_catalog_category',
+                ],
+                'message' => "Открываю раздел «{$best['name']}».",
+            ];
+        } catch (\Throwable $e) {
+            Log::error("DbQueryService.openCatalogCategory error: " . $e->getMessage());
+
+            return ['success' => false, 'error' => 'Не удалось подобрать раздел каталога.'];
         }
     }
 
