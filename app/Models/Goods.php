@@ -593,9 +593,19 @@ class Goods extends Model
         }
 
         $filterPairs = self::parseHtmlkeyspopFilterPairs($htmlkeyspop);
+        $filterGroups = [];
         foreach ($filterPairs as [$groupId, $valueId]) {
-            $needle = $groupId . ':' . $valueId;
-            $query->where('comp.htmlkeyspop', 'LIKE', '%' . $needle . '%');
+            $filterGroups[$groupId][] = $valueId;
+        }
+
+        foreach ($filterGroups as $groupId => $valueIds) {
+            $valueIds = array_values(array_unique($valueIds));
+            $query->where(function ($groupQuery) use ($groupId, $valueIds) {
+                foreach ($valueIds as $valueId) {
+                    $needle = $groupId . ':' . $valueId;
+                    $groupQuery->orWhere('comp.htmlkeyspop', 'LIKE', '%' . $needle . '%');
+                }
+            });
         }
 
         $totalCount = $query->count();
@@ -682,6 +692,7 @@ class Goods extends Model
             })
             ->where('comp.web', '1')
             ->where('comp.firma', $fid)
+            ->where('comp.hit', 1)
             ->select(
                 'comp.id',
                 'comp.nickname',
@@ -848,9 +859,12 @@ class Goods extends Model
                 'comp.nfoto1',
                 'comp.pay',
                 'comp.firma',
+                'comp.top',
+                'comp.hit',
                 'comp.sklad'
             )
-            ->orderBy('comp.hit', 'desc')
+            ->orderByDesc('comp.top')
+            ->orderByDesc('comp.id')
             ->offset($offset)
             ->limit($limit)
             ->get();

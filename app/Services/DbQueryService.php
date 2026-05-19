@@ -66,6 +66,89 @@ class DbQueryService
     }
 
     /**
+     * Диалоговый поиск товаров: собирает поисковую фразу, подбирает категорию/фильтры
+     * и возвращает ui_action, который фронт открывает на /goods.
+     *
+     * @param  array<int, string>  $filters
+     * @param  array<int, string>  $excludeTerms
+     * @return array<string, mixed>
+     */
+    public function searchCatalogProducts(
+        int $fid,
+        string $query,
+        string $categoryQuery = '',
+        array $filters = [],
+        array $excludeTerms = [],
+        string $locale = 'ru',
+    ): array {
+        $query = $this->normalizeProductSearchQuery($query, $excludeTerms);
+        $categoryQuery = trim($categoryQuery);
+
+        if ($query === '' && $categoryQuery === '' && $filters === []) {
+            return [
+                'success' => false,
+                'message' => 'Уточните, какой товар нужно найти.',
+            ];
+        }
+
+        try {
+            $category = $categoryQuery !== ''
+                ? $this->findBestCatalogCandidate($fid, $categoryQuery, $locale)
+                : null;
+            $queryCategory = $this->findBestCatalogCandidate($fid, $query, $locale);
+            if ($this->shouldPreferQueryCategory($category, $queryCategory)) {
+                $category = $queryCategory;
+            }
+
+            $filterTerms = $this->catalogFilterTermsFromQuery($query, $categoryQuery, $filters, $category);
+            $matchedFilters = $this->matchCatalogFilters($fid, $category, $filterTerms, $locale);
+            if ($filterTerms !== [] && $matchedFilters === []) {
+                return $this->catalogClarificationAction(
+                    'Нашёл несколько возможных разделов. Уточните категорию по названию.',
+                    $this->catalogClarificationCandidatesForCategory($fid, $category, $locale),
+                );
+            }
+
+            $categoryForUrl = $this->catalogCategoryForMatchedFilters($fid, $category, $matchedFilters, $locale);
+            $path = $categoryForUrl !== null ? $this->buildCatalogPath($categoryForUrl) : '';
+            $hk = $this->serializeCatalogFilterPairs($matchedFilters);
+            $queryForUrl = ($hk !== '' || ($categoryForUrl !== null && $filterTerms === [])) ? '' : $query;
+
+            $url = $this->buildCatalogProductsUrl($path, $queryForUrl, $hk);
+
+            $found = $this->countCatalogProductsForSearch($fid, $queryForUrl, $matchedFilters);
+
+            return [
+                'success' => true,
+                'found' => $found,
+                'query' => $query,
+                'category' => $categoryForUrl !== null ? [
+                    'id' => $categoryForUrl['id'] ?? null,
+                    'name' => $categoryForUrl['name'] ?? '',
+                    'path' => $path,
+                ] : null,
+                'filters' => $matchedFilters,
+                'ui_action' => [
+                    'type' => 'navigate',
+                    'path' => $path,
+                    'url' => $url,
+                    'label' => 'Показать товары',
+                    'source' => 'search_catalog_products',
+                ],
+                'message' => $found > 0
+                    ? 'Нашёл подходящие товары, показываю в каталоге.'
+                    : 'Открываю поиск по каталогу, чтобы проверить подходящие варианты.',
+            ];
+        } catch (\Throwable $e) {
+            Log::error('DbQueryService.searchCatalogProducts error: ' . $e->getMessage());
+
+            return $this->catalogSearchAction($query !== '' ? $query : $categoryQuery, 'Открываю поиск по каталогу.', [
+                'error' => 'Не удалось выполнить точный подбор товаров.',
+            ]);
+        }
+    }
+
+    /**
      * Получить детальную информацию о товаре по ID.
      *
      * @param  int $fid     ID проекта
@@ -326,6 +409,9 @@ class DbQueryService
             ];
         }
 
+        $catalogQuery = $this->cleanCatalogNavigationQuery($query);
+        $searchQuery = $catalogQuery !== '' ? $catalogQuery : $query;
+
         try {
             $tree = Field::getCatalogTree($fid, $locale);
             $candidates = $this->flattenCatalogTree($tree->all());
@@ -337,13 +423,22 @@ class DbQueryService
                 ];
             }
 
-            $normalizedQuery = $this->normalizeCatalogSearchText($query);
+            if ($this->isGenericCatalogQuery($catalogQuery)) {
+                $baseCategory = $this->findNumberPlateCategory($candidates);
+                return $this->catalogClarificationAction(
+                    'Уточните категорию номерных знаков.',
+                    $this->catalogClarificationCandidatesForCategory($fid, $baseCategory, $locale),
+                );
+            }
+
+            $normalizedQuery = $this->normalizeCatalogSearchText($catalogQuery);
             $best = null;
             $bestScore = 0;
 
             foreach ($candidates as $candidate) {
                 $haystack = $this->normalizeCatalogSearchText(implode(' ', [
                     $candidate['name'] ?? '',
+                    $candidate['link'] ?? '',
                     $candidate['name_ru'] ?? '',
                     $candidate['name_ua'] ?? '',
                     $candidate['name_en'] ?? '',
@@ -351,29 +446,45 @@ class DbQueryService
                     $candidate['description_ru'] ?? '',
                     $candidate['description_ua'] ?? '',
                     $candidate['description_en'] ?? '',
-                    implode(' ', array_column($candidate['path'], 'name')),
+                    implode(' ', array_column($candidate['_parentPath'] ?? [], 'name')),
                 ]));
 
                 $score = $this->catalogMatchScore($normalizedQuery, $haystack);
-                if ($score > $bestScore) {
+                if (
+                    $score > $bestScore
+                    || (
+                        $score === $bestScore
+                        && $best !== null
+                        && count($candidate['_parentPath'] ?? []) > count($best['_parentPath'] ?? [])
+                    )
+                ) {
                     $best = $candidate;
                     $bestScore = $score;
                 }
             }
 
             if ($best === null || $bestScore < 2) {
-                return [
-                    'success' => false,
-                    'message' => 'Не нашёл точный раздел под этот тип номера.',
-                    'candidates' => array_slice(array_map(fn (array $item) => [
-                        'id' => $item['id'],
-                        'name' => $item['name'],
-                        'path' => $this->buildCatalogPath($item),
-                    ], $candidates), 0, 8),
-                ];
+                $baseCategory = $this->queryMentionsNumberPlates($catalogQuery)
+                    ? $this->findNumberPlateCategory($candidates)
+                    : null;
+                return $this->catalogClarificationAction(
+                    'Нашёл несколько возможных разделов. Уточните категорию по названию.',
+                    $this->catalogClarificationCandidatesForCategory($fid, $baseCategory, $locale),
+                );
             }
 
             $path = $this->buildCatalogPath($best);
+            $filterTerms = $this->catalogFilterTermsFromQuery($searchQuery, '', [], $best);
+            $matchedFilters = $this->matchCatalogFilters($fid, $best, $filterTerms, $locale);
+            if ($filterTerms !== [] && $matchedFilters === []) {
+                return $this->catalogClarificationAction(
+                    'Нашёл несколько возможных разделов. Уточните категорию по названию.',
+                    $this->catalogClarificationCandidatesForCategory($fid, $best, $locale),
+                );
+            }
+
+            $hk = $this->serializeCatalogFilterPairs($matchedFilters);
+            $url = $this->buildCatalogProductsUrl($path, '', $hk);
 
             return [
                 'success' => true,
@@ -383,9 +494,11 @@ class DbQueryService
                     'path' => $path,
                     'score' => $bestScore,
                 ],
+                'filters' => $matchedFilters,
                 'ui_action' => [
                     'type' => 'navigate',
                     'path' => $path,
+                    'url' => $url,
                     'label' => 'Открыть раздел',
                     'source' => 'open_catalog_category',
                 ],
@@ -394,7 +507,9 @@ class DbQueryService
         } catch (\Throwable $e) {
             Log::error("DbQueryService.openCatalogCategory error: " . $e->getMessage());
 
-            return ['success' => false, 'error' => 'Не удалось подобрать раздел каталога.'];
+            return $this->catalogSearchAction($searchQuery, 'Открываю поиск по каталогу.', [
+                'error' => 'Не удалось подобрать точный раздел каталога.',
+            ]);
         }
     }
 
@@ -608,13 +723,51 @@ class DbQueryService
                 'type' => 'function',
                 'function' => [
                     'name' => 'open_catalog_category',
-                    'description' => 'Найти подходящий раздел каталога по названию, типу номера, марке авто или описанию. Возвращает ui_action для навигации на фронте. Используй когда пользователь просит показать номера определённого типа (например "еврономер", "укрномер", "mitsubishi l200", "квадратные", "укороченные"), открыть раздел каталога или найти подходящую категорию товаров.',
+                    'description' => 'Найти подходящий раздел каталога по названию, типу номера, марке авто или описанию. Возвращает ui_action для навигации на фронте. Если точного раздела нет, возвращает ui_action на поиск /goods?q=... Используй когда пользователь просит показать, найти, подобрать или открыть товары/номера определённого типа (например "покажи еврономер", "найди укрномер", "mitsubishi l200", "квадратные", "укороченные").',
                     'parameters' => [
                         'type' => 'object',
                         'properties' => [
                             'query' => [
                                 'type' => 'string',
                                 'description' => 'Запрос: тип номера, марка/модель авто, название раздела или описание того, что нужно найти',
+                            ],
+                            'locale' => [
+                                'type' => 'string',
+                                'description' => 'Язык (ru, ua, en). По умолчанию ru',
+                                'default' => 'ru',
+                            ],
+                        ],
+                        'required' => ['query'],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'search_catalog_products',
+                    'description' => 'Найти товары в каталоге по собранным из диалога признакам: тип товара, категория, материал, назначение. Возвращает ui_action для перехода на /goods с поиском q и подходящими фильтрами hk. Используй после уточняющих вопросов, когда пользователь выбрал вариант товара (например: номерные знаки, сувенирные, алюминий, не пластик).',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'query' => [
+                                'type' => 'string',
+                                'description' => 'Итоговая поисковая фраза без отрицаний, например "номерные знаки сувенирные алюминий"',
+                            ],
+                            'category_query' => [
+                                'type' => 'string',
+                                'description' => 'Название категории, если понятно из диалога, например "номерные знаки" или "сувенирные номера"',
+                            ],
+                            'filters' => [
+                                'type' => 'array',
+                                'description' => 'Положительные значения фильтров/признаки, например ["сувенирные", "алюминий"]',
+                                'items' => ['type' => 'string'],
+                                'default' => [],
+                            ],
+                            'exclude_terms' => [
+                                'type' => 'array',
+                                'description' => 'Отрицательные признаки, которые пользователь отверг, например ["пластик"]. Не добавляй их в query.',
+                                'items' => ['type' => 'string'],
+                                'default' => [],
                             ],
                             'locale' => [
                                 'type' => 'string',
@@ -722,6 +875,14 @@ class DbQueryService
                     (string) ($arguments['query'] ?? ''),
                     (string) ($arguments['locale'] ?? 'ru'),
                 ),
+                'search_catalog_products' => $this->searchCatalogProducts(
+                    $fid,
+                    (string) ($arguments['query'] ?? ''),
+                    (string) ($arguments['category_query'] ?? ''),
+                    array_values(array_filter((array) ($arguments['filters'] ?? []), fn ($value) => is_scalar($value) && trim((string) $value) !== '')),
+                    array_values(array_filter((array) ($arguments['exclude_terms'] ?? []), fn ($value) => is_scalar($value) && trim((string) $value) !== '')),
+                    (string) ($arguments['locale'] ?? 'ru'),
+                ),
                 'fetch_and_save_page' => $this->fetchAndSavePage(
                     $fid,
                     (string) ($arguments['url'] ?? ''),
@@ -746,6 +907,548 @@ class DbQueryService
     // ── Helpers для openCatalogCategory ─────────────────────────────────────
 
     /**
+     * @param  array<int, string>  $excludeTerms
+     */
+    private function normalizeProductSearchQuery(string $query, array $excludeTerms = []): string
+    {
+        $query = trim(preg_replace('/\s+/u', ' ', $query) ?? $query);
+
+        foreach ($excludeTerms as $term) {
+            $term = trim((string) $term);
+            if ($term === '') {
+                continue;
+            }
+
+            $query = preg_replace('/\b(не|нет|без)\s+' . preg_quote($term, '/') . '\b/iu', ' ', $query) ?? $query;
+            $query = preg_replace('/\b' . preg_quote($term, '/') . '\b/iu', ' ', $query) ?? $query;
+        }
+
+        $query = preg_replace('/\b(не|нет|без|или)\b/iu', ' ', $query) ?? $query;
+        $query = preg_replace('/\s+/u', ' ', $query) ?? $query;
+
+        return trim($query);
+    }
+
+    /**
+     * @param  array<int, string>  $filters
+     * @return array<int, string>
+     */
+    private function catalogFilterTermsFromQuery(string $query, string $categoryQuery = '', array $filters = [], ?array $category = null): array
+    {
+        $terms = array_values(array_filter(array_map(fn ($value) => trim((string) $value), $filters)));
+        $categoryText = $category !== null ? $this->catalogCandidateSearchText($category) : '';
+
+        foreach ([$query, $categoryQuery] as $source) {
+            $normalized = $this->normalizeCatalogSearchText($source);
+            foreach (explode(' ', $normalized) as $word) {
+                if (
+                    mb_strlen($word) < 4
+                    || $this->isGenericCatalogWord($word)
+                    || ($categoryText !== '' && str_contains($categoryText, $word))
+                ) {
+                    continue;
+                }
+
+                $terms[] = $word;
+            }
+        }
+
+        return array_values(array_unique(array_filter($terms)));
+    }
+
+    private function shouldPreferQueryCategory(?array $category, ?array $queryCategory): bool
+    {
+        if ($queryCategory === null) {
+            return false;
+        }
+
+        if ($category === null) {
+            return true;
+        }
+
+        $categoryId = (int) ($category['id'] ?? 0);
+        $queryCategoryId = (int) ($queryCategory['id'] ?? 0);
+        if ($categoryId <= 0 || $queryCategoryId <= 0 || $categoryId === $queryCategoryId) {
+            return false;
+        }
+
+        foreach (($queryCategory['_parentPath'] ?? []) as $parent) {
+            if ((int) ($parent['id'] ?? 0) === $categoryId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<int, array>  $candidates
+     */
+    private function findNumberPlateCategory(array $candidates): ?array
+    {
+        foreach ($candidates as $candidate) {
+            $text = $this->catalogCandidateSearchText($candidate);
+            if (str_contains($text, 'nomernye znaki') || str_contains($text, 'number plates')) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function queryMentionsNumberPlates(string $query): bool
+    {
+        $words = array_filter(explode(' ', $this->normalizeCatalogSearchText($query)));
+
+        foreach ($words as $word) {
+            if (in_array($word, ['nomer', 'nomera', 'nomernye', 'znak', 'znaki', 'avtonomer', 'avtonomera', 'avtonomery'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function findBestCatalogCandidate(int $fid, string $query, string $locale = 'ru'): ?array
+    {
+        $tree = Field::getCatalogTree($fid, $locale);
+        $candidates = $this->flattenCatalogTree($tree->all());
+        if ($candidates === []) {
+            return null;
+        }
+
+        $normalizedQuery = $this->normalizeCatalogSearchText($this->cleanCatalogNavigationQuery($query));
+        $best = null;
+        $bestScore = 0;
+
+        foreach ($candidates as $candidate) {
+            $haystack = $this->normalizeCatalogSearchText(implode(' ', [
+                $this->catalogCandidateSearchText($candidate),
+            ]));
+
+            $score = $this->catalogMatchScore($normalizedQuery, $haystack);
+            if (
+                $score > $bestScore
+                || (
+                    $score === $bestScore
+                    && $best !== null
+                    && count($candidate['_parentPath'] ?? []) > count($best['_parentPath'] ?? [])
+                )
+            ) {
+                $best = $candidate;
+                $bestScore = $score;
+            }
+        }
+
+        return $best !== null && $bestScore >= 2 ? $best : null;
+    }
+
+    private function catalogCandidateSearchText(array $candidate): string
+    {
+        return $this->normalizeCatalogSearchText(implode(' ', [
+            $candidate['name'] ?? '',
+            $candidate['link'] ?? '',
+            $candidate['name_ru'] ?? '',
+            $candidate['name_ua'] ?? '',
+            $candidate['name_en'] ?? '',
+            $candidate['description'] ?? '',
+            $candidate['description_ru'] ?? '',
+            $candidate['description_ua'] ?? '',
+            $candidate['description_en'] ?? '',
+            implode(' ', array_column($candidate['_parentPath'] ?? [], 'name')),
+        ]));
+    }
+
+    private function findCatalogCandidateById(int $fid, int $categoryId, string $locale = 'ru'): ?array
+    {
+        if ($categoryId <= 0) {
+            return null;
+        }
+
+        $tree = Field::getCatalogTree($fid, $locale);
+        $candidates = $this->flattenCatalogTree($tree->all());
+
+        foreach ($candidates as $candidate) {
+            if ((int) ($candidate['id'] ?? 0) === $categoryId) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, string>  $filters
+     * @return array<int, array{group_id: int, value_id: int, label: string}>
+     */
+    private function matchCatalogFilters(int $fid, ?array $category, array $filters, string $locale = 'ru'): array
+    {
+        $terms = array_values(array_filter(array_map(fn ($value) => trim((string) $value), $filters)));
+        if ($terms === [] || !DB::getSchemaBuilder()->hasTable('filter')) {
+            return [];
+        }
+
+        $catalogIds = [];
+        if ($category !== null) {
+            $catalogIds[] = (int) ($category['id'] ?? 0);
+            $catalogIds = array_merge($catalogIds, $this->catalogDescendantIds($fid, (int) ($category['id'] ?? 0), $locale));
+            foreach (($category['_parentPath'] ?? []) as $parent) {
+                $catalogIds[] = (int) ($parent['id'] ?? 0);
+            }
+        }
+        $catalogIds = array_values(array_unique(array_filter($catalogIds, fn (int $id) => $id > 0)));
+
+        $matched = [];
+        foreach ($terms as $term) {
+            $normalizedTerm = $this->normalizeCatalogSearchText($term);
+            if ($normalizedTerm === '') {
+                continue;
+            }
+
+            $query = DB::table('filter')
+                ->where('keyfield', 'filter')
+                ->where('idfilter', '>', 0);
+
+            if ($catalogIds !== []) {
+                $query->whereIn('idkeyfield', $catalogIds);
+            }
+
+            $rows = $query
+                ->orderBy('num')
+                ->orderBy('id')
+                ->limit(200)
+                ->get(['id', 'idfilter', 'idkeyfield', 'val', 'valru', 'valen']);
+
+            foreach ($rows as $row) {
+                $label = $locale === 'en'
+                    ? ((string) ($row->valen ?: $row->val ?: $row->valru))
+                    : ((string) ($row->valru ?: $row->val ?: $row->valen));
+                $normalizedLabel = $this->normalizeCatalogSearchText($label);
+
+                if ($this->catalogFilterTermMatches($normalizedTerm, $normalizedLabel)) {
+                    $matched[(int) $row->idfilter . ':' . (int) $row->id] = [
+                        'group_id' => (int) $row->idfilter,
+                        'value_id' => (int) $row->id,
+                        'category_id' => (int) $row->idkeyfield,
+                        'label' => $label,
+                    ];
+                    break;
+                }
+            }
+        }
+
+        return array_values($matched);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function catalogDescendantIds(int $fid, int $categoryId, string $locale = 'ru'): array
+    {
+        if ($categoryId <= 0) {
+            return [];
+        }
+
+        $tree = Field::getCatalogTree($fid, $locale);
+        $candidates = $this->flattenCatalogTree($tree->all());
+        $ids = [];
+
+        foreach ($candidates as $candidate) {
+            foreach (($candidate['_parentPath'] ?? []) as $parent) {
+                if ((int) ($parent['id'] ?? 0) === $categoryId) {
+                    $ids[] = (int) ($candidate['id'] ?? 0);
+                    break;
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0)));
+    }
+
+    /**
+     * @param  array<int, array{group_id: int, value_id: int, label: string}>  $filters
+     */
+    private function serializeCatalogFilterPairs(array $filters): string
+    {
+        $pairs = [];
+        foreach ($filters as $filter) {
+            $groupId = (int) ($filter['group_id'] ?? 0);
+            $valueId = (int) ($filter['value_id'] ?? 0);
+            if ($groupId > 0 && $valueId > 0) {
+                $pairs[] = $groupId . ':' . $valueId;
+            }
+        }
+
+        return implode(',', array_values(array_unique($pairs)));
+    }
+
+    private function buildCatalogProductsUrl(string $path, string $query = '', string $hk = ''): string
+    {
+        $path = trim($path, '/');
+        $query = trim($query);
+        $hk = trim($hk);
+
+        if ($path === '') {
+            $url = '/goods';
+            $params = [];
+            if ($query !== '') {
+                $params['q'] = $query;
+            }
+            if ($hk !== '') {
+                $params['hk'] = $hk;
+            }
+
+            return $params !== []
+                ? $url . '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986)
+                : $url;
+        }
+
+        if ($hk !== '') {
+            $segments = array_values(array_filter(explode('/', $path)));
+            $top = $segments[0] ?? '';
+            $child = $segments[1] ?? '';
+            $filterPath = str_replace(',', '-', $hk);
+
+            $url = $child !== ''
+                ? '/goods/' . $top . '/f-' . $child . ';f-' . $filterPath
+                : '/goods/' . $top . '/f-;f-' . $filterPath;
+        } else {
+            $url = '/goods/' . $path;
+        }
+
+        if ($query !== '') {
+            $url .= '?' . http_build_query(['q' => $query], '', '&', PHP_QUERY_RFC3986);
+        }
+
+        return $url;
+    }
+
+    private function catalogCategoryForMatchedFilters(int $fid, ?array $category, array $matchedFilters, string $locale = 'ru'): ?array
+    {
+        $categoryId = (int) ($category['id'] ?? 0);
+        $filterCategoryId = 0;
+
+        foreach ($matchedFilters as $filter) {
+            $candidateId = (int) ($filter['category_id'] ?? 0);
+            if ($candidateId > 0 && $candidateId !== $categoryId) {
+                $filterCategoryId = $candidateId;
+                break;
+            }
+        }
+
+        if ($filterCategoryId <= 0) {
+            return $category;
+        }
+
+        return $this->findCatalogCandidateById($fid, $filterCategoryId, $locale) ?? $category;
+    }
+
+    /**
+     * @param  array<int, array{group_id: int, value_id: int, label: string}>  $filters
+     */
+    private function countCatalogProductsForSearch(int $fid, string $query, array $filters): int
+    {
+        $qOk = mb_strlen(trim($query)) >= 2;
+        if (!$qOk && $filters === []) {
+            return 0;
+        }
+
+        $dbQuery = DB::table('comp')
+            ->leftJoin('descript as d', function ($join) use ($fid) {
+                $join->on('d.pnum', '=', 'comp.id')
+                    ->where('d.firma', '=', $fid);
+            })
+            ->where('comp.firma', $fid);
+
+        if ($qOk) {
+            $dbQuery->where(function ($search) use ($query) {
+                $search->where('d.name', 'LIKE', "%{$query}%")
+                    ->orWhere('d.name_ua', 'LIKE', "%{$query}%")
+                    ->orWhere('d.name_en', 'LIKE', "%{$query}%")
+                    ->orWhere('d.description', 'LIKE', "%{$query}%")
+                    ->orWhere('d.description_ua', 'LIKE', "%{$query}%")
+                    ->orWhere('d.description_en', 'LIKE', "%{$query}%")
+                    ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$query}%");
+            });
+        }
+
+        foreach ($filters as $filter) {
+            $needle = (int) $filter['group_id'] . ':' . (int) $filter['value_id'];
+            $dbQuery->where('comp.htmlkeyspop', 'LIKE', '%' . $needle . '%');
+        }
+
+        return (int) $dbQuery->limit(101)->count();
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra
+     * @return array<string, mixed>
+     */
+    private function catalogSearchAction(string $query, string $message, array $extra = []): array
+    {
+        $query = trim($query);
+        $searchUrl = $query !== '' ? '/goods?q=' . rawurlencode($query) : '/goods';
+
+        return array_merge([
+            'success' => true,
+            'message' => $message,
+            'ui_action' => [
+                'type' => 'navigate',
+                'path' => '',
+                'url' => $searchUrl,
+                'label' => 'Искать в каталоге',
+                'source' => 'open_catalog_category',
+            ],
+        ], $extra);
+    }
+
+    /**
+     * @param  array<int, array{id: mixed, name: mixed, path: string}>  $candidates
+     * @return array<string, mixed>
+     */
+    private function catalogClarificationAction(string $message, array $candidates): array
+    {
+        return [
+            'success' => false,
+            'message' => $message,
+            'candidates' => $candidates,
+        ];
+    }
+
+    /**
+     * @param  array<int, array>  $candidates
+     * @return array<int, array{id: mixed, name: mixed, path: string}>
+     */
+    private function catalogClarificationCandidates(array $candidates): array
+    {
+        return array_slice(array_values(array_filter(array_map(function (array $item): ?array {
+            if (($item['_parentPath'] ?? []) === []) {
+                return null;
+            }
+
+            return [
+                'id' => $item['id'] ?? null,
+                'name' => $item['name'] ?? '',
+                'path' => $this->buildCatalogPath($item),
+            ];
+        }, $candidates))), 0, 8);
+    }
+
+    /**
+     * @return array<int, array{id: mixed, name: mixed, path: string}>
+     */
+    private function catalogClarificationCandidatesForCategory(int $fid, ?array $category, string $locale = 'ru'): array
+    {
+        $tree = Field::getCatalogTree($fid, $locale);
+        $candidates = $this->flattenCatalogTree($tree->all());
+
+        if ($category === null) {
+            return $this->catalogClarificationCandidates($candidates);
+        }
+
+        $parentPath = $category['_parentPath'] ?? [];
+        $nearestParent = is_array($parentPath) && $parentPath !== [] ? end($parentPath) : null;
+        $categoryId = is_array($nearestParent)
+            ? (int) ($nearestParent['id'] ?? 0)
+            : (int) ($category['id'] ?? 0);
+        $out = [];
+
+        foreach ($candidates as $candidate) {
+            if ((int) ($candidate['id'] ?? 0) === $categoryId && ($candidate['_parentPath'] ?? []) !== []) {
+                $out[] = $candidate;
+                continue;
+            }
+
+            foreach (($candidate['_parentPath'] ?? []) as $parent) {
+                if ((int) ($parent['id'] ?? 0) === $categoryId) {
+                    $out[] = $candidate;
+                    break;
+                }
+            }
+        }
+
+        return $this->catalogClarificationCandidates($out !== [] ? $out : $candidates);
+    }
+
+    private function cleanCatalogNavigationQuery(string $query): string
+    {
+        $query = mb_strtolower(trim($query));
+        $query = preg_replace('/\b(покажи|показать|найди|найти|подбери|подобрать|открой|открыть|show|find|open)\b/iu', ' ', $query) ?? $query;
+        $query = preg_replace('/\b(мне|пожалуйста|каталог|раздел|товары|товар|в|на|по)\b/iu', ' ', $query) ?? $query;
+        $query = preg_replace('/\s+/u', ' ', $query) ?? $query;
+
+        return trim($query);
+    }
+
+    private function isGenericCatalogQuery(string $query): bool
+    {
+        $normalized = $this->normalizeCatalogSearchText($query);
+        $words = array_unique(array_filter(explode(' ', $normalized)));
+
+        if ($words === []) {
+            return true;
+        }
+
+        return count(array_diff($words, $this->genericCatalogWords())) === 0;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function genericCatalogWords(): array
+    {
+        return [
+            'gos',
+            'gosudarstvennye',
+            'nomer',
+            'nomera',
+            'nomernye',
+            'znak',
+            'znaki',
+            'avtonomer',
+            'avtonomera',
+            'avtonomery',
+        ];
+    }
+
+    private function isGenericCatalogWord(string $word): bool
+    {
+        return in_array($word, $this->genericCatalogWords(), true);
+    }
+
+    private function catalogFilterTermMatches(string $normalizedTerm, string $normalizedLabel): bool
+    {
+        if ($normalizedTerm === '' || $normalizedLabel === '') {
+            return false;
+        }
+
+        if (str_contains($normalizedLabel, $normalizedTerm) || str_contains($normalizedTerm, $normalizedLabel)) {
+            return true;
+        }
+
+        $termWords = array_filter(explode(' ', $normalizedTerm));
+        $labelWords = array_filter(explode(' ', $normalizedLabel));
+
+        foreach ($termWords as $termWord) {
+            if (mb_strlen($termWord) < 4 || $this->isGenericCatalogWord($termWord)) {
+                continue;
+            }
+
+            foreach ($labelWords as $labelWord) {
+                if (mb_strlen($labelWord) < 4) {
+                    continue;
+                }
+
+                if (str_starts_with($termWord, $labelWord) || str_starts_with($labelWord, $termWord)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Развернуть дерево каталога в плоский список, сохраняя путь родительских узлов.
      *
      * @param  array<int, array>  $tree
@@ -762,7 +1465,11 @@ class DbQueryService
 
             // Сохраняем slug каждого родителя для построения полного пути
             $node['_parentPath'] = array_map(function (array $parent): array {
-                return ['slug' => $this->getSectionSlug($parent)];
+                return [
+                    'id' => (int) ($parent['id'] ?? 0),
+                    'name' => (string) ($parent['name'] ?? ''),
+                    'slug' => $this->getSectionSlug($parent),
+                ];
             }, $parentPath);
 
             $result[] = $node;
@@ -807,7 +1514,7 @@ class DbQueryService
     {
         $link = trim((string) ($section['link'] ?? ''));
         if ($link !== '') {
-            return $link;
+            return rawurlencode($link);
         }
 
         $name = trim((string) ($section['name'] ?? ''));
@@ -815,38 +1522,10 @@ class DbQueryService
             return (string) ($section['id'] ?? '0');
         }
 
-        return $this->slugify($name);
-    }
+        $slug = mb_strtolower($name);
+        $slug = preg_replace('/\s+/u', '-', $slug) ?? $slug;
 
-    /**
-     * Простейшая транслитерация + slug.
-     */
-    private function slugify(string $text): string
-    {
-        $map = [
-            'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
-            'е' => 'e', 'ё' => 'e', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
-            'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n',
-            'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't',
-            'у' => 'u', 'ф' => 'f', 'х' => 'kh', 'ц' => 'ts', 'ч' => 'ch',
-            'ш' => 'sh', 'щ' => 'shch', 'ъ' => '', 'ы' => 'y', 'ь' => '',
-            'э' => 'e', 'ю' => 'yu', 'я' => 'ya',
-            'А' => 'a', 'Б' => 'b', 'В' => 'v', 'Г' => 'g', 'Д' => 'd',
-            'Е' => 'e', 'Ё' => 'e', 'Ж' => 'zh', 'З' => 'z', 'И' => 'i',
-            'Й' => 'y', 'К' => 'k', 'Л' => 'l', 'М' => 'm', 'Н' => 'n',
-            'О' => 'o', 'П' => 'p', 'Р' => 'r', 'С' => 's', 'Т' => 't',
-            'У' => 'u', 'Ф' => 'f', 'Х' => 'kh', 'Ц' => 'ts', 'Ч' => 'ch',
-            'Ш' => 'sh', 'Щ' => 'shch', 'Ъ' => '', 'Ы' => 'y', 'Ь' => '',
-            'Э' => 'e', 'Ю' => 'yu', 'Я' => 'ya',
-        ];
-
-        $text = strtr($text, $map);
-        $text = mb_strtolower($text);
-        $text = preg_replace('/[^a-z0-9_-]/u', '-', $text) ?? $text;
-        $text = preg_replace('/-+/', '-', $text) ?? $text;
-        $text = trim($text, '-');
-
-        return $text;
+        return rawurlencode($slug);
     }
 
     /**
@@ -880,7 +1559,10 @@ class DbQueryService
      */
     private function catalogMatchScore(string $normalizedQuery, string $haystack): int
     {
-        $queryWords = array_unique(array_filter(explode(' ', $normalizedQuery)));
+        $queryWords = array_values(array_filter(
+            array_unique(array_filter(explode(' ', $normalizedQuery))),
+            fn (string $word) => !$this->isGenericCatalogWord($word),
+        ));
         $haystackWords = array_unique(array_filter(explode(' ', $haystack)));
 
         if ($queryWords === [] || $haystackWords === []) {
