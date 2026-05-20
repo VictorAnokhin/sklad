@@ -20,6 +20,7 @@ use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\RwaAdminCapController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\WalrusProxyController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\ZakazController;
 
@@ -53,6 +54,8 @@ Route::middleware('api')->prefix('auth')->group(function () {
 });
 
 Route::middleware(['api', 'sui.sponsor.log', 'auth:sanctum'])->post('/sui/shinami/sponsor-transaction', [AuthController::class, 'shinamiSponsorSuiTransaction']);
+
+Route::middleware(['api', 'throttle:10,1'])->put('/walrus/{network}/v1/blobs', [WalrusProxyController::class, 'store']);
 
 Route::middleware('api')->post('/debug/frontend', function (Request $request) {
     $payload = $request->validate([
