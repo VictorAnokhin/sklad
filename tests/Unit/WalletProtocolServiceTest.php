@@ -3,18 +3,27 @@
 namespace Tests\Unit;
 
 use App\Services\WalletProtocolService;
+use App\Services\SuiDefiProtocolService;
 use App\Services\ZerionWalletService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class WalletProtocolServiceTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Cache::flush();
+    }
+
     public function test_it_loads_wallet_assets_from_zerion_and_filters_to_configured_tokens(): void
     {
         config()->set('services.zerion.api_key', 'test-key');
 
         Http::fake([
-            'https://api.zerion.io/v1/wallets/*/positions/*' => Http::response([
+            '*' => Http::response([
                 'links' => ['self' => 'https://api.zerion.io/v1/wallets/test/positions/'],
                 'data' => [
                     [
@@ -113,7 +122,7 @@ class WalletProtocolServiceTest extends TestCase
         config()->set('services.zerion.api_key', 'test-key');
 
         Http::fake([
-            'https://api.zerion.io/v1/wallets/*/positions/*' => Http::response([
+            '*' => Http::response([
                 'links' => ['self' => 'https://api.zerion.io/v1/wallets/test/positions/'],
                 'data' => [
                     [
@@ -204,7 +213,7 @@ class WalletProtocolServiceTest extends TestCase
         config()->set('services.zerion.api_key', 'test-key');
 
         Http::fake([
-            'https://api.zerion.io/v1/wallets/*/positions/*' => Http::response([
+            '*' => Http::response([
                 'links' => ['self' => 'https://api.zerion.io/v1/wallets/test/positions/'],
                 'data' => [
                     [
@@ -266,9 +275,9 @@ class WalletProtocolServiceTest extends TestCase
 
         $this->assertTrue($payload['available']);
         $this->assertCount(2, $payload['assets']);
-        $this->assertSame('0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', $payload['assets'][1]['address']);
-        $this->assertSame('USDT0', $payload['assets'][1]['symbol']);
-        $this->assertEquals(750.0, $payload['assets'][1]['balance']);
+        $usdt = collect($payload['assets'])->firstWhere('symbol', 'USDT0');
+        $this->assertSame('0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', $usdt['address']);
+        $this->assertEquals(750.0, $usdt['balance']);
     }
 
     public function test_it_falls_back_to_saved_token_data_when_zerion_assets_are_unavailable(): void
@@ -321,5 +330,55 @@ class WalletProtocolServiceTest extends TestCase
 
         $this->assertSame([], $payload);
         $this->assertCount(0, Http::recorded());
+    }
+
+    public function test_it_loads_suilend_and_navi_positions_from_sui_rpc(): void
+    {
+        config()->set('services.sui.rpc_url', 'https://sui.test');
+
+        Http::fake([
+            'https://sui.test' => Http::response([
+                'jsonrpc' => '2.0',
+                'result' => [
+                    'data' => [
+                        [
+                            'data' => [
+                                'objectId' => '0x111',
+                                'type' => '0xabc::lending_market::ObligationOwnerCap',
+                                'content' => ['fields' => ['id' => ['id' => '0x111']]],
+                            ],
+                        ],
+                        [
+                            'data' => [
+                                'objectId' => '0x222',
+                                'type' => '0xdef::incentive_v3::AccountCap',
+                                'content' => ['fields' => ['id' => ['id' => '0x222']]],
+                            ],
+                        ],
+                        [
+                            'data' => [
+                                'objectId' => '0xf0c2fcaad83946c09e40d04f597e3727ae8177546319a30c4810c2a598fbe578',
+                                'type' => '0xabc::suilend::StrategyOwnerCap',
+                                'content' => ['fields' => ['id' => ['id' => '0xf0c2fcaad83946c09e40d04f597e3727ae8177546319a30c4810c2a598fbe578']]],
+                            ],
+                        ],
+                    ],
+                    'hasNextPage' => false,
+                    'nextCursor' => null,
+                ],
+            ]),
+        ]);
+
+        $service = new WalletProtocolService(new ZerionWalletService(), new SuiDefiProtocolService());
+        $payload = $service->load('0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', 'sui', true);
+
+        $this->assertArrayHasKey('suilend', $payload);
+        $this->assertArrayHasKey('navi', $payload);
+        $this->assertSame('Suilend', $payload['suilend']['name']);
+        $this->assertSame('NAVI Protocol', $payload['navi']['name']);
+        $this->assertSame('0x111', $payload['suilend']['pools'][0]['object_id']);
+        $this->assertSame('0xf0c2fcaad83946c09e40d04f597e3727ae8177546319a30c4810c2a598fbe578', $payload['suilend']['pools'][1]['object_id']);
+        $this->assertSame('Suilend StrategyOwnerCap', $payload['suilend']['pools'][1]['name']);
+        $this->assertSame('0x222', $payload['navi']['pools'][0]['object_id']);
     }
 }

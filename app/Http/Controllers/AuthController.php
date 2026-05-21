@@ -1192,6 +1192,126 @@ class AuthController extends Controller
         ]);
     }
 
+    public function resolveZkLoginWalletByEmail(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+        ]);
+
+        $email = mb_strtolower(trim((string) $validated['email']));
+        if ($email === '' || ! Schema::hasColumn('users', 'email')) {
+            return response()->json([
+                'found' => false,
+                'wallet_address' => null,
+            ]);
+        }
+
+        $query = User::query()->whereRaw('LOWER(TRIM(email)) = ?', [$email]);
+        $user = $this->scopeUserQueryToFid($query, $this->resolveAuthFid($request))->first();
+
+        if (! $user) {
+            return response()->json([
+                'found' => false,
+                'wallet_address' => null,
+            ]);
+        }
+
+        $walletAddress = $this->resolveZkLoginWalletAddress($user->id);
+        if (! $walletAddress && Schema::hasTable('user_wallets')) {
+            $walletRow = DB::table('user_wallets')
+                ->where('user_id', $user->id)
+                ->where('network', 'sui')
+                ->when(Schema::hasColumn('user_wallets', 'web3auth'), function ($query) {
+                    $query->where('web3auth', 1);
+                })
+                ->orderByDesc('connected_at')
+                ->orderByDesc('id')
+                ->first(['address']);
+
+            if ($walletRow && ! empty($walletRow->address)) {
+                $walletAddress = $this->normalizeSuiWalletAddress((string) $walletRow->address);
+            }
+        }
+
+        return response()->json([
+            'found' => true,
+            'wallet_address' => $walletAddress,
+            'user' => $this->serializeUser($user),
+        ]);
+    }
+
+    public function searchZkLoginWallets(Request $request)
+    {
+        $validated = $request->validate([
+            'q' => ['required', 'string', 'min:1', 'max:120'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
+        ]);
+
+        if (! Schema::hasColumn('users', 'email')) {
+            return response()->json(['items' => []]);
+        }
+
+        $term = mb_strtolower(trim((string) $validated['q']));
+        if ($term === '') {
+            return response()->json(['items' => []]);
+        }
+
+        $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+        $limit = (int) ($validated['limit'] ?? 8);
+        $query = User::query()
+            ->where(function ($builder) use ($like) {
+                $builder->whereRaw('LOWER(email) LIKE ?', [$like]);
+
+                foreach (['login', 'name', 'secondname', 'phone'] as $column) {
+                    if (Schema::hasColumn('users', $column)) {
+                        $builder->orWhereRaw("LOWER({$column}) LIKE ?", [$like]);
+                    }
+                }
+            })
+            ->orderByRaw('CASE WHEN LOWER(email) LIKE ? THEN 0 ELSE 1 END', [$term . '%'])
+            ->orderBy('email')
+            ->limit($limit * 3);
+
+        $users = $this->scopeUserQueryToFid($query, $this->resolveAuthFid($request))->get();
+        $items = [];
+
+        foreach ($users as $user) {
+            $walletAddress = $this->resolveZkLoginWalletAddress($user->id);
+            if (! $walletAddress && Schema::hasTable('user_wallets')) {
+                $walletRow = DB::table('user_wallets')
+                    ->where('user_id', $user->id)
+                    ->where('network', 'sui')
+                    ->when(Schema::hasColumn('user_wallets', 'web3auth'), function ($walletQuery) {
+                        $walletQuery->where('web3auth', 1);
+                    })
+                    ->orderByDesc('connected_at')
+                    ->orderByDesc('id')
+                    ->first(['address']);
+
+                if ($walletRow && ! empty($walletRow->address)) {
+                    $walletAddress = $this->normalizeSuiWalletAddress((string) $walletRow->address);
+                }
+            }
+
+            if (! $walletAddress) {
+                continue;
+            }
+
+            $items[] = [
+                'email' => (string) ($user->email ?? ''),
+                'name' => trim((string) (($user->name ?? '') . ' ' . ($user->secondname ?? ''))),
+                'wallet_address' => $walletAddress,
+                'user' => $this->serializeUser($user),
+            ];
+
+            if (count($items) >= $limit) {
+                break;
+            }
+        }
+
+        return response()->json(['items' => $items]);
+    }
+
     public function apiUpdateProfile(Request $request)
     {
         $user = $request->user();

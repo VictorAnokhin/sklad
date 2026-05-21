@@ -51,8 +51,17 @@ return [
         'verify_node_binary' => env('SUI_VERIFY_NODE_BINARY', 'node'),
         /** Fullnode JSON-RPC URL (same network as the SPA). Required for local gas sponsorship. */
         'rpc_url' => env('SUI_RPC_URL', ''),
+        'mainnet_rpc_url' => env('SUI_MAINNET_RPC_URL', 'https://fullnode.mainnet.sui.io:443'),
         /** Bech32 export `suiprivkey1...` (Ed25519 or Secp256k1). Keep in .env only; funds this hot wallet with SUI for gas. */
         'gas_sponsor_private_key' => env('SUI_GAS_SPONSOR_PRIVATE_KEY', ''),
+        'defi_protocols' => [
+            'suilend' => [
+                'type_markers' => env('SUI_SUILEND_TYPE_MARKERS', 'suilend,obligation,strategyownercap,ctoken,lending_market'),
+            ],
+            'navi' => [
+                'type_markers' => env('SUI_NAVI_TYPE_MARKERS', 'navi,account_cap,incentive_v3,lending_core'),
+            ],
+        ],
     ],
 
     /*
