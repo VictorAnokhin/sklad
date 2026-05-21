@@ -81,6 +81,14 @@ class WalletController extends Controller
             'supports_swap' => false,
             'supports_protocols' => true,
         ],
+        'sui' => [
+            'name' => 'Sui',
+            'native_symbol' => 'SUI',
+            'native_name' => 'Sui',
+            'icon_url' => 'https://cryptologos.cc/logos/sui-sui-logo.svg',
+            'supports_swap' => false,
+            'supports_protocols' => true,
+        ],
     ];
 
     protected WalletProtocolService $protocolService;

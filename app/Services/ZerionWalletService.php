@@ -101,7 +101,7 @@ class ZerionWalletService
         $cacheKey = sprintf('zerion:assets:%s:%s:%s', $normalizedAddress, $chainSlug ?: 'all', md5(json_encode($this->configuredTokenKeys($configuredTokens))));
 
         try {
-            return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($normalizedAddress, $normalizedChainId, $chainSlug, $configuredTokens) {
+            return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($normalizedAddress, $normalizedChainId, $chainSlug, $configuredTokens, $configuredAssets) {
                 $positions = $this->fetchPositions($normalizedAddress, array_merge([
                     'currency' => 'usd',
                     'sort' => '-value',

@@ -8,9 +8,13 @@ use RuntimeException;
 
 class WalletProtocolService
 {
+    private SuiDefiProtocolService $suiDefiProtocolService;
+
     public function __construct(
-        private readonly ZerionWalletService $zerionWalletService
+        private readonly ZerionWalletService $zerionWalletService,
+        ?SuiDefiProtocolService $suiDefiProtocolService = null
     ) {
+        $this->suiDefiProtocolService = $suiDefiProtocolService ?: app(SuiDefiProtocolService::class);
     }
 
     public function load(string $address, string|int|null $chainId, bool $refresh = false): array
@@ -35,7 +39,9 @@ class WalletProtocolService
             return is_array($snapshot->payload) ? $snapshot->payload : [];
         }
 
-        $payload = $this->zerionWalletService->loadProtocols($normalizedAddress, $normalizedChainId);
+        $payload = $this->shouldLoadSuiProtocols($normalizedAddress, $normalizedChainId)
+            ? $this->suiDefiProtocolService->loadProtocols($normalizedAddress, $refresh)
+            : $this->zerionWalletService->loadProtocols($normalizedAddress, $normalizedChainId);
 
         $wallet->protocolSnapshots()->updateOrCreate(
             ['chain_id' => $snapshotChainId],
@@ -67,5 +73,14 @@ class WalletProtocolService
         $normalized = strtolower($trimmed);
 
         return str_starts_with($normalized, '0x') ? $normalized : '';
+    }
+
+    private function shouldLoadSuiProtocols(string $address, ?string $chainId): bool
+    {
+        if ($chainId === 'sui') {
+            return true;
+        }
+
+        return $chainId === null && (bool) preg_match('/^0x[a-f0-9]{41,64}$/', $address);
     }
 }

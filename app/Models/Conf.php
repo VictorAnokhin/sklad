@@ -76,8 +76,8 @@ class Conf extends Model
             return null;
         }
 
-        if (is_string($value) && strtolower(trim($value)) === 'solana') {
-            return 'solana';
+        if (is_string($value) && in_array(strtolower(trim($value)), ['solana', 'sui'], true)) {
+            return strtolower(trim($value));
         }
 
         if (is_int($value)) {
@@ -114,8 +114,8 @@ class Conf extends Model
             return null;
         }
 
-        if (is_string($value) && strtolower(trim($value)) === 'solana') {
-            return 'solana';
+        if (is_string($value) && in_array(strtolower(trim($value)), ['solana', 'sui'], true)) {
+            return strtolower(trim($value));
         }
 
         if (is_int($value)) {

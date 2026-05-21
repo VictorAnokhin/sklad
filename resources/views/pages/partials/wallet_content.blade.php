@@ -284,7 +284,7 @@
 
     const raw = value.trim().toLowerCase();
     if (!raw) return null;
-    if (raw === 'solana') return 'solana';
+    if (raw === 'solana' || raw === 'sui') return raw;
 
     if (raw.startsWith('0x')) {
       const n = parseInt(raw, 16);
@@ -330,6 +330,7 @@
     '0xa4b1': { name: 'Arbitrum', native_symbol: 'ETH', native_name: 'Ethereum', icon_url: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg', supports_swap: true, supports_protocols: true },
     '0xa86a': { name: 'Avalanche', native_symbol: 'AVAX', native_name: 'Avalanche', icon_url: 'https://cryptologos.cc/logos/avalanche-avax-logo.svg', supports_swap: true, supports_protocols: true },
     'solana': { name: 'Solana', native_symbol: 'SOL', native_name: 'Solana', icon_url: 'https://cryptologos.cc/logos/solana-sol-logo.svg', supports_swap: false, supports_protocols: false },
+    'sui': { name: 'Sui', native_symbol: 'SUI', native_name: 'Sui', icon_url: 'https://cryptologos.cc/logos/sui-sui-logo.svg', supports_swap: false, supports_protocols: true },
   };
 
   const initialWeb3Catalog = {!! json_encode($web3Catalog ?? ['items' => [], 'networks' => []]) !!};
@@ -345,7 +346,7 @@
       native_symbol: 'TOKEN',
       native_name: 'Token',
       icon_url: 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
-      supports_swap: chainId !== 'solana',
+      supports_swap: !['solana', 'sui'].includes(chainId),
       supports_protocols: chainId !== 'solana',
     };
 
@@ -376,6 +377,10 @@
       nextMap[chainId] = config;
     });
 
+    if (!nextMap.sui) {
+      nextMap.sui = buildNetworkConfig({ chain_id: 'sui' });
+    }
+
     nextTokens.forEach((token) => {
       const chainId = normalizeChainId(token?.chain_id);
       const address = typeof token?.address === 'string' ? token.address.trim() : '';
@@ -389,13 +394,13 @@
       }
 
       if (!nextMap[chainId]) return;
-      if (chainId !== 'solana' && address !== '' && !isEvmAddress(address)) return;
+      if (!['solana', 'sui'].includes(chainId) && address !== '' && !isEvmAddress(address)) return;
 
       nextMap[chainId].tokens.push({
         address,
         symbol: token.symbol,
         name: token.name || token.symbol,
-        decimals: parseInt(token.decimals, 10) || (chainId === 'solana' ? 9 : 18),
+        decimals: parseInt(token.decimals, 10) || (['solana', 'sui'].includes(chainId) ? 9 : 18),
         iconUrl: nextMap[chainId].iconUrl || fallbackNetworkMeta[chainId]?.icon_url || 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
         price: 0,
         chain_id: chainId,
@@ -699,6 +704,7 @@
   function describeProtocolAvailability(chainId) {
     const network = COMMON_NETWORKS[chainId];
     if (!network) return 'Сеть не настроена в settings/web3';
+    if (chainId === 'sui') return 'Sui RPC + Suilend/NAVI positions';
     if (network.supports_protocols) return 'Tokens from Alchemy + DeFi from Zerion';
     if (chainId === 'solana') return 'Configured network';
     return 'Tokens only';
@@ -1409,11 +1415,29 @@
     currentWalletChainId = chainId;
     syncNetworkSelector(chainId);
 
+    const protocolsPromise = chainId === 'solana'
+      ? Promise.resolve(null)
+      : fetchProtocolData(address, chainId, refresh);
     const tokensPayload = await fetchWalletPortfolioTokens(address, refresh);
     if (fetchId !== activeBalanceFetchId || activeBalanceFetchKey !== fetchKey) {
       return;
     }
+    const protocols = await protocolsPromise;
+    if (fetchId !== activeBalanceFetchId || activeBalanceFetchKey !== fetchKey) {
+      return;
+    }
     if (!tokensPayload || tokensPayload.error) {
+      if (chainId === 'sui') {
+        rabbyTokensList.innerHTML = `
+          <div class="text-center py-4" style="color: rgba(255,255,255,0.58);">
+            Балансы Sui-токенов в этом блоке не подключены, ниже показаны DeFi-позиции через Sui RPC.
+          </div>
+        `;
+        renderProtocolSections(protocols);
+        const defiTotal = Object.values(protocols || {}).reduce((sum, protocol) => sum + protocolSectionTotal(protocol), 0);
+        rabbyTotalFiat.textContent = defiTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return;
+      }
       rabbyTokensList.innerHTML = `<div class="text-center py-4" style="color:#fca5a5;">${escapeHtml(tokensPayload?.error || 'Не удалось загрузить токены кошелька через Alchemy.')}</div>`;
       return;
     }
@@ -1427,7 +1451,9 @@
           return String(asset.chain || '').toLowerCase() === alchemyChain;
         })
       : [];
-    const protocols = chainId === 'solana' ? null : await fetchProtocolData(address, chainId, refresh);
+    const defiTotal = chainId === 'solana'
+      ? 0
+      : Object.values(protocols || {}).reduce((sum, protocol) => sum + protocolSectionTotal(protocol), 0);
 
     if (assets.length === 0) {
       currentWalletTokens = [];
@@ -1439,7 +1465,7 @@
         </div>
       `;
       renderProtocolSections(protocols);
-      rabbyTotalFiat.textContent = '0.00';
+      rabbyTotalFiat.textContent = defiTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       return;
     }
 
@@ -1499,10 +1525,6 @@
         </div>
       `;
     });
-
-    const defiTotal = chainId === 'solana'
-      ? 0
-      : Object.values(protocols || {}).reduce((sum, protocol) => sum + protocolSectionTotal(protocol), 0);
 
     totalFiat += defiTotal;
 
@@ -2016,6 +2038,8 @@
     if (item.chain) rows.push({ label: 'Chain', value: String(item.chain).toUpperCase() });
     if (item.position_type) rows.push({ label: 'Position type', value: item.position_type });
     if (item.protocol_module) rows.push({ label: 'Module', value: item.protocol_module });
+    if (item.object_id) rows.push({ label: 'Object ID', value: item.object_id });
+    if (item.object_type) rows.push({ label: 'Object type', value: item.object_type });
     if (item.link) {
       rows.push({
         label: 'Protocol',
