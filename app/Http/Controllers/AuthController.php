@@ -1340,6 +1340,12 @@ class AuthController extends Controller
 
         $validated = $request->validate($validationRules);
 
+        foreach (['name', 'secondname', 'fathername', 'phone', 'address', 'city', 'country', 'region'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $validated[$field] = trim((string) ($validated[$field] ?? ''));
+            }
+        }
+
         $user->update(User::filterUsersColumns($validated));
         $user = $user->fresh();
 
