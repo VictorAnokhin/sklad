@@ -5,6 +5,76 @@
 @endsection
 
 @section('content')
+<style>
+    .client-kyc-photos {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .client-kyc-photo {
+        border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        padding: 12px;
+        min-width: 0;
+    }
+
+    .client-kyc-photo__label {
+        color: var(--muted-foreground, #9ca3af);
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+
+    .client-kyc-photo__image {
+        display: block;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        border-radius: 10px;
+        overflow: hidden;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .client-kyc-photo__image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .client-kyc-photo__empty {
+        display: flex;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        border: 1px dashed rgba(255, 255, 255, 0.16);
+        color: var(--muted-foreground, #9ca3af);
+        background: rgba(0, 0, 0, 0.16);
+        font-size: 0.9rem;
+    }
+
+    .client-kyc-photo__meta {
+        margin-top: 8px;
+        color: var(--muted-foreground, #9ca3af);
+        font-size: 0.82rem;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 767px) {
+        .client-kyc-photos {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
 <div class="container mt-4">
     
     @if(session('success'))
@@ -20,6 +90,47 @@
         <form method="POST" action="{{ route('client.save') }}">
             @csrf
             <input type="hidden" name="id" value="{{ $client->id ?? '0' }}">
+
+            @if($client)
+                @php
+                    $formatKycSize = static function ($bytes): string {
+                        $bytes = (int) ($bytes ?? 0);
+                        if ($bytes <= 0) {
+                            return '';
+                        }
+                        return $bytes >= 1048576
+                            ? number_format($bytes / 1048576, 1, '.', ' ') . ' MB'
+                            : max(1, (int) round($bytes / 1024)) . ' KB';
+                    };
+                @endphp
+                <div class="mb-3">
+                    <div class="form-label">Фото клиента</div>
+                    <div class="client-kyc-photos">
+                        @foreach($kycPhotos as $photo)
+                            <div class="client-kyc-photo">
+                                <div class="client-kyc-photo__label">{{ $photo['column'] }} · {{ $photo['label'] }}</div>
+                                @if($photo['url'])
+                                    <a href="{{ $photo['url'] }}" target="_blank" rel="noopener" class="client-kyc-photo__image">
+                                        <img src="{{ $photo['url'] }}" alt="{{ $photo['label'] }}">
+                                    </a>
+                                    <div class="client-kyc-photo__meta">
+                                        <div>{{ $photo['file_name'] ?: basename($photo['path']) }}</div>
+                                        @if($formatKycSize($photo['file_size']) !== '')
+                                            <div>{{ $formatKycSize($photo['file_size']) }}</div>
+                                        @endif
+                                        @if($photo['uploaded_at'])
+                                            <div>{{ $photo['uploaded_at'] }}</div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <div class="client-kyc-photo__empty">Фото не загружено</div>
+                                    <div class="client-kyc-photo__meta">{{ $photo['column'] }}</div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             <div class="row mb-3">
                 <div class="col-md-6">

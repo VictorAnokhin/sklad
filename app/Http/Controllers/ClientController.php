@@ -7,6 +7,7 @@ use App\Models\Document;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -255,7 +256,45 @@ class ClientController extends Controller
 
         session(['client1' => $id]);
 
-        return view('client.show', compact('client', 'statuses', 'clientTypes', 'fid'));
+        $kycPhotos = $client ? $this->buildKycPhotoCards($client) : [];
+
+        return view('client.show', compact('client', 'statuses', 'clientTypes', 'fid', 'kycPhotos'));
+    }
+
+    public function kycPhoto(string $id, string $type)
+    {
+        $fid = session('fid', '');
+        $client = DB::table('users')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->first();
+
+        if (! $client) {
+            abort(404);
+        }
+
+        $map = $this->kycPhotoMap();
+        if (! isset($map[$type])) {
+            abort(404);
+        }
+
+        $path = $this->resolveKycPhotoPath($client, $map[$type]['column'], $map[$type]['fallback']);
+        if ($path === '') {
+            abort(404);
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return redirect()->away($path);
+        }
+
+        $disk = Storage::disk('local');
+        if (! $disk->exists($path)) {
+            abort(404);
+        }
+
+        return response()->file($disk->path($path), [
+            'Content-Type' => $this->clientValue($client, $map[$type]['mime']) ?: ($disk->mimeType($path) ?: 'image/jpeg'),
+        ]);
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────
@@ -345,6 +384,83 @@ class ClientController extends Controller
         } catch (\Exception $e) {
             return back()->withErrors(['save' => 'Помилка збереження: ' . $e->getMessage()])->withInput();
         }
+    }
+
+    private function buildKycPhotoCards(object $client): array
+    {
+        $cards = [];
+        foreach ($this->kycPhotoMap() as $type => $meta) {
+            $path = $this->resolveKycPhotoPath($client, $meta['column'], $meta['fallback']);
+            $cards[] = [
+                'type' => $type,
+                'label' => $meta['label'],
+                'column' => $meta['column'],
+                'path' => $path,
+                'file_name' => $this->clientValue($client, $meta['name']) ?: ($path !== '' ? basename($path) : ''),
+                'file_size' => (int) $this->clientValue($client, $meta['size'], 0),
+                'uploaded_at' => $this->clientValue($client, $meta['uploaded_at']),
+                'url' => $path !== '' ? route('client.kycPhoto', ['id' => $client->id, 'type' => $type]) : null,
+            ];
+        }
+
+        return $cards;
+    }
+
+    private function kycPhotoMap(): array
+    {
+        return [
+            'passport' => [
+                'label' => 'Фото паспорта',
+                'column' => 'foto1',
+                'fallback' => 'kyc_passport_file_path',
+                'name' => 'kyc_passport_file_name',
+                'mime' => 'kyc_passport_file_mime',
+                'size' => 'kyc_passport_file_size',
+                'uploaded_at' => 'kyc_passport_uploaded_at',
+            ],
+            'selfie' => [
+                'label' => 'Лицо с паспортом',
+                'column' => 'foto2',
+                'fallback' => 'kyc_selfie_file_path',
+                'name' => 'kyc_selfie_file_name',
+                'mime' => 'kyc_selfie_file_mime',
+                'size' => 'kyc_selfie_file_size',
+                'uploaded_at' => 'kyc_selfie_uploaded_at',
+            ],
+            'liveness' => [
+                'label' => 'Liveness-селфи',
+                'column' => 'foto3',
+                'fallback' => 'kyc_liveness_file_path',
+                'name' => 'kyc_liveness_file_name',
+                'mime' => 'kyc_liveness_file_mime',
+                'size' => 'kyc_liveness_file_size',
+                'uploaded_at' => 'kyc_liveness_uploaded_at',
+            ],
+        ];
+    }
+
+    private function resolveKycPhotoPath(object $client, string $photoColumn, string $fallbackColumn): string
+    {
+        $photoPath = trim((string) $this->clientValue($client, $photoColumn, ''));
+        if ($photoPath !== '') {
+            if (str_starts_with($photoPath, 'http://') || str_starts_with($photoPath, 'https://') || Storage::disk('local')->exists($photoPath)) {
+                return $photoPath;
+            }
+        }
+
+        $fallbackPath = trim((string) $this->clientValue($client, $fallbackColumn, ''));
+        if ($fallbackPath !== '') {
+            if (str_starts_with($fallbackPath, 'http://') || str_starts_with($fallbackPath, 'https://') || Storage::disk('local')->exists($fallbackPath)) {
+                return $fallbackPath;
+            }
+        }
+
+        return '';
+    }
+
+    private function clientValue(object $client, string $column, mixed $default = null): mixed
+    {
+        return property_exists($client, $column) ? $client->{$column} : $default;
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────

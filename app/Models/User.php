@@ -26,6 +26,7 @@ class User extends Authenticatable
     protected $fillable = [
         'login',
         'phone',
+        'address',
         'pass',
         'name',
         'secondname',
@@ -256,7 +257,9 @@ class User extends Authenticatable
 
     public static function showClient($id, $fid)
     {
-        $client = $id !== '0' ?DB::table('users')->where('id', $id)->first() : null;
+        $client = $id !== '0'
+            ? DB::table('users')->where('id', $id)->where('firma', $fid)->first()
+            : null;
 
         // Selects needed for form
         $statuses = DB::table('conf')

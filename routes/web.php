@@ -104,6 +104,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/search', [ClientController::class , 'search'])->name('search');
             Route::post('/check-email', [ClientController::class , 'checkEmail'])->name('checkEmail');
             Route::get('/{id}/orders', [ClientController::class , 'orders'])->name('orders');
+            Route::get('/{id}/kyc-photo/{type}', [ClientController::class , 'kycPhoto'])->name('kycPhoto');
             Route::post('/save', [ClientController::class , 'save'])->name('save');
             Route::post('/quick-store', [ClientController::class , 'storeQuick'])->name('quickStore');
             Route::post('/delete', [ClientController::class , 'destroy'])->name('destroy');
