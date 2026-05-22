@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\AiClientFactory;
 use App\Services\ShinamiClient;
 use App\Services\SuiLocalGasSponsorClient;
 use App\Services\SmsClubService;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use kornrunner\Keccak;
 use Symfony\Component\Process\Process;
@@ -513,6 +515,11 @@ class AuthController extends Controller
         /** @var User|null $user */
         $user = $this->userByEmail($email, $fid)->first();
 
+        if (!$user && Schema::hasColumn('users', 'email')) {
+            $query = User::query()->whereRaw('LOWER(email) = ?', [strtolower($email)]);
+            $user = $this->scopeUserQueryToFid($query, $fid)->first();
+        }
+
         if ($user) {
             if (Schema::hasColumn('users', 'email_verified_at') && !$user->email_verified_at) {
                 $user->forceFill(['email_verified_at' => now()])->save();
@@ -760,12 +767,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'Failed to verify Google account (unknown error)'], 422);
         }
 
-        $user = $this->resolveExistingGoogleUser($payload, $this->resolveAuthFid($request));
+        $user = $this->resolveGoogleUser($payload, '12');
 
         if (!$user) {
             return response()->json([
-                'message' => 'Email Google не найден в базе users.',
-            ], 404);
+                'message' => 'Google account email is not verified.',
+            ], 422);
         }
 
         $this->syncUserRoleStatus($user);
@@ -1325,17 +1332,283 @@ class AuthController extends Controller
             'secondname' => 'nullable|string|max:255',
             'fathername' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:50',
-            'email' => 'nullable|email|max:255|unique:users,email,' . $user->id,
+            'address' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:100',
+            'country' => 'nullable|string|max:100',
+            'region' => 'nullable|string|max:100',
         ];
 
         $validated = $request->validate($validationRules);
 
-        $user->update($validated);
+        $user->update(User::filterUsersColumns($validated));
         $user = $user->fresh();
 
         return response()->json([
             'user' => $this->serializeUser($user),
             'message' => 'Profile updated successfully',
+        ]);
+    }
+
+    public function apiKycStatus(Request $request)
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        return response()->json([
+            'kyc' => $this->serializeKycStatus($user),
+        ]);
+    }
+
+    public function apiKycImage(Request $request, string $type)
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $map = [
+            'passport' => [
+                'path' => 'foto1',
+                'fallback_path' => 'kyc_passport_file_path',
+                'name' => 'kyc_passport_file_name',
+                'mime' => 'kyc_passport_file_mime',
+            ],
+            'selfie' => [
+                'path' => 'foto2',
+                'fallback_path' => 'kyc_selfie_file_path',
+                'name' => 'kyc_selfie_file_name',
+                'mime' => 'kyc_selfie_file_mime',
+            ],
+            'liveness' => [
+                'path' => 'foto3',
+                'fallback_path' => 'kyc_liveness_file_path',
+                'name' => 'kyc_liveness_file_name',
+                'mime' => 'kyc_liveness_file_mime',
+            ],
+        ];
+
+        if (! isset($map[$type])) {
+            return response()->json(['message' => 'Unsupported KYC image type.'], 404);
+        }
+
+        $columns = $map[$type];
+        $path = trim((string) ($user->{$columns['path']} ?? ''));
+        if (($path === '' || ! Storage::disk('local')->exists($path)) && isset($columns['fallback_path'])) {
+            $fallbackPath = trim((string) ($user->{$columns['fallback_path']} ?? ''));
+            if ($fallbackPath !== '') {
+                $path = $fallbackPath;
+            }
+        }
+
+        if ($path === '' || ! Storage::disk('local')->exists($path)) {
+            return response()->json(['message' => 'KYC image not found.'], 404);
+        }
+
+        $absolutePath = Storage::disk('local')->path($path);
+        $mime = trim((string) ($user->{$columns['mime']} ?? '')) ?: 'application/octet-stream';
+        $name = trim((string) ($user->{$columns['name']} ?? '')) ?: basename($path);
+
+        return response()->file($absolutePath, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . addslashes($name) . '"',
+            'Cache-Control' => 'private, max-age=60',
+        ]);
+    }
+
+    public function apiRunKycDeepSeekCheck(Request $request)
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $kyc = $this->serializeKycStatus($user);
+        $steps = [
+            'passport_photo' => [
+                'uploaded' => ! empty($kyc['passport_uploaded_at']),
+                'file_name' => $kyc['passport_file_name'],
+                'file_size' => $kyc['passport_file_size'],
+            ],
+            'passport_selfie' => [
+                'uploaded' => ! empty($kyc['selfie_uploaded_at']),
+                'file_name' => $kyc['selfie_file_name'],
+                'file_size' => $kyc['selfie_file_size'],
+            ],
+            'liveness_selfie' => [
+                'uploaded' => ! empty($kyc['liveness_uploaded_at']),
+                'file_name' => $kyc['liveness_file_name'],
+                'file_size' => $kyc['liveness_file_size'],
+            ],
+        ];
+
+        $instructions = implode("\n", [
+            'You are a KYC operations pre-check assistant.',
+            'You do not inspect image pixels. You only evaluate the provided metadata and step completeness.',
+            'Return only valid JSON with this shape:',
+            '{"status":"ready_for_manual_review|needs_user_action|incomplete","score":0-100,"missing_steps":[],"operator_summary":"...","user_message":"...","next_actions":["..."]}',
+            'KYC now requires passport photo, passport selfie, and liveness selfie only. Do not require KEP signature.',
+            'Use Russian for operator_summary, user_message, and next_actions.',
+        ]);
+
+        $client = app(AiClientFactory::class)->makeForProvider('deepseek');
+        $result = $client->chat($instructions, [[
+            'role' => 'user',
+            'content' => json_encode([
+                'kyc_status' => $kyc,
+                'required_steps' => $steps,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]], [
+            'temperature' => 0.1,
+            'max_tokens' => 700,
+        ]);
+
+        $analysis = json_decode($result['answer'], true);
+        if (! is_array($analysis)) {
+            $analysis = [
+                'status' => 'needs_user_action',
+                'score' => 0,
+                'missing_steps' => [],
+                'operator_summary' => 'DeepSeek вернул неструктурированный ответ.',
+                'user_message' => trim($result['answer']),
+                'next_actions' => ['Проверьте ответ модели вручную.'],
+            ];
+        }
+
+        return response()->json([
+            'analysis' => $analysis,
+            'provider' => 'deepseek',
+            'model' => $result['model'],
+            'usage' => $result['usage'],
+            'note' => 'DeepSeek pre-check evaluates metadata and completeness only, not image pixels.',
+        ]);
+    }
+
+    public function apiUploadKycPassportPhoto(Request $request)
+    {
+        return $this->storeKycImageUpload(
+            $request,
+            'passport_photo',
+            'passport',
+            'kyc/passports',
+            'kyc_passport',
+            'foto1',
+            'Passport photo uploaded successfully.',
+        );
+    }
+
+    public function apiUploadKycPassportSelfie(Request $request)
+    {
+        return $this->storeKycImageUpload(
+            $request,
+            'passport_selfie',
+            'passport-selfie',
+            'kyc/passport-selfies',
+            'kyc_selfie',
+            'foto2',
+            'Passport selfie uploaded successfully.',
+        );
+    }
+
+    public function apiUploadKycKepSignature(Request $request)
+    {
+        return $this->storeKycKepSignatureUpload($request);
+    }
+
+    public function apiUploadKycLivenessSelfie(Request $request)
+    {
+        return $this->storeKycImageUpload(
+            $request,
+            'liveness_selfie',
+            'liveness-selfie',
+            'kyc/liveness-selfies',
+            'kyc_liveness',
+            'foto3',
+            'Liveness selfie uploaded successfully.',
+        );
+    }
+
+    public function apiCreateSumsubAccessToken(Request $request)
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $appToken = (string) config('services.sumsub.app_token', '');
+        $secretKey = (string) config('services.sumsub.secret_key', '');
+        $baseUrl = rtrim((string) config('services.sumsub.base_url', 'https://api.sumsub.com'), '/');
+        $levelName = (string) config('services.sumsub.level_name', 'basic-kyc-level');
+        $ttl = max(60, (int) config('services.sumsub.token_ttl', 600));
+
+        if ($appToken === '' || $secretKey === '' || $levelName === '') {
+            return response()->json([
+                'message' => 'Sumsub is not configured. Set SUMSUB_APP_TOKEN, SUMSUB_SECRET_KEY, and SUMSUB_LEVEL_NAME on Laravel.',
+            ], 503);
+        }
+
+        $externalUserId = 'av8-user-' . $user->id;
+        $query = http_build_query([
+            'userId' => $externalUserId,
+            'levelName' => $levelName,
+            'ttlInSecs' => $ttl,
+        ], '', '&', PHP_QUERY_RFC3986);
+        $uri = '/resources/accessTokens/sdk?' . $query;
+        $timestamp = (string) time();
+        $signature = hash_hmac('sha256', $timestamp . 'POST' . $uri, $secretKey);
+
+        $response = Http::withHeaders([
+            'Accept' => 'application/json',
+            'X-App-Token' => $appToken,
+            'X-App-Access-Ts' => $timestamp,
+            'X-App-Access-Sig' => $signature,
+        ])->post($baseUrl . $uri);
+
+        if (! $response->successful()) {
+            Log::warning('Sumsub access token request failed.', [
+                'user_id' => $user->id,
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 1000),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to create Sumsub access token.',
+            ], 502);
+        }
+
+        $payload = $response->json();
+        $token = is_array($payload) ? (string) ($payload['token'] ?? '') : '';
+
+        if ($token === '') {
+            return response()->json([
+                'message' => 'Sumsub did not return an SDK access token.',
+            ], 502);
+        }
+
+        $updates = [
+            'kyc_provider' => 'sumsub',
+            'kyc_status' => trim((string) ($user->kyc_status ?? '')) !== '' && $user->kyc_status !== 'not_started'
+                ? $user->kyc_status
+                : 'pending',
+            'kyc_level_name' => $levelName,
+        ];
+
+        if (isset($payload['userId']) && is_string($payload['userId']) && $payload['userId'] !== '') {
+            $updates['kyc_applicant_id'] = $payload['userId'];
+        }
+
+        $user->update(User::filterUsersColumns($updates));
+        $user = $user->fresh();
+
+        return response()->json([
+            'accessToken' => $token,
+            'expiresIn' => $ttl,
+            'kyc' => $this->serializeKycStatus($user),
         ]);
     }
 
@@ -1762,6 +2035,10 @@ class AuthController extends Controller
             'id' => $user->id,
             'login' => $user->login,
             'phone' => $user->phone,
+            'address' => $user->address ?? '',
+            'city' => $user->city,
+            'country' => $user->country ?? '',
+            'region' => $user->region,
             'name' => $user->name,
             'secondname' => $user->secondname,
             'fathername' => $user->fathername,
@@ -1773,6 +2050,11 @@ class AuthController extends Controller
             'wallet_connected_at' => $primaryWallet['connected_at'] ?? optional($user->wallet_connected_at)->toIso8601String(),
             'wallets' => $wallets,
             'zklogin_wallet_address' => $this->resolveZkLoginWalletAddress($user->id),
+            'kyc_provider' => $user->kyc_provider ?? '',
+            'kyc_status' => $user->kyc_status ?? 'not_started',
+            'kyc_applicant_id' => $user->kyc_applicant_id ?? '',
+            'kyc_level_name' => $user->kyc_level_name ?? '',
+            'kyc_verified_at' => optional($user->kyc_verified_at)->toIso8601String(),
             'idkassa' => $user->idkassa,
             'idsklad' => $user->idsklad,
             'idreestr' => $user->idreestr,
@@ -1780,6 +2062,181 @@ class AuthController extends Controller
             'bonus' => $user->bonus,
             'balans' => $user->balans,
         ];
+    }
+
+    private function serializeKycStatus(User $user): array
+    {
+        $passportPath = $this->resolveKycImagePath($user, 'foto1', 'kyc_passport_file_path');
+        $selfiePath = $this->resolveKycImagePath($user, 'foto2', 'kyc_selfie_file_path');
+        $livenessPath = $this->resolveKycImagePath($user, 'foto3', 'kyc_liveness_file_path');
+
+        return [
+            'provider' => (string) ($user->kyc_provider ?? ''),
+            'status' => (string) ($user->kyc_status ?? 'not_started'),
+            'applicant_id' => (string) ($user->kyc_applicant_id ?? ''),
+            'level_name' => (string) ($user->kyc_level_name ?? ''),
+            'verified_at' => optional($user->kyc_verified_at)->toIso8601String(),
+            'passport_file_name' => (string) ($user->kyc_passport_file_name ?: basename($passportPath)),
+            'passport_file_size' => (int) ($user->kyc_passport_file_size ?? 0),
+            'passport_uploaded_at' => $passportPath !== '' ? optional($user->kyc_passport_uploaded_at)->toIso8601String() : null,
+            'selfie_file_name' => (string) ($user->kyc_selfie_file_name ?: basename($selfiePath)),
+            'selfie_file_size' => (int) ($user->kyc_selfie_file_size ?? 0),
+            'selfie_uploaded_at' => $selfiePath !== '' ? optional($user->kyc_selfie_uploaded_at)->toIso8601String() : null,
+            'kep_signature_file_name' => (string) ($user->kyc_kep_signature_file_name ?? ''),
+            'kep_signature_file_size' => (int) ($user->kyc_kep_signature_file_size ?? 0),
+            'kep_signature_uploaded_at' => optional($user->kyc_kep_signature_uploaded_at)->toIso8601String(),
+            'liveness_file_name' => (string) ($user->kyc_liveness_file_name ?: basename($livenessPath)),
+            'liveness_file_size' => (int) ($user->kyc_liveness_file_size ?? 0),
+            'liveness_uploaded_at' => $livenessPath !== '' ? optional($user->kyc_liveness_uploaded_at)->toIso8601String() : null,
+        ];
+    }
+
+    private function resolveKycImagePath(User $user, string $photoColumn, string $fallbackColumn): string
+    {
+        $path = trim((string) ($user->{$photoColumn} ?? ''));
+        if ($path !== '' && Storage::disk('local')->exists($path)) {
+            return $path;
+        }
+
+        $fallbackPath = trim((string) ($user->{$fallbackColumn} ?? ''));
+        if ($fallbackPath !== '' && Storage::disk('local')->exists($fallbackPath)) {
+            return $fallbackPath;
+        }
+
+        return '';
+    }
+
+    private function storeKycImageUpload(
+        Request $request,
+        string $fieldName,
+        string $fallbackName,
+        string $directory,
+        string $columnPrefix,
+        string $photoColumn,
+        string $successMessage
+    ) {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $validated = $request->validate([
+            $fieldName => [
+                'required',
+                'file',
+                'image',
+                'mimetypes:image/jpeg,image/png,image/webp',
+                'max:10240',
+            ],
+        ]);
+
+        $file = $validated[$fieldName];
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'jpg');
+        $safeName = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) ?: $fallbackName;
+        $filename = $safeName . '_' . now()->format('YmdHis') . '_' . Str::random(8) . '.' . $extension;
+        $path = $file->storeAs($directory . '/' . $user->id, $filename, 'local');
+
+        $pathColumn = $columnPrefix . '_file_path';
+        $previousPaths = array_filter(array_unique([
+            trim((string) ($user->{$photoColumn} ?? '')),
+            trim((string) ($user->{$pathColumn} ?? '')),
+        ]));
+        foreach ($previousPaths as $previousPath) {
+            if ($previousPath !== $path) {
+                Storage::disk('local')->delete($previousPath);
+            }
+        }
+
+        $updates = [
+            'kyc_provider' => trim((string) ($user->kyc_provider ?? '')) !== '' ? $user->kyc_provider : 'manual_upload',
+            'kyc_status' => in_array((string) ($user->kyc_status ?? ''), ['approved', 'in_review'], true)
+                ? $user->kyc_status
+                : 'pending',
+            $photoColumn => $path,
+            $pathColumn => $path,
+            $columnPrefix . '_file_name' => $file->getClientOriginalName(),
+            $columnPrefix . '_file_mime' => $file->getMimeType() ?: '',
+            $columnPrefix . '_file_size' => $file->getSize() ?: 0,
+            $columnPrefix . '_uploaded_at' => now(),
+        ];
+
+        $user->update(User::filterUsersColumns($updates));
+        $user = $user->fresh();
+
+        Log::info('KYC image uploaded.', [
+            'user_id' => $user->id,
+            'field' => $fieldName,
+            'file_size' => $user->{$columnPrefix . '_file_size'} ?? null,
+            'mime' => $user->{$columnPrefix . '_file_mime'} ?? null,
+        ]);
+
+        return response()->json([
+            'kyc' => $this->serializeKycStatus($user),
+            'message' => $successMessage,
+        ]);
+    }
+
+    private function storeKycKepSignatureUpload(Request $request)
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $validated = $request->validate([
+            'kep_signature' => [
+                'required',
+                'file',
+                'max:10240',
+            ],
+        ]);
+
+        $file = $validated['kep_signature'];
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: '');
+        $allowedExtensions = ['p7s', 'p7m', 'asice', 'asics', 'sig'];
+
+        if (! in_array($extension, $allowedExtensions, true)) {
+            return response()->json([
+                'message' => 'Upload a KEP signature file: .p7s, .p7m, .asice, .asics, or .sig.',
+            ], 422);
+        }
+
+        $safeName = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) ?: 'kep-signature';
+        $filename = $safeName . '_' . now()->format('YmdHis') . '_' . Str::random(8) . '.' . $extension;
+        $path = $file->storeAs('kyc/kep-signatures/' . $user->id, $filename, 'local');
+
+        $previousPath = trim((string) ($user->kyc_kep_signature_file_path ?? ''));
+        if ($previousPath !== '' && $previousPath !== $path) {
+            Storage::disk('local')->delete($previousPath);
+        }
+
+        $updates = [
+            'kyc_provider' => trim((string) ($user->kyc_provider ?? '')) !== '' ? $user->kyc_provider : 'manual_upload',
+            'kyc_status' => in_array((string) ($user->kyc_status ?? ''), ['approved', 'in_review'], true)
+                ? $user->kyc_status
+                : 'pending',
+            'kyc_kep_signature_file_path' => $path,
+            'kyc_kep_signature_file_name' => $file->getClientOriginalName(),
+            'kyc_kep_signature_file_mime' => $file->getMimeType() ?: '',
+            'kyc_kep_signature_file_size' => $file->getSize() ?: 0,
+            'kyc_kep_signature_uploaded_at' => now(),
+        ];
+
+        $user->update(User::filterUsersColumns($updates));
+        $user = $user->fresh();
+
+        Log::info('KYC KEP signature uploaded.', [
+            'user_id' => $user->id,
+            'file_size' => $user->kyc_kep_signature_file_size,
+            'mime' => $user->kyc_kep_signature_file_mime,
+        ]);
+
+        return response()->json([
+            'kyc' => $this->serializeKycStatus($user),
+            'message' => 'KEP signature uploaded successfully.',
+        ]);
     }
 
     private function bindWalletToUser(User $user, string $address, ?string $network = null, int $web3auth = 0): void

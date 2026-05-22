@@ -49,6 +49,14 @@ Route::middleware('api')->prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'apiUser']);
     Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'apiLogout']);
     Route::middleware('auth:sanctum')->put('/profile', [AuthController::class, 'apiUpdateProfile']);
+    Route::middleware('auth:sanctum')->get('/kyc', [AuthController::class, 'apiKycStatus']);
+    Route::middleware('auth:sanctum')->get('/kyc/image/{type}', [AuthController::class, 'apiKycImage']);
+    Route::middleware('auth:sanctum')->post('/kyc/deepseek/check', [AuthController::class, 'apiRunKycDeepSeekCheck']);
+    Route::middleware('auth:sanctum')->post('/kyc/passport-photo', [AuthController::class, 'apiUploadKycPassportPhoto']);
+    Route::middleware('auth:sanctum')->post('/kyc/passport-selfie', [AuthController::class, 'apiUploadKycPassportSelfie']);
+    Route::middleware('auth:sanctum')->post('/kyc/kep-signature', [AuthController::class, 'apiUploadKycKepSignature']);
+    Route::middleware('auth:sanctum')->post('/kyc/liveness-selfie', [AuthController::class, 'apiUploadKycLivenessSelfie']);
+    Route::middleware('auth:sanctum')->post('/kyc/sumsub/token', [AuthController::class, 'apiCreateSumsubAccessToken']);
     Route::middleware('auth:sanctum')->post('/wallet/challenge', [AuthController::class, 'web3LinkChallenge']);
     Route::middleware('auth:sanctum')->post('/wallet/link', [AuthController::class, 'linkWallet']);
     Route::middleware('auth:sanctum')->post('/wallet/unlink', [AuthController::class, 'unlinkWallet']);

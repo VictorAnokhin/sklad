@@ -26,10 +26,14 @@ class User extends Authenticatable
     protected $fillable = [
         'login',
         'phone',
+        'address',
         'pass',
         'name',
         'secondname',
         'fathername',
+        'city',
+        'country',
+        'region',
         'fid',
         'firma',
         'status',
@@ -43,9 +47,39 @@ class User extends Authenticatable
         'hbd',
         'email',
         'tgroup',
+        'foto1',
+        'foto2',
+        'foto3',
+        'foto4',
+        'foto5',
         'wallet_address',
         'wallet_network',
         'wallet_connected_at',
+        'kyc_provider',
+        'kyc_status',
+        'kyc_applicant_id',
+        'kyc_level_name',
+        'kyc_verified_at',
+        'kyc_passport_file_path',
+        'kyc_passport_file_name',
+        'kyc_passport_file_mime',
+        'kyc_passport_file_size',
+        'kyc_passport_uploaded_at',
+        'kyc_selfie_file_path',
+        'kyc_selfie_file_name',
+        'kyc_selfie_file_mime',
+        'kyc_selfie_file_size',
+        'kyc_selfie_uploaded_at',
+        'kyc_kep_signature_file_path',
+        'kyc_kep_signature_file_name',
+        'kyc_kep_signature_file_mime',
+        'kyc_kep_signature_file_size',
+        'kyc_kep_signature_uploaded_at',
+        'kyc_liveness_file_path',
+        'kyc_liveness_file_name',
+        'kyc_liveness_file_mime',
+        'kyc_liveness_file_size',
+        'kyc_liveness_uploaded_at',
         'password',
     ];
 
@@ -68,6 +102,11 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'wallet_connected_at' => 'datetime',
+        'kyc_verified_at' => 'datetime',
+        'kyc_passport_uploaded_at' => 'datetime',
+        'kyc_selfie_uploaded_at' => 'datetime',
+        'kyc_kep_signature_uploaded_at' => 'datetime',
+        'kyc_liveness_uploaded_at' => 'datetime',
         'password' => 'hashed',
     ];
 
@@ -218,7 +257,9 @@ class User extends Authenticatable
 
     public static function showClient($id, $fid)
     {
-        $client = $id !== '0' ?DB::table('users')->where('id', $id)->first() : null;
+        $client = $id !== '0'
+            ? DB::table('users')->where('id', $id)->where('firma', $fid)->first()
+            : null;
 
         // Selects needed for form
         $statuses = DB::table('conf')
