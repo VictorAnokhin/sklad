@@ -108,6 +108,7 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/save', [ClientController::class , 'save'])->name('save');
             Route::post('/quick-store', [ClientController::class , 'storeQuick'])->name('quickStore');
             Route::post('/delete', [ClientController::class , 'destroy'])->name('destroy');
+            Route::post('/delete-kyc-photo', [ClientController::class , 'deleteKycPhoto'])->name('deleteKycPhoto');
             Route::get('/saldo', [ClientController::class , 'saldo'])->name('saldo');
             Route::post('/firm', [ClientController::class , 'saveFirm'])->name('firm.save');
         }

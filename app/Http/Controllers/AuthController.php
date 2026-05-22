@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -749,6 +750,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'credential' => 'required|string',
+            'fid' => 'nullable|string|max:20',
         ]);
 
         $googleClientId = (string) config('services.google.client_id', '');
@@ -767,7 +769,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Failed to verify Google account (unknown error)'], 422);
         }
 
-        $user = $this->resolveGoogleUser($payload, '12');
+        $user = $this->resolveGoogleUser($payload, $this->resolveAuthFid($request) ?? '12');
 
         if (!$user) {
             return response()->json([
@@ -1155,6 +1157,42 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
+        $validated = $request->validate([
+            'email' => 'nullable|email|max:255',
+            'firma' => 'nullable|string|max:20',
+            'fid' => 'nullable|string|max:20',
+        ]);
+
+        $targetEmail = trim((string) ($validated['email'] ?? ''));
+        $targetFirma = trim((string) ($validated['firma'] ?? $validated['fid'] ?? ''));
+
+        if ($targetEmail !== '' || $targetFirma !== '') {
+            $currentEmail = trim((string) ($user->email ?? ''));
+
+            if ($targetEmail === '') {
+                $targetEmail = $currentEmail;
+            }
+
+            if ($targetFirma === '') {
+                $targetFirma = trim((string) (($user->firma ?? '') ?: ($user->fid ?? '')));
+            }
+
+            if ($targetEmail === '' || strcasecmp($targetEmail, $currentEmail) !== 0) {
+                return response()->json(['message' => 'Profile target does not match authenticated account.'], 403);
+            }
+
+            $targetUser = User::query()
+                ->whereRaw('LOWER(email) = ?', [strtolower($targetEmail)])
+                ->where('firma', $targetFirma)
+                ->first();
+
+            if (! $targetUser) {
+                return response()->json(['message' => 'Client profile was not found for email and firma.'], 404);
+            }
+
+            $user = $targetUser;
+        }
+
         return response()->json([
             'user' => $this->serializeUser($user),
         ]);
@@ -1328,6 +1366,9 @@ class AuthController extends Controller
         }
 
         $validationRules = [
+            'email' => 'nullable|email|max:255',
+            'fid' => 'nullable|string|max:20',
+            'firma' => 'nullable|string|max:20',
             'name' => 'nullable|string|max:255',
             'secondname' => 'nullable|string|max:255',
             'fathername' => 'nullable|string|max:255',
@@ -1340,17 +1381,41 @@ class AuthController extends Controller
 
         $validated = $request->validate($validationRules);
 
+        $currentEmail = trim((string) ($user->email ?? ''));
+        $currentFid = trim((string) (($user->firma ?? '') ?: ($user->fid ?? '')));
+        $targetEmail = trim((string) ($validated['email'] ?? $currentEmail));
+        $targetFid = trim((string) ($validated['firma'] ?? $validated['fid'] ?? $currentFid));
+
+        if ($targetEmail === '' || $targetFid === '') {
+            return response()->json(['message' => 'Email and fid are required to update profile.'], 422);
+        }
+
+        if (strcasecmp($targetEmail, $currentEmail) !== 0 || $targetFid !== $currentFid) {
+            return response()->json(['message' => 'Profile target does not match authenticated account.'], 403);
+        }
+
+        unset($validated['email'], $validated['fid'], $validated['firma']);
+
         foreach (['name', 'secondname', 'fathername', 'phone', 'address', 'city', 'country', 'region'] as $field) {
             if (array_key_exists($field, $validated)) {
                 $validated[$field] = trim((string) ($validated[$field] ?? ''));
             }
         }
 
-        $user->update(User::filterUsersColumns($validated));
-        $user = $user->fresh();
+        $targetUser = User::query()
+            ->whereRaw('LOWER(email) = ?', [strtolower($targetEmail)])
+            ->where('firma', $targetFid)
+            ->first();
+
+        if (! $targetUser) {
+            return response()->json(['message' => 'Client profile was not found for email and fid.'], 404);
+        }
+
+        $targetUser->update(User::filterUsersColumns($validated));
+        $targetUser = $targetUser->fresh();
 
         return response()->json([
-            'user' => $this->serializeUser($user),
+            'user' => $this->serializeUser($targetUser),
             'message' => 'Profile updated successfully',
         ]);
     }
@@ -1378,20 +1443,22 @@ class AuthController extends Controller
 
         $map = [
             'passport' => [
-                'path' => 'foto1',
-                'fallback_path' => 'kyc_passport_file_path',
+                'path' => 'kyc_passport_file_path',
                 'name' => 'kyc_passport_file_name',
                 'mime' => 'kyc_passport_file_mime',
             ],
+            'passport-back' => [
+                'path' => 'kyc_passport_back_file_path',
+                'name' => 'kyc_passport_back_file_name',
+                'mime' => 'kyc_passport_back_file_mime',
+            ],
             'selfie' => [
-                'path' => 'foto2',
-                'fallback_path' => 'kyc_selfie_file_path',
+                'path' => 'kyc_selfie_file_path',
                 'name' => 'kyc_selfie_file_name',
                 'mime' => 'kyc_selfie_file_mime',
             ],
             'liveness' => [
-                'path' => 'foto3',
-                'fallback_path' => 'kyc_liveness_file_path',
+                'path' => 'kyc_liveness_file_path',
                 'name' => 'kyc_liveness_file_name',
                 'mime' => 'kyc_liveness_file_mime',
             ],
@@ -1403,12 +1470,6 @@ class AuthController extends Controller
 
         $columns = $map[$type];
         $path = trim((string) ($user->{$columns['path']} ?? ''));
-        if (($path === '' || ! Storage::disk('local')->exists($path)) && isset($columns['fallback_path'])) {
-            $fallbackPath = trim((string) ($user->{$columns['fallback_path']} ?? ''));
-            if ($fallbackPath !== '') {
-                $path = $fallbackPath;
-            }
-        }
 
         if ($path === '' || ! Storage::disk('local')->exists($path)) {
             return response()->json(['message' => 'KYC image not found.'], 404);
@@ -1502,7 +1563,6 @@ class AuthController extends Controller
             'passport',
             'kyc/passports',
             'kyc_passport',
-            'foto1',
             'Passport photo uploaded successfully.',
         );
     }
@@ -1515,7 +1575,6 @@ class AuthController extends Controller
             'passport-selfie',
             'kyc/passport-selfies',
             'kyc_selfie',
-            'foto2',
             'Passport selfie uploaded successfully.',
         );
     }
@@ -1523,6 +1582,18 @@ class AuthController extends Controller
     public function apiUploadKycKepSignature(Request $request)
     {
         return $this->storeKycKepSignatureUpload($request);
+    }
+
+    public function apiUploadKycPassportBackPhoto(Request $request)
+    {
+        return $this->storeKycImageUpload(
+            $request,
+            'passport_back_photo',
+            'passport-back',
+            'kyc/passports',
+            'kyc_passport_back',
+            'Passport back photo uploaded successfully.',
+        );
     }
 
     public function apiUploadKycLivenessSelfie(Request $request)
@@ -1533,7 +1604,6 @@ class AuthController extends Controller
             'liveness-selfie',
             'kyc/liveness-selfies',
             'kyc_liveness',
-            'foto3',
             'Liveness selfie uploaded successfully.',
         );
     }
@@ -2072,9 +2142,10 @@ class AuthController extends Controller
 
     private function serializeKycStatus(User $user): array
     {
-        $passportPath = $this->resolveKycImagePath($user, 'foto1', 'kyc_passport_file_path');
-        $selfiePath = $this->resolveKycImagePath($user, 'foto2', 'kyc_selfie_file_path');
-        $livenessPath = $this->resolveKycImagePath($user, 'foto3', 'kyc_liveness_file_path');
+        $passportPath = $this->resolveKycImagePath($user, 'kyc_passport_file_path');
+        $passportBackPath = $this->resolveKycImagePath($user, 'kyc_passport_back_file_path');
+        $selfiePath = $this->resolveKycImagePath($user, 'kyc_selfie_file_path');
+        $livenessPath = $this->resolveKycImagePath($user, 'kyc_liveness_file_path');
 
         return [
             'provider' => (string) ($user->kyc_provider ?? ''),
@@ -2084,32 +2155,48 @@ class AuthController extends Controller
             'verified_at' => optional($user->kyc_verified_at)->toIso8601String(),
             'passport_file_name' => (string) ($user->kyc_passport_file_name ?: basename($passportPath)),
             'passport_file_size' => (int) ($user->kyc_passport_file_size ?? 0),
-            'passport_uploaded_at' => $passportPath !== '' ? optional($user->kyc_passport_uploaded_at)->toIso8601String() : null,
+            'passport_uploaded_at' => $this->resolveKycTimestamp($passportPath, $user->kyc_passport_uploaded_at),
+            'passport_back_file_name' => (string) ($user->kyc_passport_back_file_name ?: basename($passportBackPath)),
+            'passport_back_file_size' => (int) ($user->kyc_passport_back_file_size ?? 0),
+            'passport_back_uploaded_at' => $this->resolveKycTimestamp($passportBackPath, $user->kyc_passport_back_uploaded_at),
             'selfie_file_name' => (string) ($user->kyc_selfie_file_name ?: basename($selfiePath)),
             'selfie_file_size' => (int) ($user->kyc_selfie_file_size ?? 0),
-            'selfie_uploaded_at' => $selfiePath !== '' ? optional($user->kyc_selfie_uploaded_at)->toIso8601String() : null,
+            'selfie_uploaded_at' => $this->resolveKycTimestamp($selfiePath, $user->kyc_selfie_uploaded_at),
             'kep_signature_file_name' => (string) ($user->kyc_kep_signature_file_name ?? ''),
             'kep_signature_file_size' => (int) ($user->kyc_kep_signature_file_size ?? 0),
             'kep_signature_uploaded_at' => optional($user->kyc_kep_signature_uploaded_at)->toIso8601String(),
             'liveness_file_name' => (string) ($user->kyc_liveness_file_name ?: basename($livenessPath)),
             'liveness_file_size' => (int) ($user->kyc_liveness_file_size ?? 0),
-            'liveness_uploaded_at' => $livenessPath !== '' ? optional($user->kyc_liveness_uploaded_at)->toIso8601String() : null,
+            'liveness_uploaded_at' => $this->resolveKycTimestamp($livenessPath, $user->kyc_liveness_uploaded_at),
         ];
     }
 
-    private function resolveKycImagePath(User $user, string $photoColumn, string $fallbackColumn): string
+    private function resolveKycImagePath(User $user, string $column): string
     {
-        $path = trim((string) ($user->{$photoColumn} ?? ''));
+        $path = trim((string) ($user->{$column} ?? ''));
         if ($path !== '' && Storage::disk('local')->exists($path)) {
             return $path;
         }
 
-        $fallbackPath = trim((string) ($user->{$fallbackColumn} ?? ''));
-        if ($fallbackPath !== '' && Storage::disk('local')->exists($fallbackPath)) {
-            return $fallbackPath;
+        return '';
+    }
+
+    private function resolveKycTimestamp(string $path, $dbTimestamp): ?string
+    {
+        if ($path === '') {
+            return null;
         }
 
-        return '';
+        if ($dbTimestamp !== null) {
+            return $dbTimestamp->toIso8601String();
+        }
+
+        try {
+            $mtime = Storage::disk('local')->lastModified($path);
+            return Carbon::createFromTimestamp($mtime)->toIso8601String();
+        } catch (Throwable $e) {
+            return null;
+        }
     }
 
     private function storeKycImageUpload(
@@ -2118,7 +2205,6 @@ class AuthController extends Controller
         string $fallbackName,
         string $directory,
         string $columnPrefix,
-        string $photoColumn,
         string $successMessage
     ) {
         $user = $request->user();
@@ -2144,14 +2230,9 @@ class AuthController extends Controller
         $path = $file->storeAs($directory . '/' . $user->id, $filename, 'local');
 
         $pathColumn = $columnPrefix . '_file_path';
-        $previousPaths = array_filter(array_unique([
-            trim((string) ($user->{$photoColumn} ?? '')),
-            trim((string) ($user->{$pathColumn} ?? '')),
-        ]));
-        foreach ($previousPaths as $previousPath) {
-            if ($previousPath !== $path) {
-                Storage::disk('local')->delete($previousPath);
-            }
+        $previousPath = trim((string) ($user->{$pathColumn} ?? ''));
+        if ($previousPath !== '' && $previousPath !== $path) {
+            Storage::disk('local')->delete($previousPath);
         }
 
         $updates = [
@@ -2159,7 +2240,6 @@ class AuthController extends Controller
             'kyc_status' => in_array((string) ($user->kyc_status ?? ''), ['approved', 'in_review'], true)
                 ? $user->kyc_status
                 : 'pending',
-            $photoColumn => $path,
             $pathColumn => $path,
             $columnPrefix . '_file_name' => $file->getClientOriginalName(),
             $columnPrefix . '_file_mime' => $file->getMimeType() ?: '',

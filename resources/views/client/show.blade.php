@@ -8,7 +8,7 @@
 <style>
     .client-kyc-photos {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 12px;
         margin-bottom: 18px;
     }
@@ -19,6 +19,42 @@
         background: rgba(255, 255, 255, 0.04);
         padding: 12px;
         min-width: 0;
+        position: relative;
+    }
+
+    .client-kyc-photo__delete {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 28px;
+        height: 28px;
+        border: none;
+        border-radius: 50%;
+        background: rgba(220, 38, 38, 0.85);
+        color: #fff;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        transition: background 0.2s, transform 0.15s;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .client-kyc-photo__delete:hover {
+        background: #dc2626;
+        transform: scale(1.1);
+    }
+
+    .client-kyc-photo__delete:active {
+        transform: scale(0.95);
+    }
+
+    .client-kyc-photo__delete--loading {
+        pointer-events: none;
+        opacity: 0.6;
     }
 
     .client-kyc-photo__label {
@@ -107,9 +143,16 @@
                     <div class="form-label">Фото клиента</div>
                     <div class="client-kyc-photos">
                         @foreach($kycPhotos as $photo)
-                            <div class="client-kyc-photo">
+                            <div class="client-kyc-photo" data-photo-type="{{ $photo['type'] }}">
                                 <div class="client-kyc-photo__label">{{ $photo['column'] }} · {{ $photo['label'] }}</div>
                                 @if($photo['url'])
+                                    <button
+                                        type="button"
+                                        class="client-kyc-photo__delete js-delete-kyc-photo"
+                                        title="Видалити фото"
+                                        data-photo-type="{{ $photo['type'] }}"
+                                        data-client-id="{{ $client->id ?? 0 }}"
+                                    >✕</button>
                                     <a href="{{ $photo['url'] }}" target="_blank" rel="noopener" class="client-kyc-photo__image">
                                         <img src="{{ $photo['url'] }}" alt="{{ $photo['label'] }}">
                                     </a>
@@ -234,6 +277,22 @@
                     <label class="form-label">{{ __('client.field_birthday') }}</label>
                     <input type="text" name="hbd" class="form-control" value="{{ $client->hbd ?? '' }}">
                 </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">KYC верификация</label>
+                    <select name="kyc_status" class="form-select">
+                        <option value="not_started" {{ ($client->kyc_status ?? 'not_started') === 'not_started' ? 'selected' : '' }}>Не начат</option>
+                        <option value="pending" {{ ($client->kyc_status ?? '') === 'pending' ? 'selected' : '' }}>На рассмотрении</option>
+                        <option value="in_review" {{ ($client->kyc_status ?? '') === 'in_review' ? 'selected' : '' }}>На проверке</option>
+                        <option value="approved" {{ ($client->kyc_status ?? '') === 'approved' ? 'selected' : '' }}>Проверка пройдена</option>
+                        <option value="rejected" {{ ($client->kyc_status ?? '') === 'rejected' ? 'selected' : '' }}>Требуется повторная проверка</option>
+                        <option value="frozen" {{ ($client->kyc_status ?? '') === 'frozen' ? 'selected' : '' }}>Заблокирован</option>
+                    </select>
+                </div>
+                <div class="col-md-4"></div>
+                <div class="col-md-4"></div>
             </div>
 
             <div class="d-flex gap-3 mt-4">
@@ -471,6 +530,72 @@
             }
         });
     }
+
+    // ── Delete KYC photo ──────────────────────────────────────────────────────
+    const deleteButtons = document.querySelectorAll('.js-delete-kyc-photo');
+    const deleteKycUrl = "{{ route('client.deleteKycPhoto') }}";
+    const csrfToken = "{{ csrf_token() }}";
+
+    deleteButtons.forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            if (!confirm('Видалити це фото?')) {
+                return;
+            }
+
+            const clientId = this.dataset.clientId;
+            const photoType = this.dataset.photoType;
+            const card = this.closest('.client-kyc-photo');
+            const self = this;
+
+            self.classList.add('client-kyc-photo__delete--loading');
+
+            var formData = new FormData();
+            formData.append('_token', csrfToken);
+            formData.append('id', clientId);
+            formData.append('type', photoType);
+
+            fetch(deleteKycUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                },
+                body: formData
+            })
+            .then(function(r) {
+                if (!r.ok) {
+                    return r.text().then(function(text) {
+                        throw new Error('HTTP ' + r.status + ': ' + text.slice(0, 200));
+                    });
+                }
+                return r.json();
+            })
+            .then(function(data) {
+                if (data.success) {
+                    // Replace photo content with empty state
+                    const label = card.querySelector('.client-kyc-photo__label');
+                    const labelText = label ? label.textContent : '';
+                    const column = labelText.split('·')[0]?.trim() || '';
+
+                    card.innerHTML = [
+                        '<div class="client-kyc-photo__label">' + labelText.replace(/</g, '<') + '</div>',
+                        '<div class="client-kyc-photo__empty">Фото не загружено</div>',
+                        '<div class="client-kyc-photo__meta">' + column.replace(/</g, '<') + '</div>'
+                    ].join('');
+                } else {
+                    alert('Помилка: ' + (data.message || 'Не вдалося видалити фото'));
+                }
+            })
+            .catch(function(err) {
+                console.error('Delete KYC photo error:', err);
+                alert('Помилка при видаленні фото: ' + err.message);
+            })
+            .finally(function() {
+                self.classList.remove('client-kyc-photo__delete--loading');
+            });
+        });
+    });
 })();
 </script>
 @endpush
