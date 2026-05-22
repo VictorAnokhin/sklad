@@ -40,6 +40,14 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
     ],
 
+    'sumsub' => [
+        'base_url' => env('SUMSUB_BASE_URL', 'https://api.sumsub.com'),
+        'app_token' => env('SUMSUB_APP_TOKEN', ''),
+        'secret_key' => env('SUMSUB_SECRET_KEY', ''),
+        'level_name' => env('SUMSUB_LEVEL_NAME', 'basic-kyc-level'),
+        'token_ttl' => (int) env('SUMSUB_TOKEN_TTL', 600),
+    ],
+
     'smsclub' => [
         'token' => env('SMSCLUB_TOKEN'),
         'sender' => env('SMSCLUB_SENDER'),
