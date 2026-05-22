@@ -53,6 +53,7 @@ Route::middleware('api')->prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->get('/kyc/image/{type}', [AuthController::class, 'apiKycImage']);
     Route::middleware('auth:sanctum')->post('/kyc/deepseek/check', [AuthController::class, 'apiRunKycDeepSeekCheck']);
     Route::middleware('auth:sanctum')->post('/kyc/passport-photo', [AuthController::class, 'apiUploadKycPassportPhoto']);
+    Route::middleware('auth:sanctum')->post('/kyc/passport-back-photo', [AuthController::class, 'apiUploadKycPassportBackPhoto']);
     Route::middleware('auth:sanctum')->post('/kyc/passport-selfie', [AuthController::class, 'apiUploadKycPassportSelfie']);
     Route::middleware('auth:sanctum')->post('/kyc/kep-signature', [AuthController::class, 'apiUploadKycKepSignature']);
     Route::middleware('auth:sanctum')->post('/kyc/liveness-selfie', [AuthController::class, 'apiUploadKycLivenessSelfie']);

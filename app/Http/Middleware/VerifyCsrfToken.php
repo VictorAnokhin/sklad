@@ -16,5 +16,6 @@ class VerifyCsrfToken extends Middleware {
         'api/goods/*/rating',
         'api/order',
         'api/ai/*',
+        'client/delete-kyc-photo',
     ];
 }

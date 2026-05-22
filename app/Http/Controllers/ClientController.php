@@ -278,7 +278,7 @@ class ClientController extends Controller
             abort(404);
         }
 
-        $path = $this->resolveKycPhotoPath($client, $map[$type]['column'], $map[$type]['fallback']);
+        $path = $this->resolveKycPhotoPath($client, $map[$type]['column']);
         if ($path === '') {
             abort(404);
         }
@@ -295,6 +295,59 @@ class ClientController extends Controller
         return response()->file($disk->path($path), [
             'Content-Type' => $this->clientValue($client, $map[$type]['mime']) ?: ($disk->mimeType($path) ?: 'image/jpeg'),
         ]);
+    }
+
+    public function deleteKycPhoto(Request $request)
+    {
+        $id = $request->input('id', '0');
+        $type = $request->input('type', '');
+        $fid = session('fid', '');
+
+        $client = DB::table('users')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->first();
+
+        if (! $client) {
+            return response()->json(['success' => false, 'message' => 'Клієнта не знайдено'], 404);
+        }
+
+        $map = $this->kycPhotoMap();
+        if (! isset($map[$type])) {
+            return response()->json(['success' => false, 'message' => 'Невірний тип фото'], 404);
+        }
+
+        $meta = $map[$type];
+        $pathColumn = $meta['column']; // kyc_passport_file_path, kyc_passport_back_file_path, etc.
+
+        // Clear the main photo column and all related kyc_* metadata columns
+        $updateData = [$pathColumn => ''];
+
+        // String columns (file name, mime type) — set to empty string
+        foreach (['name', 'mime'] as $key) {
+            if (!empty($meta[$key])) {
+                $updateData[$meta[$key]] = '';
+            }
+        }
+
+        // uploaded_at is a nullable timestamp column — set to null, not empty string
+        if (!empty($meta['uploaded_at'])) {
+            $updateData[$meta['uploaded_at']] = null;
+        }
+
+        // file_size is an integer column — set to 0 instead of empty string
+        if (!empty($meta['size'])) {
+            $updateData[$meta['size']] = 0;
+        }
+
+        $updateData = User::filterUsersColumns($updateData);
+
+        DB::table('users')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->update($updateData);
+
+        return response()->json(['success' => true, 'message' => 'Фото видалено']);
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────
@@ -365,6 +418,7 @@ class ClientController extends Controller
                 'top' => (int)$request->input('top', 1),
                 'bonus' => (float)$request->input('bonus', 0),
                 'hbd' => $stringValue($request->input('hbd', '')),
+                'kyc_status' => $stringValue($request->input('kyc_status', 'not_started')),
                 'firma' => $fid,
             ];
 
@@ -390,7 +444,7 @@ class ClientController extends Controller
     {
         $cards = [];
         foreach ($this->kycPhotoMap() as $type => $meta) {
-            $path = $this->resolveKycPhotoPath($client, $meta['column'], $meta['fallback']);
+            $path = $this->resolveKycPhotoPath($client, $meta['column']);
             $cards[] = [
                 'type' => $type,
                 'label' => $meta['label'],
@@ -410,18 +464,24 @@ class ClientController extends Controller
     {
         return [
             'passport' => [
-                'label' => 'Фото паспорта',
-                'column' => 'foto1',
-                'fallback' => 'kyc_passport_file_path',
+                'label' => 'Паспорт (спереди)',
+                'column' => 'kyc_passport_file_path',
                 'name' => 'kyc_passport_file_name',
                 'mime' => 'kyc_passport_file_mime',
                 'size' => 'kyc_passport_file_size',
                 'uploaded_at' => 'kyc_passport_uploaded_at',
             ],
+            'passport-back' => [
+                'label' => 'Паспорт (сзади)',
+                'column' => 'kyc_passport_back_file_path',
+                'name' => 'kyc_passport_back_file_name',
+                'mime' => 'kyc_passport_back_file_mime',
+                'size' => 'kyc_passport_back_file_size',
+                'uploaded_at' => 'kyc_passport_back_uploaded_at',
+            ],
             'selfie' => [
                 'label' => 'Лицо с паспортом',
-                'column' => 'foto2',
-                'fallback' => 'kyc_selfie_file_path',
+                'column' => 'kyc_selfie_file_path',
                 'name' => 'kyc_selfie_file_name',
                 'mime' => 'kyc_selfie_file_mime',
                 'size' => 'kyc_selfie_file_size',
@@ -429,8 +489,7 @@ class ClientController extends Controller
             ],
             'liveness' => [
                 'label' => 'Liveness-селфи',
-                'column' => 'foto3',
-                'fallback' => 'kyc_liveness_file_path',
+                'column' => 'kyc_liveness_file_path',
                 'name' => 'kyc_liveness_file_name',
                 'mime' => 'kyc_liveness_file_mime',
                 'size' => 'kyc_liveness_file_size',
@@ -439,20 +498,27 @@ class ClientController extends Controller
         ];
     }
 
-    private function resolveKycPhotoPath(object $client, string $photoColumn, string $fallbackColumn): string
+    private function resolveKycPhotoPath(object $client, string $column): string
     {
-        $photoPath = trim((string) $this->clientValue($client, $photoColumn, ''));
-        if ($photoPath !== '') {
-            if (str_starts_with($photoPath, 'http://') || str_starts_with($photoPath, 'https://') || Storage::disk('local')->exists($photoPath)) {
-                return $photoPath;
-            }
+        $path = trim((string) $this->clientValue($client, $column, ''));
+        if ($path === '') {
+            return '';
         }
 
-        $fallbackPath = trim((string) $this->clientValue($client, $fallbackColumn, ''));
-        if ($fallbackPath !== '') {
-            if (str_starts_with($fallbackPath, 'http://') || str_starts_with($fallbackPath, 'https://') || Storage::disk('local')->exists($fallbackPath)) {
-                return $fallbackPath;
-            }
+        // Absolute URLs (http/https) — return as-is
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        // Local storage path — check existence
+        if (Storage::disk('local')->exists($path)) {
+            return $path;
+        }
+
+        // Relative paths like ../files/... or files/... — resolve via MediaUrl
+        $resolved = \App\Support\MediaUrl::image($path);
+        if ($resolved !== null) {
+            return $resolved;
         }
 
         return '';
