@@ -1,0 +1,33 @@
+{
+  "network": "testnet",
+  "expected_package_id": "0x799f69b5be95ddc5d1107912a74f6835bef6a80a6ede155cb843753940a92934",
+  "pools": [
+    {
+      "id": 4,
+      "name": "Reserved Pool",
+      "legacy_pool_object_id": "0xddcd0a82791b5b7941063e6053786cc60dab9951a5eb0a059c131467820ab582",
+      "legacy_pool_accounting_id": "0xf6e449b25bdc267adf363b076d21b44ed3bb45d62d7a68fc39027e51ed69cb45",
+      "pool_object_id": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "pool_accounting_id": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "pool_registry_id": "0x28b0f15ebbc0f88895f3d81b1b32fa25682450bdc7696d0e9fe3ee98a513cdb3",
+      "pool_admin_cap_id": "0x865e20ba131f176d41bec14a8454bdd8b270baf342f4db6cf8e47daccbfac2cb",
+      "notes_append": "Recreated Reserved Pool on package 0x799f… for /invest AV8 buy/sell."
+    },
+    {
+      "id": 2,
+      "name": "Pools liqvidity",
+      "legacy_pool_object_id": "0xf32c91a07d891a400f99028aca76576dd9a1db0632198cbfefb72720b2f14d27",
+      "legacy_pool_accounting_id": "0xe3124eb451905dd597391f53cafc633c4a3db74cbaf9fa5b3d472162b8835cfb",
+      "pool_object_id": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "pool_accounting_id": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": 1,
+      "name": "Balanced RWA Pool",
+      "legacy_pool_object_id": "0x79d69985038b401567992935b3f8bbb72e40c4edf88187675541d06890ed1d0f",
+      "legacy_pool_accounting_id": "0x47a89d6e5f6bf0ef79628cc86de2489ac2e4b7aa50be591f75710e223807153c",
+      "pool_object_id": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "pool_accounting_id": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}
