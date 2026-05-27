@@ -122,6 +122,16 @@ return [
         'timeout' => (int) env('DEEPSEEK_TIMEOUT', 60),
     ],
 
+    'manager_ai' => [
+        'enabled' => env('MANAGER_AI_ENABLED', false),
+        'url' => env('MANAGER_AI_URL', 'http://host.docker.internal:3100'),
+        'forwarded_host' => env('MANAGER_AI_FORWARDED_HOST', 'localhost:3100'),
+        'company_id' => env('MANAGER_AI_COMPANY_ID', ''),
+        'bridge_secret' => env('MANAGER_AI_BRIDGE_SECRET', ''),
+        'timeout' => (int) env('MANAGER_AI_TIMEOUT', 10),
+        'fallback_to_local' => env('MANAGER_AI_FALLBACK_TO_LOCAL', true),
+    ],
+
     'zerion' => [
         'api_key' => env('ZERION_API_KEY'),
         'wallet_address' => env('ZERION_WALLET_ADDRESS'),
