@@ -142,6 +142,7 @@ Route::get('/regions', [GoodsController::class, 'getRegions']);
 
 Route::get('/news', [NewsController::class, 'apiIndex']);
 Route::get('/news/{id}', [NewsController::class, 'apiShow']);
+Route::middleware('auth:sanctum')->post('/news', [NewsController::class, 'apiStore']);
 Route::get('/banners', [BannerCarouselController::class, 'apiIndex']);
 Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
 Route::get('/offices', [SettingsController::class, 'officesPublicIndex']);

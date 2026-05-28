@@ -39,6 +39,64 @@ class NewsController extends Controller
         return response()->json(['item' => $item, 'locale' => $locale]);
     }
 
+    public function apiStore(Request $request)
+    {
+        $user = $request->user();
+        $roleStatus = max((int) ($user->ustype ?? 0), (int) ($user->idstatus ?? 0));
+
+        if ($roleStatus < 3) {
+            return response()->json(['message' => 'Недостатньо прав. Потрібен idstatus >= 3 або ustype >= 3'], 403);
+        }
+
+        $validated = $request->validate([
+            'fid' => 'sometimes|integer|min:1',
+            'title' => 'required|string|max:500',
+            'kratko' => 'sometimes|string|max:1000',
+            'txt' => 'sometimes|string',
+            'publish' => 'sometimes|boolean',
+            'article' => 'sometimes|boolean',
+            'hot' => 'sometimes|boolean',
+            'tags' => 'sometimes|string|max:500',
+        ]);
+
+        $fid = (string) ($validated['fid'] ?? 2);
+        $isArticle = $request->boolean('article', true);
+        $isPublish = $request->boolean('publish', true);
+
+        $newsId = News::saveNews(0, $fid, [
+            'title' => $validated['title'],
+            'title_ua' => $validated['title'],
+            'title_en' => $validated['title'],
+            'kratko' => $validated['kratko'] ?? '',
+            'kratko_ua' => $validated['kratko'] ?? '',
+            'kratko_en' => $validated['kratko'] ?? '',
+            'txt' => $validated['txt'] ?? '',
+            'txt_ua' => $validated['txt'] ?? '',
+            'txt_en' => $validated['txt'] ?? '',
+            'foto' => '',
+            'dt' => date('d-m-Y'),
+            'time' => date('H:i:s'),
+            'firma' => (int) $fid,
+            'view' => $isPublish ? 1 : 0,
+            'hot' => $request->boolean('hot', false) ? 1 : 0,
+            'always' => 0,
+            'article' => $isArticle ? 1 : 0,
+            'tags' => $validated['tags'] ?? 'crypto,news',
+            'htmlkeys' => '',
+            'codesocnet' => '',
+            'author' => (int) ($user->id ?? 0),
+            'top' => '',
+        ]);
+
+        $locale = $this->resolveApiLocale($request);
+        $item = News::findForView($newsId, $fid, $locale);
+
+        return response()->json([
+            'success' => true,
+            'item' => $item,
+        ], 201);
+    }
+
     public function index(Request $request)
     {
         $fid = (string) session('fid', '');
