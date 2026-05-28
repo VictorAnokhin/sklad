@@ -77,16 +77,6 @@
     --}}
     @include('partials.ai_chat_widget')
 
-    {{--
-      Knowledge Base Widget — показываем только когда пользователь аутентифицирован
-      и у него выбран проект (fid > 0).
-    --}}
-    @auth
-      @php $kbFid = (int) (session('fid') ?: (auth()->user()->firma ?? auth()->user()->fid ?? 0)); @endphp
-      @if($kbFid > 0)
-        @include('partials.ai_knowledge_base', ['fid' => $kbFid])
-      @endif
-    @endauth
 </body>
 
 </html>
