@@ -40,7 +40,9 @@ class AgentCommunicationSent implements ShouldBroadcast
             'target_agent' => $this->communication->target_agent,
             'fid' => $this->communication->fid,
             'message_type' => $this->communication->message_type,
+            'content' => $this->communication->content,
             'content_preview' => mb_substr($this->communication->content, 0, 200),
+            'metadata' => $this->communication->metadata,
             'task_uuid' => $this->communication->task?->uuid,
             'created_at' => $this->communication->created_at->toISOString(),
         ];

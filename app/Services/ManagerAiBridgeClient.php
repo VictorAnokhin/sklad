@@ -70,6 +70,18 @@ class ManagerAiBridgeClient
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function sendKnowledgeGapRequest(array $payload): array
+    {
+        $payload['manager_ai_mode'] = 'execute';
+        $payload['message'] = $this->knowledgeGapMessage($payload);
+
+        return $this->sendChatMessage($payload);
+    }
+
     public function enabled(): bool
     {
         return (bool) config('services.manager_ai.enabled', false)
@@ -136,6 +148,8 @@ class ManagerAiBridgeClient
             'firma' => $payload['firma'] ?? null,
             'user_id' => $payload['user_id'] ?? null,
             'wallet' => $payload['wallet'] ?? null,
+            'knowledge_callback_url' => $this->knowledgeCallbackUrl(),
+            'knowledge_callback_header' => 'X-ManagerAI-Bridge-Secret',
         ];
 
         $context = array_filter($context, static fn ($value) => $value !== null && $value !== '');
@@ -144,6 +158,52 @@ class ManagerAiBridgeClient
             json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).
             "\n\nСообщение пользователя:\n".
             $body;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function knowledgeGapMessage(array $payload): string
+    {
+        $question = trim((string) ($payload['original_question'] ?? $payload['message'] ?? ''));
+        $localAnswer = trim((string) ($payload['local_answer'] ?? ''));
+        $fid = (int) ($payload['fid'] ?? 0);
+        $sessionToken = trim((string) ($payload['session_token'] ?? ''));
+
+        return trim(<<<TEXT
+В вебчате не нашлось надежного ответа в базе знаний laravel-api.
+
+Задача для manager-ai:
+1. Найди или подготовь проверенный ответ на вопрос пользователя.
+2. Пополни базу знаний laravel-api через POST {$this->knowledgeCallbackUrl()}.
+3. Передай JSON:
+   {
+     "fid": {$fid},
+     "session_token": "{$sessionToken}",
+     "title": "короткий заголовок",
+     "content": "самодостаточная запись знания",
+     "category": "manager_ai_research",
+     "answer": "короткий ответ для пользователя"
+   }
+4. В запросе обязательно передай header X-ManagerAI-Bridge-Secret с тем же bridge secret.
+5. После успешной записи laravel-api вернет команду вебчату read_knowledge_base.
+
+Вопрос пользователя:
+{$question}
+
+Локальный ответ вебчата, который признан недостаточным:
+{$localAnswer}
+TEXT);
+    }
+
+    private function knowledgeCallbackUrl(): string
+    {
+        $baseUrl = rtrim((string) config('services.manager_ai.laravel_api_url', ''), '/');
+        if ($baseUrl === '') {
+            $baseUrl = rtrim((string) config('app.url', ''), '/');
+        }
+
+        return $baseUrl . '/api/ai/knowledge-base/manager-ai-ingest';
     }
 
     /**

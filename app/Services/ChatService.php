@@ -31,6 +31,7 @@ class ChatService
         private readonly WebChatIntentDetector $intentDetector,
         private readonly DbQueryService $dbQuery,
         private readonly AiClientFactory $aiFactory,
+        private readonly ManagerAiBridgeClient $managerAiBridge,
     ) {
         $this->ai = $this->aiFactory->make(self::SHARED_AI_CHANNEL);
     }
@@ -286,6 +287,18 @@ class ChatService
         $answer = $this->sanitizePublicAnswer((string) ($result['answer'] ?? ''));
         $result['answer'] = $answer;
 
+        if ($this->shouldDelegateKnowledgeGap($knowledgeContext, $answer, $intent)) {
+            return $this->delegateKnowledgeGapToManagerAi(
+                payload: $payload,
+                session: $session,
+                fid: $fid,
+                firma: $firma,
+                question: $message,
+                localAnswer: $answer,
+                intent: $intent,
+            );
+        }
+
         // Сохраняем ответ ассистента
         $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
             'model' => $result['model'] ?? null,
@@ -320,6 +333,142 @@ class ChatService
                 'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
             ],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $intent
+     */
+    private function shouldDelegateKnowledgeGap(string $knowledgeContext, string $answer, array $intent): bool
+    {
+        if (! $this->managerAiBridge->enabled()) {
+            return false;
+        }
+
+        if (($intent['type'] ?? '') === WebChatIntentDetector::SMALL_TALK) {
+            return false;
+        }
+
+        $normalized = mb_strtolower($answer);
+        $gapMarkers = [
+            'не знаю',
+            'нет информации',
+            'недостаточно данных',
+            'не хватает данных',
+            'не нашел',
+            'не найден',
+            'не могу подтвердить',
+            'не могу ответить',
+            'i do not know',
+            'no information',
+            'not enough data',
+        ];
+
+        foreach ($gapMarkers as $marker) {
+            if (mb_stripos($normalized, $marker) !== false) {
+                return true;
+            }
+        }
+
+        return trim($knowledgeContext) === ''
+            && (bool) ($intent['needs_tools'] ?? true)
+            && in_array($intent['type'] ?? '', [
+                WebChatIntentDetector::FAQ,
+                WebChatIntentDetector::HOW_TO,
+                WebChatIntentDetector::SUPPORT,
+                WebChatIntentDetector::RESEARCH,
+                WebChatIntentDetector::PUBLISH_NEWS,
+            ], true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $intent
+     * @return array<string, mixed>
+     */
+    private function delegateKnowledgeGapToManagerAi(
+        array $payload,
+        ChatSession $session,
+        int $fid,
+        ?int $firma,
+        string $question,
+        string $localAnswer,
+        array $intent,
+    ): array {
+        try {
+            $managerResult = $this->managerAiBridge->sendKnowledgeGapRequest(array_merge($payload, [
+                'session_token' => $session->session_token,
+                'original_question' => $question,
+                'local_answer' => $localAnswer,
+                'fid' => $fid,
+                'firma' => $firma,
+            ]));
+
+            $answer = (string) ($managerResult['answer'] ?? 'Запрос передан manager-ai для пополнения базы знаний.');
+
+            $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
+                'provider' => 'manager-ai',
+                'intent' => $intent,
+                'knowledge_gap_delegated' => true,
+                'manager_ai' => $managerResult['manager_ai'] ?? null,
+            ]);
+
+            return array_merge($managerResult, [
+                'session_token' => $session->session_token,
+                'answer' => $answer,
+                'db_tools_enabled' => false,
+                'intent' => $intent,
+                'knowledge_curation' => [
+                    'saved' => false,
+                    'reason' => 'delegated_to_manager_ai',
+                ],
+                'actions' => [[
+                    'type' => 'read_knowledge_base',
+                    'command' => 'await_manager_ai_ingest',
+                    'fid' => $fid,
+                    'session_token' => $session->session_token,
+                    'source' => 'manager-ai',
+                ]],
+                'billing' => [
+                    'paid_by' => 'project',
+                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+                ],
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('ChatService: ManagerAI knowledge-gap delegation failed.', [
+                'fid' => $fid,
+                'session_token' => $session->session_token,
+                'error' => $e->getMessage(),
+            ]);
+
+            if (! $this->managerAiBridge->fallbackToLocal()) {
+                throw $e;
+            }
+
+            $this->saveMessage($session->id, $fid, $firma, 'assistant', $localAnswer, [
+                'provider' => $this->ai->getProviderName(),
+                'intent' => $intent,
+                'knowledge_gap_delegation_failed' => true,
+            ]);
+
+            return [
+                'session_token' => $session->session_token,
+                'answer' => $localAnswer,
+                'provider' => $this->ai->getProviderName(),
+                'model' => null,
+                'usage' => [],
+                'db_tools_enabled' => false,
+                'intent' => $intent,
+                'knowledge_curation' => [
+                    'saved' => false,
+                    'reason' => 'manager_ai_unavailable',
+                ],
+                'actions' => [],
+                'billing' => [
+                    'paid_by' => 'project',
+                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+                ],
+            ];
+        }
     }
 
     /**

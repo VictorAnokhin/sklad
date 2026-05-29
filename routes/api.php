@@ -112,6 +112,7 @@ Route::middleware(['api', 'throttle:60,1'])->group(function () {
     Route::get('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'show']);
     Route::put('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'update']);
     Route::delete('/ai/knowledge-base/{id}', [AiKnowledgeBaseController::class, 'destroy']);
+    Route::post('/ai/knowledge-base/manager-ai-ingest', [AiKnowledgeBaseController::class, 'managerAiIngest']);
     Route::post('/ai/knowledge-base/search', [AiKnowledgeBaseController::class, 'search']);
     Route::post('/ai/knowledge-base/fetch', [AiKnowledgeBaseController::class, 'fetchAndSave']);
     Route::post('/ai/knowledge-base/save', [AiKnowledgeBaseController::class, 'saveInformation']);

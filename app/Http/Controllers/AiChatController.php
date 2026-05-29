@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\ChatSession;
 use App\Services\ChatService;
-use App\Services\ManagerAiBridgeClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +13,6 @@ class AiChatController extends Controller
 {
     public function __construct(
         private readonly ChatService $chatService,
-        private readonly ManagerAiBridgeClient $managerAiBridge,
     ) {}
 
     /**
@@ -38,26 +36,6 @@ class AiChatController extends Controller
             'history.*.role' => ['required_with:history', 'string', 'in:user,assistant'],
             'history.*.content' => ['required_with:history', 'string', 'max:1600'],
         ]);
-
-        if ($this->managerAiBridge->enabled()) {
-            try {
-                return response()->json($this->managerAiBridge->sendChatMessage($payload));
-            } catch (Throwable $e) {
-                Log::warning('ManagerAI bridge failed.', [
-                    'message' => $e->getMessage(),
-                    'page' => $payload['page'] ?? null,
-                    'wallet' => $payload['wallet'] ?? null,
-                    'fid' => $payload['fid'] ?? null,
-                ]);
-
-                if (! $this->managerAiBridge->fallbackToLocal()) {
-                    return response()->json([
-                        'message' => 'ManagerAI bridge is temporarily unavailable.',
-                        'error' => config('app.debug') ? $e->getMessage() : null,
-                    ], 503);
-                }
-            }
-        }
 
         try {
             $result = $this->chatService->sendMessage($payload);

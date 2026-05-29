@@ -126,6 +126,7 @@ return [
         'enabled' => env('MANAGER_AI_ENABLED', false),
         'url' => env('MANAGER_AI_URL', 'http://host.docker.internal:3100'),
         'forwarded_host' => env('MANAGER_AI_FORWARDED_HOST', 'localhost:3100'),
+        'laravel_api_url' => env('MANAGER_AI_LARAVEL_API_URL', env('APP_URL', '')),
         'company_id' => env('MANAGER_AI_COMPANY_ID', ''),
         'bridge_secret' => env('MANAGER_AI_BRIDGE_SECRET', ''),
         'timeout' => (int) env('MANAGER_AI_TIMEOUT', 10),

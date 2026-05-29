@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\AgentCommunicationSent;
+use App\Models\AgentCommunication;
 use App\Models\AiKnowledgeBase;
 use App\Services\AiKnowledgeService;
 use Illuminate\Http\JsonResponse;
@@ -275,6 +277,98 @@ class AiKnowledgeBaseController extends Controller
 
             return response()->json([
                 'message' => 'Failed to save information.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/ai/knowledge-base/manager-ai-ingest
+     *
+     * Secure callback for manager-ai. Saves researched knowledge and emits a
+     * frontend command telling web chats to reread the project KB.
+     */
+    public function managerAiIngest(Request $request): JsonResponse
+    {
+        $expectedSecret = trim((string) config('services.manager_ai.bridge_secret', ''));
+        $providedSecret = trim((string) (
+            $request->header('X-ManagerAI-Bridge-Secret')
+            ?: $request->header('X-Manager-AI-Bridge-Secret')
+            ?: ''
+        ));
+
+        if ($expectedSecret === '' || $providedSecret === '' || ! hash_equals($expectedSecret, $providedSecret)) {
+            return response()->json(['message' => 'Invalid ManagerAI bridge secret.'], 403);
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'session_token' => ['nullable', 'string', 'max:80'],
+            'title' => ['required', 'string', 'max:255'],
+            'content' => ['required', 'string', 'min:10', 'max:50000'],
+            'category' => ['nullable', 'string', 'max:80'],
+            'answer' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $fid = (int) $payload['fid'];
+        $category = (string) ($payload['category'] ?? 'manager_ai_research');
+
+        try {
+            $result = $this->knowledgeService->saveInformation(
+                $fid,
+                (string) $payload['title'],
+                (string) $payload['content'],
+                $category,
+                'manager_ai',
+            );
+
+            if (! ($result['success'] ?? false)) {
+                return response()->json([
+                    'message' => $result['error'] ?? 'Failed to save ManagerAI knowledge.',
+                ], 422);
+            }
+
+            $record = $result['record'];
+            $command = [
+                'type' => 'read_knowledge_base',
+                'command' => 'read_again',
+                'fid' => $fid,
+                'record_id' => $record?->id,
+                'session_token' => (string) ($payload['session_token'] ?? ''),
+                'answer' => (string) ($payload['answer'] ?? ''),
+                'source' => 'manager-ai',
+            ];
+
+            $communication = AgentCommunication::create([
+                'source_agent' => 'manager-ai',
+                'target_agent' => 'frontend',
+                'fid' => $fid,
+                'message_type' => 'knowledge_updated',
+                'content' => 'ManagerAI пополнил базу знаний. Вебчат должен перечитать KB.',
+                'metadata' => [
+                    'command' => $command,
+                    'knowledge_record_id' => $record?->id,
+                    'session_token' => (string) ($payload['session_token'] ?? ''),
+                ],
+                'status' => 'sent',
+            ]);
+
+            broadcast(new AgentCommunicationSent($communication));
+
+            return response()->json([
+                'data' => $record,
+                'message' => 'ManagerAI knowledge saved.',
+                'command' => $command,
+            ], 201);
+        } catch (Throwable $e) {
+            Log::error('ManagerAI knowledge ingest failed.', [
+                'fid' => $fid,
+                'title' => $payload['title'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to ingest ManagerAI knowledge.',
                 'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
