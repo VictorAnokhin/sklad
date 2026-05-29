@@ -356,7 +356,7 @@
             }
 
             #newClientModal .modal-body {
-                padding: 16px;
+                padding: 0 12px;
             }
 
             #newClientModal .modal-footer {
@@ -370,12 +370,34 @@
             #newClientModal .modal-client-grid {
                 display: flex;
                 flex-direction: column;
-                gap: 12px;
+                gap: 0;
             }
 
             #newClientModal .modal-client-grid .col-12,
             #newClientModal .modal-client-grid .col-md-6 {
                 width: 100%;
+            }
+
+            #newClientModal .client-modal-field {
+                margin: 0;
+                padding-top: 0;
+                padding-bottom: 0;
+            }
+
+            #newClientModal .client-modal-field .form-label {
+                margin: 0;
+                line-height: 1.1;
+            }
+
+            #newClientModal .client-modal-field .form-control,
+            #newClientModal .client-modal-field .form-select {
+                font-size: 17px;
+                line-height: 1.2;
+                min-height: 30px;
+                padding-top: 0;
+                padding-bottom: 0;
+                margin-top: 0;
+                margin-bottom: 0;
             }
         }
     </style>
