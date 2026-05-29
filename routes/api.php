@@ -141,6 +141,7 @@ Route::get('/regions', [GoodsController::class, 'getRegions']);
 // ── News API ──────────────────────────────────────────────────────────────
 
 Route::get('/news', [NewsController::class, 'apiIndex']);
+Route::middleware(['throttle:20,1'])->post('/news/agent', [NewsController::class, 'apiStoreBySecret']);
 Route::middleware('auth:sanctum')->post('/news', [NewsController::class, 'apiStore']);
 Route::middleware('auth:sanctum')->post('/news/{id}/publish', [NewsController::class, 'apiPublish']);
 Route::get('/news/{id}', [NewsController::class, 'apiShow']);

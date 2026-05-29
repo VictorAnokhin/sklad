@@ -132,6 +132,10 @@ return [
         'fallback_to_local' => env('MANAGER_AI_FALLBACK_TO_LOCAL', true),
     ],
 
+    'news_publish' => [
+        'token' => env('NEWS_PUBLISH_TOKEN', ''),
+    ],
+
     'zerion' => [
         'api_key' => env('ZERION_API_KEY'),
         'wallet_address' => env('ZERION_WALLET_ADDRESS'),

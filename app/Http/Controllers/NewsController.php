@@ -91,6 +91,62 @@ class NewsController extends Controller
         ], 201);
     }
 
+    public function apiStoreBySecret(Request $request): JsonResponse
+    {
+        $this->requireNewsPublishToken($request);
+        $validated = $this->validateApiPayload($request);
+        $fid = trim((string) ($validated['fid'] ?? ''));
+
+        if ($fid === '') {
+            throw ValidationException::withMessages([
+                'fid' => 'Parameter "fid" is required.',
+            ]);
+        }
+
+        $locale = $this->resolveApiLocale($request);
+        $foto = (string) ($validated['foto'] ?? '');
+
+        if ($request->hasFile('foto_upload')) {
+            $uploadedFile = $request->file('foto_upload');
+            if ($uploadedFile && $uploadedFile->isValid()) {
+                $extension = $uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'jpg';
+                $filename = 'news_' . date('Ymd_His') . '_' . uniqid() . '.' . strtolower($extension);
+                $path = $uploadedFile->storeAs('files/news', $filename, 'public');
+                $foto = $path ?: $foto;
+            }
+        }
+
+        $newsId = News::saveNews(0, $fid, [
+            'title' => (string) ($validated['title'] ?? ''),
+            'title_ua' => (string) ($validated['title_ua'] ?? ''),
+            'title_en' => (string) ($validated['title_en'] ?? ''),
+            'kratko' => (string) ($validated['kratko'] ?? ''),
+            'kratko_ua' => (string) ($validated['kratko_ua'] ?? ''),
+            'kratko_en' => (string) ($validated['kratko_en'] ?? ''),
+            'txt' => (string) ($validated['txt'] ?? ''),
+            'txt_ua' => (string) ($validated['txt_ua'] ?? ''),
+            'txt_en' => (string) ($validated['txt_en'] ?? ''),
+            'foto' => $foto,
+            'dt' => (string) ($validated['dt'] ?? date('d-m-Y')),
+            'time' => (string) ($validated['time'] ?? date('H:i:s')),
+            'firma' => (int) $fid,
+            'view' => (bool) ($validated['publish'] ?? $validated['view'] ?? true) ? 1 : 0,
+            'hot' => (bool) ($validated['hot'] ?? false) ? 1 : 0,
+            'always' => (bool) ($validated['always'] ?? false) ? 1 : 0,
+            'article' => (bool) ($validated['article'] ?? false) ? 1 : 0,
+            'tags' => (string) ($validated['tags'] ?? ''),
+            'htmlkeys' => (string) ($validated['htmlkeys'] ?? ''),
+            'codesocnet' => (string) ($validated['codesocnet'] ?? ''),
+            'author' => 0,
+            'top' => (string) ($validated['top'] ?? ''),
+        ]);
+
+        return response()->json([
+            'message' => 'Новину створено',
+            'item' => News::findForView($newsId, $fid, $locale),
+        ], 201);
+    }
+
     public function apiPublish(Request $request, int $id): JsonResponse
     {
         $user = $this->requireNewsEditor();
@@ -272,6 +328,19 @@ class NewsController extends Controller
         }
 
         return $user;
+    }
+
+    private function requireNewsPublishToken(Request $request): void
+    {
+        $expectedToken = trim((string) config('services.news_publish.token', ''));
+        if ($expectedToken === '') {
+            abort(503, 'News publish token is not configured.');
+        }
+
+        $providedToken = trim((string) $request->header('X-News-Publish-Token', ''));
+        if ($providedToken === '' || ! hash_equals($expectedToken, $providedToken)) {
+            abort(403, 'Invalid news publish token.');
+        }
     }
 
     private function resolveEditorFid(Request $request, object $user): string
