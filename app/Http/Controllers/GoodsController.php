@@ -411,6 +411,180 @@ class GoodsController extends Controller
         ]);
     }
 
+    public function managerAiSearch(Request $request)
+    {
+        if ($denied = $this->denyInvalidManagerAiSecret($request)) {
+            return $denied;
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'q' => ['nullable', 'string', 'max:200'],
+            'query' => ['nullable', 'string', 'max:200'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:30'],
+            'locale' => ['nullable', 'string', 'in:ru,ua,en'],
+        ]);
+
+        $fid = (int) $payload['fid'];
+        $query = trim((string) ($payload['q'] ?? $payload['query'] ?? ''));
+        $limit = min((int) ($payload['limit'] ?? 10), 30);
+        $locale = (string) ($payload['locale'] ?? $this->resolveApiLocale($request));
+
+        if (mb_strlen($query) < 2) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Parameter "q" must contain at least 2 characters.',
+                'data' => [],
+            ], 422);
+        }
+
+        $items = $this->managerAiGoodsBaseQuery($fid)
+            ->where(function ($search) use ($query) {
+                $search->where('comp.id', 'LIKE', "%{$query}%")
+                    ->orWhere('comp.nickname', 'LIKE', "%{$query}%")
+                    ->orWhere('comp.namedoc', 'LIKE', "%{$query}%")
+                    ->orWhere('comp.name', 'LIKE', "%{$query}%")
+                    ->orWhere('comp.htmlkeys', 'LIKE', "%{$query}%")
+                    ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$query}%")
+                    ->orWhere('d.name', 'LIKE', "%{$query}%")
+                    ->orWhere('d.name_ua', 'LIKE', "%{$query}%")
+                    ->orWhere('d.name_en', 'LIKE', "%{$query}%")
+                    ->orWhere('d.description', 'LIKE', "%{$query}%")
+                    ->orWhere('d.description_ua', 'LIKE', "%{$query}%")
+                    ->orWhere('d.description_en', 'LIKE', "%{$query}%");
+            })
+            ->orderByDesc('comp.top')
+            ->orderBy('name')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($item) => $this->serializeManagerAiGood($item, $locale, $request))
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'fid' => $fid,
+            'query' => $query,
+            'count' => $items->count(),
+            'data' => $items,
+        ]);
+    }
+
+    public function managerAiShow(Request $request, $identifier)
+    {
+        if ($denied = $this->denyInvalidManagerAiSecret($request)) {
+            return $denied;
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'locale' => ['nullable', 'string', 'in:ru,ua,en'],
+        ]);
+
+        $fid = (int) $payload['fid'];
+        $locale = (string) ($payload['locale'] ?? $this->resolveApiLocale($request));
+        $identifier = trim((string) $identifier);
+
+        $query = $this->managerAiGoodsBaseQuery($fid);
+        if (ctype_digit($identifier)) {
+            $query->where('comp.id', (int) $identifier);
+        } else {
+            $query->where('comp.nickname', $identifier);
+        }
+
+        $item = $query->first();
+        if (! $item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Товар не найден',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'fid' => $fid,
+            'data' => $this->serializeManagerAiGood($item, $locale, $request),
+        ]);
+    }
+
+    private function denyInvalidManagerAiSecret(Request $request)
+    {
+        $expectedSecret = trim((string) config('services.manager_ai.bridge_secret', ''));
+        $providedSecret = trim((string) (
+            $request->header('X-ManagerAI-Bridge-Secret')
+            ?: $request->header('X-Manager-AI-Bridge-Secret')
+            ?: ''
+        ));
+
+        if ($expectedSecret === '' || $providedSecret === '' || ! hash_equals($expectedSecret, $providedSecret)) {
+            return response()->json(['message' => 'Invalid ManagerAI bridge secret.'], 403);
+        }
+
+        return null;
+    }
+
+    private function managerAiGoodsBaseQuery(int $fid)
+    {
+        return DB::table('comp')
+            ->leftJoin('descript as d', function ($join) {
+                $join->on('d.pnum', '=', 'comp.id')
+                    ->whereColumn('d.firma', '=', 'comp.firma');
+            })
+            ->where('comp.firma', $fid)
+            ->select(
+                'comp.id',
+                'comp.nickname',
+                'comp.firma',
+                'comp.pay',
+                'comp.pay1',
+                'comp.sklad',
+                'comp.nfoto as image',
+                'comp.nfoto1 as image_thumb',
+                DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
+                DB::raw('COALESCE(d.name, "") as name_ru'),
+                DB::raw('COALESCE(d.name_ua, "") as name_ua'),
+                DB::raw('COALESCE(d.name_en, "") as name_en'),
+                DB::raw('COALESCE(d.description, "") as description'),
+                DB::raw('COALESCE(d.description_ua, "") as description_ua'),
+                DB::raw('COALESCE(d.description_en, "") as description_en')
+            );
+    }
+
+    private function serializeManagerAiGood(object $item, string $locale, Request $request): array
+    {
+        $name = Field::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '')
+            ?: (string) ($item->name ?? '');
+        $description = Field::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
+        $description = trim(preg_replace('/\s+/u', ' ', strip_tags((string) $description)) ?? '');
+        $identifier = trim((string) ($item->nickname ?? '')) !== '' ? trim((string) $item->nickname) : (string) $item->id;
+        $path = '/goods/' . rawurlencode($identifier);
+        $frontendBaseUrl = rtrim((string) $request->query('frontend_base_url', ''), '/');
+
+        return [
+            'id' => (int) $item->id,
+            'fid' => (int) $item->firma,
+            'code' => trim((string) ($item->nickname ?? '')),
+            'name' => $name,
+            'name_ru' => (string) ($item->name_ru ?? ''),
+            'name_ua' => (string) ($item->name_ua ?? ''),
+            'name_en' => (string) ($item->name_en ?? ''),
+            'description' => $description,
+            'description_ru' => trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($item->description ?? ''))) ?? ''),
+            'description_ua' => trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($item->description_ua ?? ''))) ?? ''),
+            'description_en' => trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($item->description_en ?? ''))) ?? ''),
+            'price' => (float) ($item->pay ?? 0),
+            'wholesale_price' => (float) ($item->pay1 ?? 0),
+            'in_stock' => (int) ($item->sklad ?? 0) === 1,
+            'image' => MediaUrl::image($item->image ?? ''),
+            'image_thumb' => MediaUrl::image($item->image_thumb ?? ''),
+            'link' => $path,
+            'url' => $frontendBaseUrl !== '' ? $frontendBaseUrl . $path : $path,
+            'links' => [
+                'laravel_react' => $path,
+                'gm_react' => '/product/' . rawurlencode($identifier),
+            ],
+        ];
+    }
+
     public function saveRating(Request $request, $id)
     {
         $user = Auth::guard('sanctum')->user();

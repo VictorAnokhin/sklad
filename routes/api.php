@@ -131,6 +131,8 @@ Route::middleware(['api', 'throttle:60,1'])->group(function () {
 
 Route::get('/goods/search', [GoodsController::class, 'searchWeb']);
 Route::get('/goods/catalog-filter-groups', [GoodsController::class, 'catalogFilterGroupsApi']);
+Route::get('/goods/manager-ai/search', [GoodsController::class, 'managerAiSearch']);
+Route::get('/goods/manager-ai/{identifier}', [GoodsController::class, 'managerAiShow']);
 Route::get('/goods/hits', [GoodsController::class, 'getHits']);
 Route::get('/goods/sections', [GoodsController::class, 'getSections']);
 Route::get('/goods/section/{id}', [GoodsController::class, 'getBySection']);

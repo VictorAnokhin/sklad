@@ -169,6 +169,7 @@ class ManagerAiBridgeClient
         $localAnswer = trim((string) ($payload['local_answer'] ?? ''));
         $fid = (int) ($payload['fid'] ?? 0);
         $sessionToken = trim((string) ($payload['session_token'] ?? ''));
+        $apiBaseUrl = $this->knowledgeCallbackBaseUrl();
 
         return trim(<<<TEXT
 В вебчате не нашлось надежного ответа в базе знаний laravel-api.
@@ -176,17 +177,32 @@ class ManagerAiBridgeClient
 Задача для manager-ai:
 1. Найди или подготовь проверенный ответ на вопрос пользователя.
 2. Пополни базу знаний laravel-api через POST {$this->knowledgeCallbackUrl()}.
-3. Передай JSON:
+3. Если вопрос о товаре, ищи товар в таблице comp через защищенный API:
+   GET {$apiBaseUrl}/api/goods/manager-ai/search?fid={$fid}&q=<поисковый запрос>
+   GET {$apiBaseUrl}/api/goods/manager-ai/<id или nickname>?fid={$fid}
+   Header: X-ManagerAI-Bridge-Secret: тот же bridge secret
+
+   API вернет JSON с полями:
+   {
+     "id": 123,
+     "fid": {$fid},
+     "name": "наименование товара",
+     "description": "описание товара",
+     "link": "/goods/product-code",
+     "url": "/goods/product-code"
+   }
+
+4. После поиска товара пополни базу знаний JSON-запросом:
    {
      "fid": {$fid},
      "session_token": "{$sessionToken}",
      "title": "короткий заголовок",
-     "content": "самодостаточная запись знания",
-     "category": "manager_ai_research",
+     "content": "самодостаточная запись знания с наименованием, описанием и ссылкой на товар",
+     "category": "manager_ai_product",
      "answer": "короткий ответ для пользователя"
    }
-4. В запросе обязательно передай header X-ManagerAI-Bridge-Secret с тем же bridge secret.
-5. После успешной записи laravel-api вернет команду вебчату read_knowledge_base.
+5. В запросе обязательно передай header X-ManagerAI-Bridge-Secret с тем же bridge secret.
+6. После успешной записи laravel-api вернет команду вебчату read_knowledge_base.
 
 Вопрос пользователя:
 {$question}
@@ -198,12 +214,17 @@ TEXT);
 
     private function knowledgeCallbackUrl(): string
     {
+        return $this->knowledgeCallbackBaseUrl() . '/api/ai/knowledge-base/manager-ai-ingest';
+    }
+
+    private function knowledgeCallbackBaseUrl(): string
+    {
         $baseUrl = rtrim((string) config('services.manager_ai.laravel_api_url', ''), '/');
         if ($baseUrl === '') {
             $baseUrl = rtrim((string) config('app.url', ''), '/');
         }
 
-        return $baseUrl . '/api/ai/knowledge-base/manager-ai-ingest';
+        return $baseUrl;
     }
 
     /**

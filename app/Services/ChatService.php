@@ -206,6 +206,21 @@ class ChatService
 
         $intent = $this->intentDetector->detect($message, $page, $language);
 
+        if ($this->shouldDelegateProductKnowledgeGap($fid, $message, $intent)) {
+            return $this->delegateKnowledgeGapToManagerAi(
+                payload: $payload,
+                session: $session,
+                fid: $fid,
+                firma: $firma,
+                question: $message,
+                localAnswer: 'В базе знаний проекта пока нет сохранённой информации по этому товарному запросу.',
+                intent: array_merge($intent, [
+                    'type' => 'product_lookup',
+                    'reason' => 'product_kb_miss',
+                ]),
+            );
+        }
+
         if ($useDbTools && $fid > 0 && $this->isCatalogNavigationIntent($intent)) {
             return $this->handleCatalogNavigationRequest($session, $fid, $firma, $message, $language, $page, $intent);
         }
@@ -378,6 +393,69 @@ class ChatService
                 WebChatIntentDetector::RESEARCH,
                 WebChatIntentDetector::PUBLISH_NEWS,
             ], true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $intent
+     */
+    private function shouldDelegateProductKnowledgeGap(int $fid, string $message, array $intent): bool
+    {
+        if ($fid <= 0 || ! $this->managerAiBridge->enabled()) {
+            return false;
+        }
+
+        if (! $this->isProductInformationRequest($message, $intent)) {
+            return false;
+        }
+
+        try {
+            return $this->knowledgeService->search($fid, $message, 3)->isEmpty();
+        } catch (Throwable $e) {
+            Log::debug('ChatService: product KB lookup failed before ManagerAI delegation.', [
+                'fid' => $fid,
+                'error' => $e->getMessage(),
+            ]);
+
+            return true;
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $intent
+     */
+    private function isProductInformationRequest(string $message, array $intent): bool
+    {
+        $text = mb_strtolower($message);
+
+        foreach ([
+            'товар',
+            'продукт',
+            'наименование',
+            'название',
+            'описание',
+            'артикул',
+            'цена',
+            'стоимость',
+            'сколько стоит',
+            'наличие',
+            'ссылка',
+            'купить',
+            'заказать',
+            'номерн',
+            'знак',
+            'product',
+            'price',
+            'description',
+        ] as $marker) {
+            if (mb_stripos($text, $marker) !== false) {
+                return true;
+            }
+        }
+
+        return in_array($intent['type'] ?? '', [
+            WebChatIntentDetector::HOW_TO,
+            WebChatIntentDetector::FAQ,
+        ], true) && ($intent['reason'] ?? '') === 'catalog_navigation_request';
     }
 
     /**
