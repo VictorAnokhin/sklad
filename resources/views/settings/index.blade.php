@@ -1185,7 +1185,6 @@
             <div class="modal-body pt-0 pb-0" id="kb-tab-bar">
                 <div class="d-flex gap-1 flex-wrap mb-2 pb-1 border-bottom">
                     <button type="button" class="btn btn-sm btn-kb-tab active" data-category="" data-tab="all">{{ __('settings.knowledge_base.all_tab') }}</button>
-                    <button type="button" class="btn btn-sm btn-kb-tab" data-category="telegram_instruction" data-tab="bot_instructions">{{ __('settings.knowledge_base.bot_instructions_tab') }}</button>
                 </div>
             </div>
 

@@ -22,8 +22,8 @@ class AgentTaskController extends Controller
     public function store(Request $request): JsonResponse
     {
         $payload = $request->validate([
-            'source_agent'  => ['required', 'string', 'max:50', 'in:backend,telegram,frontend,system,telegram_expert'],
-            'target_agent'  => ['required', 'string', 'max:50', 'in:backend,telegram,frontend'],
+            'source_agent'  => ['required', 'string', 'max:50', 'in:backend,frontend,system'],
+            'target_agent'  => ['required', 'string', 'max:50', 'in:backend,frontend'],
             'fid'           => ['required', 'integer', 'min:1'],
             'task_type'     => ['required', 'string', 'max:50'],
             'input_data'    => ['required', 'array'],

@@ -13,7 +13,7 @@ use Throwable;
 class ChatService
 {
     private const ANALYST_FID = 1;
-    private const SHARED_AI_CHANNEL = 'telegram';
+    private const SHARED_AI_CHANNEL = 'web_chat';
 
     private AiClientInterface $ai;
 
@@ -31,9 +31,7 @@ class ChatService
         private readonly WebChatIntentDetector $intentDetector,
         private readonly DbQueryService $dbQuery,
         private readonly AiClientFactory $aiFactory,
-        private readonly AgentOrchestrator $orchestrator,
     ) {
-        // Web chat and Telegram share the same analyst channel by default.
         $this->ai = $this->aiFactory->make(self::SHARED_AI_CHANNEL);
     }
 
@@ -207,10 +205,6 @@ class ChatService
 
         $intent = $this->intentDetector->detect($message, $page, $language);
 
-        if ($this->shouldCreateEditorialTask($intent, $message)) {
-            return $this->delegateEditorialTask($session, $fid, $firma, $message, $language, $page, $intent);
-        }
-
         if ($useDbTools && $fid > 0 && $this->isCatalogNavigationIntent($intent)) {
             return $this->handleCatalogNavigationRequest($session, $fid, $firma, $message, $language, $page, $intent);
         }
@@ -311,51 +305,6 @@ class ChatService
             recentHistory: $session->getHistoryForAi(8),
         );
 
-        if ($this->shouldDelegateToTelegramAgent($message, (string) $result['answer'], $knowledgeContext, $intent)) {
-            $task = $this->orchestrator->createTask(
-                sourceAgent: 'telegram_expert',
-                targetAgent: 'telegram',
-                fid: $fid,
-                taskType: 'complex_question',
-                inputData: [
-                    'query' => $message,
-                    'question' => $message,
-                    'language' => $language,
-                    'response_channel' => 'web_chat',
-                    'channel' => 'web_chat',
-                    'page' => $page,
-                    'intent' => $intent,
-                ],
-                sessionToken: $session->session_token,
-                priority: 1,
-            );
-
-            $delegatedAnswer = "⏳ В базе проекта не нашлось достаточной информации. Я передал вопрос TelegramAgent для глубокого поиска и сохранения результата в базе знаний.";
-
-            $this->saveMessage($session->id, $fid, $firma, 'assistant', $delegatedAnswer, [
-                'source' => 'telegram_agent_delegation',
-                'task_uuid' => $task->uuid,
-            ]);
-
-            return [
-                'session_token' => $session->session_token,
-                'answer' => $delegatedAnswer,
-                'provider' => $this->ai->getProviderName(),
-                'model' => $result['model'],
-                'usage' => $result['usage'],
-                'db_tools_enabled' => $useDbTools && $fid > 0,
-                'delegated' => true,
-                'task_uuid' => $task->uuid,
-                'intent' => $intent,
-                'knowledge_curation' => $knowledgeCuration,
-                'actions' => $this->capturedActions,
-                'billing' => [
-                    'paid_by' => 'project',
-                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
-                ],
-            ];
-        }
-
         return [
             'session_token' => $session->session_token,
             'answer' => $answer,
@@ -397,40 +346,6 @@ class ChatService
         }
 
         return self::ANALYST_FID;
-    }
-
-    private function shouldDelegateToTelegramAgent(string $question, string $answer, string $knowledgeContext, array $intent = []): bool
-    {
-        if ($this->isCatalogNavigationIntent($intent) || !empty($this->capturedActions)) {
-            return false;
-        }
-
-        if (in_array(($intent['type'] ?? ''), [WebChatIntentDetector::RESEARCH, WebChatIntentDetector::PUBLISH_NEWS], true)) {
-            return true;
-        }
-
-        if ($knowledgeContext !== '') {
-            return false;
-        }
-
-        $text = mb_strtolower($question . "\n" . $answer);
-
-        foreach ([
-            'не знаю',
-            'нет информации',
-            'не нашел',
-            'не нашёл',
-            'недостаточно данных',
-            'недостаточно информации',
-            'не удалось найти',
-            'уточните',
-        ] as $marker) {
-            if (mb_stripos($text, $marker) !== false) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function isCatalogNavigationIntent(array $intent): bool
@@ -615,95 +530,6 @@ class ChatService
                 'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
             ],
         ];
-    }
-
-    private function shouldCreateEditorialTask(array $intent, string $message): bool
-    {
-        $type = (string) ($intent['type'] ?? '');
-
-        if ($type === WebChatIntentDetector::PUBLISH_NEWS) {
-            return true;
-        }
-
-        return $type === WebChatIntentDetector::RESEARCH;
-    }
-
-    /**
-     * Передать редакционную задачу в TelegramAgent, который умеет готовить и
-     * публиковать статьи/новости через AnalystService tools.
-     *
-     * @return array<string, mixed>
-     */
-    private function delegateEditorialTask(
-        ChatSession $session,
-        int $fid,
-        ?int $firma,
-        string $message,
-        string $language,
-        string $page,
-        array $intent,
-    ): array {
-        $task = $this->orchestrator->createTask(
-            sourceAgent: 'telegram_expert',
-            targetAgent: 'telegram',
-            fid: $fid,
-            taskType: 'complex_question',
-            inputData: [
-                'query' => $this->buildEditorialTaskQuery($message, $intent),
-                'question' => $message,
-                'language' => $language,
-                'response_channel' => 'web_chat',
-                'channel' => 'web_chat',
-                'page' => $page,
-                'intent' => $intent,
-            ],
-            sessionToken: $session->session_token,
-            priority: 2,
-        );
-
-        $answer = $intent['type'] === WebChatIntentDetector::PUBLISH_NEWS
-            ? "⏳ Принял задачу для аналитика-помощника. Передал её TelegramAgent: он подготовит материал, проверит источники и при необходимости опубликует статью или новость в проекте fid={$fid}."
-            : "⏳ Принял исследовательскую задачу для аналитика-помощника. Передал её TelegramAgent: он проверит источники, сохранит полезные данные и вернёт результат в этот чат.";
-
-        $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
-            'source' => 'telegram_agent_editorial_delegation',
-            'task_uuid' => $task->uuid,
-            'intent' => $intent,
-            'provider' => $this->ai->getProviderName(),
-        ]);
-
-        return [
-            'session_token' => $session->session_token,
-            'answer' => $answer,
-            'provider' => $this->ai->getProviderName(),
-            'model' => $this->ai->getModel(),
-            'usage' => [],
-            'db_tools_enabled' => false,
-            'delegated' => true,
-            'task_uuid' => $task->uuid,
-            'intent' => $intent,
-            'knowledge_curation' => ['saved' => false, 'reason' => 'delegated_editorial_task'],
-            'billing' => [
-                'paid_by' => 'project',
-                'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
-            ],
-        ];
-    }
-
-    private function buildEditorialTaskQuery(string $message, array $intent): string
-    {
-        $type = (string) ($intent['type'] ?? WebChatIntentDetector::PUBLISH_NEWS);
-        $topic = trim((string) ($intent['topic'] ?? ''));
-        $taskKind = $type === WebChatIntentDetector::PUBLISH_NEWS
-            ? 'подготовить и опубликовать новостной материал'
-            : 'подготовить аналитический материал';
-
-        return "Задача из веб-чата laravel-api. Нужно {$taskKind} для проекта fid=1.\n"
-            . ($topic !== '' ? "Тема: {$topic}\n" : '')
-            . "Исходный запрос пользователя: {$message}\n\n"
-            . "Работай как аналитик и помощник AV8 Capital: сначала проверь уже сохранённые источники/знания, при необходимости загрузи открытые источники, затем подготовь законченный текст. "
-            . "Если запрос явно просит публикацию новости или статьи — используй publish_news или publish_article с fid=1. "
-            . "Не передавай задачу оператору из-за пустого TELEGRAM_OPERATOR_CHAT_ID.";
     }
 
     // ── История сообщений ───────────────────────────────────────────────
@@ -931,7 +757,7 @@ DBTOOLS
         return <<<PROMPT
 Ты AI-аналитик и помощник AV8 Capital. Отвечай на {$answerLanguage} языке.
 
-Твоя задача: одинаково вести диалог в вебчате laravel-api и Telegram: анализировать проекты, помогать посетителям пользоваться AV8 Capital, собирать знания, готовить материалы и передавать редакционные задачи TelegramAgent для подготовки и публикации статей/новостей.
+Твоя задача: вести диалог в вебчате laravel-api, анализировать проект по текущему fid, помогать посетителям пользоваться AV8 Capital, собирать знания и готовить материалы локально в рамках веб-чата.
 
 Контекст сессии:
 - ID проекта (fid): {$fid}
@@ -960,8 +786,8 @@ DBTOOLS
 - Не выдумывай onchain-состояние. Если точный баланс или объект не передан в контексте, скажи, где его увидеть в интерфейсе.
 - Если в База знаний проекта есть информация по вопросу — используй её в первую очередь.
 - Если вопрос похож на FAQ или прошлые обращения, сначала используй базу знаний/функции поиска, а не отвечай по памяти модели.
-- Если пользователь просит подготовить, написать или опубликовать статью/новость/обзор, такая задача должна выполняться через TelegramAgent и публикационные tools проекта fid=1.
-- Для аналитических запросов сохраняй полезные выводы в базу знаний проекта fid=1.
+- Если пользователь просит подготовить, написать или опубликовать статью/новость/обзор, подготовь качественный черновик в веб-чате и используй доступные функции базы знаний/публикации только для текущего fid.
+- Для аналитических запросов сохраняй полезные выводы в базу знаний текущего проекта fid={$fid}.
 - Ты можешь парсить веб-страницы по URL и сохранять их содержимое в базу знаний проекта (функция fetch_and_save_page).
 - Если пользователь просит изучить сайт или сохранить информацию — используй эту возможность.
 - Если пользователь делится полезной информацией — предложи сохранить её в базу знаний (функция save_to_knowledge_base).{$knowledgeSection}{$dbToolsInstruction}{$learningInstruction}
@@ -976,7 +802,7 @@ PROMPT;
             WebChatIntentDetector::HOW_TO => '- Дай один понятный следующий шаг или короткую инструкцию. Не перегружай вариантами.',
             WebChatIntentDetector::SUPPORT => '- Признай проблему, попроси один недостающий факт при необходимости и предложи ближайшее действие. Не обвиняй пользователя.',
             WebChatIntentDetector::RESEARCH => '- Сначала ищи существующие данные. Если пользователь дал URL, используй парсинг и сохранение. Заверши кратким отчётом, что найдено и что сохранено.',
-            WebChatIntentDetector::PUBLISH_NEWS => '- Собери проверяемые факты из базы/источников. Если публикационный tool недоступен в вебчате, подготовь качественный черновик и предложи отправить в TelegramAgent для публикации.',
+            WebChatIntentDetector::PUBLISH_NEWS => '- Собери проверяемые факты из базы/источников. Если публикационный tool недоступен в вебчате, подготовь качественный черновик для текущего проекта.',
             WebChatIntentDetector::WALLET_ACTION => '- Будь осторожен: не выдумывай onchain-состояние, не проси секреты, объясняй только безопасный следующий шаг и необходимость подписи в кошельке.',
             default => '- Ответь по сути и используй базу знаний при наличии.',
         };

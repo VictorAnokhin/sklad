@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('agent_communications', function (Blueprint $table) {
             $table->id();
-            $table->string('source_agent', 50);               // 'telegram', 'backend', 'frontend'
-            $table->string('target_agent', 50);               // 'telegram', 'backend', 'frontend'
+            $table->string('source_agent', 50);               // 'backend', 'frontend'
+            $table->string('target_agent', 50);               // 'backend', 'frontend'
             $table->unsignedInteger('fid');
             $table->unsignedBigInteger('task_id')->nullable();
             $table->string('message_type', 50)->default('text'); // 'text', 'task_request', 'task_result', 'notification'

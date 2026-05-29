@@ -9,11 +9,10 @@ use RuntimeException;
  * Фабрика для создания AI-клиентов на основе конфигурации канала.
  *
  * Позволяет выбирать разных провайдеров (DeepSeek, OpenAI, Atoma и др.)
- * и модели для разных контекстов использования (веб-чат, Telegram, агент).
+ * и модели для разных контекстов использования (веб-чат, агент).
  *
  * Использование:
  *   $client = app(AiClientFactory::class)->make('web_chat');
- *   $client = app(AiClientFactory::class)->make('telegram');
  *   $response = $client->chat($instructions, $messages);
  */
 class AiClientFactory

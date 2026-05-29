@@ -182,16 +182,11 @@ Route::put('/fund/share-settings', [FundShareSettingsController::class, 'update'
 
 Route::post('/order', [ZakazController::class, 'store']);
 
-// ── Telegram Bot Webhook ───────────────────────────────────────────────────
-// Принимает POST от Telegram. Секретный ключ передаётся в URL.
-// Пример: POST /api/telegram/webhook/ваш_секретный_ключ
-// Защищён секретным ключом, проверяется в контроллере.
-Route::post('/telegram/webhook/{secret?}', App\Http\Controllers\TelegramWebhookController::class);
 Route::get('/orders', [ZakazController::class, 'index']);
 Route::middleware('auth:sanctum')->get('/my-orders', [ZakazController::class, 'apiOrders']);
 
 // ── Agent System ────────────────────────────────────────────────────────────
-// Система агентов: BackendAgent, TelegramAgent, FrontendAgent
+// Система агентов: BackendAgent, FrontendAgent
 // Задачи, коммуникации, чат с BackendAgent
 
 Route::prefix('agent')->middleware(['api', 'throttle:30,1'])->group(function () {

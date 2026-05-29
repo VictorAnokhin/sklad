@@ -9,7 +9,7 @@ return [
     |
     | Настройки AI-провайдеров и каналов.
     | Позволяет выбирать разных провайдеров и модели для разных контекстов
-    | (веб-чат, Telegram бот, агент).
+    | (веб-чат, агент).
     |
     */
 
@@ -70,7 +70,6 @@ return [
     |
     | Это позволяет, например:
     |   - Веб-чат: DeepSeek (deepseek-chat)
-    |   - Telegram: OpenAI (gpt-4o-mini)
     |   - Агент: DeepSeek (deepseek-chat)
     |
     */
@@ -85,18 +84,6 @@ return [
             'model'       => env('AI_WEB_CHAT_MODEL', null),
             'temperature' => (float) env('AI_WEB_CHAT_TEMPERATURE', 0.35),
             'max_tokens'  => (int) env('AI_WEB_CHAT_MAX_TOKENS', 700),
-        ],
-
-        /*
-        | Telegram бот.
-        | Используется TelegramChatService и TelegramAgent.
-        */
-        'telegram' => [
-            'provider'    => env('AI_TELEGRAM_PROVIDER', 'deepseek'),
-            'model'       => env('AI_TELEGRAM_MODEL', null),
-            'temperature' => (float) env('AI_TELEGRAM_TEMPERATURE', 0.3),
-            'max_tokens'  => (int) env('AI_TELEGRAM_MAX_TOKENS', 2000),
-            'fid'         => (int) env('AI_TELEGRAM_FID', 1),
         ],
 
         /*

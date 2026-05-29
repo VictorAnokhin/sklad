@@ -49,7 +49,7 @@ Broadcast::channel('agent.{fid}.{agentName}', function ($user, int $fid, string 
     $userFid = (int) ($user->fid ?? session('fid', 0));
 
     $authorized = $userFid === $fid
-        && in_array($agentName, ['backend', 'telegram', 'frontend', 'system'], true);
+        && in_array($agentName, ['backend', 'frontend', 'system'], true);
 
     if (!$authorized) {
         Log::warning('channels:agent.fid.agentName — access denied', [

@@ -212,9 +212,6 @@ class ZakazController extends Controller
             });
         });
 
-        // ── Telegram notification ───────────────────────────────────────
-        $this->sendTelegramNotification($docNum, $data['mobile'], $totalSum);
-
         // ── SMS notification (через SMSClub) ────────────────────────────
         $this->sendSmsNotification($data['mobile'], $docNum);
 
@@ -316,7 +313,6 @@ class ZakazController extends Controller
             });
         });
 
-        $this->sendTelegramNotification($docNum, $data['mobile'], 0);
         $this->sendSmsNotification($data['mobile'], $docNum);
 
         return response()->json([
@@ -328,25 +324,6 @@ class ZakazController extends Controller
                 'summa' => 0,
             ],
         ]);
-    }
-
-    // ── Telegram уведомление ───────────────────────────────────────────────
-
-    private function sendTelegramNotification(int $docNum, string $phone, float $summa): void
-    {
-        $tgToken = env('TELEGRAM_BOT_TOKEN', '597739151:AAF6D3COpe7ietPHyeXPziVdmvRiw7Ah1Lo');
-        $tgChat  = env('TELEGRAM_CHAT_ID', 405053730);
-
-        $text = "🛒 Нове замовлення №{$docNum}\n"
-              . "📱 Телефон: {$phone}\n"
-              . "💰 Сума: {$summa}₴";
-
-        $url = "https://api.telegram.org/bot{$tgToken}/sendMessage"
-             . "?chat_id={$tgChat}"
-             . "&parse_mode=html"
-             . "&text=" . urlencode($text);
-
-        @file_get_contents($url);
     }
 
     // ── SMS уведомление ───────────────────────────────────────────────────

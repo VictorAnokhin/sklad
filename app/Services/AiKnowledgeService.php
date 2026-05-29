@@ -12,16 +12,9 @@ use Throwable;
 class AiKnowledgeService
 {
     /**
-     * Категория для инструкций Telegram-бота.
-     */
-    private const INSTRUCTION_CATEGORY = 'telegram_instruction';
-
-    /**
      * Получить контекст из базы знаний для проекта (fid).
      *
      * Возвращает строку с релевантными записями для подстановки в system prompt.
-     * Инструкции для Telegram-бота (категория telegram_instruction) загружаются
-     * отдельно и без лимита, остальные записи — с лимитом.
      */
     /**
      * @param  int|null  $fid  ID проекта. null — получить записи всех проектов.
@@ -29,21 +22,7 @@ class AiKnowledgeService
     public function getContext(?int $fid = null, int $limit = 10): string
     {
         $parts = collect();
-
-        // 1. Загружаем инструкции Telegram-бота (без лимита, все активные)
-        $instructions = $this->getInstructions($fid);
-        if ($instructions->isNotEmpty()) {
-            $instructionParts = $instructions->map(function (AiKnowledgeBase $item) use ($fid): string {
-                $title = $item->title ?: 'Без заголовка';
-                $category = $this->translateCategory($item->category, $fid);
-
-                return "📋 ИНСТРУКЦИЯ: {$title}\n{$item->content}";
-            });
-            $parts->push("— — —\n🧠 ИНСТРУКЦИИ ТЕЛЕГРАМ-БОТА (настраиваются в /settings):\n{$instructionParts->implode("\n\n")}\n— — —");
-        }
-
-        // 2. Загружаем остальные записи БЗ (с лимитом)
-        $records = $this->getActiveRecords($fid, $limit, [self::INSTRUCTION_CATEGORY]);
+        $records = $this->getActiveRecords($fid, $limit);
 
         if ($records->isNotEmpty()) {
             $recordParts = $records->map(function (AiKnowledgeBase $item) use ($fid): string {
@@ -56,26 +35,6 @@ class AiKnowledgeService
         }
 
         return $parts->implode("\n\n");
-    }
-
-    /**
-     * Получить инструкции для Telegram-бота.
-     *
-     * Загружает ВСЕ активные записи категории telegram_instruction без лимита.
-     * Эти записи определяют поведение бота и могут редактироваться через /settings.
-     *
-     * @return Collection<int, AiKnowledgeBase>
-     */
-    /**
-     * @param  int|null  $fid  ID проекта. null — получить инструкции всех проектов.
-     */
-    public function getInstructions(?int $fid = null): Collection
-    {
-        return AiKnowledgeBase::forFid($fid)
-            ->active()
-            ->byCategory(self::INSTRUCTION_CATEGORY)
-            ->orderBy('created_at', 'asc')
-            ->get();
     }
 
     /**

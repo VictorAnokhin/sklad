@@ -4,12 +4,10 @@ namespace App\Jobs;
 
 use App\Agents\BackendAgent;
 use App\Agents\FrontendAgent;
-use App\Agents\TelegramAgent;
 use App\Models\AgentTask;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use App\Services\AgentOrchestrator;
-use App\Services\TelegramBotService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -95,11 +93,10 @@ class ProcessAgentTask implements ShouldQueue
         }
     }
 
-    private function resolveAgent(string $agentName): BackendAgent|TelegramAgent|FrontendAgent|null
+    private function resolveAgent(string $agentName): BackendAgent|FrontendAgent|null
     {
         return match ($agentName) {
             'backend' => app(BackendAgent::class),
-            'telegram' => app(TelegramAgent::class),
             'frontend' => app(FrontendAgent::class),
             default => null,
         };
@@ -142,54 +139,7 @@ class ProcessAgentTask implements ShouldQueue
 
     private function deliverResultToSourceChannel(AgentTask $task, array $result): void
     {
-        if ($task->source_agent !== 'telegram_expert') {
-            return;
-        }
-
-        $chatId = $task->input_data['chat_id'] ?? null;
-        if (! $chatId) {
-            return;
-        }
-
-        $message = $this->resultMessage($result);
-        if ($message === null) {
-            return;
-        }
-
-        try {
-            $bot = app(TelegramBotService::class);
-            $bot->sendChatAction($chatId, 'typing');
-
-            try {
-                $bot->sendMarkdown($chatId, $message);
-            } catch (\Throwable $markdownError) {
-                Log::warning('AgentTask result markdown send failed, retrying as plain text.', [
-                    'chat_id' => $chatId,
-                    'task_uuid' => $task->uuid,
-                    'error' => $markdownError->getMessage(),
-                ]);
-
-                $bot->sendMessage($chatId, $message);
-            }
-        } catch (\Throwable $e) {
-            Log::warning("AgentTask #{$task->id}: failed to deliver result to Telegram chat.", [
-                'chat_id' => $chatId,
-                'task_uuid' => $task->uuid,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        return;
     }
 
-    private function resultMessage(array $result): ?string
-    {
-        $message = $result['message'] ?? $result['answer'] ?? null;
-
-        if (! is_string($message)) {
-            return null;
-        }
-
-        $message = trim($message);
-
-        return $message !== '' ? $message : null;
-    }
 }

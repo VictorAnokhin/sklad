@@ -549,7 +549,7 @@ class AnalystService
         }
     }
 
-    // ── Инструменты публикации (для TelegramAgent) ──────────────────────────
+    // ── Инструменты публикации ──────────────────────────────────────────────
 
     private function toolPublishArticle(): array
     {
@@ -681,7 +681,7 @@ class AnalystService
                 'title' => $title,
                 'content' => $content,
                 'category' => $category,
-                'source' => 'telegram_agent',
+                'source' => 'web_chat',
                 'active' => true,
             ]);
             $saved['knowledge_base'] = true;

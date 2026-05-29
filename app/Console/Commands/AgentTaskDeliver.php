@@ -5,9 +5,7 @@ namespace App\Console\Commands;
 use App\Models\AgentTask;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
-use App\Services\TelegramBotService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
 
 class AgentTaskDeliver extends Command
 {
@@ -15,7 +13,7 @@ class AgentTaskDeliver extends Command
 
     protected $description = 'Deliver an already completed agent task result to its source channel.';
 
-    public function handle(TelegramBotService $bot): int
+    public function handle(): int
     {
         $uuid = (string) $this->argument('uuid');
         $task = AgentTask::where('uuid', $uuid)->first();
@@ -32,17 +30,6 @@ class AgentTaskDeliver extends Command
         }
 
         $delivered = false;
-
-        if ($task->source_agent === 'telegram_expert') {
-            $chatId = $task->input_data['chat_id'] ?? null;
-            if (! $chatId) {
-                $this->warn('Task source is telegram_expert, but input_data.chat_id is empty.');
-            } else {
-                $this->deliverToTelegram($bot, $chatId, $message, $task->uuid);
-                $this->info("Delivered to Telegram chat {$chatId}.");
-                $delivered = true;
-            }
-        }
 
         if ($task->session_token) {
             $session = ChatSession::resolveByToken($task->session_token);
@@ -74,23 +61,6 @@ class AgentTaskDeliver extends Command
         }
 
         return self::SUCCESS;
-    }
-
-    private function deliverToTelegram(TelegramBotService $bot, int|string $chatId, string $message, string $taskUuid): void
-    {
-        $bot->sendChatAction($chatId, 'typing');
-
-        try {
-            $bot->sendMarkdown($chatId, $message);
-        } catch (\Throwable $markdownError) {
-            Log::warning('AgentTask manual delivery markdown failed, retrying as plain text.', [
-                'chat_id' => $chatId,
-                'task_uuid' => $taskUuid,
-                'error' => $markdownError->getMessage(),
-            ]);
-
-            $bot->sendMessage($chatId, $message);
-        }
     }
 
     private function resultMessage(array $result): ?string

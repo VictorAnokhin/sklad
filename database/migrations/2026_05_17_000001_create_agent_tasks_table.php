@@ -11,8 +11,8 @@ return new class extends Migration
         Schema::create('agent_tasks', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
-            $table->string('source_agent', 50);              // 'telegram', 'backend', 'frontend', 'backend_chat'
-            $table->string('target_agent', 50);              // 'telegram', 'backend', 'frontend'
+            $table->string('source_agent', 50);              // 'backend', 'frontend', 'backend_chat'
+            $table->string('target_agent', 50);              // 'backend', 'frontend'
             $table->unsignedInteger('fid');
             $table->string('session_token', 100)->nullable();
             $table->string('task_type', 50);                  // 'find_client', 'create_client', 'find_order', 'create_order', 'study_website', 'complex_question', etc.

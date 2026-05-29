@@ -11,7 +11,7 @@ class AgentQueueStatus extends Command
 {
     protected $signature = 'agent:queue-status {--limit=10 : Number of recent rows to show}';
 
-    protected $description = 'Show Telegram agent queue diagnostics without using Tinker.';
+    protected $description = 'Show agent queue diagnostics without using Tinker.';
 
     public function handle(): int
     {

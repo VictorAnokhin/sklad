@@ -195,9 +195,6 @@ class DocumentService
         if ($smsFlag === '1') {
             $this->sendSms($docId, $docType, $fid, $request);
         }
-        if ($smsFlag === '2' || $smsFlag === '3') {
-            $this->sendTelegram($docId, $docType, $fid, $request);
-        }
     }
 
     // ── Save z_body rows ──────────────────────────────────────────────────────
@@ -567,25 +564,4 @@ class DocumentService
         }
     }
 
-    // ── Telegram ─────────────────────────────────────────────────────────────
-
-    private function sendTelegram(string $docId, string $docType, string $fid, Request $request): void
-    {
-        $token = config('services.telegram.bot_token');
-        $chatId = config('services.telegram.chat_id');
-        if (!$token || !$chatId)
-            return;
-
-        $text = $request->input('sms_text', '') ?: "Документ #{$docId} ({$docType}) збережено";
-
-        try {
-            Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
-                'chat_id' => $chatId,
-                'text' => $text,
-            ]);
-        }
-        catch (\Throwable $e) {
-            Log::warning('Telegram failed', ['error' => $e->getMessage()]);
-        }
-    }
 }
