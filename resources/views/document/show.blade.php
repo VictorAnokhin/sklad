@@ -343,20 +343,26 @@
             }
 
             #newClientModal .modal-dialog {
-                width: 100vw;
-                max-width: 100vw;
-                margin: 0;
-                min-height: 100vh;
+                width: calc(100vw - 24px);
+                max-width: calc(100vw - 24px);
+                height: auto;
+                min-height: 0;
+                margin: 12px auto;
             }
 
             #newClientModal .modal-content {
-                min-height: 100vh;
-                border-radius: 0;
+                height: auto;
+                min-height: 0;
+                max-height: calc(100dvh - 24px);
+                border-radius: 10px;
                 border: 0;
+                overflow: hidden;
             }
 
             #newClientModal .modal-body {
-                padding: 0 12px;
+                max-height: calc(100dvh - 150px);
+                overflow-y: auto;
+                padding: 8px 12px;
             }
 
             #newClientModal .modal-footer {
@@ -393,9 +399,9 @@
             #newClientModal .client-modal-field .form-select {
                 font-size: 17px;
                 line-height: 1.2;
-                min-height: 30px;
-                padding-top: 0;
-                padding-bottom: 0;
+                min-height: 44px;
+                padding-top: 8px;
+                padding-bottom: 8px;
                 margin-top: 0;
                 margin-bottom: 0;
             }
