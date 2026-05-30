@@ -137,6 +137,10 @@ return [
         'token' => env('NEWS_PUBLISH_TOKEN', ''),
     ],
 
+    'goods_publish' => [
+        'token' => env('GOODS_PUBLISH_TOKEN', ''),
+    ],
+
     'zerion' => [
         'api_key' => env('ZERION_API_KEY'),
         'wallet_address' => env('ZERION_WALLET_ADDRESS'),

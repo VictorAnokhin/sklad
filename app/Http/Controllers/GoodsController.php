@@ -9,6 +9,7 @@ use App\Models\Price;
 use App\Models\Project;
 use App\Models\Rating;
 use App\Support\MediaUrl;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -708,6 +709,116 @@ class GoodsController extends Controller
         });
 
         return response()->json(['success' => true, 'id' => (int) $id]);
+    }
+
+    public function apiStoreBySecret(Request $request): JsonResponse
+    {
+        $this->requireGoodsPublishToken($request);
+        $validated = $this->validateAgentPayload($request);
+        $fid = trim((string) ($validated['fid'] ?? ''));
+
+        if ($fid === '') {
+            throw ValidationException::withMessages([
+                'fid' => 'Parameter "fid" is required.',
+            ]);
+        }
+
+        $code = trim((string) ($validated['code'] ?? ''));
+        if ($code !== '') {
+            $existing = DB::table('comp')
+                ->where('nickname', $code)
+                ->where('firma', (int) $fid)
+                ->exists();
+            if ($existing) {
+                return response()->json([
+                    'message' => 'Товар з таким кодом вже існує',
+                    'code' => $code,
+                ], 409);
+            }
+        }
+
+        $idcaption = (int) ($validated['category'] ?? 0);
+        $compData = [
+            'idcaption' => $idcaption,
+            'idglava' => 0,
+            'idtype' => 1,
+            'firma' => (int) $fid,
+            'nickname' => $code,
+            'namedoc' => '',
+            'pay' => (float) ($validated['price'] ?? 0),
+            'pay1' => (float) ($validated['price_wholesale'] ?? 0),
+            'sklad' => (int) ($validated['in_stock'] ?? true),
+            'htmldescr' => '',
+            'htmlkeys' => (string) ($validated['htmlkeys'] ?? ''),
+            'htmlkeyspop' => '',
+            'nvideo1' => '',
+            'nvideo2' => '',
+            'top' => 0,
+            'hit' => 0,
+            'constanta' => 0,
+            'profitpay' => 0,
+            'garant' => '',
+        ];
+
+        $descData = [
+            'name' => (string) ($validated['name'] ?? ''),
+            'name_ua' => (string) ($validated['name_ua'] ?? ''),
+            'name_en' => (string) ($validated['name_en'] ?? ''),
+            'description' => (string) ($validated['description'] ?? ''),
+            'description_ua' => (string) ($validated['description_ua'] ?? ''),
+            'description_en' => (string) ($validated['description_en'] ?? ''),
+            'web' => 1,
+            'descript' => 0,
+            'descript2' => 0,
+            'descript3' => 0,
+            'descript4' => 0,
+            'descript5' => 0,
+        ];
+
+        $pnum = Goods::saveGoods('0', $fid, $compData, [], $descData, []);
+
+        $locale = $this->resolveApiLocale($request);
+        $item = Goods::getWebGood($fid, $pnum, $locale, null, null);
+
+        return response()->json([
+            'message' => 'Товар створено',
+            'id' => (int) $pnum,
+            'code' => $code,
+            'item' => $item,
+        ], 201);
+    }
+
+    private function requireGoodsPublishToken(Request $request): void
+    {
+        $expectedToken = trim((string) config('services.goods_publish.token', ''));
+        if ($expectedToken === '') {
+            abort(503, 'Goods publish token is not configured.');
+        }
+
+        $providedToken = trim((string) $request->header('X-Goods-Publish-Token', ''));
+        if ($providedToken === '' || ! hash_equals($expectedToken, $providedToken)) {
+            abort(403, 'Invalid goods publish token.');
+        }
+    }
+
+    private function validateAgentPayload(Request $request): array
+    {
+        return $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'code' => ['nullable', 'string', 'max:100'],
+            'name' => ['nullable', 'string', 'max:1000', 'required_without_all:name_ua,name_en'],
+            'name_ua' => ['nullable', 'string', 'max:1000'],
+            'name_en' => ['nullable', 'string', 'max:1000'],
+            'description' => ['nullable', 'string'],
+            'description_ua' => ['nullable', 'string'],
+            'description_en' => ['nullable', 'string'],
+            'price' => ['nullable', 'numeric', 'min:0'],
+            'price_wholesale' => ['nullable', 'numeric', 'min:0'],
+            'category' => ['nullable', 'integer', 'min:0'],
+            'in_stock' => ['nullable', 'boolean'],
+            'tags' => ['nullable', 'string', 'max:10000'],
+            'htmlkeys' => ['nullable', 'string', 'max:10000'],
+        ]);
     }
 
     private function denyInvalidManagerAiSecret(Request $request)
