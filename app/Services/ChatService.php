@@ -206,6 +206,10 @@ class ChatService
 
         $intent = $this->intentDetector->detect($message, $page, $language);
 
+        if ($useDbTools && $fid > 0 && $this->isProductCatalogSearchRequest($message, $intent)) {
+            return $this->handleProductCatalogSearchRequest($session, $fid, $firma, $message, $language, $intent);
+        }
+
         if ($this->shouldDelegateProductKnowledgeGap($fid, $message, $intent)) {
             return $this->delegateKnowledgeGapToManagerAi(
                 payload: $payload,
@@ -521,6 +525,9 @@ class ChatService
             'ссылка',
             'купить',
             'заказать',
+            'рамк',
+            'надпис',
+            'квадрат',
             'номерн',
             'знак',
             'product',
@@ -536,6 +543,118 @@ class ChatService
             WebChatIntentDetector::HOW_TO,
             WebChatIntentDetector::FAQ,
         ], true) && ($intent['reason'] ?? '') === 'catalog_navigation_request';
+    }
+
+    /**
+     * @param  array<string, mixed>  $intent
+     */
+    private function isProductCatalogSearchRequest(string $message, array $intent): bool
+    {
+        if (! $this->isProductInformationRequest($message, $intent)) {
+            return false;
+        }
+
+        $text = mb_strtolower($message);
+
+        foreach ([
+            'есть',
+            'имеется',
+            'наявн',
+            'налич',
+            'в наличии',
+            'покажи',
+            'показать',
+            'найди',
+            'найти',
+            'подбери',
+            'подобрать',
+            'show',
+            'find',
+            'available',
+            'in stock',
+        ] as $marker) {
+            if (mb_stripos($text, $marker) !== false) {
+                return true;
+            }
+        }
+
+        return ($intent['reason'] ?? '') === 'catalog_navigation_request';
+    }
+
+    /**
+     * @param  array<string, mixed>  $intent
+     * @return array<string, mixed>
+     */
+    private function handleProductCatalogSearchRequest(
+        ChatSession $session,
+        int $fid,
+        ?int $firma,
+        string $message,
+        string $language,
+        array $intent,
+    ): array {
+        $searchQuery = $this->productCatalogSearchQuery($message, $intent);
+        $result = $this->dbQuery->searchCatalogProducts(
+            fid: $fid,
+            query: $searchQuery,
+            categoryQuery: '',
+            filters: [],
+            excludeTerms: [],
+            locale: $language,
+        );
+
+        $found = (int) ($result['found'] ?? 0);
+        $answer = $found > 0
+            ? "Нашёл в каталоге {$found} подходящих товаров по запросу «{$searchQuery}». Открываю результаты."
+            : "Проверил каталог по запросу «{$searchQuery}». Точных совпадений не нашёл, открываю поиск для просмотра похожих вариантов.";
+
+        $actions = [];
+        if (isset($result['ui_action']) && is_array($result['ui_action'])) {
+            $actions[] = $result['ui_action'];
+        }
+
+        $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
+            'provider' => 'db_tools',
+            'intent' => $intent,
+            'db_tools_used' => true,
+            'tool' => 'search_catalog_products',
+            'tool_result' => $result,
+        ]);
+
+        return [
+            'session_token' => $session->session_token,
+            'answer' => $answer,
+            'provider' => 'db_tools',
+            'model' => null,
+            'usage' => [],
+            'db_tools_enabled' => true,
+            'intent' => array_merge($intent, [
+                'needs_tools' => true,
+                'reason' => 'product_catalog_search_request',
+            ]),
+            'knowledge_curation' => [
+                'saved' => false,
+                'reason' => 'catalog_search',
+            ],
+            'actions' => $actions,
+            'billing' => [
+                'paid_by' => 'project',
+                'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $intent
+     */
+    private function productCatalogSearchQuery(string $message, array $intent): string
+    {
+        $terms = $this->productKnowledgeTerms($message.' '.(string) ($intent['topic'] ?? ''));
+        $query = implode(' ', array_slice($terms, 0, 5));
+
+        return $query !== ''
+            ? $query
+            : trim((string) ($intent['topic'] ?? $message));
     }
 
     /**
