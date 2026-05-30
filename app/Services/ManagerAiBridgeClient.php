@@ -170,6 +170,7 @@ class ManagerAiBridgeClient
         $fid = (int) ($payload['fid'] ?? 0);
         $sessionToken = trim((string) ($payload['session_token'] ?? ''));
         $apiBaseUrl = $this->knowledgeCallbackBaseUrl();
+        $goodsAccessQuery = $this->managerAiGoodsAccessQuery($fid);
 
         return trim(<<<TEXT
 В вебчате не нашлось надежного ответа в базе знаний laravel-api.
@@ -178,9 +179,9 @@ class ManagerAiBridgeClient
 1. Найди или подготовь проверенный ответ на вопрос пользователя.
 2. Пополни базу знаний laravel-api через POST {$this->knowledgeCallbackUrl()}.
 3. Если вопрос о товаре, ищи товар в таблице comp через защищенный API:
-   GET {$apiBaseUrl}/api/goods/manager-ai/search?fid={$fid}&q=<поисковый запрос>
-   GET {$apiBaseUrl}/api/goods/manager-ai/<id или nickname>?fid={$fid}
-   Header: X-ManagerAI-Bridge-Secret: тот же bridge secret
+   GET {$apiBaseUrl}/api/goods/manager-ai/search?fid={$fid}&{$goodsAccessQuery}&q=<поисковый запрос>
+   GET {$apiBaseUrl}/api/goods/manager-ai/<id или nickname>?fid={$fid}&{$goodsAccessQuery}
+   Эти URL уже содержат подписанный доступ для поиска товара. Если используешь header, передай X-ManagerAI-Bridge-Secret: тот же bridge secret.
 
    API вернет JSON с полями:
    {
@@ -225,6 +226,22 @@ TEXT);
         }
 
         return $baseUrl;
+    }
+
+    private function managerAiGoodsAccessQuery(int $fid): string
+    {
+        $expires = now()->addMinutes(30)->timestamp;
+        $token = hash_hmac('sha256', $this->managerAiGoodsAccessPayload($fid, $expires), $this->secret());
+
+        return http_build_query([
+            'manager_ai_expires' => $expires,
+            'manager_ai_token' => $token,
+        ]);
+    }
+
+    private function managerAiGoodsAccessPayload(int $fid, int $expires): string
+    {
+        return implode('|', ['manager-ai-goods', $fid, $expires]);
     }
 
     /**

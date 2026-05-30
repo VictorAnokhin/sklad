@@ -516,10 +516,34 @@ class GoodsController extends Controller
         ));
 
         if ($expectedSecret === '' || $providedSecret === '' || ! hash_equals($expectedSecret, $providedSecret)) {
+            if ($this->hasValidManagerAiGoodsToken($request, $expectedSecret)) {
+                return null;
+            }
+
             return response()->json(['message' => 'Invalid ManagerAI bridge secret.'], 403);
         }
 
         return null;
+    }
+
+    private function hasValidManagerAiGoodsToken(Request $request, string $secret): bool
+    {
+        if ($secret === '') {
+            return false;
+        }
+
+        $fid = (int) $request->query('fid', 0);
+        $expires = (int) $request->query('manager_ai_expires', 0);
+        $providedToken = trim((string) $request->query('manager_ai_token', ''));
+
+        if ($fid <= 0 || $expires <= 0 || $providedToken === '' || $expires < now()->timestamp) {
+            return false;
+        }
+
+        $payload = implode('|', ['manager-ai-goods', $fid, $expires]);
+        $expectedToken = hash_hmac('sha256', $payload, $secret);
+
+        return hash_equals($expectedToken, $providedToken);
     }
 
     private function managerAiGoodsBaseQuery(int $fid)

@@ -72,4 +72,37 @@ class ApiSmokeTest extends TestCase
         $response->assertStatus(200);
         $response->assertJsonStructure(['groups']);
     }
+
+    public function test_manager_ai_goods_search_rejects_missing_bridge_auth(): void
+    {
+        config(['services.manager_ai.bridge_secret' => 'test-secret']);
+
+        $response = $this->getJson('/api/goods/manager-ai/search?fid=2&q=рама');
+
+        $response->assertStatus(403);
+        $response->assertJson([
+            'message' => 'Invalid ManagerAI bridge secret.',
+        ]);
+    }
+
+    public function test_manager_ai_goods_search_accepts_signed_query_token(): void
+    {
+        config(['services.manager_ai.bridge_secret' => 'test-secret']);
+
+        $fid = 2;
+        $expires = now()->addMinutes(5)->timestamp;
+        $token = hash_hmac('sha256', implode('|', ['manager-ai-goods', $fid, $expires]), 'test-secret');
+
+        $response = $this->getJson(
+            '/api/goods/manager-ai/search?fid='.$fid
+            .'&manager_ai_expires='.$expires
+            .'&manager_ai_token='.$token
+            .'&q=a'
+        );
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'message' => 'Parameter "q" must contain at least 2 characters.',
+        ]);
+    }
 }
