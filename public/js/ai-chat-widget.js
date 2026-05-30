@@ -14,9 +14,13 @@
     fid: null,
     firma: null,
     apiUrl: "/api/ai/chat",
+    configUrl: "/api/webchat/config",
+    eventsUrl: "/api/webchat/events",
     voiceSttUrl: "/api/ai/voice/stt",
     voiceTtsUrl: "/api/ai/voice/tts",
     maxHistory: 6,
+    uiVariantKey: "default",
+    quickReplies: [],
     messages: {
       ru: {
         title: "Консультант",
@@ -86,6 +90,8 @@
     serverRecording: false,  // MediaRecorder active
     serverProcessing: false, // waiting for Whisper API response
     speakingIndex: -1, // index of message currently being spoken, -1 = none
+    visitorUid: null,
+    sessionToken: null,
   };
 
   var elements = {};
@@ -106,6 +112,50 @@
   function msg(key) {
     var lang = getLanguage();
     return (CONFIG.messages[lang] && CONFIG.messages[lang][key]) || CONFIG.messages.ru[key] || key;
+  }
+
+  function siteDomain() {
+    return window.location.hostname || "";
+  }
+
+  function storageKey(name) {
+    var fid = CONFIG.fid && parseInt(CONFIG.fid, 10) > 0 ? parseInt(CONFIG.fid, 10) : "global";
+    return "ai_chat_" + fid + "_" + name;
+  }
+
+  function randomId() {
+    if (window.crypto && window.crypto.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+    return "v-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+  }
+
+  function getVisitorUid() {
+    try {
+      var existing = window.localStorage.getItem(storageKey("visitor_uid"));
+      if (existing) return existing;
+      var created = randomId();
+      window.localStorage.setItem(storageKey("visitor_uid"), created);
+      return created;
+    } catch (e) {
+      return randomId();
+    }
+  }
+
+  function rememberSessionToken(token) {
+    if (!token) return;
+    state.sessionToken = token;
+    try {
+      window.sessionStorage.setItem(storageKey("session_token"), token);
+    } catch (e) { /* ignore */ }
+  }
+
+  function restoreSessionToken() {
+    try {
+      return window.sessionStorage.getItem(storageKey("session_token"));
+    } catch (e) {
+      return null;
+    }
   }
 
   // ── DOM helpers ─────────────────────────────────────────
@@ -129,6 +179,123 @@
       });
     }
     return el;
+  }
+
+  function trackingBase(extra) {
+    var payload = {
+      fid: CONFIG.fid ? parseInt(CONFIG.fid, 10) : null,
+      visitor_uid: state.visitorUid,
+      session_token: state.sessionToken,
+      ui_variant_key: CONFIG.uiVariantKey,
+      site_domain: siteDomain(),
+      page_url: window.location.href,
+      page_path: window.location.pathname,
+      page_title: document.title || "",
+      referrer: document.referrer || "",
+      language: getLanguage(),
+      timezone: (Intl.DateTimeFormat().resolvedOptions().timeZone || ""),
+      occurred_at: new Date().toISOString(),
+      metadata: {
+        viewport: {
+          width: window.innerWidth || null,
+          height: window.innerHeight || null,
+        },
+        source: "ai-chat-widget",
+      },
+    };
+
+    Object.keys(extra || {}).forEach(function (key) {
+      if (key === "metadata" && extra.metadata) {
+        payload.metadata = Object.assign(payload.metadata || {}, extra.metadata);
+      } else {
+        payload[key] = extra[key];
+      }
+    });
+
+    return payload;
+  }
+
+  function trackEvent(eventType, extra) {
+    if (!CONFIG.eventsUrl || !CONFIG.fid || !state.visitorUid) return;
+
+    var payload = trackingBase(Object.assign({ event_type: eventType }, extra || {}));
+    var body = JSON.stringify(payload);
+
+    if (navigator.sendBeacon && (eventType === "session_dropped" || eventType === "chat_closed")) {
+      try {
+        var blob = new Blob([body], { type: "application/json" });
+        if (navigator.sendBeacon(CONFIG.eventsUrl, blob)) return;
+      } catch (e) { /* fallback to fetch */ }
+    }
+
+    fetch(CONFIG.eventsUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "same-origin",
+      keepalive: eventType === "session_dropped",
+      body: body,
+    }).catch(function (err) {
+      if (window.console && console.debug) console.debug("[AI Chat] tracking failed:", err);
+    });
+  }
+
+  function loadUiConfig() {
+    if (!CONFIG.configUrl || !CONFIG.fid) return Promise.resolve();
+
+    var url = CONFIG.configUrl + "?fid=" + encodeURIComponent(CONFIG.fid) +
+      "&site_domain=" + encodeURIComponent(siteDomain());
+
+    return fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        applyUiConfig(data.config || {}, data.variant_key || "default");
+      })
+      .catch(function (err) {
+        if (window.console && console.debug) console.debug("[AI Chat] UI config unavailable:", err);
+      });
+  }
+
+  function applyUiConfig(ui, variantKey) {
+    CONFIG.uiVariantKey = variantKey || CONFIG.uiVariantKey || "default";
+
+    ["title", "subtitle", "welcome", "placeholder", "button"].forEach(function (key) {
+      if (typeof ui[key] === "string" && ui[key].trim()) {
+        var lang = getLanguage();
+        CONFIG.messages[lang] = CONFIG.messages[lang] || {};
+        CONFIG.messages[lang][key] = ui[key].trim();
+      }
+    });
+
+    if (Array.isArray(ui.quick_replies)) {
+      CONFIG.quickReplies = ui.quick_replies.slice(0, 6);
+    }
+
+    if (state.rows.length === 1 && state.rows[0].role === "assistant") {
+      state.rows[0].content = msg("welcome");
+    }
+
+    refreshStaticText();
+    renderMessages();
+  }
+
+  function refreshStaticText() {
+    if (elements.title) elements.title.textContent = msg("title");
+    if (elements.subtitle) {
+      elements.subtitle.textContent = msg("subtitle");
+      elements.subtitle.style.display = msg("subtitle") ? "" : "none";
+    }
+    if (elements.input) elements.input.placeholder = msg("placeholder");
+    if (elements.toggleText) elements.toggleText.textContent = msg("button");
   }
 
   function svgIcon(name) {
@@ -179,10 +346,12 @@
     var header = createEl("div", { className: "ai-chat-header" });
     var headerLeft = createEl("div", { className: "ai-chat-header-left" });
     var avatar = createEl("div", { className: "ai-chat-avatar" }, svgIcon("bot"));
-    var titleChildren = [createEl("div", { className: "ai-chat-title" }, msg("title"))];
-    if (msg("subtitle")) {
-      titleChildren.push(createEl("div", { className: "ai-chat-subtitle" }, msg("subtitle")));
-    }
+    var titleEl = createEl("div", { className: "ai-chat-title" }, msg("title"));
+    var subtitleEl = createEl("div", {
+      className: "ai-chat-subtitle",
+      style: msg("subtitle") ? "" : "display:none",
+    }, msg("subtitle"));
+    var titleChildren = [titleEl, subtitleEl];
     var titleBlock = createEl("div", null, titleChildren);
     headerLeft.appendChild(avatar);
     headerLeft.appendChild(titleBlock);
@@ -263,7 +432,10 @@
     elements.input = input;
     elements.sendBtn = sendBtn;
     elements.toggle = toggle;
+    elements.toggleText = toggle.querySelector("span");
     elements.collapseBtn = collapseBtn;
+    elements.title = titleEl;
+    elements.subtitle = subtitleEl;
   }
 
   // ── Render messages ────────────────────────────────────
@@ -313,9 +485,41 @@
         document.createTextNode(msg("thinking")),
       ]);
       container.appendChild(thinking);
+    } else if (CONFIG.quickReplies && CONFIG.quickReplies.length) {
+      container.appendChild(renderQuickReplies());
     }
 
     container.scrollTop = container.scrollHeight;
+  }
+
+  function renderQuickReplies() {
+    var wrap = createEl("div", { className: "ai-chat-quick-replies" });
+
+    CONFIG.quickReplies.forEach(function (reply) {
+      var label = typeof reply === "string" ? reply : (reply.label || reply.value || "");
+      var value = typeof reply === "string" ? reply : (reply.value || reply.label || "");
+      if (!label || !value) return;
+
+      var btn = createEl("button", {
+        className: "ai-chat-quick-reply",
+        type: "button",
+      }, label);
+
+      btn.addEventListener("click", function () {
+        trackEvent("quick_reply_clicked", {
+          funnel_step: reply.funnel_step || label,
+          metadata: {
+            cta_label: label,
+            quick_reply_value: value,
+          },
+        });
+        sendMessage(value);
+      });
+
+      wrap.appendChild(btn);
+    });
+
+    return wrap;
   }
 
   // ── Show error ─────────────────────────────────────────
@@ -604,6 +808,12 @@
     state.rows.push(userRow);
     state.busy = true;
     hideError();
+    trackEvent("message_sent", {
+      funnel_step: "chat_message",
+      metadata: {
+        message_length: message.trim().length,
+      },
+    });
 
     elements.input.value = "";
     elements.sendBtn.disabled = true;
@@ -618,8 +828,16 @@
       message: message.trim(),
       language: getLanguage(),
       page: window.location.pathname,
+      visitor_uid: state.visitorUid,
+      site_domain: siteDomain(),
+      page_url: window.location.href,
+      referrer: document.referrer || "",
       history: history,
     };
+
+    if (state.sessionToken) {
+      payload.session_token = state.sessionToken;
+    }
 
     if (CONFIG.fid !== null && CONFIG.fid !== undefined && parseInt(CONFIG.fid, 10) > 0) {
       payload.fid = parseInt(CONFIG.fid, 10);
@@ -647,12 +865,25 @@
         return res.json();
       })
       .then(function (data) {
+        rememberSessionToken(data.session_token);
         state.rows.push({ role: "assistant", content: data.answer || data.message || "" });
         state.busy = false;
+        trackEvent("assistant_answered", {
+          funnel_step: "chat_answer",
+          metadata: {
+            answer_length: (data.answer || data.message || "").length,
+            intent: data.intent && data.intent.type ? data.intent.type : null,
+            provider: data.provider || null,
+          },
+        });
         renderMessages();
       })
       .catch(function (err) {
         state.busy = false;
+        trackEvent("chat_error", {
+          funnel_step: "chat_answer",
+          metadata: { error: String(err.message || err).slice(0, 300) },
+        });
         showError(msg("error"));
         renderMessages();
         console.error("[AI Chat] API error:", err);
@@ -665,14 +896,18 @@
       state.open = !state.open;
       elements.window.classList.toggle("open", state.open);
       if (state.open) {
+        trackEvent("chat_opened", { funnel_step: "chat_open" });
         elements.input.focus();
         elements.messages.scrollTop = elements.messages.scrollHeight;
+      } else {
+        trackEvent("chat_closed", { funnel_step: "chat_toggle_close" });
       }
     });
 
     elements.collapseBtn.addEventListener("click", function () {
       state.open = false;
       elements.window.classList.remove("open");
+      trackEvent("chat_closed", { funnel_step: "chat_header_collapse" });
     });
 
     elements.form.addEventListener("submit", function (e) {
@@ -691,6 +926,7 @@
     // Microphone button: toggle voice input
     if (elements.micBtn) {
       elements.micBtn.addEventListener("click", function () {
+        trackEvent("voice_button_clicked", { funnel_step: "voice_input" });
         if (state.recording) {
           stopVoiceInput();
         } else if (state.serverRecording || state.serverProcessing) {
@@ -702,8 +938,47 @@
     }
   }
 
+  function readScriptConfig() {
+    var script = document.currentScript;
+    if (!script) {
+      var scripts = document.getElementsByTagName("script");
+      for (var i = scripts.length - 1; i >= 0; i--) {
+        if ((scripts[i].src || "").indexOf("ai-chat-widget.js") !== -1) {
+          script = scripts[i];
+          break;
+        }
+      }
+    }
+
+    if (!script || !script.src) return {};
+
+    try {
+      var params = new URL(script.src).searchParams;
+      return {
+        fid: params.get("fid"),
+        firma: params.get("firma"),
+        apiUrl: params.get("apiUrl"),
+        configUrl: params.get("configUrl"),
+        eventsUrl: params.get("eventsUrl"),
+      };
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function apiBaseFromChatUrl(apiUrl) {
+    try {
+      var url = new URL(apiUrl, window.location.origin);
+      return url.origin;
+    } catch (e) {
+      return "";
+    }
+  }
+
   // ── Init ───────────────────────────────────────────────
   function init(userConfig) {
+    userConfig = userConfig || window.AI_CHAT_CONFIG || readScriptConfig();
+
     // Приоритет 1: явно переданный fid/firma через init()
     var hasExplicitFid = false;
     if (userConfig) {
@@ -712,7 +987,14 @@
         hasExplicitFid = true;
       }
       if (userConfig.firma !== undefined) CONFIG.firma = userConfig.firma;
-      if (userConfig.apiUrl) CONFIG.apiUrl = userConfig.apiUrl;
+      if (userConfig.apiUrl) {
+        CONFIG.apiUrl = userConfig.apiUrl;
+        var apiBase = apiBaseFromChatUrl(userConfig.apiUrl);
+        if (apiBase && !userConfig.configUrl) CONFIG.configUrl = apiBase + "/api/webchat/config";
+        if (apiBase && !userConfig.eventsUrl) CONFIG.eventsUrl = apiBase + "/api/webchat/events";
+      }
+      if (userConfig.configUrl) CONFIG.configUrl = userConfig.configUrl;
+      if (userConfig.eventsUrl) CONFIG.eventsUrl = userConfig.eventsUrl;
       if (userConfig.voiceSttUrl) CONFIG.voiceSttUrl = userConfig.voiceSttUrl;
       if (userConfig.voiceTtsUrl) CONFIG.voiceTtsUrl = userConfig.voiceTtsUrl;
     }
@@ -739,6 +1021,8 @@
       }
     }
 
+    state.visitorUid = getVisitorUid();
+    state.sessionToken = restoreSessionToken();
     state.rows = [{ role: "assistant", content: msg("welcome") }];
 
     buildWidget();
@@ -759,6 +1043,14 @@
 
     renderMessages();
     bindEvents();
+    trackEvent("page_view", { funnel_step: "page_view" });
+    loadUiConfig();
+
+    window.addEventListener("beforeunload", function () {
+      trackEvent("session_dropped", {
+        funnel_step: state.open ? "window_unload_chat_open" : "window_unload_chat_closed",
+      });
+    });
   }
 
   // Expose to global scope so Blade can pass config

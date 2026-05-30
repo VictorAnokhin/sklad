@@ -23,6 +23,7 @@ use App\Http\Controllers\RwaAdminCapController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\WalrusProxyController;
 use App\Http\Controllers\WalletController;
+use App\Http\Controllers\WebchatIntelligenceController;
 use App\Http\Controllers\ZakazController;
 
 /*
@@ -96,6 +97,16 @@ Route::middleware(['api', 'throttle:30,1'])->group(function () {
     Route::get('/ai/chat/sessions/{sessionToken}/history', [AiChatController::class, 'history']);
     Route::patch('/ai/chat/sessions/{sessionToken}/archive', [AiChatController::class, 'archive']);
     Route::delete('/ai/chat/sessions/{sessionToken}', [AiChatController::class, 'destroy']);
+});
+
+// ── Webchat Intelligence: multi-site event tracking and dynamic UI by fid ─────
+Route::middleware(['api', 'throttle:120,1'])->group(function () {
+    Route::get('/webchat/config', [WebchatIntelligenceController::class, 'config']);
+    Route::post('/webchat/events', [WebchatIntelligenceController::class, 'event']);
+});
+Route::middleware(['api', 'throttle:30,1'])->group(function () {
+    Route::get('/webchat/analytics/summary', [WebchatIntelligenceController::class, 'summary']);
+    Route::post('/webchat/manager-ai/sync', [WebchatIntelligenceController::class, 'syncManagerAi']);
 });
 Route::middleware(['api', 'throttle:60,1'])->group(function () {
     Route::get('/ai/knowledge-base', [AiKnowledgeBaseController::class, 'index']);
