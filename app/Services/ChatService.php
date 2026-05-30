@@ -409,7 +409,13 @@ class ChatService
         }
 
         try {
-            return $this->knowledgeService->search($fid, $message, 3)->isEmpty();
+            foreach ($this->productKnowledgeSearchQueries($message, $intent) as $query) {
+                if ($this->knowledgeService->search($fid, $query, 3)->isNotEmpty()) {
+                    return false;
+                }
+            }
+
+            return true;
         } catch (Throwable $e) {
             Log::debug('ChatService: product KB lookup failed before ManagerAI delegation.', [
                 'fid' => $fid,
@@ -418,6 +424,80 @@ class ChatService
 
             return true;
         }
+    }
+
+    /**
+     * Build several KB lookup queries from a natural product question.
+     *
+     * A full user sentence like "Как заказать рамку с рекламой?" often does not
+     * appear verbatim in the KB, while product records contain shorter terms
+     * such as "АвтоРамка" or "рекламой". We use conservative word stems only for
+     * the pre-delegation existence check; the final answer still uses the normal
+     * KB context loaded later in the flow.
+     *
+     * @param  array<string, mixed>  $intent
+     * @return array<int, string>
+     */
+    private function productKnowledgeSearchQueries(string $message, array $intent): array
+    {
+        $queries = [];
+        $this->appendKnowledgeQuery($queries, $message);
+        $this->appendKnowledgeQuery($queries, (string) ($intent['topic'] ?? ''));
+
+        $terms = $this->productKnowledgeTerms($message.' '.(string) ($intent['topic'] ?? ''));
+        foreach ($terms as $term) {
+            $this->appendKnowledgeQuery($queries, $term);
+        }
+
+        for ($i = 0, $count = count($terms); $i < $count - 1; $i++) {
+            $this->appendKnowledgeQuery($queries, $terms[$i].' '.$terms[$i + 1]);
+        }
+
+        return array_slice($queries, 0, 12);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function productKnowledgeTerms(string $text): array
+    {
+        $stopWords = [
+            'как', 'что', 'это', 'есть', 'для', 'или', 'при', 'про', 'под', 'над',
+            'мне', 'нам', 'вам', 'его', 'её', 'она', 'они', 'без', 'через',
+            'можно', 'нужно', 'надо', 'хочу', 'заказ', 'заказать', 'купить',
+            'сколько', 'стоит', 'цена', 'стоимость', 'товар', 'продукт',
+            'with', 'from', 'this', 'that', 'price', 'product', 'order',
+        ];
+
+        $words = preg_split('/[^\p{L}\p{N}_-]+/u', mb_strtolower($text)) ?: [];
+        $terms = [];
+
+        foreach ($words as $word) {
+            $word = trim($word, " \t\n\r\0\x0B_-");
+            if (mb_strlen($word) < 4 || in_array($word, $stopWords, true)) {
+                continue;
+            }
+
+            $this->appendKnowledgeQuery($terms, mb_strlen($word) >= 5 ? mb_substr($word, 0, -1) : $word);
+            if (mb_strlen($word) >= 6) {
+                $this->appendKnowledgeQuery($terms, mb_substr($word, 0, -2));
+            }
+        }
+
+        return array_slice($terms, 0, 8);
+    }
+
+    /**
+     * @param  array<int, string>  $queries
+     */
+    private function appendKnowledgeQuery(array &$queries, string $query): void
+    {
+        $query = trim(preg_replace('/\s+/u', ' ', mb_strtolower($query)) ?? '');
+        if (mb_strlen($query) < 2 || in_array($query, $queries, true)) {
+            return;
+        }
+
+        $queries[] = $query;
     }
 
     /**
