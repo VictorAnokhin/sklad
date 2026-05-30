@@ -103,12 +103,10 @@ class WebchatIntelligenceController extends Controller
         }
 
         try {
-            $result = $this->managerAiBridge->sendChatMessage([
+            $result = $this->managerAiBridge->sendWebchatIntelligence([
                 'fid' => (int) $payload['fid'],
-                'manager_ai_mode' => $payload['mode'] ?? 'discuss',
-                'message' => $summary['recommendation_prompt'],
-                'page' => 'webchat-intelligence-summary',
-                'language' => 'ru',
+                'mode' => $payload['mode'] ?? 'discuss',
+                'summary' => $summary,
             ]);
         } catch (Throwable $e) {
             Log::warning('Webchat ManagerAI sync failed.', [

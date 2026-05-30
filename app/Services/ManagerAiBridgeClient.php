@@ -82,6 +82,70 @@ class ManagerAiBridgeClient
         return $this->sendChatMessage($payload);
     }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function sendWebchatIntelligence(array $payload): array
+    {
+        $summary = $payload['summary'] ?? null;
+        if (! is_array($summary)) {
+            throw new RuntimeException('ManagerAI webchat intelligence summary is empty.');
+        }
+
+        $fid = (int) ($payload['fid'] ?? data_get($summary, 'fid', 0));
+        if ($fid < 1) {
+            throw new RuntimeException('ManagerAI webchat intelligence fid is empty.');
+        }
+
+        $headers = [
+            'X-ManagerAI-Bridge-Secret' => $this->secret(),
+        ];
+
+        $forwardedHost = trim((string) config('services.manager_ai.forwarded_host', ''));
+        if ($forwardedHost !== '') {
+            $headers['X-Forwarded-Host'] = $forwardedHost;
+        }
+
+        $response = Http::acceptJson()
+            ->asJson()
+            ->timeout($this->timeout())
+            ->withHeaders($headers)
+            ->post($this->url().'/api/external/webchat/intelligence', [
+                'companyId' => $this->companyId(),
+                'fid' => $fid,
+                'siteDomain' => $payload['site_domain'] ?? null,
+                'summary' => $summary,
+                'mode' => in_array(($payload['mode'] ?? 'discuss'), ['execute', 'discuss'], true)
+                    ? $payload['mode']
+                    : 'discuss',
+            ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(sprintf(
+                'ManagerAI webchat intelligence bridge failed with HTTP %s: %s',
+                $response->status(),
+                $response->body()
+            ));
+        }
+
+        $data = $response->json();
+
+        return [
+            'answer' => 'Webchat intelligence передан агенту ManagerAI для UX-анализа и рекомендаций.',
+            'provider' => 'manager-ai',
+            'model' => 'manager/webchat-intelligence',
+            'usage' => [],
+            'actions' => [],
+            'manager_ai' => [
+                'issue_id' => data_get($data, 'issue.id'),
+                'comment_id' => data_get($data, 'comment.id'),
+                'manager_agent_id' => data_get($data, 'managerAgent.id'),
+                'wakeup_run_id' => data_get($data, 'wakeupRunId'),
+            ],
+        ];
+    }
+
     public function enabled(): bool
     {
         return (bool) config('services.manager_ai.enabled', false)
