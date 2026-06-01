@@ -538,12 +538,12 @@ class GoodsController extends Controller
         $query = $this->managerAiGoodsBaseQuery($fid);
 
         $externalId = trim((string) ($payload['external_id'] ?? ''));
-        if ($externalId !== '') {
+        if ($externalId !== '' && $this->managerAiCompHasColumn('manager_ai_external_id')) {
             $query->where('comp.manager_ai_external_id', $externalId);
         }
 
         $sourceHash = $this->managerAiSourceHash($payload['source_url'] ?? null);
-        if ($sourceHash !== null) {
+        if ($sourceHash !== null && $this->managerAiCompHasColumn('manager_ai_source_hash')) {
             $query->where('comp.manager_ai_source_hash', $sourceHash);
         }
 
@@ -552,11 +552,16 @@ class GoodsController extends Controller
             $query->where(function ($nested) use ($search) {
                 $nested->where('comp.id', 'LIKE', "%{$search}%")
                     ->orWhere('comp.nickname', 'LIKE', "%{$search}%")
-                    ->orWhere('comp.manager_ai_external_id', 'LIKE', "%{$search}%")
-                    ->orWhere('comp.manager_ai_source_url', 'LIKE', "%{$search}%")
                     ->orWhere('d.name', 'LIKE', "%{$search}%")
                     ->orWhere('d.name_ua', 'LIKE', "%{$search}%")
                     ->orWhere('d.name_en', 'LIKE', "%{$search}%");
+
+                if ($this->managerAiCompHasColumn('manager_ai_external_id')) {
+                    $nested->orWhere('comp.manager_ai_external_id', 'LIKE', "%{$search}%");
+                }
+                if ($this->managerAiCompHasColumn('manager_ai_source_url')) {
+                    $nested->orWhere('comp.manager_ai_source_url', 'LIKE', "%{$search}%");
+                }
             });
         }
 
@@ -744,36 +749,45 @@ class GoodsController extends Controller
 
     private function managerAiGoodsBaseQuery(int $fid)
     {
+        $selects = [
+            'comp.id',
+            'comp.nickname',
+            'comp.firma',
+            'comp.pay',
+            'comp.pay1',
+            'comp.sklad',
+            'comp.count',
+            'comp.idcaption',
+            'comp.idglava',
+            'comp.nfoto as image',
+            'comp.nfoto1 as image_thumb',
+            DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
+            DB::raw('COALESCE(d.name, "") as name_ru'),
+            DB::raw('COALESCE(d.name_ua, "") as name_ua'),
+            DB::raw('COALESCE(d.name_en, "") as name_en'),
+            DB::raw('COALESCE(d.description, "") as description'),
+            DB::raw('COALESCE(d.description_ua, "") as description_ua'),
+            DB::raw('COALESCE(d.description_en, "") as description_en'),
+        ];
+
+        foreach ([
+            'manager_ai_external_id',
+            'manager_ai_source_url',
+            'manager_ai_source_hash',
+            'manager_ai_last_seen_at',
+        ] as $column) {
+            $selects[] = $this->managerAiCompHasColumn($column)
+                ? "comp.{$column}"
+                : DB::raw("NULL as {$column}");
+        }
+
         return DB::table('comp')
             ->leftJoin('descript as d', function ($join) {
                 $join->on('d.pnum', '=', 'comp.id')
                     ->whereColumn('d.firma', '=', 'comp.firma');
             })
             ->where('comp.firma', $fid)
-            ->select(
-                'comp.id',
-                'comp.nickname',
-                'comp.firma',
-                'comp.pay',
-                'comp.pay1',
-                'comp.sklad',
-                'comp.count',
-                'comp.idcaption',
-                'comp.idglava',
-                'comp.manager_ai_external_id',
-                'comp.manager_ai_source_url',
-                'comp.manager_ai_source_hash',
-                'comp.manager_ai_last_seen_at',
-                'comp.nfoto as image',
-                'comp.nfoto1 as image_thumb',
-                DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
-                DB::raw('COALESCE(d.name, "") as name_ru'),
-                DB::raw('COALESCE(d.name_ua, "") as name_ua'),
-                DB::raw('COALESCE(d.name_en, "") as name_en'),
-                DB::raw('COALESCE(d.description, "") as description'),
-                DB::raw('COALESCE(d.description_ua, "") as description_ua'),
-                DB::raw('COALESCE(d.description_en, "") as description_en')
-            );
+            ->select($selects);
     }
 
     private function serializeManagerAiGood(object $item, string $locale, Request $request): array
@@ -915,19 +929,40 @@ class GoodsController extends Controller
     {
         $externalId = trim((string) ($payload['external_id'] ?? ''));
         $sourceHash = $this->managerAiSourceHash($payload['source_url'] ?? null);
+        $code = trim((string) ($payload['code'] ?? $payload['sku'] ?? $externalId));
+        $generatedCode = $this->managerAiBuildCompCode($payload);
+        $canMatchExternalId = $externalId !== '' && $this->managerAiCompHasColumn('manager_ai_external_id');
+        $canMatchSourceHash = $sourceHash !== null && $this->managerAiCompHasColumn('manager_ai_source_hash');
+        $canMatchNickname = $code !== '' && $this->managerAiCompHasColumn('nickname');
+        $canMatchGeneratedCode = $generatedCode !== '' && $this->managerAiCompHasColumn('cod');
 
-        if ($externalId === '' && $sourceHash === null) {
+        if (! $canMatchExternalId && ! $canMatchSourceHash && ! $canMatchNickname && ! $canMatchGeneratedCode) {
             return null;
         }
 
         return DB::table('comp')
             ->where('firma', (string) $fid)
-            ->where(function ($query) use ($externalId, $sourceHash) {
-                if ($externalId !== '') {
+            ->where(function ($query) use (
+                $externalId,
+                $sourceHash,
+                $code,
+                $generatedCode,
+                $canMatchExternalId,
+                $canMatchSourceHash,
+                $canMatchNickname,
+                $canMatchGeneratedCode
+            ) {
+                if ($canMatchExternalId) {
                     $query->orWhere('manager_ai_external_id', $externalId);
                 }
-                if ($sourceHash !== null) {
+                if ($canMatchSourceHash) {
                     $query->orWhere('manager_ai_source_hash', $sourceHash);
+                }
+                if ($canMatchNickname) {
+                    $query->orWhere('nickname', $code);
+                }
+                if ($canMatchGeneratedCode) {
+                    $query->orWhere('cod', $generatedCode);
                 }
             })
             ->orderBy('id')
@@ -1005,7 +1040,7 @@ class GoodsController extends Controller
         } else {
             $compData['cod'] = $this->managerAiBuildCompCode($payload);
             if (Schema::hasColumn('comp', 'dt')) {
-                $compData['dt'] = now();
+                $compData['dt'] = date('d-m-Y');
             }
             $productId = (int) DB::table('comp')->insertGetId($compData);
         }
@@ -1147,6 +1182,19 @@ class GoodsController extends Controller
         }
 
         return array_intersect_key($payload, array_flip($columns));
+    }
+
+    private function managerAiCompHasColumn(string $column): bool
+    {
+        static $columns = null;
+
+        if ($columns === null) {
+            $columns = Schema::hasTable('comp')
+                ? array_flip(Schema::getColumnListing('comp'))
+                : [];
+        }
+
+        return isset($columns[$column]);
     }
 
     public function saveRating(Request $request, $id)
