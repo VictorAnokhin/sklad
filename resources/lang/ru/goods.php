@@ -9,7 +9,8 @@ return [
     'category' => 'Категория',
     'subcategory' => 'Подкатегория',
     'all' => '— Все —',
-    'show_without_stock' => 'Показать без остатка',
+    'show_without_stock' => 'На складе',
+    'show_all_goods' => 'Показать все товары',
     'find' => '🔍 Найти',
     'reset' => '✕ Сбросить',
     'table' => [

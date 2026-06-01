@@ -38,11 +38,13 @@ class GoodsController extends Controller
         $pos = (int) $request->input('pos', session('goods_pos', 0));
         $pos2 = (int) $request->input('pos2', 20);
         $sort = $request->input('sort', session('sort', 'pay'));
+        $hasFilterRequest = $request->hasAny(['fName', 'filterBrand', 'skladNone', 'showAllGoods', 'igla', 'idcapt']);
 
         $filters = [
             'fName' => $request->input('fName', session('filter1', '')),
             'filterBrand' => $request->input('filterBrand', session('filter_brand', '')),
-            'skladNone' => $request->input('skladNone', session('sklad_none', '')),
+            'skladNone' => $hasFilterRequest ? $request->input('skladNone', '') : session('sklad_none', ''),
+            'showAllGoods' => $hasFilterRequest ? $request->input('showAllGoods', '') : session('show_all_goods', ''),
         ];
 
         session([
@@ -53,6 +55,7 @@ class GoodsController extends Controller
             'filter1' => $filters['fName'],
             'filter_brand' => $filters['filterBrand'],
             'sklad_none' => $filters['skladNone'],
+            'show_all_goods' => $filters['showAllGoods'],
         ]);
 
         $result = Goods::init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters, $locale);

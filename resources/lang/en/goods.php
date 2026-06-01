@@ -9,7 +9,8 @@ return [
     'category' => 'Category',
     'subcategory' => 'Subcategory',
     'all' => '— All —',
-    'show_without_stock' => 'Show without stock',
+    'show_without_stock' => 'In stock',
+    'show_all_goods' => 'Show all goods',
     'find' => '🔍 Search',
     'reset' => '✕ Reset',
     'table' => [

@@ -13,7 +13,8 @@
         $isCategoryFiltered = $selectedTop !== '' || $selectedSub !== '';
         $isFilterActive = $isCategoryFiltered
             || !empty($filters['fName'])
-            || ($filters['skladNone'] ?? '') === '1';
+            || ($filters['skladNone'] ?? '') === '1'
+            || ($filters['showAllGoods'] ?? '') === '1';
         $goodsFilterBtnCls = $isFilterActive ? 'button_submit_start' : 'button_submit_start0';
     @endphp
 
@@ -82,13 +83,21 @@
                         </label>
                     </div>
 
+                    <div style="display:flex;align-items:flex-end;padding-bottom:8px;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;">
+                            <input type="checkbox" name="showAllGoods" value="1" style="width:auto;"
+                                   {{ ($filters['showAllGoods'] ?? '') === '1' ? 'checked' : '' }}>
+                            {{ __('goods.show_all_goods') }}
+                        </label>
+                    </div>
+
                 </div>
 
                 <div style="display:flex;gap:10px;margin-top:20px;">
                     <button type="submit" style="flex:1;padding:10px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:8px;box-shadow:0 4px 12px rgba(251,191,36,0.3);color:#000;font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;justify-content:center;gap:6px;">
                         <span>🔍</span> {{ __('document.filter.find') }}
                     </button>
-                    <a href="{{ route('goods.index') }}?fName=&igla=&idcapt=&skladNone="
+                    <a href="{{ route('goods.index') }}?fName=&igla=&idcapt=&skladNone=&showAllGoods="
                        style="flex:1;padding:10px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:var(--foreground);font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;">
                         <span>✕</span> {{ __('document.filter.reset') }}
                     </a>

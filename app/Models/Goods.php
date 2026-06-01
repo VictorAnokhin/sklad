@@ -55,14 +55,12 @@ class Goods extends Model
         $fName = $filters['fName'] ?? '';
         $filterBrand = $filters['filterBrand'] ?? '';
         $skladNone = $filters['skladNone'] ?? '';
+        $showAllGoods = ($filters['showAllGoods'] ?? '') === '1';
 
         $query = self::query()
             ->leftJoin('descript as d', function ($join) {
                 $join->on('d.pnum', '=', 'comp.id')
                     ->whereColumn('d.firma', 'comp.firma');
-            })
-            ->where(function ($q) use ($fid) {
-                $q->where('comp.firma', $fid)->orWhere('comp.constanta', '1');
             })
             ->select(
                 'comp.*',
@@ -73,6 +71,10 @@ class Goods extends Model
                 DB::raw('COALESCE(d.description_ua, "") as description_ua'),
                 DB::raw('COALESCE(d.description_en, "") as description_en')
             );
+
+        if (! $showAllGoods) {
+            $query->where('comp.firma', $fid);
+        }
 
         if ($idglava && $idcaption) {
             $query->where('comp.idglava', $idglava)
