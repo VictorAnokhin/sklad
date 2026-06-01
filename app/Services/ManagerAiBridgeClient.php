@@ -33,16 +33,23 @@ class ManagerAiBridgeClient
             $headers['X-Forwarded-Host'] = $forwardedHost;
         }
 
+        $requestBody = [
+            'companyId' => $this->companyId(),
+            'externalUserId' => $this->externalUserId($payload, $sessionToken),
+            'body' => $this->messageBody($payload, $body),
+            'mode' => $this->mode($payload, $body),
+        ];
+
+        $targetIssueId = $this->targetIssueId();
+        if ($targetIssueId !== '') {
+            $requestBody['targetIssueId'] = $targetIssueId;
+        }
+
         $response = Http::acceptJson()
             ->asJson()
             ->timeout($this->timeout())
             ->withHeaders($headers)
-            ->post($this->url().'/api/external/site-chat/messages', [
-                'companyId' => $this->companyId(),
-                'externalUserId' => $this->externalUserId($payload, $sessionToken),
-                'body' => $this->messageBody($payload, $body),
-                'mode' => $this->mode($payload, $body),
-            ]);
+            ->post($this->url().'/api/external/site-chat/messages', $requestBody);
 
         if (! $response->successful()) {
             throw new RuntimeException(sprintf(
@@ -191,6 +198,11 @@ class ManagerAiBridgeClient
         return max(1, (int) config('services.manager_ai.timeout', 10));
     }
 
+    private function targetIssueId(): string
+    {
+        return trim((string) config('services.manager_ai.webchat_issue_id', ''));
+    }
+
     /**
      * @param  array<string, mixed>  $payload
      */
@@ -217,7 +229,7 @@ class ManagerAiBridgeClient
     private function messageBody(array $payload, string $body): string
     {
         $context = [
-            'source' => 'laravel-api webchat',
+            'source' => 'av8capital.space webchat',
             'language' => $payload['language'] ?? null,
             'page' => $payload['page'] ?? null,
             'fid' => $payload['fid'] ?? null,

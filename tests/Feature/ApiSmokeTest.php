@@ -81,7 +81,8 @@ class ApiSmokeTest extends TestCase
 
         $response->assertStatus(403);
         $response->assertJson([
-            'message' => 'Invalid ManagerAI bridge secret.',
+            'success' => false,
+            'message' => 'Forbidden.',
         ]);
     }
 
@@ -103,6 +104,38 @@ class ApiSmokeTest extends TestCase
         $response->assertStatus(422);
         $response->assertJson([
             'message' => 'Parameter "q" must contain at least 2 characters.',
+        ]);
+    }
+
+    public function test_manager_ai_projects_rejects_missing_bridge_auth(): void
+    {
+        config(['services.manager_ai.bridge_secret' => 'test-secret']);
+
+        $response = $this->getJson('/api/projects/manager-ai?email=av8.fund@gmail.com');
+
+        $response->assertStatus(403);
+        $response->assertJson([
+            'message' => 'Invalid ManagerAI bridge secret.',
+        ]);
+    }
+
+    public function test_manager_ai_projects_accepts_bridge_auth(): void
+    {
+        config(['services.manager_ai.bridge_secret' => 'test-secret']);
+
+        $response = $this
+            ->withHeader('X-ManagerAI-Bridge-Secret', 'test-secret')
+            ->getJson('/api/projects/manager-ai?email=av8.fund@gmail.com');
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'success',
+            'email',
+            'items',
+        ]);
+        $response->assertJson([
+            'success' => true,
+            'email' => 'av8.fund@gmail.com',
         ]);
     }
 }

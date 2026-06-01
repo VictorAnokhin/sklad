@@ -1808,6 +1808,22 @@ class SettingsController extends Controller
         return $payload;
     }
 
+    private function denyInvalidManagerAiSecret(Request $request)
+    {
+        $expectedSecret = trim((string) config('services.manager_ai.bridge_secret', ''));
+        $providedSecret = trim((string) (
+            $request->header('X-ManagerAI-Bridge-Secret')
+            ?: $request->header('X-Manager-AI-Bridge-Secret')
+            ?: ''
+        ));
+
+        if ($expectedSecret === '' || $providedSecret === '' || ! hash_equals($expectedSecret, $providedSecret)) {
+            return response()->json(['message' => 'Invalid ManagerAI bridge secret.'], 403);
+        }
+
+        return null;
+    }
+
     /**
      * Після перемикання проєкту (firma = project.id): знаходимо users.id за email (спільний для клієнта в усіх проєктах),
      * інакше fallback — ensureUserRowForProjectFirma (клон / існуючий рядок).
