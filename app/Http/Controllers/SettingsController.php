@@ -195,6 +195,7 @@ class SettingsController extends Controller
             return redirect()->back()->with('error', 'Проєкт не знайдено');
         }
 
+        $this->resetWorkspaceSessionState($request);
         session(['fid' => $project->id]);
 
         if (Auth::check()) {
@@ -214,6 +215,36 @@ class SettingsController extends Controller
         }
 
         return redirect()->back()->with('success', 'Активний проєкт змінено');
+    }
+
+    private function resetWorkspaceSessionState(Request $request): void
+    {
+        $request->session()->forget([
+            'client1',
+            'client2',
+            'doc_id',
+            'parent_doc_id',
+            'num',
+            'numz',
+            'typez',
+            'pos',
+            'year',
+            'client_pos',
+            'cl_search',
+            'cl_city',
+            'cl_idstatus',
+            'cl_phone',
+            'cl_email',
+            'idcaption',
+            'idglava',
+            'goods_pos',
+            'sort',
+            'filter1',
+            'filter_brand',
+            'sklad_none',
+        ]);
+
+        $request->session()->put('doc', 'ZOUT');
     }
 
     public function save(Request $request)

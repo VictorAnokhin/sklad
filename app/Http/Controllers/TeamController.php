@@ -26,7 +26,7 @@ class TeamController extends Controller
         $id = (string) $request->input('id', '0');
         $member = null;
         $selectedCounterparty = null;
-        $fid = Auth::user()->firma ?? session('fid', '');
+        $fid = $this->activeFid();
 
         if ($id !== '0') {
             $member = $this->teamMembersQuery()->where('id', $id)->first();
@@ -58,7 +58,7 @@ class TeamController extends Controller
 
     public function payrollReport(Request $request)
     {
-        $fid = (string) (Auth::user()->firma ?? session('fid', ''));
+        $fid = $this->activeFid();
 
         $data = Report::teamPayrollLedger(
             $fid,
@@ -197,13 +197,23 @@ class TeamController extends Controller
             return DB::table('users')->whereRaw('1 = 0');
         }
 
-        $fid = Auth::user()->firma ?? session('fid', '');
+        $fid = $this->activeFid();
 
         return DB::table('users')
             ->where('firma', $fid)
             ->where('firmuser', '1')
             ->orderByDesc('top')
             ->orderBy('id');
+    }
+
+    private function activeFid(): string
+    {
+        $sessionFid = trim((string) session('fid', ''));
+        if ($sessionFid !== '') {
+            return $sessionFid;
+        }
+
+        return (string) (Auth::user()->firma ?? '');
     }
 
     private function mapTeamMember(object $user): object
