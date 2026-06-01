@@ -205,16 +205,7 @@ class SettingsController extends Controller
         if (Auth::check()) {
             $authUser = Auth::user();
             if ($authUser instanceof User) {
-                $resolvedId = $this->resolveUserIdAfterProjectSwitch($authUser, $project);
-                if ($resolvedId !== null) {
-                    $target = User::query()->find($resolvedId);
-                    if ($target) {
-                        Auth::login($target, false);
-                        $request->session()->regenerate();
-                        session(['fid' => $project->id]);
-                        SyncLegacySessionFromAuth::applyWorkspaceSession($target);
-                    }
-                }
+                SyncLegacySessionFromAuth::applyWorkspaceSession($authUser);
             }
         }
 
