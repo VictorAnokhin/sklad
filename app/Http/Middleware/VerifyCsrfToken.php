@@ -17,5 +17,6 @@ class VerifyCsrfToken extends Middleware {
         'api/order',
         'api/ai/*',
         'client/delete-kyc-photo',
+        'settings/switch-project',
     ];
 }

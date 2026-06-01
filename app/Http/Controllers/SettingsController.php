@@ -195,6 +195,10 @@ class SettingsController extends Controller
             return redirect()->back()->with('error', 'Проєкт не знайдено');
         }
 
+        if (Auth::check() && ! $this->canSwitchToProject(Auth::user(), $project)) {
+            abort(403, 'Немає доступу до цього проєкту');
+        }
+
         $this->resetWorkspaceSessionState($request);
         session(['fid' => $project->id]);
 
@@ -245,6 +249,39 @@ class SettingsController extends Controller
         ]);
 
         $request->session()->put('doc', 'ZOUT');
+    }
+
+    private function canSwitchToProject(?object $user, Project $project): bool
+    {
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        $projectId = (string) $project->id;
+        $userFirma = (string) (($user->firma ?? '') ?: ($user->fid ?? ''));
+        if ($userFirma !== '' && $userFirma === $projectId) {
+            return true;
+        }
+
+        if ((int) ($project->userid ?? 0) > 0 && (int) $project->userid === (int) $user->id) {
+            return true;
+        }
+
+        $email = $this->resolveUserEmailForProjectMetadata($user) ?? '';
+        if ($email !== '') {
+            if (Schema::hasColumn('project', 'email') && mb_strtolower(trim((string) ($project->email ?? ''))) === $email) {
+                return true;
+            }
+
+            if (Schema::hasTable('users') && Schema::hasColumn('users', 'email') && Schema::hasColumn('users', 'firma')) {
+                return User::query()
+                    ->where('firma', $projectId)
+                    ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+                    ->exists();
+            }
+        }
+
+        return false;
     }
 
     public function save(Request $request)
