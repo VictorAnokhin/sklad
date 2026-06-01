@@ -822,7 +822,7 @@ class ChatService
                 'firma' => $firma,
             ]));
 
-            $answer = (string) ($managerResult['answer'] ?? 'URL передан manager-ai для изучения и сохранения в базу знаний.');
+            $answer = $this->urlResearchDelegatedAnswer($url);
 
             $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
                 'provider' => 'manager-ai',
@@ -902,6 +902,11 @@ class ChatService
         $url = rtrim($match[0], ".,;:!?");
 
         return filter_var($url, FILTER_VALIDATE_URL) ? $url : null;
+    }
+
+    private function urlResearchDelegatedAnswer(string $url): string
+    {
+        return "Информации о сайте {$url} сейчас нет. Передал в отдел маркетинга на исследование.";
     }
 
     /**
@@ -1194,6 +1199,8 @@ class ChatService
             if (is_string($host) && $host !== '') {
                 $this->appendKnowledgeLookupQuery($queries, $host);
             }
+
+            return array_slice($queries, 0, 5);
         }
 
         $cleanMessage = trim(preg_replace('~https?://[^\s<>"\'\])}]+~iu', ' ', $message) ?? $message);
