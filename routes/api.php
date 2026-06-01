@@ -143,6 +143,11 @@ Route::middleware(['api', 'throttle:60,1'])->group(function () {
 Route::get('/goods/search', [GoodsController::class, 'searchWeb']);
 Route::get('/goods/catalog-filter-groups', [GoodsController::class, 'catalogFilterGroupsApi']);
 Route::get('/goods/manager-ai/search', [GoodsController::class, 'managerAiSearch']);
+Route::get('/goods/manager-ai/items', [GoodsController::class, 'managerAiItemsIndex']);
+Route::post('/goods/manager-ai/items', [GoodsController::class, 'managerAiItemsStore']);
+Route::post('/goods/manager-ai/items/upsert', [GoodsController::class, 'managerAiItemsUpsert']);
+Route::put('/goods/manager-ai/items/{id}', [GoodsController::class, 'managerAiItemsUpdate']);
+Route::delete('/goods/manager-ai/items/{id}', [GoodsController::class, 'managerAiItemsDestroy']);
 Route::get('/goods/manager-ai/{identifier}', [GoodsController::class, 'managerAiShow']);
 Route::get('/goods/hits', [GoodsController::class, 'getHits']);
 Route::get('/goods/sections', [GoodsController::class, 'getSections']);
@@ -160,6 +165,11 @@ Route::middleware('auth:sanctum')->post('/news', [NewsController::class, 'apiSto
 Route::middleware('auth:sanctum')->post('/news/{id}/publish', [NewsController::class, 'apiPublish']);
 Route::get('/news/{id}', [NewsController::class, 'apiShow']);
 Route::get('/banners', [BannerCarouselController::class, 'apiIndex']);
+Route::middleware(['api', 'throttle:30,1'])->prefix('projects/manager-ai')->group(function () {
+    Route::get('/', [SettingsController::class, 'managerAiProjectsIndex']);
+    Route::post('/', [SettingsController::class, 'managerAiProjectsStore']);
+    Route::put('/{id}', [SettingsController::class, 'managerAiProjectsUpdate']);
+});
 Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
 Route::get('/offices', [SettingsController::class, 'officesPublicIndex']);
 Route::get('/wallet/tokens', [WalletController::class, 'tokens']);

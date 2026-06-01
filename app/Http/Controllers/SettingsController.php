@@ -698,6 +698,156 @@ class SettingsController extends Controller
         ]);
     }
 
+    public function managerAiProjectsIndex(Request $request)
+    {
+        if (! $this->canUseManagerAiProjectApi($request)) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+        }
+
+        if (!Schema::hasTable('project')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю project не знайдено'], 404);
+        }
+
+        if (! Schema::hasColumn('project', 'email')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Таблиця project не має поля email.',
+            ], 422);
+        }
+
+        $email = $this->managerAiEmailFromRequest($request);
+        if ($email === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Передайте коректний email у полі email або заголовку X-ManagerAI-User-Email.',
+            ], 422);
+        }
+
+        $items = Project::query()
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->orderBy('num')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Project $project) => $this->normalizeProject($project, null))
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'email' => $email,
+            'items' => $items,
+        ]);
+    }
+
+    public function managerAiProjectsStore(Request $request)
+    {
+        if (! $this->canUseManagerAiProjectApi($request)) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+        }
+
+        if (!Schema::hasTable('project')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю project не знайдено'], 404);
+        }
+
+        if (! Schema::hasColumn('project', 'email')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Неможливо створити проєкт: таблиця project не має поля email.',
+            ], 422);
+        }
+
+        $email = $this->managerAiEmailFromRequest($request);
+        if ($email === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Передайте коректний email у полі email або заголовку X-ManagerAI-User-Email.',
+            ], 422);
+        }
+
+        $payload = $this->validateProject($request);
+        $payload['email'] = $email;
+
+        $owner = $this->managerAiProjectOwnerByEmail($email);
+        if ($owner instanceof User && Schema::hasColumn('project', 'userid')) {
+            $payload['userid'] = (int) $owner->id;
+        }
+
+        $project = Project::query()->create($payload);
+        $projectUserId = $owner instanceof User
+            ? $this->ensureProjectUserCopyForUser($project, $owner)
+            : null;
+
+        if ($projectUserId && Schema::hasColumn('project', 'userid')) {
+            $project->forceFill(['userid' => $projectUserId])->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'id' => $project->id,
+            'item' => $this->normalizeProject($project->refresh(), null),
+        ], 201);
+    }
+
+    public function managerAiProjectsUpdate(Request $request, $id)
+    {
+        if (! $this->canUseManagerAiProjectApi($request)) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+        }
+
+        if (!Schema::hasTable('project')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю project не знайдено'], 404);
+        }
+
+        if (! Schema::hasColumn('project', 'email')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Неможливо оновити проєкт: таблиця project не має поля email.',
+            ], 422);
+        }
+
+        $email = $this->managerAiEmailFromRequest($request);
+        if ($email === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Передайте коректний email у полі email або заголовку X-ManagerAI-User-Email.',
+            ], 422);
+        }
+
+        $project = Project::query()->find($id);
+        if (! $project) {
+            return response()->json(['success' => false, 'message' => 'Проєкт не знайдено'], 404);
+        }
+
+        $projectEmail = mb_strtolower(trim((string) ($project->email ?? '')));
+        if ($projectEmail === '' || $projectEmail !== $email) {
+            return response()->json([
+                'success' => false,
+                'message' => 'ManagerAI може редагувати лише проєкти з тим самим project.email.',
+            ], 403);
+        }
+
+        $payload = $this->validateProject($request);
+        $payload['email'] = $email;
+
+        $owner = $this->managerAiProjectOwnerByEmail($email);
+        if ($owner instanceof User && Schema::hasColumn('project', 'userid')) {
+            $payload['userid'] = (int) $owner->id;
+        }
+
+        $project->fill($payload)->save();
+        $projectUserId = $owner instanceof User
+            ? $this->ensureProjectUserCopyForUser($project, $owner)
+            : null;
+
+        if ($projectUserId && Schema::hasColumn('project', 'userid')) {
+            $project->forceFill(['userid' => $projectUserId])->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'item' => $this->normalizeProject($project->refresh(), null),
+        ]);
+    }
+
     public function officesPublicIndex(Request $request)
     {
         $fid = (string) $request->input('fid', session('fid', '2'));
@@ -1660,7 +1810,54 @@ class SettingsController extends Controller
             return null;
         }
 
+        return $this->ensureProjectUserCopyForUser($project, $user);
+    }
+
+    private function ensureProjectUserCopyForUser(Project $project, User $user): ?int
+    {
         return $this->ensureUserRowForProjectFirma($user, (string) $project->id);
+    }
+
+    private function canUseManagerAiProjectApi(Request $request): bool
+    {
+        $secret = trim((string) config('services.manager_ai.bridge_secret', ''));
+        if ($secret === '') {
+            return false;
+        }
+
+        $provided = trim((string) $request->header('X-ManagerAI-Bridge-Secret', ''));
+        if ($provided === '') {
+            $bearer = trim((string) $request->bearerToken());
+            if ($bearer !== '') {
+                $provided = $bearer;
+            }
+        }
+
+        return $provided !== '' && hash_equals($secret, $provided);
+    }
+
+    private function managerAiEmailFromRequest(Request $request): ?string
+    {
+        $email = mb_strtolower(trim((string) (
+            $request->input('email')
+            ?: $request->input('manager_ai_email')
+            ?: $request->input('user_email')
+            ?: $request->header('X-ManagerAI-User-Email')
+        )));
+
+        return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : null;
+    }
+
+    private function managerAiProjectOwnerByEmail(string $email): ?User
+    {
+        if (! Schema::hasTable('users') || ! Schema::hasColumn('users', 'email')) {
+            return null;
+        }
+
+        return User::query()
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->orderBy('id')
+            ->first();
     }
 
     /**

@@ -6,12 +6,14 @@ use App\Models\Goods;
 use App\Models\Field;
 use App\Models\Filter;
 use App\Models\Price;
+use App\Models\Project;
 use App\Models\Rating;
 use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 /**
  * GoodsController
@@ -506,6 +508,200 @@ class GoodsController extends Controller
         ]);
     }
 
+    public function managerAiItemsIndex(Request $request)
+    {
+        if ($denied = $this->denyInvalidManagerAiSecret($request)) {
+            return $denied;
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'external_id' => ['nullable', 'string', 'max:255'],
+            'source_url' => ['nullable', 'string', 'max:2000'],
+            'q' => ['nullable', 'string', 'max:200'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'offset' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'locale' => ['nullable', 'string', 'in:ru,ua,en'],
+        ]);
+
+        $project = $this->managerAiResolveProject((int) $payload['fid'], $payload['email'] ?? null);
+        if ($project instanceof \Illuminate\Http\JsonResponse) {
+            return $project;
+        }
+
+        $fid = (int) $payload['fid'];
+        $locale = (string) ($payload['locale'] ?? $this->resolveApiLocale($request));
+        $limit = min((int) ($payload['limit'] ?? 30), 100);
+        $offset = (int) ($payload['offset'] ?? 0);
+
+        $query = $this->managerAiGoodsBaseQuery($fid);
+
+        $externalId = trim((string) ($payload['external_id'] ?? ''));
+        if ($externalId !== '') {
+            $query->where('comp.manager_ai_external_id', $externalId);
+        }
+
+        $sourceHash = $this->managerAiSourceHash($payload['source_url'] ?? null);
+        if ($sourceHash !== null) {
+            $query->where('comp.manager_ai_source_hash', $sourceHash);
+        }
+
+        $search = trim((string) ($payload['q'] ?? ''));
+        if ($search !== '') {
+            $query->where(function ($nested) use ($search) {
+                $nested->where('comp.id', 'LIKE', "%{$search}%")
+                    ->orWhere('comp.nickname', 'LIKE', "%{$search}%")
+                    ->orWhere('comp.manager_ai_external_id', 'LIKE', "%{$search}%")
+                    ->orWhere('comp.manager_ai_source_url', 'LIKE', "%{$search}%")
+                    ->orWhere('d.name', 'LIKE', "%{$search}%")
+                    ->orWhere('d.name_ua', 'LIKE', "%{$search}%")
+                    ->orWhere('d.name_en', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $total = (clone $query)->count();
+        $items = $query
+            ->orderByDesc('comp.id')
+            ->offset($offset)
+            ->limit($limit)
+            ->get()
+            ->map(fn ($item) => $this->serializeManagerAiGood($item, $locale, $request))
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'fid' => $fid,
+            'total' => $total,
+            'limit' => $limit,
+            'offset' => $offset,
+            'data' => $items,
+        ]);
+    }
+
+    public function managerAiItemsStore(Request $request)
+    {
+        if ($denied = $this->denyInvalidManagerAiSecret($request)) {
+            return $denied;
+        }
+
+        $payload = $this->validateManagerAiItemPayload($request, true);
+        $project = $this->managerAiResolveProject((int) $payload['fid'], $payload['email'] ?? null);
+        if ($project instanceof \Illuminate\Http\JsonResponse) {
+            return $project;
+        }
+
+        $result = DB::transaction(fn () => $this->managerAiPersistItem(null, $payload));
+
+        return response()->json([
+            'success' => true,
+            'created' => true,
+            'price_changed' => false,
+            'id' => (int) $result['id'],
+            'item' => $this->managerAiLoadSerializedGood((int) $payload['fid'], (int) $result['id'], $request),
+        ], 201);
+    }
+
+    public function managerAiItemsUpsert(Request $request)
+    {
+        if ($denied = $this->denyInvalidManagerAiSecret($request)) {
+            return $denied;
+        }
+
+        $payload = $this->validateManagerAiItemPayload($request, false);
+        $project = $this->managerAiResolveProject((int) $payload['fid'], $payload['email'] ?? null);
+        if ($project instanceof \Illuminate\Http\JsonResponse) {
+            return $project;
+        }
+
+        $existing = $this->managerAiFindExistingItem((int) $payload['fid'], $payload);
+        if (! $existing && trim((string) ($payload['name'] ?? $payload['name_ru'] ?? '')) === '') {
+            throw ValidationException::withMessages(['name' => 'Передайте название товара при создании новой карточки.']);
+        }
+        $oldPrice = $existing ? (float) ($existing->pay ?? 0) : null;
+
+        $result = DB::transaction(fn () => $this->managerAiPersistItem($existing ? (int) $existing->id : null, $payload));
+        $newPrice = (float) ($payload['price'] ?? $payload['pay'] ?? 0);
+
+        return response()->json([
+            'success' => true,
+            'created' => ! $existing,
+            'price_changed' => $oldPrice !== null && abs($oldPrice - $newPrice) > 0.00001,
+            'old_price' => $oldPrice,
+            'new_price' => $newPrice,
+            'id' => (int) $result['id'],
+            'item' => $this->managerAiLoadSerializedGood((int) $payload['fid'], (int) $result['id'], $request),
+        ], $existing ? 200 : 201);
+    }
+
+    public function managerAiItemsUpdate(Request $request, $id)
+    {
+        if ($denied = $this->denyInvalidManagerAiSecret($request)) {
+            return $denied;
+        }
+
+        $payload = $this->validateManagerAiItemPayload($request, false);
+        $project = $this->managerAiResolveProject((int) $payload['fid'], $payload['email'] ?? null);
+        if ($project instanceof \Illuminate\Http\JsonResponse) {
+            return $project;
+        }
+
+        $item = DB::table('comp')->where('id', (int) $id)->where('firma', (string) $payload['fid'])->first();
+        if (! $item) {
+            return response()->json(['success' => false, 'message' => 'Товар не найден'], 404);
+        }
+
+        $oldPrice = (float) ($item->pay ?? 0);
+        DB::transaction(fn () => $this->managerAiPersistItem((int) $id, $payload));
+        $newPrice = (float) ($payload['price'] ?? $payload['pay'] ?? $oldPrice);
+
+        return response()->json([
+            'success' => true,
+            'price_changed' => abs($oldPrice - $newPrice) > 0.00001,
+            'old_price' => $oldPrice,
+            'new_price' => $newPrice,
+            'id' => (int) $id,
+            'item' => $this->managerAiLoadSerializedGood((int) $payload['fid'], (int) $id, $request),
+        ]);
+    }
+
+    public function managerAiItemsDestroy(Request $request, $id)
+    {
+        if ($denied = $this->denyInvalidManagerAiSecret($request)) {
+            return $denied;
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'email' => ['nullable', 'email', 'max:255'],
+        ]);
+
+        $project = $this->managerAiResolveProject((int) $payload['fid'], $payload['email'] ?? null);
+        if ($project instanceof \Illuminate\Http\JsonResponse) {
+            return $project;
+        }
+
+        $item = DB::table('comp')->where('id', (int) $id)->where('firma', (string) $payload['fid'])->first();
+        if (! $item) {
+            return response()->json(['success' => false, 'message' => 'Товар не найден'], 404);
+        }
+
+        if (Schema::hasTable('z_body') && DB::table('z_body')->where('pnum', (int) $id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Товар используется в документах и не может быть удален.',
+            ], 409);
+        }
+
+        DB::transaction(function () use ($id, $payload) {
+            DB::table('price')->where('pnum', (string) $id)->where('firma', (string) $payload['fid'])->delete();
+            DB::table('descript')->where('pnum', (int) $id)->where('firma', (int) $payload['fid'])->delete();
+            DB::table('comp')->where('id', (int) $id)->where('firma', (string) $payload['fid'])->delete();
+        });
+
+        return response()->json(['success' => true, 'id' => (int) $id]);
+    }
+
     private function denyInvalidManagerAiSecret(Request $request)
     {
         $expectedSecret = trim((string) config('services.manager_ai.bridge_secret', ''));
@@ -561,6 +757,13 @@ class GoodsController extends Controller
                 'comp.pay',
                 'comp.pay1',
                 'comp.sklad',
+                'comp.count',
+                'comp.idcaption',
+                'comp.idglava',
+                'comp.manager_ai_external_id',
+                'comp.manager_ai_source_url',
+                'comp.manager_ai_source_hash',
+                'comp.manager_ai_last_seen_at',
                 'comp.nfoto as image',
                 'comp.nfoto1 as image_thumb',
                 DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
@@ -597,7 +800,14 @@ class GoodsController extends Controller
             'description_en' => trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($item->description_en ?? ''))) ?? ''),
             'price' => (float) ($item->pay ?? 0),
             'wholesale_price' => (float) ($item->pay1 ?? 0),
+            'count' => (float) ($item->count ?? 0),
             'in_stock' => (int) ($item->sklad ?? 0) === 1,
+            'idcaption' => (string) ($item->idcaption ?? ''),
+            'idglava' => (string) ($item->idglava ?? ''),
+            'external_id' => (string) ($item->manager_ai_external_id ?? ''),
+            'source_url' => (string) ($item->manager_ai_source_url ?? ''),
+            'source_hash' => (string) ($item->manager_ai_source_hash ?? ''),
+            'last_seen_at' => $item->manager_ai_last_seen_at ?? null,
             'image' => MediaUrl::image($item->image ?? ''),
             'image_thumb' => MediaUrl::image($item->image_thumb ?? ''),
             'link' => $path,
@@ -607,6 +817,336 @@ class GoodsController extends Controller
                 'gm_react' => '/product/' . rawurlencode($identifier),
             ],
         ];
+    }
+
+    private function validateManagerAiItemPayload(Request $request, bool $creating): array
+    {
+        $rules = [
+            'fid' => ['required', 'integer', 'min:1'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'external_id' => ['nullable', 'string', 'max:255'],
+            'source_url' => ['nullable', 'string', 'max:2000'],
+            'source_domain' => ['nullable', 'string', 'max:255'],
+            'code' => ['nullable', 'string', 'max:50'],
+            'sku' => ['nullable', 'string', 'max:50'],
+            'name' => [$creating ? 'required' : 'nullable', 'string', 'max:150'],
+            'name_ru' => ['nullable', 'string', 'max:150'],
+            'name_ua' => ['nullable', 'string', 'max:150'],
+            'name_en' => ['nullable', 'string', 'max:150'],
+            'description' => ['nullable', 'string', 'max:65535'],
+            'description_ru' => ['nullable', 'string', 'max:65535'],
+            'description_ua' => ['nullable', 'string', 'max:65535'],
+            'description_en' => ['nullable', 'string', 'max:65535'],
+            'price' => ['nullable', 'numeric', 'min:0'],
+            'pay' => ['nullable', 'numeric', 'min:0'],
+            'old_price' => ['nullable', 'numeric', 'min:0'],
+            'wholesale_price' => ['nullable', 'numeric', 'min:0'],
+            'pay1' => ['nullable', 'numeric', 'min:0'],
+            'count' => ['nullable', 'numeric', 'min:0'],
+            'in_stock' => ['nullable', 'boolean'],
+            'idcaption' => ['nullable', 'integer', 'min:0'],
+            'idglava' => ['nullable', 'integer', 'min:0'],
+            'idtype' => ['nullable', 'string', 'max:20'],
+            'hit' => ['nullable', 'boolean'],
+            'top' => ['nullable', 'integer', 'min:0'],
+            'web' => ['nullable', 'boolean'],
+            'htmlkeys' => ['nullable', 'string', 'max:65535'],
+            'htmlkeyspop' => ['nullable', 'string', 'max:65535'],
+            'images' => ['nullable', 'array', 'max:10'],
+            'images.*' => ['nullable', 'string', 'max:2000'],
+            'image' => ['nullable', 'string', 'max:2000'],
+            'image_thumb' => ['nullable', 'string', 'max:2000'],
+        ];
+
+        $payload = $request->validate($rules);
+        $name = trim((string) ($payload['name'] ?? $payload['name_ru'] ?? ''));
+        $externalId = trim((string) ($payload['external_id'] ?? ''));
+        $sourceUrl = trim((string) ($payload['source_url'] ?? ''));
+
+        if ($creating && $name === '') {
+            throw ValidationException::withMessages(['name' => 'Передайте название товара.']);
+        }
+
+        if ($externalId === '' && $sourceUrl === '') {
+            throw ValidationException::withMessages([
+                'external_id' => 'Для повторного парсинга передайте external_id или source_url.',
+            ]);
+        }
+
+        return $payload;
+    }
+
+    private function managerAiResolveProject(int $fid, ?string $email = null)
+    {
+        if (! Schema::hasTable('project')) {
+            return response()->json(['success' => false, 'message' => 'Таблицу project не найдено'], 404);
+        }
+
+        $project = Project::query()->find($fid);
+        if (! $project) {
+            return response()->json(['success' => false, 'message' => 'Project для указанного fid не найден.'], 404);
+        }
+
+        $email = mb_strtolower(trim((string) $email));
+        if ($email !== '' && Schema::hasColumn('project', 'email')) {
+            $projectEmail = mb_strtolower(trim((string) ($project->email ?? '')));
+            if ($projectEmail !== '' && $projectEmail !== $email) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email manager-ai не совпадает с project.email.',
+                ], 403);
+            }
+        }
+
+        return $project;
+    }
+
+    private function managerAiSourceHash(?string $sourceUrl): ?string
+    {
+        $sourceUrl = trim((string) $sourceUrl);
+        if ($sourceUrl === '') {
+            return null;
+        }
+
+        return hash('sha256', mb_strtolower($sourceUrl));
+    }
+
+    private function managerAiFindExistingItem(int $fid, array $payload): ?object
+    {
+        $externalId = trim((string) ($payload['external_id'] ?? ''));
+        $sourceHash = $this->managerAiSourceHash($payload['source_url'] ?? null);
+
+        if ($externalId === '' && $sourceHash === null) {
+            return null;
+        }
+
+        return DB::table('comp')
+            ->where('firma', (string) $fid)
+            ->where(function ($query) use ($externalId, $sourceHash) {
+                if ($externalId !== '') {
+                    $query->orWhere('manager_ai_external_id', $externalId);
+                }
+                if ($sourceHash !== null) {
+                    $query->orWhere('manager_ai_source_hash', $sourceHash);
+                }
+            })
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function managerAiPersistItem(?int $id, array $payload): array
+    {
+        $fid = (string) (int) $payload['fid'];
+        $existing = $id ? DB::table('comp')->where('id', $id)->where('firma', $fid)->first() : null;
+        $existingDesc = $id ? DB::table('descript')->where('pnum', $id)->where('firma', (int) $fid)->first() : null;
+        $price = (float) ($payload['price'] ?? $payload['pay'] ?? ($existing->pay ?? 0));
+        $wholesalePrice = (float) ($payload['wholesale_price'] ?? $payload['pay1'] ?? ($existing->pay1 ?? 0));
+        $count = (float) ($payload['count'] ?? ($existing->count ?? 0));
+        $images = $this->managerAiNormalizeImages($payload, $existing);
+        $sourceUrl = trim((string) ($payload['source_url'] ?? ($existing->manager_ai_source_url ?? '')));
+        $externalId = trim((string) ($payload['external_id'] ?? ($existing->manager_ai_external_id ?? '')));
+        $sourceDomain = trim((string) ($payload['source_domain'] ?? ''));
+
+        if ($sourceDomain === '' && $sourceUrl !== '') {
+            $sourceDomain = (string) parse_url($sourceUrl, PHP_URL_HOST);
+        }
+
+        $compData = [
+            'firma' => $fid,
+            'nickname' => $this->managerAiFirstString([
+                $payload['code'] ?? null,
+                $payload['sku'] ?? null,
+                $externalId,
+                $existing->nickname ?? null,
+            ]),
+            'namedoc' => trim((string) ($payload['name'] ?? $payload['name_ru'] ?? ($existing->namedoc ?? ''))),
+            'name' => trim((string) ($payload['name'] ?? $payload['name_ru'] ?? ($existing->name ?? ''))),
+            'name_ua' => trim((string) ($payload['name_ua'] ?? ($existing->name_ua ?? ''))),
+            'name_en' => trim((string) ($payload['name_en'] ?? ($existing->name_en ?? ''))),
+            'idcaption' => (string) (int) ($payload['idcaption'] ?? ($existing->idcaption ?? 0)),
+            'idglava' => (string) (int) ($payload['idglava'] ?? ($existing->idglava ?? 0)),
+            'idtype' => trim((string) ($payload['idtype'] ?? ($existing->idtype ?? ''))),
+            'pay' => $price,
+            'pay1' => $wholesalePrice,
+            'count' => $count,
+            'sklad' => array_key_exists('in_stock', $payload)
+                ? ($payload['in_stock'] ? 1 : 0)
+                : ((float) $count > 0 ? 1 : (int) ($existing->sklad ?? 0)),
+            'hit' => array_key_exists('hit', $payload) ? (int) (bool) $payload['hit'] : (int) ($existing->hit ?? 0),
+            'top' => (int) ($payload['top'] ?? ($existing->top ?? 0)),
+            'web' => array_key_exists('web', $payload) ? (string) (int) (bool) $payload['web'] : (string) ($existing->web ?? '1'),
+            'htmlkeys' => trim((string) ($payload['htmlkeys'] ?? ($existing->htmlkeys ?? ''))),
+            'htmlkeyspop' => trim((string) ($payload['htmlkeyspop'] ?? ($existing->htmlkeyspop ?? ''))),
+            'nfoto' => $images[0] ?? '',
+            'nfoto1' => $images[1] ?? '',
+            'nfoto2' => $images[2] ?? '',
+            'nfoto3' => $images[3] ?? '',
+            'nfoto4' => $images[4] ?? '',
+            'nfoto5' => $images[5] ?? '',
+            'nfoto6' => $images[6] ?? '',
+            'nfoto7' => $images[7] ?? '',
+            'nfoto8' => $images[8] ?? '',
+            'nfoto9' => $images[9] ?? '',
+            'manager_ai_external_id' => $externalId !== '' ? $externalId : null,
+            'manager_ai_source_url' => $sourceUrl !== '' ? $sourceUrl : null,
+            'manager_ai_source_hash' => $this->managerAiSourceHash($sourceUrl),
+            'manager_ai_last_seen_at' => now(),
+        ];
+
+        if ($sourceDomain !== '' && trim((string) ($compData['htmlkeys'] ?? '')) === '') {
+            $compData['htmlkeys'] = $sourceDomain;
+        }
+
+        $compData = $this->filterTableColumns('comp', $compData);
+
+        if ($existing) {
+            DB::table('comp')->where('id', $id)->where('firma', $fid)->update($compData);
+            $productId = (int) $id;
+        } else {
+            $compData['cod'] = $this->managerAiBuildCompCode($payload);
+            if (Schema::hasColumn('comp', 'dt')) {
+                $compData['dt'] = now();
+            }
+            $productId = (int) DB::table('comp')->insertGetId($compData);
+        }
+
+        $descData = [
+            'name' => trim((string) ($payload['name_ru'] ?? $payload['name'] ?? ($existingDesc->name ?? ''))),
+            'name_ua' => trim((string) ($payload['name_ua'] ?? ($existingDesc->name_ua ?? ''))),
+            'name_en' => trim((string) ($payload['name_en'] ?? ($existingDesc->name_en ?? ''))),
+            'description' => (string) ($payload['description_ru'] ?? $payload['description'] ?? ($existingDesc->description ?? '')),
+            'description_ua' => (string) ($payload['description_ua'] ?? ($existingDesc->description_ua ?? '')),
+            'description_en' => (string) ($payload['description_en'] ?? ($existingDesc->description_en ?? '')),
+            'web' => array_key_exists('web', $payload) ? (string) (int) (bool) $payload['web'] : '1',
+        ];
+
+        $descData = $this->filterTableColumns('descript', $descData);
+        $hasDesc = DB::table('descript')->where('pnum', $productId)->where('firma', (int) $fid)->exists();
+        if ($hasDesc) {
+            DB::table('descript')->where('pnum', $productId)->where('firma', (int) $fid)->update($descData);
+        } else {
+            DB::table('descript')->insert(array_merge($descData, ['pnum' => $productId, 'firma' => (int) $fid]));
+        }
+
+        $this->managerAiSyncRetailPrice($fid, $productId, $price, $wholesalePrice, (float) ($payload['old_price'] ?? 0), $count);
+
+        return ['id' => $productId];
+    }
+
+    private function managerAiNormalizeImages(array $payload, ?object $existing): array
+    {
+        $images = [];
+        if (! empty($payload['image'])) {
+            $images[] = trim((string) $payload['image']);
+        }
+        if (! empty($payload['image_thumb'])) {
+            $images[] = trim((string) $payload['image_thumb']);
+        }
+        foreach ((array) ($payload['images'] ?? []) as $image) {
+            $image = trim((string) $image);
+            if ($image !== '') {
+                $images[] = $image;
+            }
+        }
+
+        if ($images === [] && $existing) {
+            foreach (['nfoto', 'nfoto1', 'nfoto2', 'nfoto3', 'nfoto4', 'nfoto5', 'nfoto6', 'nfoto7', 'nfoto8', 'nfoto9'] as $column) {
+                $value = trim((string) ($existing->{$column} ?? ''));
+                if ($value !== '') {
+                    $images[] = $value;
+                }
+            }
+        }
+
+        return array_values(array_slice(array_unique($images), 0, 10));
+    }
+
+    private function managerAiBuildCompCode(array $payload): string
+    {
+        $source = trim((string) ($payload['external_id'] ?? $payload['source_url'] ?? uniqid('mai_', true)));
+        return substr('mai' . preg_replace('/[^A-Za-z0-9]/', '', hash('crc32b', $source)), 0, 30);
+    }
+
+    private function managerAiFirstString(array $values): string
+    {
+        foreach ($values as $value) {
+            $value = trim((string) $value);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function managerAiSyncRetailPrice(string $fid, int $productId, float $price, float $pay1, float $oldPrice, float $count): void
+    {
+        if (! Schema::hasTable('price')) {
+            return;
+        }
+
+        $tgroup = DB::table('conf')
+            ->where('type', 'tgroup')
+            ->where('firma', $fid)
+            ->where('status', '1')
+            ->orderBy('id')
+            ->value('id');
+
+        if (! $tgroup) {
+            $tgroup = DB::table('price')
+                ->where('firma', $fid)
+                ->where('pnum', (string) $productId)
+                ->orderBy('id')
+                ->value('tgroup');
+        }
+
+        if (! $tgroup) {
+            return;
+        }
+
+        $row = [
+            'pay' => $price,
+            'pay1' => $pay1,
+            'oldpay' => $oldPrice,
+            'count' => $count,
+            'sklad' => $count > 0 ? 1 : 0,
+        ];
+
+        $query = DB::table('price')
+            ->where('firma', $fid)
+            ->where('pnum', (string) $productId)
+            ->where('tgroup', (string) $tgroup);
+
+        if ($query->exists()) {
+            $query->update($this->filterTableColumns('price', $row));
+            return;
+        }
+
+        DB::table('price')->insert($this->filterTableColumns('price', array_merge($row, [
+            'firma' => $fid,
+            'pnum' => (string) $productId,
+            'tgroup' => (string) $tgroup,
+        ])));
+    }
+
+    private function managerAiLoadSerializedGood(int $fid, int $id, Request $request): ?array
+    {
+        $item = $this->managerAiGoodsBaseQuery($fid)->where('comp.id', $id)->first();
+        if (! $item) {
+            return null;
+        }
+
+        return $this->serializeManagerAiGood($item, $this->resolveApiLocale($request), $request);
+    }
+
+    private function filterTableColumns(string $table, array $payload): array
+    {
+        $columns = Schema::hasTable($table) ? Schema::getColumnListing($table) : [];
+        if ($columns === []) {
+            return [];
+        }
+
+        return array_intersect_key($payload, array_flip($columns));
     }
 
     public function saveRating(Request $request, $id)
