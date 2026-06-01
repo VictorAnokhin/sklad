@@ -210,6 +210,52 @@ class ChatService
         ]);
 
         $intent = $this->intentDetector->detect($message, $page, $language);
+        $messageUrl = $this->extractFirstUrl($message);
+        $knowledgeRecords = $this->findRelevantKnowledgeRecords($fid, $message, $messageUrl);
+
+        if ($knowledgeRecords->isNotEmpty()) {
+            return $this->answerFromKnowledgeBase(
+                session: $session,
+                fid: $fid,
+                firma: $firma,
+                message: $message,
+                language: $language,
+                page: $page,
+                intent: array_merge($intent, [
+                    'reason' => 'answered_from_knowledge_base',
+                ]),
+                knowledgeRecords: $knowledgeRecords,
+            );
+        }
+
+        if ($this->managerAiBridge->enabled() && ($intent['type'] ?? '') !== WebChatIntentDetector::SMALL_TALK) {
+            if ($messageUrl !== null) {
+                return $this->delegateUrlResearchToManagerAi(
+                    payload: $payload,
+                    session: $session,
+                    fid: $fid,
+                    firma: $firma,
+                    question: $message,
+                    url: $messageUrl,
+                    intent: array_merge($intent, [
+                        'type' => WebChatIntentDetector::RESEARCH,
+                        'reason' => 'url_not_found_in_kb_delegated_to_manager_ai',
+                    ]),
+                );
+            }
+
+            return $this->delegateKnowledgeGapToManagerAi(
+                payload: $payload,
+                session: $session,
+                fid: $fid,
+                firma: $firma,
+                question: $message,
+                localAnswer: 'В базе знаний проекта нет сохранённой информации по этому запросу.',
+                intent: array_merge($intent, [
+                    'reason' => 'kb_miss_delegated_to_manager_ai',
+                ]),
+            );
+        }
 
         if ($useDbTools && $fid > 0 && $this->isProductCatalogSearchRequest($message, $intent)) {
             return $this->handleProductCatalogSearchRequest($session, $fid, $firma, $message, $language, $intent);
@@ -754,6 +800,111 @@ class ChatService
     }
 
     /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $intent
+     * @return array<string, mixed>
+     */
+    private function delegateUrlResearchToManagerAi(
+        array $payload,
+        ChatSession $session,
+        int $fid,
+        ?int $firma,
+        string $question,
+        string $url,
+        array $intent,
+    ): array {
+        try {
+            $managerResult = $this->managerAiBridge->sendUrlResearchRequest(array_merge($payload, [
+                'session_token' => $session->session_token,
+                'original_question' => $question,
+                'url' => $url,
+                'fid' => $fid,
+                'firma' => $firma,
+            ]));
+
+            $answer = (string) ($managerResult['answer'] ?? 'URL передан manager-ai для изучения и сохранения в базу знаний.');
+
+            $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
+                'provider' => 'manager-ai',
+                'intent' => $intent,
+                'url_research_delegated' => true,
+                'url' => $url,
+                'manager_ai' => $managerResult['manager_ai'] ?? null,
+            ]);
+
+            return array_merge($managerResult, [
+                'session_token' => $session->session_token,
+                'answer' => $answer,
+                'db_tools_enabled' => false,
+                'intent' => $intent,
+                'knowledge_curation' => [
+                    'saved' => false,
+                    'reason' => 'delegated_url_research_to_manager_ai',
+                ],
+                'actions' => [[
+                    'type' => 'read_knowledge_base',
+                    'command' => 'await_manager_ai_ingest',
+                    'fid' => $fid,
+                    'session_token' => $session->session_token,
+                    'source' => 'manager-ai',
+                    'url' => $url,
+                ]],
+                'billing' => [
+                    'paid_by' => 'project',
+                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+                ],
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('ChatService: ManagerAI URL research delegation failed.', [
+                'fid' => $fid,
+                'session_token' => $session->session_token,
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+
+            $answer = 'Не удалось передать URL в manager-ai. Проверьте, что manager-ai запущен на localhost:3100, и повторите запрос.';
+
+            $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
+                'provider' => 'manager-ai',
+                'intent' => $intent,
+                'url_research_delegation_failed' => true,
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'session_token' => $session->session_token,
+                'answer' => $answer,
+                'provider' => 'manager-ai',
+                'model' => null,
+                'usage' => [],
+                'db_tools_enabled' => false,
+                'intent' => $intent,
+                'knowledge_curation' => [
+                    'saved' => false,
+                    'reason' => 'manager_ai_url_delegation_failed',
+                ],
+                'actions' => [],
+                'billing' => [
+                    'paid_by' => 'project',
+                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+                ],
+            ];
+        }
+    }
+
+    private function extractFirstUrl(string $message): ?string
+    {
+        if (preg_match('~https?://[^\s<>"\'\])}]+~iu', $message, $match) !== 1) {
+            return null;
+        }
+
+        $url = rtrim($match[0], ".,;:!?");
+
+        return filter_var($url, FILTER_VALIDATE_URL) ? $url : null;
+    }
+
+    /**
      * Определить fid веб-чата без жесткой привязки к аналитическому проекту.
      *
      * Приоритет:
@@ -1000,6 +1151,171 @@ class ChatService
         ]);
     }
 
+    /**
+     * @return Collection<int, \App\Models\AiKnowledgeBase>
+     */
+    private function findRelevantKnowledgeRecords(int $fid, string $message, ?string $messageUrl = null): Collection
+    {
+        if ($fid <= 0) {
+            return collect();
+        }
+
+        $queries = $this->knowledgeLookupQueries($message, $messageUrl);
+        $records = collect();
+
+        foreach ($queries as $query) {
+            $matches = $this->knowledgeService->search($fid, $query, 5);
+            foreach ($matches as $match) {
+                if (! $records->contains('id', $match->id)) {
+                    $records->push($match);
+                }
+            }
+
+            if ($records->count() >= 5) {
+                break;
+            }
+        }
+
+        return $records->take(5)->values();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function knowledgeLookupQueries(string $message, ?string $messageUrl = null): array
+    {
+        $queries = [];
+
+        if ($messageUrl !== null) {
+            $this->appendKnowledgeLookupQuery($queries, $messageUrl);
+            $this->appendKnowledgeLookupQuery($queries, rtrim($messageUrl, '/'));
+
+            $host = parse_url($messageUrl, PHP_URL_HOST);
+            if (is_string($host) && $host !== '') {
+                $this->appendKnowledgeLookupQuery($queries, $host);
+            }
+        }
+
+        $cleanMessage = trim(preg_replace('~https?://[^\s<>"\'\])}]+~iu', ' ', $message) ?? $message);
+        $this->appendKnowledgeLookupQuery($queries, $cleanMessage);
+
+        $stopWords = [
+            'как', 'что', 'это', 'есть', 'для', 'или', 'про', 'мне', 'нам',
+            'вам', 'нужно', 'надо', 'хочу', 'найди', 'найти', 'изучи',
+            'проверь', 'сайт', 'url', 'the', 'and', 'for', 'with', 'about',
+        ];
+
+        $words = preg_split('/[^\p{L}\p{N}.-]+/u', mb_strtolower($cleanMessage)) ?: [];
+        foreach ($words as $word) {
+            $word = trim($word, " \t\n\r\0\x0B.-_");
+            if (mb_strlen($word) < 4 || in_array($word, $stopWords, true)) {
+                continue;
+            }
+            $this->appendKnowledgeLookupQuery($queries, $word);
+        }
+
+        return array_slice($queries, 0, 8);
+    }
+
+    /**
+     * @param  array<int, string>  $queries
+     */
+    private function appendKnowledgeLookupQuery(array &$queries, string $query): void
+    {
+        $query = trim(preg_replace('/\s+/u', ' ', $query) ?? '');
+        if (mb_strlen($query) < 3 || in_array($query, $queries, true)) {
+            return;
+        }
+
+        $queries[] = $query;
+    }
+
+    /**
+     * @param  Collection<int, \App\Models\AiKnowledgeBase>  $knowledgeRecords
+     * @param  array<string, mixed>  $intent
+     * @return array<string, mixed>
+     */
+    private function answerFromKnowledgeBase(
+        ChatSession $session,
+        int $fid,
+        ?int $firma,
+        string $message,
+        string $language,
+        string $page,
+        array $intent,
+        Collection $knowledgeRecords,
+    ): array {
+        $knowledgeContext = $this->formatKnowledgeRecords($knowledgeRecords);
+        $answerLanguage = match ($language) {
+            'ua' => 'українською',
+            'en' => 'English',
+            default => 'русском',
+        };
+
+        $result = $this->ai->chat(
+            instructions: <<<PROMPT
+Ты консультант вебчата. Отвечай на {$answerLanguage} языке.
+Используй только переданную базу знаний проекта fid={$fid}.
+Если в базе знаний недостаточно информации для точного ответа, прямо скажи, что информации недостаточно.
+Не запускай парсинг, не обещай проверить сайт и не выдумывай факты.
+PROMPT,
+            messages: [[
+                'role' => 'user',
+                'content' => "Страница: {$page}\n\nБаза знаний:\n{$knowledgeContext}\n\nЗапрос пользователя:\n{$message}",
+            ]],
+            options: [
+                'temperature' => 0.2,
+                'max_tokens' => 550,
+            ],
+        );
+
+        $answer = $this->sanitizePublicAnswer((string) ($result['answer'] ?? ''));
+
+        $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
+            'model' => $result['model'] ?? null,
+            'usage' => $result['usage'] ?? null,
+            'provider' => $this->ai->getProviderName(),
+            'db_tools_used' => false,
+            'knowledge_base_used' => true,
+            'knowledge_record_ids' => $knowledgeRecords->pluck('id')->values()->all(),
+            'intent' => $intent,
+        ]);
+
+        return [
+            'session_token' => $session->session_token,
+            'answer' => $answer,
+            'provider' => $this->ai->getProviderName(),
+            'model' => $result['model'] ?? null,
+            'usage' => $result['usage'] ?? null,
+            'db_tools_enabled' => false,
+            'intent' => $intent,
+            'knowledge_curation' => [
+                'saved' => false,
+                'reason' => 'answered_from_knowledge_base',
+                'record_ids' => $knowledgeRecords->pluck('id')->values()->all(),
+            ],
+            'actions' => [],
+            'billing' => [
+                'paid_by' => 'project',
+                'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+            ],
+        ];
+    }
+
+    /**
+     * @param  Collection<int, \App\Models\AiKnowledgeBase>  $records
+     */
+    private function formatKnowledgeRecords(Collection $records): string
+    {
+        return $records->map(function ($record): string {
+            $title = trim((string) ($record->title ?? 'Без заголовка'));
+            $category = trim((string) ($record->category ?? 'general'));
+            $content = trim((string) ($record->content ?? ''));
+
+            return "[{$category}] {$title}\n{$content}";
+        })->implode("\n\n---\n\n");
+    }
+
     private function loadKnowledgeContext(int $fid): string
     {
         if ($fid <= 0) {
@@ -1116,14 +1432,12 @@ class ChatService
                 'search_knowledge_base',
                 'search_docs',
                 'search_news',
-                'fetch_and_save_page',
                 'save_to_knowledge_base',
             ],
             WebChatIntentDetector::PUBLISH_NEWS => [
                 'search_knowledge_base',
                 'search_docs',
                 'search_news',
-                'fetch_and_save_page',
                 'save_to_knowledge_base',
             ],
             default => [
@@ -1171,10 +1485,9 @@ LEARN;
 - О документах/статьях — используй search_docs
 - Если вопрос похож на тот, что уже задавали — используй search_knowledge_base
 
-НОВЫЕ ВОЗМОЖНОСТИ (парсинг сайтов и сохранение знаний):
+НОВЫЕ ВОЗМОЖНОСТИ (сохранение знаний):
 
-1. fetch_and_save_page — Когда пользователь даёт URL сайта или просит проанализировать/сохранить страницу
-2. save_to_knowledge_base — Когда пользователь предоставляет полезную информацию
+1. save_to_knowledge_base — Когда пользователь предоставляет полезную информацию
 
 ВАЖНО: Всегда используй функции для получения реальных данных из БД.
 НЕ выдумывай названия товаров, цены или другие данные — запроси их через функции.
@@ -1228,8 +1541,7 @@ DBTOOLS
 - Если вопрос похож на FAQ или прошлые обращения, сначала используй базу знаний/функции поиска, а не отвечай по памяти модели.
 - Если пользователь просит подготовить, написать или опубликовать статью/новость/обзор, подготовь качественный черновик в веб-чате и используй доступные функции базы знаний/публикации только для текущего fid.
 - Для аналитических запросов сохраняй полезные выводы в базу знаний текущего проекта fid={$fid}.
-- Ты можешь парсить веб-страницы по URL и сохранять их содержимое в базу знаний проекта (функция fetch_and_save_page).
-- Если пользователь просит изучить сайт или сохранить информацию — используй эту возможность.
+- Webchat не парсит веб-страницы сам. Если в базе знаний нет информации по запросу или URL, backend передаст задачу manager-ai.
 - Если пользователь делится полезной информацией — предложи сохранить её в базу знаний (функция save_to_knowledge_base).{$knowledgeSection}{$dbToolsInstruction}{$learningInstruction}
 PROMPT;
     }
@@ -1241,7 +1553,7 @@ PROMPT;
             WebChatIntentDetector::FAQ => '- Найди короткий фактологический ответ. Если есть база знаний или docs, используй их. Ответ 2-5 предложений.',
             WebChatIntentDetector::HOW_TO => '- Дай один понятный следующий шаг или короткую инструкцию. Не перегружай вариантами.',
             WebChatIntentDetector::SUPPORT => '- Признай проблему, попроси один недостающий факт при необходимости и предложи ближайшее действие. Не обвиняй пользователя.',
-            WebChatIntentDetector::RESEARCH => '- Сначала ищи существующие данные. Если пользователь дал URL, используй парсинг и сохранение. Заверши кратким отчётом, что найдено и что сохранено.',
+            WebChatIntentDetector::RESEARCH => '- Используй только существующие данные базы знаний. Если данных нет, backend передаст запрос manager-ai.',
             WebChatIntentDetector::PUBLISH_NEWS => '- Собери проверяемые факты из базы/источников. Если публикационный tool недоступен в вебчате, подготовь качественный черновик для текущего проекта.',
             WebChatIntentDetector::WALLET_ACTION => '- Будь осторожен: не выдумывай onchain-состояние, не проси секреты, объясняй только безопасный следующий шаг и необходимость подписи в кошельке.',
             default => '- Ответь по сути и используй базу знаний при наличии.',

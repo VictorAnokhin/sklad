@@ -86,6 +86,18 @@ class ManagerAiBridgeClient
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
+    public function sendUrlResearchRequest(array $payload): array
+    {
+        $payload['manager_ai_mode'] = 'execute';
+        $payload['message'] = $this->urlResearchMessage($payload);
+
+        return $this->sendChatMessage($payload);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
     public function sendWebchatIntelligence(array $payload): array
     {
         $summary = $payload['summary'] ?? null;
@@ -274,6 +286,40 @@ class ManagerAiBridgeClient
 
 Локальный ответ вебчата, который признан недостаточным:
 {$localAnswer}
+TEXT);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function urlResearchMessage(array $payload): string
+    {
+        $url = trim((string) ($payload['url'] ?? ''));
+        $question = trim((string) ($payload['original_question'] ?? $payload['message'] ?? ''));
+        $fid = (int) ($payload['fid'] ?? 0);
+        $sessionToken = trim((string) ($payload['session_token'] ?? ''));
+
+        return trim(<<<TEXT
+Пользователь вебчата laravel-api указал URL для изучения: {$url}
+
+Задача для manager-ai:
+1. Открой и изучи этот URL.
+2. Подготовь краткое, проверяемое описание найденной информации.
+3. Сохрани результат в базу знаний laravel-api через POST {$this->knowledgeCallbackUrl()}.
+4. Используй header X-ManagerAI-Bridge-Secret с bridge secret.
+5. Тело callback-запроса:
+   {
+     "fid": {$fid},
+     "session_token": "{$sessionToken}",
+     "title": "короткий заголовок страницы или исследования",
+     "content": "самодостаточная запись знания с URL источника, фактами и кратким выводом",
+     "category": "manager_ai_web_research",
+     "answer": "короткий ответ для пользователя"
+   }
+6. Если страница недоступна, сохрани в issue комментарий с причиной и верни пользователю понятный статус.
+
+Исходное сообщение пользователя:
+{$question}
 TEXT);
     }
 

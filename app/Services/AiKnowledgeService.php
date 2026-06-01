@@ -51,9 +51,11 @@ class AiKnowledgeService
     public function fetchAndSavePage(int $fid, string $url, string $category = 'web_page'): array
     {
         try {
+            $sourceUrl = $this->normalizeSourceUrl($url);
+
             // Парсим страницу
             $scraper = app(WebScraperService::class);
-            $result = $scraper->fetchUrl($url);
+            $result = $scraper->fetchUrl($sourceUrl);
 
             if (! $result['success']) {
                 return [
@@ -73,27 +75,52 @@ class AiKnowledgeService
                 ];
             }
 
-            // Сохраняем в базу знаний
-            $record = $this->create($fid, [
-                'title' => $title,
-                'content' => sprintf(
-                    "Источник: %s (%s)\n\n%s",
-                    $url,
-                    $contentType === 'json' ? 'JSON API' : 'Веб-страница',
-                    $content
-                ),
-                'category' => $category,
-                'source' => 'web_scrape',
-                'active' => true,
-            ]);
+            $recordContent = sprintf(
+                "Источник: %s (%s)\n\n%s",
+                $sourceUrl,
+                $contentType === 'json' ? 'JSON API' : 'Веб-страница',
+                $content
+            );
 
-            Log::info('AI knowledge: web page saved.', [
-                'fid' => $fid,
-                'url' => $url,
-                'title' => $title,
-                'category' => $category,
-                'content_length' => mb_strlen($content),
-            ]);
+            $existing = $this->findExistingWebScrapeRecord($fid, $sourceUrl, $category);
+
+            if ($existing) {
+                $existing->update([
+                    'title' => $title,
+                    'content' => $recordContent,
+                    'source' => 'web_scrape',
+                    'active' => true,
+                    'tool_keys' => $existing->tool_keys ?? [],
+                ]);
+
+                $record = $existing->fresh();
+
+                Log::info('AI knowledge: web page updated.', [
+                    'fid' => $fid,
+                    'id' => $record?->id,
+                    'url' => $sourceUrl,
+                    'title' => $title,
+                    'category' => $category,
+                    'content_length' => mb_strlen($content),
+                ]);
+            } else {
+                $record = $this->create($fid, [
+                    'title' => $title,
+                    'content' => $recordContent,
+                    'category' => $category,
+                    'source' => 'web_scrape',
+                    'active' => true,
+                ]);
+
+                Log::info('AI knowledge: web page saved.', [
+                    'fid' => $fid,
+                    'id' => $record->id,
+                    'url' => $sourceUrl,
+                    'title' => $title,
+                    'category' => $category,
+                    'content_length' => mb_strlen($content),
+                ]);
+            }
 
             return [
                 'success' => true,
@@ -230,6 +257,51 @@ class AiKnowledgeService
             'tool_keys' => $data['tool_keys'] ?? [],
             'active' => (bool) ($data['active'] ?? true),
         ]);
+    }
+
+    private function findExistingWebScrapeRecord(int $fid, string $sourceUrl, string $category): ?AiKnowledgeBase
+    {
+        $candidateUrls = array_values(array_unique(array_filter([
+            $sourceUrl,
+            rtrim($sourceUrl, '/'),
+            str_contains($sourceUrl, '?') ? null : rtrim($sourceUrl, '/') . '/',
+        ])));
+
+        return AiKnowledgeBase::forFid($fid)
+            ->where('category', $category)
+            ->where('source', 'web_scrape')
+            ->where(function ($query) use ($candidateUrls) {
+                foreach ($candidateUrls as $candidateUrl) {
+                    $query->orWhere('content', 'like', 'Источник: ' . $candidateUrl . ' (%');
+                }
+            })
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    private function normalizeSourceUrl(string $url): string
+    {
+        $url = trim($url);
+        $parts = parse_url($url);
+
+        if (! is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+            return $url;
+        }
+
+        $scheme = strtolower((string) $parts['scheme']);
+        $host = strtolower((string) $parts['host']);
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+        $path = $parts['path'] ?? '';
+
+        if ($path !== '/' && $path !== '') {
+            $path = rtrim($path, '/');
+        } else {
+            $path = '';
+        }
+
+        $query = isset($parts['query']) && $parts['query'] !== '' ? '?' . $parts['query'] : '';
+
+        return $scheme . '://' . $host . $port . $path . $query;
     }
 
     /**
