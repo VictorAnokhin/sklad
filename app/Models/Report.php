@@ -2096,6 +2096,167 @@ class Report extends Model
         ];
     }
 
+    public static function webchatActivity(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
+    {
+        [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
+        $periodStart = Carbon::createFromFormat('Y-m-d', $dateFromUi)->startOfDay();
+        $periodEnd = Carbon::createFromFormat('Y-m-d', $dateToUi)->endOfDay();
+        $periodLabel = self::periodLabel($dateFromUi, $dateToUi);
+
+        if (!Schema::hasTable('webchat_visitors') || !Schema::hasTable('webchat_events')) {
+            return [
+                'dateFrom' => $dateFromUi,
+                'dateTo' => $dateToUi,
+                'periodLabel' => $periodLabel,
+                'tablesReady' => false,
+                'uniqueVisitors' => 0,
+                'activeVisitors' => 0,
+                'identifiedVisitors' => 0,
+                'eventsCount' => 0,
+                'pageViews' => 0,
+                'chatMessages' => 0,
+                'totalDurationMs' => 0,
+                'avgVisitorTimeMs' => 0,
+                'avgEventDurationMs' => 0,
+                'topPages' => collect(),
+                'topEvents' => collect(),
+                'topDomains' => collect(),
+                'dailyStats' => collect(),
+                'recentVisitors' => collect(),
+                'needsRows' => collect(),
+            ];
+        }
+
+        $visitorBase = DB::table('webchat_visitors')
+            ->where('fid', (int) $fid)
+            ->where(function ($query) use ($periodStart, $periodEnd) {
+                $query->whereBetween('first_seen_at', [$periodStart, $periodEnd])
+                    ->orWhereBetween('last_seen_at', [$periodStart, $periodEnd])
+                    ->orWhereExists(function ($subquery) use ($periodStart, $periodEnd) {
+                        $subquery->selectRaw('1')
+                            ->from('webchat_events')
+                            ->whereColumn('webchat_events.webchat_visitor_id', 'webchat_visitors.id')
+                            ->whereBetween('webchat_events.occurred_at', [$periodStart, $periodEnd]);
+                    });
+            });
+
+        $eventBase = DB::table('webchat_events')
+            ->where('fid', (int) $fid)
+            ->whereBetween('occurred_at', [$periodStart, $periodEnd]);
+
+        $uniqueVisitors = (clone $visitorBase)->count();
+        $activeVisitors = (clone $eventBase)->distinct('visitor_uid')->count('visitor_uid');
+        $identifiedVisitors = (clone $visitorBase)->whereNotNull('identified_user_id')->count();
+        $eventsCount = (clone $eventBase)->count();
+        $pageViews = (clone $eventBase)->where('event_type', 'page_view')->count();
+        $chatMessages = (clone $eventBase)->whereIn('event_type', ['chat_message', 'chat_open', 'chat_submit'])->count();
+        $totalDurationMs = (int) (clone $eventBase)->sum('duration_ms');
+        $visitorDurationMs = (int) (clone $visitorBase)->sum('total_time_ms');
+        $totalDurationMs = max($totalDurationMs, $visitorDurationMs);
+        $avgVisitorTimeMs = $uniqueVisitors > 0 ? (int) round($totalDurationMs / $uniqueVisitors) : 0;
+        $avgEventDurationMs = $eventsCount > 0 ? (int) round(((clone $eventBase)->avg('duration_ms') ?? 0)) : 0;
+
+        $topPages = (clone $eventBase)
+            ->selectRaw("COALESCE(NULLIF(page_path, ''), '/') as page_path, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count, COALESCE(SUM(duration_ms), 0) as duration_ms")
+            ->whereNotNull('page_path')
+            ->groupBy(DB::raw("COALESCE(NULLIF(page_path, ''), '/')"))
+            ->orderByDesc('events_count')
+            ->limit(20)
+            ->get();
+
+        $topEvents = (clone $eventBase)
+            ->selectRaw("COALESCE(NULLIF(event_type, ''), 'unknown') as event_type, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count, COALESCE(SUM(duration_ms), 0) as duration_ms")
+            ->groupBy(DB::raw("COALESCE(NULLIF(event_type, ''), 'unknown')"))
+            ->orderByDesc('events_count')
+            ->limit(20)
+            ->get();
+
+        $topDomains = (clone $eventBase)
+            ->selectRaw("COALESCE(NULLIF(site_domain, ''), 'unknown') as site_domain, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count")
+            ->groupBy(DB::raw("COALESCE(NULLIF(site_domain, ''), 'unknown')"))
+            ->orderByDesc('events_count')
+            ->limit(10)
+            ->get();
+
+        $dailyStats = (clone $eventBase)
+            ->selectRaw('DATE(occurred_at) as day, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count, COALESCE(SUM(duration_ms), 0) as duration_ms')
+            ->groupBy(DB::raw('DATE(occurred_at)'))
+            ->orderBy('day')
+            ->get();
+
+        $recentVisitors = (clone $visitorBase)
+            ->orderByDesc('last_seen_at')
+            ->limit(30)
+            ->get([
+                'visitor_uid',
+                'site_domain',
+                'language',
+                'timezone',
+                'last_seen_path',
+                'last_referrer',
+                'total_time_ms',
+                'journey',
+                'needs_summary',
+                'identified_user_id',
+                'first_seen_at',
+                'last_seen_at',
+            ])
+            ->map(function ($visitor) {
+                $visitor->journey = self::decodeJsonField($visitor->journey);
+                $visitor->needs_summary = self::decodeJsonField($visitor->needs_summary);
+                $visitor->journey_preview = collect($visitor->journey)
+                    ->take(-5)
+                    ->map(fn ($item) => is_array($item) ? (string) ($item['path'] ?? $item['url'] ?? '') : (string) $item)
+                    ->filter()
+                    ->values()
+                    ->all();
+                $visitor->needs_text = self::needsSummaryText($visitor->needs_summary);
+
+                return $visitor;
+            });
+
+        $needsRows = (clone $visitorBase)
+            ->whereNotNull('needs_summary')
+            ->orderByDesc('last_seen_at')
+            ->limit(50)
+            ->get(['visitor_uid', 'site_domain', 'last_seen_path', 'needs_summary', 'last_seen_at'])
+            ->map(function ($visitor) {
+                $needsSummary = self::decodeJsonField($visitor->needs_summary);
+
+                return (object) [
+                    'visitor_uid' => $visitor->visitor_uid,
+                    'site_domain' => $visitor->site_domain,
+                    'last_seen_path' => $visitor->last_seen_path,
+                    'needs_text' => self::needsSummaryText($needsSummary),
+                    'last_seen_at' => $visitor->last_seen_at,
+                ];
+            })
+            ->filter(fn ($row) => $row->needs_text !== '')
+            ->values();
+
+        return [
+            'dateFrom' => $dateFromUi,
+            'dateTo' => $dateToUi,
+            'periodLabel' => $periodLabel,
+            'tablesReady' => true,
+            'uniqueVisitors' => $uniqueVisitors,
+            'activeVisitors' => $activeVisitors,
+            'identifiedVisitors' => $identifiedVisitors,
+            'eventsCount' => $eventsCount,
+            'pageViews' => $pageViews,
+            'chatMessages' => $chatMessages,
+            'totalDurationMs' => $totalDurationMs,
+            'avgVisitorTimeMs' => $avgVisitorTimeMs,
+            'avgEventDurationMs' => $avgEventDurationMs,
+            'topPages' => $topPages,
+            'topEvents' => $topEvents,
+            'topDomains' => $topDomains,
+            'dailyStats' => $dailyStats,
+            'recentVisitors' => $recentVisitors,
+            'needsRows' => $needsRows,
+        ];
+    }
+
     private static function normalizePeriod(string $dateFromInput, string $dateToInput): array
     {
         $start = now()->startOfMonth();
@@ -2134,6 +2295,44 @@ class Report extends Model
         }
 
         return $dateFromUi . ' - ' . $dateToUi;
+    }
+
+    private static function decodeJsonField(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private static function needsSummaryText(array $needsSummary): string
+    {
+        $parts = [];
+
+        foreach (['summary', 'intent', 'need', 'query', 'search_query', 'product_need', 'recommendation'] as $key) {
+            if (!empty($needsSummary[$key]) && is_scalar($needsSummary[$key])) {
+                $parts[] = (string) $needsSummary[$key];
+            }
+        }
+
+        if (!empty($needsSummary['items']) && is_array($needsSummary['items'])) {
+            foreach ($needsSummary['items'] as $item) {
+                if (is_scalar($item)) {
+                    $parts[] = (string) $item;
+                } elseif (is_array($item)) {
+                    $parts[] = (string) ($item['title'] ?? $item['query'] ?? $item['need'] ?? '');
+                }
+            }
+        }
+
+        return trim(implode(' | ', array_filter(array_unique($parts))));
     }
 
     private static function accountNet(string $type, float $debit, float $credit): float

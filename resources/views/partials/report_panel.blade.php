@@ -95,6 +95,7 @@
           'purchaseplan' => 'icon-order.png',
           'profitplan' => 'icon-wallet-income.png',
           'demandtrends' => 'icon-category.png',
+          'webchatactivity' => 'icon-business.png',
           default => 'icon-category.png',
         };
       @endphp

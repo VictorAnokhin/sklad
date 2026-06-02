@@ -45,6 +45,7 @@ class PanelComposer
             request()->routeIs('reports.purchaseplan') => 'purchaseplan',
             request()->routeIs('reports.profitplan') => 'profitplan',
             request()->routeIs('reports.demandtrends') => 'demandtrends',
+            request()->routeIs('reports.webchatactivity') => 'webchatactivity',
             request()->routeIs('reports.index') => 'summary',
             default => '',
         };

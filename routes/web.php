@@ -166,6 +166,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/purchase-plan', [ReportController::class, 'purchasePlan'])->name('purchaseplan');
             Route::get('/profit-plan', [ReportController::class, 'profitPlan'])->name('profitplan');
             Route::get('/demand-trends', [ReportController::class, 'demandTrends'])->name('demandtrends');
+            Route::get('/webchat-activity', [ReportController::class, 'webchatActivity'])->name('webchatactivity');
             Route::get('/strategic-export/{report}/{format}', [ReportController::class, 'strategicExport'])->name('strategic.export');
             Route::get('/finance', [ReportController::class, 'finance'])->name('finance');
         });

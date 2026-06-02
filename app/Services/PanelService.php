@@ -96,6 +96,7 @@ class PanelService
                 $this->makeReportTab('purchaseplan', 'План закупок', $currentReport),
                 $this->makeReportTab('profitplan', 'План прибыли', $currentReport),
                 $this->makeReportTab('demandtrends', 'Тренды спроса', $currentReport),
+                $this->makeReportTab('webchatactivity', 'WebChat активность', $currentReport),
             ];
         }
 
@@ -154,6 +155,7 @@ class PanelService
                 'purchaseplan' => route('reports.purchaseplan'),
                 'profitplan' => route('reports.profitplan'),
                 'demandtrends' => route('reports.demandtrends'),
+                'webchatactivity' => route('reports.webchatactivity'),
                 default => route('reports.index'),
             },
             'active' => $report === $currentReport,

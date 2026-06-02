@@ -215,6 +215,18 @@ class ReportController extends Controller
         return view('reports.demand_trends', $data);
     }
 
+    public function webchatActivity(Request $request)
+    {
+        $fid = (string) session('fid', '');
+        $data = Report::webchatActivity(
+            $fid,
+            (string) $request->input('date_from', ''),
+            (string) $request->input('date_to', '')
+        );
+
+        return view('reports.webchat_activity', $data);
+    }
+
     public function trialBalance(Request $request)
     {
         $fid = (string) session('fid', '');
