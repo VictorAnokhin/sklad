@@ -217,6 +217,23 @@ class ChatService
         $knowledgeRecords = $this->findRelevantKnowledgeRecords($fid, $message, $messageUrl);
         $assistantMemory = $this->businessAssistantMemory($session);
 
+        if ($this->shouldDelegateUnclearQuestion($message, $intent)) {
+            return $this->delegateBusinessAssistantToManagerAi(
+                payload: array_merge($payload, [
+                    'delegation_reason' => 'unclear_question',
+                ]),
+                session: $session,
+                fid: $fid,
+                firma: $firma,
+                question: $message,
+                intent: array_merge($intent, [
+                    'type' => 'unclear_question',
+                    'reason' => 'unclear_question_delegated_to_webchat_agent',
+                ]),
+                targetAgent: 'WebChatAgent',
+            );
+        }
+
         if ($knowledgeRecords->isNotEmpty()) {
             return $this->answerFromKnowledgeBase(
                 session: $session,
@@ -1052,6 +1069,62 @@ class ChatService
             WebChatIntentDetector::RESEARCH,
             WebChatIntentDetector::SUPPORT,
         ], true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $intent
+     */
+    private function shouldDelegateUnclearQuestion(string $message, array $intent): bool
+    {
+        if (! $this->managerAiBridge->enabled()) {
+            return false;
+        }
+
+        if (($intent['type'] ?? '') === WebChatIntentDetector::SMALL_TALK) {
+            return false;
+        }
+
+        $text = trim(mb_strtolower($message));
+        if ($text === '') {
+            return false;
+        }
+
+        foreach ([
+            'не понял',
+            'не поняла',
+            'не понимаю',
+            'не ясно',
+            'неясно',
+            'не понятно',
+            'непонятно',
+            'что дальше',
+            'что теперь',
+            'а дальше',
+            'а это как',
+            'как это',
+            'что это',
+            'объясни проще',
+            'поясни',
+            'wtf',
+        ] as $marker) {
+            if (mb_stripos($text, $marker) !== false) {
+                return true;
+            }
+        }
+
+        $words = preg_split('/[^\p{L}\p{N}_-]+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $confidence = (float) ($intent['confidence'] ?? 0.0);
+        $reason = (string) ($intent['reason'] ?? '');
+
+        if ($confidence <= 0.58 && count($words) <= 7) {
+            return true;
+        }
+
+        if (in_array($reason, ['default_question', 'page_context_question'], true) && count($words) <= 4) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

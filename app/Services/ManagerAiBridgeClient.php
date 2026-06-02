@@ -365,15 +365,21 @@ TEXT);
         $pageUrl = trim((string) ($payload['page_url'] ?? ''));
         $siteDomain = trim((string) ($payload['site_domain'] ?? ''));
         $language = trim((string) ($payload['language'] ?? 'ru'));
+        $delegationReason = trim((string) ($payload['delegation_reason'] ?? 'business_assistant'));
 
         $agentScope = $agent === 'FinancialAnalyst'
             ? 'Фокус: финансовая аналитика, отчеты, cash flow, P&L, balance sheet, finance, unit economics, риски и выводы для собственника. Не анализируй проекты вне указанного fid.'
             : 'Фокус: webchat, поведение посетителя, текущая страница, поиск свежей информации, UX-навигация, потребности клиента и рекомендации для следующего действия.';
 
+        $unclearInstruction = $delegationReason === 'unclear_question'
+            ? "\nОсобый режим: вопрос пользователя неоднозначный или обрывочный. Восстанови вероятный смысл по странице, fid, истории webchat/visitor context и задачам системы. Если уверенности недостаточно, верни короткое уточнение с 1-2 конкретными вариантами, что пользователь мог иметь в виду."
+            : '';
+
         return trim(<<<TEXT
 Запрос из WebChat laravel-api для агента {$agent} на ai.autoagent.in.ua.
 
 {$agentScope}
+{$unclearInstruction}
 
 Задача:
 1. Изучи запрос пользователя и доступный контекст.
@@ -399,6 +405,7 @@ TEXT);
 - page_url: {$pageUrl}
 - site_domain: {$siteDomain}
 - language: {$language}
+- delegation_reason: {$delegationReason}
 
 Запрос пользователя:
 {$question}

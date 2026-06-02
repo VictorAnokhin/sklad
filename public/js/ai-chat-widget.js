@@ -488,36 +488,6 @@
     container.scrollTop = container.scrollHeight;
   }
 
-  function renderQuickReplies() {
-    var wrap = createEl("div", { className: "ai-chat-quick-replies" });
-
-    CONFIG.quickReplies.forEach(function (reply) {
-      var label = typeof reply === "string" ? reply : (reply.label || reply.value || "");
-      var value = typeof reply === "string" ? reply : (reply.value || reply.label || "");
-      if (!label || !value) return;
-
-      var btn = createEl("button", {
-        className: "ai-chat-quick-reply",
-        type: "button",
-      }, label);
-
-      btn.addEventListener("click", function () {
-        trackEvent("quick_reply_clicked", {
-          funnel_step: reply.funnel_step || label,
-          metadata: {
-            cta_label: label,
-            quick_reply_value: value,
-          },
-        });
-        sendMessage(value);
-      });
-
-      wrap.appendChild(btn);
-    });
-
-    return wrap;
-  }
-
   // ── Show error ─────────────────────────────────────────
   function showError(text) {
     var bar = elements.errorBar;
