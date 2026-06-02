@@ -32,6 +32,7 @@ class ChatService
         private readonly DbQueryService $dbQuery,
         private readonly AiClientFactory $aiFactory,
         private readonly ManagerAiBridgeClient $managerAiBridge,
+        private readonly WebchatIntelligenceService $webchatIntelligence,
     ) {
         $this->ai = $this->aiFactory->make(self::SHARED_AI_CHANNEL);
     }
@@ -204,12 +205,14 @@ class ChatService
         // Сохраняем сообщение пользователя вместе с webchat intelligence контекстом.
         $this->saveMessage($session->id, $fid, $firma, 'user', $message, [
             'visitor_uid' => $payload['visitor_uid'] ?? null,
+            'fingerprint_hash' => $payload['fingerprint_hash'] ?? null,
             'site_domain' => $payload['site_domain'] ?? null,
             'page_url' => $payload['page_url'] ?? null,
             'referrer' => $payload['referrer'] ?? null,
         ]);
 
         $intent = $this->intentDetector->detect($message, $page, $language);
+        $visitorContext = $this->webchatVisitorContext($fid, (string) ($payload['visitor_uid'] ?? ''));
         $messageUrl = $this->extractFirstUrl($message);
         $knowledgeRecords = $this->findRelevantKnowledgeRecords($fid, $message, $messageUrl);
 
@@ -302,6 +305,7 @@ class ChatService
                 ($firma !== null && $firma > 0 ? "ID компании (firma): {$firma}\n" : '').
                 "Намерение: {$intent['type']} ({$intent['reason']})\n".
                 "Тема: {$intent['topic']}\n".
+                ($visitorContext !== '' ? "Контекст пути посетителя: {$visitorContext}\n" : '').
                 "Вопрос пользователя: {$message}",
         ];
 
@@ -448,6 +452,63 @@ class ChatService
                 WebChatIntentDetector::RESEARCH,
                 WebChatIntentDetector::PUBLISH_NEWS,
             ], true);
+    }
+
+    private function webchatVisitorContext(int $fid, string $visitorUid): string
+    {
+        if ($fid <= 0 || trim($visitorUid) === '') {
+            return '';
+        }
+
+        try {
+            $context = $this->webchatIntelligence->visitorContext($fid, $visitorUid);
+        } catch (Throwable $e) {
+            Log::debug('ChatService: failed to load webchat visitor context.', [
+                'fid' => $fid,
+                'error' => $e->getMessage(),
+            ]);
+
+            return '';
+        }
+
+        if (! ($context['known'] ?? false)) {
+            return '';
+        }
+
+        $analysis = is_array($context['analysis'] ?? null) ? $context['analysis'] : [];
+        $journey = is_array($context['journey'] ?? null) ? array_slice($context['journey'], -5) : [];
+
+        $pages = array_map(function ($item): string {
+            $path = (string) ($item['page_path'] ?? '');
+            $durationMs = (int) ($item['duration_ms'] ?? 0);
+            $seconds = $durationMs > 0 ? ' '.$this->formatSeconds($durationMs).'s' : '';
+
+            return trim($path.$seconds);
+        }, $journey);
+
+        $parts = [
+            'likely_intent='.(string) ($analysis['likely_intent'] ?? 'unknown'),
+            'confidence='.(string) ($analysis['confidence'] ?? 0),
+            'page_views='.(string) ($context['page_views'] ?? 0),
+            'total_time_s='.$this->formatSeconds((int) ($context['total_time_ms'] ?? 0)),
+        ];
+
+        if (! empty($context['interests']) && is_array($context['interests'])) {
+            $parts[] = 'interests='.implode(', ', array_slice($context['interests'], 0, 5));
+        }
+        if (! empty($pages)) {
+            $parts[] = 'recent_pages='.implode(' -> ', array_filter($pages));
+        }
+        if (! empty($context['proactive_message'])) {
+            $parts[] = 'suggested_help='.(string) $context['proactive_message'];
+        }
+
+        return implode('; ', array_filter($parts));
+    }
+
+    private function formatSeconds(int $milliseconds): string
+    {
+        return (string) max(0, (int) floor($milliseconds / 1000));
     }
 
     /**

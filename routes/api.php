@@ -24,6 +24,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\WalrusProxyController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WebchatIntelligenceController;
+use App\Http\Controllers\WidgetIntelligenceController;
 use App\Http\Controllers\ZakazController;
 
 /*
@@ -70,6 +71,8 @@ Route::middleware(['api', 'sui.sponsor.log', 'auth:sanctum'])->post('/sui/shinam
 
 Route::middleware(['api', 'throttle:10,1'])->put('/walrus/{network}/v1/blobs', [WalrusProxyController::class, 'store']);
 
+Route::middleware(['api', 'throttle:120,1'])->post('/v1/widget/handshake', [WidgetIntelligenceController::class, 'handshake']);
+
 Route::middleware('api')->post('/debug/frontend', function (Request $request) {
     $payload = $request->validate([
         'area' => ['nullable', 'string', 'max:80'],
@@ -103,10 +106,19 @@ Route::middleware(['api', 'throttle:30,1'])->group(function () {
 Route::middleware(['api', 'throttle:120,1'])->group(function () {
     Route::get('/webchat/config', [WebchatIntelligenceController::class, 'config']);
     Route::post('/webchat/events', [WebchatIntelligenceController::class, 'event']);
+    Route::get('/webchat/visitor-context', [WebchatIntelligenceController::class, 'visitorContext']);
 });
 Route::middleware(['api', 'throttle:30,1'])->group(function () {
     Route::get('/webchat/analytics/summary', [WebchatIntelligenceController::class, 'summary']);
     Route::post('/webchat/manager-ai/sync', [WebchatIntelligenceController::class, 'syncManagerAi']);
+});
+Route::middleware(['api', 'throttle:120,1'])->prefix('external/webchat')->group(function () {
+    Route::get('/visitors', [WebchatIntelligenceController::class, 'agentVisitors']);
+    Route::get('/visitors/{visitorUid}', [WebchatIntelligenceController::class, 'agentVisitorShow']);
+    Route::post('/visitors/upsert', [WebchatIntelligenceController::class, 'agentVisitorUpsert']);
+    Route::get('/events', [WebchatIntelligenceController::class, 'agentEvents']);
+    Route::post('/events', [WebchatIntelligenceController::class, 'agentEventStore']);
+    Route::post('/unmet-needs', [WidgetIntelligenceController::class, 'storeUnmetNeed']);
 });
 Route::middleware(['api', 'throttle:60,1'])->group(function () {
     Route::get('/ai/knowledge-base', [AiKnowledgeBaseController::class, 'index']);

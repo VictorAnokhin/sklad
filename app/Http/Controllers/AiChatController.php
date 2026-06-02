@@ -31,6 +31,7 @@ class AiChatController extends Controller
             'site_domain' => ['nullable', 'string', 'max:120'],
             'referrer' => ['nullable', 'string', 'max:500'],
             'visitor_uid' => ['nullable', 'string', 'max:100'],
+            'fingerprint_hash' => ['nullable', 'string', 'max:128'],
             'wallet' => ['nullable', 'string', 'max:100'],
             'fid' => ['nullable', 'integer', 'min:1', 'max:999999'],
             'firma' => ['nullable', 'integer', 'min:1', 'max:999999'],

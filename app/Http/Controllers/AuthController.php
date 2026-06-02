@@ -7,6 +7,7 @@ use App\Services\AiClientFactory;
 use App\Services\ShinamiClient;
 use App\Services\SuiLocalGasSponsorClient;
 use App\Services\SmsClubService;
+use App\Services\WidgetIntelligenceService;
 use Elliptic\EC;
 use Illuminate\Mail\Message;
 use Illuminate\Http\Request;
@@ -751,6 +752,9 @@ class AuthController extends Controller
         $request->validate([
             'credential' => 'required|string',
             'fid' => 'nullable|string|max:20',
+            'fingerprint_hash' => 'nullable|string|max:128',
+            'visitor_uid' => 'nullable|string|max:100',
+            'site_domain' => 'nullable|string|max:120',
         ]);
 
         $googleClientId = (string) config('services.google.client_id', '');
@@ -778,6 +782,16 @@ class AuthController extends Controller
         }
 
         $this->syncUserRoleStatus($user);
+
+        app(WidgetIntelligenceService::class)->linkGoogleProfile([
+            'fid' => (int) ($this->resolveAuthFid($request) ?? 12),
+            'fingerprint_hash' => $request->string('fingerprint_hash')->toString(),
+            'visitor_uid' => $request->string('visitor_uid')->toString(),
+            'site_domain' => $request->string('site_domain')->toString(),
+            'user_id' => $user->id,
+            'google_id' => (string) ($payload['sub'] ?? ''),
+            'email' => (string) ($payload['email'] ?? $user->email ?? ''),
+        ]);
 
         $token = $user->createToken('api-token')->plainTextToken;
 

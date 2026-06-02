@@ -46,6 +46,7 @@ class WebchatIntelligenceController extends Controller
             'referrer' => ['nullable', 'string', 'max:500'],
             'language' => ['nullable', 'string', 'max:10'],
             'timezone' => ['nullable', 'string', 'max:80'],
+            'duration_ms' => ['nullable', 'integer', 'min:0', 'max:1800000'],
             'user_id' => ['nullable', 'integer', 'min:1'],
             'consent_analytics' => ['nullable', 'boolean'],
             'metadata' => ['nullable', 'array'],
@@ -58,7 +59,21 @@ class WebchatIntelligenceController extends Controller
             'ok' => true,
             'visitor_id' => $result['visitor']->id,
             'event_id' => $result['event']->id,
+            'visitor_context' => $this->webchat->visitorContext((int) $payload['fid'], (string) $payload['visitor_uid']),
         ]);
+    }
+
+    public function visitorContext(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1', 'max:999999'],
+            'visitor_uid' => ['required', 'string', 'max:100'],
+        ]);
+
+        return response()->json($this->webchat->visitorContext(
+            (int) $payload['fid'],
+            (string) $payload['visitor_uid'],
+        ));
     }
 
     public function summary(Request $request): JsonResponse
@@ -132,6 +147,134 @@ class WebchatIntelligenceController extends Controller
         ]);
     }
 
+    public function agentVisitors(Request $request): JsonResponse
+    {
+        if (! $this->canUseAgentApi($request)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1', 'max:999999'],
+            'visitor_uid' => ['nullable', 'string', 'max:100'],
+            'last_session_token' => ['nullable', 'string', 'max:64'],
+            'ip_hash' => ['nullable', 'string', 'max:64'],
+            'last_ip_hash' => ['nullable', 'string', 'max:64'],
+            'user_agent_hash' => ['nullable', 'string', 'max:64'],
+            'seen_since' => ['nullable', 'date'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
+        ]);
+
+        return response()->json($this->webchat->agentVisitors($payload));
+    }
+
+    public function agentVisitorShow(Request $request, string $visitorUid): JsonResponse
+    {
+        if (! $this->canUseAgentApi($request)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1', 'max:999999'],
+        ]);
+
+        $visitor = $this->webchat->agentVisitor((int) $payload['fid'], $visitorUid);
+        if ($visitor === null) {
+            return response()->json(['message' => 'Visitor not found.'], 404);
+        }
+
+        return response()->json($visitor);
+    }
+
+    public function agentVisitorUpsert(Request $request): JsonResponse
+    {
+        if (! $this->canUseAgentApi($request)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1', 'max:999999'],
+            'visitor_uid' => ['required', 'string', 'max:100'],
+            'site_domain' => ['nullable', 'string', 'max:120'],
+            'last_session_token' => ['nullable', 'string', 'max:64'],
+            'identified_user_id' => ['nullable', 'integer', 'min:1'],
+            'language' => ['nullable', 'string', 'max:10'],
+            'timezone' => ['nullable', 'string', 'max:80'],
+            'last_seen_url' => ['nullable', 'string', 'max:500'],
+            'last_seen_path' => ['nullable', 'string', 'max:255'],
+            'last_referrer' => ['nullable', 'string', 'max:500'],
+            'ip_hash' => ['nullable', 'string', 'max:64'],
+            'last_ip_hash' => ['nullable', 'string', 'max:64'],
+            'user_agent_hash' => ['nullable', 'string', 'max:64'],
+            'interests' => ['nullable', 'array', 'max:50'],
+            'traits' => ['nullable', 'array'],
+            'counters' => ['nullable', 'array'],
+            'journey' => ['nullable', 'array', 'max:50'],
+            'needs_summary' => ['nullable', 'array'],
+            'total_time_ms' => ['nullable', 'integer', 'min:0'],
+            'consent_analytics' => ['nullable', 'boolean'],
+            'identification_confidence' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'first_seen_at' => ['nullable', 'date'],
+            'last_seen_at' => ['nullable', 'date'],
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'visitor' => $this->webchat->agentUpsertVisitor($payload),
+        ]);
+    }
+
+    public function agentEvents(Request $request): JsonResponse
+    {
+        if (! $this->canUseAgentApi($request)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1', 'max:999999'],
+            'visitor_uid' => ['nullable', 'string', 'max:100'],
+            'session_token' => ['nullable', 'string', 'max:64'],
+            'event_type' => ['nullable', 'string', 'max:80'],
+            'ip_hash' => ['nullable', 'string', 'max:64'],
+            'user_agent_hash' => ['nullable', 'string', 'max:64'],
+            'occurred_since' => ['nullable', 'date'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        return response()->json($this->webchat->agentEvents($payload));
+    }
+
+    public function agentEventStore(Request $request): JsonResponse
+    {
+        if (! $this->canUseAgentApi($request)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1', 'max:999999'],
+            'visitor_uid' => ['required', 'string', 'max:100'],
+            'session_token' => ['nullable', 'string', 'max:64'],
+            'event_type' => ['required', 'string', 'max:80'],
+            'funnel_step' => ['nullable', 'string', 'max:120'],
+            'ui_variant_key' => ['nullable', 'string', 'max:120'],
+            'site_domain' => ['nullable', 'string', 'max:120'],
+            'page_url' => ['nullable', 'string', 'max:500'],
+            'page_path' => ['nullable', 'string', 'max:255'],
+            'page_title' => ['nullable', 'string', 'max:255'],
+            'referrer' => ['nullable', 'string', 'max:500'],
+            'language' => ['nullable', 'string', 'max:10'],
+            'duration_ms' => ['nullable', 'integer', 'min:0', 'max:1800000'],
+            'ip_hash' => ['nullable', 'string', 'max:64'],
+            'user_agent_hash' => ['nullable', 'string', 'max:64'],
+            'metadata' => ['nullable', 'array'],
+            'occurred_at' => ['nullable', 'date'],
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'event' => $this->webchat->agentStoreEvent($payload),
+        ], 201);
+    }
+
     private function canReadAnalytics(Request $request): bool
     {
         if ($request->user() !== null) {
@@ -144,5 +287,10 @@ class WebchatIntelligenceController extends Controller
         }
 
         return hash_equals($secret, trim((string) $request->header('X-ManagerAI-Bridge-Secret', '')));
+    }
+
+    private function canUseAgentApi(Request $request): bool
+    {
+        return $this->canReadAnalytics($request);
     }
 }

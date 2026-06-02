@@ -23,6 +23,9 @@ class WebchatEvent extends Model
         'page_title',
         'referrer',
         'language',
+        'duration_ms',
+        'ip_hash',
+        'user_agent_hash',
         'metadata',
         'occurred_at',
     ];
@@ -30,6 +33,7 @@ class WebchatEvent extends Model
     protected $casts = [
         'fid' => 'integer',
         'webchat_visitor_id' => 'integer',
+        'duration_ms' => 'integer',
         'metadata' => 'array',
         'occurred_at' => 'datetime',
     ];
