@@ -31,24 +31,28 @@
         ->orderBy('name')
         ->get(['id', 'num', 'name'])
     : collect();
-  $zeroSumOrdersByProject = collect();
-  $zeroSumOrdersCount = 0;
+  $newOrdersByProject = collect();
+  $newOrdersCount = 0;
 
   if (
     $isAuthenticated
     && $userProjectIds->isNotEmpty()
     && \Illuminate\Support\Facades\Schema::hasTable('document')
   ) {
-    $zeroSumOrdersByProject = \Illuminate\Support\Facades\DB::table('document')
+    $newOrdersByProject = \Illuminate\Support\Facades\DB::table('document')
       ->select('firma', \Illuminate\Support\Facades\DB::raw('COUNT(*) as cnt'))
       ->whereIn('firma', $userProjectIds->map(fn ($id) => (string) $id)->all())
       ->where('type', 'ZOUT')
-      ->whereRaw('COALESCE(summa, 0) = 0')
+      ->where(function ($query) {
+        $query->whereNull('status')
+          ->orWhere('status', '')
+          ->orWhere('status', '0');
+      })
       ->groupBy('firma')
       ->pluck('cnt', 'firma')
       ->mapWithKeys(fn ($count, $firma) => [(int) $firma => (int) $count]);
 
-    $zeroSumOrdersCount = (int) $zeroSumOrdersByProject->sum();
+    $newOrdersCount = (int) $newOrdersByProject->sum();
   }
   $activeFid = (int) session('fid', $userProjectIds->first() ?: $userProjectId);
   $activeLang = \App\Models\Field::normalizeLocale(app()->getLocale());
@@ -75,9 +79,9 @@
           @csrf
           <select id="header-project-select" name="fid" class="header-bar__title" onchange="this.form.submit()">
             @foreach($headerProjects as $project)
-              @php $projectZeroSumOrdersCount = (int) ($zeroSumOrdersByProject->get((int) $project->id, 0)); @endphp
+              @php $projectNewOrdersCount = (int) ($newOrdersByProject->get((int) $project->id, 0)); @endphp
               <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
-                 {{ $project->name }} #{{ $project->id }}{{ $projectZeroSumOrdersCount > 0 ? ' | 0: ' . $projectZeroSumOrdersCount : '' }}
+                 {{ $project->name }} #{{ $project->id }}{{ $projectNewOrdersCount > 0 ? ' | new: ' . $projectNewOrdersCount : '' }}
               </option>
             @endforeach
           </select>
@@ -133,8 +137,8 @@
       <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
       <a class="header-nav-menu__link header-nav-menu__link--with-badge" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">
         {{ __('nav.orders') }}
-        @if($zeroSumOrdersCount > 0)
-          <span class="header-zero-orders-badge" title="Заказы с нулевой суммой во всех проектах этого email">{{ $zeroSumOrdersCount }}</span>
+        @if($newOrdersCount > 0)
+          <span class="header-new-orders-badge" title="Новые заказы без выбранного статуса во всех проектах этого email">{{ $newOrdersCount }}</span>
         @endif
       </a>
       <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
@@ -183,7 +187,7 @@
     gap: 0.45rem;
   }
 
-  .header-zero-orders-badge {
+  .header-new-orders-badge {
     min-width: 1.45rem;
     height: 1.45rem;
     padding: 0 0.4rem;
