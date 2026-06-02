@@ -31,6 +31,25 @@
         ->orderBy('name')
         ->get(['id', 'num', 'name'])
     : collect();
+  $zeroSumOrdersByProject = collect();
+  $zeroSumOrdersCount = 0;
+
+  if (
+    $isAuthenticated
+    && $userProjectIds->isNotEmpty()
+    && \Illuminate\Support\Facades\Schema::hasTable('document')
+  ) {
+    $zeroSumOrdersByProject = \Illuminate\Support\Facades\DB::table('document')
+      ->select('firma', \Illuminate\Support\Facades\DB::raw('COUNT(*) as cnt'))
+      ->whereIn('firma', $userProjectIds->map(fn ($id) => (string) $id)->all())
+      ->where('type', 'ZOUT')
+      ->whereRaw('COALESCE(summa, 0) = 0')
+      ->groupBy('firma')
+      ->pluck('cnt', 'firma')
+      ->mapWithKeys(fn ($count, $firma) => [(int) $firma => (int) $count]);
+
+    $zeroSumOrdersCount = (int) $zeroSumOrdersByProject->sum();
+  }
   $activeFid = (int) session('fid', $userProjectIds->first() ?: $userProjectId);
   $activeLang = \App\Models\Field::normalizeLocale(app()->getLocale());
   $headerLangOptions = ['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'];
@@ -56,8 +75,9 @@
           @csrf
           <select id="header-project-select" name="fid" class="header-bar__title" onchange="this.form.submit()">
             @foreach($headerProjects as $project)
+              @php $projectZeroSumOrdersCount = (int) ($zeroSumOrdersByProject->get((int) $project->id, 0)); @endphp
               <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
-                 {{ $project->name }} #{{ $project->id }}
+                 {{ $project->name }} #{{ $project->id }}{{ $projectZeroSumOrdersCount > 0 ? ' | 0: ' . $projectZeroSumOrdersCount : '' }}
               </option>
             @endforeach
           </select>
@@ -111,7 +131,12 @@
     <div class="header-nav-menu__section-label">Бизнес</div>
     <div class="header-nav-menu__grid">
       <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
-      <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">{{ __('nav.orders') }}</a>
+      <a class="header-nav-menu__link header-nav-menu__link--with-badge" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">
+        {{ __('nav.orders') }}
+        @if($zeroSumOrdersCount > 0)
+          <span class="header-zero-orders-badge" title="Заказы с нулевой суммой во всех проектах этого email">{{ $zeroSumOrdersCount }}</span>
+        @endif
+      </a>
       <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
       <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">Трансферы</a>
       <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
@@ -151,6 +176,28 @@
 
 <style>
   /* Desktop: project selector is compact and on the right */
+  .header-nav-menu__link--with-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+  }
+
+  .header-zero-orders-badge {
+    min-width: 1.45rem;
+    height: 1.45rem;
+    padding: 0 0.4rem;
+    border: 1px solid rgba(251, 191, 36, 0.85);
+    border-radius: 999px;
+    background: rgba(251, 191, 36, 0.16);
+    color: #fbbf24;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.35rem;
+    text-align: center;
+    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.08);
+  }
+
   @media (min-width: 901px) {
     .mobile-only-link {
       display: none !important;
