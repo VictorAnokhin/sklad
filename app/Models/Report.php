@@ -1377,7 +1377,7 @@ class Report extends Model
         $baseQuery = DB::table('z_document as d')
             ->leftJoin('users as u', 'u.id', '=', 'd.client1')
             ->leftJoin('conf as opl', function ($join) use ($fid) {
-                $join->on('d.money', '=', 'opl.id')
+                $join->on('opl.id', '=', DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, ''))"))
                     ->where('opl.type', '=', 'oplata')
                     ->where('opl.firma', '=', $fid);
             })
@@ -1395,7 +1395,7 @@ class Report extends Model
             );
 
         if ($oplataId !== '') {
-            $baseQuery->where('d.money', $oplataId);
+            $baseQuery->whereRaw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) = ?", [$oplataId]);
         }
 
         $totalIncome = (float) (clone $baseQuery)->where('d.type', 'PO')->sum('d.summa');
@@ -1426,6 +1426,7 @@ class Report extends Model
                 'd.summa',
                 'd.content',
                 'd.money',
+                'd.oplata',
                 'd.reestr',
                 'd.client1',
                 'u.orgname',
@@ -1433,7 +1434,7 @@ class Report extends Model
                 'u.name2',
                 'u.secondname',
                 'u.phone',
-                DB::raw("COALESCE(NULLIF(opl.name, ''), CONCAT('Каса #', d.money)) as oplata_name"),
+                DB::raw("COALESCE(NULLIF(opl.name, ''), CONCAT('Каса #', COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')))) as oplata_name"),
                 DB::raw("COALESCE(NULLIF(reg.name, ''), CONCAT('Вид #', d.reestr)) as reestr_name"),
             ])
             ->withQueryString();
