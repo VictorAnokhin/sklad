@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\Goods;
+use App\Models\Field;
 use App\Models\ZBody;
 use App\Models\Conf;
 use App\Models\Docs;
@@ -228,6 +229,7 @@ class DocumentController extends Controller
         $year = $request->input('year', session('year', date('Y')));
         $doc = $request->input('doc', session('doc', 'ZOUT'));
         $fid = session('fid', '');
+        $locale = $this->resolveBackendLocale($request);
         $incomingParentDocId = (string) $request->input('parent_doc_id', $request->input('doc_id', '0'));
 
         // Fix year format: "2-28" → "2025" → detect properly
@@ -435,16 +437,33 @@ class DocumentController extends Controller
                 $join->on('zb.pnum', '=', 'c.id')
                     ->on('zb.firma', '=', 'c.firma');
             })
+            ->leftJoin('descript as d', function ($join) {
+                $join->on('d.pnum', '=', 'zb.pnum')
+                    ->on('d.firma', '=', 'zb.firma');
+            })
             ->where('zb.docid', $docIdToFind)
-            ->select('zb.*', 'c.name as name', 'c.pay as comp_pay', 'c.pay1 as comp_pay1')
+            ->select(
+                'zb.*',
+                'c.name as comp_name',
+                'c.pay as comp_pay',
+                'c.pay1 as comp_pay1',
+                DB::raw('COALESCE(d.name, "") as descript_name'),
+                DB::raw('COALESCE(d.name_ua, "") as descript_name_ua'),
+                DB::raw('COALESCE(d.name_en, "") as descript_name_en')
+            )
             ->orderBy('zb.id')
             ->get();
 
         $pricingMeta = $this->goodsPricingMetaByPnum($lineItems->pluck('pnum'), $fid);
 
-        $lineItems = $lineItems->map(function ($item) use ($pricingMeta) {
+        $lineItems = $lineItems->map(function ($item) use ($pricingMeta, $locale) {
             $meta = $pricingMeta[(string) $item->pnum] ?? [];
-            $item->name = (string) $item->name;
+            $item->name = Field::localizedValue(
+                $locale,
+                $item->descript_name ?? '',
+                $item->descript_name_ua ?? '',
+                $item->descript_name_en ?? ''
+            ) ?: (string) ($item->comp_name ?? '');
             $item->price_pay = (float) ($meta['price_pay'] ?? 0);
             $item->price_pay1 = (float) ($meta['price_pay1'] ?? 0);
             $item->price_count = (int) ($meta['price_count'] ?? 0);
@@ -595,6 +614,7 @@ class DocumentController extends Controller
         $doc = (string) $request->input('doc', session('doc', ''));
         $docId = (string) $request->input('doc_id', session('doc_id', '0'));
         $fid = (string) session('fid', '');
+        $locale = $this->resolveBackendLocale($request);
 
         if (!in_array($doc, ['CH', 'RN'], true)) {
             return redirect()->route('document.show', [
@@ -625,10 +645,31 @@ class DocumentController extends Controller
                 $join->on('zb.pnum', '=', 'c.id')
                     ->on('zb.firma', '=', 'c.firma');
             })
+            ->leftJoin('descript as d', function ($join) {
+                $join->on('d.pnum', '=', 'zb.pnum')
+                    ->on('d.firma', '=', 'zb.firma');
+            })
             ->where('zb.docid', $docIdToFind)
-            ->select('zb.*', 'c.name as name')
+            ->select(
+                'zb.*',
+                'c.name as comp_name',
+                DB::raw('COALESCE(d.name, "") as descript_name'),
+                DB::raw('COALESCE(d.name_ua, "") as descript_name_ua'),
+                DB::raw('COALESCE(d.name_en, "") as descript_name_en')
+            )
             ->orderBy('zb.id')
             ->get();
+
+        $lineItems = $lineItems->map(function ($item) use ($locale) {
+            $item->name = Field::localizedValue(
+                $locale,
+                $item->descript_name ?? '',
+                $item->descript_name_ua ?? '',
+                $item->descript_name_en ?? ''
+            ) ?: (string) ($item->comp_name ?? '');
+
+            return $item;
+        });
 
         $client = $document->client1
             ? DB::table('users')->where('id', $document->client1)->first()
