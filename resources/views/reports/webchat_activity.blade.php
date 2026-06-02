@@ -23,7 +23,37 @@
 
         return $restSeconds . 'с';
     };
+
+    $hint = static function (string $text): string {
+        return '<span class="webchat-report-info" tabindex="0" role="button" data-bs-toggle="tooltip" data-bs-placement="top" title="' . e($text) . '">i</span>';
+    };
 @endphp
+
+<style>
+    .webchat-report-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        margin-left: 5px;
+        border: 1px solid rgba(251, 191, 36, 0.55);
+        border-radius: 50%;
+        color: #fbbf24;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: help;
+        vertical-align: middle;
+    }
+
+    .webchat-report-info:hover,
+    .webchat-report-info:focus {
+        background: rgba(251, 191, 36, 0.16);
+        border-color: rgba(251, 191, 36, 0.85);
+        outline: none;
+    }
+</style>
 
 <div class="container mt-4 reports-page" data-bs-theme="dark">
     @include('reports.period_form', [
@@ -49,30 +79,30 @@
             <div class="row g-3">
                 <div class="col-md-3">
                     <div class="rounded border p-3 h-100">
-                        <div class="text-muted small mb-1">Відвідувачів у періоді</div>
+                        <div class="text-muted small mb-1">Відвідувачів у періоді {!! $hint('Унікальні visitor_uid поточного проекту, які були вперше помічені, активні або востаннє бачені у вибраному періоді.') !!}</div>
                         <div class="fs-4 fw-bold text-primary">{{ (int) $uniqueVisitors }}</div>
-                        <div class="text-muted small mt-1">Активних по подіях: {{ (int) $activeVisitors }}</div>
+                        <div class="text-muted small mt-1">Активних по подіях {!! $hint('Кількість унікальних visitor_uid, у яких були події WebChat у вибраному періоді.') !!}: {{ (int) $activeVisitors }}</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="rounded border p-3 h-100">
-                        <div class="text-muted small mb-1">Подій WebChat</div>
+                        <div class="text-muted small mb-1">Подій WebChat {!! $hint('Загальна кількість подій, які записав скрипт чату: перегляд сторінки, відкриття чату, повідомлення, вихід зі сторінки та інші активності.') !!}</div>
                         <div class="fs-4 fw-bold text-light">{{ (int) $eventsCount }}</div>
-                        <div class="text-muted small mt-1">Переглядів сторінок: {{ (int) $pageViews }}</div>
+                        <div class="text-muted small mt-1">Переглядів сторінок {!! $hint('Кількість подій page_view, тобто зафіксованих відкриттів сторінок сайту.') !!}: {{ (int) $pageViews }}</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="rounded border p-3 h-100">
-                        <div class="text-muted small mb-1">Сумарний час</div>
+                        <div class="text-muted small mb-1">Сумарний час {!! $hint('Сумарна тривалість активності відвідувачів у межах вибраного періоду. Рахується за duration_ms подій і накопиченим total_time_ms профілю.') !!}</div>
                         <div class="fs-4 fw-bold text-success">{{ $formatDuration($totalDurationMs) }}</div>
-                        <div class="text-muted small mt-1">Середній на відвідувача: {{ $formatDuration($avgVisitorTimeMs) }}</div>
+                        <div class="text-muted small mt-1">Середній на відвідувача {!! $hint('Сумарний час, поділений на кількість відвідувачів у періоді.') !!}: {{ $formatDuration($avgVisitorTimeMs) }}</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="rounded border p-3 h-100">
-                        <div class="text-muted small mb-1">Ідентифіковано</div>
+                        <div class="text-muted small mb-1">Ідентифіковано {!! $hint('Відвідувачі, яких вдалося зв’язати з користувачем системи або авторизованим профілем.') !!}</div>
                         <div class="fs-4 fw-bold text-warning">{{ (int) $identifiedVisitors }}</div>
-                        <div class="text-muted small mt-1">Чат-активностей: {{ (int) $chatMessages }}</div>
+                        <div class="text-muted small mt-1">Чат-активностей {!! $hint('Події, пов’язані безпосередньо з чатом: відкриття, відправка повідомлення або інші чат-дії.') !!}: {{ (int) $chatMessages }}</div>
                     </div>
                 </div>
             </div>
@@ -93,10 +123,10 @@
                         <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                             <thead class="table-dark">
                                 <tr>
-                                    <th>Сторінка</th>
-                                    <th class="text-end">Подій</th>
-                                    <th class="text-end">Відвідувачів</th>
-                                    <th class="text-end">Час</th>
+                                    <th>Сторінка {!! $hint('URL-шлях сторінки без домену. Допомагає зрозуміти, які розділи сайту найчастіше переглядали.') !!}</th>
+                                    <th class="text-end">Подій {!! $hint('Скільки webchat-подій було зафіксовано на цій сторінці.') !!}</th>
+                                    <th class="text-end">Відвідувачів {!! $hint('Скільки унікальних visitor_uid взаємодіяли з цією сторінкою.') !!}</th>
+                                    <th class="text-end">Час {!! $hint('Сумарний час активності на цій сторінці за даними duration_ms.') !!}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -128,10 +158,10 @@
                         <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                             <thead class="table-dark">
                                 <tr>
-                                    <th>Подія</th>
-                                    <th class="text-end">Кількість</th>
-                                    <th class="text-end">Відвідувачів</th>
-                                    <th class="text-end">Час</th>
+                                    <th>Подія {!! $hint('Тип події, яку передав скрипт WebChat: page_view, page_leave, chat_open, chat_message, session_dropped тощо.') !!}</th>
+                                    <th class="text-end">Кількість {!! $hint('Скільки разів подія цього типу трапилась у періоді.') !!}</th>
+                                    <th class="text-end">Відвідувачів {!! $hint('Скільки унікальних відвідувачів мали подію цього типу.') !!}</th>
+                                    <th class="text-end">Час {!! $hint('Сумарна тривалість, пов’язана з подіями цього типу.') !!}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -162,10 +192,10 @@
                         <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                             <thead class="table-dark">
                                 <tr>
-                                    <th>День</th>
-                                    <th class="text-end">Подій</th>
-                                    <th class="text-end">Відвідувачів</th>
-                                    <th class="text-end">Час</th>
+                                    <th>День {!! $hint('Календарний день, за який згруповано webchat-події.') !!}</th>
+                                    <th class="text-end">Подій {!! $hint('Загальна кількість подій WebChat за цей день.') !!}</th>
+                                    <th class="text-end">Відвідувачів {!! $hint('Кількість унікальних visitor_uid за цей день.') !!}</th>
+                                    <th class="text-end">Час {!! $hint('Сумарний час активності відвідувачів за цей день.') !!}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -194,8 +224,8 @@
                         <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                             <thead class="table-dark">
                                 <tr>
-                                    <th>Домен</th>
-                                    <th class="text-end">Подій</th>
+                                    <th>Домен {!! $hint('Домен сайту або піддомен, з якого прийшли webchat-події.') !!}</th>
+                                    <th class="text-end">Подій {!! $hint('Кількість подій WebChat, записаних для цього домену.') !!}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -222,8 +252,8 @@
                         <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                             <thead class="table-dark">
                                 <tr>
-                                    <th>Потреба</th>
-                                    <th>Останній шлях</th>
+                                    <th>Потреба {!! $hint('Короткий needs_summary: що, ймовірно, шукав або хотів відвідувач. Заповнюється агентом або логикой анализа.') !!}</th>
+                                    <th>Останній шлях {!! $hint('Остання сторінка, на якій був відвідувач із цією зафіксованою потребою.') !!}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -253,13 +283,13 @@
                 <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                     <thead class="table-dark">
                         <tr>
-                            <th>Відвідувач</th>
-                            <th>Домен</th>
-                            <th>Остання сторінка</th>
-                            <th>Journey</th>
-                            <th>Потреба</th>
-                            <th class="text-end">Час</th>
-                            <th>Останній візит</th>
+                            <th>Відвідувач {!! $hint('Внутрішній visitor_uid. Якщо профіль ідентифіковано, нижче показується user id; інакше anonymous.') !!}</th>
+                            <th>Домен {!! $hint('Домен, на якому востаннє був зафіксований відвідувач.') !!}</th>
+                            <th>Остання сторінка {!! $hint('Останній URL-шлях, де скрипт бачив цього відвідувача.') !!}</th>
+                            <th>Journey {!! $hint('Compact journey: останні сторінки маршруту відвідувача по сайту.') !!}</th>
+                            <th>Потреба {!! $hint('Стислий опис потреби відвідувача з needs_summary, якщо агент уже її сформував.') !!}</th>
+                            <th class="text-end">Час {!! $hint('Накопичений total_time_ms цього відвідувача.') !!}</th>
+                            <th>Останній візит {!! $hint('Дата і час, коли відвідувач востаннє був зафіксований WebChat.') !!}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -295,3 +325,17 @@
     @endif
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (!window.bootstrap || !bootstrap.Tooltip) {
+        return;
+    }
+
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (element) {
+        new bootstrap.Tooltip(element);
+    });
+});
+</script>
+@endpush

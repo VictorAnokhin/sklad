@@ -1826,11 +1826,20 @@ class Report extends Model
 
         if ($byProduct) {
             return $query
-                ->groupBy(DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%Y-%m')"), 'zb.pnum', 'c.name', 'd.name', 'd.name_ua', 'd.name_en', 'c.nickname', 'c.namedoc')
+                ->groupBy(
+                    DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%Y-%m')"),
+                    'zb.pnum',
+                    'c.name',
+                    'd.name',
+                    'd.name_ua',
+                    'd.name_en',
+                    'c.nickname',
+                    'c.namedoc'
+                )
                 ->orderBy(DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%Y-%m')"))
                 ->get([
                     DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%Y-%m') as month_key"),
-                    DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%m-%Y') as month_label"),
+                    DB::raw("MIN(DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%m-%Y')) as month_label"),
                     'zb.pnum',
                     DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(c.nickname, ''), NULLIF(c.namedoc, ''), NULLIF(c.name, ''), CONCAT('Товар #', zb.pnum)) as product_name"),
                     DB::raw('SUM(zb.pcount) as qty'),
@@ -1844,7 +1853,7 @@ class Report extends Model
             ->orderBy(DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%Y-%m')"))
             ->get([
                 DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%Y-%m') as month_key"),
-                DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%m-%Y') as month_label"),
+                DB::raw("MIN(DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%m-%Y')) as month_label"),
                 DB::raw('SUM(zb.pcount) as qty'),
                 DB::raw('SUM(zb.psumma) as revenue'),
                 DB::raw('COUNT(DISTINCT zd.id) as sales_docs'),
@@ -1884,7 +1893,7 @@ class Report extends Model
             ->orderBy(DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%m')"))
             ->get([
                 DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%m') as month_num"),
-                DB::raw("DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%m') as month_label"),
+                DB::raw("MIN(DATE_FORMAT(STR_TO_DATE(zd.data, '%d-%m-%Y'), '%m')) as month_label"),
                 DB::raw('SUM(zb.pcount) as qty'),
                 DB::raw('SUM(zb.psumma) as revenue'),
             ]);
