@@ -54,7 +54,7 @@ class Goods extends Model
     {
         $fName = $filters['fName'] ?? '';
         $filterBrand = $filters['filterBrand'] ?? '';
-        $skladNone = $filters['skladNone'] ?? '';
+        $inStockOnly = ($filters['skladNone'] ?? '') === '1';
         $showAllGoods = ($filters['showAllGoods'] ?? '') === '1';
 
         $query = self::query()
@@ -100,7 +100,7 @@ class Goods extends Model
         }
         if ($filterBrand)
             $query->where('comp.idtype', $filterBrand);
-        if ($skladNone !== '1')
+        if ($inStockOnly)
             $query->where('comp.sklad', '1');
         return $query;
     }
