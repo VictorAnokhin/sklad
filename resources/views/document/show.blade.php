@@ -1326,7 +1326,7 @@
 	                                const a = document.createElement('a');
 	                                const imageUrl = good.image_thumb || good.image || '';
 	                                const imageHtml = imageUrl
-	                                    ? `<img src="${imageUrl}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;background:#f1f5f9;flex:0 0 48px;">`
+	                                    ? `<img src="${imageUrl}" alt="" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f1f5f9;flex:0 0 48px;">`
 	                                    : `<div style="width:48px;height:48px;border-radius:6px;background:#e5e7eb;flex:0 0 48px;"></div>`;
 	                                a.href = '#'; a.className = 'list-group-item list-group-item-action py-2 bg-white text-dark';
 	                                a.innerHTML = `<div style="display:flex;gap:10px;align-items:center;">${imageHtml}<div><strong>${good.pnum}</strong> - ${good.name || ''} <br><small class="text-dark">Ціна (pay): ${good.priceCompPay} грн | Залишок: ${good.count || 0}</small></div></div>`;
