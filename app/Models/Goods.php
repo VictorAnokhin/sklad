@@ -911,63 +911,65 @@ class Goods extends Model
 
     public static function saveGoods($pnum, $fid, $compData, $priceRows, $descData, $fotoMap)
     {
-        foreach ([
-            'idcaption', 'idglava', 'idtype', 'firma', 'nickname', 'namedoc',
-            'garant', 'htmldescr', 'htmlkeys', 'htmlkeyspop', 'nvideo1', 'nvideo2'
-        ] as $stringField) {
-            if (!array_key_exists($stringField, $compData) || $compData[$stringField] === null) {
-                $compData[$stringField] = '';
-            } else {
-                $compData[$stringField] = (string) $compData[$stringField];
+        return DB::transaction(function () use ($pnum, $fid, $compData, $priceRows, $descData, $fotoMap) {
+            foreach ([
+                'idcaption', 'idglava', 'idtype', 'firma', 'nickname', 'namedoc',
+                'garant', 'htmldescr', 'htmlkeys', 'htmlkeyspop', 'nvideo1', 'nvideo2'
+            ] as $stringField) {
+                if (!array_key_exists($stringField, $compData) || $compData[$stringField] === null) {
+                    $compData[$stringField] = '';
+                } else {
+                    $compData[$stringField] = (string) $compData[$stringField];
+                }
             }
-        }
 
-        // ── Price groups upsert
-        foreach ($priceRows as $gid => $row) {
-            $existing = DB::table('price')
-                ->where('tgroup', $gid)->where('pnum', $pnum)->where('firma', $fid)
-                ->exists();
-            if ($existing) {
-                DB::table('price')
+            // ── Main comp data
+            $compData = array_merge($compData, $fotoMap);
+
+            if ($pnum === '' || $pnum === '0') {
+                $compData['cod'] = date('dmHis') . rand(10, 99);
+                $compData['dt'] = date('d-m-Y');
+                $pnum = (string) DB::table('comp')->insertGetId($compData);
+            } else {
+                DB::table('comp')->where('id', $pnum)->update($compData);
+            }
+
+            // ── Price groups upsert
+            foreach ($priceRows as $gid => $row) {
+                $existing = DB::table('price')
                     ->where('tgroup', $gid)->where('pnum', $pnum)->where('firma', $fid)
-                    ->update($row);
-            } else {
-                DB::table('price')->insert(array_merge($row, [
-                    'tgroup' => $gid,
-                    'pnum' => $pnum,
-                    'firma' => $fid,
-                ]));
+                    ->exists();
+                if ($existing) {
+                    DB::table('price')
+                        ->where('tgroup', $gid)->where('pnum', $pnum)->where('firma', $fid)
+                        ->update($row);
+                } else {
+                    DB::table('price')->insert(array_merge($row, [
+                        'tgroup' => $gid,
+                        'pnum' => $pnum,
+                        'firma' => $fid,
+                    ]));
+                }
             }
-        }
 
-        // ── Main comp data
-        $compData = array_merge($compData, $fotoMap);
-
-        if ($pnum === '' || $pnum === '0') {
-            $compData['cod'] = date('dmHis') . rand(10, 99);
-            $compData['dt'] = now();
-            $pnum = (string) DB::table('comp')->insertGetId($compData);
-        } else {
-            DB::table('comp')->where('id', $pnum)->update($compData);
-        }
-
-        // ── Descript upsert
-        foreach (['name', 'name_ua', 'name_en', 'description', 'description_ua', 'description_en'] as $stringField) {
-            if (!array_key_exists($stringField, $descData) || $descData[$stringField] === null) {
-                $descData[$stringField] = '';
-            } else {
-                $descData[$stringField] = (string) $descData[$stringField];
+            // ── Descript upsert
+            foreach (['name', 'name_ua', 'name_en', 'description', 'description_ua', 'description_en'] as $stringField) {
+                if (!array_key_exists($stringField, $descData) || $descData[$stringField] === null) {
+                    $descData[$stringField] = '';
+                } else {
+                    $descData[$stringField] = (string) $descData[$stringField];
+                }
             }
-        }
 
-        $hasDesc = DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->exists();
-        if ($hasDesc) {
-            DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->update($descData);
-        } else {
-            DB::table('descript')->insert(array_merge($descData, ['pnum' => $pnum, 'firma' => $fid]));
-        }
+            $hasDesc = DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->exists();
+            if ($hasDesc) {
+                DB::table('descript')->where('pnum', $pnum)->where('firma', $fid)->update($descData);
+            } else {
+                DB::table('descript')->insert(array_merge($descData, ['pnum' => $pnum, 'firma' => $fid]));
+            }
 
-        return $pnum;
+            return $pnum;
+        });
     }
 
     // ── delete: remove product ────────────────────────────────────────────────
