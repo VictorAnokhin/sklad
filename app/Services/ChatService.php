@@ -215,6 +215,7 @@ class ChatService
         $visitorContext = $this->webchatVisitorContext($fid, (string) ($payload['visitor_uid'] ?? ''));
         $messageUrl = $this->extractFirstUrl($message);
         $knowledgeRecords = $this->findRelevantKnowledgeRecords($fid, $message, $messageUrl);
+        $assistantMemory = $this->businessAssistantMemory($session);
 
         if ($knowledgeRecords->isNotEmpty()) {
             return $this->answerFromKnowledgeBase(
@@ -228,6 +229,23 @@ class ChatService
                     'reason' => 'answered_from_knowledge_base',
                 ]),
                 knowledgeRecords: $knowledgeRecords,
+            );
+        }
+
+        if ($this->shouldDelegateBusinessAssistantRequest($message, $intent)) {
+            return $this->delegateBusinessAssistantToManagerAi(
+                payload: $payload,
+                session: $session,
+                fid: $fid,
+                firma: $firma,
+                question: $message,
+                intent: array_merge($intent, [
+                    'type' => $this->businessAssistantTargetAgent($message, $intent) === 'FinancialAnalyst'
+                        ? 'financial_analysis'
+                        : 'business_assistant',
+                    'reason' => 'business_assistant_delegation',
+                ]),
+                targetAgent: $this->businessAssistantTargetAgent($message, $intent),
             );
         }
 
@@ -306,6 +324,7 @@ class ChatService
                 "Намерение: {$intent['type']} ({$intent['reason']})\n".
                 "Тема: {$intent['topic']}\n".
                 ($visitorContext !== '' ? "Контекст пути посетителя: {$visitorContext}\n" : '').
+                ($assistantMemory !== '' ? "Память бизнес-ассистента: {$assistantMemory}\n" : '').
                 "Вопрос пользователя: {$message}",
         ];
 
@@ -971,6 +990,229 @@ class ChatService
     }
 
     /**
+     * @param  array<string, mixed>  $intent
+     */
+    private function shouldDelegateBusinessAssistantRequest(string $message, array $intent): bool
+    {
+        if (! $this->managerAiBridge->enabled()) {
+            return false;
+        }
+
+        if (($intent['type'] ?? '') === WebChatIntentDetector::SMALL_TALK) {
+            return false;
+        }
+
+        $text = mb_strtolower($message);
+        $markers = [
+            'свеж',
+            'актуаль',
+            'последн',
+            'новост',
+            'сегодня',
+            'вчера',
+            'рынок',
+            'курс',
+            'аналит',
+            'проанализ',
+            'отчет',
+            'отчёт',
+            'финанс',
+            'p&l',
+            'pnl',
+            'cash flow',
+            'balance',
+            'баланс',
+            'unit',
+            'roi',
+            'ltv',
+            'cac',
+            'посещ',
+            'активност',
+            'пользовател',
+            'webchat',
+            'вебчат',
+            'что делать',
+            'подскажи по системе',
+            'как лучше',
+            'latest',
+            'current',
+            'today',
+            'market',
+            'financial',
+            'analytics',
+        ];
+
+        foreach ($markers as $marker) {
+            if (mb_stripos($text, $marker) !== false) {
+                return true;
+            }
+        }
+
+        return in_array($intent['type'] ?? '', [
+            WebChatIntentDetector::RESEARCH,
+            WebChatIntentDetector::SUPPORT,
+        ], true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $intent
+     */
+    private function businessAssistantTargetAgent(string $message, array $intent): string
+    {
+        $text = mb_strtolower($message.' '.(string) ($intent['topic'] ?? ''));
+
+        foreach ([
+            'финанс',
+            'отчет',
+            'отчёт',
+            'p&l',
+            'pnl',
+            'cash flow',
+            'balance',
+            'баланс',
+            'unit',
+            'марж',
+            'прибыл',
+            'прибут',
+            'выруч',
+            'вируч',
+            'расход',
+            'витрат',
+            'roi',
+            'ltv',
+            'cac',
+        ] as $marker) {
+            if (mb_stripos($text, $marker) !== false) {
+                return 'FinancialAnalyst';
+            }
+        }
+
+        return 'WebChatAgent';
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $intent
+     * @return array<string, mixed>
+     */
+    private function delegateBusinessAssistantToManagerAi(
+        array $payload,
+        ChatSession $session,
+        int $fid,
+        ?int $firma,
+        string $question,
+        array $intent,
+        string $targetAgent,
+    ): array {
+        try {
+            $managerResult = $this->managerAiBridge->sendBusinessAssistantRequest(array_merge($payload, [
+                'session_token' => $session->session_token,
+                'original_question' => $question,
+                'fid' => $fid,
+                'firma' => $firma,
+                'target_agent' => $targetAgent,
+            ]));
+
+            $answer = $targetAgent === 'FinancialAnalyst'
+                ? 'Передал запрос FinancialAnalyst. Он проверит финансовые данные текущего проекта и сохранит выводы для этого чата.'
+                : 'Передал запрос WebChatAgent. Он проверит актуальную информацию и сохранит краткий вывод для этого чата.';
+
+            $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
+                'provider' => 'manager-ai',
+                'intent' => $intent,
+                'business_assistant_delegated' => true,
+                'target_agent' => $targetAgent,
+                'manager_ai' => $managerResult['manager_ai'] ?? null,
+                'ready_for_future_context' => true,
+            ]);
+
+            return array_merge($managerResult, [
+                'session_token' => $session->session_token,
+                'answer' => $answer,
+                'db_tools_enabled' => false,
+                'intent' => $intent,
+                'knowledge_curation' => [
+                    'saved' => false,
+                    'reason' => 'delegated_to_'.$targetAgent,
+                ],
+                'actions' => [[
+                    'type' => 'read_knowledge_base',
+                    'command' => 'await_business_assistant_result',
+                    'fid' => $fid,
+                    'session_token' => $session->session_token,
+                    'source' => $targetAgent,
+                ]],
+                'billing' => [
+                    'paid_by' => 'project',
+                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+                ],
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('ChatService: business assistant delegation failed.', [
+                'fid' => $fid,
+                'session_token' => $session->session_token,
+                'target_agent' => $targetAgent,
+                'error' => $e->getMessage(),
+            ]);
+
+            if (! $this->managerAiBridge->fallbackToLocal()) {
+                throw $e;
+            }
+
+            $answer = 'Не удалось передать запрос бизнес-ассистенту. Могу помочь по данным, которые уже есть в системе, или попробуйте повторить запрос позже.';
+
+            $this->saveMessage($session->id, $fid, $firma, 'assistant', $answer, [
+                'provider' => 'manager-ai',
+                'intent' => $intent,
+                'business_assistant_delegation_failed' => true,
+                'target_agent' => $targetAgent,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'session_token' => $session->session_token,
+                'answer' => $answer,
+                'provider' => 'manager-ai',
+                'model' => null,
+                'usage' => [],
+                'db_tools_enabled' => false,
+                'intent' => $intent,
+                'knowledge_curation' => [
+                    'saved' => false,
+                    'reason' => 'business_assistant_unavailable',
+                ],
+                'actions' => [],
+                'billing' => [
+                    'paid_by' => 'project',
+                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+                ],
+            ];
+        }
+    }
+
+    private function businessAssistantMemory(ChatSession $session): string
+    {
+        $messages = $session->messages()
+            ->where('role', 'assistant')
+            ->orderByDesc('created_at')
+            ->limit(12)
+            ->get();
+
+        $items = [];
+        foreach ($messages as $message) {
+            $metadata = is_array($message->metadata) ? $message->metadata : [];
+            if (empty($metadata['business_assistant_delegated']) && empty($metadata['ready_for_future_context'])) {
+                continue;
+            }
+
+            $agent = (string) ($metadata['target_agent'] ?? 'BusinessAssistant');
+            $items[] = '['.$agent.'] '.trim((string) $message->content);
+        }
+
+        return implode(' | ', array_slice($items, 0, 5));
+    }
+
+    /**
      * Определить fid веб-чата без жесткой привязки к аналитическому проекту.
      *
      * Приоритет:
@@ -1578,6 +1820,14 @@ DBTOOLS
 - если видишь хороший CTA или формулировку для этого fid, упомяни её кратко в metadata/выводах через доступные функции сохранения знаний, когда это уместно;
 - не смешивай знания разных проектов: всё, что узнаёшь и сохраняешь, относится только к fid={$fid}.
 
+Ты также личный бизнес-ассистент владельца/менеджера проекта:
+- помогай ориентироваться в системе: подсказывай, какой отчет, страницу, раздел или действие открыть для задачи пользователя;
+- объясняй отчеты простым языком: что значит показатель, на что смотреть, какой следующий управленческий шаг возможен;
+- для аналитики используй данные текущего fid и доступные функции БД, не смешивай проекты;
+- если вопрос требует свежей внешней информации, обновленного исследования или финансового анализа вне локального контекста, backend передаст запрос WebChatAgent или FinancialAnalyst на ai.autoagent.in.ua;
+- если в истории/памяти уже есть готовый вывод бизнес-ассистента, используй его сразу и предложи актуализировать только при необходимости;
+- не выдавай финансовые рекомендации как персональный совет: формулируй как аналитическое наблюдение и возможный следующий шаг для проверки.
+
 Контекст сессии:
 - ID проекта (fid): {$fid}
 - Намерение пользователя: {$intentType}
@@ -1610,6 +1860,7 @@ DBTOOLS
 - Если пользователь просит подготовить, написать или опубликовать статью/новость/обзор, подготовь качественный черновик в веб-чате и используй доступные функции базы знаний/публикации только для текущего fid.
 - Для аналитических запросов сохраняй полезные выводы в базу знаний текущего проекта fid={$fid}.
 - Webchat не парсит веб-страницы сам. Если в базе знаний нет информации по запросу или URL, backend передаст задачу manager-ai.
+- Если пользователь просит свежие данные, рынок, новости, аналитику посетителей или финансовый анализ, не выдумывай. Используй локальные данные, а при нехватке данных сообщи, что запрос передается профильному агенту.
 - Если пользователь делится полезной информацией — предложи сохранить её в базу знаний (функция save_to_knowledge_base).{$knowledgeSection}{$dbToolsInstruction}{$learningInstruction}
 PROMPT;
     }

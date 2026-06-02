@@ -105,6 +105,18 @@ class ManagerAiBridgeClient
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
+    public function sendBusinessAssistantRequest(array $payload): array
+    {
+        $payload['manager_ai_mode'] = 'execute';
+        $payload['message'] = $this->businessAssistantMessage($payload);
+
+        return $this->sendChatMessage($payload);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
     public function sendWebchatIntelligence(array $payload): array
     {
         $summary = $payload['summary'] ?? null;
@@ -331,6 +343,64 @@ TEXT);
 6. Если страница недоступна, сохрани в issue комментарий с причиной и верни пользователю понятный статус.
 
 Исходное сообщение пользователя:
+{$question}
+TEXT);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function businessAssistantMessage(array $payload): string
+    {
+        $question = trim((string) ($payload['original_question'] ?? $payload['message'] ?? ''));
+        $agent = trim((string) ($payload['target_agent'] ?? 'WebChatAgent'));
+        if (! in_array($agent, ['WebChatAgent', 'FinancialAnalyst'], true)) {
+            $agent = 'WebChatAgent';
+        }
+
+        $fid = (int) ($payload['fid'] ?? 0);
+        $sessionToken = trim((string) ($payload['session_token'] ?? ''));
+        $visitorUid = trim((string) ($payload['visitor_uid'] ?? ''));
+        $page = trim((string) ($payload['page'] ?? ''));
+        $pageUrl = trim((string) ($payload['page_url'] ?? ''));
+        $siteDomain = trim((string) ($payload['site_domain'] ?? ''));
+        $language = trim((string) ($payload['language'] ?? 'ru'));
+
+        $agentScope = $agent === 'FinancialAnalyst'
+            ? 'Фокус: финансовая аналитика, отчеты, cash flow, P&L, balance sheet, finance, unit economics, риски и выводы для собственника. Не анализируй проекты вне указанного fid.'
+            : 'Фокус: webchat, поведение посетителя, текущая страница, поиск свежей информации, UX-навигация, потребности клиента и рекомендации для следующего действия.';
+
+        return trim(<<<TEXT
+Запрос из WebChat laravel-api для агента {$agent} на ai.autoagent.in.ua.
+
+{$agentScope}
+
+Задача:
+1. Изучи запрос пользователя и доступный контекст.
+2. Если нужна свежая или обновленная информация, получи ее своими доступными инструментами.
+3. Если запрос про финансовую аналитику, используй только данные текущего fid={$fid}.
+4. Подготовь короткий ответ для пользователя вебчата: простым языком, с выводами и ближайшим действием.
+5. Если результат полезен для будущих сессий, сохрани краткое знание в laravel-api через POST {$this->knowledgeCallbackUrl()}.
+6. В callback используй header X-ManagerAI-Bridge-Secret и JSON:
+   {
+     "fid": {$fid},
+     "session_token": "{$sessionToken}",
+     "title": "короткий заголовок",
+     "content": "самодостаточная запись: вопрос, выводы, данные, дата проверки, ограничения",
+     "category": "business_assistant_{$agent}",
+     "answer": "короткий ответ для пользователя"
+   }
+
+Контекст:
+- fid: {$fid}
+- session_token: {$sessionToken}
+- visitor_uid: {$visitorUid}
+- page: {$page}
+- page_url: {$pageUrl}
+- site_domain: {$siteDomain}
+- language: {$language}
+
+Запрос пользователя:
 {$question}
 TEXT);
     }

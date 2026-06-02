@@ -23,12 +23,12 @@
     quickReplies: [],
     messages: {
       ru: {
-        title: "Консультант",
+        title: "Ассистент",
         subtitle: "",
         thinking: "Думаю…",
         placeholder: "Напишите сообщение…",
         sendLabel: "Отправить",
-        button: "Консультант",
+        button: "Ассистент",
         collapse: "Свернуть",
         welcome:
           "Спросите об AV8Capital, услугах для микро-бизнеса, финансовом учёте или как пользоваться системой.",
@@ -42,12 +42,12 @@
         serverProcessing: "Распознаю речь…",
       },
       ua: {
-        title: "Консультант",
+        title: "Асистент",
         subtitle: "",
         thinking: "Думаю…",
         placeholder: "Напишіть повідомлення…",
         sendLabel: "Надіслати",
-        button: "Консультант",
+        button: "Асистент",
         collapse: "Згорнути",
         welcome:
           "Запитайте про AV8Capital, послуги для мікро-бізнесу, фінансовий облік або як користуватися системою.",
@@ -61,12 +61,12 @@
         serverProcessing: "Розпізнаю мовлення…",
       },
       en: {
-        title: "Consultant",
+        title: "Assistant",
         subtitle: "",
         thinking: "Thinking…",
         placeholder: "Type a message…",
         sendLabel: "Send",
-        button: "Consultant",
+        button: "Assistant",
         collapse: "Collapse",
         welcome:
           "Ask about AV8Capital, micro-business services, financial accounting, or how to use the system.",
@@ -276,9 +276,7 @@
       }
     });
 
-    if (Array.isArray(ui.quick_replies)) {
-      CONFIG.quickReplies = ui.quick_replies.slice(0, 6);
-    }
+    CONFIG.quickReplies = [];
 
     if (state.rows.length === 1 && state.rows[0].role === "assistant") {
       state.rows[0].content = msg("welcome");
@@ -485,8 +483,6 @@
         document.createTextNode(msg("thinking")),
       ]);
       container.appendChild(thinking);
-    } else if (CONFIG.quickReplies && CONFIG.quickReplies.length) {
-      container.appendChild(renderQuickReplies());
     }
 
     container.scrollTop = container.scrollHeight;
