@@ -23,12 +23,12 @@
             </div>
 
             <div class="row g-3">
-                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Виручка</div><div class="fs-5 fw-bold text-primary">{{ number_format((float) $revenueTotal, 2, '.', ' ') }} грн</div></div></div>
-                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">COGS</div><div class="fs-5 fw-bold text-light">{{ number_format((float) $cogsTotal, 2, '.', ' ') }} грн</div></div></div>
-                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Валова прибуток</div><div class="fs-5 fw-bold {{ $grossProfitTotal >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $grossProfitTotal, 2, '.', ' ') }} грн</div></div></div>
-                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Маржа</div><div class="fs-5 fw-bold">{{ number_format((float) $grossMarginTotal, 1, '.', ' ') }}%</div></div></div>
-                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">OPEX</div><div class="fs-5 fw-bold text-warning">{{ number_format((float) $operatingExpensesTotal, 2, '.', ' ') }} грн</div></div></div>
-                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Чистий прибуток</div><div class="fs-5 fw-bold {{ $netProfit >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $netProfit, 2, '.', ' ') }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Виручка @include('reports.hint', ['text' => 'Загальна сума проведених продажів за період без урахування операційних витрат.'])</div><div class="fs-5 fw-bold text-primary">{{ number_format((float) $revenueTotal, 2, '.', ' ') }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">COGS @include('reports.hint', ['text' => 'Cost of Goods Sold: орієнтовна собівартість проданих товарів за період.'])</div><div class="fs-5 fw-bold text-light">{{ number_format((float) $cogsTotal, 2, '.', ' ') }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Валова прибуток @include('reports.hint', ['text' => 'Виручка мінус COGS. Показує прибуток до операційних витрат.'])</div><div class="fs-5 fw-bold {{ $grossProfitTotal >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $grossProfitTotal, 2, '.', ' ') }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Маржа @include('reports.hint', ['text' => 'Валова маржа у відсотках: валова прибуток / виручка.'])</div><div class="fs-5 fw-bold">{{ number_format((float) $grossMarginTotal, 1, '.', ' ') }}%</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">OPEX @include('reports.hint', ['text' => 'Операційні витрати бізнесу за період: адміністративні, маркетингові, зарплатні та інші витрати.'])</div><div class="fs-5 fw-bold text-warning">{{ number_format((float) $operatingExpensesTotal, 2, '.', ' ') }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Чистий прибуток @include('reports.hint', ['text' => 'Валова прибуток мінус OPEX. Головний показник фінансового результату періоду.'])</div><div class="fs-5 fw-bold {{ $netProfit >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $netProfit, 2, '.', ' ') }} грн</div></div></div>
             </div>
         </div>
     </div>
@@ -40,9 +40,9 @@
                 <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                     <thead class="table-dark">
                         <tr>
-                            <th>Стаття витрат</th>
-                            <th class="text-end">Документів</th>
-                            <th class="text-end">Сума</th>
+                            <th>Стаття витрат @include('reports.hint', ['text' => 'Категорія операційних витрат за типом платежу або налаштуванням у довідниках.'])</th>
+                            <th class="text-end">Документів @include('reports.hint', ['text' => 'Кількість проведених документів витрат у цій статті.'])</th>
+                            <th class="text-end">Сума @include('reports.hint', ['text' => 'Загальна сума витрат по статті за вибраний період.'])</th>
                         </tr>
                     </thead>
                     <tbody>

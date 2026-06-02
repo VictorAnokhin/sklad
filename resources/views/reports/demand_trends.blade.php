@@ -13,10 +13,10 @@
         <div class="col-lg-4">
             <div class="card shadow-sm h-100 bg-transparent border-secondary">
                 <div class="card-body">
-                    <h4 class="card-title mb-3 text-light">Сезонність</h4>
+                    <h4 class="card-title mb-3 text-light">Сезонність @include('reports.hint', ['text' => 'Показує, в які місяці попит і виручка були вищими або нижчими. Корисно для планування закупок і маркетингу.'])</h4>
                     <div class="table-responsive">
                         <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
-                            <thead class="table-dark"><tr><th>Місяць</th><th class="text-end">Одиниць</th><th class="text-end">Виручка</th></tr></thead>
+                            <thead class="table-dark"><tr><th>Місяць @include('reports.hint', ['text' => 'Номер місяця у вибірці сезонності.'])</th><th class="text-end">Одиниць @include('reports.hint', ['text' => 'Скільки одиниць товарів було продано в цьому місяці.'])</th><th class="text-end">Виручка @include('reports.hint', ['text' => 'Сума продажів за місяць по проведених реалізаціях.'])</th></tr></thead>
                             <tbody>
                                 @forelse($seasonality as $item)
                                 <tr>
@@ -46,7 +46,7 @@
                     </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
-                            <thead class="table-dark"><tr><th>Товар</th><th>Код</th><th class="text-end">Сер. попит</th><th class="text-end">Зміна</th><th class="text-end">CV</th><th class="text-center">Тренд</th></tr></thead>
+                            <thead class="table-dark"><tr><th>Товар @include('reports.hint', ['text' => 'Назва SKU, по якому аналізується попит.'])</th><th>Код @include('reports.hint', ['text' => 'Внутрішній код товару.'])</th><th class="text-end">Сер. попит @include('reports.hint', ['text' => 'Середня кількість продажів товару за місяць у періоді аналізу.'])</th><th class="text-end">Зміна @include('reports.hint', ['text' => 'Відсоткова зміна попиту між першим і останнім місяцем вибірки.'])</th><th class="text-end">CV @include('reports.hint', ['text' => 'Коефіцієнт варіації: чим нижчий, тим стабільніший попит; чим вищий, тим попит більш нерівномірний.'])</th><th class="text-center">Тренд @include('reports.hint', ['text' => 'Автоматична оцінка: попит зростає, падає або залишається стабільним.'])</th></tr></thead>
                             <tbody>
                                 @forelse($items as $item)
                                 <tr class="{{ $item->trend_growth > 15 ? 'table-success' : ($item->trend_growth < -15 ? 'table-danger' : '') }}">
