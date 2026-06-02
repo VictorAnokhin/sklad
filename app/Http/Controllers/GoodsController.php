@@ -262,6 +262,8 @@ class GoodsController extends Controller
                 'comp.pay',
                 'comp.pay1',
                 'comp.firma',
+                'comp.nfoto',
+                'comp.nfoto1',
                 DB::raw('COALESCE(d.name_ua, "") as name_ua'),
                 DB::raw('COALESCE(d.name_en, "") as name_en')
             )
@@ -288,6 +290,8 @@ class GoodsController extends Controller
                     'name_ru' => $g->name_ru ?? '',
                     'name_ua' => $g->name_ua ?? '',
                     'name_en' => $g->name_en ?? '',
+                    'image' => MediaUrl::image($g->nfoto ?? ''),
+                    'image_thumb' => MediaUrl::image($g->nfoto1 ?? '') ?: MediaUrl::image($g->nfoto ?? ''),
                     'price' => (float) $price,
                     'pay' => (float) ($g->price_pay ?? 0),
                     'pay1' => (float) ($g->price_pay1 ?? 0),

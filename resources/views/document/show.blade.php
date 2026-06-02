@@ -1322,11 +1322,15 @@
                         if (data.length === 0) {
                             goodsResultsContainer.innerHTML = '<div class="list-group-item text-dark bg-white">Нічого не знайдено</div>';
                         } else {
-                            data.forEach(good => {
-                                const a = document.createElement('a');
-                                a.href = '#'; a.className = 'list-group-item list-group-item-action py-2 bg-white text-dark';
-                                a.innerHTML = `<strong>${good.pnum}</strong> - ${good.name || ''} <br><small class=" text-dark">Ціна (pay): ${good.priceCompPay} грн | Залишок: ${good.count || 0}</small>`;
-                                a.addEventListener('click', function (e) {
+	                            data.forEach(good => {
+	                                const a = document.createElement('a');
+	                                const imageUrl = good.image_thumb || good.image || '';
+	                                const imageHtml = imageUrl
+	                                    ? `<img src="${imageUrl}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;background:#f1f5f9;flex:0 0 48px;">`
+	                                    : `<div style="width:48px;height:48px;border-radius:6px;background:#e5e7eb;flex:0 0 48px;"></div>`;
+	                                a.href = '#'; a.className = 'list-group-item list-group-item-action py-2 bg-white text-dark';
+	                                a.innerHTML = `<div style="display:flex;gap:10px;align-items:center;">${imageHtml}<div><strong>${good.pnum}</strong> - ${good.name || ''} <br><small class="text-dark">Ціна (pay): ${good.priceCompPay} грн | Залишок: ${good.count || 0}</small></div></div>`;
+	                                a.addEventListener('click', function (e) {
                                     e.preventDefault();
                                     const emptyRow = document.getElementById('emptyGoodsRow');
                                     if (emptyRow) emptyRow.remove();
