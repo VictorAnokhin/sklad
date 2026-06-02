@@ -44,6 +44,16 @@
             min-width: 100%;
         }
 
+        #goodsTable tbody tr.goods-zero-sum {
+            outline: 2px solid #fbbf24;
+            outline-offset: -2px;
+        }
+
+        #goodsTable tbody tr.goods-zero-sum .goods-sum {
+            border-color: #fbbf24;
+            box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.22);
+        }
+
         #goodsTable .goods-table-col-qty .input-group {
             flex-wrap: nowrap;
             min-width: 0;
@@ -1181,6 +1191,16 @@
                 documentSummaInput1.value = total.toFixed(2);
             };
 
+            const updateZeroSumHighlight = (tr) => {
+                if (!tr || tr.id === 'emptyGoodsRow') {
+                    return;
+                }
+
+                const sumInput = tr.querySelector('.goods-sum');
+                const sum = parseFloat(sumInput?.value || '0') || 0;
+                tr.classList.toggle('goods-zero-sum', Math.abs(sum) < 0.005);
+            };
+
             window.submitDocumentSave = () => {
                 if (!documentForm) return;
                 const runInput = document.createElement('input');
@@ -1269,6 +1289,7 @@
                     }
 
                     sumInput.value = (quantity * price).toFixed(2);
+                    updateZeroSumHighlight(tr);
                     updateDocumentSum();
                 };
 
@@ -1279,8 +1300,10 @@
                     if (quantity > 0) {
                         const price = sum / quantity;
                         priceInput.value = price.toFixed(2);
-                        updateDocumentSum();
                     }
+
+                    updateZeroSumHighlight(tr);
+                    updateDocumentSum();
                 };
 
                 const handleSaveOnEnter = (event) => {
@@ -1299,9 +1322,10 @@
                 countInput.addEventListener('keydown', handleSaveOnEnter);
                 priceInput.addEventListener('keydown', handleSaveOnEnter);
                 sumInput.addEventListener('keydown', handleSaveOnEnter);
+                updateZeroSumHighlight(tr);
             };
 
-            document.querySelectorAll('table tbody tr').forEach(tr => {
+            document.querySelectorAll('#goodsTable tbody tr').forEach(tr => {
                 if (tr.id === 'emptyGoodsRow') return;
                 const cnt = tr.querySelector('.goods-count');
                 const prc = tr.querySelector('.goods-price');
@@ -1376,6 +1400,7 @@
                                     const pprice = tr.querySelector('.goods-price');
                                     const psum = tr.querySelector('.goods-sum');
                                     bindGoodsRowInputs(pcount, pprice, psum);
+                                    updateZeroSumHighlight(tr);
                                     tr.querySelector('.remove-new-row').addEventListener('click', () => {
                                         tr.remove();
                                         if (tableBody.querySelectorAll('tr').length === 0) {
