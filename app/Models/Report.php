@@ -2157,23 +2157,23 @@ class Report extends Model
         $avgEventDurationMs = $eventsCount > 0 ? (int) round(((clone $eventBase)->avg('duration_ms') ?? 0)) : 0;
 
         $topPages = (clone $eventBase)
-            ->selectRaw("COALESCE(NULLIF(page_path, ''), '/') as page_path, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count, COALESCE(SUM(duration_ms), 0) as duration_ms")
+            ->selectRaw("COALESCE(NULLIF(MIN(page_path), ''), '/') as page_path, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count, COALESCE(SUM(duration_ms), 0) as duration_ms")
             ->whereNotNull('page_path')
-            ->groupBy(DB::raw("COALESCE(NULLIF(page_path, ''), '/')"))
+            ->groupBy('page_path')
             ->orderByDesc('events_count')
             ->limit(20)
             ->get();
 
         $topEvents = (clone $eventBase)
-            ->selectRaw("COALESCE(NULLIF(event_type, ''), 'unknown') as event_type, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count, COALESCE(SUM(duration_ms), 0) as duration_ms")
-            ->groupBy(DB::raw("COALESCE(NULLIF(event_type, ''), 'unknown')"))
+            ->selectRaw("COALESCE(NULLIF(MIN(event_type), ''), 'unknown') as event_type, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count, COALESCE(SUM(duration_ms), 0) as duration_ms")
+            ->groupBy('event_type')
             ->orderByDesc('events_count')
             ->limit(20)
             ->get();
 
         $topDomains = (clone $eventBase)
-            ->selectRaw("COALESCE(NULLIF(site_domain, ''), 'unknown') as site_domain, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count")
-            ->groupBy(DB::raw("COALESCE(NULLIF(site_domain, ''), 'unknown')"))
+            ->selectRaw("COALESCE(NULLIF(MIN(site_domain), ''), 'unknown') as site_domain, COUNT(*) as events_count, COUNT(DISTINCT visitor_uid) as visitors_count")
+            ->groupBy('site_domain')
             ->orderByDesc('events_count')
             ->limit(10)
             ->get();
