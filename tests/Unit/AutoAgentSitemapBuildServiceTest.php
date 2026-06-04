@@ -42,4 +42,25 @@ PHP);
         $this->assertTrue($result['success']);
         $this->assertSame('skipped', $result['status']);
     }
+
+    public function test_missing_script_copies_generated_sitemap_to_output_path(): void
+    {
+        $sourcePath = sys_get_temp_dir() . '/autoagent-generated-sitemap.xml';
+        $outputPath = sys_get_temp_dir() . '/autoagent-domain/sitemap.xml';
+        file_put_contents($sourcePath, '<?xml version="1.0"?><urlset></urlset>');
+        if (file_exists($outputPath)) {
+            unlink($outputPath);
+        }
+
+        config()->set('services.autoagent_sitemap.script_path', sys_get_temp_dir() . '/missing-autoagent-sitemap/build-sitemap.mjs');
+        config()->set('services.autoagent_sitemap.output_path', $outputPath);
+
+        $result = app(AutoAgentSitemapBuildService::class)->build(7, $sourcePath);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('completed', $result['status']);
+        $this->assertSame('file_copy', $result['mode']);
+        $this->assertFileExists($outputPath);
+        $this->assertSame(file_get_contents($sourcePath), file_get_contents($outputPath));
+    }
 }

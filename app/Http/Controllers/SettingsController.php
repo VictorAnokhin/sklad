@@ -2502,7 +2502,7 @@ class SettingsController extends Controller
 
         try {
             $result = $sitemapService->generate($fid > 0 ? $fid : null);
-            $autoAgentSitemap = $autoAgentSitemapBuildService->build($fid > 0 ? $fid : null);
+            $autoAgentSitemap = $autoAgentSitemapBuildService->build($fid > 0 ? $fid : null, $result['path'] ?? null);
             $message = 'Sitemap успішно згенеровано';
             if (($autoAgentSitemap['status'] ?? null) === 'completed') {
                 $message .= '; AutoAgent sitemap.xml оновлено';

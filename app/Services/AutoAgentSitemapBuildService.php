@@ -3,11 +3,12 @@
 namespace App\Services;
 
 use App\Models\Project;
+use Illuminate\Support\Facades\File;
 use Symfony\Component\Process\Process;
 
 class AutoAgentSitemapBuildService
 {
-    public function build(?int $fid = null): array
+    public function build(?int $fid = null, ?string $generatedSitemapPath = null): array
     {
         $project = $this->resolveProject($fid);
         $domain = $this->projectDomain($project);
@@ -21,6 +22,14 @@ class AutoAgentSitemapBuildService
             return $result;
         }
 
+        if ($outputPath !== '' && $generatedSitemapPath !== null && File::exists($generatedSitemapPath)) {
+            return [
+                ...$this->copyGeneratedSitemap($generatedSitemapPath, $outputPath),
+                'domain' => $domain,
+                'script_path' => $scriptPath,
+            ];
+        }
+
         return [
             'success' => true,
             'status' => 'skipped',
@@ -28,8 +37,33 @@ class AutoAgentSitemapBuildService
             'domain' => $domain,
             'script_path' => $scriptPath,
             'output_path' => $outputPath,
-            'message' => 'AutoAgent sitemap script was not found; nothing to run.',
+            'message' => 'AutoAgent sitemap script was not found and no generated sitemap file was available to copy.',
         ];
+    }
+
+    private function copyGeneratedSitemap(string $sourcePath, string $outputPath): array
+    {
+        try {
+            File::ensureDirectoryExists(dirname($outputPath));
+            File::copy($sourcePath, $outputPath);
+
+            return [
+                'success' => true,
+                'status' => 'completed',
+                'mode' => 'file_copy',
+                'source_path' => $sourcePath,
+                'output_path' => $outputPath,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'status' => 'failed',
+                'mode' => 'file_copy',
+                'source_path' => $sourcePath,
+                'output_path' => $outputPath,
+                'message' => $e->getMessage(),
+            ];
+        }
     }
 
     private function buildViaLocalScript(string $scriptPath, ?int $fid = null, string $outputPath = ''): array
