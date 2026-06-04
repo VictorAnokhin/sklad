@@ -9,6 +9,7 @@ use App\Models\Firma;
 use App\Models\News;
 use App\Models\Project;
 use App\Models\Settings;
+use App\Services\AutoAgentSitemapBuildService;
 use App\Services\ZerionWalletService;
 use App\Services\SitemapService;
 use App\Support\MediaUrl;
@@ -2495,21 +2496,29 @@ class SettingsController extends Controller
         ]);
     }
 
-    public function sitemapGenerate(SitemapService $sitemapService)
+    public function sitemapGenerate(SitemapService $sitemapService, AutoAgentSitemapBuildService $autoAgentSitemapBuildService)
     {
         $fid = (int) session('fid', 0);
 
         try {
             $result = $sitemapService->generate($fid > 0 ? $fid : null);
+            $autoAgentSitemap = $autoAgentSitemapBuildService->build();
+            $message = 'Sitemap успішно згенеровано';
+            if (($autoAgentSitemap['status'] ?? null) === 'completed') {
+                $message .= '; AutoAgent sitemap.xml оновлено';
+            } elseif (($autoAgentSitemap['status'] ?? null) === 'failed') {
+                $message .= '; AutoAgent sitemap.xml не оновлено: ' . ($autoAgentSitemap['message'] ?? 'unknown error');
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Sitemap успішно згенеровано',
+                'message' => $message,
                 'fid' => $result['fid'],
                 'public_url' => $result['url'],
                 'frontend_url' => $result['frontend_url'],
                 'path' => $result['path'],
                 'last_modified_at' => $sitemapService->lastModifiedAt($result['fid']),
+                'autoagent_sitemap' => $autoAgentSitemap,
             ]);
         } catch (\Throwable $e) {
             return response()->json([

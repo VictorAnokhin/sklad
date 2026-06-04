@@ -142,6 +142,16 @@ return [
         'token' => env('GOODS_PUBLISH_TOKEN', ''),
     ],
 
+    'autoagent_sitemap' => [
+        'build_url' => env('AUTOAGENT_SITEMAP_BUILD_URL', ''),
+        'secret' => env('AUTOAGENT_SITEMAP_BUILD_SECRET', env('MANAGER_AI_BRIDGE_SECRET', '')),
+        'script_path' => env('AUTOAGENT_SITEMAP_SCRIPT_PATH', base_path('../laravel-react/scripts/build-sitemap.mjs')),
+        'source_url' => env('AUTOAGENT_SITEMAP_SOURCE_URL', 'https://av8capital.space/sitemap.xml?fid=2'),
+        'output_path' => env('AUTOAGENT_SITEMAP_OUTPUT_PATH', ''),
+        'node_binary' => env('AUTOAGENT_SITEMAP_NODE_BINARY', 'node'),
+        'timeout' => (int) env('AUTOAGENT_SITEMAP_TIMEOUT', 60),
+    ],
+
     'zerion' => [
         'api_key' => env('ZERION_API_KEY'),
         'wallet_address' => env('ZERION_WALLET_ADDRESS'),
