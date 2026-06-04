@@ -1,2 +1,4 @@
 User-agent: *
 Disallow:
+
+Sitemap: https://autoagent.in.ua/sitemap.xml
