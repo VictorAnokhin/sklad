@@ -2,83 +2,41 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
+use App\Models\Project;
 use Symfony\Component\Process\Process;
 
 class AutoAgentSitemapBuildService
 {
-    public function build(): array
+    public function build(?int $fid = null): array
     {
-        $buildUrl = trim((string) config('services.autoagent_sitemap.build_url', ''));
+        $project = $this->resolveProject($fid);
+        $domain = $this->projectDomain($project);
+        $scriptPath = $this->scriptPath($domain);
 
-        if ($buildUrl !== '') {
-            return $this->buildViaHttp($buildUrl);
-        }
-
-        $scriptPath = trim((string) config('services.autoagent_sitemap.script_path', ''));
         if ($scriptPath !== '' && is_file($scriptPath)) {
-            return $this->buildViaLocalScript($scriptPath);
+            return [
+                ...$this->buildViaLocalScript($scriptPath, $fid),
+                'domain' => $domain,
+            ];
         }
 
         return [
-            'success' => false,
+            'success' => true,
             'status' => 'skipped',
-            'message' => 'AutoAgent sitemap build is not configured.',
+            'mode' => 'local_script',
+            'domain' => $domain,
+            'script_path' => $scriptPath,
+            'message' => 'AutoAgent sitemap script was not found; nothing to run.',
         ];
     }
 
-    private function buildViaHttp(string $buildUrl): array
-    {
-        $secret = trim((string) config('services.autoagent_sitemap.secret', ''));
-        $timeout = (int) config('services.autoagent_sitemap.timeout', 60);
-        $request = Http::acceptJson()->timeout($timeout);
-
-        if ($secret !== '') {
-            $request = $request->withHeaders([
-                'X-Manager-AI-Bridge-Secret' => $secret,
-            ]);
-        }
-
-        try {
-            $response = $request->post($buildUrl, $this->payload());
-            $data = $response->json();
-
-            if (!$response->successful()) {
-                return [
-                    'success' => false,
-                    'status' => 'failed',
-                    'mode' => 'http',
-                    'message' => is_array($data) && isset($data['error']) ? (string) $data['error'] : 'AutoAgent sitemap HTTP build failed.',
-                    'http_status' => $response->status(),
-                    'response' => $data,
-                ];
-            }
-
-            return [
-                'success' => true,
-                'status' => 'completed',
-                'mode' => 'http',
-                'url' => $buildUrl,
-                'response' => $data,
-            ];
-        } catch (\Throwable $e) {
-            return [
-                'success' => false,
-                'status' => 'failed',
-                'mode' => 'http',
-                'message' => $e->getMessage(),
-            ];
-        }
-    }
-
-    private function buildViaLocalScript(string $scriptPath): array
+    private function buildViaLocalScript(string $scriptPath, ?int $fid = null): array
     {
         $timeout = (int) config('services.autoagent_sitemap.timeout', 60);
         $nodeBinary = trim((string) config('services.autoagent_sitemap.node_binary', 'node')) ?: 'node';
         $outputPath = trim((string) config('services.autoagent_sitemap.output_path', ''));
         $frontendRoot = dirname(dirname($scriptPath));
-        $process = new Process([$nodeBinary, $scriptPath], $frontendRoot, null, null, $timeout);
-        $process->setEnv($this->scriptEnv());
+        $process = new Process([$nodeBinary, $scriptPath], $frontendRoot, $this->scriptEnv($fid), null, $timeout);
 
         try {
             $process->run();
@@ -112,19 +70,97 @@ class AutoAgentSitemapBuildService
         }
     }
 
-    private function payload(): array
+    private function scriptEnv(?int $fid = null): array
     {
         return array_filter([
-            'source_url' => (string) config('services.autoagent_sitemap.source_url', 'https://av8capital.space/sitemap.xml?fid=2'),
-            'output_path' => trim((string) config('services.autoagent_sitemap.output_path', '')) ?: null,
+            'SITEMAP_SOURCE_URL' => $this->sourceUrl($fid),
+            'SITEMAP_OUTPUT_PATH' => trim((string) config('services.autoagent_sitemap.output_path', '')) ?: null,
         ], static fn ($value) => $value !== null && $value !== '');
     }
 
-    private function scriptEnv(): array
+    private function sourceUrl(?int $fid = null): string
     {
-        return array_filter([
-            'SITEMAP_SOURCE_URL' => (string) config('services.autoagent_sitemap.source_url', 'https://av8capital.space/sitemap.xml?fid=2'),
-            'SITEMAP_OUTPUT_PATH' => trim((string) config('services.autoagent_sitemap.output_path', '')) ?: null,
-        ], static fn ($value) => $value !== null && $value !== '');
+        $sourceUrl = (string) config('services.autoagent_sitemap.source_url', 'https://av8capital.space/sitemap.xml?fid=2');
+        if ($fid === null || $fid <= 0) {
+            return $sourceUrl;
+        }
+
+        if (preg_match('/([?&])fid=[^&]*/', $sourceUrl)) {
+            return preg_replace('/([?&])fid=[^&]*/', '${1}fid=' . $fid, $sourceUrl) ?: $sourceUrl;
+        }
+
+        $separator = str_contains($sourceUrl, '?') ? '&' : '?';
+
+        return $sourceUrl . $separator . 'fid=' . $fid;
+    }
+
+    private function scriptPath(?string $domain = null): string
+    {
+        $scriptPath = trim((string) config('services.autoagent_sitemap.script_path', ''));
+        if ($scriptPath !== '') {
+            return $scriptPath;
+        }
+
+        if ($domain === null || $domain === '') {
+            return '';
+        }
+
+        $template = trim((string) config('services.autoagent_sitemap.script_path_template', ''));
+        if ($template !== '') {
+            return str_replace('{domain}', $domain, $template);
+        }
+
+        $basePath = rtrim((string) config('services.autoagent_sitemap.script_base_path', '/var/www'), '/');
+        $relativePath = ltrim((string) config('services.autoagent_sitemap.script_relative_path', 'scripts/build-sitemap.mjs'), '/');
+
+        return $basePath . '/' . $domain . '/' . $relativePath;
+    }
+
+    private function resolveProject(?int $fid = null): ?Project
+    {
+        if ($fid === null || $fid <= 0) {
+            return null;
+        }
+
+        try {
+            return Project::query()->find($fid);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function projectDomain(?Project $project): ?string
+    {
+        if (!$project) {
+            return null;
+        }
+
+        foreach ([$project->url ?? null, $project->phone ?? null] as $candidate) {
+            $domain = $this->domainFromUrl((string) $candidate);
+            if ($domain !== null) {
+                return $domain;
+            }
+        }
+
+        return null;
+    }
+
+    private function domainFromUrl(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (!preg_match('~^https?://~i', $value)) {
+            $value = 'https://' . ltrim($value, '/');
+        }
+
+        $host = parse_url($value, PHP_URL_HOST);
+        if (!is_string($host) || trim($host) === '') {
+            return null;
+        }
+
+        return strtolower(trim($host));
     }
 }

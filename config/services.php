@@ -143,9 +143,10 @@ return [
     ],
 
     'autoagent_sitemap' => [
-        'build_url' => env('AUTOAGENT_SITEMAP_BUILD_URL', ''),
-        'secret' => env('AUTOAGENT_SITEMAP_BUILD_SECRET', env('MANAGER_AI_BRIDGE_SECRET', '')),
-        'script_path' => env('AUTOAGENT_SITEMAP_SCRIPT_PATH', base_path('../laravel-react/scripts/build-sitemap.mjs')),
+        'script_path' => env('AUTOAGENT_SITEMAP_SCRIPT_PATH', ''),
+        'script_path_template' => env('AUTOAGENT_SITEMAP_SCRIPT_PATH_TEMPLATE', ''),
+        'script_base_path' => env('AUTOAGENT_SITEMAP_SCRIPT_BASE_PATH', '/var/www'),
+        'script_relative_path' => env('AUTOAGENT_SITEMAP_SCRIPT_RELATIVE_PATH', 'scripts/build-sitemap.mjs'),
         'source_url' => env('AUTOAGENT_SITEMAP_SOURCE_URL', 'https://av8capital.space/sitemap.xml?fid=2'),
         'output_path' => env('AUTOAGENT_SITEMAP_OUTPUT_PATH', ''),
         'node_binary' => env('AUTOAGENT_SITEMAP_NODE_BINARY', 'node'),
