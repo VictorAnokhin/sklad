@@ -12,12 +12,13 @@ class AutoAgentSitemapBuildService
         $project = $this->resolveProject($fid);
         $domain = $this->projectDomain($project);
         $scriptPath = $this->scriptPath($domain);
+        $outputPath = $this->outputPath($domain);
 
         if ($scriptPath !== '' && is_file($scriptPath)) {
-            return [
-                ...$this->buildViaLocalScript($scriptPath, $fid),
-                'domain' => $domain,
-            ];
+            $result = $this->buildViaLocalScript($scriptPath, $fid, $outputPath);
+            $result['domain'] = $domain;
+
+            return $result;
         }
 
         return [
@@ -26,17 +27,17 @@ class AutoAgentSitemapBuildService
             'mode' => 'local_script',
             'domain' => $domain,
             'script_path' => $scriptPath,
+            'output_path' => $outputPath,
             'message' => 'AutoAgent sitemap script was not found; nothing to run.',
         ];
     }
 
-    private function buildViaLocalScript(string $scriptPath, ?int $fid = null): array
+    private function buildViaLocalScript(string $scriptPath, ?int $fid = null, string $outputPath = ''): array
     {
         $timeout = (int) config('services.autoagent_sitemap.timeout', 60);
         $nodeBinary = trim((string) config('services.autoagent_sitemap.node_binary', 'node')) ?: 'node';
-        $outputPath = trim((string) config('services.autoagent_sitemap.output_path', ''));
         $frontendRoot = dirname(dirname($scriptPath));
-        $process = new Process([$nodeBinary, $scriptPath], $frontendRoot, $this->scriptEnv($fid), null, $timeout);
+        $process = new Process([$nodeBinary, $scriptPath], $frontendRoot, $this->scriptEnv($fid, $outputPath), null, $timeout);
 
         try {
             $process->run();
@@ -70,11 +71,11 @@ class AutoAgentSitemapBuildService
         }
     }
 
-    private function scriptEnv(?int $fid = null): array
+    private function scriptEnv(?int $fid = null, string $outputPath = ''): array
     {
         return array_filter([
             'SITEMAP_SOURCE_URL' => $this->sourceUrl($fid),
-            'SITEMAP_OUTPUT_PATH' => trim((string) config('services.autoagent_sitemap.output_path', '')) ?: null,
+            'SITEMAP_OUTPUT_PATH' => $outputPath !== '' ? $outputPath : null,
         ], static fn ($value) => $value !== null && $value !== '');
     }
 
@@ -112,6 +113,28 @@ class AutoAgentSitemapBuildService
 
         $basePath = rtrim((string) config('services.autoagent_sitemap.script_base_path', '/var/www'), '/');
         $relativePath = ltrim((string) config('services.autoagent_sitemap.script_relative_path', 'scripts/build-sitemap.mjs'), '/');
+
+        return $basePath . '/' . $domain . '/' . $relativePath;
+    }
+
+    private function outputPath(?string $domain = null): string
+    {
+        $outputPath = trim((string) config('services.autoagent_sitemap.output_path', ''));
+        if ($outputPath !== '') {
+            return $outputPath;
+        }
+
+        if ($domain === null || $domain === '') {
+            return '';
+        }
+
+        $template = trim((string) config('services.autoagent_sitemap.output_path_template', ''));
+        if ($template !== '') {
+            return str_replace('{domain}', $domain, $template);
+        }
+
+        $basePath = rtrim((string) config('services.autoagent_sitemap.output_base_path', '/var/www'), '/');
+        $relativePath = ltrim((string) config('services.autoagent_sitemap.output_relative_path', 'sitemap.xml'), '/');
 
         return $basePath . '/' . $domain . '/' . $relativePath;
     }
