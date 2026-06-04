@@ -151,7 +151,7 @@ return [
         'output_path' => env('AUTOAGENT_SITEMAP_OUTPUT_PATH', ''),
         'output_path_template' => env('AUTOAGENT_SITEMAP_OUTPUT_PATH_TEMPLATE', ''),
         'output_base_path' => env('AUTOAGENT_SITEMAP_OUTPUT_BASE_PATH', '/var/www'),
-        'output_relative_path' => env('AUTOAGENT_SITEMAP_OUTPUT_RELATIVE_PATH', 'dist/sitemap.xml'),
+        'output_relative_path' => env('AUTOAGENT_SITEMAP_OUTPUT_RELATIVE_PATH', 'html/sitemap.xml'),
         'node_binary' => env('AUTOAGENT_SITEMAP_NODE_BINARY', 'node'),
         'timeout' => (int) env('AUTOAGENT_SITEMAP_TIMEOUT', 60),
     ],

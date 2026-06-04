@@ -44,7 +44,29 @@ class AutoAgentSitemapBuildService
     private function copyGeneratedSitemap(string $sourcePath, string $outputPath): array
     {
         try {
-            File::ensureDirectoryExists(dirname($outputPath));
+            $outputDirectory = dirname($outputPath);
+            if (!File::isDirectory($outputDirectory)) {
+                return [
+                    'success' => false,
+                    'status' => 'failed',
+                    'mode' => 'file_copy',
+                    'source_path' => $sourcePath,
+                    'output_path' => $outputPath,
+                    'message' => 'AutoAgent sitemap output directory does not exist: ' . $outputDirectory,
+                ];
+            }
+
+            if (!is_writable($outputDirectory)) {
+                return [
+                    'success' => false,
+                    'status' => 'failed',
+                    'mode' => 'file_copy',
+                    'source_path' => $sourcePath,
+                    'output_path' => $outputPath,
+                    'message' => 'AutoAgent sitemap output directory is not writable: ' . $outputDirectory,
+                ];
+            }
+
             File::copy($sourcePath, $outputPath);
 
             return [

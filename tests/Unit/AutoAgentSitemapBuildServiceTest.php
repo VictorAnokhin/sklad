@@ -48,6 +48,9 @@ PHP);
         $sourcePath = sys_get_temp_dir() . '/autoagent-generated-sitemap.xml';
         $outputPath = sys_get_temp_dir() . '/autoagent-domain/sitemap.xml';
         file_put_contents($sourcePath, '<?xml version="1.0"?><urlset></urlset>');
+        if (!is_dir(dirname($outputPath))) {
+            mkdir(dirname($outputPath), 0777, true);
+        }
         if (file_exists($outputPath)) {
             unlink($outputPath);
         }
@@ -62,5 +65,22 @@ PHP);
         $this->assertSame('file_copy', $result['mode']);
         $this->assertFileExists($outputPath);
         $this->assertSame(file_get_contents($sourcePath), file_get_contents($outputPath));
+    }
+
+    public function test_missing_output_directory_fails_with_path_without_mkdir(): void
+    {
+        $sourcePath = sys_get_temp_dir() . '/autoagent-generated-sitemap-missing-dir.xml';
+        $outputPath = sys_get_temp_dir() . '/autoagent-missing-domain-' . uniqid() . '/sitemap.xml';
+        file_put_contents($sourcePath, '<?xml version="1.0"?><urlset></urlset>');
+
+        config()->set('services.autoagent_sitemap.script_path', sys_get_temp_dir() . '/missing-autoagent-sitemap/build-sitemap.mjs');
+        config()->set('services.autoagent_sitemap.output_path', $outputPath);
+
+        $result = app(AutoAgentSitemapBuildService::class)->build(7, $sourcePath);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('failed', $result['status']);
+        $this->assertStringContainsString('output directory does not exist', $result['message']);
+        $this->assertDirectoryDoesNotExist(dirname($outputPath));
     }
 }
