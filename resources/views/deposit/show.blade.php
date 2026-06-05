@@ -14,14 +14,6 @@
         'withdraw' => __('deposit.op_withdraw'),
         default => __('deposit.op_topup'),
     };
-    $topLabel = match ($mode) {
-        'withdraw' => 'Выбери депозит',
-        default => '',
-    };
-    $bottomLabel = match ($mode) {
-        'withdraw' => 'Ваш баланс',
-        default => 'Выбери депозит',
-    };
     $selectedBalanceCurrency = old('balance_currency', $document->currency_from ?? (($ownerBalances[0]['currency'] ?? 'UAH')));
     $ownerBalanceLabel = collect($ownerBalances ?? [])->map(function ($balance) {
         return ($balance['amount'] ?? '0') . ' ' . ($balance['currency'] ?? 'UAH');
@@ -67,44 +59,10 @@
                 <input type="date" name="data" class="form-control" value="{{ $documentDateValue }}" placeholder="{{ __('deposit.date_placeholder') }}">
             </div>
             <div class="col-md-4 mb-3">
-                <label>{{ __('deposit.field_sum') }}</label>
-                <input type="number" step="0.01" min="0" name="summa" class="form-control" value="{{ old('summa', $document->summa ?? 0) }}">
-            </div>
-            <div class="col-md-4 mb-3">
                 <label>{{ __('deposit.field_status') }}</label>
                 <input type="text" class="form-control" value="{{ (int)($document->provodka ?? 0) === 1 ? __('deposit.status_posted') : __('deposit.status_draft') }}" disabled>
             </div>
         </div>
-
-        @if($mode === 'withdraw')
-        <div class="glass-card" style="margin-bottom:16px; border:1px solid rgba(180, 83, 9, 0.15);">
-            @if($topLabel !== '')
-            <div style="font-size:0.82rem; text-transform:uppercase; letter-spacing:0.08em; color:#92400e; margin-bottom:8px;">{{ $topLabel }}</div>
-            @endif
-            <select name="money" class="form-control" required>
-                <option value="">{{ __('deposit.select_deposit') }}</option>
-                @foreach($deposits as $deposit)
-                <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency ?? 'UAH' }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
-                    {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} {{ $deposit->currency ?? 'UAH' }} @endif
-                </option>
-                @endforeach
-            </select>
-        </div>
-        @endif
-
-        @if($mode === 'topup')
-        <div class="glass-card" style="margin-bottom:16px; border:1px solid rgba(180, 83, 9, 0.15);">
-            <div style="font-size:0.82rem; text-transform:uppercase; letter-spacing:0.08em; color:#92400e; margin-bottom:8px;">{{ $bottomLabel }}</div>
-            <select name="money" class="form-control" required>
-                <option value="">{{ __('deposit.select_deposit') }}</option>
-                @foreach($deposits as $deposit)
-                <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency ?? 'UAH' }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
-                    {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} {{ $deposit->currency ?? 'UAH' }} @endif
-                </option>
-                @endforeach
-            </select>
-        </div>
-        @endif
 
         <div class="mb-3">
             <label>{{ $mode === 'topup' ? 'Баланс для списання' : 'Баланс для зарахування' }}</label>
@@ -116,6 +74,24 @@
                 @endforeach
             </select>
             <small class="text-muted">Валюта балансу має збігатися з валютою вибраного депозиту.</small>
+        </div>
+
+        <div class="mb-3">
+            <label>Выбери депозит</label>
+            <select name="money" id="depositMoneySelect" class="form-control" required>
+                <option value="" data-currency="">{{ __('deposit.select_deposit') }}</option>
+                @foreach($deposits as $deposit)
+                <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency ?? 'UAH' }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
+                    {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} {{ $deposit->currency ?? 'UAH' }} @endif
+                </option>
+                @endforeach
+            </select>
+            <small class="text-muted" id="depositCurrencyHint"></small>
+        </div>
+
+        <div class="mb-3">
+            <label>{{ __('deposit.field_sum') }}</label>
+            <input type="number" step="0.01" min="0" name="summa" class="form-control" value="{{ old('summa', $document->summa ?? 0) }}">
         </div>
 
         <div class="mb-3">
@@ -150,24 +126,49 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const depositSelect = document.querySelector('select[name="money"]');
+            const depositSelect = document.getElementById('depositMoneySelect');
             const balanceSelect = document.getElementById('depositBalanceCurrency');
+            const hint = document.getElementById('depositCurrencyHint');
 
             if (!depositSelect || !balanceSelect) {
                 return;
             }
 
-            depositSelect.addEventListener('change', function () {
-                const currency = this.selectedOptions?.[0]?.dataset?.currency || '';
-                if (!currency) {
-                    return;
+            const filterDeposits = () => {
+                const selectedCurrency = balanceSelect.value || '';
+                let selectedStillVisible = false;
+                let firstVisibleValue = '';
+
+                Array.from(depositSelect.options).forEach((option) => {
+                    if (option.value === '') {
+                        option.hidden = false;
+                        return;
+                    }
+
+                    const isVisible = option.dataset.currency === selectedCurrency;
+                    option.hidden = !isVisible;
+
+                    if (isVisible && firstVisibleValue === '') {
+                        firstVisibleValue = option.value;
+                    }
+                    if (isVisible && option.selected) {
+                        selectedStillVisible = true;
+                    }
+                });
+
+                if (!selectedStillVisible) {
+                    depositSelect.value = firstVisibleValue;
                 }
 
-                const matchingOption = Array.from(balanceSelect.options).find((option) => option.value === currency);
-                if (matchingOption) {
-                    balanceSelect.value = currency;
+                if (hint) {
+                    hint.textContent = selectedCurrency
+                        ? `Показаны депозиты в валюте ${selectedCurrency}`
+                        : '';
                 }
-            });
+            };
+
+            balanceSelect.addEventListener('change', filterDeposits);
+            filterDeposits();
         });
     </script>
 
