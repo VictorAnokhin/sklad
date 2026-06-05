@@ -1565,7 +1565,7 @@
                                         @forelse($profileBalanceRows as $row)
                                         <tr class="profile-balance-row">
                                             <td>
-                                                <input type="text" name="balance_amounts[{{ $row['key'] }}]" class="form-control form-control-sm" value="{{ $row['amount'] }}" inputmode="decimal" placeholder="0.00">
+                                                <input type="text" name="balance_amounts[{{ $row['key'] }}]" class="form-control form-control-sm profile-balance-amount" value="{{ $row['amount'] }}" inputmode="numeric" autocomplete="off" placeholder="0.00">
                                             </td>
                                             <td>
                                                 <select name="balance_currencies[{{ $row['key'] }}]" class="form-select form-select-sm">
@@ -1904,6 +1904,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        tbody.querySelectorAll('.profile-balance-amount').forEach(bindProfileBalanceTerminalAmount);
+
         addBtn.addEventListener('click', () => {
             const key = `new_${Date.now()}_${newRowCounter++}`;
             const hasRows = tbody.querySelectorAll('.profile-balance-row').length > 0;
@@ -1914,6 +1916,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             tbody.insertAdjacentHTML('beforeend', renderProfileBalanceRow(key, '', currencyOptions[0] || 'UAH', !hasRows));
+            bindProfileBalanceTerminalAmount(tbody.querySelector('.profile-balance-row:last-child .profile-balance-amount'));
         });
 
         tbody.addEventListener('click', (event) => {
@@ -1948,7 +1951,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr class="profile-balance-row">
                     <td>
-                        <input type="text" name="balance_amounts[${escapeProfileBalanceHtml(key)}]" class="form-control form-control-sm" value="${escapeProfileBalanceHtml(amount)}" inputmode="decimal" placeholder="0.00">
+                        <input type="text" name="balance_amounts[${escapeProfileBalanceHtml(key)}]" class="form-control form-control-sm profile-balance-amount" value="${escapeProfileBalanceHtml(amount)}" inputmode="numeric" autocomplete="off" placeholder="0.00">
                     </td>
                     <td>
                         <select name="balance_currencies[${escapeProfileBalanceHtml(key)}]" class="form-select form-select-sm">${options}</select>
@@ -1973,6 +1976,106 @@ document.addEventListener('DOMContentLoaded', () => {
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+        }
+
+        function bindProfileBalanceTerminalAmount(input) {
+            if (!input || input.dataset.terminalAmountBound === '1') {
+                return;
+            }
+
+            input.dataset.terminalAmountBound = '1';
+
+            const formatTerminalAmount = (cents) => (Math.max(0, cents) / 100).toFixed(2);
+            const parseAmountToCents = (value) => {
+                const normalized = String(value || '').replace(/\s/g, '').replace(',', '.');
+                const amount = parseFloat(normalized);
+
+                return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
+            };
+            const syncValue = (cents) => {
+                input.dataset.terminalAmountCents = String(Math.max(0, cents));
+                input.value = formatTerminalAmount(cents);
+            };
+            const getDigits = () => {
+                const cents = parseInt(input.dataset.terminalAmountCents || '0', 10) || 0;
+
+                return String(cents);
+            };
+            const appendDigit = (digit) => {
+                const currentDigits = input.dataset.terminalAmountFresh === '1' ? '' : getDigits();
+                const nextDigits = (currentDigits + digit).replace(/^0+(?=\d)/, '');
+
+                syncValue(parseInt(nextDigits || '0', 10));
+                input.dataset.terminalAmountFresh = '0';
+            };
+            const removeLastDigit = () => {
+                const nextDigits = getDigits().slice(0, -1);
+
+                syncValue(parseInt(nextDigits || '0', 10));
+                input.dataset.terminalAmountFresh = '0';
+            };
+
+            syncValue(parseAmountToCents(input.value));
+
+            input.addEventListener('focus', () => {
+                input.dataset.terminalAmountFresh = '1';
+                syncValue(parseAmountToCents(input.value));
+                input.select();
+            });
+            input.addEventListener('beforeinput', (event) => {
+                if (event.inputType === 'insertText' && /^\d$/.test(event.data || '')) {
+                    event.preventDefault();
+                    appendDigit(event.data);
+                    return;
+                }
+
+                if (event.inputType === 'deleteContentBackward') {
+                    event.preventDefault();
+                    removeLastDigit();
+                    return;
+                }
+
+                if (event.inputType === 'deleteContentForward') {
+                    event.preventDefault();
+                    syncValue(0);
+                    input.dataset.terminalAmountFresh = '0';
+                }
+            });
+            input.addEventListener('keydown', (event) => {
+                if (event.ctrlKey || event.metaKey || event.altKey) {
+                    return;
+                }
+
+                if (/^\d$/.test(event.key)) {
+                    event.preventDefault();
+                    appendDigit(event.key);
+                    return;
+                }
+
+                if (event.key === 'Backspace') {
+                    event.preventDefault();
+                    removeLastDigit();
+                    return;
+                }
+
+                if (event.key === 'Delete') {
+                    event.preventDefault();
+                    syncValue(0);
+                    input.dataset.terminalAmountFresh = '0';
+                }
+            });
+            input.addEventListener('paste', (event) => {
+                event.preventDefault();
+                const text = event.clipboardData?.getData('text') || '';
+                const digits = text.replace(/\D/g, '');
+
+                syncValue(parseInt(digits || '0', 10));
+                input.dataset.terminalAmountFresh = '0';
+            });
+            input.addEventListener('input', () => {
+                syncValue(parseAmountToCents(input.value));
+                input.dataset.terminalAmountFresh = '0';
+            });
         }
     }
 

@@ -314,7 +314,7 @@
                 </div>
                 <div class="col-md-6 mb-3">
                     <input type="text" name="summa" id="balanceExchangeAmountFrom" class="form-control" value="{{ $summaFrom }}"
-                        inputmode="decimal" autocomplete="off" data-decimal-input="1" placeholder="Сума списання">
+                        inputmode="numeric" autocomplete="off" placeholder="Сума списання">
                 </div>
             </div>
         </div>
@@ -335,7 +335,7 @@
                 </div>
                 <div class="col-md-6 mb-3">
                     <input type="text" name="summa2" id="balanceExchangeAmountTo" class="form-control" value="{{ $summaTo }}"
-                        inputmode="decimal" autocomplete="off" data-decimal-input="1" placeholder="Сума зарахування">
+                        inputmode="numeric" autocomplete="off" placeholder="Сума зарахування">
                 </div>
             </div>
         </div>
@@ -388,6 +388,7 @@
             const currencyTo = document.getElementById('balanceExchangeToCurrency');
             const hint = document.getElementById('balanceExchangeRateHint');
             let editedFields = [];
+            let syncingTerminalAmount = false;
 
             const parseDecimal = (value) => {
                 const parsed = Number.parseFloat(String(value || '').replace(/\s/g, '').replace(',', '.'));
@@ -420,9 +421,108 @@
                 editedFields = editedFields.filter((item) => item !== field);
                 editedFields.push(field);
             };
+            const bindTerminalAmountInput = (input, field) => {
+                const formatTerminalAmount = (cents) => (Math.max(0, cents) / 100).toFixed(2);
+                const parseAmountToCents = (value) => Math.round(parseDecimal(value) * 100);
+                const syncValue = (cents, recalc = true) => {
+                    syncingTerminalAmount = true;
+                    input.dataset.terminalAmountCents = String(Math.max(0, cents));
+                    input.value = formatTerminalAmount(cents);
+                    syncingTerminalAmount = false;
 
-            amountFrom.addEventListener('input', () => { markEdited('amount_from'); recalculate(); });
-            amountTo.addEventListener('input', () => { markEdited('amount_to'); recalculate(); });
+                    if (recalc) {
+                        markEdited(field);
+                        recalculate();
+                    }
+                };
+                const getDigits = () => {
+                    const cents = parseInt(input.dataset.terminalAmountCents || '0', 10) || 0;
+
+                    return String(cents);
+                };
+                const appendDigit = (digit) => {
+                    const currentDigits = input.dataset.terminalAmountFresh === '1' ? '' : getDigits();
+                    const nextDigits = (currentDigits + digit).replace(/^0+(?=\d)/, '');
+
+                    syncValue(parseInt(nextDigits || '0', 10));
+                    input.dataset.terminalAmountFresh = '0';
+                };
+                const removeLastDigit = () => {
+                    const nextDigits = getDigits().slice(0, -1);
+
+                    syncValue(parseInt(nextDigits || '0', 10));
+                    input.dataset.terminalAmountFresh = '0';
+                };
+
+                syncValue(parseAmountToCents(input.value), false);
+
+                input.addEventListener('focus', () => {
+                    input.dataset.terminalAmountFresh = '1';
+                    syncValue(parseAmountToCents(input.value), false);
+                    input.select();
+                });
+                input.addEventListener('beforeinput', (event) => {
+                    if (event.inputType === 'insertText' && /^\d$/.test(event.data || '')) {
+                        event.preventDefault();
+                        appendDigit(event.data);
+                        return;
+                    }
+
+                    if (event.inputType === 'deleteContentBackward') {
+                        event.preventDefault();
+                        removeLastDigit();
+                        return;
+                    }
+
+                    if (event.inputType === 'deleteContentForward') {
+                        event.preventDefault();
+                        syncValue(0);
+                        input.dataset.terminalAmountFresh = '0';
+                    }
+                });
+                input.addEventListener('keydown', (event) => {
+                    if (event.ctrlKey || event.metaKey || event.altKey) {
+                        return;
+                    }
+
+                    if (/^\d$/.test(event.key)) {
+                        event.preventDefault();
+                        appendDigit(event.key);
+                        return;
+                    }
+
+                    if (event.key === 'Backspace') {
+                        event.preventDefault();
+                        removeLastDigit();
+                        return;
+                    }
+
+                    if (event.key === 'Delete') {
+                        event.preventDefault();
+                        syncValue(0);
+                        input.dataset.terminalAmountFresh = '0';
+                    }
+                });
+                input.addEventListener('paste', (event) => {
+                    event.preventDefault();
+                    const text = event.clipboardData?.getData('text') || '';
+                    const digits = text.replace(/\D/g, '');
+
+                    syncValue(parseInt(digits || '0', 10));
+                    input.dataset.terminalAmountFresh = '0';
+                });
+                input.addEventListener('input', () => {
+                    if (syncingTerminalAmount) {
+                        return;
+                    }
+
+                    syncValue(parseAmountToCents(input.value));
+                    input.dataset.terminalAmountFresh = '0';
+                });
+            };
+
+            bindTerminalAmountInput(amountFrom, 'amount_from');
+            bindTerminalAmountInput(amountTo, 'amount_to');
             rate.addEventListener('input', () => { markEdited('rate'); recalculate(); });
             currencyFrom.addEventListener('change', syncHint);
             currencyTo.addEventListener('change', syncHint);
