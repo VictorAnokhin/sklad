@@ -623,7 +623,7 @@
                         <div class="doc-form-row-single">
                             <label>Сума</label>
                             <input type="text" name="summa" id="documentSummaInput" class="form-control form-control-number text-white"
-                                value="{{ $document->summa ?? 0 }}">
+                                value="{{ $document->summa ?? 0 }}" inputmode="numeric" autocomplete="off">
                         </div>
                     @endif
 
@@ -783,7 +783,8 @@
                             <div class="doc-sum-box-inner">
                                 <label class="doc-sum-box-label">💰 Сума</label>
                                 <input type="text" name="summa" id="documentSummaInput"
-                                    class="form-control doc-sum-box-input text-end fs-6 text-white" value="{{ $document->summa ?? 0 }}">
+                                    class="form-control doc-sum-box-input text-end fs-6 text-white" value="{{ $document->summa ?? 0 }}"
+                                    inputmode="numeric" autocomplete="off">
                             </div>
                         </div>
 
@@ -946,6 +947,112 @@
                 const clientName = formatClientName(user);
                 return `${orgnamePart}${clientName}<br><small>${user.phone || ''} | ${regionPart}${user.city || ''}${poshtaPart}</small>`;
             };
+
+            const formatTerminalAmount = (cents) => (Math.max(0, cents) / 100).toFixed(2);
+            const parseAmountToCents = (value) => {
+                const normalized = String(value || '').replace(/\s/g, '').replace(',', '.');
+                const amount = parseFloat(normalized);
+
+                return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
+            };
+            const bindTerminalAmountInput = (input) => {
+                if (!input) {
+                    return;
+                }
+
+                const syncValue = (cents) => {
+                    input.dataset.terminalAmountCents = String(cents);
+                    input.value = formatTerminalAmount(cents);
+                };
+                const getDigits = () => {
+                    const cents = parseInt(input.dataset.terminalAmountCents || '0', 10) || 0;
+
+                    return String(cents);
+                };
+                const appendDigit = (digit) => {
+                    const currentDigits = input.dataset.terminalAmountFresh === '1' ? '' : getDigits();
+                    const nextDigits = (currentDigits + digit).replace(/^0+(?=\d)/, '');
+
+                    syncValue(parseInt(nextDigits || '0', 10));
+                    input.dataset.terminalAmountFresh = '0';
+                };
+                const removeLastDigit = () => {
+                    const nextDigits = getDigits().slice(0, -1);
+
+                    syncValue(parseInt(nextDigits || '0', 10));
+                    input.dataset.terminalAmountFresh = '0';
+                };
+
+                syncValue(parseAmountToCents(input.value));
+
+                input.addEventListener('focus', () => {
+                    input.dataset.terminalAmountFresh = '1';
+                    syncValue(parseAmountToCents(input.value));
+                    input.select();
+                });
+                input.addEventListener('beforeinput', (event) => {
+                    if (event.inputType === 'insertText' && /^\d$/.test(event.data || '')) {
+                        event.preventDefault();
+                        appendDigit(event.data);
+                        return;
+                    }
+
+                    if (event.inputType === 'deleteContentBackward') {
+                        event.preventDefault();
+                        removeLastDigit();
+                        return;
+                    }
+
+                    if (event.inputType === 'deleteContentForward') {
+                        event.preventDefault();
+                        syncValue(0);
+                        input.dataset.terminalAmountFresh = '0';
+                    }
+                });
+                input.addEventListener('keydown', (event) => {
+                    if (event.ctrlKey || event.metaKey || event.altKey) {
+                        return;
+                    }
+
+                    if (/^\d$/.test(event.key)) {
+                        event.preventDefault();
+                        appendDigit(event.key);
+                        return;
+                    }
+
+                    if (event.key === 'Backspace') {
+                        event.preventDefault();
+                        removeLastDigit();
+                        return;
+                    }
+
+                    if (event.key === 'Delete') {
+                        event.preventDefault();
+                        syncValue(0);
+                        input.dataset.terminalAmountFresh = '0';
+                        return;
+                    }
+
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        submitDocumentSave();
+                    }
+                });
+                input.addEventListener('paste', (event) => {
+                    event.preventDefault();
+                    const text = event.clipboardData?.getData('text') || '';
+                    const digits = text.replace(/\D/g, '');
+
+                    syncValue(parseInt(digits || '0', 10));
+                    input.dataset.terminalAmountFresh = '0';
+                });
+                input.addEventListener('input', () => {
+                    syncValue(parseAmountToCents(input.value));
+                    input.dataset.terminalAmountFresh = '0';
+                });
+            };
+
+            document.querySelectorAll('input[name="summa"]').forEach(bindTerminalAmountInput);
 
             function performSearch() {
                 const q = searchInput.value.trim();

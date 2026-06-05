@@ -50,7 +50,8 @@
             </div>
             <div class="col-md-4 mb-3">
                 <label>{{ __('money.field_sum') }}</label>
-                <input type="number" step="0.01" min="0" name="summa" class="form-control" value="{{ old('summa', $document->summa ?? 0) }}">
+                <input type="text" name="summa" class="form-control" value="{{ old('summa', $document->summa ?? 0) }}"
+                    inputmode="numeric" autocomplete="off">
             </div>
             <div class="col-md-4 mb-3">
                 <label>{{ __('money.field_status') }}</label>
@@ -169,7 +170,8 @@
             </div>
             <div class="col-md-4 mb-3">
                 <label>{{ __('money.field_sum') }}</label>
-                <input type="number" step="0.01" name="summa" class="form-control" value="{{ $document->summa ?? 0 }}">
+                <input type="text" name="summa" class="form-control" value="{{ $document->summa ?? 0 }}"
+                    inputmode="numeric" autocomplete="off">
             </div>
         </div>
 
@@ -557,6 +559,110 @@
         });
     </script>
     @endif
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const formatTerminalAmount = (cents) => (Math.max(0, cents) / 100).toFixed(2);
+            const parseAmountToCents = (value) => {
+                const normalized = String(value || '').replace(/\s/g, '').replace(',', '.');
+                const amount = parseFloat(normalized);
+
+                return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
+            };
+            const bindTerminalAmountInput = (input) => {
+                if (!input) {
+                    return;
+                }
+
+                const syncValue = (cents) => {
+                    input.dataset.terminalAmountCents = String(cents);
+                    input.value = formatTerminalAmount(cents);
+                };
+                const getDigits = () => {
+                    const cents = parseInt(input.dataset.terminalAmountCents || '0', 10) || 0;
+
+                    return String(cents);
+                };
+                const appendDigit = (digit) => {
+                    const currentDigits = input.dataset.terminalAmountFresh === '1' ? '' : getDigits();
+                    const nextDigits = (currentDigits + digit).replace(/^0+(?=\d)/, '');
+
+                    syncValue(parseInt(nextDigits || '0', 10));
+                    input.dataset.terminalAmountFresh = '0';
+                };
+                const removeLastDigit = () => {
+                    const nextDigits = getDigits().slice(0, -1);
+
+                    syncValue(parseInt(nextDigits || '0', 10));
+                    input.dataset.terminalAmountFresh = '0';
+                };
+
+                syncValue(parseAmountToCents(input.value));
+
+                input.addEventListener('focus', () => {
+                    input.dataset.terminalAmountFresh = '1';
+                    syncValue(parseAmountToCents(input.value));
+                    input.select();
+                });
+                input.addEventListener('beforeinput', (event) => {
+                    if (event.inputType === 'insertText' && /^\d$/.test(event.data || '')) {
+                        event.preventDefault();
+                        appendDigit(event.data);
+                        return;
+                    }
+
+                    if (event.inputType === 'deleteContentBackward') {
+                        event.preventDefault();
+                        removeLastDigit();
+                        return;
+                    }
+
+                    if (event.inputType === 'deleteContentForward') {
+                        event.preventDefault();
+                        syncValue(0);
+                        input.dataset.terminalAmountFresh = '0';
+                    }
+                });
+                input.addEventListener('keydown', (event) => {
+                    if (event.ctrlKey || event.metaKey || event.altKey) {
+                        return;
+                    }
+
+                    if (/^\d$/.test(event.key)) {
+                        event.preventDefault();
+                        appendDigit(event.key);
+                        return;
+                    }
+
+                    if (event.key === 'Backspace') {
+                        event.preventDefault();
+                        removeLastDigit();
+                        return;
+                    }
+
+                    if (event.key === 'Delete') {
+                        event.preventDefault();
+                        syncValue(0);
+                        input.dataset.terminalAmountFresh = '0';
+                    }
+                });
+                input.addEventListener('paste', (event) => {
+                    event.preventDefault();
+                    const text = event.clipboardData?.getData('text') || '';
+                    const digits = text.replace(/\D/g, '');
+
+                    syncValue(parseInt(digits || '0', 10));
+                    input.dataset.terminalAmountFresh = '0';
+                });
+                input.addEventListener('input', () => {
+                    syncValue(parseAmountToCents(input.value));
+                    input.dataset.terminalAmountFresh = '0';
+                });
+            };
+
+            document.querySelectorAll('input[name="summa"]').forEach(bindTerminalAmountInput);
+        });
+    </script>
 
     @if(!$isNew)
     <form id="deleteMoneyForm" action="{{ route('money.destroy') }}" method="post" style="display:none;">
