@@ -1391,6 +1391,10 @@ class AuthController extends Controller
             'city' => 'nullable|string|max:100',
             'country' => 'nullable|string|max:100',
             'region' => 'nullable|string|max:100',
+            'balances' => 'nullable|array',
+            'balances.*.amount' => 'nullable',
+            'balances.*.currency' => 'nullable|string|max:20',
+            'balances.*.is_default' => 'nullable|boolean',
         ];
 
         $validated = $request->validate($validationRules);
@@ -1409,6 +1413,8 @@ class AuthController extends Controller
         }
 
         unset($validated['email'], $validated['fid'], $validated['firma']);
+        $balanceRows = $validated['balances'] ?? null;
+        unset($validated['balances']);
 
         foreach (['name', 'secondname', 'fathername', 'phone', 'address', 'city', 'country', 'region'] as $field) {
             if (array_key_exists($field, $validated)) {
@@ -1425,7 +1431,14 @@ class AuthController extends Controller
             return response()->json(['message' => 'Client profile was not found for email and fid.'], 404);
         }
 
-        $targetUser->update(User::filterUsersColumns($validated));
+        $updates = User::filterUsersColumns($validated);
+        if (is_array($balanceRows) && Schema::hasColumn('users', 'balance')) {
+            $updates['balance'] = $this->serializeProfileBalances(
+                $this->normalizeProfileBalanceRows($balanceRows, $targetFid)
+            );
+        }
+
+        $targetUser->update($updates);
         $targetUser = $targetUser->fresh();
 
         return response()->json([
@@ -2120,6 +2133,7 @@ class AuthController extends Controller
     {
         $wallets = $this->userWallets($user->id);
         $primaryWallet = $wallets[0] ?? null;
+        $balances = $this->parseUserBalance($user->balance ?? '');
 
         return [
             'id' => $user->id,
@@ -2150,8 +2164,161 @@ class AuthController extends Controller
             'idreestr' => $user->idreestr,
             'domen' => $user->domen,
             'bonus' => $user->bonus,
+            'balance' => $user->balance ?? null,
+            'balances' => $balances,
+            'default_balance' => $balances[0] ?? null,
             'balans' => $user->balans,
         ];
+    }
+
+    private function parseUserBalance(mixed $value): array
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return [];
+        }
+
+        if (! str_contains($raw, ':') && is_numeric($raw) && (float) $raw != 0.0) {
+            return [[
+                'amount' => $raw,
+                'currency' => 'UAH',
+                'is_default' => true,
+            ]];
+        }
+
+        $balances = [];
+        foreach (explode(';', $raw) as $segment) {
+            $segment = trim($segment);
+            if ($segment === '' || ! str_contains($segment, ':')) {
+                continue;
+            }
+
+            [$amount, $currency] = array_map('trim', explode(':', $segment, 2));
+            $amount = str_replace(',', '.', $amount);
+            if ($amount === '' || ! is_numeric($amount)) {
+                continue;
+            }
+
+            $balances[] = [
+                'amount' => $this->formatProfileBalanceAmount($amount),
+                'currency' => $this->normalizeCurrencyCode($currency),
+                'is_default' => count($balances) === 0,
+            ];
+        }
+
+        return $balances;
+    }
+
+    private function normalizeProfileBalanceRows(array $rows, string $fid): array
+    {
+        $availableCurrencies = $this->currencyCodesForFirma($fid);
+        $balances = [];
+        $seenCurrencies = [];
+        $defaultIndex = null;
+
+        foreach ($rows as $index => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $amount = str_replace(',', '.', trim((string) ($row['amount'] ?? '')));
+            if ($amount === '') {
+                continue;
+            }
+
+            if (strlen($amount) > 50) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'balances.' . $index . '.amount' => 'Balance amount is too long.',
+                ]);
+            }
+
+            if (! is_numeric($amount)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'balances.' . $index . '.amount' => 'Balance amount must be numeric.',
+                ]);
+            }
+
+            $currency = $this->normalizeCurrencyCode($row['currency'] ?? 'UAH');
+            if ($availableCurrencies->isNotEmpty() && ! $availableCurrencies->contains($currency)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'balances.' . $index . '.currency' => 'Balance currency must be selected from configured currencies.',
+                ]);
+            }
+
+            if (isset($seenCurrencies[$currency])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'balances.' . $index . '.currency' => 'Only one balance per currency is allowed.',
+                ]);
+            }
+
+            $seenCurrencies[$currency] = true;
+            $balances[] = [
+                'amount' => $this->formatProfileBalanceAmount($amount),
+                'currency' => $currency,
+            ];
+
+            if ((bool) ($row['is_default'] ?? false)) {
+                $defaultIndex = count($balances) - 1;
+            }
+        }
+
+        if ($balances === [] || $defaultIndex === null || $defaultIndex === 0) {
+            return $balances;
+        }
+
+        $defaultRow = $balances[$defaultIndex];
+        unset($balances[$defaultIndex]);
+
+        return array_values(array_merge([$defaultRow], $balances));
+    }
+
+    private function serializeProfileBalances(array $balances): ?string
+    {
+        if ($balances === []) {
+            return null;
+        }
+
+        return collect($balances)
+            ->map(fn (array $balance): string => $balance['amount'] . ':' . $balance['currency'] . ';')
+            ->implode('');
+    }
+
+    private function formatProfileBalanceAmount(string $amount): string
+    {
+        $amount = trim($amount);
+        if (str_contains($amount, '.')) {
+            $amount = rtrim(rtrim($amount, '0'), '.');
+        }
+
+        if ($amount === '' || $amount === '-0') {
+            return '0';
+        }
+
+        return $amount;
+    }
+
+    private function normalizeCurrencyCode(mixed $value): string
+    {
+        $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
+
+        return $currency !== '' ? substr($currency, 0, 10) : 'UAH';
+    }
+
+    private function currencyCodesForFirma(mixed $fid): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('conf')) {
+            return collect();
+        }
+
+        return DB::table('conf')
+            ->where('type', 'currency')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->get(['name', 'currency'])
+            ->map(fn ($item) => $this->normalizeCurrencyCode($item->currency ?? $item->name ?? ''))
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     private function serializeKycStatus(User $user): array

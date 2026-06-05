@@ -64,6 +64,13 @@ class MoneyController extends Controller
         return $filters;
     }
 
+    private function decimalInput(Request $request, string $key): float
+    {
+        $normalized = str_replace([' ', ','], ['', '.'], trim((string) $request->input($key, '')));
+
+        return is_numeric($normalized) ? (float) $normalized : 0.0;
+    }
+
     public function index(Request $request)
     {
         $fid = session('fid', '');
@@ -84,13 +91,13 @@ class MoneyController extends Controller
                 ->get()
                 ->map(fn ($item) => Conf::decoratePaymentType($item));
 
-        $userBalance = (float) (Auth::user()->balance ?? 0);
+        $userBalances = Money::userBalances(Auth::user()->balance ?? '');
 
         $indexRouteName = 'money.index';
         $showRouteName = 'money.show';
         $filterRouteName = 'money.index';
 
-        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalance', 'datesAreDefault', 'indexRouteName', 'showRouteName', 'filterRouteName')));
+        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalances', 'datesAreDefault', 'indexRouteName', 'showRouteName', 'filterRouteName')));
     }
 
     public function transfers(Request $request)
@@ -104,12 +111,12 @@ class MoneyController extends Controller
 
         $data = Money::initTransfers($fid, $pos, $filters);
         $paymentTypes = collect();
-        $userBalance = (float) (Auth::user()->balance ?? 0);
+        $userBalances = Money::userBalances(Auth::user()->balance ?? '');
         $indexRouteName = 'money.transfers';
         $showRouteName = 'money.show';
         $filterRouteName = 'money.transfers';
 
-        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalance', 'datesAreDefault', 'indexRouteName', 'showRouteName', 'filterRouteName')));
+        return view('money.index', array_merge($data, compact('pos', 'fid', 'filters', 'paymentTypes', 'tab', 'userBalances', 'datesAreDefault', 'indexRouteName', 'showRouteName', 'filterRouteName')));
     }
 
     public function show(Request $request)
@@ -137,7 +144,7 @@ class MoneyController extends Controller
         if ($docId === 0) {
             $document = Money::emptyDocument($type);
             $document->client2 = (string) (Auth::id() ?: session('userid', '0'));
-            $document->owner_balance = (float) (Auth::user()->balance ?? 0);
+            $document->owner_balance = (string) (Auth::user()->balance ?? '');
             $document->owner_name = (string) (Auth::user()->name ?? '');
             $document->owner_secondname = (string) (Auth::user()->secondname ?? '');
             $document->owner_fathername = (string) (Auth::user()->fathername ?? '');
@@ -150,6 +157,15 @@ class MoneyController extends Controller
             }
         }
 
+        $ownerBalances = Money::userBalances($document->owner_balance ?? '');
+        if ($ownerBalances === []) {
+            $ownerBalances = [[
+                'amount' => '0',
+                'currency' => (string) ($document->currency_from ?? 'UAH'),
+                'is_default' => true,
+            ]];
+        }
+
         $reestrList = Conf::paymentTypesForDocument($fid, $type);
         $clientStatuses = DB::table('conf')
             ->where('type', 'tclient')
@@ -157,7 +173,7 @@ class MoneyController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('money.show', compact('document', 'reestrList', 'returnFilters', 'tab', 'clientStatuses'));
+        return view('money.show', compact('document', 'reestrList', 'returnFilters', 'tab', 'clientStatuses', 'ownerBalances'));
     }
 
     public function save(Request $request)
@@ -172,9 +188,11 @@ class MoneyController extends Controller
         if ($tab === 'transfers') {
             $fromCashbox = trim((string) $request->input('oplata', ''));
             $toCashbox = trim((string) $request->input('oplata2', ''));
-            $summa = (float) $request->input('summa', 0);
+            $summa = $this->decimalInput($request, 'summa');
+            $summa2 = $this->decimalInput($request, 'summa2');
+            $exchangeRate = $this->decimalInput($request, 'exchange_rate');
 
-            if ($summa <= 0 || $fromCashbox === '' || $toCashbox === '') {
+            if (($summa <= 0 && $summa2 <= 0) || $fromCashbox === '' || $toCashbox === '') {
                 return redirect()->back()->withInput()->with('error', 'Заповніть суму і обидві каси');
             }
 
@@ -182,12 +200,23 @@ class MoneyController extends Controller
                 return redirect()->back()->withInput()->with('error', 'Для переводу оберіть різні каси');
             }
 
+            if ($summa <= 0 && ($summa2 <= 0 || $exchangeRate <= 0)) {
+                return redirect()->back()->withInput()->with('error', 'Для розрахунку суми списання заповніть суму зарахування і курс');
+            }
+
             $savedId = Money::saveTransferDocument($id, $fid, [
-                'summa' => $summa,
+                'summa' => (string) $request->input('summa', ''),
+                'summa2' => (string) $request->input('summa2', ''),
+                'exchange_rate' => (string) $request->input('exchange_rate', ''),
+                'currency_from' => (string) $request->input('currency_from', 'UAH'),
+                'currency_to' => (string) $request->input('currency_to', 'UAH'),
+                'commission_amount' => (string) $request->input('commission_amount', '0'),
+                'commission_currency' => (string) $request->input('commission_currency', ''),
                 'content' => (string) $request->input('content', ''),
                 'data' => (string) $request->input('data', date('d-m-Y')),
                 'oplata' => $fromCashbox,
                 'oplata2' => $toCashbox,
+                'client2' => (string) (Auth::id() ?: session('userid', '0')),
             ]);
 
             $savedDocument = Money::findTransfer($savedId, $fid);
@@ -219,6 +248,79 @@ class MoneyController extends Controller
             ])->with('success', $message);
         }
 
+        if ($type === 'PPP') {
+            $summa = $this->decimalInput($request, 'summa');
+            $summa2 = $this->decimalInput($request, 'summa2');
+            $exchangeRate = $this->decimalInput($request, 'exchange_rate');
+            $currencyFrom = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('currency_from', 'UAH')) ?: 'UAH');
+            $currencyTo = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('currency_to', 'UAH')) ?: 'UAH');
+
+            if ($summa <= 0 || ($summa2 <= 0 && $exchangeRate <= 0)) {
+                return redirect()->back()->withInput()->with('error', 'Заповніть суму списання і суму зарахування або курс');
+            }
+
+            if ($currencyFrom === $currencyTo) {
+                return redirect()->back()->withInput()->with('error', 'Для обміну оберіть різні валюти балансу');
+            }
+
+            if ($summa2 <= 0 && $exchangeRate > 0) {
+                $summa2 = round($summa * $exchangeRate, 2);
+            }
+
+            if ($exchangeRate <= 0 && $summa > 0) {
+                $exchangeRate = round($summa2 / $summa, 8);
+            }
+
+            $data = [
+                'type' => 'PPP',
+                'summa' => $summa,
+                'summa2' => $summa2,
+                'exchange_rate' => $exchangeRate,
+                'currency_from' => $currencyFrom,
+                'currency_to' => $currencyTo,
+                'content' => (string) $request->input('content', ''),
+                'data' => $request->input('data', date('d-m-Y')),
+                'money' => '',
+                'oplata' => '',
+                'reestr' => '',
+                'client1' => '0',
+                'client2' => (string) (Auth::id() ?: session('userid', '0')),
+            ];
+
+            $savedId = Money::saveDocument($id, $fid, $data);
+            $savedDocument = Money::find($savedId, $fid);
+
+            if (!$savedDocument) {
+                return redirect()->route('money.index', $returnFilters)->with('error', 'Документ не знайдено');
+            }
+
+            $isCurrentlyPosted = (int) ($savedDocument->provodka ?? 0) === 1;
+            $message = 'Збережено';
+
+            if ($shouldPost !== $isCurrentlyPosted) {
+                $result = Money::provodka($savedId, $fid);
+
+                if (!($result['document'] ?? null)) {
+                    return redirect()->route('money.index', $returnFilters)->with('error', 'Документ не знайдено');
+                }
+
+                $message = $shouldPost ? 'Збережено та проведено' : 'Збережено, проводку скасовано';
+            }
+
+            return redirect()->route('money.show', [
+                'id' => $savedId,
+                'type' => 'PPP',
+                'tab' => 'orders',
+                'return_q' => $returnFilters['q'] ?? null,
+                'return_filter_type' => $returnFilters['type'] ?? null,
+                'return_money' => $returnFilters['money'] ?? null,
+                'return_reestr' => $returnFilters['reestr'] ?? null,
+                'return_date_from' => $returnFilters['date_from'] ?? null,
+                'return_date_to' => $returnFilters['date_to'] ?? null,
+                'return_pos' => $returnFilters['pos'] ?? null,
+            ])->with('success', $message);
+        }
+
         $client1 = trim((string) $request->input('client1', ''));
         if ($client1 === '' || $client1 === '0') {
             return redirect()
@@ -235,6 +337,7 @@ class MoneyController extends Controller
             'money' => '',
             'oplata' => '',
             'reestr' => (string) $request->input('reestr', ''),
+            'currency_from' => (string) $request->input('balance_currency', 'UAH'),
             'client1' => $client1,
             'client2' => (string) (Auth::id() ?: session('userid', '0')),
         ];

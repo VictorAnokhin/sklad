@@ -22,7 +22,10 @@
         'withdraw' => 'Ваш баланс',
         default => 'Выбери депозит',
     };
-    $selectedOwnerBalance = (float) ($document->owner_balance ?? 0);
+    $selectedBalanceCurrency = old('balance_currency', $document->currency_from ?? (($ownerBalances[0]['currency'] ?? 'UAH')));
+    $ownerBalanceLabel = collect($ownerBalances ?? [])->map(function ($balance) {
+        return ($balance['amount'] ?? '0') . ' ' . ($balance['currency'] ?? 'UAH');
+    })->implode(' | ');
     $authorName = trim(implode(' ', array_filter([
         $document->owner_orgname ?? '',
         $document->owner_secondname ?? '',
@@ -35,7 +38,7 @@
 
     <h3 style="color:#b45309;">🏦 {{ $heading }} @if(!$isNew) № {{ $document->num }} @endif</h3>
     @if($isDocumentOwner)
-    <div class="text-muted mb-3">Ваш баланс: {{ number_format($selectedOwnerBalance, 2, '.', ' ') }}</div>
+    <div class="text-muted mb-3">Ваш баланс: {{ $ownerBalanceLabel !== '' ? $ownerBalanceLabel : '0 UAH' }}</div>
     @elseif($authorName !== '')
     <div class="text-muted mb-3">Автор: {{ $authorName }}</div>
     @endif
@@ -81,8 +84,8 @@
             <select name="money" class="form-control" required>
                 <option value="">{{ __('deposit.select_deposit') }}</option>
                 @foreach($deposits as $deposit)
-                <option value="{{ $deposit->id }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
-                    {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} @endif
+                <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency ?? 'UAH' }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
+                    {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} {{ $deposit->currency ?? 'UAH' }} @endif
                 </option>
                 @endforeach
             </select>
@@ -95,13 +98,25 @@
             <select name="money" class="form-control" required>
                 <option value="">{{ __('deposit.select_deposit') }}</option>
                 @foreach($deposits as $deposit)
-                <option value="{{ $deposit->id }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
-                    {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} @endif
+                <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency ?? 'UAH' }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
+                    {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} {{ $deposit->currency ?? 'UAH' }} @endif
                 </option>
                 @endforeach
             </select>
         </div>
         @endif
+
+        <div class="mb-3">
+            <label>{{ $mode === 'topup' ? 'Баланс для списання' : 'Баланс для зарахування' }}</label>
+            <select name="balance_currency" id="depositBalanceCurrency" class="form-control" required>
+                @foreach(($ownerBalances ?? []) as $balance)
+                <option value="{{ $balance['currency'] }}" {{ (string) $selectedBalanceCurrency === (string) $balance['currency'] ? 'selected' : '' }}>
+                    {{ $balance['currency'] }} — {{ $balance['amount'] }}
+                </option>
+                @endforeach
+            </select>
+            <small class="text-muted">Валюта балансу має збігатися з валютою вибраного депозиту.</small>
+        </div>
 
         <div class="mb-3">
             <label>{{ __('deposit.comment') }}</label>
@@ -132,6 +147,29 @@
             @endif
         </div>
     </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const depositSelect = document.querySelector('select[name="money"]');
+            const balanceSelect = document.getElementById('depositBalanceCurrency');
+
+            if (!depositSelect || !balanceSelect) {
+                return;
+            }
+
+            depositSelect.addEventListener('change', function () {
+                const currency = this.selectedOptions?.[0]?.dataset?.currency || '';
+                if (!currency) {
+                    return;
+                }
+
+                const matchingOption = Array.from(balanceSelect.options).find((option) => option.value === currency);
+                if (matchingOption) {
+                    balanceSelect.value = currency;
+                }
+            });
+        });
+    </script>
 
     @if(!$isNew)
     <form id="deleteDepositForm" action="{{ route('deposit.destroy') }}" method="post" style="display:none;">

@@ -65,6 +65,9 @@ class SettingsController extends Controller
         // Каса — conf where type='oplata'
         $oplatas = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
 
+        // Валюты — conf where type='currency'
+        $currencies = DB::table('conf')->where('type', 'currency')->where('firma', $fid)->orderBy('name')->get();
+
         // Офисы — conf where type='sklads'
         $sklads = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
 
@@ -91,6 +94,7 @@ class SettingsController extends Controller
                 'web3auth' => 0,
             ]]);
         }
+        $profileBalances = $this->parseUserBalance($user && Schema::hasColumn('users', 'balance') ? ($user->balance ?? '') : '');
 
         $fieldCatalogTopCount = 0;
         $fieldCityCount = 0;
@@ -161,7 +165,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'fieldTranslationsCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -398,18 +402,24 @@ class SettingsController extends Controller
             return response()->json([]);
         }
 
+        $columns = [
+            'accounts.id',
+            'accounts.code',
+            'accounts.name',
+            'accounts.type',
+            'accounts.parent_id',
+            'parent.code as parent_code',
+            'parent.name as parent_name',
+        ];
+        if (Schema::hasColumn('accounts', 'currency')) {
+            $columns[] = 'accounts.currency';
+        }
+
         $items = Account::query()
             ->leftJoin('accounts as parent', 'accounts.parent_id', '=', 'parent.id')
             ->orderBy('accounts.code')
-            ->get([
-                'accounts.id',
-                'accounts.code',
-                'accounts.name',
-                'accounts.type',
-                'accounts.parent_id',
-                'parent.code as parent_code',
-                'parent.name as parent_name',
-            ]);
+            ->get($columns)
+            ->map(fn ($item) => $this->decorateAccountItem($item));
 
         return response()->json($items);
     }
@@ -425,16 +435,13 @@ class SettingsController extends Controller
             return response()->json(['message' => 'Не знайдено'], 404);
         }
 
-        return response()->json($item);
+        return response()->json($this->decorateAccountItem($item));
     }
 
     public function accountsStore(Request $request)
     {
-        $validated = $request->validate([
+        $validated = $this->validateAccountRecord($request, [
             'code' => 'required|string|max:255|unique:accounts,code',
-            'name' => 'required|string|max:255',
-            'type' => 'required|in:asset,liability,equity,income,expense',
-            'parent_id' => 'nullable|integer|exists:accounts,id',
         ]);
 
         $account = Account::query()->create($validated);
@@ -449,11 +456,8 @@ class SettingsController extends Controller
             return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
         }
 
-        $validated = $request->validate([
+        $validated = $this->validateAccountRecord($request, [
             'code' => 'required|string|max:255|unique:accounts,code,' . $account->id,
-            'name' => 'required|string|max:255',
-            'type' => 'required|in:asset,liability,equity,income,expense',
-            'parent_id' => 'nullable|integer|exists:accounts,id',
         ]);
 
         if ((int) ($validated['parent_id'] ?? 0) === (int) $account->id) {
@@ -493,6 +497,45 @@ class SettingsController extends Controller
         $account->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    private function validateAccountRecord(Request $request, array $codeRule): array
+    {
+        $rules = array_merge($codeRule, [
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:asset,liability,equity,income,expense',
+            'parent_id' => 'nullable|integer|exists:accounts,id',
+            'currency' => 'nullable|string|max:10',
+        ]);
+
+        $validated = $request->validate($rules);
+
+        if (! Schema::hasColumn('accounts', 'currency')) {
+            unset($validated['currency']);
+
+            return $validated;
+        }
+
+        $currency = $this->normalizeCurrencyCode($validated['currency'] ?? 'UAH');
+        $availableCurrencies = $this->currencyCodesForFirma(session('fid', ''));
+        if ($availableCurrencies->isNotEmpty() && ! $availableCurrencies->contains($currency)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'currency' => 'Валюта счета должна быть выбрана из справочника валют.',
+            ]);
+        }
+
+        $validated['currency'] = $currency;
+
+        return $validated;
+    }
+
+    private function decorateAccountItem(object $item): object
+    {
+        $item->currency = Schema::hasColumn('accounts', 'currency')
+            ? $this->normalizeCurrencyCode($item->currency ?? 'UAH')
+            : 'UAH';
+
+        return $item;
     }
 
     public function paymentTypeAccountBindings()
@@ -584,6 +627,166 @@ class SettingsController extends Controller
         ]);
 
         return redirect()->route('settings.index')->with('success', 'Профіль оновлено');
+    }
+
+    public function profileBalancesUpdate(Request $request)
+    {
+        $user = $this->currentUser();
+        if (!$user) return redirect()->back()->with('error', 'Користувача не знайдено');
+
+        if (! Schema::hasColumn('users', 'balance')) {
+            return redirect()->back()->with('error', 'Поле балансу не знайдено');
+        }
+
+        $validated = $request->validate([
+            'balance_amounts' => 'nullable|array',
+            'balance_amounts.*' => ['nullable', 'string', 'max:50', 'regex:/^-?\d+(?:[.,]\d{1,18})?$/'],
+            'balance_currencies' => 'nullable|array',
+            'balance_currencies.*' => 'nullable|string|max:20',
+            'balance_delete' => 'nullable|array',
+            'default_balance_key' => 'nullable|string|max:50',
+        ]);
+
+        $balances = $this->normalizeProfileBalanceRows(
+            $validated['balance_amounts'] ?? [],
+            $validated['balance_currencies'] ?? [],
+            $validated['balance_delete'] ?? [],
+            (string) ($validated['default_balance_key'] ?? '')
+        );
+
+        DB::table('users')->where('id', $user->id)->update([
+            'balance' => $this->serializeProfileBalances($balances),
+        ]);
+
+        return redirect()->route('settings.index')->with('success', 'Баланси профілю оновлено');
+    }
+
+    private function parseUserBalance(mixed $value): array
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return [];
+        }
+
+        if (! str_contains($raw, ':') && is_numeric($raw) && (float) $raw != 0.0) {
+            return [[
+                'amount' => $raw,
+                'currency' => 'UAH',
+                'is_default' => true,
+            ]];
+        }
+
+        $balances = [];
+        foreach (explode(';', $raw) as $segment) {
+            $segment = trim($segment);
+            if ($segment === '' || ! str_contains($segment, ':')) {
+                continue;
+            }
+
+            [$amount, $currency] = array_map('trim', explode(':', $segment, 2));
+            $currency = $this->normalizeCurrencyCode($currency);
+            $amount = str_replace(',', '.', $amount);
+            if ($amount === '' || ! is_numeric($amount)) {
+                continue;
+            }
+
+            $balances[] = [
+                'amount' => $amount,
+                'currency' => $currency,
+                'is_default' => count($balances) === 0,
+            ];
+        }
+
+        return $balances;
+    }
+
+    private function normalizeProfileBalanceRows(array $amounts, array $currencies, array $deleted, string $defaultKey): array
+    {
+        $availableCurrencies = $this->currencyCodesForFirma(session('fid', ''));
+        $rows = [];
+        $seenCurrencies = [];
+
+        foreach ($amounts as $key => $amount) {
+            if (array_key_exists((string) $key, $deleted) || array_key_exists($key, $deleted)) {
+                continue;
+            }
+
+            $amount = str_replace(',', '.', trim((string) $amount));
+            if ($amount === '') {
+                continue;
+            }
+
+            if (! is_numeric($amount)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'balance_amounts.' . $key => 'Сума балансу має бути числом.',
+                ]);
+            }
+
+            $currency = $this->normalizeCurrencyCode($currencies[$key] ?? 'UAH');
+            if ($availableCurrencies->isNotEmpty() && ! $availableCurrencies->contains($currency)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'balance_currencies.' . $key => 'Валюта балансу має бути вибрана з довідника валют.',
+                ]);
+            }
+
+            if (isset($seenCurrencies[$currency])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'balance_currencies.' . $key => 'Для однієї валюти можна залишити тільки один баланс.',
+                ]);
+            }
+
+            $seenCurrencies[$currency] = true;
+            $rows[] = [
+                'key' => (string) $key,
+                'amount' => $this->formatProfileBalanceAmount($amount),
+                'currency' => $currency,
+            ];
+        }
+
+        if ($rows === []) {
+            return [];
+        }
+
+        $defaultIndex = 0;
+        foreach ($rows as $index => $row) {
+            if ($row['key'] === $defaultKey) {
+                $defaultIndex = $index;
+                break;
+            }
+        }
+
+        $defaultRow = $rows[$defaultIndex];
+        unset($rows[$defaultIndex]);
+
+        return array_values(array_map(
+            fn (array $row): array => ['amount' => $row['amount'], 'currency' => $row['currency']],
+            array_merge([$defaultRow], $rows)
+        ));
+    }
+
+    private function serializeProfileBalances(array $balances): ?string
+    {
+        if ($balances === []) {
+            return null;
+        }
+
+        return collect($balances)
+            ->map(fn (array $balance): string => $balance['amount'] . ':' . $balance['currency'] . ';')
+            ->implode('');
+    }
+
+    private function formatProfileBalanceAmount(string $amount): string
+    {
+        $amount = trim($amount);
+        if (str_contains($amount, '.')) {
+            $amount = rtrim(rtrim($amount, '0'), '.');
+        }
+
+        if ($amount === '' || $amount === '-0') {
+            return '0';
+        }
+
+        return $amount;
     }
 
     public function passwordChange(Request $request)
@@ -1599,6 +1802,7 @@ class SettingsController extends Controller
             'commission' => $hasCommissionColumn ? 'nullable|numeric|min:0|max:3' : 'nullable',
             'doc' => 'nullable|string|max:100',
             'constanta' => 'nullable|string|max:255',
+            'currency' => 'nullable|string|max:10',
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:255',
             'google_map' => 'nullable|string|max:65535',
@@ -1607,19 +1811,35 @@ class SettingsController extends Controller
         ]);
 
         $type = (string) ($validated['type'] ?? '');
+        $currency = $this->normalizeCurrencyCode($validated['currency'] ?? 'UAH');
         $vision = $validated['vision'] ?? '1';
         if ($type === 'web3_token') {
             $vision = Conf::normalizeWeb3ChainIdToDecimalString($vision) ?? $vision;
         }
+        if ($type === 'currency') {
+            $currency = $this->normalizeCurrencyCode($validated['name'] ?? $currency);
+        }
+        if (($type === 'oplata' || $type === 'deposit') && Schema::hasColumn('conf', 'currency')) {
+            $availableCurrencies = $this->currencyCodesForFirma(session('fid', ''));
+            if ($availableCurrencies->isNotEmpty() && ! $availableCurrencies->contains($currency)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'currency' => 'Валюта должна быть выбрана из справочника валют.',
+                ]);
+            }
+        }
 
         $data = [
-            'name' => trim((string) ($validated['name'] ?? '')),
+            'name' => $type === 'currency' ? $currency : trim((string) ($validated['name'] ?? '')),
             'type' => $type,
             'color' => trim((string) ($validated['color'] ?? '')),
             'status' => (string) ($validated['status'] ?? '1'),
             'vision' => (string) $vision,
             'constanta' => (string) ($validated['constanta'] ?? '0'),
         ];
+
+        if (Schema::hasColumn('conf', 'currency')) {
+            $data['currency'] = $type === 'oplata' || $type === 'deposit' || $type === 'currency' ? $currency : '';
+        }
 
         if ($hasCommissionColumn) {
             $data['commission'] = array_key_exists('commission', $validated) && $validated['commission'] !== null
@@ -1683,7 +1903,35 @@ class SettingsController extends Controller
                 : 0.0;
         }
 
+        if ($type === 'oplata' || $type === 'deposit') {
+            $item->currency = $this->normalizeCurrencyCode($item->currency ?? 'UAH');
+        }
+
+        if ($type === 'currency') {
+            $item->currency = $this->normalizeCurrencyCode($item->currency ?? $item->name ?? 'UAH');
+        }
+
         return $item;
+    }
+
+    private function normalizeCurrencyCode(mixed $value): string
+    {
+        $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
+
+        return $currency !== '' ? substr($currency, 0, 10) : 'UAH';
+    }
+
+    private function currencyCodesForFirma(mixed $fid): \Illuminate\Support\Collection
+    {
+        return DB::table('conf')
+            ->where('type', 'currency')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->get(['name', 'currency'])
+            ->map(fn ($item) => $this->normalizeCurrencyCode($item->currency ?? $item->name ?? ''))
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     private function validateProject(Request $request): array

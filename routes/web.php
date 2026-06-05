@@ -186,6 +186,7 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/switch-project', [SettingsController::class , 'switchProject'])->name('switchProject');
             Route::post('/save', [SettingsController::class , 'save'])->name('save');
             Route::post('/profile-update', [SettingsController::class , 'profileUpdate'])->name('profileUpdate');
+            Route::post('/profile-balances-update', [SettingsController::class , 'profileBalancesUpdate'])->name('profileBalancesUpdate');
             Route::post('/password-change', [SettingsController::class , 'passwordChange'])->name('passwordChange');
             Route::get('/projects', [SettingsController::class , 'projectsIndex'])->name('projects.index');
             Route::get('/projects/{id}', [SettingsController::class , 'projectsShow'])->name('projects.show');

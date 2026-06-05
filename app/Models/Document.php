@@ -433,6 +433,7 @@ class Document extends Model
             if ($docType === 'ZP') {
                 $kasId = $oplata;
                 $confColumns = Schema::getColumnListing('conf');
+                $currency = self::currencyForCashbox($kasId, $fid, $confColumns);
                 $cashDelta = -1 * $summa * $direction;
 
                 if (trim($kasId) === '') {
@@ -460,11 +461,7 @@ class Document extends Model
                 }
 
                 if ($client1 !== '' && $client1 !== '0') {
-                    self::applyColumnDelta(
-                        DB::table('users')->where('id', $client1)->where('firma', $fid),
-                        'balance',
-                        $summa * $direction
-                    );
+                    self::applyUserBalanceDelta($client1, $fid, $summa * $direction, $currency);
                 }
             }
 
@@ -646,6 +643,159 @@ class Document extends Model
         if ($delta < 0) {
             $query->decrement($column, abs($delta));
         }
+    }
+
+    private static function applyUserBalanceDelta(string $userId, string $fid, float $delta, string $currency): void
+    {
+        if ($delta == 0.0 || !Schema::hasColumn('users', 'balance')) {
+            return;
+        }
+
+        $user = DB::table('users')
+            ->where('id', $userId)
+            ->where('firma', $fid)
+            ->lockForUpdate()
+            ->first(['id', 'balance']);
+
+        if (!$user) {
+            return;
+        }
+
+        $balances = self::parseBalanceString($user->balance ?? '');
+        $currency = self::normalizeCurrencyCode($currency);
+        $found = false;
+
+        foreach ($balances as &$balance) {
+            if ($balance['currency'] !== $currency) {
+                continue;
+            }
+
+            $balance['amount'] = self::formatBalanceAmount((float) $balance['amount'] + $delta);
+            $found = true;
+            break;
+        }
+        unset($balance);
+
+        if (!$found) {
+            $balances[] = [
+                'amount' => self::formatBalanceAmount($delta),
+                'currency' => $currency,
+            ];
+        }
+
+        DB::table('users')->where('id', $user->id)->update([
+            'balance' => self::serializeBalanceString($balances),
+        ]);
+    }
+
+    private static function parseBalanceString(mixed $value): array
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return [];
+        }
+
+        if (!str_contains($raw, ':') && is_numeric($raw)) {
+            return [[
+                'amount' => self::formatBalanceAmount((float) $raw),
+                'currency' => 'UAH',
+            ]];
+        }
+
+        $balances = [];
+        foreach (explode(';', $raw) as $segment) {
+            $segment = trim($segment);
+            if ($segment === '' || !str_contains($segment, ':')) {
+                continue;
+            }
+
+            [$amount, $currency] = array_map('trim', explode(':', $segment, 2));
+            $amount = str_replace(',', '.', $amount);
+            if ($amount === '' || !is_numeric($amount)) {
+                continue;
+            }
+
+            $balances[] = [
+                'amount' => self::formatBalanceAmount((float) $amount),
+                'currency' => self::normalizeCurrencyCode($currency),
+            ];
+        }
+
+        return $balances;
+    }
+
+    private static function serializeBalanceString(array $balances): ?string
+    {
+        $segments = [];
+        foreach ($balances as $balance) {
+            $amount = self::formatBalanceAmount((float) ($balance['amount'] ?? 0));
+            $currency = self::normalizeCurrencyCode($balance['currency'] ?? 'UAH');
+            $segments[] = "{$amount}:{$currency};";
+        }
+
+        return $segments === [] ? null : implode('', $segments);
+    }
+
+    private static function currencyForCashbox(string $cashboxId, string $fid, array $confColumns): string
+    {
+        if (trim($cashboxId) === '') {
+            return 'UAH';
+        }
+
+        $select = ['name'];
+        if (in_array('currency', $confColumns, true)) {
+            $select[] = 'currency';
+        }
+
+        $cashbox = DB::table('conf')
+            ->where('id', $cashboxId)
+            ->where('type', 'oplata')
+            ->where('firma', $fid)
+            ->first($select);
+
+        if (!$cashbox) {
+            return 'UAH';
+        }
+
+        if (in_array('currency', $confColumns, true)) {
+            $configuredCurrency = trim((string) ($cashbox->currency ?? ''));
+            if ($configuredCurrency !== '') {
+                return self::normalizeCurrencyCode($configuredCurrency);
+            }
+        }
+
+        return self::currencyFromCashboxName((string) ($cashbox->name ?? ''));
+    }
+
+    private static function currencyFromCashboxName(string $name): string
+    {
+        $upperName = strtoupper($name);
+        foreach (['UAH', 'USD', 'EUR', 'GBP', 'PLN', 'USDT', 'USDC', 'BTC', 'ETH'] as $currency) {
+            if (preg_match('/(^|[^A-Z0-9])' . preg_quote($currency, '/') . '([^A-Z0-9]|$)/', $upperName) === 1) {
+                return $currency;
+            }
+        }
+
+        return 'UAH';
+    }
+
+    private static function normalizeCurrencyCode(mixed $value): string
+    {
+        $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
+
+        return $currency !== '' ? substr($currency, 0, 10) : 'UAH';
+    }
+
+    private static function formatBalanceAmount(float $amount): string
+    {
+        $formatted = number_format($amount, 8, '.', '');
+        $formatted = rtrim(rtrim($formatted, '0'), '.');
+
+        if ($formatted === '' || $formatted === '-0') {
+            return '0';
+        }
+
+        return $formatted;
     }
 
 }

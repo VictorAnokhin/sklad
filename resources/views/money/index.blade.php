@@ -69,7 +69,7 @@
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">🔄</div>
             <div class="money-summary__label">{{ __('money.summary_transfers') }}</div>
-            <div class="money-summary__value money-summary__value--income">{{ number_format($sumTransfers ?? 0, 2, '.', ' ') }} грн</div>
+            <div class="money-summary__value money-summary__value--income">{{ number_format($sumTransfers ?? 0, 2, '.', ' ') }}</div>
         </div>
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">📄</div>
@@ -91,7 +91,9 @@
                     <th>{{ __('money.table_date') }}</th>
                     <th>{{ __('money.table_from_cashbox') }}</th>
                     <th>{{ __('money.table_to_cashbox') }}</th>
-                    <th>{{ __('money.table_sum') }}</th>
+                    <th>{{ __('money.table_amount_from') }}</th>
+                    <th>{{ __('money.table_amount_to') }}</th>
+                    <th>{{ __('money.table_rate') }}</th>
                     <th>{{ __('money.table_comment') }}</th>
                     <th>{{ __('money.table_posted') }}</th>
                 </tr>
@@ -117,7 +119,14 @@
                     <td>{{ $doc->data ?? '—' }}<br><small class="text-muted">{{ $doc->time ?? '' }}</small></td>
                     <td>{{ $fromCashbox }}</td>
                     <td>{{ $toCashbox }}</td>
-                    <td><span class="money">{{ number_format($doc->summa ?? 0, 2, '.', ' ') }}</span></td>
+                    <td><span class="money">{{ number_format($doc->summa ?? 0, 2, '.', ' ') }}</span> {{ $doc->currency_from ?? 'UAH' }}</td>
+                    <td><span class="money">{{ number_format(($doc->summa2 ?? 0) > 0 ? $doc->summa2 : ($doc->summa ?? 0), 2, '.', ' ') }}</span> {{ $doc->currency_to ?? ($doc->currency_from ?? 'UAH') }}</td>
+                    <td>
+                        <small>1 {{ $doc->currency_from ?? 'UAH' }} = {{ rtrim(rtrim(number_format((float) ($doc->exchange_rate ?? 1), 8, '.', ''), '0'), '.') }} {{ $doc->currency_to ?? 'UAH' }}</small>
+                        @if((float)($doc->commission_amount ?? 0) > 0)
+                        <br><small class="text-muted">{{ __('money.table_commission') }}: {{ number_format($doc->commission_amount, 2, '.', ' ') }} {{ $doc->commission_currency ?: ($doc->currency_from ?? 'UAH') }}</small>
+                        @endif
+                    </td>
                     <td>{{ $doc->content ?? '' }}</td>
                     <td>{!! $doc->provodka ? '✅' : '<span style="color:#999">⏳</span>' !!}</td>
                 </tr>
@@ -141,7 +150,11 @@
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">💰</div>
             <div class="money-summary__label">{{ __('money.summary_balance') }}</div>
-            <div class="money-summary__value money-summary__value--income">{{ number_format($userBalance ?? 0, 2, '.', ' ') }} грн</div>
+            <div class="money-summary__value money-summary__value--income">
+                @foreach(($userBalances ?? []) as $balance)
+                    <div>{{ $balance['amount'] ?? '0' }} {{ $balance['currency'] ?? 'UAH' }}</div>
+                @endforeach
+            </div>
         </div>
     </div>
 
@@ -162,10 +175,11 @@
                 'return_date_to' => $returnFilters['date_to'] ?? null,
                 'return_pos' => $returnFilters['pos'] ?? null,
             ]));
+            $isExchange = $doc->type === 'PPP';
             $isIncome = $doc->type === 'PPO';
-            $typeBg = $isIncome ? '#28a745' : '#dc3545';
-            $typeIcon = $isIncome ? '📥' : '📤';
-            $typeLabel = $isIncome ? __('money.filter_income') : __('money.filter_outcome');
+            $typeBg = $isExchange ? '#0d6efd' : ($isIncome ? '#28a745' : '#dc3545');
+            $typeIcon = $isExchange ? '🔁' : ($isIncome ? '📥' : '📤');
+            $typeLabel = $isExchange ? __('money.filter_exchange') : ($isIncome ? __('money.filter_income') : __('money.filter_outcome'));
             $cashboxId = $doc->effective_cashbox_id ?? $doc->money ?? $doc->oplata ?? '';
             $cashboxName = $doc->cashbox_name ?? ($kassasMap[$cashboxId] ?? ($cashboxId ?: '—'));
             $paymentTypeName = $doc->payment_type_name ?? ($reestrMap[$doc->reestr ?? ''] ?? ($doc->reestr ?: '—'));
@@ -193,7 +207,12 @@
                 <a href="{{ $linkUrl }}" class="title">
                     <span class="compact-client-line compact-main">{{ $clientName !== '' ? $clientName : '—' }}</span>
                     <span class="compact-client-line city text-muted">
-                        {{ __('money.filter_payment_type') }}: {{ $paymentTypeName }}
+                        {{ $isExchange ? __('money.table_rate') : __('money.filter_payment_type') }}:
+                        @if($isExchange)
+                            1 {{ $doc->currency_from ?? 'UAH' }} = {{ rtrim(rtrim(number_format((float) ($doc->exchange_rate ?? 1), 8, '.', ''), '0'), '.') }} {{ $doc->currency_to ?? 'UAH' }}
+                        @else
+                            {{ $paymentTypeName }}
+                        @endif
                     </span>
                     @if($doc->phone)<span class="phone">{{ $doc->phone }}</span>@endif
                 </a>
@@ -202,7 +221,13 @@
                 {{ $typeIcon }} {{ $typeLabel }}
             </div>
             <div class="pricebox-docs1">
+                @if($isExchange)
+                <span class="money">{{ number_format($doc->summa ?? 0, 2, '.', ' ') }}</span> {{ $doc->currency_from ?? 'UAH' }}
+                <span class="text-muted">→</span>
+                <span class="money">{{ number_format(($doc->summa2 ?? 0) > 0 ? $doc->summa2 : ($doc->summa ?? 0), 2, '.', ' ') }}</span> {{ $doc->currency_to ?? 'UAH' }}
+                @else
                 <span class="money">{{ number_format($doc->summa ?? 0, 2, '.', ' ') }}</span>
+                @endif
             </div>
             <div class="captionbox-docs2">{{ $doc->content ?? '' }}</div>
             <div class="status-docs-icons">
@@ -246,6 +271,7 @@
                         <option value="">{{ __('money.filter_all_types') }}</option>
                         <option value="PPO" {{ ($filters['type'] ?? '') === 'PPO' ? 'selected' : '' }}>{{ __('money.filter_income') }}</option>
                         <option value="PRO" {{ ($filters['type'] ?? '') === 'PRO' ? 'selected' : '' }}>{{ __('money.filter_outcome') }}</option>
+                        <option value="PPP" {{ ($filters['type'] ?? '') === 'PPP' ? 'selected' : '' }}>{{ __('money.filter_exchange') }}</option>
                     </select>
                 </div>
                 @endif

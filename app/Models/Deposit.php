@@ -86,31 +86,37 @@ class Deposit extends Model
 
     public static function find(int $id, string $fid)
     {
+        $columns = [
+            'd.id',
+            'd.num',
+            'd.type',
+            'd.data',
+            'd.time',
+            'd.summa',
+            'd.content',
+            'd.docum',
+            'd.oplata',
+            'd.oplata2',
+            'd.money',
+            'd.client2',
+            'd.provodka',
+            'owner_user.balance as owner_balance',
+            'owner_user.name as owner_name',
+            'owner_user.secondname as owner_secondname',
+            'owner_user.fathername as owner_fathername',
+            'owner_user.orgname as owner_orgname',
+        ];
+
+        if (Schema::hasColumn('z_document', 'currency_from')) {
+            $columns[] = 'd.currency_from';
+        }
+
         return DB::table('z_document as d')
             ->leftJoin('users as owner_user', 'owner_user.id', '=', 'd.client2')
             ->where('d.id', $id)
             ->where('d.firma', $fid)
             ->where('d.type', 'PP')
-            ->first([
-                'd.id',
-                'd.num',
-                'd.type',
-                'd.data',
-                'd.time',
-                'd.summa',
-                'd.content',
-                'd.docum',
-                'd.oplata',
-                'd.oplata2',
-                'd.money',
-                'd.client2',
-                'd.provodka',
-                'owner_user.balance as owner_balance',
-                'owner_user.name as owner_name',
-                'owner_user.secondname as owner_secondname',
-                'owner_user.fathername as owner_fathername',
-                'owner_user.orgname as owner_orgname',
-            ]);
+            ->first($columns);
     }
 
     public static function emptyDocument(): object
@@ -129,6 +135,7 @@ class Deposit extends Model
             'money' => '',
             'client2' => '',
             'provodka' => 0,
+            'currency_from' => 'UAH',
             'owner_balance' => 0,
             'owner_name' => '',
             'owner_secondname' => '',
@@ -143,7 +150,7 @@ class Deposit extends Model
             ->where('type', 'oplata')
             ->where('firma', $fid)
             ->orderBy('name')
-            ->get(['id', 'name', 'value']);
+            ->get(array_filter(['id', 'name', 'value', Schema::hasColumn('conf', 'currency') ? 'currency' : null]));
     }
 
     public static function deposits(string $fid)
@@ -152,7 +159,12 @@ class Deposit extends Model
             ->where('type', 'deposit')
             ->where('firma', $fid)
             ->orderBy('name')
-            ->get(['id', 'name', 'value']);
+            ->get(array_filter(['id', 'name', 'value', Schema::hasColumn('conf', 'currency') ? 'currency' : null]))
+            ->map(function ($deposit) {
+                $deposit->currency = self::normalizeCurrency($deposit->currency ?? 'UAH');
+
+                return $deposit;
+            });
     }
 
     public static function saveDocument(int $id, string $fid, array $data): int
@@ -170,6 +182,9 @@ class Deposit extends Model
             'client1' => '0',
             'client2' => (string) ($data['client2'] ?? '0'),
         ];
+        if (Schema::hasColumn('z_document', 'currency_from')) {
+            $payload['currency_from'] = self::normalizeCurrency($data['currency_from'] ?? 'UAH');
+        }
 
         if ($id === 0) {
             $maxNum = DB::table('z_document')
@@ -222,16 +237,17 @@ class Deposit extends Model
         $mode = (string) ($doc->docum ?? 'topup');
         $depositId = (string) ($doc->money ?? '');
         $ownerUserId = trim((string) ($doc->client2 ?? ''));
+        $currency = self::normalizeCurrency($doc->currency_from ?? self::depositCurrency($fid, $depositId));
 
-        DB::transaction(function () use ($fid, $direction, $summa, $mode, $depositId, $ownerUserId, $id, $wasPosted, $doc): void {
+        DB::transaction(function () use ($fid, $direction, $summa, $mode, $depositId, $ownerUserId, $currency, $id, $wasPosted, $doc): void {
             if ($mode === 'topup' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
-                self::shiftUserBalance($fid, $ownerUserId, -1 * $summa * $direction);
+                self::shiftUserBalance($fid, $ownerUserId, -1 * $summa * $direction, $currency);
                 self::shiftConfValue($fid, 'deposit', $depositId, $summa * $direction);
             }
 
             if ($mode === 'withdraw' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
                 self::shiftConfValue($fid, 'deposit', $depositId, -1 * $summa * $direction);
-                self::shiftUserBalance($fid, $ownerUserId, $summa * $direction);
+                self::shiftUserBalance($fid, $ownerUserId, $summa * $direction, $currency);
             }
 
             if ($mode === 'exchange') {
@@ -288,16 +304,92 @@ class Deposit extends Model
             ->update(['value' => $currentValue + $delta]);
     }
 
-    private static function shiftUserBalance(string $fid, string $userId, float $delta): void
+    public static function depositCurrency(string $fid, string $depositId): string
     {
-        $currentBalance = (float) DB::table('users')
+        if ($depositId === '' || !Schema::hasColumn('conf', 'currency')) {
+            return 'UAH';
+        }
+
+        $currency = DB::table('conf')
+            ->where('id', $depositId)
+            ->where('type', 'deposit')
+            ->where('firma', $fid)
+            ->value('currency');
+
+        return self::normalizeCurrency($currency ?? 'UAH');
+    }
+
+    private static function shiftUserBalance(string $fid, string $userId, float $delta, string $currency): void
+    {
+        if ($delta == 0.0 || !Schema::hasColumn('users', 'balance')) {
+            return;
+        }
+
+        $user = DB::table('users')
             ->where('id', $userId)
             ->where('firma', $fid)
-            ->value('balance');
+            ->lockForUpdate()
+            ->first(['id', 'balance']);
+
+        if (!$user) {
+            return;
+        }
+
+        $currency = self::normalizeCurrency($currency);
+        $balances = Money::userBalances($user->balance ?? '');
+        $found = false;
+
+        foreach ($balances as &$balance) {
+            if ($balance['currency'] !== $currency) {
+                continue;
+            }
+
+            $balance['amount'] = self::formatBalanceAmount((float) $balance['amount'] + $delta);
+            $found = true;
+            break;
+        }
+        unset($balance);
+
+        if (!$found) {
+            $balances[] = [
+                'amount' => self::formatBalanceAmount($delta),
+                'currency' => $currency,
+            ];
+        }
 
         DB::table('users')
-            ->where('id', $userId)
-            ->where('firma', $fid)
-            ->update(['balance' => $currentBalance + $delta]);
+            ->where('id', $user->id)
+            ->update(['balance' => self::serializeUserBalances($balances)]);
+    }
+
+    private static function serializeUserBalances(array $balances): ?string
+    {
+        $segments = [];
+        foreach ($balances as $balance) {
+            $amount = self::formatBalanceAmount((float) ($balance['amount'] ?? 0));
+            $currency = self::normalizeCurrency($balance['currency'] ?? 'UAH');
+            $segments[] = "{$amount}:{$currency};";
+        }
+
+        return $segments === [] ? null : implode('', $segments);
+    }
+
+    private static function normalizeCurrency(mixed $value): string
+    {
+        $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
+
+        return $currency !== '' ? substr($currency, 0, 10) : 'UAH';
+    }
+
+    private static function formatBalanceAmount(float $amount): string
+    {
+        $formatted = number_format($amount, 8, '.', '');
+        $formatted = rtrim(rtrim($formatted, '0'), '.');
+
+        if ($formatted === '' || $formatted === '-0') {
+            return '0';
+        }
+
+        return $formatted;
     }
 }

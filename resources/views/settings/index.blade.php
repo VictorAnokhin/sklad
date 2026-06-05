@@ -77,6 +77,16 @@
         </div>
 
         <div class="col-md-4">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="currency" data-title="💱 {{ __('settings.cards.currencies.modal_title') }}">
+                <div class="card-body text-center">
+                    <h5 class="card-title">💱 {{ __('settings.cards.currencies.title') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.cards.currencies.description') }}</p>
+                    <span class="badge bg-info text-dark" id="badge-currency">{{ count($currencies ?? []) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
             <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="sklads" data-title="🏢 {{ __('settings.cards.offices.modal_title') }}">
                 <div class="card-body text-center">
                     <h5 class="card-title">🏢 {{ __('settings.cards.offices.title') }}</h5>
@@ -273,6 +283,10 @@
                                 <option value="">{{ __('settings.accounts.no_parent') }}</option>
                             </select>
                         </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ __('settings.accounts.currency') }}</label>
+                            <select class="form-select" id="account-currency"></select>
+                        </div>
                     </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-success">💾 {{ __('settings.common.save') }}</button>
@@ -292,6 +306,7 @@
                                         <th>{{ __('settings.accounts.th_code') }}</th>
                                         <th>{{ __('settings.accounts.th_name') }}</th>
                                         <th>{{ __('settings.accounts.th_type') }}</th>
+                                        <th>{{ __('settings.accounts.th_currency') }}</th>
                                         <th>{{ __('settings.accounts.th_parent') }}</th>
                                         <th class="text-end">{{ __('settings.common.actions') }}</th>
                                     </tr>
@@ -677,7 +692,7 @@
                             <label for="form-name" class="form-label">Назва <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="form-name" required>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-4 mb-3" id="form-color-row">
                             <label for="form-color" class="form-label">Колір</label>
                             <div class="d-flex align-items-center gap-2">
                                 <input type="color" class="form-control form-control-color" id="form-color-picker" value="#ffffff">
@@ -699,6 +714,10 @@
                             <option value="0">Неактивний</option>
                         </select>
                         <div class="form-text" id="form-status-help" style="display:none;"></div>
+                    </div>
+                    <div class="mb-3" id="form-currency-row" style="display:none;">
+                        <label for="form-currency" class="form-label">{{ __('settings.crud.currency_label') }}</label>
+                        <select class="form-select" id="form-currency"></select>
                     </div>
                     <div class="mb-3" id="form-doc-row" style="display:none;">
                         <label class="form-label">Показывать в документах</label>
@@ -769,6 +788,7 @@
                             <th>#</th>
                             <th>Назва</th>
                             <th id="crud-color-column">Колір</th>
+                            <th id="crud-currency-column" style="display:none;">{{ __('settings.crud.currency_column') }}</th>
                             <th id="crud-status-column">Статус</th>
                             <th id="crud-phone-column" style="display:none;">Телефон</th>
                             <th id="crud-address-column" style="display:none;">Адреса</th>
@@ -1383,6 +1403,9 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="password-tab" data-bs-toggle="tab" data-bs-target="#passwordTab" type="button" role="tab">🔑 Пароль</button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="profile-balance-tab" data-bs-toggle="tab" data-bs-target="#profileBalanceTab" type="button" role="tab">💰 Баланс</button>
+                    </li>
                 </ul>
 
                 <div class="tab-content">
@@ -1493,6 +1516,87 @@
                                 <input type="password" name="new_password_confirmation" class="form-control" required minlength="4">
                             </div>
                             <button type="submit" class="btn btn-warning">🔑 Змінити пароль</button>
+                        </form>
+                    </div>
+
+                    <div class="tab-pane fade" id="profileBalanceTab">
+                        @php
+                            $profileBalanceRows = collect(old('balance_amounts', []))->map(function ($amount, $key) {
+                                return [
+                                    'key' => (string) $key,
+                                    'amount' => $amount,
+                                    'currency' => old('balance_currencies.' . $key, 'UAH'),
+                                    'is_default' => (string) old('default_balance_key', '0') === (string) $key,
+                                ];
+                            })->values();
+
+                            if ($profileBalanceRows->isEmpty()) {
+                                $profileBalanceRows = collect($profileBalances ?? [])->values()->map(function ($balance, $index) {
+                                    return [
+                                        'key' => (string) $index,
+                                        'amount' => $balance['amount'] ?? '',
+                                        'currency' => $balance['currency'] ?? 'UAH',
+                                        'is_default' => (bool) ($balance['is_default'] ?? $index === 0),
+                                    ];
+                                });
+                            }
+
+                            $profileBalanceCurrencyOptions = collect($currencies ?? [])->map(function ($currency) {
+                                return strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($currency->currency ?? $currency->name ?? 'UAH')));
+                            })->filter()->unique()->values();
+
+                            if ($profileBalanceCurrencyOptions->isEmpty()) {
+                                $profileBalanceCurrencyOptions = collect(['UAH']);
+                            }
+                        @endphp
+                        <form action="{{ route('settings.profileBalancesUpdate') }}" method="post" id="profile-balance-form">
+                            @csrf
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 35%;">Сума</th>
+                                            <th style="width: 25%;">Валюта</th>
+                                            <th style="width: 20%;">За замовчуванням</th>
+                                            <th class="text-end" style="width: 20%;">Дія</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="profile-balance-rows">
+                                        @forelse($profileBalanceRows as $row)
+                                        <tr class="profile-balance-row">
+                                            <td>
+                                                <input type="text" name="balance_amounts[{{ $row['key'] }}]" class="form-control form-control-sm" value="{{ $row['amount'] }}" inputmode="decimal" placeholder="0.00">
+                                            </td>
+                                            <td>
+                                                <select name="balance_currencies[{{ $row['key'] }}]" class="form-select form-select-sm">
+                                                    @foreach($profileBalanceCurrencyOptions as $currency)
+                                                        <option value="{{ $currency }}" @selected($currency === ($row['currency'] ?? 'UAH'))>{{ $currency }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <div class="form-check">
+                                                    <input class="form-check-input profile-balance-default" type="radio" name="default_balance_key" value="{{ $row['key'] }}" @checked((bool) $row['is_default'])>
+                                                    <label class="form-check-label">Основний</label>
+                                                </div>
+                                            </td>
+                                            <td class="text-end">
+                                                <button type="button" class="btn btn-sm btn-outline-danger profile-balance-remove">Видалити</button>
+                                            </td>
+                                        </tr>
+                                        @empty
+                                        <tr id="profile-balance-empty">
+                                            <td colspan="4" class="text-center text-muted">Баланс не вказано</td>
+                                        </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="profile-balance-add">Додати баланс</button>
+                                <button type="submit" class="btn btn-sm btn-primary">Зберегти баланси</button>
+                            </div>
+                            <div class="form-text mt-2">Валюта не може повторюватися. Обраний основний баланс зберігається першим у форматі <code>summa:valuta;</code>.</div>
                         </form>
                     </div>
                 </div>
@@ -1788,6 +1892,90 @@ document.addEventListener('DOMContentLoaded', () => {
     initBannerCrud(csrf);
     initAccountsCrud(csrf);
     initWalletLink(csrf);
+    initProfileBalances();
+
+    function initProfileBalances() {
+        const tbody = document.getElementById('profile-balance-rows');
+        const addBtn = document.getElementById('profile-balance-add');
+        const currencyOptions = @json($profileBalanceCurrencyOptions ?? collect(['UAH']));
+        let newRowCounter = 0;
+
+        if (!tbody || !addBtn) {
+            return;
+        }
+
+        addBtn.addEventListener('click', () => {
+            const key = `new_${Date.now()}_${newRowCounter++}`;
+            const hasRows = tbody.querySelectorAll('.profile-balance-row').length > 0;
+            const emptyRow = document.getElementById('profile-balance-empty');
+
+            if (emptyRow) {
+                emptyRow.remove();
+            }
+
+            tbody.insertAdjacentHTML('beforeend', renderProfileBalanceRow(key, '', currencyOptions[0] || 'UAH', !hasRows));
+        });
+
+        tbody.addEventListener('click', (event) => {
+            const removeBtn = event.target.closest('.profile-balance-remove');
+            if (!removeBtn) {
+                return;
+            }
+
+            const row = removeBtn.closest('.profile-balance-row');
+            const wasDefault = row?.querySelector('.profile-balance-default')?.checked;
+            row?.remove();
+
+            const rows = Array.from(tbody.querySelectorAll('.profile-balance-row'));
+            if (wasDefault && rows[0]) {
+                const firstDefault = rows[0].querySelector('.profile-balance-default');
+                if (firstDefault) {
+                    firstDefault.checked = true;
+                }
+            }
+
+            if (rows.length === 0) {
+                tbody.insertAdjacentHTML('beforeend', '<tr id="profile-balance-empty"><td colspan="4" class="text-center text-muted">Баланс не вказано</td></tr>');
+            }
+        });
+
+        function renderProfileBalanceRow(key, amount, selectedCurrency, isDefault) {
+            const options = currencyOptions.map((currency) => {
+                const value = escapeProfileBalanceHtml(currency);
+                return `<option value="${value}" ${currency === selectedCurrency ? 'selected' : ''}>${value}</option>`;
+            }).join('');
+
+            return `
+                <tr class="profile-balance-row">
+                    <td>
+                        <input type="text" name="balance_amounts[${escapeProfileBalanceHtml(key)}]" class="form-control form-control-sm" value="${escapeProfileBalanceHtml(amount)}" inputmode="decimal" placeholder="0.00">
+                    </td>
+                    <td>
+                        <select name="balance_currencies[${escapeProfileBalanceHtml(key)}]" class="form-select form-select-sm">${options}</select>
+                    </td>
+                    <td>
+                        <div class="form-check">
+                            <input class="form-check-input profile-balance-default" type="radio" name="default_balance_key" value="${escapeProfileBalanceHtml(key)}" ${isDefault ? 'checked' : ''}>
+                            <label class="form-check-label">Основний</label>
+                        </div>
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger profile-balance-remove">Видалити</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function escapeProfileBalanceHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    }
+
     function initWeb3TokenCrud(csrfToken) {
         const modal = document.getElementById('modalWeb3Tokens');
         const listArea = document.getElementById('web3-list-area');
@@ -2490,11 +2678,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancelBtn = document.getElementById('btn-cancel');
         const deleteBtn = document.getElementById('btn-delete');
         const colorPicker = document.getElementById('form-color-picker');
+        const colorRow = document.getElementById('form-color-row');
         const colorInput = document.getElementById('form-color');
         const statusRow = document.getElementById('form-status-row');
         const statusLabel = document.getElementById('form-status-label');
         const statusSelect = document.getElementById('form-status');
         const statusHelp = document.getElementById('form-status-help');
+        const currencyRow = document.getElementById('form-currency-row');
+        const currencySelect = document.getElementById('form-currency');
         const visibilityRow = document.getElementById('form-visibility-row');
         const visibilityCheckbox = document.getElementById('form-visibility-checkbox');
         const visibilityLabel = document.getElementById('form-visibility-label');
@@ -2508,6 +2699,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const fotoExistingInput = document.getElementById('form-foto-existing');
         const fotoFileInput = document.getElementById('form-foto-file');
         const colorColumn = document.getElementById('crud-color-column');
+        const currencyColumn = document.getElementById('crud-currency-column');
         const phoneColumn = document.getElementById('crud-phone-column');
         const addressColumn = document.getElementById('crud-address-column');
         const docCheckboxes = [
@@ -2520,6 +2712,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
 
         let currentType = '';
+        let currencyOptions = @json(($currencies ?? collect())->pluck('name')->values());
 
         fotoFileInput?.addEventListener('change', () => {
             updateImagePreview(fotoFileInput, 'form-foto-preview', 'form-foto-preview-wrap');
@@ -2548,6 +2741,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('form-status').value = currentType === 'tclient' ? '0' : '1';
             setDocFlags('');
             resetOfficeFields();
+            populateCurrencySelect(defaultCurrencyCode());
             showForm();
         });
 
@@ -2598,6 +2792,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     : '1',
             };
 
+            if (currentType === 'oplata' || currentType === 'deposit') {
+                payload.currency = currencySelect.value || defaultCurrencyCode();
+            }
+
             if (currentType === 'reestr') {
                 payload.doc = getDocFlags();
             }
@@ -2609,6 +2807,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 : fetch(id ? `/settings/api/${id}` : '/settings/api', {
                     method: id ? 'PUT' : 'POST',
                     headers: {
+                        'Accept': 'application/json',
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': csrfToken,
                     },
@@ -2657,6 +2856,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const addressHtml = currentType === 'sklads'
                     ? escapeHtml(item.address || '—')
                     : '';
+                const currencyHtml = currentType === 'oplata' || currentType === 'deposit'
+                    ? `<span class="badge bg-info text-dark">${escapeHtml(item.currency || defaultCurrencyCode())}</span>`
+                    : '';
                 let statusLabel = `<span class="badge bg-secondary">${_ts('crud.inactive')}</span>`;
                 if (currentType === 'tgroup') {
                     statusLabel = String(item.status) === '1'
@@ -2680,7 +2882,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.innerHTML = `
                     <td>${item.id}</td>
                     <td>${escapeHtml(item.name || '')}</td>
-                    ${currentType === 'sklads' ? '' : `<td>${colorHtml}</td>`}
+                    ${currentType === 'sklads' || currentType === 'currency' ? '' : `<td>${colorHtml}</td>`}
+                    ${currentType === 'oplata' || currentType === 'deposit' ? `<td>${currencyHtml}</td>` : ''}
                     <td>${statusLabel}</td>
                     ${currentType === 'sklads' ? `<td>${addressHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td>${docHtml}</td>` : ''}
@@ -2710,6 +2913,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     phoneInput.value = item.phone || '';
                     addressInput.value = item.address || '';
                     googleMapInput.value = item.google_map || '';
+                    populateCurrencySelect(item.currency || defaultCurrencyCode());
                     fotoExistingInput.value = item.foto || '';
                     if (fotoFileInput) fotoFileInput.value = '';
                     updateImagePreview(null, 'form-foto-preview', 'form-foto-preview-wrap', item.foto_preview || '');
@@ -2724,6 +2928,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(`/settings/api/${id}`, {
                 method: 'DELETE',
                 headers: {
+                    'Accept': 'application/json',
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
@@ -2752,6 +2957,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (badge) {
                         badge.textContent = items.length;
                     }
+                    if (currentType === 'currency') {
+                        currencyOptions = items
+                            .map((item) => normalizeCurrencyCode(item.name || item.currency || ''))
+                            .filter(Boolean);
+                    }
                 });
         }
 
@@ -2770,14 +2980,20 @@ document.addEventListener('DOMContentLoaded', () => {
         function configureStatusField() {
             const isReestr = currentType === 'reestr';
             const isOffice = currentType === 'sklads';
+            const hasCurrency = currentType === 'oplata' || currentType === 'deposit';
+            const isCurrency = currentType === 'currency';
             docRow.style.display = isReestr ? 'block' : 'none';
             docColumn.style.display = isReestr ? '' : 'none';
+            currencyRow.style.display = hasCurrency ? 'block' : 'none';
+            currencyColumn.style.display = hasCurrency ? '' : 'none';
             officeFields.style.display = isOffice ? 'block' : 'none';
             visibilityRow.style.display = isOffice ? '' : 'none';
             statusRow.style.display = isOffice ? 'none' : 'block';
-            colorColumn.style.display = isOffice ? 'none' : '';
+            colorRow.style.display = isCurrency ? 'none' : '';
+            colorColumn.style.display = isOffice || isCurrency ? 'none' : '';
             phoneColumn.style.display = 'none';
             addressColumn.style.display = isOffice ? '' : 'none';
+            populateCurrencySelect(currencySelect.value || defaultCurrencyCode());
 
             if (currentType === 'tgroup') {
                 statusColumn.textContent = _ts('crud.status_column');
@@ -2808,6 +3024,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 statusHelp.style.display = 'block';
                 statusHelp.textContent = _ts('crud.office_help');
+            } else if (currentType === 'currency') {
+                statusColumn.textContent = _ts('crud.status_column');
+                statusLabel.textContent = _ts('crud.generic_status_label');
+                statusSelect.innerHTML = `
+                    <option value="1">${_ts('crud.generic_active')}</option>
+                    <option value="0">${_ts('crud.generic_inactive')}</option>
+                `;
+                statusHelp.style.display = 'block';
+                statusHelp.textContent = _ts('crud.currency_help');
             } else {
                 statusColumn.textContent = _ts('crud.status_column');
                 statusLabel.textContent = _ts('crud.generic_status_label');
@@ -2818,6 +3043,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusHelp.style.display = 'none';
                 statusHelp.textContent = '';
             }
+        }
+
+        function populateCurrencySelect(selectedCurrency) {
+            if (!currencySelect) {
+                return;
+            }
+
+            const options = availableCurrencyCodes();
+            const normalizedSelected = normalizeCurrencyCode(selectedCurrency || options[0]);
+            const selected = options.includes(normalizedSelected) ? normalizedSelected : options[0];
+            currencySelect.innerHTML = options
+                .map((currency) => `<option value="${escapeHtml(currency)}" ${currency === selected ? 'selected' : ''}>${escapeHtml(currency)}</option>`)
+                .join('');
+        }
+
+        function availableCurrencyCodes() {
+            const options = Array.from(new Set(currencyOptions.map(normalizeCurrencyCode).filter(Boolean)));
+            return options.length ? options : ['UAH'];
+        }
+
+        function defaultCurrencyCode() {
+            return availableCurrencyCodes()[0] || 'UAH';
+        }
+
+        function normalizeCurrencyCode(value) {
+            return String(value || '')
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, '')
+                .slice(0, 10);
         }
 
         function getDocFlags() {
@@ -2851,6 +3105,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return fetch(id ? `/settings/api/${id}` : '/settings/api', {
                 method: 'POST',
                 headers: {
+                    'Accept': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
                 body: formData,
@@ -2871,10 +3126,16 @@ document.addEventListener('DOMContentLoaded', () => {
         function getTableColumnCount() {
             let count = 5;
             if (currentType === 'sklads') {
-                count += 1;
+                return 5;
             }
             if (currentType === 'reestr') {
                 count += 1;
+            }
+            if (currentType === 'oplata' || currentType === 'deposit') {
+                count += 1;
+            }
+            if (currentType === 'currency') {
+                count -= 1;
             }
             return count;
         }
@@ -2902,6 +3163,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancelBtn = document.getElementById('btn-account-cancel');
         const badge = document.getElementById('badge-accounts');
         const parentSelect = document.getElementById('account-parent-id');
+        const currencySelect = document.getElementById('account-currency');
         const bindingsTbody = document.getElementById('payment-bindings-tbody');
         const bindingsEmptyMsg = document.getElementById('payment-bindings-empty-msg');
         const reloadBindingsBtn = document.getElementById('btn-payment-bindings-reload');
@@ -2911,6 +3173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let accountsCache = [];
+        const accountCurrencyOptions = @json(($currencies ?? collect())->pluck('name')->values());
 
         modal.addEventListener('show.bs.modal', () => {
             hideAccountForm();
@@ -2952,6 +3215,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 code: document.getElementById('account-code').value.trim(),
                 name: document.getElementById('account-name').value.trim(),
                 type: document.getElementById('account-type').value,
+                currency: currencySelect.value || accountDefaultCurrencyCode(),
                 parent_id: parentSelect.value || null,
             };
 
@@ -2962,6 +3226,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(id ? `/settings/accounts/${id}` : '/settings/accounts', {
                 method: id ? 'PUT' : 'POST',
                 headers: {
+                    'Accept': 'application/json',
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
@@ -2994,7 +3259,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     badge.textContent = accountsCache.length;
                 })
                 .catch(() => {
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${escapeHtml(_ts('js.load_error'))}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${escapeHtml(_ts('js.load_error'))}</td></tr>`;
                 });
         }
 
@@ -3021,6 +3286,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="fw-semibold">${escapeHtml(item.code || '')}</td>
                     <td>${escapeHtml(item.name || '')}</td>
                     <td>${escapeHtml(accountTypeLabel(item.type || ''))}</td>
+                    <td><span class="badge bg-info text-dark">${escapeHtml(item.currency || accountDefaultCurrencyCode())}</span></td>
                     <td>${escapeHtml(item.parent_code ? `${item.parent_code} | ${item.parent_name || ''}` : '—')}</td>
                     <td class="text-end">
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
@@ -3085,6 +3351,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('account-code').value = item.code || '';
                     document.getElementById('account-name').value = item.name || '';
                     document.getElementById('account-type').value = item.type || 'asset';
+                    populateAccountCurrencySelect(item.currency || accountDefaultCurrencyCode());
                     renderParentOptions(accountsCache);
                     parentSelect.value = item.parent_id || '';
                     showAccountForm();
@@ -3098,6 +3365,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(`/settings/accounts/${id}`, {
                 method: 'DELETE',
                 headers: {
+                    'Accept': 'application/json',
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
@@ -3127,6 +3395,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(`/settings/payment-type-account-bindings/${id}`, {
                 method: 'PUT',
                 headers: {
+                    'Accept': 'application/json',
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
@@ -3161,6 +3430,7 @@ document.addEventListener('DOMContentLoaded', () => {
             form.reset();
             document.getElementById('account-id').value = '';
             document.getElementById('account-type').value = 'asset';
+            populateAccountCurrencySelect(accountDefaultCurrencyCode());
             renderParentOptions(accountsCache);
             parentSelect.value = '';
         }
@@ -3173,6 +3443,36 @@ document.addEventListener('DOMContentLoaded', () => {
         function hideAccountForm() {
             formArea.style.display = 'none';
             listArea.style.display = 'block';
+        }
+
+        function populateAccountCurrencySelect(selectedCurrency) {
+            if (!currencySelect) {
+                return;
+            }
+
+            const options = accountAvailableCurrencyCodes();
+            const selected = options.includes(accountNormalizeCurrencyCode(selectedCurrency || options[0]))
+                ? accountNormalizeCurrencyCode(selectedCurrency || options[0])
+                : options[0];
+            currencySelect.innerHTML = options
+                .map((currency) => `<option value="${escapeHtml(currency)}" ${currency === selected ? 'selected' : ''}>${escapeHtml(currency)}</option>`)
+                .join('');
+        }
+
+        function accountAvailableCurrencyCodes() {
+            const options = Array.from(new Set(accountCurrencyOptions.map(accountNormalizeCurrencyCode).filter(Boolean)));
+            return options.length ? options : ['UAH'];
+        }
+
+        function accountDefaultCurrencyCode() {
+            return accountAvailableCurrencyCodes()[0] || 'UAH';
+        }
+
+        function accountNormalizeCurrencyCode(value) {
+            return String(value || '')
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, '')
+                .slice(0, 10);
         }
     }
 

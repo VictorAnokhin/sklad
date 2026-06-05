@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Deposit;
+use App\Models\Money;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -43,7 +44,7 @@ class DepositController extends Controller
         if ($id === 0) {
             $document->docum = in_array($requestedMode, ['topup', 'withdraw'], true) ? $requestedMode : 'topup';
             $document->client2 = (string) (Auth::id() ?: session('userid', '0'));
-            $document->owner_balance = (float) (Auth::user()->balance ?? 0);
+            $document->owner_balance = (string) (Auth::user()->balance ?? '');
             $document->owner_name = (string) (Auth::user()->name ?? '');
             $document->owner_secondname = (string) (Auth::user()->secondname ?? '');
             $document->owner_fathername = (string) (Auth::user()->fathername ?? '');
@@ -51,8 +52,16 @@ class DepositController extends Controller
         }
 
         $deposits = Deposit::deposits($fid);
+        $ownerBalances = Money::userBalances($document->owner_balance ?? '');
+        if ($ownerBalances === []) {
+            $ownerBalances = [[
+                'amount' => '0',
+                'currency' => (string) ($document->currency_from ?? 'UAH'),
+                'is_default' => true,
+            ]];
+        }
 
-        return view('deposit.show', compact('document', 'deposits'));
+        return view('deposit.show', compact('document', 'deposits', 'ownerBalances'));
     }
 
     public function save(Request $request)
@@ -63,6 +72,7 @@ class DepositController extends Controller
         $mode = (string) $request->input('mode', 'topup');
         $summa = (float) $request->input('summa', 0);
         $money = (string) $request->input('money', '');
+        $balanceCurrency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('balance_currency', 'UAH')) ?: 'UAH');
 
         if (!in_array($mode, ['topup', 'withdraw'], true)) {
             $mode = 'topup';
@@ -81,6 +91,14 @@ class DepositController extends Controller
                 ->with('error', 'Заповніть суму і обидва рахунки для вибраного типу операції');
         }
 
+        $depositCurrency = Deposit::depositCurrency($fid, $money);
+        if ($depositCurrency !== $balanceCurrency) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', "Валюта балансу {$balanceCurrency} не збігається з валютою депозиту {$depositCurrency}");
+        }
+
         $data = [
             'summa' => $summa,
             'content' => (string) $request->input('content', ''),
@@ -89,6 +107,7 @@ class DepositController extends Controller
             'oplata' => '',
             'oplata2' => '',
             'money' => $money,
+            'currency_from' => $balanceCurrency,
             'client2' => (string) (Auth::id() ?: session('userid', '0')),
         ];
 

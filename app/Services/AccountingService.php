@@ -208,12 +208,35 @@ class AccountingService
                 ['account_id' => $cashTo->id, 'debit' => $summa, 'credit' => 0],
                 ['account_id' => $deposit->id, 'debit' => 0, 'credit' => $summa],
             ],
-            'exchange' => [
-                ['account_id' => $cashTo->id, 'debit' => $summa, 'credit' => 0],
-                ['account_id' => $cashFrom->id, 'debit' => 0, 'credit' => $summa],
-            ],
+            'exchange' => $this->entriesForCashExchange($document, $fid),
             default => [],
         };
+    }
+
+    private function entriesForCashExchange(object $document, string $fid): array
+    {
+        $amountTo = round((float) ($document->summa2 ?? 0), 2);
+        if ($amountTo <= 0) {
+            $amountTo = round((float) ($document->summa ?? 0), 2);
+        }
+
+        if ($amountTo <= 0) {
+            return [];
+        }
+
+        $commission = round((float) ($document->commission_amount ?? 0), 2);
+        $cashFrom = $this->cashAccount($fid, (string) ($document->oplata ?? ''));
+        $cashTo = $this->cashAccount($fid, (string) ($document->oplata2 ?? ''));
+        $entries = [
+            ['account_id' => $cashTo->id, 'debit' => $amountTo, 'credit' => 0],
+            ['account_id' => $cashFrom->id, 'debit' => 0, 'credit' => $amountTo + $commission],
+        ];
+
+        if ($commission > 0) {
+            $entries[] = ['account_id' => $this->operatingExpenseAccount($fid)->id, 'debit' => $commission, 'credit' => 0];
+        }
+
+        return $entries;
     }
 
     private function entriesForPurchaseInvoice(object $document, string $fid): array

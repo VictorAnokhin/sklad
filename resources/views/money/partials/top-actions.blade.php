@@ -64,6 +64,21 @@
                 {{ __('money.add_outcome') }}
             </button>
         </form>
+        <form action="{{ route($showRouteName) }}" method="get" class="money-top-action-form">
+            <input type="hidden" name="id" value="0">
+            <input type="hidden" name="type" value="PPP">
+            <input type="hidden" name="tab" value="orders">
+            <input type="hidden" name="return_q" value="{{ $baseFilters['q'] ?? '' }}">
+            <input type="hidden" name="return_filter_type" value="{{ $baseFilters['type'] ?? '' }}">
+            <input type="hidden" name="return_money" value="{{ $baseFilters['money'] ?? '' }}">
+            <input type="hidden" name="return_reestr" value="{{ $baseFilters['reestr'] ?? '' }}">
+            <input type="hidden" name="return_date_from" value="{{ $baseFilters['date_from'] ?? '' }}">
+            <input type="hidden" name="return_date_to" value="{{ $baseFilters['date_to'] ?? '' }}">
+            <input type="hidden" name="return_pos" value="{{ $baseFilters['pos'] ?? '' }}">
+            <button type="submit" class="button top-action-create-btn">
+                {{ __('money.add_exchange') }}
+            </button>
+        </form>
         @endif
     </div>
 </div>

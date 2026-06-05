@@ -43,6 +43,7 @@ class User extends Authenticatable
         'idreestr',
         'domen',
         'bonus',
+        'balance',
         'balans',
         'hbd',
         'email',

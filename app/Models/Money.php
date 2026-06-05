@@ -33,7 +33,7 @@ class Money extends Model
             ->leftJoin('conf as payment_type', 'payment_type.id', '=', 'd.reestr')
             ->where('d.firma', $fid)
             ->where('d.client2', $currentUserId)
-            ->whereIn('d.type', ['PPO', 'PRO']);
+            ->whereIn('d.type', ['PPO', 'PRO', 'PPP']);
 
         if (($filters['q'] ?? '') !== '') {
             $q = $filters['q'];
@@ -47,7 +47,7 @@ class Money extends Model
             });
         }
 
-        if (($filters['type'] ?? '') !== '' && in_array($filters['type'], ['PPO', 'PRO'], true)) {
+        if (($filters['type'] ?? '') !== '' && in_array($filters['type'], ['PPO', 'PRO', 'PPP'], true)) {
             $baseQuery->where('d.type', $filters['type']);
         }
 
@@ -74,18 +74,25 @@ class Money extends Model
         $sumPRO = (clone $baseQuery)->where('d.type', 'PRO')->sum('d.summa');
         $total = (clone $baseQuery)->count();
 
+        $columns = [
+            'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
+            'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka',
+            'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta', 'u.idstatus',
+            DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as effective_cashbox_id"),
+            'cashbox.name as cashbox_name',
+            'payment_type.name as payment_type_name',
+        ];
+        foreach (['summa2', 'currency_from', 'currency_to', 'exchange_rate'] as $column) {
+            if (Schema::hasColumn('z_document', $column)) {
+                $columns[] = "d.{$column}";
+            }
+        }
+
         $documents = $documentsQuery
             ->orderByDesc('d.id')
             ->offset($pos)
             ->limit(30)
-            ->get([
-                'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
-                'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka',
-                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta', 'u.idstatus',
-                DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as effective_cashbox_id"),
-                'cashbox.name as cashbox_name',
-                'payment_type.name as payment_type_name',
-            ]);
+            ->get($columns);
 
         $kassasMap = DB::table('conf')
             ->where('type', 'oplata')
@@ -162,6 +169,12 @@ class Money extends Model
                 'd.data',
                 'd.time',
                 'd.summa',
+                'd.summa2',
+                'd.currency_from',
+                'd.currency_to',
+                'd.exchange_rate',
+                'd.commission_amount',
+                'd.commission_currency',
                 'd.content',
                 'd.oplata',
                 'd.oplata2',
@@ -184,24 +197,32 @@ class Money extends Model
 
     public static function find($id, $fid)
     {
+        $columns = [
+            'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
+            'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka', 'd.client1', 'd.client2',
+            DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as effective_cashbox_id"),
+            'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta', 'u.idstatus',
+            'u.balance as client_balance',
+            'owner_user.name as owner_name',
+            'owner_user.secondname as owner_secondname',
+            'owner_user.fathername as owner_fathername',
+            'owner_user.orgname as owner_orgname',
+            'owner_user.balance as owner_balance',
+        ];
+
+        foreach (['summa2', 'currency_from', 'currency_to', 'exchange_rate'] as $column) {
+            if (Schema::hasColumn('z_document', $column)) {
+                $columns[] = "d.{$column}";
+            }
+        }
+
         return DB::table('z_document as d')
             ->leftJoin('users as u', 'u.id', '=', 'd.client1')
             ->leftJoin('users as owner_user', 'owner_user.id', '=', 'd.client2')
             ->where('d.id', $id)
             ->where('d.firma', $fid)
-            ->whereIn('d.type', ['PPO', 'PRO'])
-            ->first([
-                'd.id', 'd.num', 'd.type', 'd.data', 'd.time',
-                'd.summa', 'd.content', 'd.money', 'd.oplata', 'd.reestr', 'd.provodka', 'd.client1', 'd.client2',
-                DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as effective_cashbox_id"),
-                'u.name', 'u.name2', 'u.secondname', 'u.orgname', 'u.phone', 'u.city', 'u.region', 'u.poshta', 'u.idstatus',
-                'u.balance as client_balance',
-                'owner_user.name as owner_name',
-                'owner_user.secondname as owner_secondname',
-                'owner_user.fathername as owner_fathername',
-                'owner_user.orgname as owner_orgname',
-                'owner_user.balance as owner_balance',
-            ]);
+            ->whereIn('d.type', ['PPO', 'PRO', 'PPP'])
+            ->first($columns);
     }
 
     // ── emptyDocument: порожній об'єкт для нового документа ──────────────────
@@ -211,10 +232,12 @@ class Money extends Model
         return (object)[
             'id'         => 0,
             'num'        => '',
-            'type'       => in_array($type, ['PPO', 'PRO'], true) ? $type : 'PPO',
+            'type'       => in_array($type, ['PPO', 'PRO', 'PPP'], true) ? $type : 'PPO',
             'data'       => date('d-m-Y'),
             'time'       => '',
             'summa'      => 0,
+            'summa2'     => 0,
+            'exchange_rate' => 1,
             'content'    => '',
             'money'      => 0,
             'oplata'     => '',
@@ -231,6 +254,8 @@ class Money extends Model
             'city'       => '',
             'client_balance'    => 0,
             'owner_balance'    => 0,
+            'currency_from' => 'UAH',
+            'currency_to' => 'USD',
         ];
     }
 
@@ -244,6 +269,12 @@ class Money extends Model
             'data' => date('d-m-Y'),
             'time' => '',
             'summa' => 0,
+            'summa2' => 0,
+            'currency_from' => 'UAH',
+            'currency_to' => 'UAH',
+            'exchange_rate' => 1,
+            'commission_amount' => 0,
+            'commission_currency' => 'UAH',
             'content' => '',
             'oplata' => '',
             'oplata2' => '',
@@ -267,9 +298,15 @@ class Money extends Model
                 }
             })
             ->orderBy('name')
-            ->get(['id', 'name', 'value'])
+            ->get(array_filter([
+                'id',
+                'name',
+                'value',
+                Schema::hasColumn('conf', 'currency') ? 'currency' : null,
+            ]))
             ->map(function ($cashbox) {
                 $cashbox->balance = (float) ($cashbox->value ?? 0);
+                $cashbox->currency = self::currencyForCashboxRow($cashbox) ?? 'UAH';
 
                 return $cashbox;
             });
@@ -289,6 +326,26 @@ class Money extends Model
         $data['client2'] = (string)($data['client2'] ?? '0');
         $data['summa'] = (float)($data['summa'] ?? 0);
         $data['data'] = curdate((string) ($data['data'] ?? date('d-m-Y')));
+        if (Schema::hasColumn('z_document', 'summa2')) {
+            $data['summa2'] = (float) ($data['summa2'] ?? 0);
+        } else {
+            unset($data['summa2']);
+        }
+        if (Schema::hasColumn('z_document', 'exchange_rate')) {
+            $data['exchange_rate'] = round((float) ($data['exchange_rate'] ?? 1), 8);
+        } else {
+            unset($data['exchange_rate']);
+        }
+        if (Schema::hasColumn('z_document', 'currency_from')) {
+            $data['currency_from'] = self::normalizeCurrency($data['currency_from'] ?? 'UAH');
+        } else {
+            unset($data['currency_from']);
+        }
+        if (Schema::hasColumn('z_document', 'currency_to')) {
+            $data['currency_to'] = self::normalizeCurrency($data['currency_to'] ?? $data['currency_from'] ?? 'UAH');
+        } else {
+            unset($data['currency_to']);
+        }
 
         if ($id === 0) {
             $maxNum = DB::table('z_document')
@@ -317,7 +374,7 @@ class Money extends Model
         DB::table('z_document')
             ->where('id', $id)
             ->where('firma', $fid)
-            ->whereIn('type', ['PPO', 'PRO'])
+            ->whereIn('type', ['PPO', 'PRO', 'PPP'])
             ->delete();
     }
 
@@ -344,6 +401,12 @@ class Money extends Model
                 'd.data',
                 'd.time',
                 'd.summa',
+                'd.summa2',
+                'd.currency_from',
+                'd.currency_to',
+                'd.exchange_rate',
+                'd.commission_amount',
+                'd.commission_currency',
                 'd.content',
                 'd.oplata',
                 'd.oplata2',
@@ -355,15 +418,88 @@ class Money extends Model
 
     public static function saveTransferDocument(int $id, string $fid, array $data): int
     {
-        return Deposit::saveDocument($id, $fid, [
-            'summa' => (float) ($data['summa'] ?? 0),
-            'content' => (string) ($data['content'] ?? ''),
-            'data' => (string) ($data['data'] ?? date('d-m-Y')),
+        $cashboxCurrencies = self::resolveTransferCashboxCurrencies(
+            $fid,
+            (string) ($data['oplata'] ?? ''),
+            (string) ($data['oplata2'] ?? '')
+        );
+        $data['currency_from'] = $cashboxCurrencies['from'] ?? ($data['currency_from'] ?? 'UAH');
+        $data['currency_to'] = $cashboxCurrencies['to'] ?? ($data['currency_to'] ?? $data['currency_from']);
+
+        $payload = self::normalizeTransferPayload($data);
+        $payload = array_merge($payload, [
+            'type' => 'PP',
+            'firma' => $fid,
             'docum' => 'exchange',
+            'money' => '',
+            'client1' => '0',
+            'client2' => (string) ($data['client2'] ?? '0'),
+        ]);
+
+        if ($id === 0) {
+            $maxNum = DB::table('z_document')
+                ->where('firma', $fid)
+                ->where('type', 'PP')
+                ->max(DB::raw('CAST(num AS UNSIGNED)'));
+
+            $payload['num'] = $maxNum ? (int) $maxNum + 1 : 1;
+            $payload['time'] = date('H:i:s');
+
+            return (int) DB::table('z_document')->insertGetId($payload);
+        }
+
+        DB::table('z_document')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->where('type', 'PP')
+            ->where('docum', 'exchange')
+            ->update($payload);
+
+        return $id;
+    }
+
+    private static function normalizeTransferPayload(array $data): array
+    {
+        $amountFrom = self::parseDecimal($data['summa'] ?? 0);
+        $amountTo = self::parseDecimal($data['summa2'] ?? 0);
+        $rate = self::parseDecimal($data['exchange_rate'] ?? 0);
+
+        $providedAmountFrom = array_key_exists('summa', $data) && trim((string) $data['summa']) !== '';
+        $providedAmountTo = array_key_exists('summa2', $data) && trim((string) $data['summa2']) !== '';
+        $providedRate = array_key_exists('exchange_rate', $data) && trim((string) $data['exchange_rate']) !== '';
+
+        if ($providedAmountFrom && $providedRate && !$providedAmountTo) {
+            $amountTo = $amountFrom * $rate;
+        } elseif ($providedAmountFrom && $providedAmountTo && !$providedRate && $amountFrom > 0) {
+            $rate = $amountTo / $amountFrom;
+        } elseif ($providedAmountTo && $providedRate && !$providedAmountFrom && $rate > 0) {
+            $amountFrom = $amountTo / $rate;
+        }
+
+        if ($amountTo <= 0 && $amountFrom > 0) {
+            $amountTo = $amountFrom;
+        }
+
+        if ($rate <= 0 && $amountFrom > 0) {
+            $rate = $amountTo / $amountFrom;
+        }
+
+        $currencyFrom = self::normalizeCurrency($data['currency_from'] ?? 'UAH');
+        $currencyTo = self::normalizeCurrency($data['currency_to'] ?? $currencyFrom);
+
+        return [
+            'summa' => round($amountFrom, 2),
+            'summa2' => round($amountTo, 2),
+            'content' => (string) ($data['content'] ?? ''),
+            'data' => curdate((string) ($data['data'] ?? date('d-m-Y'))),
             'oplata' => (string) ($data['oplata'] ?? ''),
             'oplata2' => (string) ($data['oplata2'] ?? ''),
-            'money' => '',
-        ]);
+            'currency_from' => $currencyFrom,
+            'currency_to' => $currencyTo,
+            'exchange_rate' => round($rate > 0 ? $rate : 1, 8),
+            'commission_amount' => round(max(0, self::parseDecimal($data['commission_amount'] ?? 0)), 2),
+            'commission_currency' => $currencyFrom,
+        ];
     }
 
     public static function deleteTransferDocument(int $id, string $fid): void
@@ -383,7 +519,7 @@ class Money extends Model
         $doc = DB::table('z_document')
             ->where('id', $id)
             ->where('firma', $fid)
-            ->whereIn('type', ['PPO', 'PRO'])
+            ->whereIn('type', ['PPO', 'PRO', 'PPP'])
             ->first();
 
         if (!$doc) {
@@ -397,34 +533,23 @@ class Money extends Model
 
         $direction = $wasPosted ? -1 : 1;
         $summa = (float) ($doc->summa ?? 0);
+        if ((string) ($doc->type ?? '') === 'PPP') {
+            return self::provodkaBalanceExchange($doc, $id, $fid, $wasPosted, $direction);
+        }
+
         $targetClientId = trim((string) ($doc->client1 ?? ''));
         $ownerUserId = trim((string) ($doc->client2 ?? ''));
         $ownerDelta = ($doc->type === 'PPO' ? 1 : -1) * $summa * $direction;
         $targetDelta = -1 * $ownerDelta;
+        $currency = self::normalizeCurrency($doc->currency_from ?? 'UAH');
 
-        DB::transaction(function () use ($ownerUserId, $targetClientId, $fid, $ownerDelta, $targetDelta, $id, $wasPosted, $doc) {
+        DB::transaction(function () use ($ownerUserId, $targetClientId, $fid, $ownerDelta, $targetDelta, $currency, $id, $wasPosted, $doc) {
             if ($ownerUserId !== '' && $ownerUserId !== '0') {
-                $ownerBalance = (float) DB::table('users')
-                    ->where('id', $ownerUserId)
-                    ->where('firma', $fid)
-                    ->value('balance');
-
-                DB::table('users')
-                    ->where('id', $ownerUserId)
-                    ->where('firma', $fid)
-                    ->update(['balance' => $ownerBalance + $ownerDelta]);
+                self::shiftUserBalance($fid, $ownerUserId, $ownerDelta, $currency);
             }
 
             if ($targetClientId !== '' && $targetClientId !== '0') {
-                $targetBalance = (float) DB::table('users')
-                    ->where('id', $targetClientId)
-                    ->where('firma', $fid)
-                    ->value('balance');
-
-                DB::table('users')
-                    ->where('id', $targetClientId)
-                    ->where('firma', $fid)
-                    ->update(['balance' => $targetBalance + $targetDelta]);
+                self::shiftUserBalance($fid, $targetClientId, $targetDelta, $currency);
             }
 
             app(AccountingService::class)->createDocumentTransaction(
@@ -440,14 +565,57 @@ class Money extends Model
             DB::table('z_document')
                 ->where('id', $id)
                 ->where('firma', $fid)
-                ->whereIn('type', ['PPO', 'PRO'])
+                ->whereIn('type', ['PPO', 'PRO', 'PPP'])
                 ->update(['provodka' => $wasPosted ? 0 : 1]);
         });
 
         $fresh = DB::table('z_document')
             ->where('id', $id)
             ->where('firma', $fid)
-            ->whereIn('type', ['PPO', 'PRO'])
+            ->whereIn('type', ['PPO', 'PRO', 'PPP'])
+            ->first();
+
+        return [
+            'document' => $fresh,
+            'isPosted' => !$wasPosted,
+        ];
+    }
+
+    private static function provodkaBalanceExchange(object $doc, int $id, string $fid, bool $wasPosted, int $direction): array
+    {
+        $ownerUserId = trim((string) ($doc->client2 ?? ''));
+        $amountFrom = round((float) ($doc->summa ?? 0), 2);
+        $amountTo = round((float) (($doc->summa2 ?? 0) > 0 ? $doc->summa2 : $doc->summa), 2);
+        $currencyFrom = self::normalizeCurrency($doc->currency_from ?? 'UAH');
+        $currencyTo = self::normalizeCurrency($doc->currency_to ?? $currencyFrom);
+
+        DB::transaction(function () use ($ownerUserId, $fid, $amountFrom, $amountTo, $currencyFrom, $currencyTo, $direction, $id, $wasPosted, $doc): void {
+            if ($ownerUserId !== '' && $ownerUserId !== '0') {
+                self::shiftUserBalance($fid, $ownerUserId, -1 * $amountFrom * $direction, $currencyFrom);
+                self::shiftUserBalance($fid, $ownerUserId, $amountTo * $direction, $currencyTo);
+            }
+
+            app(AccountingService::class)->createDocumentTransaction(
+                'z_document:balance_exchange',
+                $id,
+                'PPP',
+                $doc,
+                [],
+                $fid,
+                $wasPosted
+            );
+
+            DB::table('z_document')
+                ->where('id', $id)
+                ->where('firma', $fid)
+                ->where('type', 'PPP')
+                ->update(['provodka' => $wasPosted ? 0 : 1]);
+        });
+
+        $fresh = DB::table('z_document')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->where('type', 'PPP')
             ->first();
 
         return [
@@ -458,7 +626,13 @@ class Money extends Model
 
     public static function provodkaTransfer(int $id, string $fid): array
     {
-        $doc = self::findTransfer($id, $fid);
+        $doc = DB::table('z_document')
+            ->where('id', $id)
+            ->where('firma', $fid)
+            ->where('type', 'PP')
+            ->where('docum', 'exchange')
+            ->first();
+
         if (!$doc) {
             return [
                 'document' => null,
@@ -466,6 +640,238 @@ class Money extends Model
             ];
         }
 
-        return Deposit::provodka($id, $fid);
+        $wasPosted = (int) ($doc->provodka ?? 0) === 1;
+        $direction = $wasPosted ? -1 : 1;
+        $amountFrom = round((float) ($doc->summa ?? 0), 2);
+        $amountTo = round((float) ($doc->summa2 ?? 0), 2);
+        $commissionAmount = round((float) ($doc->commission_amount ?? 0), 2);
+        $fromCashboxId = trim((string) ($doc->oplata ?? ''));
+        $toCashboxId = trim((string) ($doc->oplata2 ?? ''));
+
+        if ($amountTo <= 0) {
+            $amountTo = $amountFrom;
+        }
+
+        DB::transaction(function () use ($fid, $fromCashboxId, $toCashboxId, $amountFrom, $amountTo, $commissionAmount, $direction, $id, $wasPosted, $doc): void {
+            if ($fromCashboxId !== '' && $toCashboxId !== '') {
+                self::shiftConfValue($fid, 'oplata', $fromCashboxId, -1 * ($amountFrom + $commissionAmount) * $direction);
+                self::shiftConfValue($fid, 'oplata', $toCashboxId, $amountTo * $direction);
+            }
+
+            app(AccountingService::class)->createDocumentTransaction(
+                'z_document:money_transfer',
+                $id,
+                'PP',
+                $doc,
+                [],
+                $fid,
+                $wasPosted
+            );
+
+            DB::table('z_document')
+                ->where('id', $id)
+                ->where('firma', $fid)
+                ->where('type', 'PP')
+                ->where('docum', 'exchange')
+                ->update(['provodka' => $wasPosted ? 0 : 1]);
+        });
+
+        $fresh = self::findTransfer($id, $fid);
+
+        return [
+            'document' => $fresh,
+            'isPosted' => !$wasPosted,
+        ];
+    }
+
+    private static function shiftConfValue(string $fid, string $type, string $id, float $delta): void
+    {
+        $currentValue = (float) DB::table('conf')
+            ->where('id', $id)
+            ->where('type', $type)
+            ->where('firma', $fid)
+            ->value('value');
+
+        DB::table('conf')
+            ->where('id', $id)
+            ->where('type', $type)
+            ->where('firma', $fid)
+            ->update(['value' => $currentValue + $delta]);
+    }
+
+    private static function parseDecimal(mixed $value): float
+    {
+        $normalized = str_replace([' ', ','], ['', '.'], trim((string) $value));
+
+        return is_numeric($normalized) ? (float) $normalized : 0.0;
+    }
+
+    private static function resolveTransferCashboxCurrencies(string $fid, string $fromCashboxId, string $toCashboxId): array
+    {
+        $ids = array_values(array_filter([$fromCashboxId, $toCashboxId], fn (string $id): bool => trim($id) !== ''));
+        if ($ids === []) {
+            return [];
+        }
+
+        $columns = array_filter([
+            'id',
+            'name',
+            Schema::hasColumn('conf', 'currency') ? 'currency' : null,
+        ]);
+
+        $cashboxes = DB::table('conf')
+            ->where('type', 'oplata')
+            ->where('firma', $fid)
+            ->whereIn('id', $ids)
+            ->get($columns)
+            ->keyBy(fn ($row) => (string) $row->id);
+
+        return array_filter([
+            'from' => self::currencyForCashboxRow($cashboxes->get($fromCashboxId)),
+            'to' => self::currencyForCashboxRow($cashboxes->get($toCashboxId)),
+        ]);
+    }
+
+    private static function currencyForCashboxRow(?object $cashbox): ?string
+    {
+        if (!$cashbox) {
+            return null;
+        }
+
+        $configuredCurrency = Schema::hasColumn('conf', 'currency')
+            ? self::normalizeCurrency($cashbox->currency ?? '', '')
+            : '';
+
+        return $configuredCurrency !== ''
+            ? $configuredCurrency
+            : self::currencyFromCashboxName((string) ($cashbox->name ?? ''));
+    }
+
+    private static function normalizeCurrency(mixed $value, string $default = 'UAH'): string
+    {
+        $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
+
+        return $currency !== '' ? substr($currency, 0, 10) : $default;
+    }
+
+    private static function currencyFromCashboxName(string $name): string
+    {
+        $upperName = strtoupper($name);
+        foreach (['UAH', 'USD', 'EUR', 'GBP', 'PLN', 'USDT', 'USDC', 'BTC', 'ETH'] as $currency) {
+            if (preg_match('/(^|[^A-Z0-9])' . preg_quote($currency, '/') . '([^A-Z0-9]|$)/', $upperName) === 1) {
+                return $currency;
+            }
+        }
+
+        return 'UAH';
+    }
+
+    public static function userBalances(mixed $value): array
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return [[
+                'amount' => self::formatBalanceAmount(0),
+                'currency' => 'UAH',
+                'is_default' => true,
+            ]];
+        }
+
+        if (!str_contains($raw, ':') && is_numeric($raw)) {
+            return [[
+                'amount' => self::formatBalanceAmount((float) $raw),
+                'currency' => 'UAH',
+                'is_default' => true,
+            ]];
+        }
+
+        $balances = [];
+        foreach (explode(';', $raw) as $segment) {
+            $segment = trim($segment);
+            if ($segment === '' || !str_contains($segment, ':')) {
+                continue;
+            }
+
+            [$amount, $currency] = array_map('trim', explode(':', $segment, 2));
+            $amount = str_replace(',', '.', $amount);
+            if ($amount === '' || !is_numeric($amount)) {
+                continue;
+            }
+
+            $balances[] = [
+                'amount' => self::formatBalanceAmount((float) $amount),
+                'currency' => self::normalizeCurrency($currency),
+                'is_default' => count($balances) === 0,
+            ];
+        }
+
+        return $balances;
+    }
+
+    private static function shiftUserBalance(string $fid, string $userId, float $delta, string $currency): void
+    {
+        if ($delta == 0.0 || !Schema::hasColumn('users', 'balance')) {
+            return;
+        }
+
+        $user = DB::table('users')
+            ->where('id', $userId)
+            ->where('firma', $fid)
+            ->lockForUpdate()
+            ->first(['id', 'balance']);
+
+        if (!$user) {
+            return;
+        }
+
+        $currency = self::normalizeCurrency($currency);
+        $balances = self::userBalances($user->balance ?? '');
+        $found = false;
+
+        foreach ($balances as &$balance) {
+            if ($balance['currency'] !== $currency) {
+                continue;
+            }
+
+            $balance['amount'] = self::formatBalanceAmount((float) $balance['amount'] + $delta);
+            $found = true;
+            break;
+        }
+        unset($balance);
+
+        if (!$found) {
+            $balances[] = [
+                'amount' => self::formatBalanceAmount($delta),
+                'currency' => $currency,
+            ];
+        }
+
+        DB::table('users')->where('id', $user->id)->update([
+            'balance' => self::serializeUserBalances($balances),
+        ]);
+    }
+
+    private static function serializeUserBalances(array $balances): ?string
+    {
+        $segments = [];
+        foreach ($balances as $balance) {
+            $amount = self::formatBalanceAmount((float) ($balance['amount'] ?? 0));
+            $currency = self::normalizeCurrency($balance['currency'] ?? 'UAH');
+            $segments[] = "{$amount}:{$currency};";
+        }
+
+        return $segments === [] ? null : implode('', $segments);
+    }
+
+    private static function formatBalanceAmount(float $amount): string
+    {
+        $formatted = number_format($amount, 8, '.', '');
+        $formatted = rtrim(rtrim($formatted, '0'), '.');
+
+        if ($formatted === '' || $formatted === '-0') {
+            return '0';
+        }
+
+        return $formatted;
     }
 }
