@@ -7,6 +7,7 @@ use App\Models\Conf;
 use App\Models\Wallet;
 use App\Services\DefiLlamaTransparencyService;
 use App\Services\OneInchSwapService;
+use App\Services\WalletPerformanceService;
 use App\Services\WalletPortfolioService;
 use App\Services\WalletProtocolService;
 use Illuminate\Http\Request;
@@ -225,6 +226,40 @@ class WalletController extends Controller
             return response()->json([
                 'message' => $exception->getMessage() ?: 'Failed to load wallet tokens.',
             ], 422);
+        }
+    }
+
+    public function performance(string $address, Request $request, WalletPerformanceService $service)
+    {
+        $validated = $request->validate([
+            'chain_id' => ['nullable', 'string', 'max:20'],
+            'timeframe' => ['nullable', 'string', 'max:8'],
+            'refresh' => ['nullable', 'boolean'],
+        ]);
+
+        try {
+            return response()->json(
+                $service->getPerformance(
+                    $address,
+                    $validated['chain_id'] ?? null,
+                    $validated['timeframe'] ?? '1M',
+                    $request->boolean('refresh', false)
+                )
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'status' => 'analyzing',
+                'message' => $exception->getMessage() ?: 'Wallet performance analysis is still running.',
+                'wallet' => [
+                    'address' => $address,
+                    'chain_id' => $validated['chain_id'] ?? null,
+                ],
+                'timeframe' => strtoupper((string) ($validated['timeframe'] ?? '1M')),
+                'cached' => false,
+                'points' => [],
+            ], 202);
         }
     }
 

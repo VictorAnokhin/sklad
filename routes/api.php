@@ -186,6 +186,7 @@ Route::middleware(['api', 'throttle:30,1'])->prefix('projects/manager-ai')->grou
 Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
 Route::get('/offices', [SettingsController::class, 'officesPublicIndex']);
 Route::get('/wallet/tokens', [WalletController::class, 'tokens']);
+Route::get('/wallet/{address}/performance', [WalletController::class, 'performance']);
 Route::get('/wallet/{address}/tokens', [WalletController::class, 'walletTokens']);
 Route::match(['get', 'put'], '/wallet/{address}/tokens/settings', [WalletController::class, 'walletTokenSettings']);
 Route::get('/wallet/{address}/tokens/search', [WalletController::class, 'walletTokenSearch']);
