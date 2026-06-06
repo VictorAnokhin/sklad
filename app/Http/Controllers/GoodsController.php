@@ -943,7 +943,7 @@ class GoodsController extends Controller
         $name = Field::localizedValue($locale, $item->name_ru ?? '', $item->name_ua ?? '', $item->name_en ?? '')
             ?: (string) ($item->name ?? '');
         $description = Field::localizedValue($locale, $item->description ?? '', $item->description_ua ?? '', $item->description_en ?? '');
-        $description = trim(preg_replace('/\s+/u', ' ', strip_tags((string) $description)) ?? '');
+        $description = (string) $description;
         $identifier = trim((string) ($item->nickname ?? '')) !== '' ? trim((string) $item->nickname) : (string) $item->id;
         $path = '/goods/' . rawurlencode($identifier);
         $frontendBaseUrl = rtrim((string) $request->query('frontend_base_url', ''), '/');
@@ -958,8 +958,8 @@ class GoodsController extends Controller
             'name_en' => (string) ($item->name_en ?? ''),
             'description' => $description,
             'description_ru' => trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($item->description ?? ''))) ?? ''),
-            'description_ua' => trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($item->description_ua ?? ''))) ?? ''),
-            'description_en' => trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($item->description_en ?? ''))) ?? ''),
+            'description_ua' => (string) ($item->description_ua ?? ''),
+            'description_en' => (string) ($item->description_en ?? ''),
             'price' => (float) ($item->pay ?? 0),
             'wholesale_price' => (float) ($item->pay1 ?? 0),
             'count' => (float) ($item->count ?? 0),
