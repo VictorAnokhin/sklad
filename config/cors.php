@@ -28,7 +28,7 @@ return [
             'http://127.0.0.1:3001',
             'http://localhost:3002',
             'http://127.0.0.1:3002',
-            'https://app.autoagent.in.ua',
+            'https://av8.fund',
             'https://ai.autoagent.in.ua',
             'https://autoagent.in.ua',
             'https://gosnomera.net.ua',

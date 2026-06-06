@@ -147,7 +147,7 @@ return [
         'script_path_template' => env('AUTOAGENT_SITEMAP_SCRIPT_PATH_TEMPLATE', ''),
         'script_base_path' => env('AUTOAGENT_SITEMAP_SCRIPT_BASE_PATH', '/var/www'),
         'script_relative_path' => env('AUTOAGENT_SITEMAP_SCRIPT_RELATIVE_PATH', 'scripts/build-sitemap.mjs'),
-        'source_url' => env('AUTOAGENT_SITEMAP_SOURCE_URL', 'https://av8capital.space/sitemap.xml?fid=2'),
+        'source_url' => env('AUTOAGENT_SITEMAP_SOURCE_URL', 'https://av8.fund/sitemap.xml?fid=12'),
         'output_path' => env('AUTOAGENT_SITEMAP_OUTPUT_PATH', ''),
         'output_path_template' => env('AUTOAGENT_SITEMAP_OUTPUT_PATH_TEMPLATE', ''),
         'output_base_path' => env('AUTOAGENT_SITEMAP_OUTPUT_BASE_PATH', '/var/www'),

@@ -31,8 +31,8 @@ return [
         'company_name' => env('FOOTER_COMPANY_NAME'),
         'platform_url' => env('FOOTER_PLATFORM_URL', 'https://autoagent.in.ua'),
         'platform_label' => env('FOOTER_PLATFORM_LABEL', 'autoagent.in.ua'),
-        'bank_url' => env('FOOTER_BANK_URL', 'https://app.autoagent.in.ua'),
-        'bank_label' => env('FOOTER_BANK_LABEL', 'app.autoagent.in.ua'),
+        'bank_url' => env('FOOTER_BANK_URL', 'https://av8.fund'),
+        'bank_label' => env('FOOTER_BANK_LABEL', 'av8.fund'),
     ],
 
     /*

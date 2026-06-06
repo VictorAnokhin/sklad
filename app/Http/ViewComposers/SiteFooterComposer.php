@@ -23,8 +23,8 @@ class SiteFooterComposer
             'siteFooterUsersCount' => User::query()->count(),
             'siteFooterPlatformUrl' => (string) ($footer['platform_url'] ?? 'https://autoagent.in.ua'),
             'siteFooterPlatformLabel' => (string) ($footer['platform_label'] ?? 'autoagent.in.ua'),
-            'siteFooterBankUrl' => (string) ($footer['bank_url'] ?? 'https://app.autoagent.in.ua'),
-            'siteFooterBankLabel' => (string) ($footer['bank_label'] ?? 'app.autoagent.in.ua'),
+            'siteFooterBankUrl' => (string) ($footer['bank_url'] ?? 'https://av8.fund'),
+            'siteFooterBankLabel' => (string) ($footer['bank_label'] ?? 'av8.fund'),
         ]);
     }
 }
