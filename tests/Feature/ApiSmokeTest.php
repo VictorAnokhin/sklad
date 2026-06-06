@@ -73,6 +73,29 @@ class ApiSmokeTest extends TestCase
         $response->assertJsonStructure(['groups']);
     }
 
+    public function test_manager_ai_goods_by_category_rejects_missing_bridge_auth(): void
+    {
+        config(['services.manager_ai.bridge_secret' => 'test-secret']);
+
+        $response = $this->getJson(
+            '/api/goods/manager-ai/items/by-category?fid=2&idglava=2219&idcaption=2171'
+        );
+
+        $response->assertStatus(403);
+    }
+
+    public function test_manager_ai_goods_by_category_requires_category_filter(): void
+    {
+        config(['services.manager_ai.bridge_secret' => 'test-secret']);
+
+        $response = $this
+            ->withHeader('X-ManagerAI-Bridge-Secret', 'test-secret')
+            ->getJson('/api/goods/manager-ai/items/by-category?fid=2');
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['idglava', 'idcaption']);
+    }
+
     public function test_manager_ai_goods_search_rejects_missing_bridge_auth(): void
     {
         config(['services.manager_ai.bridge_secret' => 'test-secret']);

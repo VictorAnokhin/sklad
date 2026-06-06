@@ -528,6 +528,8 @@ class GoodsController extends Controller
             'external_id' => ['nullable', 'string', 'max:255'],
             'source_url' => ['nullable', 'string', 'max:2000'],
             'q' => ['nullable', 'string', 'max:200'],
+            'idglava' => ['nullable', 'integer', 'min:1'],
+            'idcaption' => ['nullable', 'integer', 'min:1'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
             'offset' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'locale' => ['nullable', 'string', 'in:ru,ua,en'],
@@ -553,6 +555,15 @@ class GoodsController extends Controller
         $sourceHash = $this->managerAiSourceHash($payload['source_url'] ?? null);
         if ($sourceHash !== null && $this->managerAiCompHasColumn('manager_ai_source_hash')) {
             $query->where('comp.manager_ai_source_hash', $sourceHash);
+        }
+
+        $idglava = (int) ($payload['idglava'] ?? 0);
+        $idcaption = (int) ($payload['idcaption'] ?? 0);
+        if ($idglava > 0) {
+            $query->where('comp.idglava', $idglava);
+        }
+        if ($idcaption > 0) {
+            $query->where('comp.idcaption', $idcaption);
         }
 
         $search = trim((string) ($payload['q'] ?? ''));
@@ -588,8 +599,27 @@ class GoodsController extends Controller
             'total' => $total,
             'limit' => $limit,
             'offset' => $offset,
+            'filters' => [
+                'idglava' => $idglava ?: null,
+                'idcaption' => $idcaption ?: null,
+            ],
             'data' => $items,
         ]);
+    }
+
+    public function managerAiItemsByCategory(Request $request)
+    {
+        if ($denied = $this->denyInvalidManagerAiSecret($request)) {
+            return $denied;
+        }
+
+        $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'idglava' => ['nullable', 'integer', 'min:1', 'required_without:idcaption'],
+            'idcaption' => ['nullable', 'integer', 'min:1', 'required_without:idglava'],
+        ]);
+
+        return $this->managerAiItemsIndex($request);
     }
 
     public function managerAiItemsStore(Request $request)

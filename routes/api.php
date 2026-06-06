@@ -157,6 +157,7 @@ Route::middleware(['throttle:20,1'])->post('/goods/agent', [GoodsController::cla
 Route::get('/goods/catalog-filter-groups', [GoodsController::class, 'catalogFilterGroupsApi']);
 Route::get('/goods/manager-ai/search', [GoodsController::class, 'managerAiSearch']);
 Route::get('/goods/manager-ai/items', [GoodsController::class, 'managerAiItemsIndex']);
+Route::get('/goods/manager-ai/items/by-category', [GoodsController::class, 'managerAiItemsByCategory']);
 Route::post('/goods/manager-ai/items', [GoodsController::class, 'managerAiItemsStore']);
 Route::post('/goods/manager-ai/items/upsert', [GoodsController::class, 'managerAiItemsUpsert']);
 Route::put('/goods/manager-ai/items/{id}', [GoodsController::class, 'managerAiItemsUpdate']);
