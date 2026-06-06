@@ -651,7 +651,7 @@ class GoodsController extends Controller
             return $denied;
         }
 
-        $payload = $this->validateManagerAiItemPayload($request, false);
+        $payload = $this->validateManagerAiItemPayload($request, false, true);
         $project = $this->managerAiResolveProject((int) $payload['fid'], $payload['email'] ?? null);
         if ($project instanceof \Illuminate\Http\JsonResponse) {
             return $project;
@@ -683,7 +683,7 @@ class GoodsController extends Controller
             return $denied;
         }
 
-        $payload = $this->validateManagerAiItemPayload($request, false);
+        $payload = $this->validateManagerAiItemPayload($request, false, false);
         $project = $this->managerAiResolveProject((int) $payload['fid'], $payload['email'] ?? null);
         if ($project instanceof \Illuminate\Http\JsonResponse) {
             return $project;
@@ -981,7 +981,7 @@ class GoodsController extends Controller
         ];
     }
 
-    private function validateManagerAiItemPayload(Request $request, bool $creating): array
+    private function validateManagerAiItemPayload(Request $request, bool $creating, bool $requiresSourceIdentity = true): array
     {
         $rules = [
             'fid' => ['required', 'integer', 'min:1'],
@@ -1029,7 +1029,7 @@ class GoodsController extends Controller
             throw ValidationException::withMessages(['name' => 'Передайте название товара.']);
         }
 
-        if ($externalId === '' && $sourceUrl === '') {
+        if ($requiresSourceIdentity && $externalId === '' && $sourceUrl === '') {
             throw ValidationException::withMessages([
                 'external_id' => 'Для повторного парсинга передайте external_id или source_url.',
             ]);

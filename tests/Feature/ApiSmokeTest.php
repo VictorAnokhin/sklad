@@ -2,6 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\GoodsController;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use ReflectionMethod;
 use Tests\TestCase;
 
 class ApiSmokeTest extends TestCase
@@ -130,6 +134,27 @@ class ApiSmokeTest extends TestCase
         ]);
     }
 
+    public function test_manager_ai_item_update_validator_allows_description_only_with_id(): void
+    {
+        $payload = $this->validateManagerAiItemPayload([
+            'fid' => 2,
+            'description' => '<p>HTML description</p>',
+        ], false, false);
+
+        $this->assertSame(2, $payload['fid']);
+        $this->assertSame('<p>HTML description</p>', $payload['description']);
+    }
+
+    public function test_manager_ai_item_upsert_validator_still_requires_source_identity(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        $this->validateManagerAiItemPayload([
+            'fid' => 2,
+            'description' => '<p>HTML description</p>',
+        ], false, true);
+    }
+
     public function test_manager_ai_projects_rejects_missing_bridge_auth(): void
     {
         config(['services.manager_ai.bridge_secret' => 'test-secret']);
@@ -160,5 +185,14 @@ class ApiSmokeTest extends TestCase
             'success' => true,
             'email' => 'av8.fund@gmail.com',
         ]);
+    }
+
+    private function validateManagerAiItemPayload(array $payload, bool $creating, bool $requiresSourceIdentity): array
+    {
+        $request = Request::create('/api/goods/manager-ai/items/123', 'PUT', $payload);
+        $method = new ReflectionMethod(GoodsController::class, 'validateManagerAiItemPayload');
+        $method->setAccessible(true);
+
+        return $method->invoke(new GoodsController(), $request, $creating, $requiresSourceIdentity);
     }
 }
