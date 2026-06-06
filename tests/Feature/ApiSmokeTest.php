@@ -100,6 +100,29 @@ class ApiSmokeTest extends TestCase
         $response->assertJsonValidationErrors(['idglava', 'idcaption']);
     }
 
+    public function test_manager_ai_goods_by_pnum_rejects_missing_bridge_auth(): void
+    {
+        config(['services.manager_ai.bridge_secret' => 'test-secret']);
+
+        $response = $this->getJson(
+            '/api/goods/manager-ai/items/by-pnum?fid=2&pnum=21042'
+        );
+
+        $response->assertStatus(403);
+    }
+
+    public function test_manager_ai_goods_by_pnum_requires_pnum(): void
+    {
+        config(['services.manager_ai.bridge_secret' => 'test-secret']);
+
+        $response = $this
+            ->withHeader('X-ManagerAI-Bridge-Secret', 'test-secret')
+            ->getJson('/api/goods/manager-ai/items/by-pnum?fid=2');
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['pnum']);
+    }
+
     public function test_manager_ai_goods_search_rejects_missing_bridge_auth(): void
     {
         config(['services.manager_ai.bridge_secret' => 'test-secret']);
@@ -108,8 +131,7 @@ class ApiSmokeTest extends TestCase
 
         $response->assertStatus(403);
         $response->assertJson([
-            'success' => false,
-            'message' => 'Forbidden.',
+            'message' => 'Invalid ManagerAI bridge secret.',
         ]);
     }
 

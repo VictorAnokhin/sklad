@@ -622,6 +622,46 @@ class GoodsController extends Controller
         return $this->managerAiItemsIndex($request);
     }
 
+    public function managerAiItemsByPnum(Request $request)
+    {
+        if ($denied = $this->denyInvalidManagerAiSecret($request)) {
+            return $denied;
+        }
+
+        $payload = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'pnum' => ['required', 'integer', 'min:1'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'locale' => ['nullable', 'string', 'in:ru,ua,en'],
+        ]);
+
+        $project = $this->managerAiResolveProject((int) $payload['fid'], $payload['email'] ?? null);
+        if ($project instanceof \Illuminate\Http\JsonResponse) {
+            return $project;
+        }
+
+        $fid = (int) $payload['fid'];
+        $pnum = (int) $payload['pnum'];
+        $locale = (string) ($payload['locale'] ?? $this->resolveApiLocale($request));
+        $item = $this->managerAiGoodsBaseQuery($fid)
+            ->where('comp.id', $pnum)
+            ->first();
+
+        if (! $item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Товар не найден',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'fid' => $fid,
+            'pnum' => $pnum,
+            'data' => $this->serializeManagerAiGood($item, $locale, $request),
+        ]);
+    }
+
     public function managerAiItemsStore(Request $request)
     {
         if ($denied = $this->denyInvalidManagerAiSecret($request)) {

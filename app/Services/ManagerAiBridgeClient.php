@@ -281,6 +281,7 @@ class ManagerAiBridgeClient
 3. Если вопрос о товаре, ищи товар в таблице comp через защищенный API:
    GET {$apiBaseUrl}/api/goods/manager-ai/search?fid={$fid}&{$goodsAccessQuery}&q=<поисковый запрос>
    GET {$apiBaseUrl}/api/goods/manager-ai/<id или nickname>?fid={$fid}&{$goodsAccessQuery}
+   GET {$apiBaseUrl}/api/goods/manager-ai/items/by-pnum?fid={$fid}&{$goodsAccessQuery}&pnum=<id товара из comp.id>
    GET {$apiBaseUrl}/api/goods/manager-ai/items/by-category?fid={$fid}&{$goodsAccessQuery}&idglava=<igla из URL>&idcaption=<idcapt из URL>
    Эти URL уже содержат подписанный доступ для поиска товара. Если используешь header, передай X-ManagerAI-Bridge-Secret: тот же bridge secret.
    Для адреса /goods?igla=2219&idcapt=2171 используй idglava=2219 и idcaption=2171. При передаче обоих значений API применяет строгую фильтрацию по их паре.
