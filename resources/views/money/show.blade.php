@@ -314,7 +314,7 @@
                 </div>
                 <div class="col-md-6 mb-3">
                     <input type="text" name="summa" id="balanceExchangeAmountFrom" class="form-control" value="{{ $summaFrom }}"
-                        inputmode="numeric" autocomplete="off" placeholder="Сума списання">
+                        inputmode="numeric" autocomplete="off" data-terminal-input="1" placeholder="Сума списання">
                 </div>
             </div>
         </div>
@@ -335,7 +335,7 @@
                 </div>
                 <div class="col-md-6 mb-3">
                     <input type="text" name="summa2" id="balanceExchangeAmountTo" class="form-control" value="{{ $summaTo }}"
-                        inputmode="numeric" autocomplete="off" placeholder="Сума зарахування">
+                        inputmode="numeric" autocomplete="off" data-terminal-input="1" placeholder="Сума зарахування">
                 </div>
             </div>
         </div>
@@ -343,8 +343,13 @@
         <div class="row">
             <div class="col-md-4 mb-3">
                 <label>Курс</label>
-                <input type="text" name="exchange_rate" id="balanceExchangeRate" class="form-control" value="{{ $exchangeRateValue }}"
-                    inputmode="decimal" autocomplete="off" data-decimal-input="1">
+                <div class="input-group">
+                    <input type="text" name="exchange_rate" id="balanceExchangeRate" class="form-control" value="{{ $exchangeRateValue }}"
+                        inputmode="decimal" autocomplete="off" data-decimal-input="1">
+                    <button type="button" class="btn btn-outline-secondary" id="balanceExchangeRateDirection" title="Змінити напрямок курсу">
+                        ⇄
+                    </button>
+                </div>
                 <small class="text-muted" id="balanceExchangeRateHint"></small>
             </div>
         </div>
@@ -384,11 +389,14 @@
             const amountFrom = document.getElementById('balanceExchangeAmountFrom');
             const amountTo = document.getElementById('balanceExchangeAmountTo');
             const rate = document.getElementById('balanceExchangeRate');
+            const rateDirection = document.getElementById('balanceExchangeRateDirection');
             const currencyFrom = document.getElementById('balanceExchangeFromCurrency');
             const currencyTo = document.getElementById('balanceExchangeToCurrency');
             const hint = document.getElementById('balanceExchangeRateHint');
+            const form = rate?.closest('form');
             let editedFields = [];
             let syncingTerminalAmount = false;
+            let rateMode = 'from_to';
 
             const parseDecimal = (value) => {
                 const parsed = Number.parseFloat(String(value || '').replace(/\s/g, '').replace(',', '.'));
@@ -398,21 +406,55 @@
                 if (!Number.isFinite(value)) return '';
                 return value.toFixed(digits).replace(/\.?0+$/, '');
             };
+            const syncTerminalAmountState = (input) => {
+                if (input?.dataset.terminalInputBound === '1') {
+                    input.dataset.terminalAmountCents = String(Math.round(parseDecimal(input.value) * 100));
+                }
+            };
+            const getEffectiveRate = () => {
+                const rateValue = parseDecimal(rate.value);
+
+                if (rateValue <= 0) {
+                    return 0;
+                }
+
+                return rateMode === 'from_to' ? rateValue : 1 / rateValue;
+            };
+            const formatDisplayRate = (effectiveRate) => {
+                if (effectiveRate <= 0) {
+                    return '';
+                }
+
+                return rateMode === 'from_to' ? formatDecimal(effectiveRate, 8) : formatDecimal(1 / effectiveRate, 8);
+            };
             const syncHint = () => {
-                hint.textContent = `1 ${currencyFrom.value || '—'} = ${formatDecimal(parseDecimal(rate.value) || 1, 8)} ${currencyTo.value || '—'}`;
+                const from = currencyFrom.value || '—';
+                const to = currencyTo.value || '—';
+                const displayRate = parseDecimal(rate.value) || 1;
+
+                if (rateMode === 'from_to') {
+                    hint.textContent = `1 ${from} = ${formatDecimal(displayRate, 8)} ${to}`;
+                    rateDirection.textContent = `${from} → ${to}`;
+                    return;
+                }
+
+                hint.textContent = `1 ${to} = ${formatDecimal(displayRate, 8)} ${from}`;
+                rateDirection.textContent = `${to} → ${from}`;
             };
             const recalculate = () => {
                 const from = parseDecimal(amountFrom.value);
                 const to = parseDecimal(amountTo.value);
-                const rateValue = parseDecimal(rate.value);
+                const rateValue = getEffectiveRate();
                 const target = ['amount_from', 'amount_to', 'rate'].find((field) => !editedFields.slice(-2).includes(field)) || 'amount_to';
 
                 if (target === 'amount_from' && to > 0 && rateValue > 0) {
                     amountFrom.value = formatDecimal(to / rateValue);
+                    syncTerminalAmountState(amountFrom);
                 } else if (target === 'amount_to' && from > 0 && rateValue > 0) {
                     amountTo.value = formatDecimal(from * rateValue);
+                    syncTerminalAmountState(amountTo);
                 } else if (target === 'rate' && from > 0 && to > 0) {
-                    rate.value = formatDecimal(to / from, 8);
+                    rate.value = formatDisplayRate(to / from);
                 }
 
                 syncHint();
@@ -422,6 +464,12 @@
                 editedFields.push(field);
             };
             const bindTerminalAmountInput = (input, field) => {
+                if (!input || input.dataset.terminalInputBound === '1') {
+                    return;
+                }
+
+                input.dataset.terminalInputBound = '1';
+
                 const formatTerminalAmount = (cents) => (Math.max(0, cents) / 100).toFixed(2);
                 const parseAmountToCents = (value) => Math.round(parseDecimal(value) * 100);
                 const syncValue = (cents, recalc = true) => {
@@ -524,8 +572,18 @@
             bindTerminalAmountInput(amountFrom, 'amount_from');
             bindTerminalAmountInput(amountTo, 'amount_to');
             rate.addEventListener('input', () => { markEdited('rate'); recalculate(); });
+            rateDirection.addEventListener('click', () => {
+                const effectiveRate = getEffectiveRate();
+                rateMode = rateMode === 'from_to' ? 'to_from' : 'from_to';
+                rate.value = formatDisplayRate(effectiveRate || 1);
+                syncHint();
+            });
             currencyFrom.addEventListener('change', syncHint);
             currencyTo.addEventListener('change', syncHint);
+            form?.addEventListener('submit', () => {
+                rate.value = formatDecimal(getEffectiveRate() || parseDecimal(rate.value) || 1, 8);
+                rateMode = 'from_to';
+            });
             syncHint();
         });
     </script>
@@ -984,9 +1042,11 @@
                 return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
             };
             const bindTerminalAmountInput = (input) => {
-                if (!input) {
+                if (!input || input.dataset.terminalInputBound === '1') {
                     return;
                 }
+
+                input.dataset.terminalInputBound = '1';
 
                 const syncValue = (cents) => {
                     input.dataset.terminalAmountCents = String(cents);
@@ -1074,7 +1134,7 @@
                 });
             };
 
-            document.querySelectorAll('input[name="summa"]:not([data-decimal-input="1"])').forEach(bindTerminalAmountInput);
+            document.querySelectorAll('input[name="summa"]:not([data-decimal-input="1"]):not([data-terminal-input="1"])').forEach(bindTerminalAmountInput);
         });
     </script>
     @endif
