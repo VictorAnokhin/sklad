@@ -643,6 +643,13 @@
                                 <label class="form-check-label" for="project-hit">hit</label>
                             </div>
                         </div>
+                        <div class="col-md-3 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="project-constanta">
+                                <label class="form-check-label" for="project-constanta">Маркетплейс</label>
+                                <div class="form-text">Категорії цього проєкту доступні іншим проєктам.</div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="d-flex gap-2">
@@ -2500,6 +2507,7 @@ document.addEventListener('DOMContentLoaded', () => {
             payload.append('description', document.getElementById('project-description').value.trim());
             payload.append('web', document.getElementById('project-web').checked ? '1' : '0');
             payload.append('hit', document.getElementById('project-hit').checked ? '1' : '0');
+            payload.append('constanta', document.getElementById('project-constanta').checked ? '1' : '0');
             payload.append('htmlkeys', document.getElementById('project-htmlkeys').value.trim());
 
             if (fotoFileInput?.files?.[0]) {
@@ -2599,6 +2607,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>
                         <div class="fw-semibold">${escapeHtml(item.name || '')}</div>
                         <div class="company-meta">${escapeHtml(item.description || '')}</div>
+                        ${Number(item.constanta) === 1 ? '<span class="badge bg-warning text-dark mt-1">Маркетплейс</span>' : ''}
                     </td>
                     <td>${projectEmail}</td>
                     <td>
@@ -2680,6 +2689,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-description').value = item.description || '';
             document.getElementById('project-web').checked = Number(item.web) === 1;
             document.getElementById('project-hit').checked = Number(item.hit) === 1;
+            document.getElementById('project-constanta').checked = Number(item.constanta) === 1;
             document.getElementById('project-htmlkeys').value = item.htmlkeys || '';
             if (fotoFileInput) fotoFileInput.value = '';
             if (fotoHeaderFileInput) fotoHeaderFileInput.value = '';
@@ -2708,6 +2718,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-description').value = '';
             document.getElementById('project-web').checked = false;
             document.getElementById('project-hit').checked = false;
+            document.getElementById('project-constanta').checked = false;
             document.getElementById('project-htmlkeys').value = '';
             if (fotoFileInput) fotoFileInput.value = '';
             if (fotoHeaderFileInput) fotoHeaderFileInput.value = '';

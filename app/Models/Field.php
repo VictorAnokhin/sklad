@@ -205,6 +205,8 @@ class Field extends Model
 
     public static function getCatalogTops($firmaId)
     {
+        $firmas = self::catalogFirmaScope($firmaId);
+
         return self::where(function ($query) {
                 $query->where('idkeyfield', '0')
                     ->orWhere('idkeyfield', 0)
@@ -212,8 +214,9 @@ class Field extends Model
                     ->orWhere('idkeyfield', '');
             })
             ->where('keyfield', 'catalog')
-            ->where('firma', $firmaId)
+            ->whereIn('firma', $firmas)
             ->orderBy('num')
+            ->orderBy('firma')
             ->get();
     }
 
@@ -221,15 +224,41 @@ class Field extends Model
 
     public static function getCatalogSubs($firmaId)
     {
+        $firmas = self::catalogFirmaScope($firmaId);
+
         return self::where(function ($query) {
                 $query->whereNotNull('idkeyfield')
                     ->where('idkeyfield', '<>', '')
                     ->where('idkeyfield', '<>', '0');
             })
             ->where('keyfield', 'catalog')
-            ->where('firma', $firmaId)
+            ->whereIn('firma', $firmas)
             ->orderBy('num')
+            ->orderBy('firma')
             ->get()
             ->groupBy('idkeyfield');
+    }
+
+    public static function catalogFirmaScope($firmaId): array
+    {
+        $firmas = [0];
+        $current = (int) $firmaId;
+
+        if ($current > 0) {
+            $firmas[] = $current;
+        }
+
+        if (Schema::hasTable('project') && Schema::hasColumn('project', 'constanta')) {
+            $marketplaceFirmas = Project::query()
+                ->where('constanta', 1)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => $id > 0)
+                ->all();
+
+            $firmas = array_merge($firmas, $marketplaceFirmas);
+        }
+
+        return array_values(array_unique($firmas));
     }
 }

@@ -1953,6 +1953,7 @@ class SettingsController extends Controller
             'description' => 'nullable|string|max:65535',
             'web' => 'nullable|boolean',
             'hit' => 'nullable|boolean',
+            'constanta' => 'nullable|boolean',
             'htmlkeys' => 'nullable|string|max:65535',
             'foto_file' => 'nullable|image|max:4096',
             'foto_header_file' => 'nullable|image|max:4096',
@@ -2025,6 +2026,9 @@ class SettingsController extends Controller
         if (in_array('url', $projectColumns, true)) {
             $payload['url'] = $projectUrl;
         }
+        if (in_array('constanta', $projectColumns, true)) {
+            $payload['constanta'] = $request->boolean('constanta') ? 1 : 0;
+        }
 
         return $payload;
     }
@@ -2052,6 +2056,7 @@ class SettingsController extends Controller
         $payload['phone'] = (string) ($payload['phone'] ?? '');
         $payload['email'] = (string) ($payload['email'] ?? '');
         $payload['url'] = (string) ($payload['url'] ?? '');
+        $payload['constanta'] = (int) ($payload['constanta'] ?? 0);
         $payload['can_delete'] = $this->userCanDeleteProjectByEmail($user, $project);
 
         return $payload;

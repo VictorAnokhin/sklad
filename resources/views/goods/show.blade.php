@@ -362,9 +362,9 @@
     @endif
 
     @php
-        $selectedTop = (string)($comp->idglava ?? '');
-        $selectedSub = (string)($comp->idcaption ?? '');
-        $availableSubs = collect($subs[$selectedTop] ?? []);
+        $selectedTop = (string)($catalogSelectedTop ?? ($comp->idglava ?? ''));
+        $selectedSub = (string)($catalogSelectedSub ?? ($comp->idcaption ?? ''));
+        $availableSubs = collect($catalogAvailableSubs ?? ($subs[$selectedTop] ?? []));
     @endphp
 
     <form method="POST" action="{{ route('goods.save') }}" enctype="multipart/form-data" class="gs-form">
@@ -546,7 +546,7 @@
                 <div class="gs-col" style="display:flex;align-items:flex-end;">
                     <label class="gs-check" style="min-height:42px;width:100%;">
                         <input type="checkbox" name="constanta" value="1" id="constanta" {{ (string)($comp->constanta ?? '0') === '1' ? 'checked' : '' }}>
-                        Constanta
+                        На маркетплейс
                     </label>
                 </div>
                 <div class="gs-col" style="display:flex;align-items:flex-end;">

@@ -1454,6 +1454,9 @@ class GoodsController extends Controller
         $prices = $result['prices'];
         $tops = $result['tops'];
         $subs = $result['subs'];
+        $catalogSelectedTop = $result['catalogSelectedTop'];
+        $catalogSelectedSub = $result['catalogSelectedSub'];
+        $catalogAvailableSubs = $result['catalogAvailableSubs'];
         $news = $result['news'];
         $filterTags = $result['filterTags'];
 
@@ -1464,6 +1467,9 @@ class GoodsController extends Controller
             'prices',
             'tops',
             'subs',
+            'catalogSelectedTop',
+            'catalogSelectedSub',
+            'catalogAvailableSubs',
             'news',
             'filterTags',
             'fid',
@@ -1566,6 +1572,18 @@ class GoodsController extends Controller
                 $nested->where('firma', $firma);
                 if ($firma !== 0) {
                     $nested->orWhere('firma', 0);
+                }
+                if (Schema::hasTable('project') && Schema::hasColumn('project', 'constanta')) {
+                    $marketplaceFirmas = Project::query()
+                        ->where('constanta', 1)
+                        ->pluck('id')
+                        ->map(fn ($id) => (int) $id)
+                        ->filter(fn ($id) => $id > 0 && $id !== $firma)
+                        ->all();
+
+                    if ($marketplaceFirmas !== []) {
+                        $nested->orWhereIn('firma', array_values(array_unique($marketplaceFirmas)));
+                    }
                 }
             });
     }

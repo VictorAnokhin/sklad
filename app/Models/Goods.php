@@ -478,7 +478,7 @@ class Goods extends Model
                 if ($parent === null) {
                     $row = Field::query()
                         ->where('keyfield', 'catalog')
-                        ->where('firma', $firmaId)
+                        ->whereIn('firma', Field::catalogFirmaScope($firmaId))
                         ->where('id', (int) $cap)
                         ->first();
                     if ($row) {
@@ -507,7 +507,7 @@ class Goods extends Model
             if (! $hasSub) {
                 $row = Field::query()
                     ->where('keyfield', 'catalog')
-                    ->where('firma', $firmaId)
+                    ->whereIn('firma', Field::catalogFirmaScope($firmaId))
                     ->where('id', (int) $selectedSub)
                     ->first();
                 if ($row) {
