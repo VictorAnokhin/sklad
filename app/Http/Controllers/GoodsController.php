@@ -142,11 +142,14 @@ class GoodsController extends Controller
         $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
 
         $goods = DB::table('comp')
-            ->leftJoin('descript as d', function ($join) use ($fid) {
+            ->leftJoin('descript as d', function ($join) {
                 $join->on('d.pnum', '=', 'comp.id')
-                    ->where('d.firma', '=', $fid);
+                    ->whereColumn('d.firma', '=', 'comp.firma');
             })
-            ->where('comp.firma', $fid)
+            ->where(function ($nested) use ($fid) {
+                $nested->where('comp.firma', $fid)
+                    ->orWhere('comp.constanta', 1);
+            })
             ->where(function ($outer) use ($qOk, $q, $filterGroups) {
                 if ($qOk) {
                     $outer->where(function ($query) use ($q) {

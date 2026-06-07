@@ -48,6 +48,14 @@ class Goods extends Model
         return Field::localizedValue($locale, $ruValue, $uaValue, $enValue);
     }
 
+    private static function applyMarketplaceGoodsScope($query, $fid)
+    {
+        return $query->where(function ($nested) use ($fid) {
+            $nested->where('comp.firma', $fid)
+                ->orWhere('comp.constanta', 1);
+        });
+    }
+
     // ── getListQuery: filtered comp+price query builder ───────────────────────
 
     public static function getListQuery($fid, $idcaption, $idglava, $filters)
@@ -584,11 +592,11 @@ class Goods extends Model
                     ->whereColumn('d.firma', '=', 'comp.firma');
             })
             ->where('comp.web', '1')
-            ->where('comp.firma', $fid)
             ->where(function ($q) use ($id) {
                 $q->where('comp.idcaption', $id)
                     ->orWhere('comp.idglava', $id);
             });
+        self::applyMarketplaceGoodsScope($query, $fid);
 
         if ($hitOnly) {
             $query->where('comp.hit', 1);
@@ -693,7 +701,6 @@ class Goods extends Model
                     ->whereColumn('d.firma', '=', 'comp.firma');
             })
             ->where('comp.web', '1')
-            ->where('comp.firma', $fid)
             ->select(
                 'comp.id',
                 'comp.nickname',
@@ -723,6 +730,7 @@ class Goods extends Model
                 DB::raw('COALESCE(d.description_ua, "") as description_ua'),
                 DB::raw('COALESCE(d.description_en, "") as description_en')
             );
+        self::applyMarketplaceGoodsScope($baseQuery, $fid);
 
         if (ctype_digit($identifier)) {
             $item = (clone $baseQuery)
@@ -731,6 +739,7 @@ class Goods extends Model
         } else {
             $item = (clone $baseQuery)
                 ->whereRaw('TRIM(comp.nickname) = ?', [$identifier])
+                ->orderByRaw('CASE WHEN comp.firma = ? THEN 0 ELSE 1 END', [$fid])
                 ->first();
         }
 
@@ -845,7 +854,6 @@ class Goods extends Model
                     ->whereColumn('d.firma', '=', 'comp.firma');
             })
             ->where('comp.web', '1')
-            ->where('comp.firma', $fid)
             ->select(
                 'comp.id',
                 'comp.nickname',
@@ -863,7 +871,10 @@ class Goods extends Model
                 'comp.top',
                 'comp.hit',
                 'comp.sklad'
-            )
+            );
+        self::applyMarketplaceGoodsScope($hits, $fid);
+
+        $hits = $hits
             ->orderByDesc('comp.top')
             ->orderByDesc('comp.id')
             ->offset($offset)
