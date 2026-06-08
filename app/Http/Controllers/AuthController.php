@@ -95,6 +95,69 @@ class AuthController extends Controller
         return view('dashboard', compact('cashboxes', 'dailyIncome', 'newOrders', 'today', 'currentUserBalance'));
     }
 
+    public function transportLookup(Request $request)
+    {
+        $validated = $request->validate([
+            'plate' => ['required', 'string', 'max:20'],
+        ]);
+
+        $plate = strtoupper(preg_replace('/[^A-ZА-ЯІЇЄҐ0-9]/u', '', (string) $validated['plate']) ?? '');
+
+        if ($plate === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Вкажіть номерний знак.',
+            ], 422);
+        }
+
+        $transportUrl = (string) config('services.opendatabot.transport_url', '');
+
+        if ($transportUrl === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'OpenDataBot API URL is not configured.',
+            ], 500);
+        }
+
+        try {
+            $requestBuilder = Http::acceptJson()
+                ->timeout(12)
+                ->connectTimeout(5);
+
+            $query = [
+                'number' => $plate,
+            ];
+
+            $apiToken = trim((string) config('services.opendatabot.api_token', ''));
+            if ($apiToken !== '') {
+                $query['apiKey'] = $apiToken;
+            }
+
+            $response = $requestBuilder->get($transportUrl, $query);
+
+            $payload = $response->json();
+
+            return response()->json([
+                'success' => $response->successful(),
+                'plate' => $plate,
+                'status' => $response->status(),
+                'data' => $payload ?? $response->body(),
+            ], $response->successful() ? 200 : 502);
+        } catch (Throwable $error) {
+            Log::warning('OpenDataBot transport lookup failed', [
+                'plate' => $plate,
+                'message' => $error->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'plate' => $plate,
+                'message' => 'Не вдалося отримати дані OpenDataBot.',
+                'error' => $error->getMessage(),
+            ], 502);
+        }
+    }
+
     public function showRegister()
     {
         return view('auth.register');

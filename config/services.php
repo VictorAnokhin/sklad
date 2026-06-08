@@ -40,6 +40,11 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
     ],
 
+    'opendatabot' => [
+        'transport_url' => env('OPENDATABOT_TRANSPORT_URL', 'https://opendatabot.com/api/v4/transport'),
+        'api_token' => env('OPENDATABOT_API_TOKEN', ''),
+    ],
+
     'sumsub' => [
         'base_url' => env('SUMSUB_BASE_URL', 'https://api.sumsub.com'),
         'app_token' => env('SUMSUB_APP_TOKEN', ''),

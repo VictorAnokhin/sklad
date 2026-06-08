@@ -70,6 +70,7 @@ Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
+    Route::post('/dashboard/transport-lookup', [AuthController::class, 'transportLookup'])->name('dashboard.transportLookup');
     Route::prefix('team')->name('team.')->group(function () {
         Route::get('/show', [TeamController::class, 'show'])->name('show');
         Route::get('/report', [TeamController::class, 'payrollReport'])->name('report');
