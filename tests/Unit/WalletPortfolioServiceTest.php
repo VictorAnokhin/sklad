@@ -109,4 +109,56 @@ class WalletPortfolioServiceTest extends TestCase
         $this->assertCount(1, $payload['result']);
         $this->assertSame('USDT0', $payload['result'][0]['symbol']);
     }
+
+    public function test_it_refreshes_stale_cached_wallet_tokens_without_explicit_refresh(): void
+    {
+        config()->set('services.alchemy.key', 'test-key');
+
+        $wallet = Wallet::query()->create([
+            'address' => '0xa79798c0637daea4ac7fccbd61371dbb08d1d002',
+        ]);
+
+        $wallet->tokens()->create([
+            'chain' => 'arbitrum',
+            'token_address' => '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9',
+            'symbol' => 'USDT0',
+            'name' => 'Tether USD',
+            'balance' => '1.000000000000000000',
+            'price_usd' => '1.00000000',
+            'value_usd' => '1.00',
+            'is_spam' => false,
+            'synced_at' => now()->subMinutes(10),
+        ]);
+
+        Http::fake([
+            'https://api.g.alchemy.com/data/v1/*/assets/tokens/by-address' => Http::response([
+                'data' => [
+                    'tokens' => [
+                        [
+                            'network' => 'arb-mainnet',
+                            'tokenAddress' => '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+                            'tokenBalance' => '0x000000000000000000000000000000000000000000000000000000004fb6fe70',
+                            'tokenMetadata' => [
+                                'decimals' => 6,
+                                'logo' => 'https://example.com/usdt0.webp',
+                                'name' => 'Tether USD',
+                                'symbol' => 'USDT0',
+                            ],
+                            'tokenPrices' => [
+                                ['currency' => 'usd', 'value' => '1.00'],
+                            ],
+                        ],
+                    ],
+                    'pageKey' => null,
+                ],
+            ]),
+        ]);
+
+        $service = new WalletPortfolioService(new ZerionWalletService());
+        $payload = $service->getTokens('0xa79798c0637daea4ac7fccbd61371dbb08d1d002');
+
+        $this->assertFalse($payload['meta']['cached']);
+        $this->assertSame('1337.392752000000000000', $payload['result'][0]['balance']);
+        $this->assertSame('1337.39', $payload['result'][0]['value_usd']);
+    }
 }

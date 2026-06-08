@@ -47,7 +47,9 @@ class WalletPortfolioService
             'address' => $normalizedAddress,
         ]);
 
-        if ($refresh || ! $this->hasCachedTokens($wallet)) {
+        $syncedFromProvider = $refresh || ! $this->hasCachedTokens($wallet) || $this->shouldRefresh($wallet);
+
+        if ($syncedFromProvider) {
             $this->syncWalletTokens($wallet);
             if ($refresh) {
                 $this->syncCoinGeckoPrices($wallet);
@@ -94,7 +96,7 @@ class WalletPortfolioService
                 ];
             })->all(),
             'meta' => [
-                'cached' => ! $refresh,
+                'cached' => ! $syncedFromProvider,
                 'include_spam' => $includeSpam,
                 'include_unselected' => $includeUnselected,
                 'supported_chains' => $this->looksLikeSolanaAddress($wallet->address)
