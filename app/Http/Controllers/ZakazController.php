@@ -326,6 +326,79 @@ class ZakazController extends Controller
         ]);
     }
 
+    public function storeCarRequest(Request $request)
+    {
+        $fid = $this->resolveApiFid($request, '2');
+
+        $validator = Validator::make($request->all(), [
+            'request_type' => 'required|in:sale,purchase',
+            'name' => 'required|string|max:50',
+            'mobile' => ['required', 'regex:/^\+38\d{10}$/'],
+            'description' => 'required|string|max:2000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $data = $validator->validated();
+        $user = $request->user();
+        $docId = 0;
+        $docNum = 0;
+        $requestLabel = $data['request_type'] === 'sale' ? 'продажу авто' : 'покупку авто';
+        $userName = trim((string) $data['name']);
+        $userEmail = trim((string) ($user->email ?? ''));
+        $userPhone = trim((string) $data['mobile']);
+
+        DB::transaction(function () use ($data, $fid, $requestLabel, $user, $userEmail, $userName, $userPhone, &$docId, &$docNum) {
+            $year = now()->format('Y');
+            $this->withOrderNumberLock($fid, $year, function () use ($data, $fid, $requestLabel, $user, $userEmail, $userName, $userPhone, $year, &$docId, &$docNum) {
+                $docNum = $this->nextOrderNumber($fid, $year);
+                $dt = now()->format('Y-m-d');
+                $time = now()->format('H:i:s');
+                $content = implode('. ', array_filter([
+                    'Заявка на ' . $requestLabel,
+                    'Google: ' . $userEmail,
+                    'Імʼя: ' . $userName,
+                    $userPhone !== '' ? 'Телефон: ' . $userPhone : null,
+                    'Опис: ' . trim((string) $data['description']),
+                ]));
+
+                $docId = DB::table('document')->insertGetId([
+                    'num' => $docNum,
+                    'client1' => $user->id,
+                    'client2' => '',
+                    'content' => $content,
+                    'type' => 'ZOUT',
+                    'summa' => 0,
+                    'schet' => '',
+                    'data' => now()->format('d-m-Y'),
+                    'time' => $time,
+                    'user' => 'autoagent_api',
+                    'firma' => $fid,
+                    'dt' => strtotime($dt) ?: time(),
+                    'numz' => $docNum,
+                    'typez' => 'ZOUT',
+                    'manager' => '',
+                    'dostup' => '1',
+                ]);
+            });
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Заявку успішно оформлено',
+            'order' => [
+                'id' => $docId,
+                'num' => $docNum,
+                'summa' => 0,
+            ],
+        ]);
+    }
+
     // ── SMS уведомление ───────────────────────────────────────────────────
 
     private function sendSmsNotification(string $phone, int $docNum): void

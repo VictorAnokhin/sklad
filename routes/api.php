@@ -221,6 +221,7 @@ Route::put('/fund/share-settings', [FundShareSettingsController::class, 'update'
 // ── Orders (Zakaz) API ─────────────────────────────────────────────────────
 
 Route::post('/order', [ZakazController::class, 'store']);
+Route::middleware('auth:sanctum')->post('/car-request', [ZakazController::class, 'storeCarRequest']);
 
 Route::get('/orders', [ZakazController::class, 'index']);
 Route::middleware('auth:sanctum')->get('/my-orders', [ZakazController::class, 'apiOrders']);
