@@ -88,7 +88,7 @@ class SitemapService
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . PHP_EOL;
         $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . PHP_EOL;
 
-        foreach (['', '/marketplace', '/goods', '/service', '/delivery', '/about', '/news', '/privacy', '/refund-policy'] as $page) {
+        foreach (['', '/automarket', '/goods', '/service', '/delivery', '/about', '/news', '/privacy', '/refund-policy'] as $page) {
             $xml .= $this->formatUrl($baseUrl . $page, '1.0', 'daily');
         }
 
