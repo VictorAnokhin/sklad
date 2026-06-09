@@ -56,11 +56,12 @@ class CctpProxyController extends Controller
 
         $body = $response->json();
         if (!is_array($body)) {
+            $bodyPreview = mb_substr($response->body(), 0, 500);
             $body = [
                 'message' => $response->successful()
                     ? 'Circle Iris returned a non-JSON response.'
-                    : 'Circle Iris returned an HTTP error.',
-                'body' => mb_substr($response->body(), 0, 500),
+                    : trim("Circle Iris returned HTTP {$response->status()}: {$bodyPreview}"),
+                'body' => $bodyPreview,
             ];
         }
 
