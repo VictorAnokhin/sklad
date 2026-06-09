@@ -14,6 +14,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BackendAgentChatController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\ComplianceController;
+use App\Http\Controllers\CctpProxyController;
 use App\Http\Controllers\FundPoolController;
 use App\Http\Controllers\FundShareSettingsController;
 use App\Http\Controllers\FundTokenController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\RwaAdminCapController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SolanaRpcProxyController;
 use App\Http\Controllers\WalrusProxyController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WebchatIntelligenceController;
@@ -70,6 +72,8 @@ Route::middleware('api')->prefix('auth')->group(function () {
 Route::middleware(['api', 'sui.sponsor.log', 'auth:sanctum'])->post('/sui/shinami/sponsor-transaction', [AuthController::class, 'shinamiSponsorSuiTransaction']);
 
 Route::middleware(['api', 'throttle:10,1'])->put('/walrus/{network}/v1/blobs', [WalrusProxyController::class, 'store']);
+Route::middleware(['api', 'throttle:30,1'])->get('/cctp/v2/messages/{domain}', [CctpProxyController::class, 'v2Messages']);
+Route::middleware(['api', 'throttle:120,1'])->post('/solana/rpc', [SolanaRpcProxyController::class, 'proxy']);
 
 Route::middleware(['api', 'throttle:120,1'])->post('/v1/widget/handshake', [WidgetIntelligenceController::class, 'handshake']);
 
