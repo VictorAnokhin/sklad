@@ -40,6 +40,10 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
     ],
 
+    'circle_cctp' => [
+        'proxy_url' => env('CCTP_IRIS_PROXY_URL', ''),
+    ],
+
     'opendatabot' => [
         'transport_url' => env('OPENDATABOT_TRANSPORT_URL', 'https://opendatabot.com/api/v4/transport'),
         'api_token' => env('OPENDATABOT_API_TOKEN', ''),

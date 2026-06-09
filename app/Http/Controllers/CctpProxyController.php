@@ -25,14 +25,21 @@ class CctpProxyController extends Controller
             : 'https://iris-api.circle.com';
 
         $url = "{$baseUrl}/v2/messages/{$domain}";
+        $proxyUrl = trim((string) config('services.circle_cctp.proxy_url', ''));
 
         try {
-            $response = Http::acceptJson()
+            $request = Http::acceptJson()
                 ->timeout(20)
-                ->retry(2, 500)
-                ->get($url, [
-                    'transactionHash' => $payload['transactionHash'],
-                ]);
+                ->connectTimeout(10)
+                ->retry(2, 500, throw: false);
+
+            if ($proxyUrl !== '') {
+                $request = $request->withOptions(['proxy' => $proxyUrl]);
+            }
+
+            $response = $request->get($url, [
+                'transactionHash' => $payload['transactionHash'],
+            ]);
         } catch (\Throwable $error) {
             Log::warning('Circle CCTP proxy request failed.', [
                 'domain' => $domain,
@@ -50,9 +57,21 @@ class CctpProxyController extends Controller
         $body = $response->json();
         if (!is_array($body)) {
             $body = [
-                'message' => 'Circle Iris returned a non-JSON response.',
+                'message' => $response->successful()
+                    ? 'Circle Iris returned a non-JSON response.'
+                    : 'Circle Iris returned an HTTP error.',
                 'body' => mb_substr($response->body(), 0, 500),
             ];
+        }
+
+        if ($response->failed()) {
+            Log::warning('Circle CCTP upstream returned an error.', [
+                'domain' => $domain,
+                'network' => $network,
+                'transactionHash' => $payload['transactionHash'],
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 500),
+            ]);
         }
 
         return response()->json($body, $response->status());
