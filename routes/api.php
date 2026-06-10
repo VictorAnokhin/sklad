@@ -229,6 +229,7 @@ Route::post('/order', [ZakazController::class, 'store']);
 Route::middleware('auth:sanctum')->post('/car-request', [ZakazController::class, 'storeCarRequest']);
 Route::middleware('auth:sanctum')->get('/garage', [ZakazController::class, 'apiGarage']);
 Route::middleware('auth:sanctum')->get('/garage/tracked', [GarageVehicleController::class, 'index']);
+Route::middleware('auth:sanctum')->get('/garage/tracked/{owner}', [GarageVehicleController::class, 'owner']);
 Route::middleware('auth:sanctum')->post('/garage/lookup', [GarageVehicleController::class, 'lookup']);
 
 Route::get('/orders', [ZakazController::class, 'index']);

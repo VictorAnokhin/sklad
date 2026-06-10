@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\GarageVehicle;
+use App\Models\User;
 use App\Services\AutoRiaVehicleCheckService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use Throwable;
@@ -32,6 +34,92 @@ class GarageVehicleController extends Controller
 
         return response()->json([
             'items' => $items,
+        ]);
+    }
+
+    public function owner(Request $request, string $owner)
+    {
+        $owner = trim(urldecode($owner));
+
+        if ($owner === '') {
+            return response()->json([
+                'items' => [],
+                'message' => 'Email или телефон не указан.',
+            ], 422);
+        }
+
+        $userIds = collect();
+        $emails = collect();
+        $ownerEmail = mb_strtolower($owner);
+        $ownerDigits = preg_replace('/\D+/', '', $owner) ?? '';
+        $isEmail = filter_var($owner, FILTER_VALIDATE_EMAIL);
+
+        if (!$isEmail && $ownerDigits === '') {
+            return response()->json([
+                'items' => [],
+                'owner' => $owner,
+                'matched_users_count' => 0,
+            ]);
+        }
+
+        if ($isEmail) {
+            $emails->push($ownerEmail);
+        }
+
+        if (Schema::hasTable('users')) {
+            $users = User::query()
+                ->select(['id', 'email'])
+                ->where(function ($query) use ($ownerEmail, $ownerDigits, $isEmail) {
+                    if (Schema::hasColumn('users', 'email') && $isEmail) {
+                        $query->orWhereRaw('LOWER(TRIM(email)) = ?', [$ownerEmail]);
+                    }
+
+                    if ($ownerDigits !== '') {
+                        foreach (['phone', 'phone1'] as $column) {
+                            if (Schema::hasColumn('users', $column)) {
+                                $query->orWhereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE({$column}, '+', ''), ' ', ''), '-', ''), '(', ''), ')', ''), '.', '') LIKE ?", ['%' . $ownerDigits]);
+                            }
+                        }
+                    }
+                })
+                ->get();
+
+            $userIds = $users->pluck('id')->filter();
+            $emails = $emails
+                ->merge($users->pluck('email')->map(fn ($email) => mb_strtolower(trim((string) $email))))
+                ->filter()
+                ->unique()
+                ->values();
+        }
+
+        if ($emails->isEmpty() && $userIds->isEmpty()) {
+            return response()->json([
+                'items' => [],
+                'owner' => $owner,
+                'matched_users_count' => 0,
+            ]);
+        }
+
+        $items = GarageVehicle::query()
+            ->where(function ($query) use ($emails, $userIds) {
+                foreach ($emails as $email) {
+                    $query->orWhereRaw('LOWER(TRIM(email)) = ?', [$email]);
+                }
+
+                if ($userIds->isNotEmpty()) {
+                    $query->orWhereIn('user_id', $userIds->all());
+                }
+            })
+            ->orderByDesc('checked_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (GarageVehicle $vehicle) => $this->formatVehicle($vehicle))
+            ->values();
+
+        return response()->json([
+            'items' => $items,
+            'owner' => $owner,
+            'matched_users_count' => $userIds->count(),
         ]);
     }
 
