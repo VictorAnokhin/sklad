@@ -123,6 +123,41 @@ class GarageVehicleController extends Controller
         ]);
     }
 
+    public function update(Request $request, GarageVehicle $vehicle)
+    {
+        if (!$this->canEditVehicle($request, $vehicle)) {
+            return response()->json([
+                'message' => 'Нет доступа к редактированию этого авто.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'garage_photos' => ['nullable', 'array', 'max:5'],
+            'garage_photos.*' => ['nullable', 'string', 'max:500'],
+            'vehicle_price' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+        ]);
+
+        $photos = array_values($validated['garage_photos'] ?? []);
+        $photos = array_pad(array_slice($photos, 0, 5), 5, null);
+
+        $vehicle->fill([
+            'garage_photo_1' => $this->cleanNullableString($photos[0]),
+            'garage_photo_2' => $this->cleanNullableString($photos[1]),
+            'garage_photo_3' => $this->cleanNullableString($photos[2]),
+            'garage_photo_4' => $this->cleanNullableString($photos[3]),
+            'garage_photo_5' => $this->cleanNullableString($photos[4]),
+            'vehicle_price' => array_key_exists('vehicle_price', $validated) && $validated['vehicle_price'] !== null
+                ? round((float) $validated['vehicle_price'], 2)
+                : null,
+        ])->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Данные авто обновлены.',
+            'item' => $this->formatVehicle($vehicle->refresh()),
+        ]);
+    }
+
     public function lookup(Request $request, AutoRiaVehicleCheckService $autoRia)
     {
         $validated = $request->validate([
@@ -208,6 +243,14 @@ class GarageVehicleController extends Controller
             'input_type' => $vehicle->input_type,
             'title' => $vehicle->title,
             'photo_url' => $vehicle->photo_url,
+            'garage_photos' => [
+                $vehicle->garage_photo_1,
+                $vehicle->garage_photo_2,
+                $vehicle->garage_photo_3,
+                $vehicle->garage_photo_4,
+                $vehicle->garage_photo_5,
+            ],
+            'vehicle_price' => $vehicle->vehicle_price !== null ? (float) $vehicle->vehicle_price : null,
             'adv_link' => $vehicle->adv_link,
             'characteristics' => $vehicle->characteristics ?? [],
             'autoria_status' => $vehicle->autoria_status,
@@ -224,6 +267,30 @@ class GarageVehicleController extends Controller
         }
 
         return $email !== '' ? $email : null;
+    }
+
+    private function canEditVehicle(Request $request, GarageVehicle $vehicle): bool
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return false;
+        }
+
+        if ($vehicle->user_id !== null && (int) $vehicle->user_id === (int) $user->id) {
+            return true;
+        }
+
+        $userEmail = $this->resolveEmail($user);
+
+        return $userEmail !== null && mb_strtolower(trim($vehicle->email)) === mb_strtolower($userEmail);
+    }
+
+    private function cleanNullableString(mixed $value): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        return $value !== '' ? $value : null;
     }
 
     private function resolveFid(Request $request, $user): ?int

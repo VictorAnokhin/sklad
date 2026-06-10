@@ -16,6 +16,12 @@ class GarageVehicle extends Model
         'input_type',
         'title',
         'photo_url',
+        'garage_photo_1',
+        'garage_photo_2',
+        'garage_photo_3',
+        'garage_photo_4',
+        'garage_photo_5',
+        'vehicle_price',
         'adv_link',
         'characteristics',
         'autoria_payload',
@@ -26,6 +32,7 @@ class GarageVehicle extends Model
     protected $casts = [
         'characteristics' => 'array',
         'autoria_payload' => 'array',
+        'vehicle_price' => 'decimal:2',
         'checked_at' => 'datetime',
     ];
 }
