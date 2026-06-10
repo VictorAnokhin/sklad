@@ -18,6 +18,7 @@ use App\Http\Controllers\CctpProxyController;
 use App\Http\Controllers\FundPoolController;
 use App\Http\Controllers\FundShareSettingsController;
 use App\Http\Controllers\FundTokenController;
+use App\Http\Controllers\GarageVehicleController;
 use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\RwaAdminCapController;
@@ -226,6 +227,9 @@ Route::put('/fund/share-settings', [FundShareSettingsController::class, 'update'
 
 Route::post('/order', [ZakazController::class, 'store']);
 Route::middleware('auth:sanctum')->post('/car-request', [ZakazController::class, 'storeCarRequest']);
+Route::middleware('auth:sanctum')->get('/garage', [ZakazController::class, 'apiGarage']);
+Route::middleware('auth:sanctum')->get('/garage/tracked', [GarageVehicleController::class, 'index']);
+Route::middleware('auth:sanctum')->post('/garage/lookup', [GarageVehicleController::class, 'lookup']);
 
 Route::get('/orders', [ZakazController::class, 'index']);
 Route::middleware('auth:sanctum')->get('/my-orders', [ZakazController::class, 'apiOrders']);

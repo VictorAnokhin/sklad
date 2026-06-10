@@ -49,6 +49,13 @@ return [
         'api_token' => env('OPENDATABOT_API_TOKEN', ''),
     ],
 
+    'autoria' => [
+        'base_url' => env('AUTORIA_BASE_URL', 'https://auto.ria.com'),
+        'vehicle_check_path' => env('AUTORIA_VEHICLE_CHECK_PATH', '/cars-verifyings/api/vin-verifyings/{vehicleInfo}'),
+        'timeout' => (int) env('AUTORIA_TIMEOUT', 15),
+        'cache_ttl' => (int) env('AUTORIA_CACHE_TTL', 1800),
+    ],
+
     'sumsub' => [
         'base_url' => env('SUMSUB_BASE_URL', 'https://api.sumsub.com'),
         'app_token' => env('SUMSUB_APP_TOKEN', ''),

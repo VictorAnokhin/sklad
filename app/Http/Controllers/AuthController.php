@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\AiClientFactory;
+use App\Services\AutoRiaVehicleCheckService;
 use App\Services\ShinamiClient;
 use App\Services\SuiLocalGasSponsorClient;
 use App\Services\SmsClubService;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
+use InvalidArgumentException;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -95,64 +97,38 @@ class AuthController extends Controller
         return view('dashboard', compact('cashboxes', 'dailyIncome', 'newOrders', 'today', 'currentUserBalance'));
     }
 
-    public function transportLookup(Request $request)
+    public function transportLookup(Request $request, AutoRiaVehicleCheckService $autoRia)
     {
         $validated = $request->validate([
-            'plate' => ['required', 'string', 'max:20'],
+            'plate' => ['required', 'string', 'max:64'],
         ]);
 
-        $plate = strtoupper(preg_replace('/[^A-ZА-ЯІЇЄҐ0-9]/u', '', (string) $validated['plate']) ?? '');
-
-        if ($plate === '') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Вкажіть номерний знак.',
-            ], 422);
-        }
-
-        $transportUrl = (string) config('services.opendatabot.transport_url', '');
-
-        if ($transportUrl === '') {
-            return response()->json([
-                'success' => false,
-                'message' => 'OpenDataBot API URL is not configured.',
-            ], 500);
-        }
-
         try {
-            $requestBuilder = Http::acceptJson()
-                ->timeout(12)
-                ->connectTimeout(5);
-
-            $query = [
-                'number' => $plate,
-            ];
-
-            $apiToken = trim((string) config('services.opendatabot.api_token', ''));
-            if ($apiToken !== '') {
-                $query['apiKey'] = $apiToken;
-            }
-
-            $response = $requestBuilder->get($transportUrl, $query);
-
-            $payload = $response->json();
+            $langId = in_array((string) app()->getLocale(), ['ua', 'uk'], true) ? 4 : 2;
+            $result = $autoRia->check((string) $validated['plate'], $langId);
 
             return response()->json([
-                'success' => $response->successful(),
-                'plate' => $plate,
-                'status' => $response->status(),
-                'data' => $payload ?? $response->body(),
-            ], $response->successful() ? 200 : 502);
+                'success' => $result['success'],
+                'vehicle_info' => $result['vehicle_info'],
+                'input_type' => $result['input_type'],
+                'status' => $result['status'],
+                'rate_limit' => $result['rate_limit'],
+                'data' => $result['data'],
+            ], $result['success'] ? 200 : 502);
+        } catch (InvalidArgumentException $error) {
+            return response()->json([
+                'success' => false,
+                'message' => $error->getMessage(),
+            ], 422);
         } catch (Throwable $error) {
-            Log::warning('OpenDataBot transport lookup failed', [
-                'plate' => $plate,
+            Log::warning('Auto.RIA transport lookup failed', [
+                'vehicle_info' => $validated['plate'],
                 'message' => $error->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'plate' => $plate,
-                'message' => 'Не вдалося отримати дані OpenDataBot.',
+                'message' => 'Не вдалося отримати дані Auto.RIA.',
                 'error' => $error->getMessage(),
             ], 502);
         }

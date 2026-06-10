@@ -202,8 +202,8 @@
                     <h5 class="card-title mb-1">🚘 {{ __('dashboard.transport_lookup_title') }}</h5>
                     <div class="text-muted small">{{ __('dashboard.transport_lookup_hint') }}</div>
                 </div>
-                <a href="https://docs.opendatabot.com/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-accent">
-                    API OpenDataBot
+                <a href="https://auto.ria.com/uk/check-car/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-accent">
+                    API Auto.RIA
                 </a>
             </div>
 
@@ -216,8 +216,8 @@
                         id="transport-plate-input"
                         name="plate"
                         class="form-control form-control-lg text-uppercase"
-                        placeholder="AB2628IH"
-                        maxlength="20"
+                        placeholder="AB2628IH або VIN"
+                        maxlength="64"
                         autocomplete="off"
                     >
                 </div>

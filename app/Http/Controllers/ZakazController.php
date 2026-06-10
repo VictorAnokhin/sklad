@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Models\Field;
 use App\Models\User;
+use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -536,9 +539,156 @@ class ZakazController extends Controller
         }
     }
 
+    public function apiGarage(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'message' => 'Unauthenticated',
+                ], 401);
+            }
+
+            $fid = trim((string) $request->input('fid', ''));
+            if ($fid === '') {
+                $fid = trim((string) ($user->firma ?? $user->fid ?? ''));
+            }
+
+            $locale = Field::normalizeLocale((string) $request->input('lang', $request->input('locale', 'ru')));
+            $clientUserIds = $this->resolveCabinetOrderClientIds($user);
+            if ($clientUserIds === []) {
+                return response()->json([
+                    'items' => [],
+                    'client_ids' => [],
+                ]);
+            }
+
+            $vehicleSectionIds = $this->vehicleSectionIds($fid);
+
+            $query = DB::table('document as d')
+                ->join('z_body as zb', function ($join) {
+                    $join->on('zb.docid', '=', 'd.id')
+                        ->whereColumn('zb.firma', 'd.firma');
+                })
+                ->join('comp as c', function ($join) {
+                    $join->on('c.id', '=', 'zb.pnum');
+                })
+                ->leftJoin('descript as ds', function ($join) {
+                    $join->on('ds.pnum', '=', 'c.id')
+                        ->whereColumn('ds.firma', 'c.firma');
+                })
+                ->whereIn('d.client1', $clientUserIds)
+                ->where('d.type', 'ZOUT')
+                ->when($fid !== '', fn ($q) => $q->where('d.firma', $fid))
+                ->where(function ($q) use ($vehicleSectionIds) {
+                    if ($vehicleSectionIds !== []) {
+                        $q->whereIn('c.idcaption', $vehicleSectionIds)
+                            ->orWhereIn('c.idglava', $vehicleSectionIds);
+                    }
+
+                    $q->orWhere('c.htmlkeyspop', 'like', '%transport%')
+                        ->orWhere('c.htmlkeys', 'like', '%transport%')
+                        ->orWhere('c.htmlkeyspop', 'like', '%auto%')
+                        ->orWhere('c.htmlkeys', 'like', '%auto%')
+                        ->orWhere('c.htmlkeyspop', 'like', '%vehicle%')
+                        ->orWhere('c.htmlkeys', 'like', '%vehicle%');
+                })
+                ->select([
+                    'd.id as order_id',
+                    'd.num as order_num',
+                    'd.dt as order_dt',
+                    'd.data as order_date',
+                    'd.content as order_description',
+                    'd.summa as order_sum',
+                    'zb.pcount as quantity',
+                    'zb.pprice as purchase_price',
+                    'zb.psumma as line_sum',
+                    'c.id as product_id',
+                    'c.nickname',
+                    'c.name as comp_name',
+                    'c.pay',
+                    'c.pay1',
+                    'c.count',
+                    'c.idcaption',
+                    'c.idglava',
+                    'c.nfoto',
+                    'c.nfoto1',
+                    'c.param1',
+                    'c.param2',
+                    'c.param3',
+                    'c.param4',
+                    'c.param5',
+                    'c.param6',
+                    'c.htmlkeys',
+                    'c.htmlkeyspop',
+                    'ds.name as name_ru',
+                    'ds.name_ua',
+                    'ds.name_en',
+                    'ds.description',
+                    'ds.description_ua',
+                    'ds.description_en',
+                ])
+                ->orderByDesc('d.dt')
+                ->orderByDesc('d.id');
+
+            $rows = $query->get();
+
+            $items = $rows->map(function ($row) use ($locale) {
+                $name = Field::localizedValue(
+                    $locale,
+                    $row->name_ru ?? $row->comp_name ?? $row->nickname ?? '',
+                    $row->name_ua ?? '',
+                    $row->name_en ?? ''
+                );
+                $description = Field::localizedValue(
+                    $locale,
+                    $row->description ?? '',
+                    $row->description_ua ?? '',
+                    $row->description_en ?? ''
+                );
+
+                return [
+                    'id' => (int) $row->product_id,
+                    'order_id' => (int) $row->order_id,
+                    'order_num' => (string) $row->order_num,
+                    'order_dt' => $row->order_dt,
+                    'order_date' => $row->order_date,
+                    'order_description' => $row->order_description,
+                    'name' => $name !== '' ? $name : 'Автомобиль #' . $row->product_id,
+                    'description' => $description,
+                    'quantity' => (int) $row->quantity,
+                    'purchase_price' => (float) $row->purchase_price,
+                    'line_sum' => (float) $row->line_sum,
+                    'market_price' => (float) ($row->pay ?? 0),
+                    'old_price' => (float) ($row->pay1 ?? 0),
+                    'count' => (int) ($row->count ?? 0),
+                    'image' => MediaUrl::image($row->nfoto ?? '') ?: MediaUrl::image($row->nfoto1 ?? ''),
+                    'image_thumb' => MediaUrl::image($row->nfoto1 ?? '') ?: MediaUrl::image($row->nfoto ?? ''),
+                    'make' => trim((string) ($row->param1 ?? '')),
+                    'model' => trim((string) ($row->param2 ?? '')),
+                    'year' => $this->positiveIntOrNull($row->param3 ?? null),
+                    'mileage' => $this->positiveIntOrNull($row->param4 ?? null),
+                    'vin' => trim((string) ($row->param5 ?? '')),
+                    'plate' => trim((string) ($row->param6 ?? '')),
+                    'meta_keywords' => trim((string) ($row->htmlkeys ?? $row->htmlkeyspop ?? '')),
+                ];
+            })->values();
+
+            return response()->json([
+                'items' => $items,
+                'client_ids' => $clientUserIds,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching garage',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     /**
      * У кабінеті client1 у документів часто вказує на «гостьовий» рядок users з тим самим телефоном.
-     * Збираємо всі id контрагентів з поточним акаунтом за id та за phone / phone1 у межах firma.
+     * Збираємо всі id контрагентів з поточним акаунтом за id, email та phone / phone1 у межах firma.
      *
      * @return list<int>
      */
@@ -551,24 +701,40 @@ class ZakazController extends Controller
             return $ids->unique()->values()->all();
         }
 
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+        if ($email !== '' && Schema::hasColumn('users', 'email')) {
+            $ids = $ids->merge(
+                DB::table('users')
+                    ->where('firma', $firma)
+                    ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+                    ->pluck('id')
+            );
+        }
+
         $p = trim((string) ($user->phone ?? ''));
         $p1 = trim((string) ($user->phone1 ?? ''));
 
         if ($p !== '' || $p1 !== '') {
+            $phoneColumns = collect(['phone', 'phone1'])
+                ->filter(fn ($column) => Schema::hasColumn('users', $column))
+                ->values()
+                ->all();
+
             $ids = $ids->merge(
                 DB::table('users')
                     ->where('firma', $firma)
-                    ->where(function ($q) use ($p, $p1) {
-                        if ($p !== '' && $p1 !== '' && $p !== $p1) {
-                            $q->where(function ($q2) use ($p) {
-                                $q2->where('phone', $p)->orWhere('phone1', $p);
-                            })->orWhere(function ($q2) use ($p1) {
-                                $q2->where('phone', $p1)->orWhere('phone1', $p1);
+                    ->where(function ($q) use ($p, $p1, $phoneColumns) {
+                        foreach (array_filter([$p, $p1]) as $phone) {
+                            $digits = preg_replace('/\D+/', '', $phone) ?? '';
+                            $q->orWhere(function ($inner) use ($phone, $digits, $phoneColumns) {
+                                foreach ($phoneColumns as $column) {
+                                    $inner->orWhere($column, $phone);
+                                    if ($digits !== '') {
+                                        $normalizedPhoneSql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE({$column}, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')";
+                                        $inner->orWhereRaw("{$normalizedPhoneSql} = ?", [$digits]);
+                                    }
+                                }
                             });
-                        } elseif ($p !== '') {
-                            $q->where('phone', $p)->orWhere('phone1', $p);
-                        } else {
-                            $q->where('phone', $p1)->orWhere('phone1', $p1);
                         }
                     })
                     ->pluck('id')
@@ -576,6 +742,48 @@ class ZakazController extends Controller
         }
 
         return $ids->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    private function vehicleSectionIds(string $fid): array
+    {
+        if (!Schema::hasTable('field')) {
+            return [];
+        }
+
+        $query = DB::table('field')
+            ->where('keyfield', 'catalog')
+            ->when($fid !== '', fn ($q) => $q->where('firma', $fid))
+            ->where(function ($q) {
+                if (Schema::hasColumn('field', 'link')) {
+                    $q->orWhere('link', 'like', '%transport%')
+                        ->orWhere('link', 'like', '%auto%')
+                        ->orWhere('link', 'like', '%car%');
+                }
+
+                foreach (['val', 'valua', 'valen'] as $column) {
+                    if (Schema::hasColumn('field', $column)) {
+                        $q->orWhere($column, 'like', '%Авто%')
+                            ->orWhere($column, 'like', '%Транспорт%')
+                            ->orWhere($column, 'like', '%Машин%')
+                            ->orWhere($column, 'like', '%Vehicle%')
+                            ->orWhere($column, 'like', '%Car%');
+                    }
+                }
+            });
+
+        return $query->pluck('id')->map(fn ($id) => (string) $id)->unique()->values()->all();
+    }
+
+    private function positiveIntOrNull($value): ?int
+    {
+        $value = preg_replace('/\D+/', '', (string) ($value ?? '')) ?? '';
+        if ($value === '') {
+            return null;
+        }
+
+        $number = (int) $value;
+
+        return $number > 0 ? $number : null;
     }
 
     private function buildGuestEmail(string $mobile): string
