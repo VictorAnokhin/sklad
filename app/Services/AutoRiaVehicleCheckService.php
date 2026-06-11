@@ -98,11 +98,103 @@ class AutoRiaVehicleCheckService
     {
         $auto = data_get($payload, 'auto', []);
         $infotech = data_get($payload, 'verifyings.infotech', []);
-        $title = $this->firstString([
+        $rawTitle = $this->firstString([
             data_get($auto, 'title'),
             data_get($auto, 'name'),
-            data_get($auto, 'modelName'),
             data_get($payload, 'title'),
+            data_get($payload, 'name'),
+            ...$this->valuesForKeys($payload, ['title', 'name', 'autoTitle', 'autoName']),
+        ]);
+        $brand = $this->firstString([
+            data_get($auto, 'markName'),
+            data_get($auto, 'brand'),
+            data_get($auto, 'make'),
+            data_get($auto, 'mark.name'),
+            data_get($auto, 'autoData.markName'),
+            data_get($auto, 'autoData.brand'),
+            data_get($auto, 'autoData.make'),
+            data_get($infotech, 'markName'),
+            data_get($infotech, 'brand'),
+            data_get($infotech, 'make'),
+            data_get($payload, 'markName'),
+            data_get($payload, 'brand'),
+            data_get($payload, 'make'),
+            ...$this->valuesForKeys($payload, [
+                'markName',
+                'mark_name',
+                'marka',
+                'mark',
+                'brandName',
+                'brand_name',
+                'brand',
+                'makeName',
+                'make_name',
+                'make',
+                'manufacturer',
+            ]),
+            ...$this->valuesForNamedObjects($payload, ['mark', 'brand', 'make', 'manufacturer']),
+        ]);
+        $model = $this->firstString([
+            data_get($auto, 'modelName'),
+            data_get($auto, 'model'),
+            data_get($auto, 'model.name'),
+            data_get($auto, 'autoData.modelName'),
+            data_get($auto, 'autoData.model'),
+            data_get($infotech, 'modelName'),
+            data_get($infotech, 'model'),
+            data_get($payload, 'modelName'),
+            data_get($payload, 'model'),
+            ...$this->valuesForKeys($payload, [
+                'modelName',
+                'model_name',
+                'model',
+                'modelTitle',
+                'model_title',
+            ]),
+            ...$this->valuesForNamedObjects($payload, ['model']),
+        ]);
+
+        if (($brand === null || $model === null) && $rawTitle !== null) {
+            [$parsedBrand, $parsedModel] = $this->parseBrandModelFromTitle($rawTitle);
+            $brand = $brand ?: $parsedBrand;
+            $model = $model ?: $parsedModel;
+        }
+
+        $color = $this->firstString([
+            data_get($auto, 'color.name'),
+            data_get($auto, 'colorName'),
+            data_get($auto, 'color'),
+            data_get($infotech, 'color.name'),
+            data_get($infotech, 'colorName'),
+            data_get($infotech, 'color'),
+            data_get($payload, 'colorName'),
+            data_get($payload, 'color'),
+        ]);
+        $year = $this->firstInt([
+            data_get($auto, 'year'),
+            data_get($auto, 'autoData.year'),
+            data_get($auto, 'yearOfProduction'),
+            data_get($infotech, 'year'),
+            data_get($infotech, 'yearOfProduction'),
+            data_get($payload, 'year'),
+        ]);
+        $price = $this->firstNumber([
+            data_get($auto, 'USD'),
+            data_get($auto, 'price'),
+            data_get($auto, 'priceData.USD'),
+            data_get($auto, 'priceData.price'),
+            data_get($payload, 'USD'),
+            data_get($payload, 'price'),
+        ]);
+        $description = $this->firstString([
+            data_get($auto, 'description'),
+            data_get($auto, 'descriptionAuto'),
+            data_get($payload, 'description'),
+        ]);
+        $title = $this->firstString([
+            trim(implode(' ', array_filter([$brand, $model]))),
+            $rawTitle,
+            data_get($auto, 'modelName'),
             $normalized,
         ]);
 
@@ -136,7 +228,13 @@ class AutoRiaVehicleCheckService
                 data_get($payload, 'advLink'),
                 data_get($auto, 'advLink'),
             ]),
+            'vehicle_price' => $price,
             'characteristics' => [
+                'brand' => $brand,
+                'model' => $model,
+                'color' => $color,
+                'year' => $year,
+                'description' => $description,
                 'auto' => $auto,
                 'infotech' => $infotech,
                 'verifyings' => data_get($payload, 'verifyings', []),
@@ -164,11 +262,122 @@ class AutoRiaVehicleCheckService
     private function firstString(array $values): ?string
     {
         foreach ($values as $value) {
-            if (is_string($value) && trim($value) !== '') {
-                return trim($value);
+            if (is_string($value)) {
+                $value = trim($value);
+                if ($value !== '') {
+                    return $value;
+                }
             }
         }
 
         return null;
+    }
+
+    private function firstInt(array $values): ?int
+    {
+        foreach ($values as $value) {
+            if (is_numeric($value)) {
+                $int = (int) $value;
+                if ($int > 0) {
+                    return $int;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function firstNumber(array $values): ?float
+    {
+        foreach ($values as $value) {
+            if (is_numeric($value)) {
+                $number = (float) $value;
+                if ($number >= 0) {
+                    return $number;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function valuesForKeys(array $payload, array $keys): array
+    {
+        $matches = [];
+        $wanted = array_map(fn (string $key): string => $this->normalizeKey($key), $keys);
+
+        $walk = function (mixed $value) use (&$walk, &$matches, $wanted): void {
+            if (!is_array($value)) {
+                return;
+            }
+
+            foreach ($value as $key => $item) {
+                if (is_string($key) && in_array($this->normalizeKey($key), $wanted, true) && is_string($item)) {
+                    $matches[] = $item;
+                }
+
+                if (is_array($item)) {
+                    $walk($item);
+                }
+            }
+        };
+
+        $walk($payload);
+
+        return $matches;
+    }
+
+    private function valuesForNamedObjects(array $payload, array $keys): array
+    {
+        $matches = [];
+        $wanted = array_map(fn (string $key): string => $this->normalizeKey($key), $keys);
+        $nameKeys = ['name', 'title', 'value'];
+
+        $walk = function (mixed $value) use (&$walk, &$matches, $wanted, $nameKeys): void {
+            if (!is_array($value)) {
+                return;
+            }
+
+            foreach ($value as $key => $item) {
+                if (is_string($key) && in_array($this->normalizeKey($key), $wanted, true) && is_array($item)) {
+                    foreach ($nameKeys as $nameKey) {
+                        if (isset($item[$nameKey]) && is_string($item[$nameKey]) && trim($item[$nameKey]) !== '') {
+                            $matches[] = trim($item[$nameKey]);
+                            break;
+                        }
+                    }
+                }
+
+                if (is_array($item)) {
+                    $walk($item);
+                }
+            }
+        };
+
+        $walk($payload);
+
+        return $matches;
+    }
+
+    private function normalizeKey(string $key): string
+    {
+        return strtolower(preg_replace('/[^a-z0-9]/i', '', $key) ?? '');
+    }
+
+    private function parseBrandModelFromTitle(string $title): array
+    {
+        $title = trim(preg_replace('/\s+/', ' ', $title) ?? '');
+        if ($title === '') {
+            return [null, null];
+        }
+
+        $tokens = array_values(array_filter(explode(' ', $title), function (string $token): bool {
+            return !preg_match('/^(19|20)\d{2}$/', $token);
+        }));
+
+        return [
+            $tokens[0] ?? null,
+            $tokens[1] ?? null,
+        ];
     }
 }

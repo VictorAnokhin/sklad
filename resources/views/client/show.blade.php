@@ -109,6 +109,75 @@
             grid-template-columns: 1fr;
         }
     }
+
+    .client-garage-toolbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+
+    .client-garage-thumb {
+        width: 72px;
+        height: 54px;
+        border-radius: 8px;
+        object-fit: cover;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .client-garage-empty-thumb {
+        display: inline-flex;
+        width: 72px;
+        height: 54px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        color: var(--muted-foreground, #9ca3af);
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px dashed rgba(255, 255, 255, 0.16);
+        font-size: 0.78rem;
+    }
+
+    .client-garage-meta {
+        color: var(--muted-foreground, #9ca3af);
+        font-size: 0.84rem;
+        line-height: 1.35;
+    }
+
+    .client-garage-photo-field {
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: 8px;
+        align-items: center;
+    }
+
+    .client-garage-photo-preview {
+        width: 96px;
+        height: 72px;
+        border-radius: 8px;
+        object-fit: cover;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .client-garage-photo-upload-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    @media (max-width: 767px) {
+        .client-garage-toolbar {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .client-garage-photo-upload-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 <div class="container mt-4">
@@ -120,6 +189,23 @@
         <div class="alert alert-danger">
             @foreach($errors->all() as $e) <div>{{ $e }}</div> @endforeach
         </div>
+    @endif
+
+    @if($client)
+        <ul class="nav nav-tabs mb-3" id="client-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="client-data-tab" data-bs-toggle="tab" data-bs-target="#client-data-pane" type="button" role="tab" aria-controls="client-data-pane" aria-selected="true">
+                    Данные
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="client-garage-tab" data-bs-toggle="tab" data-bs-target="#client-garage-pane" type="button" role="tab" aria-controls="client-garage-pane" aria-selected="false">
+                    Гараж
+                </button>
+            </li>
+        </ul>
+        <div class="tab-content" id="client-tabs-content">
+            <div class="tab-pane fade show active" id="client-data-pane" role="tabpanel" aria-labelledby="client-data-tab" tabindex="0">
     @endif
 
     <div class="glass-card" style="max-width: 900px;">
@@ -317,6 +403,185 @@
             </div>
         </form>
     </div>
+    @if($client)
+            </div>
+            <div class="tab-pane fade" id="client-garage-pane" role="tabpanel" aria-labelledby="client-garage-tab" tabindex="0">
+                <div class="glass-card" style="max-width: 1100px;">
+                    <div class="client-garage-toolbar">
+                        <div>
+                            <h5 class="mb-1">Гараж клиента</h5>
+                            <div class="client-garage-meta">Авто привязаны к текущему клиенту по ID и email.</div>
+                        </div>
+                        <button type="button" class="btn btn-success" id="garage-add-button">
+                            <i class="fas fa-plus me-1"></i> Добавить
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" id="garage-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 92px;">Фото</th>
+                                    <th>Авто</th>
+                                    <th>Номер / VIN</th>
+                                    <th>Цена</th>
+                                    <th>Проверено</th>
+                                    <th class="text-end">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($garageVehicles as $vehicle)
+                                    @php
+                                        $characteristics = is_array($vehicle->characteristics ?? null) ? $vehicle->characteristics : [];
+                                        $vehicleName = trim(implode(' ', array_filter([
+                                            $characteristics['brand'] ?? '',
+                                            $characteristics['model'] ?? '',
+                                        ]))) ?: ($vehicle->title ?: 'Без названия');
+                                        $garagePhotos = [
+                                            $vehicle->garage_photo_1 ?? null,
+                                            $vehicle->garage_photo_2 ?? null,
+                                            $vehicle->garage_photo_3 ?? null,
+                                            $vehicle->garage_photo_4 ?? null,
+                                            $vehicle->garage_photo_5 ?? null,
+                                        ];
+                                        $vehiclePayload = [
+                                            'id' => $vehicle->id,
+                                            'email' => $vehicle->email,
+                                            'vehicle_number' => $vehicle->vehicle_number,
+                                            'vin' => $vehicle->vin,
+                                            'input_value' => $vehicle->input_value,
+                                            'input_type' => $vehicle->input_type,
+                                            'title' => $vehicle->title,
+                                            'photo_url' => $vehicle->photo_url,
+                                            'garage_photos' => $garagePhotos,
+                                            'vehicle_price' => $vehicle->vehicle_price !== null ? (float) $vehicle->vehicle_price : null,
+                                            'adv_link' => $vehicle->adv_link,
+                                            'characteristics' => $characteristics,
+                                            'brand' => $characteristics['brand'] ?? null,
+                                            'model' => $characteristics['model'] ?? null,
+                                            'color' => $characteristics['color'] ?? null,
+                                            'year' => $characteristics['year'] ?? null,
+                                            'description' => $characteristics['description'] ?? null,
+                                            'autoria_status' => $vehicle->autoria_status,
+                                            'checked_at' => optional($vehicle->checked_at)->toDateTimeString(),
+                                        ];
+                                        $mainPhoto = $vehicle->photo_url ?: collect($garagePhotos)->filter()->first();
+                                    @endphp
+                                    <tr data-garage-row="{{ $vehicle->id }}">
+                                        <td data-garage-photo-cell>
+                                            @if($mainPhoto)
+                                                <img src="{{ $mainPhoto }}" alt="{{ $vehicle->title ?: $vehicle->vehicle_number }}" class="client-garage-thumb">
+                                            @else
+                                                <span class="client-garage-empty-thumb">Нет фото</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold" data-garage-title-cell>{{ $vehicleName }}</div>
+                                            <div class="client-garage-meta">{{ $vehicle->input_type }}: {{ $vehicle->input_value }}</div>
+                                        </td>
+                                        <td>
+                                            <div data-garage-number-cell>{{ $vehicle->vehicle_number ?: '-' }}</div>
+                                            <div class="client-garage-meta" data-garage-vin-cell>{{ $vehicle->vin ?: '-' }}</div>
+                                        </td>
+                                        <td data-garage-price-cell>
+                                            {{ $vehicle->vehicle_price !== null ? number_format((float) $vehicle->vehicle_price, 2, '.', ' ') : '-' }}
+                                        </td>
+                                        <td data-garage-checked-cell>{{ optional($vehicle->checked_at)->format('d.m.Y H:i') ?: '-' }}</td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-outline-primary btn-sm js-garage-view" data-vehicle='@json($vehiclePayload)'>
+                                                Просмотр
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr id="garage-empty-row">
+                                        <td colspan="6" class="text-center text-muted py-4">В гараже пока нет авто</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="garageVehicleModal" tabindex="-1" aria-labelledby="garageVehicleModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="garageVehicleModalLabel">Авто в гараже</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert d-none" id="garage-modal-alert"></div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Поиск по номеру или VIN</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="garage-search-input" placeholder="Например AA1234AA или VIN">
+                                <button type="button" class="btn btn-outline-primary" id="garage-search-button">Найти и добавить</button>
+                            </div>
+                            <div class="form-text">Поиск получает данные из Auto.RIA и сохраняет авто в гараж текущего клиента.</div>
+                        </div>
+
+                        <form id="garage-edit-form">
+                            <input type="hidden" id="garage-vehicle-id">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Марка</label>
+                                    <input type="text" class="form-control" id="garage-brand-input">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Модель</label>
+                                    <input type="text" class="form-control" id="garage-model-input">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Цвет</label>
+                                    <input type="text" class="form-control" id="garage-color-input">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Год выпуска</label>
+                                    <input type="number" min="1900" max="2100" class="form-control" id="garage-year-input">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">VIN</label>
+                                    <input type="text" class="form-control" id="garage-vin-input">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Цена</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="garage-price-input">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Описание</label>
+                                    <textarea class="form-control" id="garage-description-input" rows="4"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="mt-4">
+                                <label class="form-label">Фото гаража</label>
+                                <div class="client-garage-photo-upload-grid">
+                                    @for($i = 0; $i < 5; $i++)
+                                        <div class="client-garage-photo-field">
+                                            <img src="" alt="Фото {{ $i + 1 }}" class="client-garage-photo-preview d-none" data-photo-preview="{{ $i }}">
+                                            <span class="client-garage-empty-thumb" data-photo-empty="{{ $i }}" style="width: 96px; height: 72px;">Фото {{ $i + 1 }}</span>
+                                            <div>
+                                                <input type="url" class="form-control garage-photo-input mb-2" placeholder="URL фото {{ $i + 1 }}" data-photo-index="{{ $i }}">
+                                                <input type="file" class="form-control garage-photo-file-input" accept="image/*" data-photo-index="{{ $i }}">
+                                            </div>
+                                        </div>
+                                    @endfor
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Закрыть</button>
+                        <button type="button" class="btn btn-success" id="garage-save-button" disabled>Сохранить авто</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
 
 @push('scripts')
@@ -596,6 +861,296 @@
             });
         });
     });
+
+    // ── Client garage ────────────────────────────────────────────────────────
+    const garageModalEl = document.getElementById('garageVehicleModal');
+    if (garageModalEl) {
+        const garageModal = new bootstrap.Modal(garageModalEl);
+        const garageLookupUrl = @json(route('client.garage.lookup'));
+        const garageUpdateUrl = @json(route('client.garage.update'));
+        const garageClientId = @json((string) ($client->id ?? '0'));
+        const garageAlert = document.getElementById('garage-modal-alert');
+        const garageSearchInput = document.getElementById('garage-search-input');
+        const garageSearchButton = document.getElementById('garage-search-button');
+        const garageSaveButton = document.getElementById('garage-save-button');
+        const garageVehicleIdInput = document.getElementById('garage-vehicle-id');
+        const garageBrandInput = document.getElementById('garage-brand-input');
+        const garageModelInput = document.getElementById('garage-model-input');
+        const garageColorInput = document.getElementById('garage-color-input');
+        const garageYearInput = document.getElementById('garage-year-input');
+        const garageVinInput = document.getElementById('garage-vin-input');
+        const garagePriceInput = document.getElementById('garage-price-input');
+        const garageDescriptionInput = document.getElementById('garage-description-input');
+        const garagePhotoInputs = Array.from(document.querySelectorAll('.garage-photo-input'));
+        const garagePhotoFileInputs = Array.from(document.querySelectorAll('.garage-photo-file-input'));
+        const garagePhotoPreviews = Array.from(document.querySelectorAll('[data-photo-preview]'));
+        const garagePhotoEmptyPreviews = Array.from(document.querySelectorAll('[data-photo-empty]'));
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function showGarageAlert(type, message) {
+            garageAlert.className = 'alert alert-' + type;
+            garageAlert.textContent = message;
+            garageAlert.classList.remove('d-none');
+        }
+
+        function hideGarageAlert() {
+            garageAlert.className = 'alert d-none';
+            garageAlert.textContent = '';
+        }
+
+        function normalizeGarageSearch(value) {
+            return String(value || '').trim().toUpperCase().replace(/[^A-ZА-ЯІЇЄҐ0-9]/g, '');
+        }
+
+        function firstPhoto(vehicle) {
+            const garagePhoto = (vehicle.garage_photos || []).find(function(photo) {
+                return photo;
+            });
+
+            return vehicle.photo_url || garagePhoto || '';
+        }
+
+        function setPhotoPreview(index, photo) {
+            const preview = garagePhotoPreviews[index];
+            const empty = garagePhotoEmptyPreviews[index];
+            if (!preview || !empty) {
+                return;
+            }
+
+            if (photo) {
+                preview.src = photo;
+                preview.classList.remove('d-none');
+                empty.classList.add('d-none');
+            } else {
+                preview.removeAttribute('src');
+                preview.classList.add('d-none');
+                empty.classList.remove('d-none');
+            }
+        }
+
+        function setGaragePhotoPreviews(vehicle) {
+            const photos = vehicle?.garage_photos || [];
+            for (let index = 0; index < 5; index++) {
+                setPhotoPreview(index, photos[index] || '');
+            }
+        }
+
+        function fillGarageForm(vehicle) {
+            hideGarageAlert();
+            const characteristics = vehicle?.characteristics || {};
+            garageVehicleIdInput.value = vehicle?.id || '';
+            garageBrandInput.value = vehicle?.brand || characteristics.brand || '';
+            garageModelInput.value = vehicle?.model || characteristics.model || '';
+            garageColorInput.value = vehicle?.color || characteristics.color || '';
+            garageYearInput.value = vehicle?.year || characteristics.year || '';
+            garageVinInput.value = vehicle?.vin || '';
+            garagePriceInput.value = vehicle?.vehicle_price ?? '';
+            garageDescriptionInput.value = vehicle?.description || characteristics.description || '';
+            garagePhotoInputs.forEach(function(input, index) {
+                input.value = vehicle?.garage_photos?.[index] || '';
+            });
+            garagePhotoFileInputs.forEach(function(input) {
+                input.value = '';
+            });
+            setGaragePhotoPreviews(vehicle || {});
+            garageSaveButton.disabled = !vehicle?.id;
+        }
+
+        function openGarageModal(vehicle) {
+            garageSearchInput.value = '';
+            fillGarageForm(vehicle || {});
+            garageModal.show();
+            setTimeout(function() {
+                if (!vehicle?.id) {
+                    garageSearchInput.focus();
+                }
+            }, 200);
+        }
+
+        function garageRowHtml(vehicle) {
+            const photo = firstPhoto(vehicle);
+            const characteristics = vehicle.characteristics || {};
+            const title = [vehicle.brand || characteristics.brand, vehicle.model || characteristics.model].filter(Boolean).join(' ') || vehicle.title || 'Без названия';
+            const number = vehicle.vehicle_number || '-';
+            const vin = vehicle.vin || '-';
+            const price = vehicle.vehicle_price !== null && vehicle.vehicle_price !== undefined && vehicle.vehicle_price !== ''
+                ? Number(vehicle.vehicle_price).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : '-';
+            const checkedAt = vehicle.checked_at || '-';
+            const photoHtml = photo
+                ? '<img src="' + escapeHtml(photo) + '" alt="' + escapeHtml(title) + '" class="client-garage-thumb">'
+                : '<span class="client-garage-empty-thumb">Нет фото</span>';
+
+            return [
+                '<td data-garage-photo-cell>' + photoHtml + '</td>',
+                '<td><div class="fw-semibold" data-garage-title-cell>' + escapeHtml(title) + '</div><div class="client-garage-meta">' + escapeHtml(vehicle.input_type || '') + ': ' + escapeHtml(vehicle.input_value || '') + '</div></td>',
+                '<td><div data-garage-number-cell>' + escapeHtml(number) + '</div><div class="client-garage-meta" data-garage-vin-cell>' + escapeHtml(vin) + '</div></td>',
+                '<td data-garage-price-cell>' + escapeHtml(price) + '</td>',
+                '<td data-garage-checked-cell>' + escapeHtml(checkedAt) + '</td>',
+                '<td class="text-end"><button type="button" class="btn btn-outline-primary btn-sm js-garage-view">Просмотр</button></td>'
+            ].join('');
+        }
+
+        function upsertGarageRow(vehicle) {
+            const tableBody = document.querySelector('#garage-table tbody');
+            const emptyRow = document.getElementById('garage-empty-row');
+            if (emptyRow) {
+                emptyRow.remove();
+            }
+
+            let row = tableBody.querySelector('[data-garage-row="' + vehicle.id + '"]');
+            if (!row) {
+                row = document.createElement('tr');
+                row.dataset.garageRow = vehicle.id;
+                tableBody.prepend(row);
+            }
+
+            row.innerHTML = garageRowHtml(vehicle);
+            row.querySelector('.js-garage-view').dataset.vehicle = JSON.stringify(vehicle);
+        }
+
+        document.getElementById('garage-add-button')?.addEventListener('click', function() {
+            openGarageModal({});
+        });
+
+        document.querySelector('#garage-table')?.addEventListener('click', function(event) {
+            const button = event.target.closest('.js-garage-view');
+            if (!button) {
+                return;
+            }
+
+            const vehicle = JSON.parse(button.dataset.vehicle || '{}');
+            openGarageModal(vehicle);
+        });
+
+        garagePhotoInputs.forEach(function(input, index) {
+            input.addEventListener('input', function() {
+                if (this.value.trim()) {
+                    setPhotoPreview(index, this.value.trim());
+                }
+            });
+        });
+
+        garagePhotoFileInputs.forEach(function(input, index) {
+            input.addEventListener('change', function() {
+                const file = this.files && this.files[0];
+                if (!file) {
+                    setPhotoPreview(index, garagePhotoInputs[index]?.value || '');
+                    return;
+                }
+
+                setPhotoPreview(index, URL.createObjectURL(file));
+            });
+        });
+
+        garageSearchButton.addEventListener('click', async function() {
+            const vehicleInfo = normalizeGarageSearch(garageSearchInput.value);
+            garageSearchInput.value = vehicleInfo;
+
+            if (!vehicleInfo) {
+                showGarageAlert('warning', 'Введите номер или VIN.');
+                return;
+            }
+
+            garageSearchButton.disabled = true;
+            garageSaveButton.disabled = true;
+            showGarageAlert('info', 'Ищем авто...');
+
+            try {
+                const response = await fetch(garageLookupUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        client_id: garageClientId,
+                        vehicle_info: vehicleInfo,
+                    }),
+                });
+                const payload = await response.json().catch(function() { return {}; });
+
+                if (!response.ok || payload.success === false) {
+                    showGarageAlert('danger', payload.message || 'Не удалось найти авто.');
+                    return;
+                }
+
+                fillGarageForm(payload.item);
+                upsertGarageRow(payload.item);
+                showGarageAlert('success', payload.message || 'Авто добавлено.');
+            } catch (error) {
+                showGarageAlert('danger', error.message || 'Ошибка поиска авто.');
+            } finally {
+                garageSearchButton.disabled = false;
+            }
+        });
+
+        garageSaveButton.addEventListener('click', async function() {
+            const vehicleId = garageVehicleIdInput.value;
+            if (!vehicleId) {
+                showGarageAlert('warning', 'Сначала найдите или выберите авто.');
+                return;
+            }
+
+            garageSaveButton.disabled = true;
+            showGarageAlert('info', 'Сохраняем авто...');
+
+            try {
+                const formData = new FormData();
+                formData.append('client_id', garageClientId);
+                formData.append('vehicle_id', vehicleId);
+                formData.append('brand', garageBrandInput.value);
+                formData.append('model', garageModelInput.value);
+                formData.append('color', garageColorInput.value);
+                formData.append('year', garageYearInput.value || '');
+                formData.append('vin', garageVinInput.value);
+                formData.append('vehicle_price', garagePriceInput.value || '');
+                formData.append('description', garageDescriptionInput.value);
+                garagePhotoInputs.forEach(function(input, index) {
+                    formData.append('garage_photos[' + index + ']', input.value);
+                });
+                garagePhotoFileInputs.forEach(function(input, index) {
+                    if (input.files && input.files[0]) {
+                        formData.append('garage_photo_files[' + index + ']', input.files[0]);
+                    }
+                });
+
+                const response = await fetch(garageUpdateUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData,
+                });
+                const payload = await response.json().catch(function() { return {}; });
+
+                if (!response.ok || payload.success === false) {
+                    showGarageAlert('danger', payload.message || 'Не удалось сохранить авто.');
+                    garageSaveButton.disabled = false;
+                    return;
+                }
+
+                fillGarageForm(payload.item);
+                upsertGarageRow(payload.item);
+                showGarageAlert('success', payload.message || 'Авто сохранено.');
+            } catch (error) {
+                showGarageAlert('danger', error.message || 'Ошибка сохранения авто.');
+                garageSaveButton.disabled = false;
+            }
+        });
+    }
 })();
 </script>
 @endpush

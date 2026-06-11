@@ -199,6 +199,7 @@ class GarageVehicleController extends Controller
                     'photo_url' => $snapshot['photo_url'],
                     'adv_link' => $snapshot['adv_link'],
                     'characteristics' => $snapshot['characteristics'],
+                    'vehicle_price' => $snapshot['vehicle_price'],
                     'autoria_payload' => $payload,
                     'autoria_status' => $check['status'],
                     'checked_at' => now(),

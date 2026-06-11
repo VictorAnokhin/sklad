@@ -104,6 +104,8 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/show', [ClientController::class , 'show'])->name('show');
             Route::get('/search', [ClientController::class , 'search'])->name('search');
             Route::post('/check-email', [ClientController::class , 'checkEmail'])->name('checkEmail');
+            Route::post('/garage/lookup', [ClientController::class , 'garageLookup'])->name('garage.lookup');
+            Route::post('/garage/update', [ClientController::class , 'garageUpdate'])->name('garage.update');
             Route::get('/{id}/orders', [ClientController::class , 'orders'])->name('orders');
             Route::get('/{id}/kyc-photo/{type}', [ClientController::class , 'kycPhoto'])->name('kycPhoto');
             Route::post('/save', [ClientController::class , 'save'])->name('save');
