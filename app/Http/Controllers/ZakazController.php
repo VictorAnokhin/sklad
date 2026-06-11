@@ -598,8 +598,6 @@ class ZakazController extends Controller
 
     private function garageResponse(string $fid, string $locale, array $clientUserIds)
     {
-        $vehicleSectionIds = $this->vehicleSectionIds($fid);
-
         $query = DB::table('document as d')
                 ->join('z_body as zb', function ($join) {
                     $join->on('zb.docid', '=', 'd.id')
@@ -615,19 +613,6 @@ class ZakazController extends Controller
                 ->whereIn('d.client1', $clientUserIds)
                 ->where('d.type', 'ZOUT')
                 ->when($fid !== '', fn ($q) => $q->where('d.firma', $fid))
-                ->where(function ($q) use ($vehicleSectionIds) {
-                    if ($vehicleSectionIds !== []) {
-                        $q->whereIn('c.idcaption', $vehicleSectionIds)
-                            ->orWhereIn('c.idglava', $vehicleSectionIds);
-                    }
-
-                    $q->orWhere('c.htmlkeyspop', 'like', '%transport%')
-                        ->orWhere('c.htmlkeys', 'like', '%transport%')
-                        ->orWhere('c.htmlkeyspop', 'like', '%auto%')
-                        ->orWhere('c.htmlkeys', 'like', '%auto%')
-                        ->orWhere('c.htmlkeyspop', 'like', '%vehicle%')
-                        ->orWhere('c.htmlkeys', 'like', '%vehicle%');
-                })
                 ->select([
                     'd.id as order_id',
                     'd.num as order_num',
@@ -668,7 +653,9 @@ class ZakazController extends Controller
 
         $rows = $query->get();
 
-        $items = $rows->map(function ($row) use ($locale) {
+        $items = $rows->groupBy('order_id')->map(function ($orderRows) use ($locale) {
+            $firstRow = $orderRows->first();
+            $orderItems = $orderRows->map(function ($row) use ($locale) {
                 $name = Field::localizedValue(
                     $locale,
                     $row->name_ru ?? $row->comp_name ?? $row->nickname ?? '',
@@ -684,16 +671,11 @@ class ZakazController extends Controller
 
                 return [
                     'id' => (int) $row->product_id,
-                    'order_id' => (int) $row->order_id,
-                    'order_num' => (string) $row->order_num,
-                    'order_dt' => $row->order_dt,
-                    'order_date' => $row->order_date,
-                    'order_description' => $row->order_description,
                     'name' => $name !== '' ? $name : 'Автомобиль #' . $row->product_id,
                     'description' => $description,
                     'quantity' => (int) $row->quantity,
-                    'purchase_price' => (float) $row->purchase_price,
-                    'line_sum' => (float) $row->line_sum,
+                    'price' => (float) $row->purchase_price,
+                    'sum' => (float) $row->line_sum,
                     'market_price' => (float) ($row->pay ?? 0),
                     'old_price' => (float) ($row->pay1 ?? 0),
                     'count' => (int) ($row->count ?? 0),
@@ -708,6 +690,17 @@ class ZakazController extends Controller
                     'meta_keywords' => trim((string) ($row->htmlkeys ?? $row->htmlkeyspop ?? '')),
                 ];
             })->values();
+
+            return [
+                'id' => (int) $firstRow->order_id,
+                'num' => (string) $firstRow->order_num,
+                'dt' => $firstRow->order_dt,
+                'date' => $firstRow->order_date,
+                'description' => $firstRow->order_description,
+                'sum' => (float) $firstRow->order_sum,
+                'items' => $orderItems,
+            ];
+        })->values();
 
         return response()->json([
             'items' => $items,
