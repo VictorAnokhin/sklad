@@ -105,7 +105,7 @@ class AutoRiaVehicleCheckService
             data_get($payload, 'name'),
             ...$this->valuesForKeys($payload, ['title', 'name', 'autoTitle', 'autoName']),
         ]);
-        $brand = $this->firstString([
+        $brand = $this->firstVehicleString([
             data_get($auto, 'markName'),
             data_get($auto, 'brand'),
             data_get($auto, 'make'),
@@ -134,7 +134,7 @@ class AutoRiaVehicleCheckService
             ]),
             ...$this->valuesForNamedObjects($payload, ['mark', 'brand', 'make', 'manufacturer']),
         ]);
-        $model = $this->firstString([
+        $model = $this->firstVehicleString([
             data_get($auto, 'modelName'),
             data_get($auto, 'model'),
             data_get($auto, 'model.name'),
@@ -271,6 +271,46 @@ class AutoRiaVehicleCheckService
         }
 
         return null;
+    }
+
+    private function firstVehicleString(array $values): ?string
+    {
+        foreach ($values as $value) {
+            if (! is_string($value)) {
+                continue;
+            }
+
+            $value = trim($value);
+            if ($value !== '' && $this->isVehicleFieldValue($value)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function isVehicleFieldValue(string $value): bool
+    {
+        $normalized = strtolower(preg_replace('/[^a-z0-9]/i', '', $value) ?? '');
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        $serviceValues = [
+            'greencheckmarkcircle',
+            'checkmarkcircle',
+            'redcrosscircle',
+            'crossmarkcircle',
+            'warningcircle',
+            'infocircle',
+        ];
+
+        if (in_array($normalized, $serviceValues, true)) {
+            return false;
+        }
+
+        return ! str_contains($normalized, 'checkmark');
     }
 
     private function firstInt(array $values): ?int
