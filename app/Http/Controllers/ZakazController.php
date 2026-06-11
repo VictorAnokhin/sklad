@@ -563,9 +563,44 @@ class ZakazController extends Controller
                 ]);
             }
 
-            $vehicleSectionIds = $this->vehicleSectionIds($fid);
+            return $this->garageResponse($fid, $locale, $clientUserIds);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching garage',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 
-            $query = DB::table('document as d')
+    public function apiGarageOwner(Request $request, string $owner)
+    {
+        try {
+            $fid = trim((string) $request->input('fid', ''));
+            $locale = Field::normalizeLocale((string) $request->input('lang', $request->input('locale', 'ru')));
+            $clientUserIds = $this->resolveGarageOwnerClientIds($owner, $fid);
+
+            if ($clientUserIds === []) {
+                return response()->json([
+                    'items' => [],
+                    'client_ids' => [],
+                    'message' => 'Клиент не найден.',
+                ], 404);
+            }
+
+            return $this->garageResponse($fid, $locale, $clientUserIds);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching garage',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function garageResponse(string $fid, string $locale, array $clientUserIds)
+    {
+        $vehicleSectionIds = $this->vehicleSectionIds($fid);
+
+        $query = DB::table('document as d')
                 ->join('z_body as zb', function ($join) {
                     $join->on('zb.docid', '=', 'd.id')
                         ->whereColumn('zb.firma', 'd.firma');
@@ -631,9 +666,9 @@ class ZakazController extends Controller
                 ->orderByDesc('d.dt')
                 ->orderByDesc('d.id');
 
-            $rows = $query->get();
+        $rows = $query->get();
 
-            $items = $rows->map(function ($row) use ($locale) {
+        $items = $rows->map(function ($row) use ($locale) {
                 $name = Field::localizedValue(
                     $locale,
                     $row->name_ru ?? $row->comp_name ?? $row->nickname ?? '',
@@ -674,16 +709,10 @@ class ZakazController extends Controller
                 ];
             })->values();
 
-            return response()->json([
-                'items' => $items,
-                'client_ids' => $clientUserIds,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error fetching garage',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        return response()->json([
+            'items' => $items,
+            'client_ids' => $clientUserIds,
+        ]);
     }
 
     /**
@@ -692,6 +721,45 @@ class ZakazController extends Controller
      *
      * @return list<int>
      */
+    private function resolveGarageOwnerClientIds(string $owner, string $fid): array
+    {
+        $owner = trim(urldecode($owner));
+        if ($owner === '' || !Schema::hasTable('users')) {
+            return [];
+        }
+
+        $ownerEmail = mb_strtolower($owner);
+        $ownerDigits = preg_replace('/\D+/', '', $owner) ?? '';
+        $isEmail = filter_var($owner, FILTER_VALIDATE_EMAIL);
+
+        if (!$isEmail && $ownerDigits === '') {
+            return [];
+        }
+
+        $phoneColumns = collect(['phone', 'phone1'])
+            ->filter(fn ($column) => Schema::hasColumn('users', $column))
+            ->values()
+            ->all();
+
+        $ids = DB::table('users')
+            ->when($fid !== '', fn ($query) => $query->where('firma', $fid))
+            ->where(function ($query) use ($ownerEmail, $ownerDigits, $isEmail, $phoneColumns) {
+                if ($isEmail && Schema::hasColumn('users', 'email')) {
+                    $query->orWhereRaw('LOWER(TRIM(email)) = ?', [$ownerEmail]);
+                }
+
+                if ($ownerDigits !== '') {
+                    foreach ($phoneColumns as $column) {
+                        $normalizedPhoneSql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE({$column}, '+', ''), ' ', ''), '-', ''), '(', ''), ')', ''), '.', '')";
+                        $query->orWhereRaw("{$normalizedPhoneSql} LIKE ?", ['%' . $ownerDigits]);
+                    }
+                }
+            })
+            ->pluck('id');
+
+        return $ids->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
     private function resolveCabinetOrderClientIds(User $user): array
     {
         $firma = trim((string) ($user->firma ?? $user->fid ?? ''));

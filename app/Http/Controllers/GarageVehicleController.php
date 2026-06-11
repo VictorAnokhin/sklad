@@ -53,13 +53,15 @@ class GarageVehicleController extends Controller
         $ownerEmail = mb_strtolower($owner);
         $ownerDigits = preg_replace('/\D+/', '', $owner) ?? '';
         $isEmail = filter_var($owner, FILTER_VALIDATE_EMAIL);
+        $fid = trim((string) $request->query('fid', $request->input('fid', '')));
 
         if (!$isEmail && $ownerDigits === '') {
             return response()->json([
                 'items' => [],
                 'owner' => $owner,
                 'matched_users_count' => 0,
-            ]);
+                'message' => 'Клиент не найден.',
+            ], 404);
         }
 
         if ($isEmail) {
@@ -69,6 +71,7 @@ class GarageVehicleController extends Controller
         if (Schema::hasTable('users')) {
             $users = User::query()
                 ->select(['id', 'email'])
+                ->when($fid !== '' && Schema::hasColumn('users', 'firma'), fn ($query) => $query->where('firma', $fid))
                 ->where(function ($query) use ($ownerEmail, $ownerDigits, $isEmail) {
                     if (Schema::hasColumn('users', 'email') && $isEmail) {
                         $query->orWhereRaw('LOWER(TRIM(email)) = ?', [$ownerEmail]);
@@ -97,7 +100,8 @@ class GarageVehicleController extends Controller
                 'items' => [],
                 'owner' => $owner,
                 'matched_users_count' => 0,
-            ]);
+                'message' => 'Клиент не найден.',
+            ], 404);
         }
 
         $items = GarageVehicle::query()
