@@ -245,7 +245,7 @@
 </div>
 
 <div class="modal fade" id="modalAccounts" tabindex="-1" aria-labelledby="modalAccountsLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-scrollable accounts-modal-dialog">
         <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center">
                 <h5 class="modal-title" id="modalAccountsLabel">📚 {{ __('settings.cards.chart_of_accounts.modal_title') }}</h5>
@@ -296,11 +296,28 @@
             </div>
 
             <div class="modal-body" id="account-list-area">
-                <div class="row g-4">
-                    <div class="col-lg-6">
-                        <h6 class="mb-3">{{ __('settings.accounts.accounts_heading') }}</h6>
+                <ul class="nav nav-tabs mb-3" id="accounts-modal-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="accounts-tab" data-bs-toggle="tab"
+                            data-bs-target="#accounts-tab-pane" type="button" role="tab"
+                            aria-controls="accounts-tab-pane" aria-selected="true">
+                            {{ __('settings.accounts.accounts_heading') }}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="payment-bindings-tab" data-bs-toggle="tab"
+                            data-bs-target="#payment-bindings-tab-pane" type="button" role="tab"
+                            aria-controls="payment-bindings-tab-pane" aria-selected="false">
+                            {{ __('settings.accounts.bindings_heading') }}
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="accounts-tab-pane" role="tabpanel"
+                        aria-labelledby="accounts-tab" tabindex="0">
                         <div class="table-responsive">
-                            <table class="table table-hover table-sm align-middle">
+                            <table class="table table-hover table-sm align-middle w-100 accounts-wide-table">
                                 <thead>
                                     <tr>
                                         <th>{{ __('settings.accounts.th_code') }}</th>
@@ -317,13 +334,14 @@
                         <p class="text-center text-muted" id="accounts-empty-msg" style="display:none">{{ __('settings.accounts.empty_accounts') }}</p>
                     </div>
 
-                    <div class="col-lg-6">
+                    <div class="tab-pane fade" id="payment-bindings-tab-pane" role="tabpanel"
+                        aria-labelledby="payment-bindings-tab" tabindex="0">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="mb-0">{{ __('settings.accounts.bindings_heading') }}</h6>
+                            <div class="small text-muted">{{ __('settings.accounts.bindings_help') }}</div>
                             <button type="button" class="btn btn-sm btn-outline-primary" id="btn-payment-bindings-reload">{{ __('settings.common.refresh') }}</button>
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-hover table-sm align-middle">
+                            <table class="table table-hover table-sm align-middle w-100 accounts-wide-table">
                                 <thead>
                                     <tr>
                                         <th>{{ __('settings.accounts.th_payment_type') }}</th>
@@ -343,6 +361,21 @@
         </div>
     </div>
 </div>
+
+<style>
+    #modalAccounts .accounts-modal-dialog {
+        width: min(96vw, 1680px);
+        max-width: min(96vw, 1680px);
+    }
+
+    #modalAccounts .accounts-wide-table {
+        min-width: 980px;
+    }
+
+    #modalAccounts #payment-bindings-tab-pane .form-select {
+        min-width: 260px;
+    }
+</style>
 
 <div class="modal fade" id="modalCatalog" tabindex="-1" aria-labelledby="modalCatalogLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -3281,6 +3314,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const bindingsTbody = document.getElementById('payment-bindings-tbody');
         const bindingsEmptyMsg = document.getElementById('payment-bindings-empty-msg');
         const reloadBindingsBtn = document.getElementById('btn-payment-bindings-reload');
+        const accountsTab = document.getElementById('accounts-tab');
+        const bindingsTab = document.getElementById('payment-bindings-tab');
 
         if (!modal || !form || !tbody || !bindingsTbody || !addBtn || !cancelBtn) {
             return;
@@ -3302,6 +3337,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         cancelBtn.addEventListener('click', hideAccountForm);
         reloadBindingsBtn.addEventListener('click', loadBindings);
+        accountsTab?.addEventListener('shown.bs.tab', () => {
+            addBtn.classList.remove('d-none');
+        });
+        bindingsTab?.addEventListener('shown.bs.tab', () => {
+            hideAccountForm();
+            addBtn.classList.add('d-none');
+            loadBindings();
+        });
 
         tbody.addEventListener('click', (e) => {
             const btn = e.target.closest('.action-btn');

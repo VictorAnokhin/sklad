@@ -254,19 +254,20 @@ class AccountingService
         }
 
         $paymentTypeBinding = Conf::paymentTypeAccountBinding((string) ($document->reestr ?? ''));
-        if ($paymentTypeBinding['debit_account_id'] && $paymentTypeBinding['credit_account_id']) {
-            return [
-                ['account_id' => $paymentTypeBinding['debit_account_id'], 'debit' => $summa, 'credit' => 0],
-                ['account_id' => $paymentTypeBinding['credit_account_id'], 'debit' => 0, 'credit' => $summa],
-            ];
-        }
-
         $cashAccount = $this->cashAccount($fid, (string) ($document->oplata ?? $document->money ?? ''));
         $receivableAccount = $this->receivableAccount($fid, (string) ($document->client1 ?? ''));
 
         return [
-            ['account_id' => $cashAccount->id, 'debit' => $summa, 'credit' => 0],
-            ['account_id' => $receivableAccount->id, 'debit' => 0, 'credit' => $summa],
+            [
+                'account_id' => $paymentTypeBinding['debit_account_id'] ?: $cashAccount->id,
+                'debit' => $summa,
+                'credit' => 0,
+            ],
+            [
+                'account_id' => $paymentTypeBinding['credit_account_id'] ?: $receivableAccount->id,
+                'debit' => 0,
+                'credit' => $summa,
+            ],
         ];
     }
 
@@ -278,13 +279,6 @@ class AccountingService
         }
 
         $paymentTypeBinding = Conf::paymentTypeAccountBinding((string) ($document->reestr ?? ''));
-        if ($paymentTypeBinding['debit_account_id'] && $paymentTypeBinding['credit_account_id']) {
-            return [
-                ['account_id' => $paymentTypeBinding['debit_account_id'], 'debit' => $summa, 'credit' => 0],
-                ['account_id' => $paymentTypeBinding['credit_account_id'], 'debit' => 0, 'credit' => $summa],
-            ];
-        }
-
         $cashAccount = $this->cashAccount($fid, (string) ($document->oplata ?? $document->money ?? ''));
         $counterpartyId = trim((string) ($document->client1 ?? ''));
         $debitAccount = $counterpartyId !== '' && $counterpartyId !== '0'
@@ -292,8 +286,16 @@ class AccountingService
             : $this->operatingExpenseAccount($fid);
 
         return [
-            ['account_id' => $debitAccount->id, 'debit' => $summa, 'credit' => 0],
-            ['account_id' => $cashAccount->id, 'debit' => 0, 'credit' => $summa],
+            [
+                'account_id' => $paymentTypeBinding['debit_account_id'] ?: $debitAccount->id,
+                'debit' => $summa,
+                'credit' => 0,
+            ],
+            [
+                'account_id' => $paymentTypeBinding['credit_account_id'] ?: $cashAccount->id,
+                'debit' => 0,
+                'credit' => $summa,
+            ],
         ];
     }
 

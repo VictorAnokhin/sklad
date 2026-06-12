@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Document;
+use App\Models\Report;
 use App\Services\InventoryCostService;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -387,6 +388,146 @@ class InventoryCostServiceTest extends TestCase
             "361.{$projectId}.company-{$this->companyId}",
             40,
             0
+        );
+    }
+
+    public function test_accounting_reports_use_double_entry_balances_and_turnovers(): void
+    {
+        $pnId = $this->createDocument('PN', 5, 16);
+        Document::provodka((string) $pnId, 'PN', (string) $this->companyId);
+
+        $trialBalance = Report::trialBalance(
+            (string) $this->companyId,
+            '2026-06-01',
+            '2026-06-30'
+        );
+        $inventoryRow = $trialBalance['rows']->firstWhere('code', "281.{$this->companyId}");
+        $payableRow = $trialBalance['rows']->firstWhere('code', "631.{$this->companyId}.generic");
+
+        $this->assertNotNull($inventoryRow);
+        $this->assertNotNull($payableRow);
+        $this->assertEqualsWithDelta(80, (float) $inventoryRow->closing_balance_debit, 0.001);
+        $this->assertEqualsWithDelta(0, (float) $inventoryRow->closing_balance_credit, 0.001);
+        $this->assertEqualsWithDelta(0, (float) $payableRow->closing_balance_debit, 0.001);
+        $this->assertEqualsWithDelta(80, (float) $payableRow->closing_balance_credit, 0.001);
+        $this->assertEqualsWithDelta(
+            (float) $trialBalance['totals']['period_debit'],
+            (float) $trialBalance['totals']['period_credit'],
+            0.001
+        );
+
+        $rnId = $this->createDocument('RN', 4, 25);
+        Document::provodka((string) $rnId, 'RN', (string) $this->companyId);
+        $pnl = Report::financialPnl((string) $this->companyId, '2026-06-01', '2026-06-30');
+
+        $this->assertEqualsWithDelta(100, (float) $pnl['revenueTotal'], 0.001);
+        $this->assertEqualsWithDelta(48, (float) $pnl['cogsTotal'], 0.001);
+        $this->assertEqualsWithDelta(52, (float) $pnl['grossProfitTotal'], 0.001);
+        $this->assertEqualsWithDelta(52, (float) $pnl['netProfit'], 0.001);
+
+        $balance = Report::balanceSheet((string) $this->companyId, '2026-06-01', '2026-06-30');
+        $this->assertEqualsWithDelta(
+            (float) $balance['totalAssets'] - (float) $balance['totalLiabilities'] - (float) $balance['equity'],
+            (float) $balance['balanceDifference'],
+            0.001
+        );
+    }
+
+    public function test_cash_reports_follow_cash_account_entries_and_reversals(): void
+    {
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'Report counterparty',
+            'email' => "report-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+        $cashboxId = DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $this->companyId,
+            'name' => 'Report cashbox',
+            'value' => 0,
+        ]);
+
+        $poId = $this->createMoneyDocument('PO', 70, $counterpartyId, $cashboxId);
+        $roId = $this->createMoneyDocument('RO', 40, $counterpartyId, $cashboxId);
+        Document::provodka((string) $poId, 'PO', (string) $this->companyId);
+        Document::provodka((string) $roId, 'RO', (string) $this->companyId);
+
+        $cashFlow = Report::cashFlowStatement(
+            (string) $this->companyId,
+            '2026-06-01',
+            '2026-06-30'
+        );
+        $this->assertEqualsWithDelta(70, (float) $cashFlow['operatingInflows'], 0.001);
+        $this->assertEqualsWithDelta(40, (float) $cashFlow['operatingOutflows'], 0.001);
+        $this->assertEqualsWithDelta(30, (float) $cashFlow['netCashFlow'], 0.001);
+
+        Document::provodka((string) $poId, 'PO', (string) $this->companyId);
+        $cashFlowAfterReversal = Report::cashFlowStatement(
+            (string) $this->companyId,
+            '2026-06-01',
+            '2026-06-30'
+        );
+        $this->assertEqualsWithDelta(-40, (float) $cashFlowAfterReversal['netCashFlow'], 0.001);
+
+        $finance = Report::finance(
+            (string) $this->companyId,
+            '2026-06-01',
+            '2026-06-30',
+            (string) $cashboxId
+        );
+        $this->assertEqualsWithDelta(-40, (float) $finance['operatingCashFlow'], 0.001);
+        $this->assertEqualsWithDelta(-40, (float) $finance['cashBalanceTotal'], 0.001);
+
+        $journal = Report::journal((string) $this->companyId, '2026-06-01', '2026-06-30');
+        $this->assertTrue($journal['rows']->every(
+            fn ($row) => str_contains((string) $row->account_code, ".{$this->companyId}")
+        ));
+    }
+
+    public function test_partial_payment_binding_keeps_dynamic_cash_account(): void
+    {
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'Binding counterparty',
+            'email' => "binding-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+        $cashboxId = DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $this->companyId,
+            'name' => 'Binding cashbox',
+            'value' => 100,
+        ]);
+        $expenseAccountId = DB::table('accounts')->insertGetId([
+            'code' => "949.{$this->companyId}.test",
+            'name' => 'Binding expense',
+            'type' => 'expense',
+            'parent_id' => DB::table('accounts')->where('code', '949')->value('id'),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $paymentTypeId = DB::table('conf')->insertGetId([
+            'type' => 'reestr',
+            'firma' => (string) $this->companyId,
+            'name' => 'Binding expense type',
+            'doc' => 'RO',
+            'debit_account_id' => $expenseAccountId,
+            'credit_account_id' => null,
+        ]);
+
+        $roId = $this->createMoneyDocument('RO', 35, $counterpartyId, $cashboxId);
+        DB::table('z_document')->where('id', $roId)->update(['reestr' => (string) $paymentTypeId]);
+        Document::provodka((string) $roId, 'RO', (string) $this->companyId);
+
+        $transaction = $this->documentTransaction($roId, 'RO');
+        $this->assertNotNull($transaction);
+        $this->assertAccountEntry((int) $transaction->id, "949.{$this->companyId}.test", 35, 0);
+        $this->assertAccountEntry(
+            (int) $transaction->id,
+            "301.{$this->companyId}.{$cashboxId}",
+            0,
+            35
         );
     }
 

@@ -224,12 +224,11 @@ class Report extends Model
                     DB::raw("COALESCE(SUM(CASE WHEN t.date BETWEEN '{$dateFromUi}' AND '{$dateToUi}' THEN e.credit ELSE 0 END), 0) as period_credit"),
                 ])
                 ->map(function ($account) {
-                    $openingNet = self::accountNet($account->type, (float) $account->opening_debit, (float) $account->opening_credit);
-                    $closingNet = self::accountNet(
-                        $account->type,
-                        (float) $account->opening_debit + (float) $account->period_debit,
-                        (float) $account->opening_credit + (float) $account->period_credit
-                    );
+                    $openingNet = (float) $account->opening_debit - (float) $account->opening_credit;
+                    $closingNet = (float) $account->opening_debit
+                        + (float) $account->period_debit
+                        - (float) $account->opening_credit
+                        - (float) $account->period_credit;
 
                     $account->opening_balance_debit = $openingNet >= 0 ? $openingNet : 0.0;
                     $account->opening_balance_credit = $openingNet < 0 ? abs($openingNet) : 0.0;
@@ -271,7 +270,15 @@ class Report extends Model
         $accountId = trim($accountId);
 
         $accounts = DB::getSchemaBuilder()->hasTable('accounts')
-            ? DB::table('accounts')->orderBy('code')->get(['id', 'code', 'name'])
+            ? DB::table('accounts as a')
+                ->whereExists(function ($query) use ($fid) {
+                    $query->selectRaw('1')
+                        ->from('entries as e')
+                        ->whereColumn('e.account_id', 'a.id')
+                        ->where('e.company_id', (int) $fid);
+                })
+                ->orderBy('a.code')
+                ->get(['a.id', 'a.code', 'a.name'])
             : collect();
 
         $rows = collect();
@@ -1088,42 +1095,40 @@ class Report extends Model
 
     public static function financialPnl(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
     {
-        [$dateFromUi, $dateToUi, $dateFromLegacy, $dateToLegacy] = self::normalizePeriod($dateFromInput, $dateToInput);
-        $lines = self::salesLineItems($fid, $dateFromLegacy, $dateToLegacy);
-        $totals = self::segmentTotals($lines);
+        [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
+        $turnovers = self::ledgerAccountTurnovers($fid, $dateFromUi, $dateToUi);
 
-        $operatingExpensesByType = DB::table('z_document as d')
-            ->leftJoin('conf as reg', function ($join) use ($fid) {
-                $join->on('d.reestr', '=', 'reg.id')
-                    ->where('reg.type', '=', 'reestr')
-                    ->where('reg.firma', '=', $fid);
+        $revenueTotal = (float) $turnovers
+            ->where('type', 'income')
+            ->sum(fn ($item) => (float) $item->credit - (float) $item->debit);
+        $cogsTotal = (float) $turnovers
+            ->filter(fn ($item) => str_starts_with((string) $item->code, '902'))
+            ->sum(fn ($item) => (float) $item->debit - (float) $item->credit);
+        $operatingExpensesByType = $turnovers
+            ->filter(fn ($item) => $item->type === 'expense' && ! str_starts_with((string) $item->code, '902'))
+            ->map(function ($item) {
+                return (object) [
+                    'expense_name' => "{$item->code} | {$item->name}",
+                    'expense_sum' => (float) $item->debit - (float) $item->credit,
+                    'docs_count' => (int) $item->transactions_count,
+                ];
             })
-            ->where('d.firma', $fid)
-            ->where('d.type', 'RO')
-            ->where('d.provodka', 1)
-            ->whereRaw(
-                "STR_TO_DATE(d.data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
-                [$dateFromLegacy, $dateToLegacy]
-            )
-            ->groupBy('d.reestr', 'reg.name')
-            ->orderByDesc(DB::raw('SUM(d.summa)'))
-            ->get([
-                DB::raw("COALESCE(NULLIF(reg.name, ''), CONCAT('Стаття #', d.reestr)) as expense_name"),
-                DB::raw('SUM(d.summa) as expense_sum'),
-                DB::raw('COUNT(*) as docs_count'),
-            ]);
+            ->filter(fn ($item) => abs((float) $item->expense_sum) > 0.0001)
+            ->sortByDesc('expense_sum')
+            ->values();
 
-        $operatingExpensesTotal = (float) $operatingExpensesByType->sum(fn ($item) => (float) ($item->expense_sum ?? 0));
-        $netProfit = (float) $totals['grossProfitTotal'] - $operatingExpensesTotal;
+        $operatingExpensesTotal = (float) $operatingExpensesByType->sum('expense_sum');
+        $grossProfitTotal = $revenueTotal - $cogsTotal;
+        $netProfit = $grossProfitTotal - $operatingExpensesTotal;
 
         return [
             'dateFrom' => $dateFromUi,
             'dateTo' => $dateToUi,
             'monthLabel' => self::periodLabel($dateFromUi, $dateToUi),
-            'revenueTotal' => $totals['revenueTotal'],
-            'cogsTotal' => $totals['costTotal'],
-            'grossProfitTotal' => $totals['grossProfitTotal'],
-            'grossMarginTotal' => $totals['grossMarginTotal'],
+            'revenueTotal' => $revenueTotal,
+            'cogsTotal' => $cogsTotal,
+            'grossProfitTotal' => $grossProfitTotal,
+            'grossMarginTotal' => $revenueTotal > 0 ? ($grossProfitTotal / $revenueTotal) * 100 : 0.0,
             'operatingExpensesTotal' => $operatingExpensesTotal,
             'netProfit' => $netProfit,
             'operatingExpensesByType' => $operatingExpensesByType,
@@ -1132,29 +1137,33 @@ class Report extends Model
 
     public static function balanceSheet(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
     {
-        [$dateFromUi, $dateToUi, $dateFromLegacy, $dateToLegacy] = self::normalizePeriod($dateFromInput, $dateToInput);
+        [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
+        $balances = self::ledgerAccountBalances($fid, $dateToUi);
 
         $inventoryValue = (float) DB::table('inventory_cost_balances')
             ->where('company_id', (int) $fid)
             ->sum('total_value');
 
-        $cashBalance = (float) DB::table('conf')
-            ->where('type', 'oplata')
-            ->where('firma', $fid)
-            ->sum('value');
-
-        $depositBalance = (float) DB::table('conf')
-            ->where('type', 'deposit')
-            ->where('firma', $fid)
-            ->sum('value');
-
-        $receivables = self::receivablesTotal($fid);
-        $payables = self::payablesTotal($fid);
-        $loans = self::financingFlow($fid, $dateFromLegacy, $dateToLegacy)['loan_balance_proxy'];
+        $cashBalance = self::debitBalanceByPrefix($balances, '301');
+        $depositBalance = self::debitBalanceByPrefix($balances, '311');
+        $receivables = self::debitBalanceByPrefix($balances, '361');
+        $payables = self::creditBalanceByPrefix($balances, '631');
+        $loans = (float) $balances
+            ->filter(fn ($item) => $item->type === 'liability' && ! str_starts_with((string) $item->code, '631'))
+            ->sum(fn ($item) => max((float) $item->credit - (float) $item->debit, 0));
+        $ledgerEquity = (float) $balances
+            ->where('type', 'equity')
+            ->sum(fn ($item) => (float) $item->credit - (float) $item->debit);
+        $retainedEarnings = (float) $balances
+            ->filter(fn ($item) => in_array($item->type, ['income', 'expense'], true))
+            ->sum(fn ($item) => $item->type === 'income'
+                ? (float) $item->credit - (float) $item->debit
+                : (float) $item->credit - (float) $item->debit);
 
         $totalAssets = $inventoryValue + $cashBalance + $depositBalance + $receivables;
         $totalLiabilities = $payables + $loans;
-        $equity = $totalAssets - $totalLiabilities;
+        $equity = $ledgerEquity + $retainedEarnings;
+        $balanceDifference = $totalAssets - $totalLiabilities - $equity;
 
         return [
             'dateFrom' => $dateFromUi,
@@ -1169,35 +1178,38 @@ class Report extends Model
             'totalAssets' => $totalAssets,
             'totalLiabilities' => $totalLiabilities,
             'equity' => $equity,
+            'balanceDifference' => $balanceDifference,
         ];
     }
 
     public static function cashFlowStatement(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
     {
-        [$dateFromUi, $dateToUi, $dateFromLegacy, $dateToLegacy] = self::normalizePeriod($dateFromInput, $dateToInput);
+        [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
+        $cashMovements = self::ledgerCashMovements($fid, $dateFromUi, $dateToUi);
 
-        $operatingInflows = (float) DB::table('z_document')
-            ->where('firma', $fid)
-            ->where('type', 'PO')
-            ->where('provodka', 1)
-            ->whereRaw(
-                "STR_TO_DATE(data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
-                [$dateFromLegacy, $dateToLegacy]
-            )
-            ->sum('summa');
+        $operating = $cashMovements->filter(
+            fn ($item) => str_contains((string) $item->reference_type, ':PO')
+                || str_contains((string) $item->reference_type, ':RO')
+        );
+        $investingRows = $cashMovements->filter(
+            fn ($item) => str_contains((string) $item->reference_type, ':PP')
+        );
+        $financingRows = $cashMovements->reject(
+            fn ($item) => $operating->contains('transaction_id', $item->transaction_id)
+                || $investingRows->contains('transaction_id', $item->transaction_id)
+        );
 
-        $operatingOutflows = (float) DB::table('z_document')
-            ->where('firma', $fid)
-            ->where('type', 'RO')
-            ->where('provodka', 1)
-            ->whereRaw(
-                "STR_TO_DATE(data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
-                [$dateFromLegacy, $dateToLegacy]
-            )
-            ->sum('summa');
-
-        $investing = self::investmentFlow($fid, $dateFromLegacy, $dateToLegacy);
-        $financing = self::financingFlow($fid, $dateFromLegacy, $dateToLegacy);
+        $operatingInflows = (float) $operating->sum('debit');
+        $operatingOutflows = (float) $operating->sum('credit');
+        $investing = [
+            'inflows' => (float) $investingRows->sum('debit'),
+            'outflows' => (float) $investingRows->sum('credit'),
+        ];
+        $financing = [
+            'inflows' => (float) $financingRows->sum('debit'),
+            'outflows' => (float) $financingRows->sum('credit'),
+            'assumption' => 'Класифікація побудована за бухгалтерськими транзакціями: PO/RO — операційні, PP — інвестиційні, інші рухи рахунку 301 — фінансові.',
+        ];
 
         $operatingNet = $operatingInflows - $operatingOutflows;
         $investingNet = $investing['inflows'] - $investing['outflows'];
@@ -1408,9 +1420,12 @@ class Report extends Model
             $baseQuery->whereRaw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) = ?", [$oplataId]);
         }
 
-        $totalIncome = (float) (clone $baseQuery)->where('d.type', 'PO')->sum('d.summa');
-        $totalExpense = (float) (clone $baseQuery)->where('d.type', 'RO')->sum('d.summa');
-        $postedCount = (int) (clone $baseQuery)->count();
+        $cashMovements = self::ledgerCashMovements($fid, $dateFromUi, $dateToUi, $oplataId)
+            ->filter(fn ($item) => str_contains((string) $item->reference_type, ':PO')
+                || str_contains((string) $item->reference_type, ':RO'));
+        $totalIncome = (float) $cashMovements->sum('debit');
+        $totalExpense = (float) $cashMovements->sum('credit');
+        $postedCount = (int) $cashMovements->pluck('transaction_id')->unique()->count();
         $operatingCashFlow = $totalIncome - $totalExpense;
         $paymentTypes = (clone $baseQuery)
             ->groupBy('d.reestr', 'reg.name')
@@ -1530,12 +1545,12 @@ class Report extends Model
             ->orderBy('name')
             ->get(['id', 'name', 'value', 'value1']);
 
-        $depositPortfolioTotal = (float) $depositPortfolio->sum(fn ($item) => (float) ($item->value ?? 0));
+        $ledgerBalances = self::ledgerAccountBalances($fid, $dateToUi);
+        $depositPortfolioTotal = self::debitBalanceByPrefix($ledgerBalances, '311');
         $depositLimitTotal = (float) $depositPortfolio->sum(fn ($item) => (float) ($item->value1 ?? 0));
-        $cashBalanceTotal = (float) DB::table('conf')
-            ->where('type', 'oplata')
-            ->where('firma', $fid)
-            ->sum('value');
+        $cashBalanceTotal = $oplataId === ''
+            ? self::debitBalanceByPrefix($ledgerBalances, '301')
+            : self::debitBalanceByPrefix($ledgerBalances, "301.{$fid}.{$oplataId}");
         $treasuryTotal = $cashBalanceTotal + $depositPortfolioTotal;
         $depositNetFlow = $depositTopups - $depositWithdrawals;
 
@@ -2355,12 +2370,98 @@ class Report extends Model
         return trim(implode(' | ', array_filter(array_unique($parts))));
     }
 
-    private static function accountNet(string $type, float $debit, float $credit): float
+    private static function ledgerAccountTurnovers(string $fid, string $dateFrom, string $dateTo)
     {
-        return match ($type) {
-            'asset', 'expense' => $debit - $credit,
-            'liability', 'equity', 'income' => $credit - $debit,
-            default => 0.0,
-        };
+        if (! Schema::hasTable('entries') || ! Schema::hasTable('transactions') || ! Schema::hasTable('accounts')) {
+            return collect();
+        }
+
+        return DB::table('entries as e')
+            ->join('transactions as t', 't.id', '=', 'e.transaction_id')
+            ->join('accounts as a', 'a.id', '=', 'e.account_id')
+            ->where('e.company_id', (int) $fid)
+            ->whereBetween('t.date', [$dateFrom, $dateTo])
+            ->groupBy('a.id', 'a.code', 'a.name', 'a.type')
+            ->orderBy('a.code')
+            ->get([
+                'a.id',
+                'a.code',
+                'a.name',
+                'a.type',
+                DB::raw('SUM(e.debit) as debit'),
+                DB::raw('SUM(e.credit) as credit'),
+                DB::raw('COUNT(DISTINCT e.transaction_id) as transactions_count'),
+            ]);
+    }
+
+    private static function ledgerAccountBalances(string $fid, string $dateTo)
+    {
+        if (! Schema::hasTable('entries') || ! Schema::hasTable('transactions') || ! Schema::hasTable('accounts')) {
+            return collect();
+        }
+
+        return DB::table('entries as e')
+            ->join('transactions as t', 't.id', '=', 'e.transaction_id')
+            ->join('accounts as a', 'a.id', '=', 'e.account_id')
+            ->where('e.company_id', (int) $fid)
+            ->where('t.date', '<=', $dateTo)
+            ->groupBy('a.id', 'a.code', 'a.name', 'a.type')
+            ->orderBy('a.code')
+            ->get([
+                'a.id',
+                'a.code',
+                'a.name',
+                'a.type',
+                DB::raw('SUM(e.debit) as debit'),
+                DB::raw('SUM(e.credit) as credit'),
+            ]);
+    }
+
+    private static function ledgerCashMovements(
+        string $fid,
+        string $dateFrom,
+        string $dateTo,
+        string $cashboxId = ''
+    )
+    {
+        if (! Schema::hasTable('entries') || ! Schema::hasTable('transactions') || ! Schema::hasTable('accounts')) {
+            return collect();
+        }
+
+        $query = DB::table('entries as e')
+            ->join('transactions as t', 't.id', '=', 'e.transaction_id')
+            ->join('accounts as a', 'a.id', '=', 'e.account_id')
+            ->where('e.company_id', (int) $fid)
+            ->where('a.code', 'like', '301.%')
+            ->whereBetween('t.date', [$dateFrom, $dateTo]);
+
+        if ($cashboxId !== '') {
+            $query->where('a.code', "301.{$fid}.{$cashboxId}");
+        }
+
+        return $query
+            ->orderBy('t.date')
+            ->orderBy('t.id')
+            ->get([
+                'e.transaction_id',
+                't.reference_type',
+                't.reference_id',
+                'e.debit',
+                'e.credit',
+            ]);
+    }
+
+    private static function debitBalanceByPrefix($balances, string $prefix): float
+    {
+        return (float) $balances
+            ->filter(fn ($item) => str_starts_with((string) $item->code, $prefix))
+            ->sum(fn ($item) => (float) $item->debit - (float) $item->credit);
+    }
+
+    private static function creditBalanceByPrefix($balances, string $prefix): float
+    {
+        return (float) $balances
+            ->filter(fn ($item) => str_starts_with((string) $item->code, $prefix))
+            ->sum(fn ($item) => (float) $item->credit - (float) $item->debit);
     }
 }

@@ -43,7 +43,7 @@
         <div class="col-md-3">
             <div class="card shadow-sm h-100 border-success">
                 <div class="card-body">
-                    <div class="text-muted small mb-1">Операційний вхідний потік @include('reports.hint', ['text' => 'Сума проведених приходных платежів PO за вибраний період і, якщо обрано, конкретну касу.'])</div>
+                    <div class="text-muted small mb-1">Операційний вхідний потік @include('reports.hint', ['text' => 'Дебетові рухи рахунку 301 за бухгалтерськими транзакціями PO/RO, включно зі сторно.'])</div>
                     <div class="fs-4 fw-bold text-success">{{ number_format((float) $totalIncome, 2, '.', ' ') }} грн</div>
                 </div>
             </div>
@@ -51,7 +51,7 @@
         <div class="col-md-3">
             <div class="card shadow-sm h-100 border-danger">
                 <div class="card-body">
-                    <div class="text-muted small mb-1">Операційний вихідний потік @include('reports.hint', ['text' => 'Сума проведених расходных платежів RO за вибраний період і, якщо обрано, конкретну касу.'])</div>
+                    <div class="text-muted small mb-1">Операційний вихідний потік @include('reports.hint', ['text' => 'Кредитові рухи рахунку 301 за бухгалтерськими транзакціями PO/RO, включно зі сторно.'])</div>
                     <div class="fs-4 fw-bold text-danger">{{ number_format((float) $totalExpense, 2, '.', ' ') }} грн</div>
                 </div>
             </div>

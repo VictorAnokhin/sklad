@@ -137,6 +137,7 @@ return [
         'th_parent' => 'Parent',
         'empty_accounts' => 'No accounts yet',
         'bindings_heading' => 'Binding to payment types',
+        'bindings_help' => 'An empty side is resolved automatically from the document cash account and counterparty.',
         'th_payment_type' => 'Payment type',
         'th_documents' => 'Documents',
         'th_debit' => 'Debit',

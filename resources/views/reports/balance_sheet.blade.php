@@ -65,5 +65,13 @@
             </div>
         </div>
     </div>
+
+    @if(abs((float) ($balanceDifference ?? 0)) > 0.01)
+    <div class="alert alert-warning mt-4 mb-0">
+        Контрольна різниця балансу:
+        <strong>{{ number_format((float) $balanceDifference, 2, '.', ' ') }} грн</strong>.
+        Вона виникає, якщо початкові запаси або кошти були внесені до оперативних регістрів без початкової бухгалтерської проводки.
+    </div>
+    @endif
 </div>
 @endsection

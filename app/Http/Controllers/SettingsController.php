@@ -402,6 +402,7 @@ class SettingsController extends Controller
             return response()->json([]);
         }
 
+        $fid = (string) session('fid', '');
         $columns = [
             'accounts.id',
             'accounts.code',
@@ -417,6 +418,12 @@ class SettingsController extends Controller
 
         $items = Account::query()
             ->leftJoin('accounts as parent', 'accounts.parent_id', '=', 'parent.id')
+            ->where(function ($query) use ($fid) {
+                $query->where('accounts.code', 'not like', '%.%');
+                if ($fid !== '') {
+                    $query->orWhere('accounts.code', 'like', "%.{$fid}.%");
+                }
+            })
             ->orderBy('accounts.code')
             ->get($columns)
             ->map(fn ($item) => $this->decorateAccountItem($item));
