@@ -318,6 +318,14 @@
                         aria-labelledby="accounts-tab" tabindex="0">
                         <div class="table-responsive">
                             <table class="table table-hover table-sm align-middle w-100 accounts-wide-table">
+                                <colgroup>
+                                    <col class="accounts-wide-table__first-column">
+                                    <col>
+                                    <col>
+                                    <col>
+                                    <col>
+                                    <col>
+                                </colgroup>
                                 <thead>
                                     <tr>
                                         <th>{{ __('settings.accounts.th_code') }}</th>
@@ -342,6 +350,13 @@
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover table-sm align-middle w-100 accounts-wide-table">
+                                <colgroup>
+                                    <col class="accounts-wide-table__first-column">
+                                    <col>
+                                    <col>
+                                    <col>
+                                    <col>
+                                </colgroup>
                                 <thead>
                                     <tr>
                                         <th>{{ __('settings.accounts.th_payment_type') }}</th>
@@ -370,6 +385,11 @@
 
     #modalAccounts .accounts-wide-table {
         min-width: 980px;
+        table-layout: fixed;
+    }
+
+    #modalAccounts .accounts-wide-table__first-column {
+        width: 32%;
     }
 
     #modalAccounts #payment-bindings-tab-pane .form-select {
