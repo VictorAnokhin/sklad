@@ -766,6 +766,13 @@
                                 <label class="form-check-label" for="form-visibility-checkbox" id="form-visibility-label">Видимий</label>
                             </div>
                         </div>
+                        <div class="col-md-3 mb-3" id="form-default-row" style="display:none;">
+                            <label class="form-label d-block">Default</label>
+                            <div class="form-check form-switch pt-2">
+                                <input class="form-check-input" type="checkbox" role="switch" id="form-default-checkbox">
+                                <label class="form-check-label" for="form-default-checkbox">За замовчуванням</label>
+                            </div>
+                        </div>
                     </div>
                     <div class="mb-3" id="form-status-row">
                         <label for="form-status" class="form-label" id="form-status-label">Статус</label>
@@ -849,6 +856,7 @@
                             <th>Назва</th>
                             <th id="crud-color-column">Колір</th>
                             <th id="crud-currency-column" style="display:none;">{{ __('settings.crud.currency_column') }}</th>
+                            <th id="crud-default-column" style="display:none;">Default</th>
                             <th id="crud-status-column">Статус</th>
                             <th id="crud-phone-column" style="display:none;">Телефон</th>
                             <th id="crud-address-column" style="display:none;">Адреса</th>
@@ -2856,6 +2864,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const visibilityRow = document.getElementById('form-visibility-row');
         const visibilityCheckbox = document.getElementById('form-visibility-checkbox');
         const visibilityLabel = document.getElementById('form-visibility-label');
+        const defaultRow = document.getElementById('form-default-row');
+        const defaultCheckbox = document.getElementById('form-default-checkbox');
+        const defaultColumn = document.getElementById('crud-default-column');
         const statusColumn = document.getElementById('crud-status-column');
         const docRow = document.getElementById('form-doc-row');
         const docColumn = document.getElementById('crud-doc-column');
@@ -2908,6 +2919,9 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('form-status').value = currentType === 'tclient' ? '0' : '1';
             setDocFlags('');
             resetOfficeFields();
+            if (defaultCheckbox) {
+                defaultCheckbox.checked = false;
+            }
             populateCurrencySelect(defaultCurrencyCode());
             showForm();
         });
@@ -2958,6 +2972,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? (visibilityCheckbox.checked ? '1' : '0')
                     : '1',
             };
+
+            if (currentType === 'sklads' || currentType === 'oplata') {
+                payload.is_default = defaultCheckbox?.checked ? 1 : 0;
+            }
 
             if (currentType === 'oplata' || currentType === 'deposit') {
                 payload.currency = currencySelect.value || defaultCurrencyCode();
@@ -3026,6 +3044,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currencyHtml = currentType === 'oplata' || currentType === 'deposit'
                     ? `<span class="badge bg-info text-dark">${escapeHtml(item.currency || defaultCurrencyCode())}</span>`
                     : '';
+                const defaultHtml = currentType === 'sklads' || currentType === 'oplata'
+                    ? (String(item.is_default ?? '0') === '1' ? '<span class="badge bg-primary">Default</span>' : '—')
+                    : '';
                 let statusLabel = `<span class="badge bg-secondary">${_ts('crud.inactive')}</span>`;
                 if (currentType === 'tgroup') {
                     statusLabel = String(item.status) === '1'
@@ -3051,6 +3072,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${escapeHtml(item.name || '')}</td>
                     ${currentType === 'sklads' || currentType === 'currency' ? '' : `<td>${colorHtml}</td>`}
                     ${currentType === 'oplata' || currentType === 'deposit' ? `<td>${currencyHtml}</td>` : ''}
+                    ${currentType === 'sklads' || currentType === 'oplata' ? `<td>${defaultHtml}</td>` : ''}
                     <td>${statusLabel}</td>
                     ${currentType === 'sklads' ? `<td>${addressHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td>${docHtml}</td>` : ''}
@@ -3076,6 +3098,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         : (item.status ?? '1');
                     visibilityCheckbox.checked = String(item.vision ?? '1') === '1';
                     visibilityLabel.textContent = visibilityCheckbox.checked ? _ts('crud.visible') : _ts('crud.hidden');
+                    if (defaultCheckbox) {
+                        defaultCheckbox.checked = String(item.is_default ?? '0') === '1';
+                    }
                     setDocFlags(item.doc || '');
                     phoneInput.value = item.phone || '';
                     addressInput.value = item.address || '';
@@ -3147,10 +3172,13 @@ document.addEventListener('DOMContentLoaded', () => {
         function configureStatusField() {
             const isReestr = currentType === 'reestr';
             const isOffice = currentType === 'sklads';
+            const supportsDefault = currentType === 'sklads' || currentType === 'oplata';
             const hasCurrency = currentType === 'oplata' || currentType === 'deposit';
             const isCurrency = currentType === 'currency';
             docRow.style.display = isReestr ? 'block' : 'none';
             docColumn.style.display = isReestr ? '' : 'none';
+            defaultRow.style.display = supportsDefault ? '' : 'none';
+            defaultColumn.style.display = supportsDefault ? '' : 'none';
             currencyRow.style.display = hasCurrency ? 'block' : 'none';
             currencyColumn.style.display = hasCurrency ? '' : 'none';
             officeFields.style.display = isOffice ? 'block' : 'none';
@@ -3255,6 +3283,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('color', payload.color);
             formData.append('status', payload.status);
             formData.append('vision', payload.vision);
+            formData.append('is_default', payload.is_default || 0);
             formData.append('phone', phoneInput.value.trim());
             formData.append('address', addressInput.value.trim());
             formData.append('google_map', googleMapInput.value.trim());
@@ -3293,12 +3322,15 @@ document.addEventListener('DOMContentLoaded', () => {
         function getTableColumnCount() {
             let count = 5;
             if (currentType === 'sklads') {
-                return 5;
+                return 6;
             }
             if (currentType === 'reestr') {
                 count += 1;
             }
             if (currentType === 'oplata' || currentType === 'deposit') {
+                count += 1;
+            }
+            if (currentType === 'oplata') {
                 count += 1;
             }
             if (currentType === 'currency') {

@@ -372,7 +372,21 @@ class InventoryCostServiceTest extends TestCase
             'name' => 'Project mirror source cashbox',
             'value' => 100,
         ]);
-        $projectCashCode = "301.{$projectId}.intercompany-{$this->companyId}";
+        DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $projectId,
+            'name' => 'Project mirror fallback cashbox',
+            'value' => 0,
+            'is_default' => 0,
+        ]);
+        $projectCashboxId = DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $projectId,
+            'name' => 'Project mirror default cashbox',
+            'value' => 0,
+            'is_default' => 1,
+        ]);
+        $projectCashCode = "301.{$projectId}.{$projectCashboxId}";
 
         $poId = $this->createMoneyDocument('PO', 70, $counterpartyId, $cashboxId);
         Document::provodka((string) $poId, 'PO', (string) $this->companyId);
@@ -640,10 +654,17 @@ class InventoryCostServiceTest extends TestCase
             'firma' => (string) $projectId,
             'name' => 'Mirror product',
         ]);
+        DB::table('conf')->insertGetId([
+            'type' => 'sklads',
+            'firma' => (string) $projectId,
+            'name' => 'Mirror fallback warehouse',
+            'is_default' => 0,
+        ]);
         $targetWarehouseId = DB::table('conf')->insertGetId([
             'type' => 'sklads',
             'firma' => (string) $projectId,
             'name' => 'Mirror warehouse',
+            'is_default' => 1,
         ]);
 
         DB::table('price')->insert([

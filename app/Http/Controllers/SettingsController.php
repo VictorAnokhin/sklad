@@ -347,6 +347,8 @@ class SettingsController extends Controller
         $data['firma'] = $fid;
 
         $id = DB::table('conf')->insertGetId($data);
+        $this->syncDefaultConfRecord((int) $id, $data);
+
         return response()->json(['success' => true, 'id' => $id]);
     }
 
@@ -362,6 +364,7 @@ class SettingsController extends Controller
         $update = $this->validateConfRecord($request, $exists);
 
         DB::table('conf')->where('id', $id)->update($update);
+        $this->syncDefaultConfRecord((int) $id, $update);
 
         return response()->json(['success' => true]);
     }
@@ -1815,6 +1818,7 @@ class SettingsController extends Controller
             'google_map' => 'nullable|string|max:65535',
             'foto' => 'nullable|string|max:255',
             'foto_file' => 'nullable|image|max:4096',
+            'is_default' => 'nullable|boolean',
         ]);
 
         $type = (string) ($validated['type'] ?? '');
@@ -1843,6 +1847,10 @@ class SettingsController extends Controller
             'vision' => (string) $vision,
             'constanta' => (string) ($validated['constanta'] ?? '0'),
         ];
+
+        if (Schema::hasColumn('conf', 'is_default') && in_array($type, ['sklads', 'oplata'], true)) {
+            $data['is_default'] = $request->boolean('is_default') ? 1 : 0;
+        }
 
         if (Schema::hasColumn('conf', 'currency')) {
             $data['currency'] = $type === 'oplata' || $type === 'deposit' || $type === 'currency' ? $currency : '';
@@ -1894,6 +1902,24 @@ class SettingsController extends Controller
         return $data;
     }
 
+    private function syncDefaultConfRecord(int $id, array $data): void
+    {
+        if (
+            $id <= 0
+            || ! Schema::hasColumn('conf', 'is_default')
+            || ! in_array((string) ($data['type'] ?? ''), ['sklads', 'oplata'], true)
+            || (int) ($data['is_default'] ?? 0) !== 1
+        ) {
+            return;
+        }
+
+        DB::table('conf')
+            ->where('id', '<>', $id)
+            ->where('type', (string) $data['type'])
+            ->where('firma', session('fid', ''))
+            ->update(['is_default' => 0]);
+    }
+
     private function decorateConfItem(object $item, string $type): object
     {
         if ($type === 'reestr') {
@@ -1912,6 +1938,10 @@ class SettingsController extends Controller
 
         if ($type === 'oplata' || $type === 'deposit') {
             $item->currency = $this->normalizeCurrencyCode($item->currency ?? 'UAH');
+        }
+
+        if (in_array($type, ['sklads', 'oplata'], true)) {
+            $item->is_default = property_exists($item, 'is_default') ? (int) ($item->is_default ?? 0) : 0;
         }
 
         if ($type === 'currency') {

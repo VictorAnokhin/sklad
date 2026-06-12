@@ -527,6 +527,19 @@ class InventoryCostService
 
     private function resolveMirrorWarehouse(int $targetCompanyId, object $document): int
     {
+        if (Schema::hasColumn('conf', 'is_default')) {
+            $warehouseId = DB::table('conf')
+                ->where('type', 'sklads')
+                ->where('firma', $targetCompanyId)
+                ->where('is_default', 1)
+                ->orderBy('id')
+                ->value('id');
+
+            if ($warehouseId !== null && (int) $warehouseId > 0) {
+                return (int) $warehouseId;
+            }
+        }
+
         $sourceWarehouseId = (int) ($document->sklads ?? 0);
         if ($sourceWarehouseId > 0) {
             $sameWarehouseExists = DB::table('conf')

@@ -432,7 +432,7 @@ class AccountingService
 
         $projectFid = (string) $projectId;
         $sourceCounterparty = "company-{$sourceCompanyId}";
-        $intercompanyCash = "intercompany-{$sourceCompanyId}";
+        $intercompanyCash = $this->projectMirrorCashbox($projectFid, $sourceCompanyId);
 
         return match ($docType) {
             'PN' => [
@@ -485,6 +485,24 @@ class AccountingService
             ],
             default => [],
         };
+    }
+
+    private function projectMirrorCashbox(string $projectFid, string $sourceCompanyId): string
+    {
+        if (Schema::hasColumn('conf', 'is_default')) {
+            $cashboxId = DB::table('conf')
+                ->where('type', 'oplata')
+                ->where('firma', $projectFid)
+                ->where('is_default', 1)
+                ->orderBy('id')
+                ->value('id');
+
+            if ($cashboxId !== null && (int) $cashboxId > 0) {
+                return (string) $cashboxId;
+            }
+        }
+
+        return "intercompany-{$sourceCompanyId}";
     }
 
     private function counterpartyProjectId(object $document, string $fid): ?int
