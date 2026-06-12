@@ -897,6 +897,31 @@ class DocumentController extends Controller
             ]);
             
             try {
+                $conductableDocs = ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'];
+                $currentPosted = false;
+                $desiredPosted = $request->boolean('post_after_save');
+
+                if (in_array($doc, $conductableDocs, true)) {
+                    $table = Document::tableForType($doc);
+                    $currentPosted = (int) DB::table($table)
+                        ->where('id', $docId)
+                        ->where('firma', $fid)
+                        ->value('provodka') === 1;
+
+                    if ($currentPosted) {
+                        if ($desiredPosted) {
+                            return redirect()->back()->with(
+                                'error',
+                                'Проведений документ змінювати не можна. Спочатку зніміть проводку.'
+                            );
+                        }
+
+                        Document::provodka($docId, $doc, $fid);
+
+                        return redirect()->back()->with('success', 'Проводку скасовано');
+                    }
+                }
+
                 $this->docService->saveHead($request, $docId, $doc, $fid);
                 $this->docService->saveBody($request, $docId, $doc, $fid);
 
@@ -905,17 +930,9 @@ class DocumentController extends Controller
                     'docId' => $docId,
                 ]);
 
-                $conductableDocs = ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'];
                 $message = 'Збережено';
 
                 if (in_array($doc, $conductableDocs, true)) {
-                    $table = Document::tableForType($doc);
-                    $currentPosted = (int) DB::table($table)
-                        ->where('id', $docId)
-                        ->where('firma', $fid)
-                        ->value('provodka') === 1;
-                    $desiredPosted = $request->boolean('post_after_save');
-
                     \Illuminate\Support\Facades\Log::info('Checking provodka state', [
                         'doc' => $doc,
                         'docId' => $docId,

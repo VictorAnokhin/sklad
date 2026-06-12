@@ -37,7 +37,7 @@
                     <h4 class="card-title mb-3 text-light">Активи @include('reports.hint', ['text' => 'Ліва частина балансу: ресурси, які належать бізнесу або мають принести гроші.'])</h4>
                     <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                         <tbody>
-                            <tr><td>Товари / запаси @include('reports.hint', ['text' => 'Орієнтовна вартість товарних залишків на складах.'])</td><td class="text-end fw-semibold">{{ number_format((float) $inventoryValue, 2, '.', ' ') }}</td></tr>
+                            <tr><td>Товари / запаси @include('reports.hint', ['text' => 'Вартість товарних залишків за методом середньозваженої собівартості.'])</td><td class="text-end fw-semibold">{{ number_format((float) $inventoryValue, 2, '.', ' ') }}</td></tr>
                             <tr><td>Гроші @include('reports.hint', ['text' => 'Поточний залишок у касах або грошових рахунках.'])</td><td class="text-end fw-semibold">{{ number_format((float) $cashBalance, 2, '.', ' ') }}</td></tr>
                             <tr><td>Депозити @include('reports.hint', ['text' => 'Кошти, розміщені у депозитах або депозитних інструментах.'])</td><td class="text-end fw-semibold">{{ number_format((float) $depositBalance, 2, '.', ' ') }}</td></tr>
                             <tr><td>Дебіторка @include('reports.hint', ['text' => 'Сума, яку клієнти або контрагенти мають сплатити бізнесу.'])</td><td class="text-end fw-semibold">{{ number_format((float) $receivables, 2, '.', ' ') }}</td></tr>

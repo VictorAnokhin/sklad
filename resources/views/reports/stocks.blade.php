@@ -63,8 +63,8 @@
                 </div>
                 <div class="col-md-2">
                     <div class="rounded border p-3 h-100">
-                        <div class="text-muted small mb-1">Проданих SKU</div>
-                        <div class="fs-5 fw-bold text-secondary">{{ $soldSkuCount }}</div>
+                        <div class="text-muted small mb-1">Вартість залишків</div>
+                        <div class="fs-5 fw-bold text-secondary">{{ number_format((float) $inventoryValueTotal, 2, '.', ' ') }}</div>
                     </div>
                 </div>
                 <div class="col-md-2">
@@ -157,6 +157,8 @@
                                     Залишок {{ $sort === 'count' ? ($direction === 'asc' ? '↑' : '↓') : '↕' }}
                                 </a>
                             </th>
+                            <th class="text-end">Середня собівартість</th>
+                            <th class="text-end">Вартість залишку</th>
                             <th class="text-end">
                                 <a href="{{ route('reports.stocks', ['sklad' => $skladId, 'q' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'sort' => 'sold_qty', 'direction' => ($sort === 'sold_qty' && $direction === 'asc') ? 'desc' : 'asc']) }}" class="text-decoration-none text-reset">
                                     Продано, од. {{ $sort === 'sold_qty' ? ($direction === 'asc' ? '↑' : '↓') : '↕' }}
@@ -190,6 +192,8 @@
                             <td>{{ $item->pnum }}</td>
                             <td>{{ $item->sklad_name }}</td>
                             <td class="text-end fw-semibold">{{ number_format((float) $item->count, 3, '.', ' ') }}</td>
+                            <td class="text-end">{{ number_format((float) ($item->average_cost ?? 0), 2, '.', ' ') }}</td>
+                            <td class="text-end fw-semibold">{{ number_format((float) ($item->inventory_value ?? 0), 2, '.', ' ') }}</td>
                             <td class="text-end">{{ number_format((float) ($item->sold_qty ?? 0), 3, '.', ' ') }}</td>
                             <td class="text-end fw-semibold text-light">{{ number_format((float) ($item->sold_sum ?? 0), 2, '.', ' ') }}</td>
                             <td class="text-end fw-semibold {{ ($item->gross_profit ?? 0) >= 0 ? 'text-primary' : 'text-danger' }}">{{ number_format((float) ($item->gross_profit ?? 0), 2, '.', ' ') }}</td>

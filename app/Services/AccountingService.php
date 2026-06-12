@@ -84,6 +84,13 @@ class AccountingService
             return null;
         }
 
+        if ($reverse) {
+            $original = $this->activeOriginalTransaction($referenceType, (string) $referenceId, (int) $fid);
+            if ($original) {
+                return $this->reverseStoredTransaction($original, $document, "{$referenceType}:reversal");
+            }
+        }
+
         $entries = $this->entriesForDocument($docType, $document, $lineItems, $fid);
         if ($entries === []) {
             return null;
@@ -94,7 +101,7 @@ class AccountingService
         }
 
         $description = $this->makeDescription($docType, $document, $reverse);
-        $amount = round((float) collect($entries)->sum(fn (array $entry) => max($entry['debit'] ?? 0, $entry['credit'] ?? 0)), 2);
+        $amount = round((float) collect($entries)->sum('debit'), 2);
 
         return $this->createTransaction($entries, $description, [
             'date' => $this->normalizeDate((string) ($document->data ?? now()->toDateString())),
@@ -104,6 +111,109 @@ class AccountingService
             'amount' => $amount,
             'amount_base' => $amount,
         ]);
+    }
+
+    private function activeOriginalTransaction(
+        string $referenceType,
+        string $referenceId,
+        int $companyId
+    ): ?LedgerTransaction {
+        $reversalReferenceType = "{$referenceType}:reversal";
+
+        return LedgerTransaction::query()
+            ->where('company_id', $companyId)
+            ->where('reference_type', $referenceType)
+            ->where('reference_id', $referenceId)
+            ->whereNotExists(function ($query) use ($reversalReferenceType) {
+                $query->selectRaw('1')
+                    ->from('transactions as reversal')
+                    ->whereColumn('reversal.company_id', 'transactions.company_id')
+                    ->whereColumn('reversal.reference_id', 'transactions.reference_id')
+                    ->where('reversal.reference_type', $reversalReferenceType)
+                    ->whereColumn('reversal.id', '>', 'transactions.id');
+            })
+            ->latest('id')
+            ->first();
+    }
+
+    private function reverseStoredTransaction(
+        LedgerTransaction $original,
+        object $document,
+        string $reversalReferenceType
+    ): LedgerTransaction {
+        $entries = $original->entries()
+            ->get(['account_id', 'debit', 'credit'])
+            ->map(fn (Entry $entry): array => [
+                'account_id' => $entry->account_id,
+                'debit' => (float) $entry->credit,
+                'credit' => (float) $entry->debit,
+            ])
+            ->all();
+
+        return $this->createTransaction($entries, "Сторно {$original->description}", [
+            'date' => $this->normalizeDate((string) ($document->data ?? now()->toDateString())),
+            'company_id' => (int) $original->company_id,
+            'reference_type' => $reversalReferenceType,
+            'reference_id' => (string) $original->reference_id,
+            'amount' => (float) $original->amount,
+            'amount_base' => (float) $original->amount_base,
+        ]);
+    }
+
+    public function createProjectMirrorTransaction(
+        string $referenceType,
+        string|int $referenceId,
+        string $docType,
+        object $document,
+        iterable $lineItems,
+        string $fid,
+        bool $reverse = false
+    ): ?LedgerTransaction {
+        if (! $this->isAvailable() || ! in_array($docType, ['PN', 'RN', 'PO', 'RO'], true)) {
+            return null;
+        }
+
+        $mirrorReferenceType = "{$referenceType}:project-mirror";
+        $reversalReferenceType = "{$mirrorReferenceType}:reversal";
+
+        if ($reverse) {
+            $original = LedgerTransaction::query()
+                ->where('reference_type', $mirrorReferenceType)
+                ->where('reference_id', (string) $referenceId)
+                ->latest('id')
+                ->first();
+
+            if (! $original) {
+                return null;
+            }
+
+            return $this->reverseStoredTransaction($original, $document, $reversalReferenceType);
+        }
+
+        $projectId = $this->counterpartyProjectId($document, $fid);
+        if ($projectId === null) {
+            return null;
+        }
+
+        $entries = $this->entriesForProjectMirror($docType, $document, $lineItems, $projectId, $fid);
+        if ($entries === []) {
+            return null;
+        }
+
+        $amount = round((float) collect($entries)->sum('debit'), 2);
+
+        return $this->createTransaction(
+            $entries,
+            "Зеркало проекта: ".$this->makeDescription($docType, $document, false),
+            [
+                'date' => $this->normalizeDate((string) ($document->data ?? now()->toDateString())),
+                'company_id' => $projectId,
+                'reference_type' => $mirrorReferenceType,
+                'reference_id' => (string) $referenceId,
+                'amount' => $amount,
+                'amount_base' => $amount,
+            ]
+        );
     }
 
     public function reverseEntries(array $entries): array
@@ -130,7 +240,7 @@ class AccountingService
             'PRO' => $this->entriesForMoneyIssue($document, $fid),
             'ZP' => $this->entriesForMoneyIssue($document, $fid),
             'PP' => $this->entriesForDepositOperation($document, $fid),
-            'PN' => $this->entriesForPurchaseInvoice($document, $fid),
+            'PN' => $this->entriesForPurchaseInvoice($document, $lineItems, $fid),
             'RN' => $this->entriesForSalesInvoice($document, $lineItems, $fid),
             default => [],
         };
@@ -239,9 +349,16 @@ class AccountingService
         return $entries;
     }
 
-    private function entriesForPurchaseInvoice(object $document, string $fid): array
+    private function entriesForPurchaseInvoice(object $document, iterable $lineItems, string $fid): array
     {
-        $summa = round((float) ($document->summa ?? 0), 2);
+        $summa = round(collect($lineItems)->sum(function ($item): float {
+            $quantity = (float) ($item->pcount ?? 0);
+            $lineTotal = (float) ($item->psumma ?? 0);
+
+            return $lineTotal > 0
+                ? $lineTotal
+                : $quantity * (float) ($item->pprice ?? 0);
+        }), 2);
         if ($summa <= 0) {
             return [];
         }
@@ -288,6 +405,105 @@ class AccountingService
         }
 
         return $entries;
+    }
+
+    private function entriesForProjectMirror(
+        string $docType,
+        object $document,
+        iterable $lineItems,
+        int $projectId,
+        string $sourceCompanyId
+    ): array {
+        $amount = $docType === 'PN'
+            ? round(collect($lineItems)->sum(function ($item): float {
+                $lineTotal = (float) ($item->psumma ?? 0);
+
+                return $lineTotal > 0
+                    ? $lineTotal
+                    : (float) ($item->pcount ?? 0) * (float) ($item->pprice ?? 0);
+            }), 2)
+            : round((float) ($document->summa ?? 0), 2);
+
+        if ($amount <= 0) {
+            return [];
+        }
+
+        $projectFid = (string) $projectId;
+        $sourceCounterparty = "company-{$sourceCompanyId}";
+        $intercompanyCash = "intercompany-{$sourceCompanyId}";
+
+        return match ($docType) {
+            'PN' => [
+                [
+                    'account_id' => $this->receivableAccount($projectFid, $sourceCounterparty)->id,
+                    'debit' => $amount,
+                    'credit' => 0,
+                ],
+                [
+                    'account_id' => $this->revenueAccount($projectFid)->id,
+                    'debit' => 0,
+                    'credit' => $amount,
+                ],
+            ],
+            'RN' => [
+                [
+                    'account_id' => $this->inventoryAccount($projectFid)->id,
+                    'debit' => $amount,
+                    'credit' => 0,
+                ],
+                [
+                    'account_id' => $this->payableAccount($projectFid, $sourceCounterparty)->id,
+                    'debit' => 0,
+                    'credit' => $amount,
+                ],
+            ],
+            'PO' => [
+                [
+                    'account_id' => $this->payableAccount($projectFid, $sourceCounterparty)->id,
+                    'debit' => $amount,
+                    'credit' => 0,
+                ],
+                [
+                    'account_id' => $this->cashAccount($projectFid, $intercompanyCash)->id,
+                    'debit' => 0,
+                    'credit' => $amount,
+                ],
+            ],
+            'RO' => [
+                [
+                    'account_id' => $this->cashAccount($projectFid, $intercompanyCash)->id,
+                    'debit' => $amount,
+                    'credit' => 0,
+                ],
+                [
+                    'account_id' => $this->receivableAccount($projectFid, $sourceCounterparty)->id,
+                    'debit' => 0,
+                    'credit' => $amount,
+                ],
+            ],
+            default => [],
+        };
+    }
+
+    private function counterpartyProjectId(object $document, string $fid): ?int
+    {
+        $counterpartyId = trim((string) ($document->client1 ?? ''));
+        if ($counterpartyId === '' || $counterpartyId === '0' || ! Schema::hasColumn('users', 'project_id')) {
+            return null;
+        }
+
+        $projectId = DB::table('users')
+            ->where('id', $counterpartyId)
+            ->where('firma', $fid)
+            ->value('project_id');
+
+        if ($projectId === null || (string) $projectId === (string) $fid) {
+            return null;
+        }
+
+        return DB::table('project')->where('id', $projectId)->exists()
+            ? (int) $projectId
+            : null;
     }
 
     private function normalizeEntry(array $entry, array $attributes): ?array

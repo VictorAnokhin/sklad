@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Document;
 use App\Models\GarageVehicle;
+use App\Models\Project;
 use App\Services\AutoRiaVehicleCheckService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -258,13 +259,17 @@ class ClientController extends Controller
             ->where('firma', $fid)
             ->orderBy('name')
             ->get();
+        $projects = Project::query()
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get(['id', 'name']);
 
         session(['client1' => $id]);
 
         $kycPhotos = $client ? $this->buildKycPhotoCards($client) : [];
         $garageVehicles = $client ? $this->clientGarageVehicles($client) : collect();
 
-        return view('client.show', compact('client', 'statuses', 'clientTypes', 'fid', 'kycPhotos', 'garageVehicles'));
+        return view('client.show', compact('client', 'statuses', 'clientTypes', 'projects', 'fid', 'kycPhotos', 'garageVehicles'));
     }
 
     public function garageLookup(Request $request, AutoRiaVehicleCheckService $autoRia)
@@ -562,6 +567,7 @@ class ClientController extends Controller
                     User::hasUsersColumn('login') ? 'max:255' : null,
                     User::hasUsersColumn('login') ? Rule::unique('users', 'login')->ignore($id === '0' ? null : $id) : null,
                 ]),
+                'project_id' => ['nullable', 'integer', Rule::exists('project', 'id')],
             ], [
                 'phone.unique' => 'Клієнт з таким телефоном вже існує',
                 'phone1.unique' => 'Клієнт з таким додатковим телефоном вже існує',
@@ -589,6 +595,9 @@ class ClientController extends Controller
                 'hbd' => $stringValue($request->input('hbd', '')),
                 'kyc_status' => $stringValue($request->input('kyc_status', 'not_started')),
                 'firma' => $fid,
+                'project_id' => $request->filled('project_id')
+                    ? (int) $request->input('project_id')
+                    : null,
             ];
 
             $password = trim((string) $request->input('pass', ''));

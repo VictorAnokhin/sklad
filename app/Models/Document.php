@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\AccountingService;
+use App\Services\InventoryCostService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -325,30 +326,41 @@ class Document extends Model
     public static function provodka(string $docId, string $docType, string $fid): array
     {
         $table = self::tableForType($docType);
-        $doc = DB::table($table)->where('id', $docId)->first();
-
-        if (!$doc) {
-            return [
-                'isPosted' => false,
-                'document' => null,
-            ];
-        }
-
-        $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'RN', 'PN'], true)
-            ? $docId
-            : (string) ($doc->docid ?: $docId);
-        $lineItems = ZBody::where('docid', $lineDocId)->get();
-        $summa = (float) $doc->summa;
-        $oplata = (string) $doc->oplata;
-        $client1 = (string) $doc->client1;
-        $numz = (string) $doc->numz;
-        $typez = (string) $doc->typez;
-        $parentDocId = (int) ($doc->docid ?? 0);
-        $wasPosted = (int) ($doc->provodka ?? 0) === 1;
-        $direction = $wasPosted ? -1 : 1;
-
         DB::beginTransaction();
         try {
+            $doc = DB::table($table)
+                ->where('id', $docId)
+                ->where('firma', $fid)
+                ->where('type', $docType)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$doc) {
+                DB::rollBack();
+
+                return [
+                    'isPosted' => false,
+                    'document' => null,
+                ];
+            }
+
+            $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'RN', 'PN'], true)
+                ? $docId
+                : (string) ($doc->docid ?: $docId);
+            $lineItems = ZBody::where('docid', $lineDocId)
+                ->where('firma', $fid)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            $summa = (float) $doc->summa;
+            $oplata = (string) $doc->oplata;
+            $client1 = (string) $doc->client1;
+            $numz = (string) $doc->numz;
+            $typez = (string) $doc->typez;
+            $parentDocId = (int) ($doc->docid ?? 0);
+            $wasPosted = (int) ($doc->provodka ?? 0) === 1;
+            $direction = $wasPosted ? -1 : 1;
+
             foreach ($lineItems as $item) {
                 $pnum = $item->pnum;
                 $count = (float) $item->pcount;
@@ -361,42 +373,14 @@ class Document extends Model
                     'ZOUT' => self::applyColumnDelta(clone $priceQuery, 'reserved', $direction * $count),
                     default => null,
                 };
+            }
 
-                // Keep warehouse остатки in price_sklad aligned with RN/PN posting state.
-                if (in_array($docType, ['RN', 'PN'], true)) {
-                    $skladId = (int) ($doc->sklads ?? 0);
-                    if ($skladId > 0) {
-                        $deltaCount = match ($docType) {
-                            'RN' => $wasPosted ? $count : -1 * $count,
-                            'PN' => $wasPosted ? -1 * $count : $count,
-                            default => 0.0,
-                        };
-                        
-                        if ($deltaCount != 0) {
-                            $existsSklad = DB::table('price_sklad')
-                                ->where('pnum', $pnum)
-                                ->where('firma', $fid)
-                                ->where('sklad', $skladId)
-                                ->exists();
-
-                            if (!$existsSklad) {
-                                DB::table('price_sklad')->insert([
-                                    'pnum' => $pnum,
-                                    'firma' => $fid,
-                                    'sklad' => $skladId,
-                                    'count' => 0,
-                                ]);
-                            }
-
-                            $priceSkladQuery = DB::table('price_sklad')
-                                ->where('pnum', $pnum)
-                                ->where('firma', $fid)
-                                ->where('sklad', $skladId);
-
-                            self::applyColumnDelta($priceSkladQuery, 'count', $deltaCount);
-                        }
-                    }
-                }
+            $inventoryMovements = collect();
+            if (in_array($docType, ['PN', 'RN'], true)) {
+                $inventoryService = app(InventoryCostService::class);
+                $inventoryMovements = $wasPosted
+                    ? $inventoryService->reverse($doc, $fid)
+                    : $inventoryService->post($doc, $lineItems, $fid);
             }
 
             if (in_array($docType, ['PO', 'RO', 'PP'], true)) {
@@ -465,7 +449,8 @@ class Document extends Model
                 }
             }
 
-            app(AccountingService::class)->createDocumentTransaction(
+            $accountingService = app(AccountingService::class);
+            $ledgerTransaction = $accountingService->createDocumentTransaction(
                 "{$table}:{$docType}",
                 $docId,
                 $docType,
@@ -474,6 +459,31 @@ class Document extends Model
                 $fid,
                 $wasPosted
             );
+
+            if (in_array($docType, ['PN', 'RN', 'PO', 'RO'], true) && $ledgerTransaction === null) {
+                throw new \RuntimeException(
+                    "Бухгалтерський регістр недоступний: {$docType} не може бути проведений без подвійного запису."
+                );
+            }
+
+            if (in_array($docType, ['PN', 'RN', 'PO', 'RO'], true)) {
+                $accountingService->createProjectMirrorTransaction(
+                    "{$table}:{$docType}",
+                    $docId,
+                    $docType,
+                    $doc,
+                    $lineItems,
+                    $fid,
+                    $wasPosted
+                );
+            }
+
+            if (! $wasPosted && in_array($docType, ['PN', 'RN'], true)) {
+                $inventoryService->attachLedgerTransaction(
+                    $inventoryMovements,
+                    $ledgerTransaction?->id
+                );
+            }
 
             DB::table($table)->where('id', $docId)->update(['provodka' => $wasPosted ? 0 : 1]);
 

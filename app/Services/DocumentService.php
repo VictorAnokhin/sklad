@@ -268,121 +268,14 @@ class DocumentService
         $docId = $request->input('doc_id', session('doc_id', '0'));
         $docType = $request->input('doc', session('doc', ''));
         $fid = session('fid', '');
-        $table = Document::tableForType($docType);
 
-        $doc = DB::table($table)->where('id', $docId)->first();
-        if (!$doc) {
+        if ((string) $docId === '' || (string) $docType === '' || (string) $fid === '') {
             return false;
         }
 
-        $lineItems = ZBody::where('docid', $docId)->get();
-        $summa = (float)$doc->summa;
-        $oplata = (string)$doc->oplata;
-        $client1 = (string)$doc->client1;
-        $numz = (string)$doc->numz;
-        $typez = (string)$doc->typez;
-        $parentDocId = (int)($doc->docid ?? 0);
-        $isPosted = (int)($doc->provodka ?? 0) === 1;
-        $direction = $isPosted ? -1 : 1;
+        $result = Document::provodka((string) $docId, (string) $docType, (string) $fid);
 
-        DB::beginTransaction();
-        try {
-            // ── Stock movements ───────────────────────────────────────────────
-            foreach ($lineItems as $item) {
-                $pnum = $item->pnum;
-                $count = (float)$item->pcount;
-
-                $priceQuery = DB::table('price')
-                    ->where('pnum', $pnum)
-                    ->where('firma', $fid);
-
-                match ($docType) {
-                    'ZOUT' => $this->applyColumnDelta(clone $priceQuery, 'reserved', $direction * $count),
-                    default => null,
-                };
-
-                if (in_array($docType, ['RN', 'PN'], true)) {
-                    $skladId = (int) ($doc->sklads ?? 0);
-
-                    if ($skladId > 0) {
-                        $deltaCount = match ($docType) {
-                            'RN' => $isPosted ? $count : -1 * $count,
-                            'PN' => $isPosted ? -1 * $count : $count,
-                            default => 0.0,
-                        };
-
-                        if ($deltaCount != 0) {
-                            $existsSklad = DB::table('price_sklad')
-                                ->where('pnum', $pnum)
-                                ->where('firma', $fid)
-                                ->where('sklad', $skladId)
-                                ->exists();
-
-                            if (!$existsSklad) {
-                                DB::table('price_sklad')->insert([
-                                    'pnum' => $pnum,
-                                    'firma' => $fid,
-                                    'sklad' => $skladId,
-                                    'count' => 0,
-                                ]);
-                            }
-
-                            $priceSkladQuery = DB::table('price_sklad')
-                                ->where('pnum', $pnum)
-                                ->where('firma', $fid)
-                                ->where('sklad', $skladId);
-
-                            $this->applyColumnDelta($priceSkladQuery, 'count', $deltaCount);
-                        }
-                    }
-                }
-            }
-
-            // ── Cash movements ────────────────────────────────────────────────
-            if (in_array($docType, ['PO', 'RO', 'PP'], true)) {
-                $sign = $docType === 'RO' ? -1 : 1;
-                $kasId = $oplata;
-                $confColumns = Schema::getColumnListing('conf');
-                $delta = $sign * $summa * $direction;
-
-                if (in_array($docType, ['PO', 'RO'], true) && in_array('value', $confColumns, true)) {
-                    $currentValue = (float) DB::table('conf')
-                        ->where('id', $kasId)
-                        ->where('type', 'oplata')
-                        ->where('firma', $fid)
-                        ->value('value');
-
-                    DB::table('conf')
-                        ->where('id', $kasId)
-                        ->where('type', 'oplata')
-                        ->where('firma', $fid)
-                        ->update(['value' => $currentValue + $delta]);
-                }
-                else {
-                    $this->applyColumnDelta(
-                        DB::table('kassa')->where('id', $kasId),
-                        'balance',
-                        $delta
-                    );
-                }
-            }
-
-            DB::table($table)->where('id', $docId)->update(['provodka' => $isPosted ? 0 : 1]);
-
-            $this->refreshLinkedOrderCloseState($docType, $typez, $numz, $parentDocId, $fid);
-            $this->refreshLinkedOrderPostingState($docType, $typez, $numz, $parentDocId, $fid);
-            if ($client1 !== '') {
-                $this->updateCache($client1, $fid);
-            }
-
-            DB::commit();
-            return !$isPosted;
-        }
-        catch (\Throwable $e) {
-            DB::rollBack();
-            Log::error('Provodka failed', ['docId' => $docId, 'error' => $e->getMessage()]);
-            throw $e;
-        }
+        return (bool) ($result['isPosted'] ?? false);
     }
 
     private function refreshLinkedOrderCloseState(string $docType, string $typez, string $numz, int $parentDocId, string $fid): void

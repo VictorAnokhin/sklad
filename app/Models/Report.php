@@ -418,6 +418,11 @@ class Report extends Model
                 $join->on('ps.sklad', '=', 'skl.id')
                     ->where('skl.type', '=', 'sklads');
             })
+            ->leftJoin('inventory_cost_balances as icb', function ($join) {
+                $join->on('icb.product_id', '=', 'ps.pnum')
+                    ->on('icb.company_id', '=', 'ps.firma')
+                    ->on('icb.warehouse_id', '=', 'ps.sklad');
+            })
             ->leftJoinSub($salesSubquery, 'sg', function ($join) {
                 $join->on('ps.pnum', '=', 'sg.pnum')
                     ->on('ps.sklad', '=', 'sg.sklad');
@@ -446,6 +451,8 @@ class Report extends Model
             'product_name' => DB::raw($productNameSql),
             'sklad_name' => DB::raw("COALESCE(NULLIF(skl.name, ''), CONCAT('Склад #', ps.sklad))"),
             'count' => 'ps.count',
+            'average_cost' => DB::raw('COALESCE(icb.average_cost, 0)'),
+            'inventory_value' => DB::raw('COALESCE(icb.total_value, 0)'),
             'sold_qty' => DB::raw('COALESCE(sg.sold_qty, 0)'),
             'sold_sum' => DB::raw('COALESCE(sg.sold_sum, 0)'),
             'estimated_cost' => DB::raw('COALESCE(sg.estimated_cost, 0)'),
@@ -462,6 +469,8 @@ class Report extends Model
                 'ps.sklad',
                 'ps.count',
                 'ps.garant',
+                DB::raw('COALESCE(icb.average_cost, 0) as average_cost'),
+                DB::raw('COALESCE(icb.total_value, 0) as inventory_value'),
                 DB::raw($productNameSql . ' as product_name'),
                 DB::raw("COALESCE(NULLIF(skl.name, ''), CONCAT('Склад #', ps.sklad)) as sklad_name"),
                 DB::raw('COALESCE(sg.sold_qty, 0) as sold_qty'),
@@ -479,6 +488,10 @@ class Report extends Model
         }
 
         $soldQtyTotal = (float) ($salesSummary->sold_qty_total ?? 0);
+        $inventoryValueTotal = (float) DB::table('inventory_cost_balances')
+            ->where('company_id', (int) $fid)
+            ->when($skladId !== '', fn ($query) => $query->where('warehouse_id', (int) $skladId))
+            ->sum('total_value');
         $revenueTotal = (float) ($salesSummary->revenue_total ?? 0);
         $estimatedCostTotal = (float) ($salesSummary->estimated_cost_total ?? 0);
         $grossProfitTotal = $revenueTotal - $estimatedCostTotal;
@@ -497,6 +510,7 @@ class Report extends Model
             'items' => $items,
             'totalCount' => $totalCount,
             'totalQty' => $totalQty,
+            'inventoryValueTotal' => $inventoryValueTotal,
             'soldQtyTotal' => $soldQtyTotal,
             'revenueTotal' => $revenueTotal,
             'estimatedCostTotal' => $estimatedCostTotal,
@@ -1120,13 +1134,9 @@ class Report extends Model
     {
         [$dateFromUi, $dateToUi, $dateFromLegacy, $dateToLegacy] = self::normalizePeriod($dateFromInput, $dateToInput);
 
-        $inventoryValue = (float) DB::table('price_sklad as ps')
-            ->leftJoin('price as pr', function ($join) {
-                $join->on('ps.pnum', '=', 'pr.pnum')
-                    ->on('ps.firma', '=', 'pr.firma');
-            })
-            ->where('ps.firma', $fid)
-            ->sum(DB::raw('COALESCE(ps.count, 0) * COALESCE(pr.pay, 0)'));
+        $inventoryValue = (float) DB::table('inventory_cost_balances')
+            ->where('company_id', (int) $fid)
+            ->sum('total_value');
 
         $cashBalance = (float) DB::table('conf')
             ->where('type', 'oplata')

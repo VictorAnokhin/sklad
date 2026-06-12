@@ -1,0 +1,560 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Document;
+use App\Services\InventoryCostService;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
+use Tests\TestCase;
+
+class InventoryCostServiceTest extends TestCase
+{
+    private int $companyId;
+    private int $warehouseId;
+    private string $productId;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        DB::beginTransaction();
+        $this->companyId = random_int(800000, 899999);
+        $this->warehouseId = random_int(8000, 8999);
+        $this->productId = 'w' . bin2hex(random_bytes(4));
+
+        DB::table('price')->insert([
+            'pnum' => $this->productId,
+            'firma' => $this->companyId,
+            'pay' => 10,
+        ]);
+        DB::table('price_sklad')->insert([
+            'pnum' => $this->productId,
+            'firma' => $this->companyId,
+            'sklad' => $this->warehouseId,
+            'count' => 10,
+        ]);
+        DB::table('inventory_cost_balances')->insert([
+            'company_id' => $this->companyId,
+            'warehouse_id' => $this->warehouseId,
+            'product_id' => $this->productId,
+            'quantity' => 10,
+            'total_value' => 100,
+            'average_cost' => 10,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    protected function tearDown(): void
+    {
+        DB::rollBack();
+        parent::tearDown();
+    }
+
+    public function test_weighted_average_receipt_issue_and_reversal(): void
+    {
+        $service = app(InventoryCostService::class);
+        $pnLine = $this->createLine('PN', 5, 16);
+        $pn = $this->document('PN', 910001);
+
+        $service->post($pn, collect([$pnLine]), (string) $this->companyId);
+
+        $balance = $this->balance();
+        $this->assertEqualsWithDelta(15, (float) $balance->quantity, 0.0001);
+        $this->assertEqualsWithDelta(180, (float) $balance->total_value, 0.0001);
+        $this->assertEqualsWithDelta(12, (float) $balance->average_cost, 0.000001);
+        $this->assertEqualsWithDelta(12, $this->referenceCost(), 0.000001);
+
+        $rnLine = $this->createLine('RN', 4, 25);
+        $rn = $this->document('RN', 910002);
+        $service->post($rn, collect([$rnLine]), (string) $this->companyId);
+
+        $balance = $this->balance();
+        $this->assertEqualsWithDelta(11, (float) $balance->quantity, 0.0001);
+        $this->assertEqualsWithDelta(132, (float) $balance->total_value, 0.0001);
+        $this->assertEqualsWithDelta(12, (float) $balance->average_cost, 0.000001);
+        $this->assertEqualsWithDelta(12, $this->referenceCost(), 0.000001);
+        $this->assertEqualsWithDelta(
+            12,
+            (float) DB::table('z_body')->where('id', $rnLine->id)->value('zvalue'),
+            0.000001
+        );
+
+        $service->reverse($rn, (string) $this->companyId);
+        $balance = $this->balance();
+        $this->assertEqualsWithDelta(15, (float) $balance->quantity, 0.0001);
+        $this->assertEqualsWithDelta(180, (float) $balance->total_value, 0.0001);
+
+        $service->reverse($pn, (string) $this->companyId);
+        $balance = $this->balance();
+        $this->assertEqualsWithDelta(10, (float) $balance->quantity, 0.0001);
+        $this->assertEqualsWithDelta(100, (float) $balance->total_value, 0.0001);
+        $this->assertEqualsWithDelta(10, (float) $balance->average_cost, 0.000001);
+        $this->assertEqualsWithDelta(10, $this->referenceCost(), 0.000001);
+    }
+
+    public function test_issue_cannot_create_negative_stock(): void
+    {
+        $service = app(InventoryCostService::class);
+        $rnLine = $this->createLine('RN', 11, 25);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Недостатньо товару');
+
+        $service->post(
+            $this->document('RN', 920001),
+            collect([$rnLine]),
+            (string) $this->companyId
+        );
+    }
+
+    public function test_earlier_movement_is_blocked_after_later_movement(): void
+    {
+        $service = app(InventoryCostService::class);
+        $service->post(
+            $this->document('PN', 930001, '2026-06-12'),
+            collect([$this->createLine('PN', 1, 10)]),
+            (string) $this->companyId
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('заднім числом');
+
+        $service->post(
+            $this->document('PN', 930002, '2026-06-11'),
+            collect([$this->createLine('PN', 1, 10)]),
+            (string) $this->companyId
+        );
+    }
+
+    public function test_pn_and_rn_create_balanced_ledger_entries_with_weighted_cost(): void
+    {
+        $pnId = $this->createDocument('PN', 5, 16);
+        $pnResult = Document::provodka((string) $pnId, 'PN', (string) $this->companyId);
+
+        $this->assertTrue($pnResult['isPosted']);
+        $pnTransaction = DB::table('transactions')
+            ->where('reference_type', 'z_document:PN')
+            ->where('reference_id', (string) $pnId)
+            ->first();
+        $this->assertNotNull($pnTransaction);
+        $this->assertLedgerIsBalanced((int) $pnTransaction->id, 80);
+        $this->assertAccountEntry((int) $pnTransaction->id, "281.{$this->companyId}", 80, 0);
+        $this->assertAccountEntry((int) $pnTransaction->id, "631.{$this->companyId}.generic", 0, 80);
+
+        $rnId = $this->createDocument('RN', 4, 25);
+        $rnResult = Document::provodka((string) $rnId, 'RN', (string) $this->companyId);
+
+        $this->assertTrue($rnResult['isPosted']);
+        $rnTransaction = DB::table('transactions')
+            ->where('reference_type', 'z_document:RN')
+            ->where('reference_id', (string) $rnId)
+            ->first();
+        $this->assertNotNull($rnTransaction);
+        $this->assertLedgerIsBalanced((int) $rnTransaction->id, 148);
+        $this->assertAccountEntry((int) $rnTransaction->id, "361.{$this->companyId}.generic", 100, 0);
+        $this->assertAccountEntry((int) $rnTransaction->id, "701.{$this->companyId}", 0, 100);
+        $this->assertAccountEntry((int) $rnTransaction->id, "902.{$this->companyId}", 48, 0);
+        $this->assertAccountEntry((int) $rnTransaction->id, "281.{$this->companyId}", 0, 48);
+
+        $reverseResult = Document::provodka((string) $rnId, 'RN', (string) $this->companyId);
+        $this->assertFalse($reverseResult['isPosted']);
+        $this->assertEqualsWithDelta(15, (float) $this->balance()->quantity, 0.0001);
+        $this->assertEqualsWithDelta(180, (float) $this->balance()->total_value, 0.0001);
+    }
+
+    public function test_document_cannot_be_reversed_after_later_product_movement(): void
+    {
+        $service = app(InventoryCostService::class);
+        $firstDocument = $this->document('PN', 940001, '2026-06-11');
+        $service->post(
+            $firstDocument,
+            collect([$this->createLine('PN', 1, 10)]),
+            (string) $this->companyId
+        );
+        $service->post(
+            $this->document('PN', 940002, '2026-06-12'),
+            collect([$this->createLine('PN', 1, 10)]),
+            (string) $this->companyId
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('після нього вже є рух');
+
+        $service->reverse($firstDocument, (string) $this->companyId);
+    }
+
+    public function test_pn_and_rn_create_and_reverse_project_mirror_transactions(): void
+    {
+        $projectId = DB::table('project')->insertGetId([
+            'name' => 'Mirror project',
+        ]);
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'Mirror counterparty',
+            'email' => "mirror-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+            'project_id' => $projectId,
+        ]);
+
+        $rnId = $this->createDocument('RN', 4, 25, $counterpartyId);
+        Document::provodka((string) $rnId, 'RN', (string) $this->companyId);
+
+        $rnMirror = $this->projectMirrorTransaction($rnId, 'RN', $projectId);
+        $this->assertNotNull($rnMirror);
+        $this->assertLedgerIsBalanced((int) $rnMirror->id, 100);
+        $this->assertAccountEntry((int) $rnMirror->id, "281.{$projectId}", 100, 0);
+        $this->assertAccountEntry(
+            (int) $rnMirror->id,
+            "631.{$projectId}.company-{$this->companyId}",
+            0,
+            100
+        );
+
+        Document::provodka((string) $rnId, 'RN', (string) $this->companyId);
+        $rnReversal = $this->projectMirrorReversal($rnId, 'RN', $projectId);
+        $this->assertNotNull($rnReversal);
+        $this->assertAccountEntry((int) $rnReversal->id, "281.{$projectId}", 0, 100);
+        $this->assertAccountEntry(
+            (int) $rnReversal->id,
+            "631.{$projectId}.company-{$this->companyId}",
+            100,
+            0
+        );
+
+        $pnId = $this->createDocument('PN', 5, 16, $counterpartyId);
+        Document::provodka((string) $pnId, 'PN', (string) $this->companyId);
+
+        $pnMirror = $this->projectMirrorTransaction($pnId, 'PN', $projectId);
+        $this->assertNotNull($pnMirror);
+        $this->assertLedgerIsBalanced((int) $pnMirror->id, 80);
+        $this->assertAccountEntry(
+            (int) $pnMirror->id,
+            "361.{$projectId}.company-{$this->companyId}",
+            80,
+            0
+        );
+        $this->assertAccountEntry((int) $pnMirror->id, "701.{$projectId}", 0, 80);
+
+        Document::provodka((string) $pnId, 'PN', (string) $this->companyId);
+        $pnReversal = $this->projectMirrorReversal($pnId, 'PN', $projectId);
+        $this->assertNotNull($pnReversal);
+        $this->assertAccountEntry(
+            (int) $pnReversal->id,
+            "361.{$projectId}.company-{$this->companyId}",
+            0,
+            80
+        );
+        $this->assertAccountEntry((int) $pnReversal->id, "701.{$projectId}", 80, 0);
+    }
+
+    public function test_project_mirror_is_not_created_for_current_company_project(): void
+    {
+        DB::table('project')->insert([
+            'id' => $this->companyId,
+            'name' => 'Current company project',
+        ]);
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'Internal counterparty',
+            'email' => "internal-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+            'project_id' => $this->companyId,
+        ]);
+
+        $rnId = $this->createDocument('RN', 1, 25, $counterpartyId);
+        Document::provodka((string) $rnId, 'RN', (string) $this->companyId);
+
+        $this->assertNull($this->projectMirrorTransaction($rnId, 'RN', $this->companyId));
+    }
+
+    public function test_po_and_ro_use_double_entry_and_exact_reversal(): void
+    {
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'Money counterparty',
+            'email' => "money-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+        $cashboxId = DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $this->companyId,
+            'name' => 'Test cashbox',
+            'value' => 100,
+        ]);
+
+        $poId = $this->createMoneyDocument('PO', 70, $counterpartyId, $cashboxId);
+        Document::provodka((string) $poId, 'PO', (string) $this->companyId);
+
+        $poTransaction = $this->documentTransaction($poId, 'PO');
+        $this->assertNotNull($poTransaction);
+        $this->assertLedgerIsBalanced((int) $poTransaction->id, 70);
+        $this->assertAccountEntry((int) $poTransaction->id, "301.{$this->companyId}.{$cashboxId}", 70, 0);
+        $this->assertAccountEntry((int) $poTransaction->id, "361.{$this->companyId}.{$counterpartyId}", 0, 70);
+        $this->assertEqualsWithDelta(170, $this->cashboxValue($cashboxId), 0.001);
+
+        Document::provodka((string) $poId, 'PO', (string) $this->companyId);
+        $poReversal = $this->documentReversal($poId, 'PO');
+        $this->assertNotNull($poReversal);
+        $this->assertAccountEntry((int) $poReversal->id, "301.{$this->companyId}.{$cashboxId}", 0, 70);
+        $this->assertAccountEntry((int) $poReversal->id, "361.{$this->companyId}.{$counterpartyId}", 70, 0);
+        $this->assertEqualsWithDelta(100, $this->cashboxValue($cashboxId), 0.001);
+
+        $roId = $this->createMoneyDocument('RO', 40, $counterpartyId, $cashboxId);
+        Document::provodka((string) $roId, 'RO', (string) $this->companyId);
+
+        $roTransaction = $this->documentTransaction($roId, 'RO');
+        $this->assertNotNull($roTransaction);
+        $this->assertLedgerIsBalanced((int) $roTransaction->id, 40);
+        $this->assertAccountEntry((int) $roTransaction->id, "631.{$this->companyId}.{$counterpartyId}", 40, 0);
+        $this->assertAccountEntry((int) $roTransaction->id, "301.{$this->companyId}.{$cashboxId}", 0, 40);
+        $this->assertEqualsWithDelta(60, $this->cashboxValue($cashboxId), 0.001);
+
+        Document::provodka((string) $roId, 'RO', (string) $this->companyId);
+        $roReversal = $this->documentReversal($roId, 'RO');
+        $this->assertNotNull($roReversal);
+        $this->assertAccountEntry((int) $roReversal->id, "631.{$this->companyId}.{$counterpartyId}", 0, 40);
+        $this->assertAccountEntry((int) $roReversal->id, "301.{$this->companyId}.{$cashboxId}", 40, 0);
+        $this->assertEqualsWithDelta(100, $this->cashboxValue($cashboxId), 0.001);
+    }
+
+    public function test_po_and_ro_create_and_reverse_project_mirror_transactions(): void
+    {
+        $projectId = DB::table('project')->insertGetId([
+            'name' => 'Money mirror project',
+        ]);
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'Project money counterparty',
+            'email' => "project-money-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+            'project_id' => $projectId,
+        ]);
+        $cashboxId = DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $this->companyId,
+            'name' => 'Project mirror source cashbox',
+            'value' => 100,
+        ]);
+        $projectCashCode = "301.{$projectId}.intercompany-{$this->companyId}";
+
+        $poId = $this->createMoneyDocument('PO', 70, $counterpartyId, $cashboxId);
+        Document::provodka((string) $poId, 'PO', (string) $this->companyId);
+
+        $poMirror = $this->projectMirrorTransaction($poId, 'PO', $projectId);
+        $this->assertNotNull($poMirror);
+        $this->assertLedgerIsBalanced((int) $poMirror->id, 70);
+        $this->assertAccountEntry(
+            (int) $poMirror->id,
+            "631.{$projectId}.company-{$this->companyId}",
+            70,
+            0
+        );
+        $this->assertAccountEntry((int) $poMirror->id, $projectCashCode, 0, 70);
+
+        Document::provodka((string) $poId, 'PO', (string) $this->companyId);
+        $poReversal = $this->projectMirrorReversal($poId, 'PO', $projectId);
+        $this->assertNotNull($poReversal);
+        $this->assertAccountEntry(
+            (int) $poReversal->id,
+            "631.{$projectId}.company-{$this->companyId}",
+            0,
+            70
+        );
+        $this->assertAccountEntry((int) $poReversal->id, $projectCashCode, 70, 0);
+
+        $roId = $this->createMoneyDocument('RO', 40, $counterpartyId, $cashboxId);
+        Document::provodka((string) $roId, 'RO', (string) $this->companyId);
+
+        $roMirror = $this->projectMirrorTransaction($roId, 'RO', $projectId);
+        $this->assertNotNull($roMirror);
+        $this->assertLedgerIsBalanced((int) $roMirror->id, 40);
+        $this->assertAccountEntry((int) $roMirror->id, $projectCashCode, 40, 0);
+        $this->assertAccountEntry(
+            (int) $roMirror->id,
+            "361.{$projectId}.company-{$this->companyId}",
+            0,
+            40
+        );
+
+        Document::provodka((string) $roId, 'RO', (string) $this->companyId);
+        $roReversal = $this->projectMirrorReversal($roId, 'RO', $projectId);
+        $this->assertNotNull($roReversal);
+        $this->assertAccountEntry((int) $roReversal->id, $projectCashCode, 0, 40);
+        $this->assertAccountEntry(
+            (int) $roReversal->id,
+            "361.{$projectId}.company-{$this->companyId}",
+            40,
+            0
+        );
+    }
+
+    private function createLine(string $type, float $quantity, float $price): object
+    {
+        $id = DB::table('z_body')->insertGetId([
+            'docnum' => '1',
+            'pid' => '1',
+            'pnum' => $this->productId,
+            'pcount' => $quantity,
+            'pprice' => $price,
+            'psumma' => $quantity * $price,
+            'type' => $type,
+            'firma' => $this->companyId,
+            'docid' => random_int(900000, 999999),
+            'zvalue' => '',
+        ]);
+
+        return DB::table('z_body')->where('id', $id)->first();
+    }
+
+    private function document(string $type, int $id, string $date = '2026-06-12'): object
+    {
+        return (object) [
+            'id' => $id,
+            'type' => $type,
+            'sklads' => $this->warehouseId,
+            'data' => $date,
+        ];
+    }
+
+    private function createDocument(string $type, float $quantity, float $price, int|string $clientId = 0): int
+    {
+        $id = DB::table('z_document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => $type,
+            'firma' => (string) $this->companyId,
+            'client1' => (string) $clientId,
+            'summa' => $quantity * $price,
+            'data' => '12-06-2026',
+            'sklads' => (string) $this->warehouseId,
+            'docum' => '',
+            'provodka' => 0,
+        ]);
+
+        DB::table('z_body')->insert([
+            'docnum' => (string) $id,
+            'pid' => '1',
+            'pnum' => $this->productId,
+            'pcount' => $quantity,
+            'pprice' => $price,
+            'psumma' => $quantity * $price,
+            'type' => $type,
+            'firma' => (string) $this->companyId,
+            'docid' => (string) $id,
+            'zvalue' => '',
+        ]);
+
+        return $id;
+    }
+
+    private function projectMirrorTransaction(int $documentId, string $type, int $projectId): ?object
+    {
+        return DB::table('transactions')
+            ->where('company_id', $projectId)
+            ->where('reference_type', "z_document:{$type}:project-mirror")
+            ->where('reference_id', (string) $documentId)
+            ->latest('id')
+            ->first();
+    }
+
+    private function createMoneyDocument(
+        string $type,
+        float $amount,
+        int $clientId,
+        int $cashboxId
+    ): int {
+        return DB::table('z_document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => $type,
+            'firma' => (string) $this->companyId,
+            'client1' => (string) $clientId,
+            'summa' => $amount,
+            'data' => '12-06-2026',
+            'oplata' => (string) $cashboxId,
+            'reestr' => '',
+            'docum' => '',
+            'provodka' => 0,
+        ]);
+    }
+
+    private function documentTransaction(int $documentId, string $type): ?object
+    {
+        return DB::table('transactions')
+            ->where('company_id', $this->companyId)
+            ->where('reference_type', "z_document:{$type}")
+            ->where('reference_id', (string) $documentId)
+            ->latest('id')
+            ->first();
+    }
+
+    private function documentReversal(int $documentId, string $type): ?object
+    {
+        return DB::table('transactions')
+            ->where('company_id', $this->companyId)
+            ->where('reference_type', "z_document:{$type}:reversal")
+            ->where('reference_id', (string) $documentId)
+            ->latest('id')
+            ->first();
+    }
+
+    private function cashboxValue(int $cashboxId): float
+    {
+        return (float) DB::table('conf')->where('id', $cashboxId)->value('value');
+    }
+
+    private function projectMirrorReversal(int $documentId, string $type, int $projectId): ?object
+    {
+        return DB::table('transactions')
+            ->where('company_id', $projectId)
+            ->where('reference_type', "z_document:{$type}:project-mirror:reversal")
+            ->where('reference_id', (string) $documentId)
+            ->latest('id')
+            ->first();
+    }
+
+    private function assertLedgerIsBalanced(int $transactionId, float $expectedTurnover): void
+    {
+        $totals = DB::table('entries')
+            ->where('transaction_id', $transactionId)
+            ->selectRaw('SUM(debit) debit, SUM(credit) credit')
+            ->first();
+
+        $this->assertEqualsWithDelta($expectedTurnover, (float) $totals->debit, 0.001);
+        $this->assertEqualsWithDelta($expectedTurnover, (float) $totals->credit, 0.001);
+    }
+
+    private function assertAccountEntry(
+        int $transactionId,
+        string $accountCode,
+        float $debit,
+        float $credit
+    ): void {
+        $entry = DB::table('entries as e')
+            ->join('accounts as a', 'a.id', '=', 'e.account_id')
+            ->where('e.transaction_id', $transactionId)
+            ->where('a.code', $accountCode)
+            ->first(['e.debit', 'e.credit']);
+
+        $this->assertNotNull($entry, "Missing ledger entry for account {$accountCode}");
+        $this->assertEqualsWithDelta($debit, (float) $entry->debit, 0.001);
+        $this->assertEqualsWithDelta($credit, (float) $entry->credit, 0.001);
+    }
+
+    private function balance(): object
+    {
+        return DB::table('inventory_cost_balances')
+            ->where('company_id', $this->companyId)
+            ->where('warehouse_id', $this->warehouseId)
+            ->where('product_id', $this->productId)
+            ->first();
+    }
+
+    private function referenceCost(): float
+    {
+        return (float) DB::table('price')
+            ->where('firma', $this->companyId)
+            ->where('pnum', $this->productId)
+            ->value('pay');
+    }
+}

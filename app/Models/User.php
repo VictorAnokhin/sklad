@@ -36,6 +36,7 @@ class User extends Authenticatable
         'region',
         'fid',
         'firma',
+        'project_id',
         'status',
         'idstatus',
         'idkassa',
@@ -120,6 +121,11 @@ class User extends Authenticatable
     public function getAuthPassword(): string
     {
         return (string) ($this->password ?: $this->pass ?: '');
+    }
+
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
     }
 
     public function scopeForLogin(Builder $query, string $login): Builder

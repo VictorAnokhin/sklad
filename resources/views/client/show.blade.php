@@ -367,6 +367,23 @@
 
             <div class="row mb-3">
                 <div class="col-md-4">
+                    <label class="form-label">Проект</label>
+                    <select name="project_id" class="form-select">
+                        <option value="">Не выбран</option>
+                        @php
+                            $selectedProjectId = old(
+                                'project_id',
+                                $client->project_id ?? (is_numeric($fid ?? null) ? (int) $fid : '')
+                            );
+                        @endphp
+                        @foreach($projects ?? [] as $project)
+                            <option value="{{ $project->id }}" {{ (string) $selectedProjectId === (string) $project->id ? 'selected' : '' }}>
+                                {{ $project->name }} #{{ $project->id }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-4">
                     <label class="form-label">KYC верификация</label>
                     <select name="kyc_status" class="form-select">
                         <option value="not_started" {{ ($client->kyc_status ?? 'not_started') === 'not_started' ? 'selected' : '' }}>Не начат</option>
@@ -377,7 +394,6 @@
                         <option value="frozen" {{ ($client->kyc_status ?? '') === 'frozen' ? 'selected' : '' }}>Заблокирован</option>
                     </select>
                 </div>
-                <div class="col-md-4"></div>
                 <div class="col-md-4"></div>
             </div>
 
