@@ -275,6 +275,35 @@ class InventoryCostServiceTest extends TestCase
         $this->assertNull($this->projectMirrorTransaction($rnId, 'RN', $this->companyId));
     }
 
+    public function test_purchase_from_counterparty_without_project_posts_only_current_company(): void
+    {
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'Counterparty without project',
+            'email' => "without-project-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+            'project_id' => null,
+        ]);
+
+        $pnId = $this->createDocument('PN', 5, 16, $counterpartyId);
+        $result = Document::provodka((string) $pnId, 'PN', (string) $this->companyId);
+
+        $this->assertTrue($result['isPosted']);
+        $this->assertEqualsWithDelta(15, (float) $this->balance()->quantity, 0.0001);
+        $this->assertNull(
+            DB::table('transactions')
+                ->where('reference_type', 'z_document:PN:project-mirror')
+                ->where('reference_id', (string) $pnId)
+                ->first()
+        );
+        $this->assertFalse(
+            DB::table('inventory_cost_movements')
+                ->where('source_type', 'PN:project-mirror')
+                ->where('source_id', (string) $pnId)
+                ->exists()
+        );
+    }
+
     public function test_po_and_ro_use_double_entry_and_exact_reversal(): void
     {
         $counterpartyId = DB::table('users')->insertGetId([

@@ -777,14 +777,16 @@
                                                 <div class="goods-name-map-wrap">
                                                     <input type="text" class="form-control form-control-sm text-white" value="{{ $item->name ?? '' }}"
                                                         readonly>
-                                                    <button type="button"
-                                                        class="btn btn-sm btn-outline-secondary product-map-btn {{ !empty($item->mapped_product_id) ? 'is-mapped' : '' }}"
-                                                        data-source-product-id="{{ $item->pnum }}"
-                                                        data-source-product-name="{{ $item->name ?? '' }}"
-                                                        data-target-product-id="{{ $item->mapped_product_id ?? '' }}"
-                                                        title="Маппінг товару проекту {{ $mappingTargetProjectId ?: 'не визначено' }}">
-                                                        {{ !empty($item->mapped_product_id) ? $item->mapped_product_id : '...' }}
-                                                    </button>
+                                                    @if($mappingTargetProjectId)
+                                                        <button type="button"
+                                                            class="btn btn-sm btn-outline-secondary product-map-btn {{ !empty($item->mapped_product_id) ? 'is-mapped' : '' }}"
+                                                            data-source-product-id="{{ $item->pnum }}"
+                                                            data-source-product-name="{{ $item->name ?? '' }}"
+                                                            data-target-product-id="{{ $item->mapped_product_id ?? '' }}"
+                                                            title="Маппінг товару проекту {{ $mappingTargetProjectId }}">
+                                                            {{ !empty($item->mapped_product_id) ? $item->mapped_product_id : '...' }}
+                                                        </button>
+                                                    @endif
                                                 </div>
                                             </td>
                                             <td class="goods-table-col-qty" data-label="К-ть">
