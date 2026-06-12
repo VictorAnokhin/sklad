@@ -47,6 +47,7 @@ return [
     'opendatabot' => [
         'transport_url' => env('OPENDATABOT_TRANSPORT_URL', 'https://opendatabot.com/api/v4/transport'),
         'api_token' => env('OPENDATABOT_API_TOKEN', ''),
+        'timeout' => (int) env('OPENDATABOT_TIMEOUT', 12),
     ],
 
     'autoria' => [

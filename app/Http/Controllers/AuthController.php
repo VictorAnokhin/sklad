@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\AiClientFactory;
-use App\Services\AutoRiaVehicleCheckService;
+use App\Services\OpenDataBotTransportService;
 use App\Services\ShinamiClient;
 use App\Services\SuiLocalGasSponsorClient;
 use App\Services\SmsClubService;
@@ -97,22 +97,19 @@ class AuthController extends Controller
         return view('dashboard', compact('cashboxes', 'dailyIncome', 'newOrders', 'today', 'currentUserBalance'));
     }
 
-    public function transportLookup(Request $request, AutoRiaVehicleCheckService $autoRia)
+    public function transportLookup(Request $request, OpenDataBotTransportService $openDataBot)
     {
         $validated = $request->validate([
-            'plate' => ['required', 'string', 'max:64'],
+            'plate' => ['required', 'string', 'max:20'],
         ]);
 
         try {
-            $langId = in_array((string) app()->getLocale(), ['ua', 'uk'], true) ? 4 : 2;
-            $result = $autoRia->check((string) $validated['plate'], $langId);
+            $result = $openDataBot->lookup((string) $validated['plate']);
 
             return response()->json([
                 'success' => $result['success'],
-                'vehicle_info' => $result['vehicle_info'],
-                'input_type' => $result['input_type'],
+                'plate' => $result['plate'],
                 'status' => $result['status'],
-                'rate_limit' => $result['rate_limit'],
                 'data' => $result['data'],
             ], $result['success'] ? 200 : 502);
         } catch (InvalidArgumentException $error) {
@@ -121,15 +118,14 @@ class AuthController extends Controller
                 'message' => $error->getMessage(),
             ], 422);
         } catch (Throwable $error) {
-            Log::warning('Auto.RIA transport lookup failed', [
-                'vehicle_info' => $validated['plate'],
+            Log::warning('OpenDataBot transport lookup failed', [
+                'plate' => $validated['plate'],
                 'message' => $error->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Не вдалося отримати дані Auto.RIA.',
-                'error' => $error->getMessage(),
+                'message' => 'Не вдалося отримати дані OpenDataBot.',
             ], 502);
         }
     }
