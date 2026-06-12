@@ -389,7 +389,7 @@
     }
 
     #modalAccounts .accounts-wide-table__first-column {
-        width: 32%;
+        width: 20%;
     }
 
     #modalAccounts #payment-bindings-tab-pane .form-select {
