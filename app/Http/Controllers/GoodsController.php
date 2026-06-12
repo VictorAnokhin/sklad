@@ -238,6 +238,10 @@ class GoodsController extends Controller
         $fid = $this->resolveApiFid($request);
         $locale = $this->resolveApiLocale($request);
         $doc = strtoupper((string) $request->input('doc', ''));
+        $counterpartyUserId = (int) $request->input('counterparty_user_id', 0);
+        $targetProjectId = $counterpartyUserId > 0
+            ? $this->counterpartyProjectId($counterpartyUserId, $fid)
+            : null;
         
         $user = Auth::user();
         $tgroupId = $user ? ($user->idstatus ?: $user->ustype) : null;
@@ -276,8 +280,16 @@ class GoodsController extends Controller
         $goods = Goods::attachRatings(
             Goods::attachPreferredPricesByItemFirma($goods, $tgroupId),
             $user?->id
-        )
-            ->map(function ($g) use ($doc, $locale) {
+        );
+        $mappedProducts = $this->productMappingsForCounterparty(
+            $fid,
+            $counterpartyUserId,
+            $targetProjectId,
+            $goods->pluck('id')->map(fn ($id) => (string) $id)->all()
+        );
+
+        $goods = $goods
+            ->map(function ($g) use ($doc, $locale, $mappedProducts) {
                 if (in_array($doc, ['ZIN', 'PN'], true)) {
                     $price = (float) ($g->pay1 ?? 0);
                 } elseif (in_array($doc, ['ZOUT', 'RN'], true)) {
@@ -305,6 +317,7 @@ class GoodsController extends Controller
                     'wholesaleFrom' => (int) ($g->price_count ?? 0),
                     'count' => (int) ($g->price_count ?? 0),
                     'sklad' => (float) ($g->sklad ?? 0),
+                    'mappedProductId' => $mappedProducts[(string) $g->id] ?? '',
                     'rating_avg' => (float) ($g->rating_avg ?? 0),
                     'rating_count' => (int) ($g->rating_count ?? 0),
                     'user_rating' => $g->user_rating !== null ? (int) $g->user_rating : null,
@@ -312,6 +325,52 @@ class GoodsController extends Controller
             });
 
         return response()->json($goods);
+    }
+
+    private function counterpartyProjectId(int $counterpartyUserId, string $sourceCompanyId): ?int
+    {
+        if (! Schema::hasTable('users') || ! Schema::hasColumn('users', 'project_id')) {
+            return null;
+        }
+
+        $projectId = DB::table('users')
+            ->where('id', $counterpartyUserId)
+            ->where('firma', $sourceCompanyId)
+            ->value('project_id');
+
+        if ($projectId === null || (string) $projectId === (string) $sourceCompanyId) {
+            return null;
+        }
+
+        return DB::table('project')->where('id', $projectId)->exists()
+            ? (int) $projectId
+            : null;
+    }
+
+    private function productMappingsForCounterparty(
+        string $sourceCompanyId,
+        int $counterpartyUserId,
+        ?int $targetProjectId,
+        array $sourceProductIds
+    ): array {
+        if (
+            $targetProjectId === null
+            || $sourceProductIds === []
+            || ! Schema::hasTable('product_project_mappings')
+        ) {
+            return [];
+        }
+
+        return DB::table('product_project_mappings')
+            ->where('source_company_id', (int) $sourceCompanyId)
+            ->where('target_company_id', $targetProjectId)
+            ->whereIn('source_product_id', array_values(array_unique($sourceProductIds)))
+            ->whereIn('counterparty_user_id', [$counterpartyUserId, 0])
+            ->orderByRaw('CASE WHEN counterparty_user_id = ? THEN 0 ELSE 1 END', [$counterpartyUserId])
+            ->get(['source_product_id', 'target_product_id'])
+            ->groupBy(fn ($row) => (string) $row->source_product_id)
+            ->map(fn ($rows) => (string) $rows->first()->target_product_id)
+            ->all();
     }
 
     // ── Get Hit Goods (API) ───────────────────────────────────────────────────

@@ -14,6 +14,7 @@ use App\Services\DocumentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * DocumentController
@@ -475,6 +476,13 @@ class DocumentController extends Controller
 
         // Client info (related docs / balance)
         $client = $document->client1 ? DB::table('users')->where('id', $document->client1)->first() : null;
+        $mappingTargetProjectId = $this->counterpartyProjectIdForDocument($document, $fid);
+        $productMappings = $this->productMappingsForDocument($document, $fid, $mappingTargetProjectId);
+        $lineItems = $lineItems->map(function ($item) use ($productMappings) {
+            $item->mapped_product_id = $productMappings[(string) $item->pnum] ?? '';
+
+            return $item;
+        });
 
         // Load conf lookups for this doc
         $confIds = array_filter([
@@ -605,7 +613,8 @@ class DocumentController extends Controller
         return view('document.show', compact(
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
-            'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses'
+            'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses',
+            'mappingTargetProjectId'
         ));
     }
 
@@ -1129,6 +1138,235 @@ class DocumentController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    public function productMappingSearch(Request $request)
+    {
+        $fid = (string) session('fid', '');
+        $doc = (string) $request->query('doc', session('doc', ''));
+        $docId = (string) $request->query('doc_id', session('doc_id', '0'));
+        $q = trim((string) $request->query('q', ''));
+
+        if ($fid === '' || $doc === '' || $docId === '') {
+            return response()->json(['message' => 'Документ не визначено.'], 422);
+        }
+
+        $table = Document::tableForType($doc);
+        $document = DB::table($table)
+            ->where('id', $docId)
+            ->where('firma', $fid)
+            ->first();
+
+        if (! $document) {
+            return response()->json(['message' => 'Документ не знайдено.'], 404);
+        }
+
+        $counterpartyUserId = (int) $request->query('counterparty_user_id', 0);
+        $targetProjectId = $counterpartyUserId > 0
+            ? $this->counterpartyProjectId($counterpartyUserId, $fid)
+            : $this->counterpartyProjectIdForDocument($document, $fid);
+        if ($targetProjectId === null) {
+            return response()->json(['message' => 'У клієнта документа не задано project_id.'], 422);
+        }
+
+        $items = DB::table('comp')
+            ->leftJoin('descript as d', function ($join) {
+                $join->on('d.pnum', '=', 'comp.id')
+                    ->whereColumn('d.firma', '=', 'comp.firma');
+            })
+            ->leftJoin('price_sklad as ps', function ($join) use ($targetProjectId) {
+                $join->on('ps.pnum', '=', 'comp.id')
+                    ->where('ps.firma', '=', $targetProjectId);
+            })
+            ->where('comp.firma', (string) $targetProjectId)
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($search) use ($q) {
+                    $search->where('comp.id', $q)
+                        ->orWhere('comp.nickname', 'like', "%{$q}%")
+                        ->orWhere('comp.cod', 'like', "%{$q}%")
+                        ->orWhere('comp.name', 'like', "%{$q}%")
+                        ->orWhere('comp.namedoc', 'like', "%{$q}%")
+                        ->orWhere('d.name', 'like', "%{$q}%")
+                        ->orWhere('d.name_ua', 'like', "%{$q}%")
+                        ->orWhere('d.name_en', 'like', "%{$q}%");
+                });
+            })
+            ->groupBy(
+                'comp.id',
+                'comp.nickname',
+                'comp.cod',
+                'comp.firma',
+                'comp.pay',
+                'comp.pay1',
+                'comp.name',
+                'comp.namedoc',
+                'd.name',
+                'd.name_ua',
+                'd.name_en'
+            )
+            ->orderByDesc('comp.id')
+            ->limit(30)
+            ->get([
+                'comp.id',
+                'comp.nickname',
+                'comp.cod',
+                'comp.firma',
+                'comp.pay',
+                'comp.pay1',
+                DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name"),
+                DB::raw('COALESCE(SUM(ps.count), 0) as stock_count'),
+            ]);
+
+        return response()->json([
+            'target_project_id' => $targetProjectId,
+            'items' => $items->map(fn ($item) => [
+                'id' => (string) $item->id,
+                'name' => (string) $item->name,
+                'code' => (string) ($item->nickname ?: $item->cod ?: $item->id),
+                'price' => (float) ($item->pay ?? 0),
+                'purchase_price' => (float) ($item->pay1 ?? 0),
+                'stock_count' => (float) ($item->stock_count ?? 0),
+            ])->values(),
+        ]);
+    }
+
+    public function productMappingSave(Request $request)
+    {
+        $fid = (string) session('fid', '');
+        $doc = (string) $request->input('doc', session('doc', ''));
+        $docId = (string) $request->input('doc_id', session('doc_id', '0'));
+        $sourceProductId = trim((string) $request->input('source_product_id', ''));
+        $targetProductId = trim((string) $request->input('target_product_id', ''));
+
+        if ($fid === '' || $doc === '' || $docId === '' || $sourceProductId === '' || $targetProductId === '') {
+            return response()->json(['message' => 'Не всі дані для маппінгу передані.'], 422);
+        }
+
+        if (! Schema::hasTable('product_project_mappings')) {
+            return response()->json(['message' => 'Таблиця product_project_mappings не створена.'], 422);
+        }
+
+        $table = Document::tableForType($doc);
+        $document = DB::table($table)
+            ->where('id', $docId)
+            ->where('firma', $fid)
+            ->first();
+
+        if (! $document) {
+            return response()->json(['message' => 'Документ не знайдено.'], 404);
+        }
+
+        $counterpartyUserId = (int) $request->input('counterparty_user_id', 0);
+        if ($counterpartyUserId <= 0) {
+            $counterpartyUserId = (int) ($document->client1 ?? 0);
+        }
+        if ($counterpartyUserId <= 0) {
+            return response()->json(['message' => 'Спочатку виберіть клієнта/продавця документа.'], 422);
+        }
+
+        $targetProjectId = $this->counterpartyProjectId($counterpartyUserId, $fid);
+        if ($targetProjectId === null) {
+            return response()->json(['message' => 'У клієнта документа не задано project_id.'], 422);
+        }
+
+        $sourceExists = DB::table('comp')
+            ->where('firma', $fid)
+            ->where('id', $sourceProductId)
+            ->exists();
+        if (! $sourceExists) {
+            return response()->json(['message' => "Товар {$sourceProductId} не знайдено в поточному проекті."], 422);
+        }
+
+        $targetExists = DB::table('comp')
+            ->where('firma', (string) $targetProjectId)
+            ->where('id', $targetProductId)
+            ->exists();
+        if (! $targetExists) {
+            return response()->json(['message' => "Товар {$targetProductId} не знайдено в проекті {$targetProjectId}."], 422);
+        }
+
+        $mappingKey = [
+            'source_company_id' => (int) $fid,
+            'counterparty_user_id' => $counterpartyUserId,
+            'source_product_id' => $sourceProductId,
+            'target_company_id' => $targetProjectId,
+        ];
+
+        $mappingExists = DB::table('product_project_mappings')
+            ->where($mappingKey)
+            ->exists();
+
+        if ($mappingExists) {
+            DB::table('product_project_mappings')
+                ->where($mappingKey)
+                ->update([
+                    'target_product_id' => $targetProductId,
+                    'updated_at' => now(),
+                ]);
+        } else {
+            DB::table('product_project_mappings')
+                ->insert(array_merge($mappingKey, [
+                    'target_product_id' => $targetProductId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]));
+        }
+
+        return response()->json([
+            'ok' => true,
+            'source_product_id' => $sourceProductId,
+            'target_project_id' => $targetProjectId,
+            'target_product_id' => $targetProductId,
+        ]);
+    }
+
+    private function counterpartyProjectIdForDocument(object $document, string $sourceCompanyId): ?int
+    {
+        $counterpartyId = trim((string) ($document->client1 ?? ''));
+        if ($counterpartyId === '' || $counterpartyId === '0') {
+            return null;
+        }
+
+        return $this->counterpartyProjectId((int) $counterpartyId, $sourceCompanyId);
+    }
+
+    private function counterpartyProjectId(int $counterpartyUserId, string $sourceCompanyId): ?int
+    {
+        if (! Schema::hasTable('users') || ! Schema::hasColumn('users', 'project_id')) {
+            return null;
+        }
+
+        $projectId = DB::table('users')
+            ->where('id', $counterpartyUserId)
+            ->where('firma', $sourceCompanyId)
+            ->value('project_id');
+
+        if ($projectId === null || (string) $projectId === (string) $sourceCompanyId) {
+            return null;
+        }
+
+        return DB::table('project')->where('id', $projectId)->exists()
+            ? (int) $projectId
+            : null;
+    }
+
+    private function productMappingsForDocument(object $document, string $sourceCompanyId, ?int $targetProjectId): array
+    {
+        if ($targetProjectId === null || ! Schema::hasTable('product_project_mappings')) {
+            return [];
+        }
+
+        $counterpartyUserId = (int) ($document->client1 ?? 0);
+
+        return DB::table('product_project_mappings')
+            ->where('source_company_id', (int) $sourceCompanyId)
+            ->where('target_company_id', $targetProjectId)
+            ->whereIn('counterparty_user_id', [$counterpartyUserId, 0])
+            ->orderByRaw('CASE WHEN counterparty_user_id = ? THEN 0 ELSE 1 END', [$counterpartyUserId])
+            ->get(['source_product_id', 'target_product_id'])
+            ->groupBy(fn ($row) => (string) $row->source_product_id)
+            ->map(fn ($rows) => (string) $rows->first()->target_product_id)
+            ->all();
     }
 
     // ── Set client on doc ─────────────────────────────────────────────────────

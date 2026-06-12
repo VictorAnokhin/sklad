@@ -39,6 +39,37 @@
             width: 32%;
         }
 
+        .goods-name-map-wrap {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .goods-name-map-wrap input {
+            flex: 1 1 auto;
+        }
+
+        .product-map-btn {
+            flex: 0 0 auto;
+            min-width: 44px;
+            padding-left: 8px;
+            padding-right: 8px;
+            font-weight: 700;
+        }
+
+        .product-map-btn.is-mapped {
+            border-color: #22c55e;
+            color: #22c55e;
+        }
+
+        .mapping-product-row {
+            cursor: pointer;
+        }
+
+        .mapping-product-row:hover {
+            background: rgba(13, 110, 253, 0.08);
+        }
+
         #goodsTable .goods-table-col-price .form-control,
         #goodsTable .goods-table-col-sum .form-control {
             min-width: 100%;
@@ -743,8 +774,18 @@
                                             </td>
                                             <td class="goods-table-col-name" data-label="Найменування">
                                                 <input type="hidden" name="name[]" value="{{ $item->name ?? '' }}">
-                                                <input type="text" class="form-control form-control-sm text-white" value="{{ $item->name ?? '' }}"
-                                                    readonly>
+                                                <div class="goods-name-map-wrap">
+                                                    <input type="text" class="form-control form-control-sm text-white" value="{{ $item->name ?? '' }}"
+                                                        readonly>
+                                                    <button type="button"
+                                                        class="btn btn-sm btn-outline-secondary product-map-btn {{ !empty($item->mapped_product_id) ? 'is-mapped' : '' }}"
+                                                        data-source-product-id="{{ $item->pnum }}"
+                                                        data-source-product-name="{{ $item->name ?? '' }}"
+                                                        data-target-product-id="{{ $item->mapped_product_id ?? '' }}"
+                                                        title="Маппінг товару проекту {{ $mappingTargetProjectId ?: 'не визначено' }}">
+                                                        {{ !empty($item->mapped_product_id) ? $item->mapped_product_id : '...' }}
+                                                    </button>
+                                                </div>
                                             </td>
                                             <td class="goods-table-col-qty" data-label="К-ть">
                                                 <div class="input-group input-group-sm">
@@ -927,6 +968,46 @@
             </div>
         </div>
     @endif
+
+    <div class="modal fade" id="productMappingModal" tabindex="-1" aria-labelledby="productMappingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="productMappingModalLabel">Маппінг товару</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2 small text-muted" id="productMappingSourceInfo"></div>
+                    <div class="input-group input-group-sm mb-3">
+                        <input type="text" class="form-control text-white" id="productMappingSearchInput"
+                            placeholder="Пошук товару в проекті {{ $mappingTargetProjectId ?: 'контрагента' }}...">
+                        <button type="button" class="btn btn-outline-secondary" id="productMappingSearchBtn">Шукати</button>
+                    </div>
+                    <div id="productMappingError" class="alert alert-danger py-2" style="display:none;"></div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 90px;">ID</th>
+                                    <th>Товар</th>
+                                    <th style="width: 120px;">Залишок</th>
+                                    <th style="width: 120px;">Ціна</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productMappingResults">
+                                <tr>
+                                    <td colspan="4" class="text-muted">Введіть назву або код товару.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрити</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -1286,6 +1367,171 @@
             const searchGoodsBtn = document.getElementById('searchGoodsBtn');
             const goodsResultsContainer = document.getElementById('goodsSearchResults');
             const tableBody = document.querySelector('#goodsTable tbody');
+            const mappingTargetProjectId = @json($mappingTargetProjectId);
+            const productMappingModalEl = document.getElementById('productMappingModal');
+            const productMappingModal = productMappingModalEl ? new bootstrap.Modal(productMappingModalEl) : null;
+            const productMappingSourceInfo = document.getElementById('productMappingSourceInfo');
+            const productMappingSearchInput = document.getElementById('productMappingSearchInput');
+            const productMappingSearchBtn = document.getElementById('productMappingSearchBtn');
+            const productMappingResults = document.getElementById('productMappingResults');
+            const productMappingError = document.getElementById('productMappingError');
+            let activeProductMappingButton = null;
+            let productMappingSearchTimeout = null;
+
+            const escapeHtml = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            const showProductMappingError = (message) => {
+                if (!productMappingError) return;
+                productMappingError.textContent = message;
+                productMappingError.style.display = 'block';
+            };
+
+            const hideProductMappingError = () => {
+                if (!productMappingError) return;
+                productMappingError.textContent = '';
+                productMappingError.style.display = 'none';
+            };
+
+            const renderProductMappingRows = (items) => {
+                if (!productMappingResults) return;
+
+                if (!items || items.length === 0) {
+                    productMappingResults.innerHTML = '<tr><td colspan="4" class="text-muted">Нічого не знайдено.</td></tr>';
+                    return;
+                }
+
+                productMappingResults.innerHTML = items.map((item) => `
+                    <tr class="mapping-product-row" data-target-product-id="${escapeHtml(item.id)}">
+                        <td><strong>${escapeHtml(item.id)}</strong></td>
+                        <td>
+                            <div class="fw-semibold">${escapeHtml(item.name || '')}</div>
+                            <div class="small text-muted">${escapeHtml(item.code || '')}</div>
+                        </td>
+                        <td>${escapeHtml(item.stock_count ?? 0)}</td>
+                        <td>${Number(item.price || 0).toFixed(2)}</td>
+                    </tr>
+                `).join('');
+            };
+
+            const searchProductMappingTargets = () => {
+                if (!activeProductMappingButton || !productMappingSearchInput || !productMappingResults) return;
+
+                const params = new URLSearchParams({
+                    doc: @json($doc),
+                    doc_id: @json((string) $document->id),
+                    source_product_id: activeProductMappingButton.dataset.sourceProductId || '',
+                    counterparty_user_id: client1Id?.value || '',
+                    q: productMappingSearchInput.value.trim(),
+                });
+
+                productMappingResults.innerHTML = '<tr><td colspan="4" class="text-muted">Завантаження...</td></tr>';
+                hideProductMappingError();
+
+                fetch("{{ route('document.productMapping.search') }}?" + params.toString(), {
+                    headers: { 'Accept': 'application/json' },
+                })
+                    .then(async (res) => {
+                        const payload = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                            throw new Error(payload.message || 'Не вдалося завантажити товари.');
+                        }
+                        return payload;
+                    })
+                    .then((payload) => renderProductMappingRows(payload.items || []))
+                    .catch((error) => {
+                        productMappingResults.innerHTML = '<tr><td colspan="4" class="text-muted">Помилка завантаження.</td></tr>';
+                        showProductMappingError(error.message);
+                    });
+            };
+
+            const saveProductMapping = (targetProductId) => {
+                if (!activeProductMappingButton || !targetProductId) return;
+
+                const sourceProductId = activeProductMappingButton.dataset.sourceProductId || '';
+                hideProductMappingError();
+
+                fetch("{{ route('document.productMapping.save') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    },
+                    body: JSON.stringify({
+                        doc: @json($doc),
+                        doc_id: @json((string) $document->id),
+                        counterparty_user_id: client1Id?.value || '',
+                        source_product_id: sourceProductId,
+                        target_product_id: targetProductId,
+                    }),
+                })
+                    .then(async (res) => {
+                        const payload = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                            throw new Error(payload.message || 'Не вдалося зберегти маппінг.');
+                        }
+                        return payload;
+                    })
+                    .then((payload) => {
+                        activeProductMappingButton.textContent = payload.target_product_id;
+                        activeProductMappingButton.dataset.targetProductId = payload.target_product_id;
+                        activeProductMappingButton.classList.add('is-mapped');
+                        productMappingModal?.hide();
+                    })
+                    .catch((error) => showProductMappingError(error.message));
+            };
+
+            document.addEventListener('click', function (event) {
+                const mapButton = event.target.closest('.product-map-btn');
+                if (mapButton) {
+                    event.preventDefault();
+
+                    if (!client1Id?.value) {
+                        alert('Спочатку виберіть клієнта/продавця документа.');
+                        return;
+                    }
+
+                    activeProductMappingButton = mapButton;
+                    if (productMappingSourceInfo) {
+                        productMappingSourceInfo.textContent = `Товар документа: ${mapButton.dataset.sourceProductId || ''} — ${mapButton.dataset.sourceProductName || ''}. Цільовий проект визначається по продавцю.`;
+                    }
+                    if (productMappingSearchInput) {
+                        productMappingSearchInput.value = mapButton.dataset.sourceProductName || '';
+                    }
+                    hideProductMappingError();
+                    renderProductMappingRows([]);
+                    productMappingModal?.show();
+                    searchProductMappingTargets();
+                    return;
+                }
+
+                const mappingRow = event.target.closest('.mapping-product-row');
+                if (mappingRow) {
+                    event.preventDefault();
+                    saveProductMapping(mappingRow.dataset.targetProductId || '');
+                }
+            });
+
+            if (productMappingSearchBtn) {
+                productMappingSearchBtn.addEventListener('click', searchProductMappingTargets);
+            }
+            if (productMappingSearchInput) {
+                productMappingSearchInput.addEventListener('input', () => {
+                    clearTimeout(productMappingSearchTimeout);
+                    productMappingSearchTimeout = setTimeout(searchProductMappingTargets, 350);
+                });
+                productMappingSearchInput.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        searchProductMappingTargets();
+                    }
+                });
+            }
 
             const updateDocumentSum = () => {
                 if (!documentSummaInput1 || !tableBody) {
@@ -1446,7 +1692,12 @@
                 const q = goodsSearchInput.value.trim();
                 if (q.length < 2) { goodsResultsContainer.style.display = 'none'; return; }
                 const docType = '{{ $doc }}';
-                fetch("{{ route('goods.search') }}?q=" + encodeURIComponent(q) + "&doc=" + encodeURIComponent(docType))
+                const goodsSearchParams = new URLSearchParams({
+                    q,
+                    doc: docType,
+                    counterparty_user_id: client1Id?.value || '',
+                });
+                fetch("{{ route('goods.search') }}?" + goodsSearchParams.toString())
                     .then(res => res.json())
                     .then(data => {
                         goodsResultsContainer.innerHTML = '';
@@ -1481,11 +1732,20 @@
                                     } else if (initialPrice <= 0) {
                                         initialPrice = pay1;
                                     }
+                                    const mappedProductId = String(good.mappedProductId || '');
+                                    const mapButtonClass = mappedProductId ? 'btn btn-sm btn-outline-secondary product-map-btn is-mapped' : 'btn btn-sm btn-outline-secondary product-map-btn';
+                                    const mapButtonText = mappedProductId || '...';
 
                                     const tr = document.createElement('tr');
                                     tr.innerHTML = `
                                         <td class="goods-table-col-code" data-label="Код"><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.pnum}" readonly></td>
-                                        <td class="goods-table-col-name" data-label="Найменування"><input type="hidden" name="name[]" value="${good.name || ''}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.name || ''}" readonly></td>
+                                        <td class="goods-table-col-name" data-label="Найменування">
+                                            <input type="hidden" name="name[]" value="${escapeHtml(good.name || '')}">
+                                            <div class="goods-name-map-wrap">
+                                                <input type="text" class="form-control form-control-sm text-dark text-white" value="${escapeHtml(good.name || '')}" readonly>
+                                                <button type="button" class="${mapButtonClass}" data-source-product-id="${escapeHtml(good.pnum)}" data-source-product-name="${escapeHtml(good.name || '')}" data-target-product-id="${escapeHtml(mappedProductId)}" title="Маппінг товару проекту ${escapeHtml(mappingTargetProjectId || 'не визначено')}">${escapeHtml(mapButtonText)}</button>
+                                            </div>
+                                        </td>
                                         <td class="goods-table-col-qty" data-label="К-ть">
                                             <div class="input-group input-group-sm">
                                                 <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>

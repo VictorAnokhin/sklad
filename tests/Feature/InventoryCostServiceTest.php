@@ -198,6 +198,7 @@ class InventoryCostServiceTest extends TestCase
             'firma' => (string) $this->companyId,
             'project_id' => $projectId,
         ]);
+        [$targetProductId, $targetWarehouseId] = $this->createProductProjectMapping($projectId, $counterpartyId);
 
         $rnId = $this->createDocument('RN', 4, 25, $counterpartyId);
         Document::provodka((string) $rnId, 'RN', (string) $this->companyId);
@@ -212,6 +213,7 @@ class InventoryCostServiceTest extends TestCase
             0,
             100
         );
+        $this->assertMirrorStock($projectId, $targetWarehouseId, $targetProductId, 14, 200, 14.285714);
 
         Document::provodka((string) $rnId, 'RN', (string) $this->companyId);
         $rnReversal = $this->projectMirrorReversal($rnId, 'RN', $projectId);
@@ -223,6 +225,7 @@ class InventoryCostServiceTest extends TestCase
             100,
             0
         );
+        $this->assertMirrorStock($projectId, $targetWarehouseId, $targetProductId, 10, 100, 10);
 
         $pnId = $this->createDocument('PN', 5, 16, $counterpartyId);
         Document::provodka((string) $pnId, 'PN', (string) $this->companyId);
@@ -237,6 +240,7 @@ class InventoryCostServiceTest extends TestCase
             0
         );
         $this->assertAccountEntry((int) $pnMirror->id, "701.{$projectId}", 0, 80);
+        $this->assertMirrorStock($projectId, $targetWarehouseId, $targetProductId, 5, 50, 10);
 
         Document::provodka((string) $pnId, 'PN', (string) $this->companyId);
         $pnReversal = $this->projectMirrorReversal($pnId, 'PN', $projectId);
@@ -248,6 +252,7 @@ class InventoryCostServiceTest extends TestCase
             80
         );
         $this->assertAccountEntry((int) $pnReversal->id, "701.{$projectId}", 80, 0);
+        $this->assertMirrorStock($projectId, $targetWarehouseId, $targetProductId, 10, 100, 10);
     }
 
     public function test_project_mirror_is_not_created_for_current_company_project(): void
@@ -597,6 +602,82 @@ class InventoryCostServiceTest extends TestCase
             ->where('reference_id', (string) $documentId)
             ->latest('id')
             ->first();
+    }
+
+    private function createProductProjectMapping(int $projectId, int $counterpartyId): array
+    {
+        $targetProductId = (string) DB::table('comp')->insertGetId([
+            'cod' => "mirror-{$this->productId}",
+            'firma' => (string) $projectId,
+            'name' => 'Mirror product',
+        ]);
+        $targetWarehouseId = DB::table('conf')->insertGetId([
+            'type' => 'sklads',
+            'firma' => (string) $projectId,
+            'name' => 'Mirror warehouse',
+        ]);
+
+        DB::table('price')->insert([
+            'pnum' => $targetProductId,
+            'firma' => $projectId,
+            'pay' => 10,
+        ]);
+        DB::table('price_sklad')->insert([
+            'pnum' => $targetProductId,
+            'firma' => $projectId,
+            'sklad' => $targetWarehouseId,
+            'count' => 10,
+        ]);
+        DB::table('inventory_cost_balances')->insert([
+            'company_id' => $projectId,
+            'warehouse_id' => $targetWarehouseId,
+            'product_id' => $targetProductId,
+            'quantity' => 10,
+            'total_value' => 100,
+            'average_cost' => 10,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('product_project_mappings')->insert([
+            'source_company_id' => $this->companyId,
+            'counterparty_user_id' => $counterpartyId,
+            'source_product_id' => $this->productId,
+            'target_company_id' => $projectId,
+            'target_product_id' => $targetProductId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return [$targetProductId, (int) $targetWarehouseId];
+    }
+
+    private function assertMirrorStock(
+        int $projectId,
+        int $warehouseId,
+        string $productId,
+        float $quantity,
+        float $totalValue,
+        float $averageCost
+    ): void {
+        $balance = DB::table('inventory_cost_balances')
+            ->where('company_id', $projectId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->first();
+
+        $this->assertNotNull($balance);
+        $this->assertEqualsWithDelta($quantity, (float) $balance->quantity, 0.0001);
+        $this->assertEqualsWithDelta($totalValue, (float) $balance->total_value, 0.0001);
+        $this->assertEqualsWithDelta($averageCost, (float) $balance->average_cost, 0.000001);
+        $this->assertEqualsWithDelta(
+            $quantity,
+            (float) DB::table('price_sklad')
+                ->where('firma', $projectId)
+                ->where('sklad', $warehouseId)
+                ->where('pnum', $productId)
+                ->value('count'),
+            0.0001
+        );
     }
 
     private function createMoneyDocument(

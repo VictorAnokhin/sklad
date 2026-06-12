@@ -95,6 +95,8 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/body/add', [DocumentController::class , 'bodyAdd'])->name('body.add');
             Route::post('/body/delete', [DocumentController::class , 'bodyDelete'])->name('body.delete');
             Route::post('/body/update', [DocumentController::class , 'bodyUpdate'])->name('body.update');
+            Route::get('/product-mapping/search', [DocumentController::class , 'productMappingSearch'])->name('productMapping.search');
+            Route::post('/product-mapping/save', [DocumentController::class , 'productMappingSave'])->name('productMapping.save');
         }
         );
 

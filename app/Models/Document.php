@@ -466,8 +466,9 @@ class Document extends Model
                 );
             }
 
+            $mirrorLedgerTransaction = null;
             if (in_array($docType, ['PN', 'RN', 'PO', 'RO'], true)) {
-                $accountingService->createProjectMirrorTransaction(
+                $mirrorLedgerTransaction = $accountingService->createProjectMirrorTransaction(
                     "{$table}:{$docType}",
                     $docId,
                     $docType,
@@ -483,6 +484,16 @@ class Document extends Model
                     $inventoryMovements,
                     $ledgerTransaction?->id
                 );
+
+                $mirrorInventoryMovements = $inventoryService->postProjectMirror($doc, $lineItems, $fid);
+                $inventoryService->attachLedgerTransaction(
+                    $mirrorInventoryMovements,
+                    $mirrorLedgerTransaction?->id
+                );
+            }
+
+            if ($wasPosted && in_array($docType, ['PN', 'RN'], true)) {
+                $inventoryService->reverseProjectMirror($doc, $fid);
             }
 
             DB::table($table)->where('id', $docId)->update(['provodka' => $wasPosted ? 0 : 1]);
