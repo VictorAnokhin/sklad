@@ -88,10 +88,7 @@ class Goods extends Model
             $query->where('comp.idglava', $idglava)
                 ->where('comp.idcaption', $idcaption);
         } elseif ($idglava) {
-            $query->where(function ($q) use ($idglava) {
-                $q->where('comp.idglava', $idglava)
-                    ->orWhere('comp.idcaption', $idglava);
-            });
+            $query->where('comp.idglava', $idglava);
         } elseif ($idcaption) {
             $query->where('comp.idcaption', $idcaption);
         }

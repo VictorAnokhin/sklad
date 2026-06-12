@@ -34,12 +34,12 @@ class GoodsController extends Controller
     {
         $fid = session('fid', '');
         $locale = $this->resolveBackendLocale($request);
-        $idglava = $request->input('igla', session('idglava', ''));
-        $idcaption = $request->input('idcapt', session('idcaption', ''));
+        $hasFilterRequest = $request->hasAny(['fName', 'filterBrand', 'skladNone', 'showAllGoods', 'igla', 'idcapt']);
+        $idglava = $hasFilterRequest ? $request->input('igla', '') : session('idglava', '');
+        $idcaption = $hasFilterRequest ? $request->input('idcapt', '') : session('idcaption', '');
         $pos = (int) $request->input('pos', session('goods_pos', 0));
         $pos2 = (int) $request->input('pos2', 20);
         $sort = $request->input('sort', session('sort', 'pay'));
-        $hasFilterRequest = $request->hasAny(['fName', 'filterBrand', 'skladNone', 'showAllGoods', 'igla', 'idcapt']);
 
         $filters = [
             'fName' => $request->input('fName', session('filter1', '')),
