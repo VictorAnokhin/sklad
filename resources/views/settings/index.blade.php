@@ -849,19 +849,19 @@
             </div>
 
             <div class="modal-body" id="conf-list-area">
-                <table class="table table-hover table-sm">
+                <table class="table table-hover table-sm conf-crud-table">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Назва</th>
-                            <th id="crud-color-column">Колір</th>
-                            <th id="crud-currency-column" style="display:none;">{{ __('settings.crud.currency_column') }}</th>
-                            <th id="crud-default-column" style="display:none;">Default</th>
-                            <th id="crud-status-column">Статус</th>
-                            <th id="crud-phone-column" style="display:none;">Телефон</th>
-                            <th id="crud-address-column" style="display:none;">Адреса</th>
-                            <th id="crud-doc-column" style="display:none;">Документ</th>
-                            <th class="text-end">Дії</th>
+                            <th class="conf-id-col">#</th>
+                            <th class="conf-name-col">Назва</th>
+                            <th id="crud-color-column" class="conf-color-col">Колір</th>
+                            <th id="crud-currency-column" class="conf-currency-col" style="display:none;">{{ __('settings.crud.currency_column') }}</th>
+                            <th id="crud-default-column" class="conf-default-col" style="display:none;">Default</th>
+                            <th id="crud-status-column" class="conf-status-col">Статус</th>
+                            <th id="crud-phone-column" class="conf-phone-col" style="display:none;">Телефон</th>
+                            <th id="crud-address-column" class="conf-address-col" style="display:none;">Адреса</th>
+                            <th id="crud-doc-column" class="conf-doc-col" style="display:none;">Документ</th>
+                            <th class="text-end conf-actions-col">Дії</th>
                         </tr>
                     </thead>
                     <tbody id="crud-tbody"></tbody>
@@ -1733,6 +1733,85 @@
     .action-btn {
         padding: 2px 8px;
         font-size: 0.85rem;
+    }
+
+    #modalCrud #conf-list-area {
+        padding: 0.5rem;
+    }
+
+    .conf-crud-table {
+        table-layout: fixed;
+        width: 100%;
+        font-size: 0.82rem;
+        margin-bottom: 0;
+    }
+
+    .conf-crud-table > :not(caption) > * > * {
+        padding: 0.2rem 0.25rem;
+        vertical-align: middle;
+    }
+
+    .conf-crud-table th,
+    .conf-crud-table td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .conf-crud-table th {
+        white-space: nowrap;
+    }
+
+    .conf-crud-table .badge {
+        font-size: 0.68rem;
+        padding: 0.22em 0.4em;
+    }
+
+    .conf-crud-table .action-btn {
+        min-width: 28px;
+        padding: 1px 5px;
+        line-height: 1.3;
+    }
+
+    .conf-id-col {
+        width: 7%;
+        white-space: nowrap;
+    }
+
+    .conf-name-col {
+        width: 23%;
+    }
+
+    .conf-color-col {
+        width: 14%;
+    }
+
+    .conf-currency-col {
+        width: 13%;
+    }
+
+    .conf-default-col {
+        width: 13%;
+    }
+
+    .conf-status-col {
+        width: 15%;
+    }
+
+    .conf-phone-col {
+        width: 14%;
+    }
+
+    .conf-address-col {
+        width: 24%;
+    }
+
+    .conf-doc-col {
+        width: 20%;
+    }
+
+    .conf-actions-col {
+        width: 12%;
+        white-space: nowrap;
     }
 
     .company-meta {
@@ -3047,6 +3126,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const defaultHtml = currentType === 'sklads' || currentType === 'oplata'
                     ? (String(item.is_default ?? '0') === '1' ? '<span class="badge bg-primary">Default</span>' : '—')
                     : '';
+                const isCompactConfTable = currentType === 'sklads' || currentType === 'oplata';
+                const editLabel = isCompactConfTable ? '✏' : _ts('crud.edit');
+                const deleteLabel = isCompactConfTable ? '🗑' : _ts('crud.delete');
                 let statusLabel = `<span class="badge bg-secondary">${_ts('crud.inactive')}</span>`;
                 if (currentType === 'tgroup') {
                     statusLabel = String(item.status) === '1'
@@ -3068,17 +3150,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 tr.innerHTML = `
-                    <td>${item.id}</td>
-                    <td>${escapeHtml(item.name || '')}</td>
-                    ${currentType === 'sklads' || currentType === 'currency' ? '' : `<td>${colorHtml}</td>`}
-                    ${currentType === 'oplata' || currentType === 'deposit' ? `<td>${currencyHtml}</td>` : ''}
-                    ${currentType === 'sklads' || currentType === 'oplata' ? `<td>${defaultHtml}</td>` : ''}
-                    <td>${statusLabel}</td>
-                    ${currentType === 'sklads' ? `<td>${addressHtml}</td>` : ''}
-                    ${currentType === 'reestr' ? `<td>${docHtml}</td>` : ''}
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">${_ts('crud.edit')}</button>
-                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">${_ts('crud.delete')}</button>
+                    <td class="conf-id-col">${item.id}</td>
+                    <td class="conf-name-col" title="${escapeHtml(item.name || '')}">${escapeHtml(item.name || '')}</td>
+                    ${currentType === 'sklads' || currentType === 'currency' ? '' : `<td class="conf-color-col">${colorHtml}</td>`}
+                    ${currentType === 'oplata' || currentType === 'deposit' ? `<td class="conf-currency-col">${currencyHtml}</td>` : ''}
+                    ${currentType === 'sklads' || currentType === 'oplata' ? `<td class="conf-default-col">${defaultHtml}</td>` : ''}
+                    <td class="conf-status-col">${statusLabel}</td>
+                    ${currentType === 'sklads' ? `<td class="conf-address-col" title="${escapeHtml(item.address || '')}">${addressHtml}</td>` : ''}
+                    ${currentType === 'reestr' ? `<td class="conf-doc-col">${docHtml}</td>` : ''}
+                    <td class="text-end conf-actions-col">
+                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}" title="${escapeHtml(_ts('crud.edit'))}">${editLabel}</button>
+                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}" title="${escapeHtml(_ts('crud.delete'))}">${deleteLabel}</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
