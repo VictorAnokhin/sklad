@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\HoldingScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -2038,8 +2039,10 @@ class Report extends Model
             return $empty;
         }
 
+        $firmaScope = HoldingScope::projectIdsFor($fid);
+
         $teamMembers = DB::table('users')
-            ->where('firma', $fid)
+            ->whereIn('firma', $firmaScope)
             ->where('firmuser', '1')
             ->orderBy('secondname')
             ->orderBy('name')
@@ -2052,7 +2055,7 @@ class Report extends Model
         $teamIds = $teamMembers->pluck('id')->map(static fn ($id): string => (string) $id)->all();
 
         $totalsRows = DB::table($payrollTable)
-            ->where('firma', $fid)
+            ->whereIn('firma', $firmaScope)
             ->where('type', 'ZP')
             ->where('provodka', 1)
             ->whereIn('client1', $teamIds)
@@ -2097,8 +2100,8 @@ class Report extends Model
 
         $detailLines = DB::table($payrollTable . ' as d')
             ->join('users as u', 'u.id', '=', 'd.client1')
-            ->where('d.firma', $fid)
-            ->where('u.firma', $fid)
+            ->whereIn('d.firma', $firmaScope)
+            ->whereIn('u.firma', $firmaScope)
             ->where('u.firmuser', '1')
             ->where('d.type', 'ZP')
             ->where('d.provodka', 1)

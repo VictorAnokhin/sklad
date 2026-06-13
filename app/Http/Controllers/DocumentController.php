@@ -11,6 +11,7 @@ use App\Models\Docs;
 use App\Models\Conf as ConfModel;
 use App\Services\FilterService;
 use App\Services\DocumentService;
+use App\Support\HoldingScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -871,14 +872,15 @@ class DocumentController extends Controller
 
             if ($doc === 'ZP' && ! isset($errors['client1'])) {
                 $employeeId = trim((string) $request->input('client1', ''));
+                $employeeFirmaScope = HoldingScope::projectIdsFor($fid);
                 $employeeExists = DB::table('users')
                     ->where('id', $employeeId)
-                    ->where('firma', $fid)
+                    ->whereIn('firma', $employeeFirmaScope)
                     ->where('firmuser', '1')
                     ->exists();
 
                 if (! $employeeExists) {
-                    $errors['client1'] = 'Оберіть співробітника поточного проєкту';
+                    $errors['client1'] = 'Оберіть співробітника поточного холдингу';
                 }
             }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Report;
 use App\Models\User;
+use App\Support\HoldingScope;
 use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -171,9 +172,10 @@ class TeamController extends Controller
             $counterpartyId > 0
             && Schema::hasColumn('users', 'firmuser')
         ) {
+            $firmaScope = HoldingScope::projectIdsFor($fid);
             DB::table('users')
                 ->where('id', $counterpartyId)
-                ->where('firma', $fid)
+                ->whereIn('firma', $firmaScope)
                 ->update(['firmuser' => '1']);
         }
 
@@ -198,9 +200,10 @@ class TeamController extends Controller
         }
 
         $fid = $this->activeFid();
+        $firmaScope = HoldingScope::projectIdsFor($fid);
 
         return DB::table('users')
-            ->where('firma', $fid)
+            ->whereIn('firma', $firmaScope)
             ->where('firmuser', '1')
             ->orderByDesc('top')
             ->orderBy('id');

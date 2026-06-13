@@ -82,9 +82,7 @@ class ClientController extends Controller
         $fid = session('fid', '');
         $qBase = $q;
         $teamOnly = $request->boolean('team_only');
-        $clientFirmaScope = $teamOnly
-            ? array_values(array_filter([trim((string) $fid)], fn ($value) => $value !== ''))
-            : $this->clientFirmaScope($fid);
+        $clientFirmaScope = $this->clientFirmaScope($fid);
 
         $users = DB::table('users')
             ->whereIn('firma', $clientFirmaScope)
