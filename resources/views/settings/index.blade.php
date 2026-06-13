@@ -1684,7 +1684,7 @@
                                 <button type="button" class="btn btn-sm btn-outline-primary" id="profile-balance-add">Додати баланс</button>
                                 <button type="submit" class="btn btn-sm btn-primary">Зберегти баланси</button>
                             </div>
-                            <div class="form-text mt-2">Валюта не може повторюватися. Обраний основний баланс зберігається першим у форматі <code>summa:valuta;</code>.</div>
+                            <div class="form-text mt-2">Валюта не може повторюватися. Баланси зберігаються окремими рядками в кеші балансів користувача.</div>
                         </form>
                     </div>
                 </div>

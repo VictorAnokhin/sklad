@@ -13,6 +13,7 @@ use App\Services\AutoAgentSitemapBuildService;
 use App\Services\ZerionWalletService;
 use App\Services\SitemapService;
 use App\Support\MediaUrl;
+use App\Support\HoldingScope;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -94,7 +95,9 @@ class SettingsController extends Controller
                 'web3auth' => 0,
             ]]);
         }
-        $profileBalances = $this->parseUserBalance($user && Schema::hasColumn('users', 'balance') ? ($user->balance ?? '') : '');
+        $profileBalances = $user
+            ? $this->profileBalancesFromCache($user, $fid)
+            : [];
 
         $fieldCatalogTopCount = 0;
         $fieldCityCount = 0;
@@ -644,8 +647,8 @@ class SettingsController extends Controller
         $user = $this->currentUser();
         if (!$user) return redirect()->back()->with('error', 'Користувача не знайдено');
 
-        if (! Schema::hasColumn('users', 'balance')) {
-            return redirect()->back()->with('error', 'Поле балансу не знайдено');
+        if (! $this->canUseProfileBalanceCache()) {
+            return redirect()->back()->with('error', 'Таблицю кешу балансів не знайдено');
         }
 
         $validated = $request->validate([
@@ -664,11 +667,52 @@ class SettingsController extends Controller
             (string) ($validated['default_balance_key'] ?? '')
         );
 
-        DB::table('users')->where('id', $user->id)->update([
-            'balance' => $this->serializeProfileBalances($balances),
-        ]);
+        $this->saveProfileBalancesToCache($user, session('fid', ''), $balances);
 
         return redirect()->route('settings.index')->with('success', 'Баланси профілю оновлено');
+    }
+
+    private function profileBalancesFromCache(object $user, mixed $fid): array
+    {
+        if (! $this->canUseProfileBalanceCache()) {
+            return $this->parseUserBalance(Schema::hasColumn('users', 'balance') ? ($user->balance ?? '') : '');
+        }
+
+        $columns = Schema::getColumnListing('users_cashe');
+        $hasValuta = in_array('valuta', $columns, true);
+        $query = DB::table('users_cashe')->where('userid', (string) $user->id);
+
+        if (in_array('firma', $columns, true)) {
+            $firmaScope = HoldingScope::projectIdsFor($fid);
+            if ($firmaScope !== []) {
+                $query->whereIn('firma', array_map('intval', $firmaScope));
+            }
+        }
+
+        $select = ['balance'];
+        $select[] = $hasValuta ? 'valuta' : DB::raw("'UAH' as valuta");
+
+        $query->orderByDesc('balance');
+        if ($hasValuta) {
+            $query->orderBy('valuta');
+        }
+
+        $rows = $query->get($select);
+
+        if ($rows->isEmpty()) {
+            return $this->parseUserBalance(Schema::hasColumn('users', 'balance') ? ($user->balance ?? '') : '');
+        }
+
+        return $rows
+            ->map(function ($row, int $index) {
+                return [
+                    'amount' => $this->formatProfileBalanceAmount((string) ($row->balance ?? '0')),
+                    'currency' => $this->normalizeCurrencyCode($row->valuta ?? 'UAH'),
+                    'is_default' => $index === 0,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function parseUserBalance(mixed $value): array
@@ -783,6 +827,64 @@ class SettingsController extends Controller
         return collect($balances)
             ->map(fn (array $balance): string => $balance['amount'] . ':' . $balance['currency'] . ';')
             ->implode('');
+    }
+
+    private function saveProfileBalancesToCache(object $user, mixed $fid, array $balances): void
+    {
+        $columns = Schema::getColumnListing('users_cashe');
+        $hasFirma = in_array('firma', $columns, true);
+        $hasUserId = in_array('user_id', $columns, true);
+        $hasValuta = in_array('valuta', $columns, true);
+
+        if (! $hasValuta && count($balances) > 1) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'balance_currencies' => 'Для кількох валют у users_cashe потрібне поле valuta.',
+            ]);
+        }
+
+        DB::transaction(function () use ($user, $fid, $balances, $hasFirma, $hasUserId, $hasValuta): void {
+            $deleteQuery = DB::table('users_cashe')->where('userid', (string) $user->id);
+
+            if ($hasFirma) {
+                $firmaScope = HoldingScope::projectIdsFor($fid);
+                if ($firmaScope !== []) {
+                    $deleteQuery->whereIn('firma', array_map('intval', $firmaScope));
+                }
+            }
+
+            $deleteQuery->delete();
+
+            foreach ($balances as $balance) {
+                $currency = $this->normalizeCurrencyCode($balance['currency'] ?? 'UAH');
+                $values = [
+                    'userid' => (string) $user->id,
+                    'balance' => round((float) ($balance['amount'] ?? 0), 2),
+                ];
+
+                if ($hasFirma) {
+                    $values['firma'] = (int) $fid;
+                }
+                if ($hasUserId) {
+                    $values['user_id'] = (int) $user->id;
+                }
+                if ($hasValuta) {
+                    $values['valuta'] = $currency;
+                }
+
+                DB::table('users_cashe')->insert($values);
+            }
+        });
+    }
+
+    private function canUseProfileBalanceCache(): bool
+    {
+        if (! Schema::hasTable('users_cashe')) {
+            return false;
+        }
+
+        $columns = Schema::getColumnListing('users_cashe');
+
+        return in_array('userid', $columns, true) && in_array('balance', $columns, true);
     }
 
     private function formatProfileBalanceAmount(string $amount): string
