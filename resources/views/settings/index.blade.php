@@ -733,7 +733,7 @@
 
             <div class="modal-body" id="project-list-area">
                 <div class="table-responsive">
-                    <table class="table table-hover table-sm align-middle">
+                    <table class="table table-hover table-sm align-middle project-compact-table">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -742,7 +742,7 @@
                                 <th>Холдинг</th>
                                 <th>Email</th>
                                 <th>Телефон</th>
-                                <th class="text-end">Дії</th>
+                                <th class="text-end"></th>
                             </tr>
                         </thead>
                         <tbody id="projects-tbody"></tbody>
@@ -1926,6 +1926,33 @@
         color: #000;
     }
 
+    .project-compact-table {
+        margin-bottom: 0;
+        font-size: 0.86rem;
+    }
+
+    .project-compact-table th,
+    .project-compact-table td {
+        padding: 0.22rem 0.35rem;
+        vertical-align: middle;
+    }
+
+    .project-compact-table tbody tr {
+        cursor: pointer;
+    }
+
+    .project-compact-table .company-meta,
+    .project-compact-table .small {
+        font-size: 0.76rem;
+        line-height: 1.15;
+    }
+
+    .project-compact-table .btn-sm {
+        padding: 0.08rem 0.32rem;
+        font-size: 0.74rem;
+        line-height: 1.2;
+    }
+
     .project-holding-menu {
         position: absolute;
         z-index: 1060;
@@ -2675,16 +2702,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tbody.addEventListener('click', (event) => {
             const btn = event.target.closest('.action-btn');
-            if (!btn) return;
+            if (btn) {
+                event.stopPropagation();
 
-            const id = btn.dataset.id;
-            if (btn.dataset.action === 'edit') {
-                editProject(id);
+                const id = btn.dataset.id;
+                if (btn.dataset.action === 'delete') {
+                    deleteProject(id, btn);
+                }
                 return;
             }
 
-            if (btn.dataset.action === 'delete') {
-                deleteProject(id, btn);
+            const row = event.target.closest('tr[data-project-id]');
+            if (row) {
+                editProject(row.dataset.projectId);
             }
         });
 
@@ -2809,11 +2839,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const holdingName = item.holding_name || '—';
 
                 const tr = document.createElement('tr');
+                tr.dataset.projectId = item.id;
                 tr.innerHTML = `
                     <td>${item.id ?? ''}</td>
                     <td>
                         <div class="fw-semibold">${escapeHtml(item.name || '')}</div>
-                        <div class="company-meta">${escapeHtml(item.description || '')}</div>
+                        ${item.description ? `<div class="company-meta text-truncate">${escapeHtml(item.description || '')}</div>` : ''}
                         ${Number(item.constanta) === 1 ? '<span class="badge bg-warning text-dark mt-1">Маркетплейс</span>' : ''}
                     </td>
                     <td>${escapeHtml(projectType)}</td>
@@ -2824,8 +2855,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="small text-muted">${projectUrl}</div>
                     </td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">${escapeHtml(_ts('crud.edit'))}</button>
-                        ${item.can_delete ? `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">${escapeHtml(_ts('crud.delete'))}</button>` : `<span class="text-muted small">${escapeHtml(_ts('js.no_delete_permission'))}</span>`}
+                        ${item.can_delete ? `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">${escapeHtml(_ts('crud.delete'))}</button>` : ''}
                     </td>
                 `;
                 tbody.appendChild(tr);
