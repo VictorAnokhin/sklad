@@ -322,20 +322,15 @@
             <div class="row mb-3">
                 
                 <div class="col-md-4">
-                    <label class="form-label">Группа</label>
-                    <div class="input-group">
-                        <select name="tgroup" id="client-group-select" class="form-select">
-                            <option value="">{{ __('client.select_type') }}</option>
-                            @foreach($clientTypes ?? [] as $type)
-                                <option value="{{ $type->id }}" {{ (string)($client->tgroup ?? '') === (string)$type->id ? 'selected' : '' }}>
-                                    {{ $type->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#clientGroupModal">
-                            <i class="fas fa-users-cog me-1"></i> Группы
-                        </button>
-                    </div>
+                    <label class="form-label">{{ __('client.field_client_type') }}</label>
+                    <select name="tgroup" class="form-select">
+                        <option value="">{{ __('client.select_type') }}</option>
+                        @foreach($clientTypes ?? [] as $type)
+                            <option value="{{ $type->id }}" {{ (string)($client->tgroup ?? '') === (string)$type->id ? 'selected' : '' }}>
+                                {{ $type->name }}
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_email') }}</label>
@@ -348,6 +343,25 @@
                 </div>
             </div>
 
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Группа</label>
+                    <div class="input-group">
+                        <select name="usergroup" id="client-group-select" class="form-select">
+                            <option value="">Не выбрана</option>
+                            @foreach($userGroups ?? [] as $group)
+                                <option value="{{ $group->id }}" {{ (string)($client->usergroup ?? '') === (string)$group->id ? 'selected' : '' }}>
+                                    {{ $group->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#clientGroupModal">
+                            <i class="fas fa-users-cog me-1"></i> Группы
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-8"></div>
+            </div>
 
             <div class="row mb-3">
                 <div class="col-md-4">

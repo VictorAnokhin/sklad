@@ -49,6 +49,7 @@ class User extends Authenticatable
         'hbd',
         'email',
         'tgroup',
+        'usergroup',
         'foto1',
         'foto2',
         'foto3',

@@ -260,6 +260,11 @@ class ClientController extends Controller
             ->where('firma', $fid)
             ->orderBy('name')
             ->get();
+        $userGroups = DB::table('conf')
+            ->where('type', 'usergroup')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->get();
         $projects = Project::query()
             ->orderBy('name')
             ->orderBy('id')
@@ -270,7 +275,7 @@ class ClientController extends Controller
         $kycPhotos = $client ? $this->buildKycPhotoCards($client) : [];
         $garageVehicles = $client ? $this->clientGarageVehicles($client) : collect();
 
-        return view('client.show', compact('client', 'statuses', 'clientTypes', 'projects', 'fid', 'kycPhotos', 'garageVehicles'));
+        return view('client.show', compact('client', 'statuses', 'clientTypes', 'userGroups', 'projects', 'fid', 'kycPhotos', 'garageVehicles'));
     }
 
     public function groups(Request $request)
@@ -298,7 +303,7 @@ class ClientController extends Controller
         $payload = $this->validateClientGroup($request);
 
         $id = DB::table('conf')->insertGetId([
-            'type' => 'tgroup',
+            'type' => 'usergroup',
             'name' => $payload['name'],
             'color' => '',
             'status' => $payload['status'],
@@ -329,7 +334,7 @@ class ClientController extends Controller
 
         DB::table('conf')
             ->where('id', $group->id)
-            ->where('type', 'tgroup')
+            ->where('type', 'usergroup')
             ->where('firma', $fid)
             ->update([
                 'name' => $payload['name'],
@@ -355,7 +360,7 @@ class ClientController extends Controller
 
         $isUsed = DB::table('users')
             ->where('firma', $fid)
-            ->where('tgroup', $group->id)
+            ->where('usergroup', $group->id)
             ->exists();
 
         if ($isUsed) {
@@ -367,7 +372,7 @@ class ClientController extends Controller
 
         DB::table('conf')
             ->where('id', $group->id)
-            ->where('type', 'tgroup')
+            ->where('type', 'usergroup')
             ->where('firma', $fid)
             ->delete();
 
@@ -377,7 +382,7 @@ class ClientController extends Controller
     private function clientGroupsQuery(string $fid)
     {
         return DB::table('conf')
-            ->where('type', 'tgroup')
+            ->where('type', 'usergroup')
             ->where('firma', $fid);
     }
 
@@ -732,6 +737,7 @@ class ClientController extends Controller
                 'idstatus' => (int)$request->input('idstatus', 1),
                 'ustype' => (int)$request->input('idstatus', 1),
                 'tgroup' => (int)$request->input('tgroup', 0),
+                'usergroup' => (int)$request->input('usergroup', 0),
                 'top' => (int)$request->input('top', 1),
                 'bonus' => (float)$request->input('bonus', 0),
                 'hbd' => $stringValue($request->input('hbd', '')),
