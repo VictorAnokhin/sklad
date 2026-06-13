@@ -211,6 +211,72 @@
         font-size: 0.82rem;
     }
 
+    .bank-status--pending {
+        background: rgba(245, 158, 11, 0.12);
+        color: #fde68a;
+        border-color: rgba(245, 158, 11, 0.28);
+    }
+
+    .bank-status--reversed,
+    .bank-status--ledger_error {
+        background: rgba(239, 68, 68, 0.12);
+        color: #fecaca;
+        border-color: rgba(239, 68, 68, 0.28);
+    }
+
+    .bank-pill--outgoing {
+        background: rgba(239, 68, 68, 0.12);
+        color: #fecaca;
+        border-color: rgba(239, 68, 68, 0.28);
+    }
+
+    .bank-payment-filters {
+        margin-bottom: 12px;
+    }
+
+    .bank-payment-filters form {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+        gap: 12px;
+        align-items: end;
+    }
+
+    .bank-payment-filters label {
+        display: block;
+        margin-bottom: 6px;
+        color: rgba(203, 213, 225, 0.72);
+        font-size: 0.82rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .bank-payment-filters .form-select {
+        color: #fff;
+        border-color: rgba(148, 163, 184, 0.24);
+        background-color: rgba(15, 23, 42, 0.9);
+    }
+
+    .bank-payment-filters__actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .bank-table--payments {
+        min-width: 1240px;
+    }
+
+    .bank-table--payment-ledger {
+        min-width: 1320px;
+    }
+
+    .bank-table--deposits {
+        min-width: 980px;
+    }
+
+    .bank-table--deposit-operations {
+        min-width: 1220px;
+    }
+
     .bank-currency-strip {
         padding: 0;
         margin-bottom: 12px;
@@ -491,6 +557,25 @@
         border-bottom-color: rgba(148, 163, 184, 0.18);
     }
 
+    .bank-order-modal__status-form {
+        display: grid;
+        gap: 8px;
+        margin: 16px 0;
+    }
+
+    .bank-order-modal__status-form label {
+        color: rgba(203, 213, 225, 0.72);
+        font-size: 0.82rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .bank-order-modal__status-form .form-select {
+        color: #fff;
+        border-color: rgba(148, 163, 184, 0.24);
+        background-color: rgba(15, 23, 42, 0.9);
+    }
+
     .bank-order-modal__summary,
     .bank-order-modal__grid {
         display: grid;
@@ -769,6 +854,10 @@
         .bank-order-modal__grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+
+        .bank-payment-filters form {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
     }
 
     @media (max-width: 640px) {
@@ -791,6 +880,14 @@
 
         .bank-form-grid {
             grid-template-columns: 1fr;
+        }
+
+        .bank-payment-filters form {
+            grid-template-columns: 1fr;
+        }
+
+        .bank-payment-filters__actions .btn {
+            flex: 1;
         }
     }
 </style>

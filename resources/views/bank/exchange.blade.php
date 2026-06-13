@@ -86,6 +86,12 @@
     </section>
 
     <section class="bank-panel bank-table-panel">
+        @if(session('success'))
+            <div class="alert alert-success mx-3 mt-3 mb-0">{{ session('success') }}</div>
+        @endif
+        @if($errors->has('status'))
+            <div class="alert alert-danger mx-3 mt-3 mb-0">{{ $errors->first('status') }}</div>
+        @endif
         <div class="bank-table-header">
             <div>
                 <div class="bank-label">История заявок обмена</div>
@@ -195,9 +201,22 @@
                         </div>
                         <div>
                             <span>Статус</span>
-                            <strong data-order-field="status"></strong>
+                            <strong data-order-field="status_label"></strong>
                         </div>
                     </div>
+
+                    <form method="POST" class="bank-order-modal__status-form" data-order-status-form>
+                        @csrf
+                        <label for="swapOrderStatus">Изменить статус</label>
+                        <div class="d-flex gap-2">
+                            <select id="swapOrderStatus" name="status" class="form-select" data-order-status-select required>
+                                @foreach($exchangeOrderStatuses as $statusValue => $statusLabel)
+                                    <option value="{{ $statusValue }}">{{ $statusLabel }}</option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                        </div>
+                    </form>
 
                     <div class="bank-order-modal__grid">
                         <div>
@@ -293,6 +312,8 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('swapOrderModal');
+        const statusLabels = @json($exchangeOrderStatuses);
+        const statusRouteTemplate = @json(route('bank.exchange-orders.status', ['order' => '__ORDER__']));
         if (!modal) {
             return;
         }
@@ -325,7 +346,7 @@
             setText('#swapOrderModalLabel', `Заявка #${valueOrDash(order.id)}`);
             setText('[data-order-field="pay"]', `${valueOrDash(order.pay_amount)} ${valueOrDash(order.pay_currency)}`);
             setText('[data-order-field="expected_av8"]', `${valueOrDash(order.expected_av8)} AV8`);
-            setText('[data-order-field="status"]', order.status);
+            setText('[data-order-field="status_label"]', statusLabels[order.status] || order.status);
             setText('[data-order-field="created_at"]', order.created_at);
             setText('[data-order-field="mode"]', order.mode);
             setText('[data-order-field="payment_method"]', order.payment_method);
@@ -335,6 +356,15 @@
             setText('[data-order-field="client_email"]', order.client_email);
             setText('[data-order-field="client_phone"]', order.client_phone);
             setText('[data-order-field="wallet_address"]', order.wallet_address);
+
+            const statusForm = modal.querySelector('[data-order-status-form]');
+            const statusSelect = modal.querySelector('[data-order-status-select]');
+            if (statusForm instanceof HTMLFormElement) {
+                statusForm.action = statusRouteTemplate.replace('__ORDER__', encodeURIComponent(String(order.id || '')));
+            }
+            if (statusSelect instanceof HTMLSelectElement) {
+                statusSelect.value = order.status || 'new';
+            }
 
             const meta = modal.querySelector('[data-order-field="meta"]');
             if (meta) {

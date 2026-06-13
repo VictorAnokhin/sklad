@@ -4,12 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Support\HoldingScope;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class BankController extends Controller
 {
+    private const EXCHANGE_ORDER_STATUSES = [
+        'new' => 'Новая',
+        'awaiting_payment' => 'Ожидает оплату',
+        'paid' => 'Оплачена',
+        'processing' => 'В обработке',
+        'completed' => 'Выполнена',
+        'cancelled' => 'Отменена',
+        'failed' => 'Ошибка',
+    ];
+
     public function cashAccounts(): View
     {
         $project = $this->bankProject();
@@ -59,9 +72,30 @@ class BankController extends Controller
         ]);
     }
 
-    public function loans(): View
+    public function deposit(): View
     {
-        return $this->placeholder('Внутренние кредиты', 'Учет займов между проектами холдинга, графиков погашения и начисленных процентов.');
+        $project = $this->bankProject();
+        $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        $deposits = $this->bankDeposits($projectIds);
+        $operations = $this->bankDepositOperations($projectIds);
+
+        return view('bank.deposit', [
+            'project' => $project,
+            'deposits' => $deposits,
+            'operations' => $operations,
+            'totalByCurrency' => $deposits
+                ->groupBy('currency')
+                ->map(fn ($rows) => (float) $rows->sum('balance')),
+            'limitByCurrency' => $deposits
+                ->groupBy('currency')
+                ->map(fn ($rows) => (float) $rows->sum('limit')),
+            'summary' => [
+                'active' => $deposits->where('is_active', true)->count(),
+                'topups' => (float) $operations->where('mode', 'topup')->sum('amount'),
+                'withdrawals' => (float) $operations->where('mode', 'withdraw')->sum('amount'),
+                'pending' => $operations->where('status', 'pending')->count(),
+            ],
+        ]);
     }
 
     public function exchange(): View
@@ -72,8 +106,37 @@ class BankController extends Controller
             'project' => $project,
             'exchangeSettings' => $this->exchangeSettings(),
             'swapOrders' => $this->swapOrders((string) $project->id),
+            'exchangeOrderStatuses' => self::EXCHANGE_ORDER_STATUSES,
             'blockchainExchangeEvents' => $this->blockchainExchangeEvents(),
         ]);
+    }
+
+    public function updateExchangeOrderStatus(Request $request, int $order): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('av8_swap_orders'), 404);
+
+        $payload = $request->validate([
+            'status' => ['required', 'string', Rule::in(array_keys(self::EXCHANGE_ORDER_STATUSES))],
+        ]);
+
+        $orderQuery = DB::table('av8_swap_orders')
+            ->where('id', $order)
+            ->where(function ($query) use ($project): void {
+                $query->where('fid', (int) $project->id)
+                    ->orWhere('fid', 0);
+            });
+
+        abort_unless($orderQuery->exists(), 404);
+
+        $orderQuery->update([
+            'status' => $payload['status'],
+            'updated_at' => now(),
+        ]);
+
+        return redirect()
+            ->route('bank.exchange')
+            ->with('success', 'Статус заявки обновлен.');
     }
 
     public function clearing(): View
@@ -100,9 +163,42 @@ class BankController extends Controller
         ]);
     }
 
-    public function payments(): View
+    public function payments(Request $request): View
     {
-        return $this->placeholder('Платежи', 'Исходящие и входящие платежи через кассы-кошельки банка.');
+        $project = $this->bankProject();
+        $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        $filters = [
+            'direction' => in_array($request->query('direction'), ['incoming', 'outgoing'], true)
+                ? (string) $request->query('direction')
+                : '',
+            'status' => in_array($request->query('status'), ['posted', 'pending', 'reversed', 'ledger_error'], true)
+                ? (string) $request->query('status')
+                : '',
+            'project' => in_array((string) $request->query('project'), $projectIds, true)
+                ? (string) $request->query('project')
+                : '',
+        ];
+        $paymentRows = $this->paymentRows($projectIds, $filters);
+
+        return view('bank.payments', [
+            'project' => $project,
+            'holdingProjects' => $this->holdingProjects($project),
+            'paymentRows' => $paymentRows,
+            'ledgerRows' => $this->paymentLedgerRows($projectIds),
+            'filters' => $filters,
+            'summary' => [
+                'incoming' => (float) $paymentRows->where('direction', 'incoming')->sum('amount'),
+                'outgoing' => (float) $paymentRows->where('direction', 'outgoing')->sum('amount'),
+                'posted' => $paymentRows->where('status', 'posted')->count(),
+                'attention' => $paymentRows->whereIn('status', ['pending', 'ledger_error'])->count(),
+            ],
+            'currencyTotals' => $paymentRows
+                ->groupBy('currency')
+                ->map(fn ($rows) => (object) [
+                    'incoming' => (float) $rows->where('direction', 'incoming')->sum('amount'),
+                    'outgoing' => (float) $rows->where('direction', 'outgoing')->sum('amount'),
+                ]),
+        ]);
     }
 
     public function reconciliation(): View
@@ -128,6 +224,338 @@ class BankController extends Controller
         abort_unless(strtolower(trim((string) ($project->project_type ?? ''))) === 'bank', 403);
 
         return $project;
+    }
+
+    private function bankDeposits(array $projectIds)
+    {
+        if (! Schema::hasTable('conf')) {
+            return collect();
+        }
+
+        return DB::table('conf as c')
+            ->leftJoin('project as p', 'p.id', '=', 'c.firma')
+            ->where('c.type', 'deposit')
+            ->whereIn('c.firma', array_map('intval', $projectIds))
+            ->orderBy('p.name')
+            ->orderBy('c.name')
+            ->get([
+                'c.id',
+                'c.firma',
+                'c.name',
+                'c.value',
+                'c.value1',
+                'c.currency',
+                'c.status',
+                'c.vision',
+                'p.name as project_name',
+            ])
+            ->map(function ($deposit) {
+                $status = (int) ($deposit->status ?? 0);
+
+                return (object) [
+                    'id' => (string) $deposit->id,
+                    'name' => trim((string) $deposit->name) ?: 'Депозит #' . $deposit->id,
+                    'project_name' => trim((string) $deposit->project_name) ?: 'Проект #' . $deposit->firma,
+                    'balance' => (float) ($deposit->value ?? 0),
+                    'limit' => (float) ($deposit->value1 ?? 0),
+                    'currency' => $this->normalizeCurrencyCode($deposit->currency ?? 'UAH'),
+                    'is_active' => $status === 1,
+                    'status_label' => $status === 1 ? 'Активен' : ($status === 3 ? 'Закрыт' : 'На проверке'),
+                    'is_visible' => (string) ($deposit->vision ?? '1') !== '0',
+                ];
+            });
+    }
+
+    private function bankDepositOperations(array $projectIds)
+    {
+        if (! Schema::hasTable('z_document')) {
+            return collect();
+        }
+
+        $documents = DB::table('z_document as d')
+            ->leftJoin('conf as dep', function ($join): void {
+                $join->on('dep.id', '=', 'd.money')
+                    ->where('dep.type', '=', 'deposit');
+            })
+            ->leftJoin('project as p', 'p.id', '=', 'd.firma')
+            ->leftJoin('users as u', 'u.id', '=', 'd.client2')
+            ->whereIn('d.firma', array_map('intval', $projectIds))
+            ->where('d.type', 'PP')
+            ->whereIn('d.docum', ['topup', 'withdraw'])
+            ->orderByRaw("COALESCE(STR_TO_DATE(d.data, '%d-%m-%Y'), d.dt) DESC")
+            ->orderByDesc('d.id')
+            ->limit(100)
+            ->get([
+                'd.id',
+                'd.num',
+                'd.firma',
+                'd.data',
+                'd.dt',
+                'd.summa',
+                'd.currency_from',
+                'd.docum',
+                'd.money',
+                'd.provodka',
+                'd.content',
+                'dep.name as deposit_name',
+                'dep.currency as deposit_currency',
+                'p.name as project_name',
+                'u.orgname',
+                'u.name',
+                'u.secondname',
+            ]);
+
+        $ledgerByDocument = $this->ledgerByDocument(
+            $documents->pluck('id')->map(fn ($id) => (string) $id)->all(),
+            $projectIds
+        );
+
+        return $documents->map(function ($document) use ($ledgerByDocument) {
+            $mode = (string) ($document->docum ?: 'topup');
+            $ledger = $ledgerByDocument->get((string) $document->id);
+            $status = $this->paymentStatus($document, $ledger);
+
+            return (object) [
+                'id' => (int) $document->id,
+                'number' => trim((string) $document->num) ?: (string) $document->id,
+                'date' => trim((string) $document->data) ?: (string) $document->dt,
+                'mode' => $mode,
+                'mode_label' => $mode === 'withdraw' ? 'Вывод' : 'Пополнение',
+                'amount' => (float) $document->summa,
+                'currency' => $this->normalizeCurrencyCode(
+                    $document->deposit_currency ?: $document->currency_from ?: 'UAH'
+                ),
+                'deposit_name' => trim((string) $document->deposit_name)
+                    ?: (trim((string) $document->money) !== '' ? 'Депозит #' . $document->money : 'Не указан'),
+                'project_name' => trim((string) $document->project_name) ?: 'Проект #' . $document->firma,
+                'owner_name' => trim((string) ($document->orgname ?: implode(' ', array_filter([
+                    (string) $document->secondname,
+                    (string) $document->name,
+                ])))) ?: 'Не указан',
+                'description' => trim((string) $document->content),
+                'status' => $status,
+                'status_label' => $this->paymentStatusLabel($status),
+                'ledger_id' => (int) ($ledger->id ?? 0),
+            ];
+        });
+    }
+
+    private function paymentRows(array $projectIds, array $filters)
+    {
+        if (! Schema::hasTable('z_document')) {
+            return collect();
+        }
+
+        $query = DB::table('z_document as d')
+            ->leftJoin('users as u', 'u.id', '=', 'd.client1')
+            ->leftJoin('project as p', 'p.id', '=', 'd.firma')
+            ->leftJoin('conf as cashbox', function ($join): void {
+                $join->on('cashbox.id', '=', DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, ''))"))
+                    ->where('cashbox.type', '=', 'oplata');
+            })
+            ->leftJoin('conf as payment_type', function ($join): void {
+                $join->on('payment_type.id', '=', 'd.reestr')
+                    ->where('payment_type.type', '=', 'reestr');
+            })
+            ->whereIn('d.firma', array_map('intval', $projectIds))
+            ->whereIn('d.type', ['PO', 'RO', 'PPO', 'PRO']);
+
+        if ($filters['direction'] === 'incoming') {
+            $query->whereIn('d.type', ['PO', 'PPO']);
+        } elseif ($filters['direction'] === 'outgoing') {
+            $query->whereIn('d.type', ['RO', 'PRO']);
+        }
+
+        if ($filters['project'] !== '') {
+            $query->where('d.firma', (int) $filters['project']);
+        }
+
+        $documents = $query
+            ->orderByRaw("COALESCE(STR_TO_DATE(d.data, '%d-%m-%Y'), d.dt) DESC")
+            ->orderByDesc('d.id')
+            ->limit(200)
+            ->get([
+                'd.id',
+                'd.num',
+                'd.type',
+                'd.firma',
+                'd.data',
+                'd.time',
+                'd.dt',
+                'd.summa',
+                'd.currency_from',
+                'd.content',
+                'd.provodka',
+                'd.status as document_status',
+                'd.client1',
+                DB::raw("COALESCE(NULLIF(d.money, ''), NULLIF(d.oplata, '')) as cashbox_id"),
+                'p.name as project_name',
+                'cashbox.name as cashbox_name',
+                'cashbox.currency as cashbox_currency',
+                'payment_type.name as payment_type_name',
+                'u.orgname',
+                'u.name',
+                'u.name2',
+                'u.secondname',
+            ]);
+
+        $ledgerByDocument = $this->ledgerByDocument($documents->pluck('id')->map(fn ($id) => (string) $id)->all(), $projectIds);
+
+        return $documents
+            ->map(function ($document) use ($ledgerByDocument) {
+                $ledger = $ledgerByDocument->get((string) $document->id);
+                $isIncoming = in_array((string) $document->type, ['PO', 'PPO'], true);
+                $status = $this->paymentStatus($document, $ledger);
+
+                return (object) [
+                    'id' => (int) $document->id,
+                    'number' => trim((string) $document->num) ?: (string) $document->id,
+                    'type' => (string) $document->type,
+                    'direction' => $isIncoming ? 'incoming' : 'outgoing',
+                    'direction_label' => $isIncoming ? 'Входящий' : 'Исходящий',
+                    'date' => trim((string) $document->data) ?: (string) $document->dt,
+                    'amount' => (float) $document->summa,
+                    'currency' => trim((string) ($document->cashbox_currency ?: $document->currency_from)) ?: 'UAH',
+                    'project_name' => trim((string) $document->project_name) ?: 'Проект #' . $document->firma,
+                    'cashbox_name' => trim((string) $document->cashbox_name)
+                        ?: (trim((string) $document->cashbox_id) !== '' ? 'Касса #' . $document->cashbox_id : 'Не выбрана'),
+                    'payment_type_name' => trim((string) $document->payment_type_name) ?: 'Не указан',
+                    'counterparty' => $this->paymentCounterparty($document),
+                    'description' => trim((string) $document->content),
+                    'status' => $status,
+                    'status_label' => $this->paymentStatusLabel($status),
+                    'ledger_id' => (int) ($ledger->id ?? 0),
+                    'entries_count' => (int) ($ledger->entries_count ?? 0),
+                ];
+            })
+            ->when(
+                $filters['status'] !== '',
+                fn ($rows) => $rows->where('status', $filters['status'])
+            )
+            ->values();
+    }
+
+    private function ledgerByDocument(array $documentIds, array $projectIds)
+    {
+        if ($documentIds === [] || ! Schema::hasTable('transactions') || ! Schema::hasTable('entries')) {
+            return collect();
+        }
+
+        return DB::table('transactions as t')
+            ->leftJoin('entries as e', 'e.transaction_id', '=', 't.id')
+            ->whereIn('t.company_id', array_map('intval', $projectIds))
+            ->whereIn('t.reference_id', $documentIds)
+            ->where('t.reference_type', 'like', 'z_document:%')
+            ->groupBy('t.id', 't.reference_id', 't.reference_type', 't.date', 't.amount', 't.description')
+            ->orderByDesc('t.id')
+            ->get([
+                't.id',
+                't.reference_id',
+                't.reference_type',
+                't.date',
+                't.amount',
+                't.description',
+                DB::raw('COUNT(e.id) as entries_count'),
+                DB::raw('SUM(e.debit) as debit_total'),
+                DB::raw('SUM(e.credit) as credit_total'),
+            ])
+            ->unique('reference_id')
+            ->keyBy(fn ($row) => (string) $row->reference_id);
+    }
+
+    private function paymentLedgerRows(array $projectIds)
+    {
+        if (! Schema::hasTable('transactions') || ! Schema::hasTable('entries') || ! Schema::hasTable('accounts')) {
+            return collect();
+        }
+
+        return DB::table('transactions as t')
+            ->join('entries as e', 'e.transaction_id', '=', 't.id')
+            ->join('accounts as a', 'a.id', '=', 'e.account_id')
+            ->join('z_document as d', function ($join): void {
+                $join->on('d.id', '=', DB::raw('CAST(t.reference_id AS UNSIGNED)'));
+            })
+            ->leftJoin('project as p', 'p.id', '=', 't.company_id')
+            ->whereIn('t.company_id', array_map('intval', $projectIds))
+            ->where('t.reference_type', 'like', 'z_document:%')
+            ->whereIn('d.type', ['PO', 'RO', 'PPO', 'PRO'])
+            ->groupBy(
+                't.id',
+                't.date',
+                't.description',
+                't.company_id',
+                't.reference_type',
+                't.reference_id',
+                't.currency',
+                'p.name'
+            )
+            ->orderByDesc('t.id')
+            ->limit(100)
+            ->get([
+                't.id',
+                't.date',
+                't.description',
+                't.reference_type',
+                't.reference_id',
+                't.currency',
+                'p.name as project_name',
+                DB::raw('SUM(e.debit) as debit_total'),
+                DB::raw('SUM(e.credit) as credit_total'),
+                DB::raw("GROUP_CONCAT(CASE WHEN e.debit > 0 THEN CONCAT(a.code, ' ', a.name) END ORDER BY e.id SEPARATOR ' / ') as debit_accounts"),
+                DB::raw("GROUP_CONCAT(CASE WHEN e.credit > 0 THEN CONCAT(a.code, ' ', a.name) END ORDER BY e.id SEPARATOR ' / ') as credit_accounts"),
+                DB::raw('COUNT(e.id) as entries_count'),
+            ])
+            ->map(function ($row) {
+                $row->status = str_ends_with((string) $row->reference_type, ':reversal') ? 'reversed' : 'posted';
+                $row->status_label = $this->paymentStatusLabel($row->status);
+                $row->project_name = trim((string) $row->project_name) ?: 'Проект';
+
+                return $row;
+            });
+    }
+
+    private function paymentStatus(object $document, ?object $ledger): string
+    {
+        if ($ledger && (
+            str_ends_with((string) $ledger->reference_type, ':reversal')
+            || str_starts_with(mb_strtolower(trim((string) ($ledger->description ?? ''))), 'сторно')
+        )) {
+            return 'reversed';
+        }
+        if ((int) $document->provodka === 1 && $ledger) {
+            return 'posted';
+        }
+        if ((int) $document->provodka === 1) {
+            return 'ledger_error';
+        }
+
+        return 'pending';
+    }
+
+    private function paymentStatusLabel(string $status): string
+    {
+        return [
+            'posted' => 'Проведен',
+            'pending' => 'Ожидает проводку',
+            'reversed' => 'Проводка отменена',
+            'ledger_error' => 'Нет ledger-проводки',
+        ][$status] ?? $status;
+    }
+
+    private function paymentCounterparty(object $document): string
+    {
+        $company = trim((string) ($document->orgname ?? ''));
+        if ($company !== '') {
+            return $company;
+        }
+
+        $person = trim(implode(' ', array_filter([
+            (string) ($document->secondname ?? ''),
+            (string) ($document->name ?? ''),
+            (string) ($document->name2 ?? ''),
+        ])));
+
+        return $person !== '' ? $person : 'Не указан';
     }
 
     private function normalizeCashAccount(object $account): object
@@ -903,5 +1331,13 @@ class BankController extends Controller
         }
 
         return 'UAH';
+    }
+
+    private function normalizeCurrencyCode(mixed $currency): string
+    {
+        $normalized = mb_strtoupper(trim((string) $currency));
+        $normalized = preg_replace('/[^A-Z0-9]/', '', $normalized) ?: '';
+
+        return $normalized !== '' ? $normalized : 'UAH';
     }
 }

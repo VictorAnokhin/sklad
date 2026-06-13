@@ -78,8 +78,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/blockchain-monitor/api/sync', [BlockchainMonitorController::class, 'sync'])->name('blockchain-monitor.sync');
     Route::prefix('bank')->name('bank.')->group(function () {
         Route::get('/cash-accounts', [BankController::class, 'cashAccounts'])->name('cash-accounts');
-        Route::get('/loans', [BankController::class, 'loans'])->name('loans');
+        Route::get('/loans', fn () => redirect()->route('bank.deposit'))->name('loans.redirect');
+        Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
         Route::get('/exchange', [BankController::class, 'exchange'])->name('exchange');
+        Route::post('/exchange/orders/{order}/status', [BankController::class, 'updateExchangeOrderStatus'])
+            ->whereNumber('order')
+            ->name('exchange-orders.status');
         Route::get('/clearing', [BankController::class, 'clearing'])->name('clearing');
         Route::get('/payments', [BankController::class, 'payments'])->name('payments');
         Route::get('/reconciliation', [BankController::class, 'reconciliation'])->name('reconciliation');
