@@ -502,7 +502,7 @@ class Document extends Model
             self::refreshLinkedOrderCloseState($docType, $typez, $numz, $parentDocId, $fid);
             self::refreshLinkedOrderPostingState($docType, $typez, $numz, $parentDocId, $fid);
             if ($client1 !== '') {
-                self::updateCache($client1, $fid);
+                self::refreshUserCache($client1, $fid, $doc->currency_from ?? null);
             }
 
             DB::commit();
@@ -632,27 +632,77 @@ class Document extends Model
         }
     }
 
-    private static function updateCache(string $userId, string $fid): void
+    public static function refreshUserCache(string $userId, string $fid, mixed $preferredCurrency = null): void
     {
+        if (! Schema::hasTable('users_cashe')) {
+            return;
+        }
+
+        $cacheColumns = Schema::getColumnListing('users_cashe');
+        if (! in_array('userid', $cacheColumns, true) || ! in_array('balance', $cacheColumns, true)) {
+            return;
+        }
+
+        $hasValuta = in_array('valuta', $cacheColumns, true);
+        $confColumns = Schema::hasTable('conf') ? Schema::getColumnListing('conf') : [];
+        $balances = [];
+
         $zout = DB::table('document')
             ->where('client1', $userId)->where('firma', $fid)
             ->where('type', 'ZOUT')->sum('summa');
-        $paid = DB::table('z_document')
-            ->where('client1', $userId)->where('firma', $fid)
-            ->where('type', 'PO')->where('provodka', 1)->sum('summa');
-        $salary = DB::table('z_document')
-            ->where('client1', $userId)->where('firma', $fid)
-            ->where('type', 'ZP')->where('provodka', 1)->sum('summa');
-        $balance = (float) $paid + (float) $salary - (float) $zout;
+        if ((float) $zout !== 0.0) {
+            $balances['UAH'] = ((float) ($balances['UAH'] ?? 0)) - (float) $zout;
+        }
 
-        DB::table('users_cashe')->updateOrInsert(
-            ['userid' => $userId],
-            [
-                'balance' => $balance,
-                'firma' => (int) $fid,
-                'user_id' => (int) $userId,
-            ]
-        );
+        $cashDocuments = DB::table('z_document')
+            ->where('client1', $userId)
+            ->where('firma', $fid)
+            ->whereIn('type', ['PO', 'ZP'])
+            ->where('provodka', 1)
+            ->get(['summa', 'oplata', 'currency_from']);
+
+        foreach ($cashDocuments as $cashDocument) {
+            $currency = self::normalizeCurrencyCode($cashDocument->currency_from ?? '', '');
+            if ($currency === '') {
+                $currency = self::currencyForCashbox((string) ($cashDocument->oplata ?? ''), $fid, $confColumns);
+            }
+
+            $balances[$currency] = ((float) ($balances[$currency] ?? 0)) + (float) ($cashDocument->summa ?? 0);
+        }
+
+        $preferred = self::normalizeCurrencyCode($preferredCurrency ?? '', '');
+        if ($preferred !== '' && ! array_key_exists($preferred, $balances)) {
+            $balances[$preferred] = 0.0;
+        }
+
+        if ($balances === []) {
+            $balances['UAH'] = 0.0;
+        }
+
+        foreach ($balances as $currency => $balance) {
+            $criteria = ['userid' => $userId];
+            if ($hasValuta) {
+                $criteria['valuta'] = self::normalizeCurrencyCode($currency);
+            }
+
+            $values = ['balance' => round((float) $balance, 2)];
+            if (in_array('firma', $cacheColumns, true)) {
+                $values['firma'] = (int) $fid;
+            }
+            if (in_array('user_id', $cacheColumns, true)) {
+                $values['user_id'] = (int) $userId;
+            }
+            if ($hasValuta) {
+                $values['valuta'] = self::normalizeCurrencyCode($currency);
+            }
+
+            DB::table('users_cashe')->updateOrInsert($criteria, $values);
+        }
+    }
+
+    private static function updateCache(string $userId, string $fid): void
+    {
+        self::refreshUserCache($userId, $fid);
     }
 
     private static function applyColumnDelta($query, string $column, float $delta): void

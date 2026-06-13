@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\AccountingService;
+use App\Support\HoldingScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -808,47 +809,87 @@ class Money extends Model
         return $balances;
     }
 
+    public static function cachedUserBalances(string $userId, string $fid, mixed $fallbackBalance = ''): array
+    {
+        if (trim($userId) === '' || ! Schema::hasTable('users_cashe') || ! Schema::hasColumn('users_cashe', 'balance')) {
+            return self::userBalances($fallbackBalance);
+        }
+
+        $query = DB::table('users_cashe')->where('userid', $userId);
+
+        if (Schema::hasColumn('users_cashe', 'firma')) {
+            $firmaScope = HoldingScope::projectIdsFor($fid);
+            if ($firmaScope !== []) {
+                $query->whereIn('firma', array_map('intval', $firmaScope));
+            }
+        }
+
+        $columns = ['balance'];
+        $columns[] = Schema::hasColumn('users_cashe', 'valuta')
+            ? 'valuta'
+            : DB::raw("'UAH' as valuta");
+
+        $rows = $query
+            ->orderByDesc('balance')
+            ->get($columns);
+
+        if ($rows->isEmpty()) {
+            return self::userBalances($fallbackBalance);
+        }
+
+        return $rows
+            ->map(function ($row, int $index) {
+                return [
+                    'amount' => self::formatBalanceAmount((float) ($row->balance ?? 0)),
+                    'currency' => self::normalizeCurrency($row->valuta ?? 'UAH'),
+                    'is_default' => $index === 0,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
     private static function shiftUserBalance(string $fid, string $userId, float $delta, string $currency): void
     {
-        if ($delta == 0.0 || !Schema::hasColumn('users', 'balance')) {
+        if ($delta == 0.0 || ! Schema::hasTable('users_cashe') || ! Schema::hasColumn('users_cashe', 'balance')) {
             return;
         }
 
+        $cacheColumns = Schema::getColumnListing('users_cashe');
+        $hasValuta = in_array('valuta', $cacheColumns, true);
+        $currency = self::normalizeCurrency($currency);
+        $firmaScope = HoldingScope::projectIdsFor($fid);
         $user = DB::table('users')
             ->where('id', $userId)
-            ->where('firma', $fid)
-            ->lockForUpdate()
-            ->first(['id', 'balance']);
+            ->when($firmaScope !== [], fn ($query) => $query->whereIn('firma', $firmaScope))
+            ->first(['id', 'firma']);
 
         if (!$user) {
             return;
         }
 
-        $currency = self::normalizeCurrency($currency);
-        $balances = self::userBalances($user->balance ?? '');
-        $found = false;
-
-        foreach ($balances as &$balance) {
-            if ($balance['currency'] !== $currency) {
-                continue;
-            }
-
-            $balance['amount'] = self::formatBalanceAmount((float) $balance['amount'] + $delta);
-            $found = true;
-            break;
-        }
-        unset($balance);
-
-        if (!$found) {
-            $balances[] = [
-                'amount' => self::formatBalanceAmount($delta),
-                'currency' => $currency,
-            ];
+        $criteria = ['userid' => (string) $user->id];
+        if ($hasValuta) {
+            $criteria['valuta'] = $currency;
         }
 
-        DB::table('users')->where('id', $user->id)->update([
-            'balance' => self::serializeUserBalances($balances),
-        ]);
+        $existing = DB::table('users_cashe')
+            ->where($criteria)
+            ->lockForUpdate()
+            ->first(['id', 'balance']);
+
+        $values = ['balance' => round((float) ($existing->balance ?? 0) + $delta, 2)];
+        if (in_array('firma', $cacheColumns, true)) {
+            $values['firma'] = (int) ($user->firma ?? $fid);
+        }
+        if (in_array('user_id', $cacheColumns, true)) {
+            $values['user_id'] = (int) $user->id;
+        }
+        if ($hasValuta) {
+            $values['valuta'] = $currency;
+        }
+
+        DB::table('users_cashe')->updateOrInsert($criteria, $values);
     }
 
     private static function serializeUserBalances(array $balances): ?string

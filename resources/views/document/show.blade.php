@@ -577,14 +577,20 @@
                         <div class="doc-form-row doc-form-row-two-cols">
                             <div class="col-f">
                                 <label>Каса</label>
-                                <select name="oplata" class="form-select text-white">
+                                <select name="oplata" id="documentCashboxSelect" class="form-select text-white">
                                     <option value="">— Оберіть касу —</option>
                                     @foreach(($oplataList ?? collect()) as $oplataOption)
-                                        <option value="{{ $oplataOption->id }}" {{ (string) ($document->oplata ?? '') === (string) $oplataOption->id ? 'selected' : '' }}>
-                                            {{ $oplataOption->name }}
+                                        @php
+                                            $cashboxCurrency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($oplataOption->currency ?? ''))) ?: 'UAH';
+                                        @endphp
+                                        <option value="{{ $oplataOption->id }}" data-currency="{{ $cashboxCurrency }}" {{ (string) ($document->oplata ?? '') === (string) $oplataOption->id ? 'selected' : '' }}>
+                                            {{ $oplataOption->name }} ({{ $cashboxCurrency }})
                                         </option>
                                     @endforeach
                                 </select>
+                                @if($doc === 'ZP')
+                                    <div class="form-text text-muted">Валюта ЗП береться з обраної каси.</div>
+                                @endif
                                 @error('oplata')
                                     <div class="text-danger small mt-1 text-red">{{ $message }}</div>
                                 @enderror

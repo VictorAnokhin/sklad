@@ -91,7 +91,7 @@ class MoneyController extends Controller
                 ->get()
                 ->map(fn ($item) => Conf::decoratePaymentType($item));
 
-        $userBalances = Money::userBalances(Auth::user()->balance ?? '');
+        $userBalances = Money::cachedUserBalances((string) (Auth::id() ?: session('userid', '0')), $fid, Auth::user()->balance ?? '');
 
         $indexRouteName = 'money.index';
         $showRouteName = 'money.show';
@@ -111,7 +111,7 @@ class MoneyController extends Controller
 
         $data = Money::initTransfers($fid, $pos, $filters);
         $paymentTypes = collect();
-        $userBalances = Money::userBalances(Auth::user()->balance ?? '');
+        $userBalances = Money::cachedUserBalances((string) (Auth::id() ?: session('userid', '0')), $fid, Auth::user()->balance ?? '');
         $indexRouteName = 'money.transfers';
         $showRouteName = 'money.show';
         $filterRouteName = 'money.transfers';
@@ -144,7 +144,6 @@ class MoneyController extends Controller
         if ($docId === 0) {
             $document = Money::emptyDocument($type);
             $document->client2 = (string) (Auth::id() ?: session('userid', '0'));
-            $document->owner_balance = (string) (Auth::user()->balance ?? '');
             $document->owner_name = (string) (Auth::user()->name ?? '');
             $document->owner_secondname = (string) (Auth::user()->secondname ?? '');
             $document->owner_fathername = (string) (Auth::user()->fathername ?? '');
@@ -157,7 +156,8 @@ class MoneyController extends Controller
             }
         }
 
-        $ownerBalances = Money::userBalances($document->owner_balance ?? '');
+        $ownerUserId = (string) (($document->client2 ?? '') ?: (Auth::id() ?: session('userid', '0')));
+        $ownerBalances = Money::cachedUserBalances($ownerUserId, $fid, $document->owner_balance ?? '');
         if ($ownerBalances === []) {
             $ownerBalances = [[
                 'amount' => '0',

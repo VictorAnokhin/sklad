@@ -141,6 +141,13 @@ class DocumentService
         }
 
         $existingColumns = Schema::getColumnListing($table);
+        if (
+            in_array('currency_from', $existingColumns, true)
+            && in_array($docType, ['PO', 'RO', 'ZP'], true)
+        ) {
+            $data['currency_from'] = $this->currencyForCashbox((string) ($data['oplata'] ?? ''), $fid);
+        }
+
         Log::info('saveHead columns info', [
             'table' => $table,
             'existingColumns' => $existingColumns,
@@ -187,7 +194,7 @@ class DocumentService
         // ── Update users_cashe (balance cache) ────────────────────────────────
         $client1 = DB::table($table)->where('id', $docId)->value('client1');
         if ($client1) {
-            $this->updateCache((string)$client1, $fid);
+            Document::refreshUserCache((string)$client1, $fid, $data['currency_from'] ?? null);
         }
 
         // ── Notifications ─────────────────────────────────────────────────────
@@ -408,25 +415,57 @@ class DocumentService
 
     private function updateCache(string $userId, string $fid): void
     {
-        $zout = DB::table('document')
-            ->where('client1', $userId)->where('firma', $fid)
-            ->where('type', 'ZOUT')->sum('summa');
-        $paid = DB::table('z_document')
-            ->where('client1', $userId)->where('firma', $fid)
-            ->where('type', 'PO')->where('provodka', 1)->sum('summa');
-        $salary = DB::table('z_document')
-            ->where('client1', $userId)->where('firma', $fid)
-            ->where('type', 'ZP')->where('provodka', 1)->sum('summa');
-        $balance = (float)$paid + (float)$salary - (float)$zout;
+        Document::refreshUserCache($userId, $fid);
+    }
 
-        DB::table('users_cashe')->updateOrInsert(
-            ['userid' => $userId],
-            [
-                'balance' => $balance,
-                'firma' => (int) $fid,
-                'user_id' => (int) $userId,
-            ]
-        );
+    private function currencyForCashbox(string $cashboxId, string $fid): string
+    {
+        if (trim($cashboxId) === '' || ! Schema::hasTable('conf')) {
+            return 'UAH';
+        }
+
+        $columns = Schema::getColumnListing('conf');
+        $select = ['name'];
+        if (in_array('currency', $columns, true)) {
+            $select[] = 'currency';
+        }
+
+        $cashbox = DB::table('conf')
+            ->where('id', $cashboxId)
+            ->where('type', 'oplata')
+            ->where('firma', $fid)
+            ->first($select);
+
+        if (! $cashbox) {
+            return 'UAH';
+        }
+
+        $configuredCurrency = in_array('currency', $columns, true)
+            ? $this->normalizeCurrencyCode($cashbox->currency ?? '', '')
+            : '';
+
+        return $configuredCurrency !== ''
+            ? $configuredCurrency
+            : $this->currencyFromCashboxName((string) ($cashbox->name ?? ''));
+    }
+
+    private function currencyFromCashboxName(string $name): string
+    {
+        $upperName = strtoupper($name);
+        foreach (['UAH', 'USD', 'EUR', 'GBP', 'PLN', 'USDT', 'USDC', 'BTC', 'ETH'] as $currency) {
+            if (preg_match('/(^|[^A-Z0-9])' . preg_quote($currency, '/') . '([^A-Z0-9]|$)/', $upperName) === 1) {
+                return $currency;
+            }
+        }
+
+        return 'UAH';
+    }
+
+    private function normalizeCurrencyCode(mixed $value, string $default = 'UAH'): string
+    {
+        $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
+
+        return $currency !== '' ? substr($currency, 0, 10) : $default;
     }
 
     // ── SMS (smsclub.mobi) ────────────────────────────────────────────────────
