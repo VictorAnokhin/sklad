@@ -271,6 +271,45 @@
         height: auto !important;
     }
 
+    .bank-table--payments,
+    .bank-table--payment-ledger,
+    .bank-table--payments thead,
+    .bank-table--payments tbody,
+    .bank-table--payment-ledger thead,
+    .bank-table--payment-ledger tbody {
+        display: block;
+    }
+
+    .bank-table--payments thead {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    .bank-table--payment-ledger thead {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    .bank-table--payments thead tr,
+    .bank-table--payments tbody tr {
+        display: grid !important;
+        grid-template-columns: 44px 150px 120px 155px 165px 160px 140px 180px;
+        align-items: center;
+        min-height: 0 !important;
+        height: auto !important;
+    }
+
+    .bank-table--payment-ledger thead tr,
+    .bank-table--payment-ledger tbody tr {
+        display: grid !important;
+        grid-template-columns: 44px 120px 140px 210px 210px 135px 260px 161px;
+        align-items: center;
+        min-height: 0 !important;
+        height: auto !important;
+    }
+
     .bank-table-scroll--payments {
         height: auto !important;
         min-height: 0 !important;
@@ -292,30 +331,17 @@
     .bank-table--payment-ledger th,
     .bank-table--payment-ledger td {
         padding: 0 0.42rem;
+        width: auto !important;
+        min-width: 0 !important;
         height: auto !important;
         font-size: 0.68rem;
         line-height: 0.9;
         vertical-align: middle;
     }
 
-    .bank-table--payments th:not(.bank-table__num),
-    .bank-table--payments td:not(.bank-table__num),
-    .bank-table--payment-ledger th:not(.bank-table__num),
-    .bank-table--payment-ledger td:not(.bank-table__num) {
-        min-width: 125px;
-    }
-
-    .bank-table--payments th:nth-child(4),
-    .bank-table--payments td:nth-child(4),
-    .bank-table--payments th:nth-child(5),
-    .bank-table--payments td:nth-child(5),
-    .bank-table--payment-ledger th:nth-child(4),
-    .bank-table--payment-ledger td:nth-child(4),
-    .bank-table--payment-ledger th:nth-child(5),
-    .bank-table--payment-ledger td:nth-child(5),
-    .bank-table--payment-ledger th:nth-child(7),
-    .bank-table--payment-ledger td:nth-child(7) {
-        min-width: 180px;
+    .bank-table--payments td[colspan],
+    .bank-table--payment-ledger td[colspan] {
+        grid-column: 1 / -1;
     }
 
     .bank-table--payments .bank-meta,
