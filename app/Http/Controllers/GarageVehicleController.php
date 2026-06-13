@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GarageVehicle;
 use App\Models\User;
 use App\Services\AutoRiaVehicleCheckService;
+use App\Support\HoldingScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
@@ -69,9 +70,10 @@ class GarageVehicleController extends Controller
         }
 
         if (Schema::hasTable('users')) {
+            $firmaScope = $fid !== '' ? HoldingScope::projectIdsFor($fid) : [];
             $users = User::query()
                 ->select(['id', 'email'])
-                ->when($fid !== '' && Schema::hasColumn('users', 'firma'), fn ($query) => $query->where('firma', $fid))
+                ->when($firmaScope !== [] && Schema::hasColumn('users', 'firma'), fn ($query) => $query->whereIn('firma', $firmaScope))
                 ->where(function ($query) use ($ownerEmail, $ownerDigits, $isEmail) {
                     if (Schema::hasColumn('users', 'email') && $isEmail) {
                         $query->orWhereRaw('LOWER(TRIM(email)) = ?', [$ownerEmail]);

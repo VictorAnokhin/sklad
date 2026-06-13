@@ -212,6 +212,8 @@ class User extends Authenticatable
 
     public static function userslist($fid, $filters, $pos, $pos2 = 20)
     {
+        $firmas = self::normalizeFirmaScope($fid);
+        $currentFirma = $firmas[0] ?? '';
         $search = $filters['search'] ?? '';
         $filterCity = $filters['city'] ?? '';
         $filterStatus = $filters['idstatus'] ?? '';
@@ -220,7 +222,7 @@ class User extends Authenticatable
         $hasEmailCol = self::hasUsersColumn('email');
 
         $query = DB::table('users')
-            ->where('firma', $fid);
+            ->whereIn('firma', $firmas);
 
         if ($search !== '') {
             $like = '%' . mb_strtolower($search) . '%';
@@ -263,7 +265,7 @@ class User extends Authenticatable
         // Data for filter dropdowns
         $statuses = DB::table('conf')
             ->where('type', 'tclient')
-            ->where('firma', $fid)
+            ->where('firma', $currentFirma)
             ->orderBy('name')->get();
 
         return compact('clients', 'total', 'statuses');
@@ -271,14 +273,16 @@ class User extends Authenticatable
 
     public static function showClient($id, $fid)
     {
+        $firmas = self::normalizeFirmaScope($fid);
+        $currentFirma = $firmas[0] ?? '';
         $client = $id !== '0'
-            ? DB::table('users')->where('id', $id)->where('firma', $fid)->first()
+            ? DB::table('users')->where('id', $id)->whereIn('firma', $firmas)->first()
             : null;
 
         // Selects needed for form
         $statuses = DB::table('conf')
             ->where('type', 'tclient')
-            ->where('firma', $fid)
+            ->where('firma', $currentFirma)
             ->orderBy('name')->get();
 
         return compact('client', 'statuses');
@@ -340,8 +344,20 @@ class User extends Authenticatable
             return false;
         }
 
-        DB::table('users')->where('id', $id)->where('firma', $fid)->delete();
+        DB::table('users')->where('id', $id)->whereIn('firma', self::normalizeFirmaScope($fid))->delete();
         return true;
+    }
+
+    private static function normalizeFirmaScope($fid): array
+    {
+        $values = is_array($fid) ? $fid : [$fid];
+
+        return collect($values)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public static function saveFirm($id, $data)

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use App\Models\Field;
 use App\Models\User;
+use App\Support\HoldingScope;
 use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,6 +25,11 @@ class ZakazController extends Controller
     private function resolveApiFid(Request $request, $default = '2')
     {
         return (string) $request->input('fid', $default !== '' ? $default : session('fid', ''));
+    }
+
+    private function firmaScope(string $fid): array
+    {
+        return HoldingScope::projectIdsFor($fid);
     }
 
     // ── Оформить заказ ──────────────────────────────────────────────────────
@@ -105,15 +111,17 @@ class ZakazController extends Controller
         /** @var User|null $bearerUser Користувач з Bearer token (кабінет), щоб client1 збігався з акаунтом */
         $bearerUser = Auth::guard('sanctum')->user();
 
-        DB::transaction(function () use ($data, $deliveryDescription, $fid, $fullDescription, $totalSum, $bearerUser, &$docId, &$docNum) {
+        $firmaScope = $this->firmaScope($fid);
+
+        DB::transaction(function () use ($data, $deliveryDescription, $fid, $firmaScope, $fullDescription, $totalSum, $bearerUser, &$docId, &$docNum) {
             $year = now()->format('Y');
-            $this->withOrderNumberLock($fid, $year, function () use ($data, $deliveryDescription, $fid, $fullDescription, $totalSum, $year, $bearerUser, &$docId, &$docNum) {
+            $this->withOrderNumberLock($fid, $year, function () use ($data, $deliveryDescription, $fid, $firmaScope, $fullDescription, $totalSum, $year, $bearerUser, &$docId, &$docNum) {
                 $bearerFirma = $bearerUser
                     ? trim((string) ($bearerUser->firma ?? $bearerUser->fid ?? ''))
                     : '';
                 $useBearerClient = $bearerUser
                     && $bearerFirma !== ''
-                    && $bearerFirma === trim((string) $fid);
+                    && in_array($bearerFirma, $firmaScope, true);
 
                 if ($useBearerClient) {
                     $clientId = (int) $bearerUser->id;
@@ -136,7 +144,7 @@ class ZakazController extends Controller
                 } else {
                     $client = DB::table('users')
                         ->where('phone', $data['mobile'])
-                        ->where('firma', $fid)
+                        ->whereIn('firma', $firmaScope)
                         ->lockForUpdate()
                         ->first();
 
@@ -250,12 +258,14 @@ class ZakazController extends Controller
         $docId = 0;
         $docNum = 0;
 
-        DB::transaction(function () use ($data, $fid, &$docId, &$docNum) {
+        $firmaScope = $this->firmaScope($fid);
+
+        DB::transaction(function () use ($data, $fid, $firmaScope, &$docId, &$docNum) {
             $year = now()->format('Y');
-            $this->withOrderNumberLock($fid, $year, function () use ($data, $fid, $year, &$docId, &$docNum) {
+            $this->withOrderNumberLock($fid, $year, function () use ($data, $fid, $firmaScope, $year, &$docId, &$docNum) {
                 $client = DB::table('users')
                     ->where('phone', $data['mobile'])
-                    ->where('firma', $fid)
+                    ->whereIn('firma', $firmaScope)
                     ->lockForUpdate()
                     ->first();
 
@@ -449,7 +459,7 @@ class ZakazController extends Controller
 
         $client = DB::table('users')
             ->where('phone', $mobile)
-            ->where('firma', $fid)
+            ->whereIn('firma', $this->firmaScope($fid))
             ->first();
 
         if (!$client) {
@@ -494,7 +504,7 @@ class ZakazController extends Controller
             $orders = DB::table('document')
                 ->whereIn('client1', $clientUserIds)
                 ->where('type', 'ZOUT')
-                ->when($fid !== '', fn ($q) => $q->where('firma', $fid))
+                ->when($fid !== '', fn ($q) => $q->whereIn('firma', $this->firmaScope($fid)))
                 ->orderBy('dt', 'desc')
                 ->get();
 
@@ -612,7 +622,7 @@ class ZakazController extends Controller
                 })
                 ->whereIn('d.client1', $clientUserIds)
                 ->where('d.type', 'ZOUT')
-                ->when($fid !== '', fn ($q) => $q->where('d.firma', $fid))
+                ->when($fid !== '', fn ($q) => $q->whereIn('d.firma', $this->firmaScope($fid)))
                 ->select([
                     'd.id as order_id',
                     'd.num as order_num',
@@ -735,7 +745,7 @@ class ZakazController extends Controller
             ->all();
 
         $ids = DB::table('users')
-            ->when($fid !== '', fn ($query) => $query->where('firma', $fid))
+            ->when($fid !== '', fn ($query) => $query->whereIn('firma', $this->firmaScope($fid)))
             ->where(function ($query) use ($ownerEmail, $ownerDigits, $isEmail, $phoneColumns) {
                 if ($isEmail && Schema::hasColumn('users', 'email')) {
                     $query->orWhereRaw('LOWER(TRIM(email)) = ?', [$ownerEmail]);
@@ -756,6 +766,7 @@ class ZakazController extends Controller
     private function resolveCabinetOrderClientIds(User $user): array
     {
         $firma = trim((string) ($user->firma ?? $user->fid ?? ''));
+        $firmaScope = $this->firmaScope($firma);
         $ids = collect([(int) $user->id]);
 
         if ($firma === '') {
@@ -766,7 +777,7 @@ class ZakazController extends Controller
         if ($email !== '' && Schema::hasColumn('users', 'email')) {
             $ids = $ids->merge(
                 DB::table('users')
-                    ->where('firma', $firma)
+                    ->whereIn('firma', $firmaScope)
                     ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
                     ->pluck('id')
             );
@@ -783,7 +794,7 @@ class ZakazController extends Controller
 
             $ids = $ids->merge(
                 DB::table('users')
-                    ->where('firma', $firma)
+                    ->whereIn('firma', $firmaScope)
                     ->where(function ($q) use ($p, $p1, $phoneColumns) {
                         foreach (array_filter([$p, $p1]) as $phone) {
                             $digits = preg_replace('/\D+/', '', $phone) ?? '';

@@ -7,6 +7,7 @@ use App\Models\Document;
 use App\Models\GarageVehicle;
 use App\Models\Project;
 use App\Services\AutoRiaVehicleCheckService;
+use App\Support\HoldingScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -29,6 +30,7 @@ class ClientController extends Controller
     public function index(Request $request)
     {
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
         $previousFilters = [
             'search' => session('cl_search', ''),
             'city' => session('cl_city', ''),
@@ -61,7 +63,7 @@ class ClientController extends Controller
             'cl_email' => $filters['email'],
         ]);
 
-        $result = User::userslist($fid, $filters, $pos, $pos2);
+        $result = User::userslist($clientFirmaScope, $filters, $pos, $pos2);
         $clients = $result['clients'];
         $total = $result['total'];
         $statuses = $result['statuses'];
@@ -78,11 +80,12 @@ class ClientController extends Controller
             return response()->json([]);
 
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
         $qBase = $q;
         $teamOnly = $request->boolean('team_only');
 
         $users = DB::table('users')
-            ->where('firma', $fid)
+            ->whereIn('firma', $clientFirmaScope)
             ->when($teamOnly, fn ($query) => $query->where('firmuser', '1'))
             ->where(function ($query) use ($q, $qBase) {
             $query->where('orgname', 'LIKE', "%{$qBase}%")
@@ -130,10 +133,11 @@ class ClientController extends Controller
         }
 
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
 
         $query = DB::table('users')
             ->where('email', $email)
-            ->where('firma', $fid);
+            ->whereIn('firma', $clientFirmaScope);
 
         // Exclude current client when editing
         if ($clientId !== '0' && $clientId !== '') {
@@ -160,6 +164,7 @@ class ClientController extends Controller
     public function storeQuick(Request $request)
     {
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
         $orgname = trim((string) ($request->input('orgname') ?? ''));
         $name = trim((string) ($request->input('name') ?? ''));
         $secondname = trim((string) ($request->input('secondname') ?? ''));
@@ -188,7 +193,7 @@ class ClientController extends Controller
         // Check for unique phone if provided
         if ($phone !== '') {
             $query = DB::table('users')
-                ->where('firma', $fid)
+                ->whereIn('firma', $clientFirmaScope)
                 ->where(function ($query) use ($phone) {
                     $query->where('phone', $phone)
                           ->orWhere('phone1', $phone);
@@ -247,8 +252,9 @@ class ClientController extends Controller
     {
         $id = $request->input('id', '0');
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
 
-        $result = User::showClient($id, $fid);
+        $result = User::showClient($id, $clientFirmaScope);
         $client = $result['client'];
         $statuses = DB::table('conf')
             ->where('type', 'tclient')
@@ -266,6 +272,7 @@ class ClientController extends Controller
             ->orderBy('name')
             ->get();
         $projects = Project::query()
+            ->whereIn('id', array_map('intval', $clientFirmaScope))
             ->orderBy('name')
             ->orderBy('id')
             ->get(['id', 'name']);
@@ -419,6 +426,11 @@ class ClientController extends Controller
         ];
     }
 
+    private function clientFirmaScope(mixed $fid): array
+    {
+        return HoldingScope::projectIdsFor($fid);
+    }
+
     public function garageLookup(Request $request, AutoRiaVehicleCheckService $autoRia)
     {
         $validated = $request->validate([
@@ -427,9 +439,10 @@ class ClientController extends Controller
         ]);
 
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
         $client = DB::table('users')
             ->where('id', $validated['client_id'])
-            ->where('firma', $fid)
+            ->whereIn('firma', $clientFirmaScope)
             ->first();
 
         if (! $client) {
@@ -513,9 +526,10 @@ class ClientController extends Controller
         ]);
 
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
         $client = DB::table('users')
             ->where('id', $validated['client_id'])
-            ->where('firma', $fid)
+            ->whereIn('firma', $clientFirmaScope)
             ->first();
 
         if (! $client) {
@@ -585,9 +599,10 @@ class ClientController extends Controller
     public function kycPhoto(string $id, string $type)
     {
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
         $client = DB::table('users')
             ->where('id', $id)
-            ->where('firma', $fid)
+            ->whereIn('firma', $clientFirmaScope)
             ->first();
 
         if (! $client) {
@@ -623,10 +638,11 @@ class ClientController extends Controller
         $id = $request->input('id', '0');
         $type = $request->input('type', '');
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
 
         $client = DB::table('users')
             ->where('id', $id)
-            ->where('firma', $fid)
+            ->whereIn('firma', $clientFirmaScope)
             ->first();
 
         if (! $client) {
@@ -665,7 +681,7 @@ class ClientController extends Controller
 
         DB::table('users')
             ->where('id', $id)
-            ->where('firma', $fid)
+            ->whereIn('firma', $clientFirmaScope)
             ->update($updateData);
 
         return response()->json(['success' => true, 'message' => 'Фото видалено']);
@@ -676,10 +692,19 @@ class ClientController extends Controller
     public function save(Request $request)
     {
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
         $id = $request->input('id', '0');
         $stringValue = static fn ($value): string => trim((string) ($value ?? ''));
 
         try {
+            $existingClient = $id !== '0' && $id !== ''
+                ? DB::table('users')->where('id', $id)->whereIn('firma', $clientFirmaScope)->first()
+                : null;
+
+            if (($id !== '0' && $id !== '') && ! $existingClient) {
+                return back()->withErrors(['save' => 'Клієнта не знайдено або він не належить компаніям холдингу'])->withInput();
+            }
+
             $phoneDigits = preg_replace('/\D/', '', $request->input('phone', ''));
             $phone1Digits = preg_replace('/\D/', '', $request->input('phone1', ''));
             
@@ -689,7 +714,7 @@ class ClientController extends Controller
                     'email',
                     'max:255',
                     Rule::unique('users', 'email')
-                        ->where('firma', $fid)
+                        ->where(fn ($query) => $query->whereIn('firma', $clientFirmaScope))
                         ->ignore($id === '0' ? null : $id),
                 ],
                 'phone' => [
@@ -697,7 +722,7 @@ class ClientController extends Controller
                     'string',
                     'max:50',
                     Rule::unique('users', 'phone')
-                        ->where('firma', $fid)
+                        ->where(fn ($query) => $query->whereIn('firma', $clientFirmaScope))
                         ->ignore($id === '0' ? null : $id),
                 ],
                 'phone1' => [
@@ -705,7 +730,7 @@ class ClientController extends Controller
                     'string',
                     'max:50',
                     Rule::unique('users', 'phone1')
-                        ->where('firma', $fid)
+                        ->where(fn ($query) => $query->whereIn('firma', $clientFirmaScope))
                         ->ignore($id === '0' ? null : $id),
                 ],
                 'login' => array_filter([
@@ -714,11 +739,16 @@ class ClientController extends Controller
                     User::hasUsersColumn('login') ? 'max:255' : null,
                     User::hasUsersColumn('login') ? Rule::unique('users', 'login')->ignore($id === '0' ? null : $id) : null,
                 ]),
-                'project_id' => ['nullable', 'integer', Rule::exists('project', 'id')],
+                'project_id' => ['nullable', 'integer', Rule::exists('project', 'id'), Rule::in(array_map('intval', $clientFirmaScope))],
             ], [
                 'phone.unique' => 'Клієнт з таким телефоном вже існує',
                 'phone1.unique' => 'Клієнт з таким додатковим телефоном вже існує',
             ]);
+
+            $selectedProjectId = $request->filled('project_id') ? (string) (int) $request->input('project_id') : '';
+            $targetFirma = $selectedProjectId !== '' && in_array($selectedProjectId, $clientFirmaScope, true)
+                ? $selectedProjectId
+                : (string) ($existingClient->firma ?? $fid);
 
             $data = [
                 'login' => $stringValue($request->input('login', '')),
@@ -742,10 +772,10 @@ class ClientController extends Controller
                 'bonus' => (float)$request->input('bonus', 0),
                 'hbd' => $stringValue($request->input('hbd', '')),
                 'kyc_status' => $stringValue($request->input('kyc_status', 'not_started')),
-                'firma' => $fid,
+                'firma' => $targetFirma,
                 'project_id' => $request->filled('project_id')
                     ? (int) $request->input('project_id')
-                    : null,
+                    : (is_numeric($targetFirma) ? (int) $targetFirma : null),
             ];
 
             $password = trim((string) $request->input('pass', ''));
@@ -926,6 +956,7 @@ class ClientController extends Controller
     {
         $id = $request->input('id', '');
         $fid = session('fid', '');
+        $clientFirmaScope = $this->clientFirmaScope($fid);
 
         // Detailed check: what's blocking deletion
         $documentCount1 = DB::table('document')->where('client1', $id)->count();
@@ -956,12 +987,12 @@ class ClientController extends Controller
         }
 
         // Check if client exists and belongs to current firma
-        $client = DB::table('users')->where('id', $id)->where('firma', $fid)->first();
+        $client = DB::table('users')->where('id', $id)->whereIn('firma', $clientFirmaScope)->first();
         if (!$client) {
-            return back()->withErrors(['delete' => 'Клієнта не знайдено або він не належить поточній компанії']);
+            return back()->withErrors(['delete' => 'Клієнта не знайдено або він не належить компаніям холдингу']);
         }
 
-        User::deleteClient($id, $fid);
+        User::deleteClient($id, $clientFirmaScope);
         return redirect()->route('client.index')->with('success', 'Клієнта видалено');
     }
 

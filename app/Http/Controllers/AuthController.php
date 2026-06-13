@@ -9,6 +9,7 @@ use App\Services\ShinamiClient;
 use App\Services\SuiLocalGasSponsorClient;
 use App\Services\SmsClubService;
 use App\Services\WidgetIntelligenceService;
+use App\Support\HoldingScope;
 use Elliptic\EC;
 use Illuminate\Mail\Message;
 use Illuminate\Http\Request;
@@ -469,7 +470,7 @@ class AuthController extends Controller
     private function scopeUserQueryToFid($query, ?string $fid)
     {
         if ($fid !== null && $fid !== '' && Schema::hasColumn('users', 'firma')) {
-            $query->where('firma', $fid);
+            $query->whereIn('firma', HoldingScope::projectIdsFor($fid));
         }
 
         return $query;
@@ -1232,7 +1233,8 @@ class AuthController extends Controller
 
             $targetUser = User::query()
                 ->whereRaw('LOWER(email) = ?', [strtolower($targetEmail)])
-                ->where('firma', $targetFirma)
+                ->whereIn('firma', HoldingScope::projectIdsFor($targetFirma))
+                ->orderByRaw('CASE WHEN firma = ? THEN 0 ELSE 1 END', [$targetFirma])
                 ->first();
 
             if (! $targetUser) {
@@ -1443,7 +1445,8 @@ class AuthController extends Controller
             return response()->json(['message' => 'Email and fid are required to update profile.'], 422);
         }
 
-        if (strcasecmp($targetEmail, $currentEmail) !== 0 || $targetFid !== $currentFid) {
+        $currentFirmaScope = HoldingScope::projectIdsFor($currentFid);
+        if (strcasecmp($targetEmail, $currentEmail) !== 0 || ! in_array($targetFid, $currentFirmaScope, true)) {
             return response()->json(['message' => 'Profile target does not match authenticated account.'], 403);
         }
 
@@ -1459,7 +1462,8 @@ class AuthController extends Controller
 
         $targetUser = User::query()
             ->whereRaw('LOWER(email) = ?', [strtolower($targetEmail)])
-            ->where('firma', $targetFid)
+            ->whereIn('firma', HoldingScope::projectIdsFor($targetFid))
+            ->orderByRaw('CASE WHEN firma = ? THEN 0 ELSE 1 END', [$targetFid])
             ->first();
 
         if (! $targetUser) {

@@ -8,6 +8,7 @@ use App\Models\Filter;
 use App\Models\Price;
 use App\Models\Project;
 use App\Models\Rating;
+use App\Support\HoldingScope;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -335,7 +336,8 @@ class GoodsController extends Controller
 
         $projectId = DB::table('users')
             ->where('id', $counterpartyUserId)
-            ->where('firma', $sourceCompanyId)
+            ->whereIn('firma', HoldingScope::projectIdsFor($sourceCompanyId))
+            ->orderByRaw('CASE WHEN firma = ? THEN 0 ELSE 1 END', [$sourceCompanyId])
             ->value('project_id');
 
         if ($projectId === null || (string) $projectId === (string) $sourceCompanyId) {
