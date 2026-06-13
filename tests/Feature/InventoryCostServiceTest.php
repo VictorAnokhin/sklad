@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Document;
+use App\Models\Money;
 use App\Models\Report;
 use App\Services\InventoryCostService;
 use Illuminate\Support\Facades\DB;
@@ -352,6 +353,68 @@ class InventoryCostServiceTest extends TestCase
         $this->assertAccountEntry((int) $roReversal->id, "631.{$this->companyId}.{$counterpartyId}", 0, 40);
         $this->assertAccountEntry((int) $roReversal->id, "301.{$this->companyId}.{$cashboxId}", 40, 0);
         $this->assertEqualsWithDelta(100, $this->cashboxValue($cashboxId), 0.001);
+    }
+
+    public function test_profile_balance_exchange_uses_double_entry_and_exact_reversal(): void
+    {
+        $ownerId = DB::table('users')->insertGetId([
+            'name' => 'Exchange owner',
+            'email' => "exchange-owner-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+
+        DB::table('users_cashe')->insert([
+            [
+                'userid' => (string) $ownerId,
+                'firma' => $this->companyId,
+                'user_id' => $ownerId,
+                'balance' => 500,
+                'valuta' => 'UAH',
+            ],
+            [
+                'userid' => (string) $ownerId,
+                'firma' => $this->companyId,
+                'user_id' => $ownerId,
+                'balance' => 10,
+                'valuta' => 'USD',
+            ],
+        ]);
+
+        $docId = DB::table('z_document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => 'PPP',
+            'firma' => (string) $this->companyId,
+            'client1' => '0',
+            'client2' => (string) $ownerId,
+            'summa' => 100,
+            'summa2' => 25,
+            'currency_from' => 'UAH',
+            'currency_to' => 'USD',
+            'exchange_rate' => 0.25,
+            'data' => '12-06-2026',
+            'docum' => 'exchange',
+            'provodka' => 0,
+        ]);
+
+        Money::provodka($docId, (string) $this->companyId);
+
+        $transaction = $this->documentTransaction($docId, 'balance_exchange');
+        $this->assertNotNull($transaction);
+        $this->assertLedgerIsBalanced((int) $transaction->id, 100);
+        $this->assertAccountEntry((int) $transaction->id, "333.{$this->companyId}.{$ownerId}.USD", 100, 0);
+        $this->assertAccountEntry((int) $transaction->id, "333.{$this->companyId}.{$ownerId}.UAH", 0, 100);
+        $this->assertUserCacheBalance($ownerId, 'UAH', 400);
+        $this->assertUserCacheBalance($ownerId, 'USD', 35);
+
+        Money::provodka($docId, (string) $this->companyId);
+
+        $reversal = $this->documentReversal($docId, 'balance_exchange');
+        $this->assertNotNull($reversal);
+        $this->assertAccountEntry((int) $reversal->id, "333.{$this->companyId}.{$ownerId}.USD", 0, 100);
+        $this->assertAccountEntry((int) $reversal->id, "333.{$this->companyId}.{$ownerId}.UAH", 100, 0);
+        $this->assertUserCacheBalance($ownerId, 'UAH', 500);
+        $this->assertUserCacheBalance($ownerId, 'USD', 10);
     }
 
     public function test_po_and_ro_create_and_reverse_project_mirror_transactions(): void
@@ -811,6 +874,17 @@ class InventoryCostServiceTest extends TestCase
         $this->assertNotNull($entry, "Missing ledger entry for account {$accountCode}");
         $this->assertEqualsWithDelta($debit, (float) $entry->debit, 0.001);
         $this->assertEqualsWithDelta($credit, (float) $entry->credit, 0.001);
+    }
+
+    private function assertUserCacheBalance(int $userId, string $currency, float $expected): void
+    {
+        $actual = DB::table('users_cashe')
+            ->where('userid', (string) $userId)
+            ->where('firma', $this->companyId)
+            ->where('valuta', $currency)
+            ->value('balance');
+
+        $this->assertEqualsWithDelta($expected, (float) $actual, 0.001);
     }
 
     private function balance(): object

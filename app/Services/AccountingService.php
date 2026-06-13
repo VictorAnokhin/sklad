@@ -240,6 +240,7 @@ class AccountingService
             'PRO' => $this->entriesForMoneyIssue($document, $fid),
             'ZP' => $this->entriesForMoneyIssue($document, $fid),
             'PP' => $this->entriesForDepositOperation($document, $fid),
+            'PPP' => $this->entriesForBalanceExchange($document, $fid),
             'PN' => $this->entriesForPurchaseInvoice($document, $lineItems, $fid),
             'RN' => $this->entriesForSalesInvoice($document, $lineItems, $fid),
             default => [],
@@ -349,6 +350,36 @@ class AccountingService
         }
 
         return $entries;
+    }
+
+    private function entriesForBalanceExchange(object $document, string $fid): array
+    {
+        $amountFrom = round((float) ($document->summa ?? 0), 2);
+        $amountTo = round((float) (($document->summa2 ?? 0) > 0 ? $document->summa2 : $document->summa), 2);
+
+        if ($amountFrom <= 0 || $amountTo <= 0) {
+            return [];
+        }
+
+        $currencyFrom = $this->normalizeCurrencyCode($document->currency_from ?? 'UAH');
+        $currencyTo = $this->normalizeCurrencyCode($document->currency_to ?? $currencyFrom);
+        $userId = (string) ($document->client2 ?? '');
+        $baseAmount = $this->exchangeBaseAmount($amountFrom, $amountTo, $currencyFrom, $currencyTo);
+
+        return [
+            [
+                'account_id' => $this->userBalanceAccount($fid, $userId, $currencyTo)->id,
+                'debit' => $baseAmount,
+                'credit' => 0,
+                'currency' => $currencyTo,
+            ],
+            [
+                'account_id' => $this->userBalanceAccount($fid, $userId, $currencyFrom)->id,
+                'debit' => 0,
+                'credit' => $baseAmount,
+                'currency' => $currencyFrom,
+            ],
+        ];
     }
 
     private function entriesForPurchaseInvoice(object $document, iterable $lineItems, string $fid): array
@@ -630,6 +661,40 @@ class AccountingService
     private function operatingExpenseAccount(string $fid): Account
     {
         return $this->ensureAccount("949.{$fid}", "Прочие операционные расходы {$fid}", 'expense', '949');
+    }
+
+    private function userBalanceAccount(string $fid, string $userId, string $currency): Account
+    {
+        $userId = trim($userId) !== '' && trim($userId) !== '0' ? trim($userId) : 'generic';
+        $currency = $this->normalizeCurrencyCode($currency);
+        $name = $userId === 'generic' ? 'Пользователи' : ($this->userName($userId) ?: "Пользователь {$userId}");
+
+        return $this->ensureAccount(
+            "333.{$fid}.{$userId}.{$currency}",
+            "Баланс пользователя {$name} {$currency}",
+            'asset',
+            '31'
+        );
+    }
+
+    private function exchangeBaseAmount(float $amountFrom, float $amountTo, string $currencyFrom, string $currencyTo): float
+    {
+        if ($currencyFrom === self::DEFAULT_CURRENCY) {
+            return $amountFrom;
+        }
+
+        if ($currencyTo === self::DEFAULT_CURRENCY) {
+            return $amountTo;
+        }
+
+        return $amountTo;
+    }
+
+    private function normalizeCurrencyCode(mixed $value): string
+    {
+        $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
+
+        return $currency !== '' ? substr($currency, 0, 10) : self::DEFAULT_CURRENCY;
     }
 
     private function ensureAccount(string $code, string $name, string $type, ?string $parentCode = null): Account
