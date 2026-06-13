@@ -66,7 +66,14 @@ class BankController extends Controller
 
     public function exchange(): View
     {
-        return $this->placeholder('Обмен фиат/крипта', 'Операции обмена между фиатными кассами и крипто-кошельками с курсом, комиссией и проводками.');
+        $project = $this->bankProject();
+
+        return view('bank.exchange', [
+            'project' => $project,
+            'exchangeSettings' => $this->exchangeSettings(),
+            'swapOrders' => $this->swapOrders((string) $project->id),
+            'blockchainExchangeEvents' => $this->blockchainExchangeEvents(),
+        ]);
     }
 
     public function clearing(): View
@@ -439,6 +446,96 @@ class BankController extends Controller
     }
 
     private function usdcAmount(mixed $value): float
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return 0.0;
+        }
+
+        if (str_contains($value, '.')) {
+            return (float) $value;
+        }
+
+        return is_numeric($value) ? ((float) $value / 1000000) : 0.0;
+    }
+
+    private function exchangeSettings(): object
+    {
+        $defaults = (object) [
+            'rate_usdc' => 1.0,
+            'fee_percent' => 0.35,
+            'price_impact_percent' => 0.0,
+            'min_buy_usdc' => 0.0,
+            'max_buy_usdc' => 0.0,
+            'quote_ttl_seconds' => 30,
+            'mint_paused' => false,
+            'redeem_paused' => false,
+            'pricing_model' => 'manual',
+            'updated_at' => '',
+        ];
+
+        if (! Schema::hasTable('fund_share_settings')) {
+            return $defaults;
+        }
+
+        $row = DB::table('fund_share_settings')
+            ->orderByDesc('updated_at')
+            ->first();
+
+        if (! $row) {
+            return $defaults;
+        }
+
+        return (object) [
+            'rate_usdc' => $this->storedUsdcToDecimal($row->current_price_usdc ?? '0') ?: $defaults->rate_usdc,
+            'fee_percent' => ((float) ($row->mint_fee_bps ?? 35)) / 100,
+            'price_impact_percent' => ((float) ($row->price_impact_bps ?? 0)) / 100,
+            'min_buy_usdc' => $this->storedUsdcToDecimal($row->min_buy_usdc ?? '0'),
+            'max_buy_usdc' => $this->storedUsdcToDecimal($row->max_buy_usdc ?? '0'),
+            'quote_ttl_seconds' => (int) ($row->quote_ttl_seconds ?? 30),
+            'mint_paused' => (bool) ($row->mint_paused ?? false),
+            'redeem_paused' => (bool) ($row->redeem_paused ?? false),
+            'pricing_model' => trim((string) ($row->pricing_model ?? 'manual')),
+            'updated_at' => (string) ($row->updated_at ?? ''),
+        ];
+    }
+
+    private function swapOrders(string $fid)
+    {
+        if (! Schema::hasTable('av8_swap_orders')) {
+            return collect();
+        }
+
+        return DB::table('av8_swap_orders')
+            ->when($fid !== '', fn ($query) => $query->where(function ($nested) use ($fid): void {
+                $nested->where('fid', (int) $fid)
+                    ->orWhere('fid', 0);
+            }))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get();
+    }
+
+    private function blockchainExchangeEvents()
+    {
+        if (! Schema::hasTable('fund_pool_events')) {
+            return collect();
+        }
+
+        return DB::table('fund_pool_events')
+            ->whereIn('event_type', ['deposit', 'withdraw'])
+            ->orderByDesc('event_at')
+            ->orderByDesc('id')
+            ->limit(30)
+            ->get(['event_type', 'network', 'tx_digest', 'owner_address', 'amount_usdc', 'pool_shares', 'event_at'])
+            ->map(function ($event) {
+                $event->amount = $this->storedUsdcToDecimal($event->amount_usdc ?? '0');
+                return $event;
+            });
+    }
+
+    private function storedUsdcToDecimal(mixed $value): float
     {
         $value = trim((string) $value);
         if ($value === '') {

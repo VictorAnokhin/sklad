@@ -11,6 +11,7 @@ use App\Http\Controllers\AiKnowledgeCategoryController;
 use App\Http\Controllers\AiToolController;
 use App\Http\Controllers\AiVoiceController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Av8SwapOrderController;
 use App\Http\Controllers\BackendAgentChatController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\ComplianceController;
@@ -222,6 +223,8 @@ Route::put('/fund/pools/{id}', [FundPoolController::class, 'update']);
 Route::delete('/fund/pools/{id}', [FundPoolController::class, 'destroy']);
 Route::get('/fund/share-settings', [FundShareSettingsController::class, 'show']);
 Route::put('/fund/share-settings', [FundShareSettingsController::class, 'update']);
+Route::middleware(['api', 'throttle:60,1'])->get('/av8-swap/orders', [Av8SwapOrderController::class, 'index']);
+Route::middleware(['api', 'throttle:20,1'])->post('/av8-swap/orders', [Av8SwapOrderController::class, 'store']);
 
 // ── Orders (Zakaz) API ─────────────────────────────────────────────────────
 

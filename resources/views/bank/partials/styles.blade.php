@@ -411,6 +411,46 @@
         min-width: 1320px;
     }
 
+    .bank-exchange-config {
+        padding: 0;
+        margin-bottom: 12px;
+        overflow: hidden;
+    }
+
+    .bank-exchange-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1px;
+        background: rgba(148, 163, 184, 0.12);
+    }
+
+    .bank-exchange-grid div {
+        display: grid;
+        gap: 6px;
+        padding: 14px 18px;
+        background: rgba(15, 23, 42, 0.82);
+    }
+
+    .bank-exchange-grid span {
+        color: rgba(203, 213, 225, 0.72);
+        font-size: 0.82rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .bank-exchange-grid strong {
+        color: #fff;
+        font-size: 0.98rem;
+    }
+
+    .bank-table--exchange-orders {
+        min-width: 1320px;
+    }
+
+    .bank-table--exchange-events {
+        min-width: 1080px;
+    }
+
     .bank-inline-balance {
         display: inline-flex;
         margin: 2px 4px 2px 0;
@@ -618,7 +658,8 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .bank-flow-grid {
+        .bank-flow-grid,
+        .bank-exchange-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
@@ -634,7 +675,8 @@
 
         .bank-hero__metrics,
         .bank-currency-list,
-        .bank-flow-grid {
+        .bank-flow-grid,
+        .bank-exchange-grid {
             grid-template-columns: 1fr;
         }
 
