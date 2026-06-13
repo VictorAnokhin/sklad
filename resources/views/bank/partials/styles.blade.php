@@ -103,6 +103,26 @@
         background: rgba(20, 83, 45, 0.28);
     }
 
+    .bank-panel--button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        color: inherit;
+        cursor: pointer;
+    }
+
+    .bank-panel--button:hover,
+    .bank-panel--button.is-active {
+        border-color: rgba(251, 191, 36, 0.55);
+        background: rgba(120, 53, 15, 0.28);
+    }
+
+    .bank-panel--button .bank-label,
+    .bank-panel--button .bank-value,
+    .bank-panel--button .bank-meta {
+        display: block;
+    }
+
     .bank-table-panel {
         padding: 0;
         overflow: hidden;
@@ -114,6 +134,10 @@
         gap: 16px;
         padding: 16px 18px;
         border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .bank-table-header--search {
+        align-items: end;
     }
 
     .bank-label {
@@ -256,6 +280,124 @@
 
     .bank-table--client-accounts {
         min-width: 1120px;
+    }
+
+    .bank-table--projects,
+    .bank-table--persons {
+        min-width: 1120px;
+    }
+
+    .bank-table--nested {
+        margin: 0;
+        background: rgba(2, 6, 23, 0.18);
+    }
+
+    .bank-table--nested thead th {
+        position: static;
+        background: rgba(15, 23, 42, 0.86);
+    }
+
+    .bank-table__wide {
+        width: 340px;
+        min-width: 340px;
+    }
+
+    .bank-accordion-row {
+        cursor: pointer;
+    }
+
+    .bank-accordion-row.is-open {
+        background: rgba(30, 41, 59, 0.72);
+    }
+
+    .bank-row-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        max-width: 100%;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+    }
+
+    .bank-row-button strong,
+    .bank-row-button small {
+        display: block;
+    }
+
+    .bank-row-button small {
+        margin-top: 3px;
+        color: rgba(203, 213, 225, 0.66);
+    }
+
+    .bank-row-caret {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 8px;
+        background: rgba(148, 163, 184, 0.12);
+        color: #fbbf24;
+        font-size: 1.1rem;
+        line-height: 1;
+        transition: transform 0.16s ease;
+        flex: 0 0 auto;
+    }
+
+    .bank-accordion-row.is-open .bank-row-caret {
+        transform: rotate(90deg);
+    }
+
+    .bank-detail-block {
+        padding: 12px 14px;
+        background: rgba(2, 6, 23, 0.34);
+        border-top: 1px solid rgba(148, 163, 184, 0.12);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .bank-inline-balance {
+        display: inline-flex;
+        margin: 2px 4px 2px 0;
+        padding: 3px 8px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.74);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        color: rgba(226, 232, 240, 0.9);
+        font-size: 0.84rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .bank-search {
+        display: grid;
+        gap: 6px;
+        min-width: min(360px, 100%);
+        margin: 0;
+    }
+
+    .bank-search span {
+        color: rgba(148, 163, 184, 0.9);
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .bank-search input {
+        min-height: 38px;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        background: rgba(2, 6, 23, 0.46);
+        color: rgba(255, 255, 255, 0.92);
+        padding: 7px 10px;
+        outline: none;
+    }
+
+    .bank-search input:focus {
+        border-color: rgba(251, 191, 36, 0.62);
+        box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12);
     }
 
     .bank-placeholder h2 {

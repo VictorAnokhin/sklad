@@ -14,6 +14,7 @@ class BankController extends Controller
         $project = $this->bankProject();
         $cashAccounts = collect();
         $clientAccounts = collect();
+        $projectAccounts = collect();
 
         if (Schema::hasTable('conf')) {
             $cashAccounts = DB::table('conf')
@@ -26,6 +27,9 @@ class BankController extends Controller
 
         if (Schema::hasTable('users') && Schema::hasTable('users_cashe')) {
             $clientAccounts = $this->clientAccounts((string) $project->id, $cashAccounts);
+        }
+        if (Schema::hasTable('project')) {
+            $projectAccounts = $this->projectAccounts();
         }
 
         $totalByCurrency = $clientAccounts
@@ -45,6 +49,8 @@ class BankController extends Controller
             'project' => $project,
             'cashAccounts' => $cashAccounts,
             'clientAccounts' => $clientAccounts,
+            'projectAccounts' => $projectAccounts,
+            'personOwners' => $this->personOwners($clientAccounts),
             'totalByCurrency' => $totalByCurrency,
             'operationalTotalByCurrency' => $operationalTotalByCurrency,
             'ownerTypeTotals' => $ownerTypeTotals,
@@ -154,12 +160,83 @@ class BankController extends Controller
                     'owner_type' => $ownerType,
                     'owner_type_label' => $ownerType === 'company' ? 'Компания' : 'Физлицо',
                     'tax_code' => trim((string) ($row->kod1 ?? '')),
+                    'phone' => trim((string) ($row->phone ?? '')),
+                    'email' => trim((string) ($row->email ?? '')),
                     'contact' => $this->ownerContact($row),
                     'city' => trim((string) ($row->city ?? '')),
                     'currency' => $currency,
                     'balance' => (float) ($row->balance ?? 0),
                     'status' => ((int) ($row->idstatus ?? $row->ustype ?? 1)) > 0 ? 'Активен' : 'На проверке',
                     'service_account' => $serviceAccount ?: 'Операционный счет не назначен',
+                ];
+            })
+            ->values();
+    }
+
+    private function projectAccounts()
+    {
+        $projects = Project::query()
+            ->orderBy('num')
+            ->orderBy('name')
+            ->get();
+
+        $cashByProject = collect();
+        if (Schema::hasTable('conf')) {
+            $cashByProject = DB::table('conf')
+                ->where('type', 'oplata')
+                ->orderBy('name')
+                ->get()
+                ->map(fn ($account) => $this->normalizeCashAccount($account))
+                ->groupBy(fn ($account) => (string) ($account->firma ?? ''));
+        }
+
+        return $projects
+            ->map(function (Project $project) use ($cashByProject) {
+                $accounts = $cashByProject->get((string) $project->id, collect())->values();
+
+                return (object) [
+                    'id' => (int) $project->id,
+                    'name' => trim((string) ($project->name ?? '')) ?: 'Проект #' . $project->id,
+                    'type' => trim((string) ($project->project_type ?? '')) ?: 'project',
+                    'holding_name' => trim((string) ($project->holding_name ?? '')),
+                    'phone' => trim((string) ($project->phone ?? '')),
+                    'email' => trim((string) ($project->email ?? '')),
+                    'cash_accounts' => $accounts,
+                    'cash_count' => $accounts->count(),
+                    'total_by_currency' => $accounts
+                        ->groupBy('currency')
+                        ->map(fn ($items) => (float) $items->sum('balance')),
+                ];
+            })
+            ->values();
+    }
+
+    private function personOwners($clientAccounts)
+    {
+        return $clientAccounts
+            ->filter(fn ($account) => $account->owner_type === 'person')
+            ->groupBy('owner_id')
+            ->map(function ($accounts) {
+                $first = $accounts->first();
+
+                return (object) [
+                    'owner_id' => $first->owner_id,
+                    'owner_name' => $first->owner_name,
+                    'contact' => $first->contact,
+                    'city' => $first->city,
+                    'status' => $first->status,
+                    'accounts' => $accounts->values(),
+                    'accounts_count' => $accounts->count(),
+                    'search_text' => mb_strtolower(implode(' ', [
+                        $first->owner_name,
+                        $first->phone,
+                        $first->email,
+                        $first->contact,
+                        $first->city,
+                    ])),
+                    'total_by_currency' => $accounts
+                        ->groupBy('currency')
+                        ->map(fn ($items) => (float) $items->sum('balance')),
                 ];
             })
             ->values();
@@ -193,7 +270,11 @@ class BankController extends Controller
         $email = trim((string) ($row->email ?? ''));
         $phone = trim((string) ($row->phone ?? ''));
 
-        return $email !== '' ? $email : ($phone !== '' ? $phone : '—');
+        if ($email !== '' && $phone !== '') {
+            return "{$phone} · {$email}";
+        }
+
+        return $phone !== '' ? $phone : ($email !== '' ? $email : '—');
     }
 
     private function clientAccountNumber(object $row, string $currency): string
