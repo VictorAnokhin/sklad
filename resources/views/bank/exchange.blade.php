@@ -182,12 +182,16 @@
                 <div class="modal-body">
                     <div class="bank-order-modal__summary">
                         <div>
-                            <span>Оплата</span>
-                            <strong data-order-field="pay"></strong>
+                            <span>AV8 к зачислению</span>
+                            <strong data-order-field="expected_av8"></strong>
                         </div>
                         <div>
-                            <span>К выдаче</span>
-                            <strong data-order-field="expected_av8"></strong>
+                            <span>Телефон</span>
+                            <strong data-order-field="client_phone"></strong>
+                        </div>
+                        <div>
+                            <span>Email</span>
+                            <strong data-order-field="client_email"></strong>
                         </div>
                         <div>
                             <span>Статус</span>
@@ -199,6 +203,10 @@
                         <div>
                             <span>Дата</span>
                             <strong data-order-field="created_at"></strong>
+                        </div>
+                        <div>
+                            <span>Оплата</span>
+                            <strong data-order-field="pay"></strong>
                         </div>
                         <div>
                             <span>Тип</span>
@@ -220,18 +228,10 @@
                             <span>Источник</span>
                             <strong data-order-field="source"></strong>
                         </div>
-                        <div>
-                            <span>Email</span>
-                            <strong data-order-field="client_email"></strong>
-                        </div>
-                        <div>
-                            <span>Телефон</span>
-                            <strong data-order-field="client_phone"></strong>
-                        </div>
                     </div>
 
                     <div class="bank-order-modal__block">
-                        <span>Кошелек получателя</span>
+                        <span>Номер кошелька</span>
                         <strong class="bank-mono" data-order-field="wallet_address"></strong>
                     </div>
 
