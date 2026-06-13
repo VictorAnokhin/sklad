@@ -262,11 +262,11 @@
     }
 
     .bank-table--payments {
-        min-width: 1540px;
+        min-width: 1180px;
     }
 
     .bank-table--payment-ledger {
-        min-width: 1680px;
+        min-width: 1280px;
     }
 
     .bank-table--payments th,
@@ -283,7 +283,7 @@
     .bank-table--payments td:not(.bank-table__num),
     .bank-table--payment-ledger th:not(.bank-table__num),
     .bank-table--payment-ledger td:not(.bank-table__num) {
-        min-width: 170px;
+        min-width: 125px;
     }
 
     .bank-table--payments th:nth-child(4),
@@ -296,7 +296,7 @@
     .bank-table--payment-ledger td:nth-child(5),
     .bank-table--payment-ledger th:nth-child(7),
     .bank-table--payment-ledger td:nth-child(7) {
-        min-width: 240px;
+        min-width: 180px;
     }
 
     .bank-table--payments .bank-meta,
