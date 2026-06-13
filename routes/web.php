@@ -211,6 +211,8 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/profile-update', [SettingsController::class , 'profileUpdate'])->name('profileUpdate');
             Route::post('/profile-balances-update', [SettingsController::class , 'profileBalancesUpdate'])->name('profileBalancesUpdate');
             Route::post('/password-change', [SettingsController::class , 'passwordChange'])->name('passwordChange');
+            Route::get('/holdings', [SettingsController::class , 'holdingsIndex'])->name('holdings.index');
+            Route::delete('/holdings/{id}', [SettingsController::class , 'holdingsDestroy'])->name('holdings.destroy');
             Route::get('/projects', [SettingsController::class , 'projectsIndex'])->name('projects.index');
             Route::get('/projects/{id}', [SettingsController::class , 'projectsShow'])->name('projects.show');
             Route::post('/projects', [SettingsController::class , 'projectsStore'])->name('projects.store');

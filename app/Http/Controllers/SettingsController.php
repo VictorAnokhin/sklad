@@ -955,6 +955,49 @@ class SettingsController extends Controller
         return response()->json($this->normalizeProject($project, $user));
     }
 
+    public function holdingsIndex()
+    {
+        if (! Schema::hasTable('holding')) {
+            return response()->json([]);
+        }
+
+        $items = DB::table('holding')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (object $holding) => [
+                'id' => (int) $holding->id,
+                'name' => (string) $holding->name,
+            ]);
+
+        return response()->json($items);
+    }
+
+    public function holdingsDestroy($id)
+    {
+        if (! Schema::hasTable('holding')) {
+            return response()->json(['success' => false, 'message' => 'Таблицю holding не знайдено'], 404);
+        }
+
+        $holding = DB::table('holding')->where('id', $id)->first();
+        if (! $holding) {
+            return response()->json(['success' => false, 'message' => 'Холдинг не знайдено'], 404);
+        }
+
+        if (Schema::hasTable('project') && Schema::hasColumn('project', 'holding_id')) {
+            $isUsed = DB::table('project')->where('holding_id', $holding->id)->exists();
+            if ($isUsed) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Нельзя удалить холдинг, который привязан к проектам.',
+                ], 422);
+            }
+        }
+
+        DB::table('holding')->where('id', $holding->id)->delete();
+
+        return response()->json(['success' => true]);
+    }
+
     public function projectsPublicShow($id)
     {
         if (!Schema::hasTable('project')) {
@@ -1977,6 +2020,7 @@ class SettingsController extends Controller
             'num' => 'nullable|integer|min:0',
             'name' => 'required|string|max:50',
             'project_type' => ['nullable', 'string', Rule::in(array_keys($this->projectTypeOptions()))],
+            'holding_name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
             'url' => 'nullable|string|max:65535',
@@ -2061,6 +2105,9 @@ class SettingsController extends Controller
         if (in_array('project_type', $projectColumns, true)) {
             $payload['project_type'] = trim((string) ($validated['project_type'] ?? '')) ?: null;
         }
+        if (in_array('holding_id', $projectColumns, true)) {
+            $payload['holding_id'] = $this->resolveHoldingId((string) ($validated['holding_name'] ?? ''));
+        }
         if (in_array('email', $projectColumns, true)) {
             $payload['email'] = $projectEmail === '' ? null : $projectEmail;
         }
@@ -2072,6 +2119,29 @@ class SettingsController extends Controller
         }
 
         return $payload;
+    }
+
+    private function resolveHoldingId(string $name): ?int
+    {
+        $name = trim($name);
+
+        if ($name === '' || ! Schema::hasTable('holding')) {
+            return null;
+        }
+
+        $existingId = DB::table('holding')
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->value('id');
+
+        if ($existingId) {
+            return (int) $existingId;
+        }
+
+        return (int) DB::table('holding')->insertGetId([
+            'name' => $name,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     /**
@@ -2099,10 +2169,21 @@ class SettingsController extends Controller
         $payload['url'] = (string) ($payload['url'] ?? '');
         $payload['project_type'] = (string) ($payload['project_type'] ?? '');
         $payload['project_type_label'] = $this->projectTypeOptions()[$payload['project_type']] ?? '';
+        $payload['holding_id'] = (int) ($payload['holding_id'] ?? 0);
+        $payload['holding_name'] = $this->holdingNameById($payload['holding_id']);
         $payload['constanta'] = (int) ($payload['constanta'] ?? 0);
         $payload['can_delete'] = $this->userCanDeleteProjectByEmail($user, $project);
 
         return $payload;
+    }
+
+    private function holdingNameById(int $id): string
+    {
+        if ($id <= 0 || ! Schema::hasTable('holding')) {
+            return '';
+        }
+
+        return (string) (DB::table('holding')->where('id', $id)->value('name') ?? '');
     }
 
     private function projectTypeOptions(): array

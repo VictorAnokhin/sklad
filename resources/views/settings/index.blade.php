@@ -603,11 +603,11 @@
                             <label class="form-label">ID</label>
                             <input type="text" class="form-control" id="project-id-display" readonly>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label">Назва <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="project-name" maxlength="50" required>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-2 mb-3">
                             <label class="form-label">Тип проекта</label>
                             <select class="form-select" id="project-type">
                                 <option value="">Не указан</option>
@@ -617,7 +617,15 @@
                                 <option value="education">Образование</option>
                             </select>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-3 mb-3 position-relative">
+                            <label class="form-label">Холдинг</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="project-holding" autocomplete="off" placeholder="Введите или выберите">
+                                <button type="button" class="btn btn-outline-secondary" id="project-holding-toggle">▾</button>
+                            </div>
+                            <div class="project-holding-menu shadow-sm" id="project-holding-menu" hidden></div>
+                        </div>
+                        <div class="col-md-2 mb-3">
                             <label class="form-label">userid</label>
                             <input type="number" class="form-control" id="project-userid" min="0" value="0">
                         </div>
@@ -731,6 +739,7 @@
                                 <th>ID</th>
                                 <th>Назва</th>
                                 <th>Тип</th>
+                                <th>Холдинг</th>
                                 <th>Email</th>
                                 <th>Телефон</th>
                                 <th class="text-end">Дії</th>
@@ -1917,6 +1926,43 @@
         color: #000;
     }
 
+    .project-holding-menu {
+        position: absolute;
+        z-index: 1060;
+        top: calc(100% - 0.75rem);
+        left: 0.75rem;
+        right: 0.75rem;
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        background: #fff;
+    }
+
+    .project-holding-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.45rem 0.65rem;
+        color: #111827;
+        cursor: pointer;
+    }
+
+    .project-holding-item:hover {
+        background: #f3f4f6;
+    }
+
+    .project-holding-delete {
+        flex: 0 0 auto;
+        border: 0;
+        background: transparent;
+        color: #dc3545;
+        font-size: 1rem;
+        line-height: 1;
+        padding: 0.15rem 0.25rem;
+    }
+
     .wallet-link-card {
         margin-top: 1rem;
         padding: 1rem 1.1rem;
@@ -2554,6 +2600,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const fotoFileInput = document.getElementById('project-foto-file');
         const fotoHeaderFileInput = document.getElementById('project-foto-header-file');
         const fotoFooterFileInput = document.getElementById('project-foto-footer-file');
+        const holdingInput = document.getElementById('project-holding');
+        const holdingToggle = document.getElementById('project-holding-toggle');
+        const holdingMenu = document.getElementById('project-holding-menu');
+        let holdings = [];
 
         if (!modal || !tbody || !form || !addBtn || !cancelBtn) {
             return;
@@ -2599,6 +2649,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         modal.addEventListener('show.bs.modal', () => {
             hideForm();
+            loadHoldings();
             loadProjects();
         });
 
@@ -2645,6 +2696,7 @@ document.addEventListener('DOMContentLoaded', () => {
             payload.append('num', String(Number(document.getElementById('project-num').value || 0)));
             payload.append('name', document.getElementById('project-name').value.trim());
             payload.append('project_type', document.getElementById('project-type').value);
+            payload.append('holding_name', holdingInput?.value.trim() || '');
             payload.append('email', document.getElementById('project-email').value.trim());
             payload.append('phone', document.getElementById('project-phone').value.trim());
             payload.append('url', document.getElementById('project-url').value.trim());
@@ -2702,6 +2754,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 hideForm();
                 resetProjectForm();
+                loadHoldings();
                 loadProjects();
             })
             .catch((error) => alert(error?.message || _ts('js.network_error')));
@@ -2721,7 +2774,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderProjects(Array.isArray(data) ? data : []);
                 })
                 .catch((error) => {
-                    tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${escapeHtml(error?.message || _ts('js.load_error'))}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-danger">${escapeHtml(error?.message || _ts('js.load_error'))}</td></tr>`;
                     emptyMsg.style.display = 'none';
                 });
         }
@@ -2753,6 +2806,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>`
                     : '—';
                 const projectType = item.project_type_label || projectTypeLabel(item.project_type) || '—';
+                const holdingName = item.holding_name || '—';
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -2763,6 +2817,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${Number(item.constanta) === 1 ? '<span class="badge bg-warning text-dark mt-1">Маркетплейс</span>' : ''}
                     </td>
                     <td>${escapeHtml(projectType)}</td>
+                    <td>${escapeHtml(holdingName)}</td>
                     <td>${projectEmail}</td>
                     <td>
                         <div>${projectPhone}</div>
@@ -2830,6 +2885,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-num').value = item.num ?? 0;
             document.getElementById('project-name').value = item.name || '';
             document.getElementById('project-type').value = item.project_type || '';
+            if (holdingInput) holdingInput.value = item.holding_name || '';
             document.getElementById('project-email').value = item.email || '';
             document.getElementById('project-phone').value = item.phone || '';
             document.getElementById('project-url').value = item.url || '';
@@ -2860,6 +2916,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-num').value = '0';
             document.getElementById('project-name').value = '';
             document.getElementById('project-type').value = '';
+            if (holdingInput) holdingInput.value = '';
             document.getElementById('project-email').value = '';
             document.getElementById('project-phone').value = '';
             document.getElementById('project-url').value = '';
@@ -2898,7 +2955,145 @@ document.addEventListener('DOMContentLoaded', () => {
             if (deleteBtn) {
                 deleteBtn.style.display = 'none';
             }
+            hideHoldingMenu();
         }
+
+        async function loadHoldings() {
+            if (!holdingInput || !holdingMenu) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/settings/holdings', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                });
+                const data = await parseResponseData(response);
+
+                if (!response.ok) {
+                    throw new Error(extractErrorMessage(data, _ts('js.load_error')));
+                }
+
+                holdings = Array.isArray(data) ? data : [];
+                renderHoldingMenu();
+            } catch (error) {
+                holdings = [];
+                renderHoldingMenu(error?.message || _ts('js.load_error'));
+            }
+        }
+
+        function renderHoldingMenu(errorMessage = '') {
+            if (!holdingInput || !holdingMenu) {
+                return;
+            }
+
+            const query = holdingInput.value.trim().toLowerCase();
+            const visibleItems = holdings.filter((item) => !query || String(item.name || '').toLowerCase().includes(query));
+
+            if (errorMessage) {
+                holdingMenu.innerHTML = `<div class="project-holding-item text-danger">${escapeHtml(errorMessage)}</div>`;
+                return;
+            }
+
+            if (!visibleItems.length) {
+                holdingMenu.innerHTML = '<div class="project-holding-item text-muted">Холдинги не найдены</div>';
+                return;
+            }
+
+            holdingMenu.innerHTML = visibleItems.map((item) => `
+                <div class="project-holding-item" data-holding-id="${escapeHtml(item.id)}" data-holding-name="${escapeHtml(item.name || '')}">
+                    <span class="text-truncate">${escapeHtml(item.name || '')}</span>
+                    <button type="button" class="project-holding-delete" title="Удалить" aria-label="Удалить холдинг" data-holding-delete="${escapeHtml(item.id)}">×</button>
+                </div>
+            `).join('');
+        }
+
+        function showHoldingMenu() {
+            if (!holdingMenu) {
+                return;
+            }
+
+            renderHoldingMenu();
+            holdingMenu.hidden = false;
+        }
+
+        function hideHoldingMenu() {
+            if (holdingMenu) {
+                holdingMenu.hidden = true;
+            }
+        }
+
+        async function deleteHolding(id) {
+            if (!confirm('Удалить холдинг?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/settings/holdings/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                });
+                const data = await parseResponseData(response);
+
+                if (!response.ok || data.success === false) {
+                    alert(extractErrorMessage(data, 'Не удалось удалить холдинг.'));
+                    return;
+                }
+
+                const removed = holdings.find((item) => String(item.id) === String(id));
+                holdings = holdings.filter((item) => String(item.id) !== String(id));
+                if (removed && holdingInput && holdingInput.value.trim() === String(removed.name || '').trim()) {
+                    holdingInput.value = '';
+                }
+                renderHoldingMenu();
+            } catch (error) {
+                alert(error?.message || _ts('js.network_error'));
+            }
+        }
+
+        holdingInput?.addEventListener('focus', showHoldingMenu);
+        holdingInput?.addEventListener('input', showHoldingMenu);
+        holdingToggle?.addEventListener('click', () => {
+            if (!holdingMenu || holdingMenu.hidden) {
+                showHoldingMenu();
+            } else {
+                hideHoldingMenu();
+            }
+        });
+        holdingMenu?.addEventListener('click', (event) => {
+            const deleteButton = event.target.closest('[data-holding-delete]');
+            if (deleteButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                deleteHolding(deleteButton.dataset.holdingDelete);
+                return;
+            }
+
+            const item = event.target.closest('.project-holding-item[data-holding-name]');
+            if (!item || !holdingInput) {
+                return;
+            }
+
+            holdingInput.value = item.dataset.holdingName || '';
+            hideHoldingMenu();
+        });
+        document.addEventListener('click', (event) => {
+            if (!holdingInput || !holdingMenu || !holdingToggle) {
+                return;
+            }
+
+            if (!holdingInput.contains(event.target) && !holdingMenu.contains(event.target) && !holdingToggle.contains(event.target)) {
+                hideHoldingMenu();
+            }
+        });
 
         function projectTypeLabel(value) {
             return {
