@@ -72,6 +72,149 @@ class BankController extends Controller
         ]);
     }
 
+    public function storeProjectAccount(Request $request, int $project): RedirectResponse
+    {
+        $bankProject = $this->bankProject();
+        $this->assertProjectInBankScope($project, $bankProject);
+        abort_unless(Schema::hasTable('conf'), 404);
+
+        $payload = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'currency' => ['required', 'string', 'max:20'],
+        ]);
+        $currency = $this->normalizeCurrencyCode($payload['currency']);
+
+        DB::table('conf')->insert([
+            'type' => 'oplata',
+            'name' => trim($payload['name']),
+            'firma' => $project,
+            'currency' => $currency,
+            'value' => 0,
+            'status' => 1,
+            'vision' => '1',
+        ]);
+
+        return redirect()->route('bank.cash-accounts')->with('success', 'Счёт проекта добавлен.');
+    }
+
+    public function destroyProjectAccount(int $project, int $account): RedirectResponse
+    {
+        $bankProject = $this->bankProject();
+        $this->assertProjectInBankScope($project, $bankProject);
+        abort_unless(Schema::hasTable('conf'), 404);
+
+        $accountRow = DB::table('conf')
+            ->where('id', $account)
+            ->where('firma', $project)
+            ->where('type', 'oplata')
+            ->first();
+        abort_unless($accountRow, 404);
+
+        if (abs((float) ($accountRow->value ?? 0)) > 0.000001) {
+            return redirect()->route('bank.cash-accounts')->with('error', 'Нельзя удалить счёт с ненулевым балансом.');
+        }
+
+        if ($this->projectAccountHasDocuments((string) $account)) {
+            return redirect()->route('bank.cash-accounts')->with('error', 'Счёт используется в документах и не может быть удалён.');
+        }
+
+        DB::table('conf')->where('id', $account)->delete();
+
+        return redirect()->route('bank.cash-accounts')->with('success', 'Счёт проекта удалён.');
+    }
+
+    public function storePersonAccount(Request $request, int $person): RedirectResponse
+    {
+        $bankProject = $this->bankProject();
+        abort_unless(Schema::hasTable('users') && Schema::hasTable('users_cashe'), 404);
+        $userQuery = DB::table('users')->where('id', $person);
+        if (Schema::hasColumn('users', 'firma')) {
+            $userQuery->whereIn(
+                'firma',
+                array_map('intval', HoldingScope::projectIdsFor((string) $bankProject->id))
+            );
+        }
+        abort_unless($userQuery->exists(), 404);
+
+        $payload = $request->validate([
+            'currency' => ['required', 'string', 'max:20'],
+        ]);
+        $currency = $this->normalizeCurrencyCode($payload['currency']);
+        $columns = Schema::getColumnListing('users_cashe');
+        $scope = HoldingScope::projectIdsFor((string) $bankProject->id);
+
+        $existing = DB::table('users_cashe')
+            ->where(function ($query) use ($person, $columns): void {
+                $query->where('userid', (string) $person);
+                if (in_array('user_id', $columns, true)) {
+                    $query->orWhere('user_id', $person);
+                }
+            })
+            ->when(
+                in_array('firma', $columns, true) && $scope !== [],
+                fn ($query) => $query->whereIn('firma', array_map('intval', $scope))
+            )
+            ->when(
+                in_array('valuta', $columns, true),
+                fn ($query) => $query->where('valuta', $currency)
+            )
+            ->exists();
+
+        if ($existing) {
+            return redirect()->route('bank.cash-accounts')->with('error', "Счёт физлица в валюте {$currency} уже существует.");
+        }
+
+        $values = [
+            'userid' => (string) $person,
+            'balance' => 0,
+        ];
+        if (in_array('user_id', $columns, true)) {
+            $values['user_id'] = $person;
+        }
+        if (in_array('firma', $columns, true)) {
+            $values['firma'] = (int) $bankProject->id;
+        }
+        if (in_array('valuta', $columns, true)) {
+            $values['valuta'] = $currency;
+        }
+
+        DB::table('users_cashe')->insert($values);
+
+        return redirect()->route('bank.cash-accounts')->with('success', 'Счёт физлица добавлен.');
+    }
+
+    public function destroyPersonAccount(int $person, int $account): RedirectResponse
+    {
+        $bankProject = $this->bankProject();
+        abort_unless(Schema::hasTable('users_cashe'), 404);
+
+        $columns = Schema::getColumnListing('users_cashe');
+        $scope = HoldingScope::projectIdsFor((string) $bankProject->id);
+        $query = DB::table('users_cashe')
+            ->where('id', $account)
+            ->where(function ($nested) use ($person, $columns): void {
+                $nested->where('userid', (string) $person);
+                if (in_array('user_id', $columns, true)) {
+                    $nested->orWhere('user_id', $person);
+                }
+            })
+            ->when(
+                in_array('firma', $columns, true) && $scope !== [],
+                fn ($nested) => $nested->whereIn('firma', array_map('intval', $scope))
+            );
+
+        $accountRow = $query->first();
+        abort_unless($accountRow, 404);
+
+        if (abs((float) ($accountRow->balance ?? 0)) > 0.000001) {
+            return redirect()->route('bank.cash-accounts')->with('error', 'Нельзя удалить счёт с ненулевым остатком.');
+        }
+
+        $query->delete();
+
+        return redirect()->route('bank.cash-accounts')->with('success', 'Счёт физлица удалён.');
+    }
+
     public function deposit(): View
     {
         $project = $this->bankProject();
@@ -317,6 +460,7 @@ class BankController extends Controller
 
             return (object) [
                 'id' => (int) $document->id,
+                'deposit_id' => (string) $document->money,
                 'number' => trim((string) $document->num) ?: (string) $document->id,
                 'date' => trim((string) $document->data) ?: (string) $document->dt,
                 'mode' => $mode,
@@ -581,6 +725,7 @@ class BankController extends Controller
         $hasCacheFirma = in_array('firma', $cacheColumns, true);
         $hasValuta = in_array('valuta', $cacheColumns, true);
         $select = [
+            'uc.id as account_id',
             'uc.userid',
             'uc.balance',
         ];
@@ -616,6 +761,7 @@ class BankController extends Controller
 
                 return (object) [
                     'account_number' => $this->clientAccountNumber($row, $currency),
+                    'account_id' => (int) ($row->account_id ?? 0),
                     'owner_id' => (string) ($row->userid ?? ''),
                     'owner_name' => $this->ownerName($row),
                     'owner_type' => $ownerType,
@@ -632,6 +778,31 @@ class BankController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function assertProjectInBankScope(int $projectId, Project $bankProject): void
+    {
+        abort_unless(
+            in_array((string) $projectId, HoldingScope::projectIdsFor((string) $bankProject->id), true),
+            404
+        );
+    }
+
+    private function projectAccountHasDocuments(string $accountId): bool
+    {
+        if (! Schema::hasTable('z_document')) {
+            return false;
+        }
+
+        return DB::table('z_document')
+            ->where(function ($query) use ($accountId): void {
+                foreach (['money', 'oplata', 'oplata2'] as $column) {
+                    if (Schema::hasColumn('z_document', $column)) {
+                        $query->orWhere($column, $accountId);
+                    }
+                }
+            })
+            ->exists();
     }
 
     private function projectAccounts(Project $bankProject)

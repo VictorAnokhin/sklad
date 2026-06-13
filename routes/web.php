@@ -78,6 +78,20 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/blockchain-monitor/api/sync', [BlockchainMonitorController::class, 'sync'])->name('blockchain-monitor.sync');
     Route::prefix('bank')->name('bank.')->group(function () {
         Route::get('/cash-accounts', [BankController::class, 'cashAccounts'])->name('cash-accounts');
+        Route::post('/cash-accounts/projects/{project}/accounts', [BankController::class, 'storeProjectAccount'])
+            ->whereNumber('project')
+            ->name('project-accounts.store');
+        Route::delete('/cash-accounts/projects/{project}/accounts/{account}', [BankController::class, 'destroyProjectAccount'])
+            ->whereNumber('project')
+            ->whereNumber('account')
+            ->name('project-accounts.destroy');
+        Route::post('/cash-accounts/persons/{person}/accounts', [BankController::class, 'storePersonAccount'])
+            ->whereNumber('person')
+            ->name('person-accounts.store');
+        Route::delete('/cash-accounts/persons/{person}/accounts/{account}', [BankController::class, 'destroyPersonAccount'])
+            ->whereNumber('person')
+            ->whereNumber('account')
+            ->name('person-accounts.destroy');
         Route::get('/loans', fn () => redirect()->route('bank.deposit'))->name('loans.redirect');
         Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
         Route::get('/exchange', [BankController::class, 'exchange'])->name('exchange');

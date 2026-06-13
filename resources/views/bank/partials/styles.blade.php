@@ -289,6 +289,36 @@
         min-width: 1220px;
     }
 
+    .bank-deposit-row {
+        cursor: pointer;
+    }
+
+    .bank-deposit-row:hover > * {
+        background: rgba(20, 184, 166, 0.08) !important;
+    }
+
+    .bank-deposit-row:focus {
+        outline: 2px solid rgba(45, 212, 191, 0.5);
+        outline-offset: -2px;
+    }
+
+    .bank-deposit-movement-table {
+        max-height: 460px;
+        margin-top: 16px;
+        overflow: auto;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 8px;
+    }
+
+    .bank-deposit-movement-table .bank-table {
+        min-width: 980px;
+    }
+
+    .bank-deposit-movement-empty {
+        margin-top: 16px;
+        border-radius: 8px;
+    }
+
     .bank-currency-strip {
         padding: 0;
         margin-bottom: 12px;
@@ -379,6 +409,40 @@
     .bank-table--nested thead th {
         position: static;
         background: rgba(15, 23, 42, 0.86);
+    }
+
+    .bank-account-action-row td {
+        background: rgba(15, 118, 110, 0.1);
+    }
+
+    .bank-inline-account-form {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .bank-inline-account-form strong {
+        min-width: 120px;
+        color: #fff;
+    }
+
+    .bank-inline-account-form .form-control {
+        width: auto;
+        min-width: 150px;
+        color: #fff;
+        border-color: rgba(148, 163, 184, 0.24);
+        background: rgba(2, 6, 23, 0.46);
+    }
+
+    .bank-account-cell-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .bank-account-cell-actions form {
+        flex: 0 0 auto;
     }
 
     .bank-table__wide {
@@ -892,6 +956,15 @@
 
         .bank-form-grid {
             grid-template-columns: 1fr;
+        }
+
+        .bank-inline-account-form {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .bank-inline-account-form .form-control {
+            width: 100%;
         }
 
         .bank-payment-filters form {

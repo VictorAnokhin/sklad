@@ -13,6 +13,16 @@
 <div class="bank-page" data-bank-accounts-page>
     @include('bank.partials.nav')
 
+    @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
+    @if($errors->any())
+        <div class="alert alert-danger">{{ $errors->first() }}</div>
+    @endif
+
     <section class="bank-hero">
         <div>
             <div class="bank-label">Финансовая организация</div>
@@ -221,6 +231,17 @@
                                             </tr>
                                         </thead>
                                         <tbody>
+                                            <tr class="bank-account-action-row">
+                                                <td colspan="6">
+                                                    <form method="POST" action="{{ route('bank.project-accounts.store', ['project' => $projectRow->id]) }}" class="bank-inline-account-form">
+                                                        @csrf
+                                                        <strong>Добавить счёт</strong>
+                                                        <input type="text" name="name" class="form-control" placeholder="Название счёта" required>
+                                                        <input type="text" name="currency" class="form-control" value="UAH" placeholder="Валюта" maxlength="20" required>
+                                                        <button type="submit" class="btn btn-sm btn-primary">+ Добавить счёт</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
                                             @forelse($projectRow->cash_accounts as $account)
                                                 <tr>
                                                     <td class="bank-mono">{{ $account->id }}</td>
@@ -241,7 +262,16 @@
                                                     <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
                                                     <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
                                                     <td>{{ $account->doc !== '' ? $account->doc : '—' }}</td>
-                                                    <td class="bank-mono">{{ $account->color !== '' ? $account->color : '—' }}</td>
+                                                    <td>
+                                                        <div class="bank-account-cell-actions">
+                                                            <span class="bank-mono">{{ $account->color !== '' ? $account->color : '—' }}</span>
+                                                            <form method="POST" action="{{ route('bank.project-accounts.destroy', ['project' => $projectRow->id, 'account' => $account->id]) }}" onsubmit="return confirm('Удалить счёт проекта?');">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                                            </form>
+                                                        </div>
+                                                    </td>
                                                 </tr>
                                             @empty
                                                 <tr>
@@ -327,6 +357,16 @@
                                             </tr>
                                         </thead>
                                         <tbody>
+                                            <tr class="bank-account-action-row">
+                                                <td colspan="4">
+                                                    <form method="POST" action="{{ route('bank.person-accounts.store', ['person' => $person->owner_id]) }}" class="bank-inline-account-form">
+                                                        @csrf
+                                                        <strong>Добавить счёт</strong>
+                                                        <input type="text" name="currency" class="form-control" value="UAH" placeholder="Валюта" maxlength="20" required>
+                                                        <button type="submit" class="btn btn-sm btn-primary">+ Добавить счёт</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
                                             @forelse($person->accounts as $account)
                                                 <tr>
                                                     <td>
@@ -335,7 +375,16 @@
                                                     </td>
                                                     <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
                                                     <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
-                                                    <td>{{ $account->service_account }}</td>
+                                                    <td>
+                                                        <div class="bank-account-cell-actions">
+                                                            <span>{{ $account->service_account }}</span>
+                                                            <form method="POST" action="{{ route('bank.person-accounts.destroy', ['person' => $person->owner_id, 'account' => $account->account_id]) }}" onsubmit="return confirm('Удалить счёт физлица?');">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                                            </form>
+                                                        </div>
+                                                    </td>
                                                 </tr>
                                             @empty
                                                 <tr>
