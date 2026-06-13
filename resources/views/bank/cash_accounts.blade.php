@@ -451,7 +451,7 @@
                 <div class="bank-form-grid">
                     <label>
                         <span>Компания</span>
-                        <input type="text" data-bank-requisites-project readonly>
+                        <input type="text" data-bank-requisites-project autocomplete="organization">
                     </label>
                     <label>
                         <span>Счет обслуживания</span>
