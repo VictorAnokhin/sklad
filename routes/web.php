@@ -120,6 +120,10 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/show', [ClientController::class , 'show'])->name('show');
             Route::get('/search', [ClientController::class , 'search'])->name('search');
             Route::post('/check-email', [ClientController::class , 'checkEmail'])->name('checkEmail');
+            Route::get('/groups', [ClientController::class , 'groups'])->name('groups.index');
+            Route::post('/groups', [ClientController::class , 'groupStore'])->name('groups.store');
+            Route::put('/groups/{id}', [ClientController::class , 'groupUpdate'])->name('groups.update');
+            Route::delete('/groups/{id}', [ClientController::class , 'groupDestroy'])->name('groups.destroy');
             Route::post('/garage/lookup', [ClientController::class , 'garageLookup'])->name('garage.lookup');
             Route::post('/garage/update', [ClientController::class , 'garageUpdate'])->name('garage.update');
             Route::get('/{id}/orders', [ClientController::class , 'orders'])->name('orders');

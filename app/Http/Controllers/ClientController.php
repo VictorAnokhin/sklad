@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Throwable;
 
@@ -270,6 +271,147 @@ class ClientController extends Controller
         $garageVehicles = $client ? $this->clientGarageVehicles($client) : collect();
 
         return view('client.show', compact('client', 'statuses', 'clientTypes', 'projects', 'fid', 'kycPhotos', 'garageVehicles'));
+    }
+
+    public function groups(Request $request)
+    {
+        $fid = session('fid', '');
+        $search = trim((string) $request->input('q', ''));
+
+        $query = $this->clientGroupsQuery($fid);
+
+        if ($search !== '') {
+            $query->where('name', 'like', '%' . $search . '%');
+        }
+
+        $items = $query
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($group) => $this->mapClientGroup($group));
+
+        return response()->json(['items' => $items]);
+    }
+
+    public function groupStore(Request $request)
+    {
+        $fid = session('fid', '');
+        $payload = $this->validateClientGroup($request);
+
+        $id = DB::table('conf')->insertGetId([
+            'type' => 'tgroup',
+            'name' => $payload['name'],
+            'color' => '',
+            'status' => $payload['status'],
+            'firma' => $fid,
+            'constanta' => '0',
+            'vision' => '1',
+            'hide' => '0',
+        ]);
+
+        $group = $this->clientGroupsQuery($fid)->where('id', $id)->first();
+
+        return response()->json([
+            'success' => true,
+            'item' => $this->mapClientGroup($group),
+        ], 201);
+    }
+
+    public function groupUpdate(Request $request, string $id)
+    {
+        $fid = session('fid', '');
+        $group = $this->clientGroupsQuery($fid)->where('id', $id)->first();
+
+        if (! $group) {
+            return response()->json(['success' => false, 'message' => 'Группа не найдена.'], 404);
+        }
+
+        $payload = $this->validateClientGroup($request);
+
+        DB::table('conf')
+            ->where('id', $group->id)
+            ->where('type', 'tgroup')
+            ->where('firma', $fid)
+            ->update([
+                'name' => $payload['name'],
+                'status' => $payload['status'],
+            ]);
+
+        $updated = $this->clientGroupsQuery($fid)->where('id', $id)->first();
+
+        return response()->json([
+            'success' => true,
+            'item' => $this->mapClientGroup($updated),
+        ]);
+    }
+
+    public function groupDestroy(string $id)
+    {
+        $fid = session('fid', '');
+        $group = $this->clientGroupsQuery($fid)->where('id', $id)->first();
+
+        if (! $group) {
+            return response()->json(['success' => false, 'message' => 'Группа не найдена.'], 404);
+        }
+
+        $isUsed = DB::table('users')
+            ->where('firma', $fid)
+            ->where('tgroup', $group->id)
+            ->exists();
+
+        if ($isUsed) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Нельзя удалить группу, которая назначена клиентам.',
+            ], 422);
+        }
+
+        DB::table('conf')
+            ->where('id', $group->id)
+            ->where('type', 'tgroup')
+            ->where('firma', $fid)
+            ->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    private function clientGroupsQuery(string $fid)
+    {
+        return DB::table('conf')
+            ->where('type', 'tgroup')
+            ->where('firma', $fid);
+    }
+
+    private function validateClientGroup(Request $request): array
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'status' => ['nullable', Rule::in(['0', '1', 0, 1])],
+        ]);
+
+        $name = trim((string) $validated['name']);
+
+        if ($name === '') {
+            throw ValidationException::withMessages([
+                'name' => 'Введите название группы.',
+            ]);
+        }
+
+        return [
+            'name' => $name,
+            'status' => (string) ($validated['status'] ?? '0'),
+        ];
+    }
+
+    private function mapClientGroup(object $group): array
+    {
+        $status = (string) ($group->status ?? '0');
+
+        return [
+            'id' => (int) $group->id,
+            'name' => (string) ($group->name ?? ''),
+            'status' => $status,
+            'status_label' => $status === '1' ? 'Розничная' : 'Доп. группа',
+        ];
     }
 
     public function garageLookup(Request $request, AutoRiaVehicleCheckService $autoRia)

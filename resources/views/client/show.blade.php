@@ -322,15 +322,20 @@
             <div class="row mb-3">
                 
                 <div class="col-md-4">
-                    <label class="form-label">{{ __('client.field_client_type') }}</label>
-                    <select name="tgroup" class="form-select">
-                        <option value="">{{ __('client.select_type') }}</option>
-                        @foreach($clientTypes ?? [] as $type)
-                            <option value="{{ $type->id }}" {{ (string)($client->tgroup ?? '') === (string)$type->id ? 'selected' : '' }}>
-                                {{ $type->name }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <label class="form-label">Группа</label>
+                    <div class="input-group">
+                        <select name="tgroup" id="client-group-select" class="form-select">
+                            <option value="">{{ __('client.select_type') }}</option>
+                            @foreach($clientTypes ?? [] as $type)
+                                <option value="{{ $type->id }}" {{ (string)($client->tgroup ?? '') === (string)$type->id ? 'selected' : '' }}>
+                                    {{ $type->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#clientGroupModal">
+                            <i class="fas fa-users-cog me-1"></i> Группы
+                        </button>
+                    </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_email') }}</label>
@@ -418,6 +423,74 @@
                 @endif
             </div>
         </form>
+    </div>
+
+    <div class="modal fade" id="clientGroupModal" tabindex="-1" aria-labelledby="clientGroupModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="clientGroupModalLabel">Группы клиентов</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert d-none" id="client-group-alert"></div>
+
+                    <div class="row g-3">
+                        <div class="col-lg-7">
+                            <label class="form-label">Поиск группы</label>
+                            <div class="input-group mb-3">
+                                <input type="search" class="form-control" id="client-group-search" placeholder="Название группы">
+                                <button type="button" class="btn btn-outline-primary" id="client-group-search-button">Найти</button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0" id="client-group-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Группа</th>
+                                            <th>Тип</th>
+                                            <th class="text-end">Действия</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted py-4">Загрузка...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="border rounded p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="mb-0" id="client-group-form-title">Новая группа</h6>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="client-group-new-button">Новая</button>
+                                </div>
+                                <input type="hidden" id="client-group-id">
+                                <div class="mb-3">
+                                    <label class="form-label">Название</label>
+                                    <input type="text" class="form-control" id="client-group-name" maxlength="255">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Тип группы</label>
+                                    <select class="form-select" id="client-group-status">
+                                        <option value="0">Доп. группа</option>
+                                        <option value="1">Розничная</option>
+                                    </select>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-success" id="client-group-save-button">Сохранить</button>
+                                    <button type="button" class="btn btn-outline-danger d-none" id="client-group-delete-button">Удалить</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
     </div>
     @if($client)
             </div>
@@ -816,6 +889,281 @@
     const deleteButtons = document.querySelectorAll('.js-delete-kyc-photo');
     const deleteKycUrl = "{{ route('client.deleteKycPhoto') }}";
     const csrfToken = "{{ csrf_token() }}";
+
+    // ── Client groups modal ───────────────────────────────────────────────────
+    const clientGroupModalEl = document.getElementById('clientGroupModal');
+    const clientGroupSelect = document.getElementById('client-group-select');
+
+    if (clientGroupModalEl && clientGroupSelect) {
+        const clientGroupsIndexUrl = @json(route('client.groups.index'));
+        const clientGroupsStoreUrl = @json(route('client.groups.store'));
+        const clientGroupsBaseUrl = @json(url('/client/groups'));
+        const clientGroupAlert = document.getElementById('client-group-alert');
+        const clientGroupSearch = document.getElementById('client-group-search');
+        const clientGroupSearchButton = document.getElementById('client-group-search-button');
+        const clientGroupTableBody = document.querySelector('#client-group-table tbody');
+        const clientGroupFormTitle = document.getElementById('client-group-form-title');
+        const clientGroupId = document.getElementById('client-group-id');
+        const clientGroupName = document.getElementById('client-group-name');
+        const clientGroupStatus = document.getElementById('client-group-status');
+        const clientGroupNewButton = document.getElementById('client-group-new-button');
+        const clientGroupSaveButton = document.getElementById('client-group-save-button');
+        const clientGroupDeleteButton = document.getElementById('client-group-delete-button');
+
+        function escapeClientGroupHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function showClientGroupAlert(type, message) {
+            if (!clientGroupAlert) return;
+            clientGroupAlert.className = 'alert alert-' + type;
+            clientGroupAlert.textContent = message;
+            clientGroupAlert.classList.remove('d-none');
+        }
+
+        function clearClientGroupAlert() {
+            if (!clientGroupAlert) return;
+            clientGroupAlert.className = 'alert d-none';
+            clientGroupAlert.textContent = '';
+        }
+
+        function resetClientGroupForm() {
+            clientGroupId.value = '';
+            clientGroupName.value = '';
+            clientGroupStatus.value = '0';
+            clientGroupFormTitle.textContent = 'Новая группа';
+            clientGroupDeleteButton.classList.add('d-none');
+            clearClientGroupAlert();
+            clientGroupName.focus();
+        }
+
+        function fillClientGroupForm(group) {
+            clientGroupId.value = group.id;
+            clientGroupName.value = group.name || '';
+            clientGroupStatus.value = String(group.status ?? '0');
+            clientGroupFormTitle.textContent = 'Редактирование группы';
+            clientGroupDeleteButton.classList.remove('d-none');
+            clearClientGroupAlert();
+            clientGroupName.focus();
+        }
+
+        function upsertClientGroupOption(group, selected) {
+            let option = clientGroupSelect.querySelector('option[value="' + group.id + '"]');
+
+            if (!option) {
+                option = document.createElement('option');
+                option.value = group.id;
+                clientGroupSelect.appendChild(option);
+            }
+
+            option.textContent = group.name;
+
+            if (selected) {
+                clientGroupSelect.value = String(group.id);
+            }
+        }
+
+        function removeClientGroupOption(groupId) {
+            const option = clientGroupSelect.querySelector('option[value="' + groupId + '"]');
+
+            if (option) {
+                option.remove();
+            }
+
+            if (clientGroupSelect.value === String(groupId)) {
+                clientGroupSelect.value = '';
+            }
+        }
+
+        function renderClientGroups(groups) {
+            if (!clientGroupTableBody) return;
+
+            if (!groups.length) {
+                clientGroupTableBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">Группы не найдены</td></tr>';
+                return;
+            }
+
+            clientGroupTableBody.innerHTML = groups.map(function(group) {
+                return [
+                    '<tr data-group-id="' + escapeClientGroupHtml(group.id) + '">',
+                    '<td class="fw-semibold">' + escapeClientGroupHtml(group.name) + '</td>',
+                    '<td>' + escapeClientGroupHtml(group.status_label || '') + '</td>',
+                    '<td class="text-end">',
+                    '<button type="button" class="btn btn-outline-primary btn-sm me-1 js-client-group-select">Выбрать</button>',
+                    '<button type="button" class="btn btn-outline-secondary btn-sm js-client-group-edit">Изменить</button>',
+                    '</td>',
+                    '</tr>',
+                ].join('');
+            }).join('');
+
+            groups.forEach(function(group) {
+                const row = clientGroupTableBody.querySelector('[data-group-id="' + group.id + '"]');
+                if (row) {
+                    row.dataset.group = JSON.stringify(group);
+                }
+            });
+
+        }
+
+        async function loadClientGroups() {
+            if (clientGroupTableBody) {
+                clientGroupTableBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">Загрузка...</td></tr>';
+            }
+
+            const url = new URL(clientGroupsIndexUrl, window.location.origin);
+            const query = clientGroupSearch.value.trim();
+            if (query) {
+                url.searchParams.set('q', query);
+            }
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const payload = await response.json().catch(function() { return {}; });
+
+                if (!response.ok) {
+                    showClientGroupAlert('danger', payload.message || 'Не удалось загрузить группы.');
+                    renderClientGroups([]);
+                    return [];
+                }
+
+                const groups = payload.items || [];
+                renderClientGroups(groups);
+                return groups;
+            } catch (error) {
+                showClientGroupAlert('danger', error.message || 'Ошибка загрузки групп.');
+                renderClientGroups([]);
+                return [];
+            }
+        }
+
+        async function saveClientGroup() {
+            const groupId = clientGroupId.value;
+            const name = clientGroupName.value.trim();
+
+            if (!name) {
+                showClientGroupAlert('warning', 'Введите название группы.');
+                clientGroupName.focus();
+                return;
+            }
+
+            clientGroupSaveButton.disabled = true;
+            clearClientGroupAlert();
+
+            try {
+                const response = await fetch(groupId ? clientGroupsBaseUrl + '/' + groupId : clientGroupsStoreUrl, {
+                    method: groupId ? 'PUT' : 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        status: clientGroupStatus.value,
+                    }),
+                });
+                const payload = await response.json().catch(function() { return {}; });
+
+                if (!response.ok || payload.success === false) {
+                    showClientGroupAlert('danger', payload.message || 'Не удалось сохранить группу.');
+                    return;
+                }
+
+                upsertClientGroupOption(payload.item, true);
+                await loadClientGroups();
+                fillClientGroupForm(payload.item);
+                showClientGroupAlert('success', 'Группа сохранена.');
+            } catch (error) {
+                showClientGroupAlert('danger', error.message || 'Ошибка сохранения группы.');
+            } finally {
+                clientGroupSaveButton.disabled = false;
+            }
+        }
+
+        async function deleteClientGroup() {
+            const groupId = clientGroupId.value;
+            if (!groupId) return;
+
+            if (!confirm('Удалить эту группу?')) {
+                return;
+            }
+
+            clientGroupDeleteButton.disabled = true;
+            clearClientGroupAlert();
+
+            try {
+                const response = await fetch(clientGroupsBaseUrl + '/' + groupId, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const payload = await response.json().catch(function() { return {}; });
+
+                if (!response.ok || payload.success === false) {
+                    showClientGroupAlert('danger', payload.message || 'Не удалось удалить группу.');
+                    return;
+                }
+
+                removeClientGroupOption(groupId);
+                await loadClientGroups();
+                resetClientGroupForm();
+                showClientGroupAlert('success', 'Группа удалена.');
+            } catch (error) {
+                showClientGroupAlert('danger', error.message || 'Ошибка удаления группы.');
+            } finally {
+                clientGroupDeleteButton.disabled = false;
+            }
+        }
+
+        clientGroupModalEl.addEventListener('shown.bs.modal', function() {
+            loadClientGroups();
+            clientGroupSearch.focus();
+        });
+
+        clientGroupSearchButton.addEventListener('click', loadClientGroups);
+        clientGroupSearch.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                loadClientGroups();
+            }
+        });
+
+        clientGroupNewButton.addEventListener('click', resetClientGroupForm);
+        clientGroupSaveButton.addEventListener('click', saveClientGroup);
+        clientGroupDeleteButton.addEventListener('click', deleteClientGroup);
+
+        clientGroupTableBody.addEventListener('click', function(event) {
+            const row = event.target.closest('tr[data-group]');
+            if (!row) return;
+
+            const group = JSON.parse(row.dataset.group || '{}');
+
+            if (event.target.closest('.js-client-group-select')) {
+                clientGroupSelect.value = group.id;
+                fillClientGroupForm(group);
+                showClientGroupAlert('success', 'Группа выбрана для клиента. Сохраните карточку клиента.');
+                return;
+            }
+
+            if (event.target.closest('.js-client-group-edit')) {
+                fillClientGroupForm(group);
+            }
+        });
+    }
 
     deleteButtons.forEach(function(btn) {
         btn.addEventListener('click', function(e) {
