@@ -24,12 +24,17 @@
     $userProjectIds = collect([$userProjectId]);
   }
 
+  $projectSelectColumns = ['id', 'num', 'name'];
+  if (\Illuminate\Support\Facades\Schema::hasTable('project') && \Illuminate\Support\Facades\Schema::hasColumn('project', 'project_type')) {
+    $projectSelectColumns[] = 'project_type';
+  }
+
   $headerProjects = \Illuminate\Support\Facades\Schema::hasTable('project')
     ? \App\Models\Project::query()
         ->when($userProjectIds->isNotEmpty(), fn ($query) => $query->whereIn('id', $userProjectIds->all()))
         ->orderBy('num')
         ->orderBy('name')
-        ->get(['id', 'num', 'name'])
+        ->get($projectSelectColumns)
     : collect();
   $newOrdersByProject = collect();
   $newOrdersCount = 0;
@@ -58,6 +63,8 @@
   $activeLang = \App\Models\Field::normalizeLocale(app()->getLocale());
   $headerLangOptions = ['ru' => 'RU', 'ua' => 'UA', 'en' => 'EN'];
   $activeProject = $headerProjects->firstWhere('id', $activeFid);
+  $activeProjectType = strtolower(trim((string) ($activeProject->project_type ?? '')));
+  $isBankProject = $activeProjectType === 'bank';
   $headerUserName = trim(implode(' ', array_filter([
     $authUser->name ?? session('name1', ''),
     $authUser->secondname ?? '',
@@ -132,30 +139,43 @@
 
   <nav class="header-nav-menu" id="header-nav-menu">
     @if($isAuthenticated)
-    <div class="header-nav-menu__section-label">Бизнес</div>
-    <div class="header-nav-menu__grid">
-      <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
-      <a class="header-nav-menu__link header-nav-menu__link--with-badge" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">
-        {{ __('nav.orders') }}
-        @if($newOrdersCount > 0)
-          <span class="header-new-orders-badge" title="Новые заказы без выбранного статуса во всех проектах этого email">{{ $newOrdersCount }}</span>
-        @endif
-      </a>
-      <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
-      <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">Трансферы</a>
-      <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
-      <a class="header-nav-menu__link" href="{{ route('team') }}">Команда</a>
-      <a class="header-nav-menu__link" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
-      <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
-      <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
-      <a class="header-nav-menu__link" href="{{ route('wallet') }}">Кошелек</a>
-    </div>
+    @if(!$isBankProject)
+      <div class="header-nav-menu__section-label">Бизнес</div>
+      <div class="header-nav-menu__grid">
+        <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
+        <a class="header-nav-menu__link header-nav-menu__link--with-badge" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">
+          {{ __('nav.orders') }}
+          @if($newOrdersCount > 0)
+            <span class="header-new-orders-badge" title="Новые заказы без выбранного статуса во всех проектах этого email">{{ $newOrdersCount }}</span>
+          @endif
+        </a>
+        <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">Трансферы</a>
+        <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
+      </div>
+    @endif
 
     <div class="header-nav-menu__section-label">Частный</div>
     <div class="header-nav-menu__grid">
       <a class="header-nav-menu__link" href="{{ route('money.index') }}">{{ __('nav.money') }}</a>
       <a class="header-nav-menu__link" href="{{ route('deposit.index') }}">{{ __('nav.deposits') }}</a>
     </div>
+
+    <div class="header-nav-menu__section-label">Менеджмент</div>
+    <div class="header-nav-menu__grid">
+      <a class="header-nav-menu__link" href="{{ route('team') }}">Команда</a>
+      <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('wallet') }}">Кошелек</a>
+    </div>
+
+    @if($isBankProject)
+      <div class="header-nav-menu__section-label">Банк</div>
+      <div class="header-nav-menu__grid">
+        <a class="header-nav-menu__link" href="{{ route('blockchain-monitor.index') }}">Blockchain Monitor</a>
+      </div>
+    @endif
 
     <div class="header-nav-menu__section-label">Прочее</div>
     <div class="header-nav-menu__grid">

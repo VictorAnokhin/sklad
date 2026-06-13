@@ -1976,6 +1976,7 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'num' => 'nullable|integer|min:0',
             'name' => 'required|string|max:50',
+            'project_type' => ['nullable', 'string', Rule::in(array_keys($this->projectTypeOptions()))],
             'phone' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
             'url' => 'nullable|string|max:65535',
@@ -2057,6 +2058,9 @@ class SettingsController extends Controller
         if (in_array('phone', $projectColumns, true)) {
             $payload['phone'] = $projectPhone;
         }
+        if (in_array('project_type', $projectColumns, true)) {
+            $payload['project_type'] = trim((string) ($validated['project_type'] ?? '')) ?: null;
+        }
         if (in_array('email', $projectColumns, true)) {
             $payload['email'] = $projectEmail === '' ? null : $projectEmail;
         }
@@ -2093,10 +2097,22 @@ class SettingsController extends Controller
         $payload['phone'] = (string) ($payload['phone'] ?? '');
         $payload['email'] = (string) ($payload['email'] ?? '');
         $payload['url'] = (string) ($payload['url'] ?? '');
+        $payload['project_type'] = (string) ($payload['project_type'] ?? '');
+        $payload['project_type_label'] = $this->projectTypeOptions()[$payload['project_type']] ?? '';
         $payload['constanta'] = (int) ($payload['constanta'] ?? 0);
         $payload['can_delete'] = $this->userCanDeleteProjectByEmail($user, $project);
 
         return $payload;
+    }
+
+    private function projectTypeOptions(): array
+    {
+        return [
+            'trade' => 'Торговля',
+            'bank' => 'Банк',
+            'insurance' => 'Страхование',
+            'education' => 'Образование',
+        ];
     }
 
     private function denyInvalidManagerAiSecret(Request $request)

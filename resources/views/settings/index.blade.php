@@ -603,11 +603,21 @@
                             <label class="form-label">ID</label>
                             <input type="text" class="form-control" id="project-id-display" readonly>
                         </div>
-                        <div class="col-md-5 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Назва <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="project-name" maxlength="50" required>
                         </div>
-                        <div class="col-md-5 mb-3">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Тип проекта</label>
+                            <select class="form-select" id="project-type">
+                                <option value="">Не указан</option>
+                                <option value="trade">Торговля</option>
+                                <option value="bank">Банк</option>
+                                <option value="insurance">Страхование</option>
+                                <option value="education">Образование</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
                             <label class="form-label">userid</label>
                             <input type="number" class="form-control" id="project-userid" min="0" value="0">
                         </div>
@@ -720,6 +730,7 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Назва</th>
+                                <th>Тип</th>
                                 <th>Email</th>
                                 <th>Телефон</th>
                                 <th class="text-end">Дії</th>
@@ -2633,6 +2644,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const payload = new FormData();
             payload.append('num', String(Number(document.getElementById('project-num').value || 0)));
             payload.append('name', document.getElementById('project-name').value.trim());
+            payload.append('project_type', document.getElementById('project-type').value);
             payload.append('email', document.getElementById('project-email').value.trim());
             payload.append('phone', document.getElementById('project-phone').value.trim());
             payload.append('url', document.getElementById('project-url').value.trim());
@@ -2709,7 +2721,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderProjects(Array.isArray(data) ? data : []);
                 })
                 .catch((error) => {
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${escapeHtml(error?.message || _ts('js.load_error'))}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${escapeHtml(error?.message || _ts('js.load_error'))}</td></tr>`;
                     emptyMsg.style.display = 'none';
                 });
         }
@@ -2740,6 +2752,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const projectUrl = item.url
                     ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>`
                     : '—';
+                const projectType = item.project_type_label || projectTypeLabel(item.project_type) || '—';
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -2749,6 +2762,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="company-meta">${escapeHtml(item.description || '')}</div>
                         ${Number(item.constanta) === 1 ? '<span class="badge bg-warning text-dark mt-1">Маркетплейс</span>' : ''}
                     </td>
+                    <td>${escapeHtml(projectType)}</td>
                     <td>${projectEmail}</td>
                     <td>
                         <div>${projectPhone}</div>
@@ -2815,6 +2829,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-id-display').value = item.id ?? '';
             document.getElementById('project-num').value = item.num ?? 0;
             document.getElementById('project-name').value = item.name || '';
+            document.getElementById('project-type').value = item.project_type || '';
             document.getElementById('project-email').value = item.email || '';
             document.getElementById('project-phone').value = item.phone || '';
             document.getElementById('project-url').value = item.url || '';
@@ -2844,6 +2859,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-id-display').value = '';
             document.getElementById('project-num').value = '0';
             document.getElementById('project-name').value = '';
+            document.getElementById('project-type').value = '';
             document.getElementById('project-email').value = '';
             document.getElementById('project-phone').value = '';
             document.getElementById('project-url').value = '';
@@ -2882,6 +2898,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (deleteBtn) {
                 deleteBtn.style.display = 'none';
             }
+        }
+
+        function projectTypeLabel(value) {
+            return {
+                trade: 'Торговля',
+                bank: 'Банк',
+                insurance: 'Страхование',
+                education: 'Образование',
+            }[value] || '';
         }
 
         function bindProjectPreview(input, wrapId, imageId) {

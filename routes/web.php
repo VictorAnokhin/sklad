@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BlockchainMonitorController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DepositController;
 use App\Http\Controllers\DocumentController;
@@ -70,6 +71,10 @@ Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
+    Route::get('/blockchain-monitor', [BlockchainMonitorController::class, 'page'])->name('blockchain-monitor.index');
+    Route::get('/blockchain-monitor/api/summary', [BlockchainMonitorController::class, 'summary'])->name('blockchain-monitor.summary');
+    Route::get('/blockchain-monitor/api/events', [BlockchainMonitorController::class, 'events'])->name('blockchain-monitor.events');
+    Route::post('/blockchain-monitor/api/sync', [BlockchainMonitorController::class, 'sync'])->name('blockchain-monitor.sync');
     Route::post('/dashboard/transport-lookup', [AuthController::class, 'transportLookup'])->name('dashboard.transportLookup');
     Route::prefix('team')->name('team.')->group(function () {
         Route::get('/show', [TeamController::class, 'show'])->name('show');

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('num')->default(0);
             $table->string('name', 50)->default('');
+            $table->string('project_type', 40)->nullable();
             $table->text('phone')->nullable();
             $table->text('telegram')->nullable();
             $table->text('instagram')->nullable();
