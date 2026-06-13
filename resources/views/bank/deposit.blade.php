@@ -77,6 +77,7 @@
             <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--deposits">
                 <thead>
                     <tr>
+                        <th class="bank-table__num">№</th>
                         <th>Депозит</th>
                         <th>Проект</th>
                         <th>Валюта</th>
@@ -92,6 +93,7 @@
                             $usage = $deposit->limit > 0 ? min(100, max(0, $deposit->balance / $deposit->limit * 100)) : null;
                         @endphp
                         <tr>
+                            <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td>
                                 <strong>{{ $deposit->name }}</strong>
                                 <div class="bank-meta">ID {{ $deposit->id }}{{ $deposit->is_visible ? '' : ' · скрыт' }}</div>
@@ -107,7 +109,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">Депозиты пока не созданы.</td>
+                            <td colspan="8" class="text-center text-muted py-4">Депозиты пока не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>

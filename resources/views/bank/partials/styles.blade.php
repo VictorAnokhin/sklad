@@ -270,7 +270,19 @@
     }
 
     .bank-table--deposits {
-        min-width: 980px;
+        min-width: 1320px;
+    }
+
+    .bank-table--deposits th:not(.bank-table__num),
+    .bank-table--deposits td:not(.bank-table__num) {
+        min-width: 150px;
+    }
+
+    .bank-table--deposits th:nth-child(2),
+    .bank-table--deposits td:nth-child(2),
+    .bank-table--deposits th:nth-child(3),
+    .bank-table--deposits td:nth-child(3) {
+        min-width: 260px;
     }
 
     .bank-table--deposit-operations {
