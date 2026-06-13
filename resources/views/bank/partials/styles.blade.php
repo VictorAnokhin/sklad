@@ -273,7 +273,7 @@
     .bank-table--payments td,
     .bank-table--payment-ledger th,
     .bank-table--payment-ledger td {
-        padding: 0.22rem 0.42rem;
+        padding: 0 0.42rem;
         font-size: 0.76rem;
         line-height: 1.15;
         vertical-align: middle;
