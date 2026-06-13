@@ -223,6 +223,9 @@
                                 @foreach($person->total_by_currency as $currency => $total)
                                     <span class="bank-inline-balance">{{ number_format((float) $total, 2, '.', ' ') }} {{ $currency }}</span>
                                 @endforeach
+                                @if($person->google_wallets_count > 0)
+                                    <div class="bank-meta">{{ $person->google_wallets_count }} Google-кош.</div>
+                                @endif
                             </td>
                             <td><span class="bank-status">{{ $person->status }}</span></td>
                         </tr>
@@ -256,6 +259,33 @@
                                             @endforelse
                                         </tbody>
                                     </table>
+                                    <div class="bank-wallets-block">
+                                        <div class="bank-label">Google-кошельки аккаунта</div>
+                                        <table class="table table-dark table-sm align-middle bank-table bank-table--nested">
+                                            <thead>
+                                                <tr>
+                                                    <th>Адрес кошелька</th>
+                                                    <th>Сеть</th>
+                                                    <th>Источник</th>
+                                                    <th>Создан / обновлен</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse($person->google_wallets as $wallet)
+                                                    <tr>
+                                                        <td class="bank-mono">{{ $wallet->address }}</td>
+                                                        <td><span class="bank-pill bank-pill--currency">{{ $wallet->network !== '' ? strtoupper($wallet->network) : '—' }}</span></td>
+                                                        <td>{{ $wallet->source }}</td>
+                                                        <td>{{ $wallet->connected_at ?: '—' }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td colspan="4" class="text-center text-muted py-3">Для Google-аккаунта кошельки не найдены.</td>
+                                                    </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </td>
                         </tr>

@@ -358,6 +358,10 @@
         border-bottom: 1px solid rgba(148, 163, 184, 0.12);
     }
 
+    .bank-wallets-block {
+        margin-top: 14px;
+    }
+
     .bank-inline-balance {
         display: inline-flex;
         margin: 2px 4px 2px 0;

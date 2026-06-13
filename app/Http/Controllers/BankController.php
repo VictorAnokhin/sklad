@@ -245,6 +245,7 @@ class BankController extends Controller
         $accountsByUser = $clientAccounts
             ->filter(fn ($account) => $account->owner_type === 'person')
             ->groupBy('owner_id');
+        $googleWalletsByUser = $this->googleWalletsByUser();
 
         return DB::table('users')
             ->when(in_array('firma', $userColumns, true), function ($query) use ($fid): void {
@@ -269,8 +270,9 @@ class BankController extends Controller
             ->when(in_array('name', $userColumns, true), fn ($query) => $query->orderBy('name'))
             ->orderBy('id')
             ->get($select)
-            ->map(function ($user) use ($accountsByUser) {
+            ->map(function ($user) use ($accountsByUser, $googleWalletsByUser) {
                 $accounts = $accountsByUser->get((string) ($user->id ?? ''), collect())->values();
+                $wallets = $googleWalletsByUser->get((string) ($user->id ?? ''), collect())->values();
                 $ownerName = $this->ownerName($user);
                 $contact = $this->ownerContact($user);
                 $phone = trim((string) ($user->phone ?? ''));
@@ -285,12 +287,15 @@ class BankController extends Controller
                     'status' => ((int) ($user->idstatus ?? $user->ustype ?? 1)) > 0 ? 'Активен' : 'На проверке',
                     'accounts' => $accounts,
                     'accounts_count' => $accounts->count(),
+                    'google_wallets' => $wallets,
+                    'google_wallets_count' => $wallets->count(),
                     'search_text' => mb_strtolower(implode(' ', [
                         $ownerName,
                         $phone,
                         $email,
                         $contact,
                         $city,
+                        $wallets->pluck('address')->implode(' '),
                     ])),
                     'total_by_currency' => $accounts
                         ->groupBy('currency')
@@ -298,6 +303,51 @@ class BankController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function googleWalletsByUser()
+    {
+        $wallets = collect();
+
+        if (Schema::hasTable('zklogin_identities')) {
+            $wallets = $wallets->merge(
+                DB::table('zklogin_identities')
+                    ->where('provider', 'google')
+                    ->whereNotNull('wallet_address')
+                    ->where('wallet_address', '!=', '')
+                    ->orderByDesc('updated_at')
+                    ->get(['user_id', 'wallet_address', 'updated_at'])
+                    ->map(fn ($row) => (object) [
+                        'user_id' => (string) $row->user_id,
+                        'address' => (string) $row->wallet_address,
+                        'network' => 'sui',
+                        'source' => 'Google zkLogin',
+                        'connected_at' => $row->updated_at,
+                    ])
+            );
+        }
+
+        if (Schema::hasTable('user_wallets') && Schema::hasColumn('user_wallets', 'web3auth')) {
+            $wallets = $wallets->merge(
+                DB::table('user_wallets')
+                    ->where('web3auth', 1)
+                    ->orderByDesc('connected_at')
+                    ->orderByDesc('id')
+                    ->get(['user_id', 'address', 'network', 'connected_at'])
+                    ->map(fn ($row) => (object) [
+                        'user_id' => (string) $row->user_id,
+                        'address' => (string) $row->address,
+                        'network' => (string) ($row->network ?? ''),
+                        'source' => 'Google Web3Auth',
+                        'connected_at' => $row->connected_at,
+                    ])
+            );
+        }
+
+        return $wallets
+            ->filter(fn ($wallet) => trim((string) $wallet->address) !== '')
+            ->unique(fn ($wallet) => $wallet->user_id . ':' . mb_strtolower((string) $wallet->address))
+            ->groupBy('user_id');
     }
 
     private function ownerType(object $row): string
