@@ -111,7 +111,7 @@
             </div>
             <div class="bank-meta">{{ $paymentRows->count() }} строк</div>
         </div>
-        <div class="table-responsive bank-table-scroll">
+        <div class="table-responsive bank-table-scroll bank-table-scroll--payments">
             <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--payments">
                 <thead>
                     <tr>
@@ -178,7 +178,7 @@
             </div>
             <div class="bank-meta">{{ $ledgerRows->count() }} транзакций</div>
         </div>
-        <div class="table-responsive bank-table-scroll">
+        <div class="table-responsive bank-table-scroll bank-table-scroll--payments">
             <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--payment-ledger">
                 <thead>
                     <tr>

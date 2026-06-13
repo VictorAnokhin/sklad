@@ -263,10 +263,28 @@
 
     .bank-table--payments {
         min-width: 1180px;
+        height: auto !important;
     }
 
     .bank-table--payment-ledger {
         min-width: 1280px;
+        height: auto !important;
+    }
+
+    .bank-table-scroll--payments {
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: 620px;
+    }
+
+    .bank-table--payments tbody,
+    .bank-table--payment-ledger tbody {
+        height: auto !important;
+    }
+
+    .bank-table--payments tbody tr,
+    .bank-table--payment-ledger tbody tr {
+        height: auto !important;
     }
 
     .bank-table--payments th,
@@ -274,7 +292,7 @@
     .bank-table--payment-ledger th,
     .bank-table--payment-ledger td {
         padding: 0 0.42rem;
-        height: 18px;
+        height: auto !important;
         font-size: 0.68rem;
         line-height: 0.9;
         vertical-align: middle;
