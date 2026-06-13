@@ -18,11 +18,8 @@ return new class extends Migration
 
         if (Schema::hasTable('project') && ! Schema::hasColumn('project', 'holding_id')) {
             Schema::table('project', function (Blueprint $table): void {
-                $table->foreignId('holding_id')
-                    ->nullable()
-                    ->after('project_type')
-                    ->constrained('holding')
-                    ->nullOnDelete();
+                $table->unsignedBigInteger('holding_id')->nullable()->after('project_type');
+                $table->index('holding_id');
             });
         }
     }
@@ -31,7 +28,8 @@ return new class extends Migration
     {
         if (Schema::hasTable('project') && Schema::hasColumn('project', 'holding_id')) {
             Schema::table('project', function (Blueprint $table): void {
-                $table->dropConstrainedForeignId('holding_id');
+                $table->dropIndex(['holding_id']);
+                $table->dropColumn('holding_id');
             });
         }
 
