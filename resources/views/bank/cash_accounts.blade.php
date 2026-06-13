@@ -83,11 +83,12 @@
             <div class="bank-meta">{{ $clientAccounts->count() }} счетов</div>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-dark table-hover table-sm align-middle bank-table">
+        <div class="table-responsive bank-table-scroll">
+            <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--client-accounts">
                 <thead>
                     <tr>
-                        <th>Счет</th>
+                        <th class="bank-table__num">№</th>
+                        <th class="bank-table__account">Счет</th>
                         <th>Клиент</th>
                         <th>Тип</th>
                         <th>Валюта</th>
@@ -99,6 +100,7 @@
                 <tbody>
                     @forelse($clientAccounts as $account)
                         <tr>
+                            <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td>
                                 <div class="bank-mono">{{ $account->account_number }}</div>
                                 <div class="bank-meta">client id {{ $account->owner_id }}</div>
@@ -124,7 +126,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">Клиентские счета не найдены.</td>
+                            <td colspan="8" class="text-center text-muted py-4">Клиентские счета не найдены.</td>
                         </tr>
                     @endforelse
                 </tbody>

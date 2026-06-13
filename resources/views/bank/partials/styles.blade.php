@@ -229,6 +229,35 @@
         margin: 0;
     }
 
+    .bank-table-scroll {
+        max-height: 620px;
+        overflow: auto;
+    }
+
+    .bank-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #111827;
+        box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.22);
+    }
+
+    .bank-table__num {
+        width: 56px;
+        min-width: 56px;
+        text-align: right;
+        color: rgba(203, 213, 225, 0.72);
+    }
+
+    .bank-table__account {
+        width: 300px;
+        min-width: 300px;
+    }
+
+    .bank-table--client-accounts {
+        min-width: 1120px;
+    }
+
     .bank-placeholder h2 {
         color: #fff;
         font-size: 1.55rem;
