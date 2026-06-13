@@ -546,10 +546,12 @@ class Money extends Model
 
         DB::transaction(function () use ($ownerUserId, $targetClientId, $fid, $ownerDelta, $targetDelta, $currency, $id, $wasPosted, $doc) {
             if ($ownerUserId !== '' && $ownerUserId !== '0') {
+                self::ensureUserBalanceCache($fid, $ownerUserId, $currency);
                 self::shiftUserBalance($fid, $ownerUserId, $ownerDelta, $currency);
             }
 
             if ($targetClientId !== '' && $targetClientId !== '0') {
+                self::ensureUserBalanceCache($fid, $targetClientId, $currency);
                 self::shiftUserBalance($fid, $targetClientId, $targetDelta, $currency);
             }
 
@@ -851,7 +853,7 @@ class Money extends Model
 
     private static function shiftUserBalance(string $fid, string $userId, float $delta, string $currency): void
     {
-        if ($delta == 0.0 || ! Schema::hasTable('users_cashe') || ! Schema::hasColumn('users_cashe', 'balance')) {
+        if ($delta == 0.0 || ! self::canUseUserBalanceCache()) {
             return;
         }
 
@@ -869,6 +871,9 @@ class Money extends Model
         }
 
         $criteria = ['userid' => (string) $user->id];
+        if (in_array('firma', $cacheColumns, true)) {
+            $criteria['firma'] = (int) ($user->firma ?? $fid);
+        }
         if ($hasValuta) {
             $criteria['valuta'] = $currency;
         }
@@ -890,6 +895,67 @@ class Money extends Model
         }
 
         DB::table('users_cashe')->updateOrInsert($criteria, $values);
+    }
+
+    private static function ensureUserBalanceCache(string $fid, string $userId, string $currency): void
+    {
+        if (! self::canUseUserBalanceCache()) {
+            return;
+        }
+
+        $cacheColumns = Schema::getColumnListing('users_cashe');
+        $hasValuta = in_array('valuta', $cacheColumns, true);
+        $currency = self::normalizeCurrency($currency);
+        $firmaScope = HoldingScope::projectIdsFor($fid);
+        $user = DB::table('users')
+            ->where('id', $userId)
+            ->when($firmaScope !== [], fn ($query) => $query->whereIn('firma', $firmaScope))
+            ->first(['id', 'firma']);
+
+        if (!$user) {
+            return;
+        }
+
+        $criteria = ['userid' => (string) $user->id];
+        if (in_array('firma', $cacheColumns, true)) {
+            $criteria['firma'] = (int) ($user->firma ?? $fid);
+        }
+        if ($hasValuta) {
+            $criteria['valuta'] = $currency;
+        }
+
+        $exists = DB::table('users_cashe')
+            ->where($criteria)
+            ->lockForUpdate()
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        $values = array_merge($criteria, ['balance' => 0]);
+        if (in_array('firma', $cacheColumns, true)) {
+            $values['firma'] = (int) ($user->firma ?? $fid);
+        }
+        if (in_array('user_id', $cacheColumns, true)) {
+            $values['user_id'] = (int) $user->id;
+        }
+        if ($hasValuta) {
+            $values['valuta'] = $currency;
+        }
+
+        DB::table('users_cashe')->insert($values);
+    }
+
+    private static function canUseUserBalanceCache(): bool
+    {
+        if (! Schema::hasTable('users_cashe')) {
+            return false;
+        }
+
+        $cacheColumns = Schema::getColumnListing('users_cashe');
+
+        return in_array('userid', $cacheColumns, true) && in_array('balance', $cacheColumns, true);
     }
 
     private static function serializeUserBalances(array $balances): ?string

@@ -239,7 +239,7 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            @foreach($person->accounts as $account)
+                                            @forelse($person->accounts as $account)
                                                 <tr>
                                                     <td>
                                                         <div class="bank-mono">{{ $account->account_number }}</div>
@@ -249,7 +249,11 @@
                                                     <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
                                                     <td>{{ $account->service_account }}</td>
                                                 </tr>
-                                            @endforeach
+                                            @empty
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted py-3">У физлица пока нет открытых счетов в users_cashe.</td>
+                                                </tr>
+                                            @endforelse
                                         </tbody>
                                     </table>
                                 </div>

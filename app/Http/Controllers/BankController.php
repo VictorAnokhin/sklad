@@ -50,7 +50,7 @@ class BankController extends Controller
             'cashAccounts' => $cashAccounts,
             'clientAccounts' => $clientAccounts,
             'projectAccounts' => $projectAccounts,
-            'personOwners' => $this->personOwners($clientAccounts),
+            'personOwners' => $this->personOwners((string) $project->id, $clientAccounts),
             'totalByCurrency' => $totalByCurrency,
             'operationalTotalByCurrency' => $operationalTotalByCurrency,
             'ownerTypeTotals' => $ownerTypeTotals,
@@ -218,28 +218,68 @@ class BankController extends Controller
             ->values();
     }
 
-    private function personOwners($clientAccounts)
+    private function personOwners(string $fid, $clientAccounts)
     {
-        return $clientAccounts
+        if (! Schema::hasTable('users')) {
+            return collect();
+        }
+
+        $userColumns = Schema::getColumnListing('users');
+        $select = [];
+        foreach (['id', 'firma', 'orgname', 'kod1', 'name', 'name2', 'secondname', 'fathername', 'phone', 'email', 'city', 'idstatus', 'ustype'] as $column) {
+            if (in_array($column, $userColumns, true)) {
+                $select[] = $column;
+            }
+        }
+
+        if ($select === []) {
+            return collect();
+        }
+
+        $accountsByUser = $clientAccounts
             ->filter(fn ($account) => $account->owner_type === 'person')
-            ->groupBy('owner_id')
-            ->map(function ($accounts) {
-                $first = $accounts->first();
+            ->groupBy('owner_id');
+
+        return DB::table('users')
+            ->when(in_array('firma', $userColumns, true), fn ($query) => $query->where('firma', $fid))
+            ->when(in_array('orgname', $userColumns, true), function ($query): void {
+                $query->where(function ($nested): void {
+                    $nested->whereNull('orgname')
+                        ->orWhere('orgname', '');
+                });
+            })
+            ->when(in_array('kod1', $userColumns, true), function ($query): void {
+                $query->where(function ($nested): void {
+                    $nested->whereNull('kod1')
+                        ->orWhere('kod1', '');
+                });
+            })
+            ->when(in_array('secondname', $userColumns, true), fn ($query) => $query->orderBy('secondname'))
+            ->when(in_array('name', $userColumns, true), fn ($query) => $query->orderBy('name'))
+            ->orderBy('id')
+            ->get($select)
+            ->map(function ($user) use ($accountsByUser) {
+                $accounts = $accountsByUser->get((string) ($user->id ?? ''), collect())->values();
+                $ownerName = $this->ownerName($user);
+                $contact = $this->ownerContact($user);
+                $phone = trim((string) ($user->phone ?? ''));
+                $email = trim((string) ($user->email ?? ''));
+                $city = trim((string) ($user->city ?? ''));
 
                 return (object) [
-                    'owner_id' => $first->owner_id,
-                    'owner_name' => $first->owner_name,
-                    'contact' => $first->contact,
-                    'city' => $first->city,
-                    'status' => $first->status,
-                    'accounts' => $accounts->values(),
+                    'owner_id' => (string) ($user->id ?? ''),
+                    'owner_name' => $ownerName,
+                    'contact' => $contact,
+                    'city' => $city,
+                    'status' => ((int) ($user->idstatus ?? $user->ustype ?? 1)) > 0 ? 'Активен' : 'На проверке',
+                    'accounts' => $accounts,
                     'accounts_count' => $accounts->count(),
                     'search_text' => mb_strtolower(implode(' ', [
-                        $first->owner_name,
-                        $first->phone,
-                        $first->email,
-                        $first->contact,
-                        $first->city,
+                        $ownerName,
+                        $phone,
+                        $email,
+                        $contact,
+                        $city,
                     ])),
                     'total_by_currency' => $accounts
                         ->groupBy('currency')

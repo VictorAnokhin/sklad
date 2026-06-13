@@ -417,6 +417,49 @@ class InventoryCostServiceTest extends TestCase
         $this->assertUserCacheBalance($ownerId, 'USD', 10);
     }
 
+    public function test_money_order_posting_creates_missing_user_cache_in_order_currency(): void
+    {
+        $ownerId = DB::table('users')->insertGetId([
+            'name' => 'Order owner',
+            'email' => "order-owner-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+        $clientId = DB::table('users')->insertGetId([
+            'name' => 'Order client',
+            'email' => "order-client-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+
+        $docId = DB::table('z_document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => 'PPO',
+            'firma' => (string) $this->companyId,
+            'client1' => (string) $clientId,
+            'client2' => (string) $ownerId,
+            'summa' => 80,
+            'currency_from' => 'USD',
+            'data' => '12-06-2026',
+            'docum' => '',
+            'provodka' => 0,
+        ]);
+
+        $this->assertFalse(
+            DB::table('users_cashe')->whereIn('userid', [(string) $ownerId, (string) $clientId])->exists()
+        );
+
+        Money::provodka($docId, (string) $this->companyId);
+
+        $this->assertUserCacheBalance($ownerId, 'USD', 80);
+        $this->assertUserCacheBalance($clientId, 'USD', -80);
+
+        Money::provodka($docId, (string) $this->companyId);
+
+        $this->assertUserCacheBalance($ownerId, 'USD', 0);
+        $this->assertUserCacheBalance($clientId, 'USD', 0);
+    }
+
     public function test_po_and_ro_create_and_reverse_project_mirror_transactions(): void
     {
         $projectId = DB::table('project')->insertGetId([
