@@ -151,7 +151,6 @@
         </a>
         <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
         <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">Трансферы</a>
-        <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
         <a class="header-nav-menu__link" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
       </div>
     @endif
@@ -165,6 +164,7 @@
     <div class="header-nav-menu__section-label">Менеджмент</div>
     <div class="header-nav-menu__grid">
       <a class="header-nav-menu__link" href="{{ route('team') }}">Команда</a>
+      <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
       <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
       <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
       <a class="header-nav-menu__link" href="{{ route('wallet') }}">Кошелек</a>
@@ -173,6 +173,12 @@
     @if($isBankProject)
       <div class="header-nav-menu__section-label">Банк</div>
       <div class="header-nav-menu__grid">
+        <a class="header-nav-menu__link" href="{{ route('bank.cash-accounts') }}">Кассы/Счета</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.loans') }}">Внутренние кредиты</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.exchange') }}">Обмен фиат/крипта</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.clearing') }}">Клиринг проектов</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.payments') }}">Платежи</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.reconciliation') }}">Сверка</a>
         <a class="header-nav-menu__link" href="{{ route('blockchain-monitor.index') }}">Blockchain Monitor</a>
       </div>
     @endif

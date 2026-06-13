@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BankController;
 use App\Http\Controllers\BlockchainMonitorController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DepositController;
@@ -75,6 +76,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/blockchain-monitor/api/summary', [BlockchainMonitorController::class, 'summary'])->name('blockchain-monitor.summary');
     Route::get('/blockchain-monitor/api/events', [BlockchainMonitorController::class, 'events'])->name('blockchain-monitor.events');
     Route::post('/blockchain-monitor/api/sync', [BlockchainMonitorController::class, 'sync'])->name('blockchain-monitor.sync');
+    Route::prefix('bank')->name('bank.')->group(function () {
+        Route::get('/cash-accounts', [BankController::class, 'cashAccounts'])->name('cash-accounts');
+        Route::get('/loans', [BankController::class, 'loans'])->name('loans');
+        Route::get('/exchange', [BankController::class, 'exchange'])->name('exchange');
+        Route::get('/clearing', [BankController::class, 'clearing'])->name('clearing');
+        Route::get('/payments', [BankController::class, 'payments'])->name('payments');
+        Route::get('/reconciliation', [BankController::class, 'reconciliation'])->name('reconciliation');
+    });
     Route::post('/dashboard/transport-lookup', [AuthController::class, 'transportLookup'])->name('dashboard.transportLookup');
     Route::prefix('team')->name('team.')->group(function () {
         Route::get('/show', [TeamController::class, 'show'])->name('show');
