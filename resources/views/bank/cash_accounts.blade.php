@@ -226,13 +226,12 @@
                                                 <th>Касса / счет</th>
                                                 <th>Валюта учета</th>
                                                 <th class="text-end">Баланс</th>
-                                                <th>Документы</th>
                                                 <th>Реквизит / адрес</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr class="bank-account-action-row">
-                                                <td colspan="6">
+                                                <td colspan="5">
                                                     <form method="POST" action="{{ route('bank.project-accounts.store', ['project' => $projectRow->id]) }}" class="bank-inline-account-form">
                                                         @csrf
                                                         <strong>Добавить счёт</strong>
@@ -261,7 +260,6 @@
                                                     </td>
                                                     <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
                                                     <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
-                                                    <td>{{ $account->doc !== '' ? $account->doc : '—' }}</td>
                                                     <td>
                                                         <div class="bank-account-cell-actions">
                                                             <span class="bank-mono">{{ $account->color !== '' ? $account->color : '—' }}</span>
@@ -275,7 +273,7 @@
                                                 </tr>
                                             @empty
                                                 <tr>
-                                                    <td colspan="6" class="text-center text-muted py-3">Кассы проекта не настроены.</td>
+                                                    <td colspan="5" class="text-center text-muted py-3">Кассы проекта не настроены.</td>
                                                 </tr>
                                             @endforelse
                                         </tbody>
