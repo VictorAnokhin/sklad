@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Support\HoldingScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -141,7 +142,12 @@ class BankController extends Controller
 
         return DB::table('users_cashe as uc')
             ->leftJoin('users as u', 'u.id', '=', 'uc.userid')
-            ->when($hasCacheFirma, fn ($query) => $query->where('uc.firma', (int) $fid))
+            ->when($hasCacheFirma, function ($query) use ($fid): void {
+                $firmaScope = HoldingScope::projectIdsFor($fid);
+                if ($firmaScope !== []) {
+                    $query->whereIn('uc.firma', array_map('intval', $firmaScope));
+                }
+            })
             ->when(in_array('orgname', $userColumns, true), fn ($query) => $query->orderBy('u.orgname'))
             ->when(in_array('secondname', $userColumns, true), fn ($query) => $query->orderBy('u.secondname'))
             ->when(in_array('name', $userColumns, true), fn ($query) => $query->orderBy('u.name'))
@@ -241,7 +247,12 @@ class BankController extends Controller
             ->groupBy('owner_id');
 
         return DB::table('users')
-            ->when(in_array('firma', $userColumns, true), fn ($query) => $query->where('firma', $fid))
+            ->when(in_array('firma', $userColumns, true), function ($query) use ($fid): void {
+                $firmaScope = HoldingScope::projectIdsFor($fid);
+                if ($firmaScope !== []) {
+                    $query->whereIn('firma', $firmaScope);
+                }
+            })
             ->when(in_array('orgname', $userColumns, true), function ($query): void {
                 $query->where(function ($nested): void {
                     $nested->whereNull('orgname')
