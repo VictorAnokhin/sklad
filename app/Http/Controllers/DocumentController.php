@@ -869,6 +869,19 @@ class DocumentController extends Controller
                 $errors['client1'] = 'Оберіть клієнта';
             }
 
+            if ($doc === 'ZP' && ! isset($errors['client1'])) {
+                $employeeId = trim((string) $request->input('client1', ''));
+                $employeeExists = DB::table('users')
+                    ->where('id', $employeeId)
+                    ->where('firma', $fid)
+                    ->where('firmuser', '1')
+                    ->exists();
+
+                if (! $employeeExists) {
+                    $errors['client1'] = 'Оберіть співробітника поточного проєкту';
+                }
+            }
+
             if (in_array($doc, ['ZOUT', 'ZIN'], true) && trim((string) $request->input('status', '')) === '') {
                 $errors['status'] = 'Оберіть статус';
             }

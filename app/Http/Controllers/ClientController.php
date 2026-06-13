@@ -80,9 +80,11 @@ class ClientController extends Controller
             return response()->json([]);
 
         $fid = session('fid', '');
-        $clientFirmaScope = $this->clientFirmaScope($fid);
         $qBase = $q;
         $teamOnly = $request->boolean('team_only');
+        $clientFirmaScope = $teamOnly
+            ? array_values(array_filter([trim((string) $fid)], fn ($value) => $value !== ''))
+            : $this->clientFirmaScope($fid);
 
         $users = DB::table('users')
             ->whereIn('firma', $clientFirmaScope)
