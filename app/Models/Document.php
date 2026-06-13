@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\AccountingService;
 use App\Services\InventoryCostService;
+use App\Support\HoldingScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -672,9 +673,10 @@ class Document extends Model
             return;
         }
 
+        $firmaScope = HoldingScope::projectIdsFor($fid);
         $user = DB::table('users')
             ->where('id', $userId)
-            ->where('firma', $fid)
+            ->whereIn('firma', $firmaScope)
             ->lockForUpdate()
             ->first(['id', 'balance']);
 
