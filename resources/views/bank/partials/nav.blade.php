@@ -1,5 +1,5 @@
 <nav class="bank-nav" aria-label="Bank navigation">
-    <a href="{{ route('bank.cash-accounts') }}" class="{{ request()->routeIs('bank.cash-accounts') ? 'is-active' : '' }}">Кассы/Счета</a>
+    <a href="{{ route('bank.cash-accounts') }}" class="{{ request()->routeIs('bank.cash-accounts') ? 'is-active' : '' }}">Клиентские счета</a>
     <a href="{{ route('bank.loans') }}" class="{{ request()->routeIs('bank.loans') ? 'is-active' : '' }}">Внутренние кредиты</a>
     <a href="{{ route('bank.exchange') }}" class="{{ request()->routeIs('bank.exchange') ? 'is-active' : '' }}">Обмен фиат/крипта</a>
     <a href="{{ route('bank.clearing') }}" class="{{ request()->routeIs('bank.clearing') ? 'is-active' : '' }}">Клиринг проектов</a>
