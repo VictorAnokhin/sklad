@@ -262,11 +262,57 @@
     }
 
     .bank-table--payments {
-        min-width: 1240px;
+        min-width: 1540px;
     }
 
     .bank-table--payment-ledger {
-        min-width: 1320px;
+        min-width: 1680px;
+    }
+
+    .bank-table--payments th,
+    .bank-table--payments td,
+    .bank-table--payment-ledger th,
+    .bank-table--payment-ledger td {
+        padding: 0.22rem 0.42rem;
+        font-size: 0.76rem;
+        line-height: 1.15;
+        vertical-align: middle;
+    }
+
+    .bank-table--payments th:not(.bank-table__num),
+    .bank-table--payments td:not(.bank-table__num),
+    .bank-table--payment-ledger th:not(.bank-table__num),
+    .bank-table--payment-ledger td:not(.bank-table__num) {
+        min-width: 170px;
+    }
+
+    .bank-table--payments th:nth-child(4),
+    .bank-table--payments td:nth-child(4),
+    .bank-table--payments th:nth-child(5),
+    .bank-table--payments td:nth-child(5),
+    .bank-table--payment-ledger th:nth-child(4),
+    .bank-table--payment-ledger td:nth-child(4),
+    .bank-table--payment-ledger th:nth-child(5),
+    .bank-table--payment-ledger td:nth-child(5),
+    .bank-table--payment-ledger th:nth-child(7),
+    .bank-table--payment-ledger td:nth-child(7) {
+        min-width: 240px;
+    }
+
+    .bank-table--payments .bank-meta,
+    .bank-table--payment-ledger .bank-meta {
+        margin-top: 1px;
+        font-size: 0.7rem;
+        line-height: 1.1;
+    }
+
+    .bank-table--payments .bank-pill,
+    .bank-table--payments .bank-status,
+    .bank-table--payment-ledger .bank-pill,
+    .bank-table--payment-ledger .bank-status {
+        min-height: 20px;
+        padding: 1px 6px;
+        font-size: 0.7rem;
     }
 
     .bank-table--deposits {

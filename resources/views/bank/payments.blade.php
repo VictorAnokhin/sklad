@@ -115,6 +115,7 @@
             <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--payments">
                 <thead>
                     <tr>
+                        <th class="bank-table__num">№</th>
                         <th>Дата / документ</th>
                         <th>Направление</th>
                         <th>Проект / касса</th>
@@ -127,6 +128,7 @@
                 <tbody>
                     @forelse($paymentRows as $payment)
                         <tr>
+                            <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td>
                                 <strong>{{ $payment->date ?: '—' }}</strong>
                                 <div class="bank-meta">{{ $payment->type }} №{{ $payment->number }} · ID {{ $payment->id }}</div>
@@ -160,7 +162,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">Платежи по выбранным условиям не найдены.</td>
+                            <td colspan="8" class="text-center text-muted py-4">Платежи по выбранным условиям не найдены.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -180,6 +182,7 @@
             <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--payment-ledger">
                 <thead>
                     <tr>
+                        <th class="bank-table__num">№</th>
                         <th>TX / дата</th>
                         <th>Проект</th>
                         <th>Дебет</th>
@@ -192,6 +195,7 @@
                 <tbody>
                     @forelse($ledgerRows as $ledger)
                         <tr>
+                            <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td>
                                 <strong class="bank-mono">#{{ $ledger->id }}</strong>
                                 <div class="bank-meta">{{ $ledger->date }}</div>
@@ -208,7 +212,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">Ledger-проводки платежей пока отсутствуют.</td>
+                            <td colspan="8" class="text-center text-muted py-4">Ledger-проводки платежей пока отсутствуют.</td>
                         </tr>
                     @endforelse
                 </tbody>
