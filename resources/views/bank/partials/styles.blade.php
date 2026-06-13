@@ -283,8 +283,14 @@
     }
 
     .bank-table--projects,
-    .bank-table--persons {
+    .bank-table--persons,
+    .bank-table--wallet-bindings {
         min-width: 1120px;
+    }
+
+    .bank-table__wallet {
+        width: 360px;
+        min-width: 360px;
     }
 
     .bank-table--nested {

@@ -42,11 +42,11 @@
             <span class="bank-value">{{ $personOwners->count() }}</span>
             <span class="bank-meta">Персональные клиенты и открытые счета</span>
         </button>
-        <div class="bank-panel">
+        <button type="button" class="bank-panel bank-panel--button" data-bank-section-trigger="operational">
             <div class="bank-label">Операционные счета</div>
-            <div class="bank-value">{{ $cashAccounts->count() }}</div>
-            <div class="bank-meta">Кассы банка для обслуживания операций</div>
-        </div>
+            <div class="bank-value">{{ $emailWalletBindings->count() }}</div>
+            <div class="bank-meta">Привязки email к криптокошелькам</div>
+        </button>
         <div class="bank-panel">
             <div class="bank-label">Основной остаток</div>
             <div class="bank-value">{{ number_format($primaryTotal, 2, '.', ' ') }}</div>
@@ -70,6 +70,91 @@
             @empty
                 <div class="bank-empty">Клиентские счета еще не открыты.</div>
             @endforelse
+        </div>
+    </section>
+
+    <section class="bank-panel bank-table-panel" data-bank-section-panel="operational" hidden>
+        <div class="bank-table-header">
+            <div>
+                <div class="bank-label">Операционные счета</div>
+                <div class="bank-meta">Таблица привязки email к криптокошельку. Нажмите на строку, чтобы увидеть монеты и количество.</div>
+            </div>
+            <div class="bank-meta">{{ $emailWalletBindings->count() }} привязок</div>
+        </div>
+
+        <div class="table-responsive bank-table-scroll">
+            <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--wallet-bindings">
+                <thead>
+                    <tr>
+                        <th class="bank-table__num">№</th>
+                        <th>Email</th>
+                        <th>Клиент</th>
+                        <th class="bank-table__wallet">Криптокошелек</th>
+                        <th>Сеть</th>
+                        <th>Источник</th>
+                        <th class="text-end">Монет</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($emailWalletBindings as $binding)
+                        <tr class="bank-accordion-row" data-bank-accordion-trigger="wallet-binding-{{ $loop->iteration }}">
+                            <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                            <td>
+                                <button type="button" class="bank-row-button">
+                                    <span class="bank-row-caret">›</span>
+                                    <span>
+                                        <strong>{{ $binding->email !== '' ? $binding->email : '—' }}</strong>
+                                        <small>user id {{ $binding->user_id }}</small>
+                                    </span>
+                                </button>
+                            </td>
+                            <td>{{ $binding->owner_name }}</td>
+                            <td class="bank-mono">{{ $binding->address }}</td>
+                            <td><span class="bank-pill bank-pill--currency">{{ $binding->network !== '' ? strtoupper($binding->network) : '—' }}</span></td>
+                            <td>{{ $binding->source }}</td>
+                            <td class="text-end fw-semibold">{{ $binding->token_count }}</td>
+                        </tr>
+                        <tr class="bank-accordion-detail" data-bank-accordion-detail="wallet-binding-{{ $loop->iteration }}" hidden>
+                            <td colspan="7">
+                                <div class="bank-detail-block">
+                                    <table class="table table-dark table-sm align-middle bank-table bank-table--nested">
+                                        <thead>
+                                            <tr>
+                                                <th>Монета</th>
+                                                <th>Название</th>
+                                                <th>Сеть</th>
+                                                <th class="text-end">Количество</th>
+                                                <th class="text-end">USD</th>
+                                                <th>Контракт</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse($binding->tokens as $token)
+                                                <tr>
+                                                    <td><span class="bank-pill bank-pill--currency">{{ $token->symbol }}</span></td>
+                                                    <td>{{ $token->name !== '' ? $token->name : '—' }}</td>
+                                                    <td>{{ $token->chain !== '' ? strtoupper($token->chain) : '—' }}</td>
+                                                    <td class="text-end bank-mono">{{ rtrim(rtrim($token->balance, '0'), '.') !== '' ? rtrim(rtrim($token->balance, '0'), '.') : '0' }}</td>
+                                                    <td class="text-end">{{ $token->value_usd > 0 ? number_format((float) $token->value_usd, 2, '.', ' ') : '—' }}</td>
+                                                    <td class="bank-mono">{{ $token->token_address !== '' ? $token->token_address : 'native' }}</td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="6" class="text-center text-muted py-3">По этому кошельку монеты не найдены.</td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">Привязки email к криптокошелькам не найдены.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </section>
 

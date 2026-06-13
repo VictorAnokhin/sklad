@@ -52,6 +52,7 @@ class BankController extends Controller
             'clientAccounts' => $clientAccounts,
             'projectAccounts' => $projectAccounts,
             'personOwners' => $this->personOwners((string) $project->id, $clientAccounts),
+            'emailWalletBindings' => $this->emailWalletBindings((string) $project->id),
             'totalByCurrency' => $totalByCurrency,
             'operationalTotalByCurrency' => $operationalTotalByCurrency,
             'ownerTypeTotals' => $ownerTypeTotals,
@@ -350,6 +351,182 @@ class BankController extends Controller
             ->groupBy('user_id');
     }
 
+    private function emailWalletBindings(string $fid)
+    {
+        if (! Schema::hasTable('users')) {
+            return collect();
+        }
+
+        $userColumns = Schema::getColumnListing('users');
+        $select = [];
+        foreach (['id', 'firma', 'orgname', 'kod1', 'name', 'name2', 'secondname', 'fathername', 'phone', 'email'] as $column) {
+            if (in_array($column, $userColumns, true)) {
+                $select[] = $column;
+            }
+        }
+
+        if ($select === []) {
+            return collect();
+        }
+
+        $users = DB::table('users')
+            ->when(in_array('firma', $userColumns, true), function ($query) use ($fid): void {
+                $firmaScope = HoldingScope::projectIdsFor($fid);
+                if ($firmaScope !== []) {
+                    $query->whereIn('firma', $firmaScope);
+                }
+            })
+            ->get($select)
+            ->keyBy(fn ($user) => (string) ($user->id ?? ''));
+
+        if ($users->isEmpty()) {
+            return collect();
+        }
+
+        $wallets = $this->walletRowsForUsers($users->keys()->all());
+        $tokensByAddress = $this->walletTokensByAddress($wallets->pluck('address')->all());
+
+        return $wallets
+            ->filter(fn ($wallet) => $users->has((string) $wallet->user_id))
+            ->map(function ($wallet) use ($users, $tokensByAddress) {
+                $user = $users->get((string) $wallet->user_id);
+                $addressKey = mb_strtolower(trim((string) $wallet->address));
+                $tokens = $tokensByAddress->get($addressKey, collect())->values();
+
+                return (object) [
+                    'user_id' => (string) $wallet->user_id,
+                    'email' => trim((string) ($user->email ?? '')),
+                    'owner_name' => $this->ownerName($user),
+                    'address' => trim((string) $wallet->address),
+                    'network' => trim((string) ($wallet->network ?? '')),
+                    'source' => trim((string) ($wallet->source ?? 'Криптокошелек')),
+                    'connected_at' => $wallet->connected_at ?? null,
+                    'tokens' => $tokens,
+                    'token_count' => $tokens->count(),
+                    'token_total_usd' => (float) $tokens->sum('value_usd'),
+                ];
+            })
+            ->sortBy(fn ($row) => mb_strtolower($row->email . ' ' . $row->address))
+            ->values();
+    }
+
+    private function walletRowsForUsers(array $userIds)
+    {
+        $userIds = collect($userIds)
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($userIds === []) {
+            return collect();
+        }
+
+        $wallets = collect();
+
+        if (Schema::hasTable('user_wallets')) {
+            $columns = Schema::getColumnListing('user_wallets');
+            if (in_array('user_id', $columns, true) && in_array('address', $columns, true)) {
+                $select = ['user_id', 'address'];
+                $select[] = in_array('network', $columns, true) ? 'network' : DB::raw("'' as network");
+                $select[] = in_array('connected_at', $columns, true) ? 'connected_at' : DB::raw('NULL as connected_at');
+                $select[] = in_array('web3auth', $columns, true) ? 'web3auth' : DB::raw('0 as web3auth');
+
+                $wallets = $wallets->merge(
+                    DB::table('user_wallets')
+                        ->whereIn('user_id', $userIds)
+                        ->whereNotNull('address')
+                        ->where('address', '!=', '')
+                        ->when(in_array('connected_at', $columns, true), fn ($query) => $query->orderByDesc('connected_at'))
+                        ->get($select)
+                        ->map(fn ($row) => (object) [
+                            'user_id' => (string) $row->user_id,
+                            'address' => (string) $row->address,
+                            'network' => (string) ($row->network ?? ''),
+                            'source' => ((int) ($row->web3auth ?? 0)) === 1 ? 'Google Web3Auth' : 'User wallet',
+                            'connected_at' => $row->connected_at,
+                        ])
+                );
+            }
+        }
+
+        if (Schema::hasTable('zklogin_identities')) {
+            $wallets = $wallets->merge(
+                DB::table('zklogin_identities')
+                    ->whereIn('user_id', $userIds)
+                    ->where('provider', 'google')
+                    ->whereNotNull('wallet_address')
+                    ->where('wallet_address', '!=', '')
+                    ->orderByDesc('updated_at')
+                    ->get(['user_id', 'wallet_address', 'updated_at'])
+                    ->map(fn ($row) => (object) [
+                        'user_id' => (string) $row->user_id,
+                        'address' => (string) $row->wallet_address,
+                        'network' => 'sui',
+                        'source' => 'Google zkLogin',
+                        'connected_at' => $row->updated_at,
+                    ])
+            );
+        }
+
+        return $wallets
+            ->filter(fn ($wallet) => trim((string) $wallet->address) !== '')
+            ->unique(fn ($wallet) => $wallet->user_id . ':' . mb_strtolower((string) $wallet->address))
+            ->values();
+    }
+
+    private function walletTokensByAddress(array $addresses)
+    {
+        if (! Schema::hasTable('wallets') || ! Schema::hasTable('wallet_tokens')) {
+            return collect();
+        }
+
+        $addresses = collect($addresses)
+            ->map(fn ($address) => mb_strtolower(trim((string) $address)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($addresses->isEmpty()) {
+            return collect();
+        }
+
+        $walletRows = DB::table('wallets')
+            ->whereIn(DB::raw('LOWER(address)'), $addresses->all())
+            ->get(['id', 'address']);
+
+        if ($walletRows->isEmpty()) {
+            return collect();
+        }
+
+        $addressByWalletId = $walletRows->mapWithKeys(fn ($wallet) => [
+            (int) $wallet->id => mb_strtolower((string) $wallet->address),
+        ]);
+
+        $tokens = DB::table('wallet_tokens')
+            ->whereIn('wallet_id', $walletRows->pluck('id')->all())
+            ->when(Schema::hasColumn('wallet_tokens', 'is_spam'), fn ($query) => $query->where('is_spam', 0))
+            ->orderBy('chain')
+            ->orderBy('symbol')
+            ->get(['wallet_id', 'chain', 'token_address', 'symbol', 'name', 'balance', 'value_usd'])
+            ->map(function ($token) use ($addressByWalletId) {
+                $token->address_key = $addressByWalletId->get((int) $token->wallet_id, '');
+                $token->symbol = trim((string) ($token->symbol ?? '')) ?: 'TOKEN';
+                $token->name = trim((string) ($token->name ?? ''));
+                $token->chain = trim((string) ($token->chain ?? ''));
+                $token->balance = (string) ($token->balance ?? '0');
+                $token->value_usd = (float) ($token->value_usd ?? 0);
+                $token->token_address = trim((string) ($token->token_address ?? ''));
+
+                return $token;
+            });
+
+        return $tokens
+            ->filter(fn ($token) => $token->address_key !== '')
+            ->groupBy('address_key');
+    }
+
     private function ownerType(object $row): string
     {
         return trim((string) ($row->orgname ?? '')) !== '' || trim((string) ($row->kod1 ?? '')) !== ''
@@ -370,7 +547,7 @@ class BankController extends Controller
             trim((string) ($row->fathername ?? '')),
         ]);
 
-        return $parts !== [] ? implode(' ', $parts) : 'Клиент #' . (string) ($row->userid ?? '');
+        return $parts !== [] ? implode(' ', $parts) : 'Клиент #' . (string) ($row->userid ?? $row->id ?? '');
     }
 
     private function ownerContact(object $row): string
