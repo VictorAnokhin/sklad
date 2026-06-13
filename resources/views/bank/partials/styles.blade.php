@@ -426,7 +426,8 @@
         color: #fff;
     }
 
-    .bank-inline-account-form .form-control {
+    .bank-inline-account-form .form-control,
+    .bank-inline-account-form .form-select {
         width: auto;
         min-width: 150px;
         color: #fff;
@@ -963,7 +964,8 @@
             flex-direction: column;
         }
 
-        .bank-inline-account-form .form-control {
+        .bank-inline-account-form .form-control,
+        .bank-inline-account-form .form-select {
             width: 100%;
         }
 

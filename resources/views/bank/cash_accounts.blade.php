@@ -236,7 +236,11 @@
                                                         @csrf
                                                         <strong>Добавить счёт</strong>
                                                         <input type="text" name="name" class="form-control" placeholder="Название счёта" required>
-                                                        <input type="text" name="currency" class="form-control" value="UAH" placeholder="Валюта" maxlength="20" required>
+                                                        <select name="currency" class="form-select" required>
+                                                            @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
+                                                                <option value="{{ $currency }}">{{ $currency }}</option>
+                                                            @endforeach
+                                                        </select>
                                                         <button type="submit" class="btn btn-sm btn-primary">+ Добавить счёт</button>
                                                     </form>
                                                 </td>
@@ -360,7 +364,11 @@
                                                     <form method="POST" action="{{ route('bank.person-accounts.store', ['person' => $person->owner_id]) }}" class="bank-inline-account-form">
                                                         @csrf
                                                         <strong>Добавить счёт</strong>
-                                                        <input type="text" name="currency" class="form-control" value="UAH" placeholder="Валюта" maxlength="20" required>
+                                                        <select name="currency" class="form-select" required>
+                                                            @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
+                                                                <option value="{{ $currency }}">{{ $currency }}</option>
+                                                            @endforeach
+                                                        </select>
                                                         <button type="submit" class="btn btn-sm btn-primary">+ Добавить счёт</button>
                                                     </form>
                                                 </td>
