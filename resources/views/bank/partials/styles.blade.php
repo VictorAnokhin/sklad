@@ -451,6 +451,88 @@
         min-width: 1080px;
     }
 
+    .bank-order-open {
+        font-size: 0.82rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .bank-order-modal .modal-content {
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: #0f172a;
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.52);
+    }
+
+    .bank-order-modal .modal-header {
+        border-bottom-color: rgba(148, 163, 184, 0.18);
+    }
+
+    .bank-order-modal__summary,
+    .bank-order-modal__grid {
+        display: grid;
+        gap: 1px;
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 16px;
+        background: rgba(148, 163, 184, 0.12);
+    }
+
+    .bank-order-modal__summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-bottom: 14px;
+    }
+
+    .bank-order-modal__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 14px;
+    }
+
+    .bank-order-modal__summary div,
+    .bank-order-modal__grid div,
+    .bank-order-modal__block {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+        padding: 14px 16px;
+        background: rgba(15, 23, 42, 0.9);
+    }
+
+    .bank-order-modal__block {
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 16px;
+        margin-top: 14px;
+    }
+
+    .bank-order-modal__summary span,
+    .bank-order-modal__grid span,
+    .bank-order-modal__block span {
+        color: rgba(203, 213, 225, 0.68);
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .bank-order-modal__summary strong,
+    .bank-order-modal__grid strong,
+    .bank-order-modal__block strong {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        color: #fff;
+        font-size: 0.94rem;
+    }
+
+    .bank-order-modal__meta {
+        max-height: 220px;
+        margin: 0;
+        overflow: auto;
+        color: rgba(226, 232, 240, 0.86);
+        font-size: 0.82rem;
+        white-space: pre-wrap;
+    }
+
     .bank-inline-balance {
         display: inline-flex;
         margin: 2px 4px 2px 0;
@@ -659,7 +741,9 @@
         }
 
         .bank-flow-grid,
-        .bank-exchange-grid {
+        .bank-exchange-grid,
+        .bank-order-modal__summary,
+        .bank-order-modal__grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
@@ -676,7 +760,9 @@
         .bank-hero__metrics,
         .bank-currency-list,
         .bank-flow-grid,
-        .bank-exchange-grid {
+        .bank-exchange-grid,
+        .bank-order-modal__summary,
+        .bank-order-modal__grid {
             grid-template-columns: 1fr;
         }
 

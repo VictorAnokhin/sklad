@@ -107,10 +107,36 @@
                         <th>Кошелек</th>
                         <th>Клиент</th>
                         <th>Статус</th>
+                        <th class="text-end">Детали</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($swapOrders as $order)
+                        @php
+                            $orderMeta = [];
+                            if (! empty($order->meta)) {
+                                $decodedMeta = json_decode((string) $order->meta, true);
+                                $orderMeta = is_array($decodedMeta) ? $decodedMeta : [];
+                            }
+                            $orderPayload = [
+                                'id' => $order->id,
+                                'created_at' => (string) $order->created_at,
+                                'mode' => strtoupper((string) $order->mode),
+                                'pay_currency' => (string) $order->pay_currency,
+                                'pay_amount' => number_format((float) $order->pay_amount, 2, '.', ' '),
+                                'rate_usdc' => number_format((float) $order->rate_usdc, 8, '.', ' '),
+                                'fee_percent' => number_format((float) $order->fee_percent, 4, '.', ' '),
+                                'fee_amount' => number_format((float) $order->fee_amount, 8, '.', ' '),
+                                'expected_av8' => number_format((float) $order->expected_av8, 8, '.', ' '),
+                                'payment_method' => (string) $order->payment_method,
+                                'wallet_address' => (string) $order->wallet_address,
+                                'client_email' => (string) ($order->client_email ?? ''),
+                                'client_phone' => (string) ($order->client_phone ?? ''),
+                                'status' => (string) $order->status,
+                                'source' => (string) $order->source,
+                                'meta' => $orderMeta,
+                            ];
+                        @endphp
                         <tr>
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td>{{ $order->created_at }}</td>
@@ -124,16 +150,102 @@
                                 <div class="bank-meta">{{ $order->client_phone ?: '' }}</div>
                             </td>
                             <td><span class="bank-status">{{ $order->status }}</span></td>
+                            <td class="text-end">
+                                <button
+                                    type="button"
+                                    class="bank-account-link bank-order-open"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#swapOrderModal"
+                                    data-order="{{ e(json_encode($orderPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) }}"
+                                >
+                                    Открыть
+                                </button>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center text-muted py-4">Заявок обмена пока нет.</td>
+                            <td colspan="10" class="text-center text-muted py-4">Заявок обмена пока нет.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </section>
+
+    <div class="modal fade bank-order-modal" id="swapOrderModal" tabindex="-1" aria-labelledby="swapOrderModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <div class="bank-label">Заявка обмена</div>
+                        <h5 class="modal-title" id="swapOrderModalLabel">Заявка</h5>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="bank-order-modal__summary">
+                        <div>
+                            <span>Оплата</span>
+                            <strong data-order-field="pay"></strong>
+                        </div>
+                        <div>
+                            <span>К выдаче</span>
+                            <strong data-order-field="expected_av8"></strong>
+                        </div>
+                        <div>
+                            <span>Статус</span>
+                            <strong data-order-field="status"></strong>
+                        </div>
+                    </div>
+
+                    <div class="bank-order-modal__grid">
+                        <div>
+                            <span>Дата</span>
+                            <strong data-order-field="created_at"></strong>
+                        </div>
+                        <div>
+                            <span>Тип</span>
+                            <strong data-order-field="mode"></strong>
+                        </div>
+                        <div>
+                            <span>Метод оплаты</span>
+                            <strong data-order-field="payment_method"></strong>
+                        </div>
+                        <div>
+                            <span>Курс</span>
+                            <strong data-order-field="rate_usdc"></strong>
+                        </div>
+                        <div>
+                            <span>Комиссия</span>
+                            <strong data-order-field="fee"></strong>
+                        </div>
+                        <div>
+                            <span>Источник</span>
+                            <strong data-order-field="source"></strong>
+                        </div>
+                        <div>
+                            <span>Email</span>
+                            <strong data-order-field="client_email"></strong>
+                        </div>
+                        <div>
+                            <span>Телефон</span>
+                            <strong data-order-field="client_phone"></strong>
+                        </div>
+                    </div>
+
+                    <div class="bank-order-modal__block">
+                        <span>Кошелек получателя</span>
+                        <strong class="bank-mono" data-order-field="wallet_address"></strong>
+                    </div>
+
+                    <div class="bank-order-modal__block">
+                        <span>Meta</span>
+                        <pre class="bank-order-modal__meta" data-order-field="meta"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
@@ -179,3 +291,60 @@
 
 @include('bank.partials.styles')
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('swapOrderModal');
+        if (!modal) {
+            return;
+        }
+
+        function valueOrDash(value) {
+            const normalized = String(value ?? '').trim();
+            return normalized !== '' ? normalized : '—';
+        }
+
+        function setText(selector, value) {
+            const element = modal.querySelector(selector);
+            if (element) {
+                element.textContent = valueOrDash(value);
+            }
+        }
+
+        modal.addEventListener('show.bs.modal', (event) => {
+            const trigger = event.relatedTarget;
+            if (!(trigger instanceof HTMLElement)) {
+                return;
+            }
+
+            let order = {};
+            try {
+                order = JSON.parse(trigger.dataset.order || '{}');
+            } catch (error) {
+                order = {};
+            }
+
+            setText('#swapOrderModalLabel', `Заявка #${valueOrDash(order.id)}`);
+            setText('[data-order-field="pay"]', `${valueOrDash(order.pay_amount)} ${valueOrDash(order.pay_currency)}`);
+            setText('[data-order-field="expected_av8"]', `${valueOrDash(order.expected_av8)} AV8`);
+            setText('[data-order-field="status"]', order.status);
+            setText('[data-order-field="created_at"]', order.created_at);
+            setText('[data-order-field="mode"]', order.mode);
+            setText('[data-order-field="payment_method"]', order.payment_method);
+            setText('[data-order-field="rate_usdc"]', order.rate_usdc);
+            setText('[data-order-field="fee"]', `${valueOrDash(order.fee_percent)}% · ${valueOrDash(order.fee_amount)}`);
+            setText('[data-order-field="source"]', order.source);
+            setText('[data-order-field="client_email"]', order.client_email);
+            setText('[data-order-field="client_phone"]', order.client_phone);
+            setText('[data-order-field="wallet_address"]', order.wallet_address);
+
+            const meta = modal.querySelector('[data-order-field="meta"]');
+            if (meta) {
+                const hasMeta = order.meta && Object.keys(order.meta).length > 0;
+                meta.textContent = hasMeta ? JSON.stringify(order.meta, null, 2) : '—';
+            }
+        });
+    });
+</script>
+@endpush
