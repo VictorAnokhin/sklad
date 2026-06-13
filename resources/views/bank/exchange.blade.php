@@ -100,14 +100,11 @@
                     <tr>
                         <th class="bank-table__num">№</th>
                         <th>Дата</th>
-                        <th>Тип</th>
                         <th>Оплата</th>
-                        <th class="text-end">Сумма</th>
                         <th class="text-end">AV8</th>
                         <th>Кошелек</th>
                         <th>Клиент</th>
                         <th>Статус</th>
-                        <th class="text-end">Детали</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -137,34 +134,34 @@
                                 'meta' => $orderMeta,
                             ];
                         @endphp
-                        <tr>
+                        <tr
+                            class="bank-order-row"
+                            role="button"
+                            tabindex="0"
+                            data-bs-toggle="modal"
+                            data-bs-target="#swapOrderModal"
+                            data-order="{{ e(json_encode($orderPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) }}"
+                        >
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
-                            <td>{{ $order->created_at }}</td>
-                            <td><span class="bank-pill bank-pill--currency">{{ strtoupper($order->mode) }}</span></td>
-                            <td>{{ $order->payment_method !== '' ? $order->payment_method : $order->pay_currency }}</td>
-                            <td class="text-end fw-semibold">{{ number_format((float) $order->pay_amount, 2, '.', ' ') }} {{ $order->pay_currency }}</td>
+                            <td class="bank-table__date">{{ $order->created_at }}</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="bank-pill bank-pill--currency">{{ strtoupper($order->mode) }}</span>
+                                    <span>{{ $order->payment_method !== '' ? $order->payment_method : $order->pay_currency }}</span>
+                                </div>
+                                <div class="bank-meta">{{ number_format((float) $order->pay_amount, 2, '.', ' ') }} {{ $order->pay_currency }}</div>
+                            </td>
                             <td class="text-end fw-semibold">{{ number_format((float) $order->expected_av8, 6, '.', ' ') }}</td>
-                            <td class="bank-mono">{{ $order->wallet_address !== '' ? $order->wallet_address : '—' }}</td>
+                            <td class="bank-mono bank-table__wallet">{{ $order->wallet_address !== '' ? $order->wallet_address : '—' }}</td>
                             <td>
                                 <div>{{ $order->client_email ?: '—' }}</div>
                                 <div class="bank-meta">{{ $order->client_phone ?: '' }}</div>
                             </td>
                             <td><span class="bank-status">{{ $order->status }}</span></td>
-                            <td class="text-end">
-                                <button
-                                    type="button"
-                                    class="bank-account-link bank-order-open"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#swapOrderModal"
-                                    data-order="{{ e(json_encode($orderPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) }}"
-                                >
-                                    Открыть
-                                </button>
-                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="text-center text-muted py-4">Заявок обмена пока нет.</td>
+                            <td colspan="7" class="text-center text-muted py-4">Заявок обмена пока нет.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -344,6 +341,17 @@
                 const hasMeta = order.meta && Object.keys(order.meta).length > 0;
                 meta.textContent = hasMeta ? JSON.stringify(order.meta, null, 2) : '—';
             }
+        });
+
+        document.querySelectorAll('.bank-order-row').forEach((row) => {
+            row.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                }
+
+                event.preventDefault();
+                row.click();
+            });
         });
     });
 </script>

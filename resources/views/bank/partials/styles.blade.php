@@ -444,17 +444,40 @@
     }
 
     .bank-table--exchange-orders {
-        min-width: 1320px;
+        min-width: 980px;
     }
 
     .bank-table--exchange-events {
         min-width: 1080px;
     }
 
-    .bank-order-open {
-        font-size: 0.82rem;
-        font-weight: 800;
-        text-transform: uppercase;
+    .bank-table--exchange-orders th,
+    .bank-table--exchange-orders td {
+        padding-top: 0.52rem;
+        padding-bottom: 0.52rem;
+    }
+
+    .bank-order-row {
+        cursor: pointer;
+    }
+
+    .bank-order-row:hover > * {
+        background: rgba(20, 184, 166, 0.08) !important;
+    }
+
+    .bank-order-row:focus {
+        outline: 2px solid rgba(45, 212, 191, 0.5);
+        outline-offset: -2px;
+    }
+
+    .bank-table__date {
+        white-space: nowrap;
+    }
+
+    .bank-table__wallet {
+        max-width: 250px;
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
     }
 
