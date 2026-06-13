@@ -140,7 +140,7 @@
                             tabindex="0"
                             data-bs-toggle="modal"
                             data-bs-target="#swapOrderModal"
-                            data-order="{{ e(json_encode($orderPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) }}"
+                            data-order="{{ json_encode($orderPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
                         >
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td class="bank-table__date">{{ $order->created_at }}</td>
