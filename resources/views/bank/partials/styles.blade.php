@@ -274,8 +274,9 @@
     .bank-table--payment-ledger th,
     .bank-table--payment-ledger td {
         padding: 0 0.42rem;
-        font-size: 0.76rem;
-        line-height: 1.15;
+        height: 18px;
+        font-size: 0.68rem;
+        line-height: 0.9;
         vertical-align: middle;
     }
 
@@ -301,18 +302,19 @@
 
     .bank-table--payments .bank-meta,
     .bank-table--payment-ledger .bank-meta {
-        margin-top: 1px;
-        font-size: 0.7rem;
-        line-height: 1.1;
+        margin-top: 0;
+        font-size: 0.62rem;
+        line-height: 0.85;
     }
 
     .bank-table--payments .bank-pill,
     .bank-table--payments .bank-status,
     .bank-table--payment-ledger .bank-pill,
     .bank-table--payment-ledger .bank-status {
-        min-height: 20px;
-        padding: 1px 6px;
-        font-size: 0.7rem;
+        min-height: 14px;
+        padding: 0 4px;
+        font-size: 0.62rem;
+        line-height: 1;
     }
 
     .bank-table--deposits {
