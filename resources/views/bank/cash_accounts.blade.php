@@ -139,7 +139,20 @@
                                             @forelse($projectRow->cash_accounts as $account)
                                                 <tr>
                                                     <td class="bank-mono">{{ $account->id }}</td>
-                                                    <td>{{ $account->label }}</td>
+                                                    <td>
+                                                        <button type="button"
+                                                            class="bank-account-link"
+                                                            data-bank-requisites-open
+                                                            data-project-name="{{ $projectRow->name }}"
+                                                            data-account-id="{{ $account->id }}"
+                                                            data-account-name="{{ $account->label }}"
+                                                            data-account-currency="{{ $account->currency }}"
+                                                            data-account-balance="{{ number_format((float) $account->balance, 2, '.', ' ') }}"
+                                                            data-account-doc="{{ $account->doc }}"
+                                                            data-account-address="{{ $account->color }}">
+                                                            {{ $account->label }}
+                                                        </button>
+                                                    </td>
                                                     <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
                                                     <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
                                                     <td>{{ $account->doc !== '' ? $account->doc : '—' }}</td>
@@ -254,6 +267,64 @@
             </table>
         </div>
     </section>
+
+    <div class="bank-modal" data-bank-requisites-modal hidden>
+        <div class="bank-modal__backdrop" data-bank-requisites-close></div>
+        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="bankRequisitesTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Банковские реквизиты компании</div>
+                    <h2 id="bankRequisitesTitle">Открытие реквизитов счета</h2>
+                    <div class="bank-meta" data-bank-requisites-context></div>
+                </div>
+                <button type="button" class="bank-modal__close" data-bank-requisites-close aria-label="Закрыть">×</button>
+            </div>
+            <form class="bank-requisites-form">
+                <div class="bank-form-grid">
+                    <label>
+                        <span>Компания</span>
+                        <input type="text" data-bank-requisites-project readonly>
+                    </label>
+                    <label>
+                        <span>Счет обслуживания</span>
+                        <input type="text" data-bank-requisites-account readonly>
+                    </label>
+                    <label>
+                        <span>IBAN / номер счета</span>
+                        <input type="text" placeholder="UA00 000000 000000000000000000000" autocomplete="off">
+                    </label>
+                    <label>
+                        <span>Банк</span>
+                        <input type="text" placeholder="Название банка" autocomplete="off">
+                    </label>
+                    <label>
+                        <span>МФО / BIC / SWIFT</span>
+                        <input type="text" placeholder="Код банка" autocomplete="off">
+                    </label>
+                    <label>
+                        <span>ЕДРПОУ / ИНН</span>
+                        <input type="text" placeholder="Код компании" autocomplete="off">
+                    </label>
+                    <label>
+                        <span>Валюта учета</span>
+                        <input type="text" data-bank-requisites-currency readonly>
+                    </label>
+                    <label>
+                        <span>Текущий баланс</span>
+                        <input type="text" data-bank-requisites-balance readonly>
+                    </label>
+                </div>
+                <label class="bank-form-full">
+                    <span>Назначение / комментарий</span>
+                    <textarea rows="3" placeholder="Условия обслуживания, лимиты, назначение счета"></textarea>
+                </label>
+                <div class="bank-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-bank-requisites-close>Отмена</button>
+                    <button type="button" class="btn btn-primary" data-bank-requisites-close>Готово</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 @include('bank.partials.styles')
@@ -285,6 +356,40 @@ document.addEventListener('DOMContentLoaded', () => {
             const isOpen = !detail.hidden;
             detail.hidden = isOpen;
             row.classList.toggle('is-open', !isOpen);
+        });
+    });
+
+    const requisitesModal = root.querySelector('[data-bank-requisites-modal]');
+    const requisitesContext = root.querySelector('[data-bank-requisites-context]');
+    const requisitesProject = root.querySelector('[data-bank-requisites-project]');
+    const requisitesAccount = root.querySelector('[data-bank-requisites-account]');
+    const requisitesCurrency = root.querySelector('[data-bank-requisites-currency]');
+    const requisitesBalance = root.querySelector('[data-bank-requisites-balance]');
+
+    root.querySelectorAll('[data-bank-requisites-open]').forEach((button) => {
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (!requisitesModal) return;
+
+            requisitesProject.value = button.dataset.projectName || '';
+            requisitesAccount.value = button.dataset.accountName || '';
+            requisitesCurrency.value = button.dataset.accountCurrency || '';
+            requisitesBalance.value = button.dataset.accountBalance || '';
+            requisitesContext.textContent = [
+                button.dataset.accountName || '',
+                button.dataset.accountCurrency || '',
+                button.dataset.accountAddress || ''
+            ].filter(Boolean).join(' · ');
+            requisitesModal.hidden = false;
+            requisitesModal.querySelector('input:not([readonly])')?.focus();
+        });
+    });
+
+    root.querySelectorAll('[data-bank-requisites-close]').forEach((button) => {
+        button.addEventListener('click', () => {
+            if (requisitesModal) {
+                requisitesModal.hidden = true;
+            }
         });
     });
 

@@ -29,7 +29,7 @@ class BankController extends Controller
             $clientAccounts = $this->clientAccounts((string) $project->id, $cashAccounts);
         }
         if (Schema::hasTable('project')) {
-            $projectAccounts = $this->projectAccounts();
+            $projectAccounts = $this->projectAccounts($project);
         }
 
         $totalByCurrency = $clientAccounts
@@ -173,9 +173,16 @@ class BankController extends Controller
             ->values();
     }
 
-    private function projectAccounts()
+    private function projectAccounts(Project $bankProject)
     {
+        $projectColumns = Schema::getColumnListing('project');
+
         $projects = Project::query()
+            ->when(
+                in_array('holding_id', $projectColumns, true) && ! empty($bankProject->holding_id),
+                fn ($query) => $query->where('holding_id', $bankProject->holding_id),
+                fn ($query) => $query->where('id', $bankProject->id)
+            )
             ->orderBy('num')
             ->orderBy('name')
             ->get();
