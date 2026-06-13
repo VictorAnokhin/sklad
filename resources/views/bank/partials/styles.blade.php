@@ -368,6 +368,49 @@
         margin-top: 14px;
     }
 
+    .bank-service-flow {
+        padding: 0;
+        margin-bottom: 12px;
+        overflow: hidden;
+    }
+
+    .bank-flow-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1px;
+        background: rgba(148, 163, 184, 0.12);
+    }
+
+    .bank-flow-step {
+        display: grid;
+        gap: 8px;
+        padding: 16px 18px;
+        background: rgba(15, 23, 42, 0.82);
+    }
+
+    .bank-flow-step strong {
+        color: #fff;
+        font-size: 0.95rem;
+    }
+
+    .bank-flow-step span {
+        color: rgba(203, 213, 225, 0.74);
+        font-size: 0.86rem;
+        line-height: 1.35;
+    }
+
+    .bank-table-scroll--compact {
+        max-height: 360px;
+    }
+
+    .bank-table--clearing {
+        min-width: 1080px;
+    }
+
+    .bank-table--clearing-journal {
+        min-width: 1320px;
+    }
+
     .bank-inline-balance {
         display: inline-flex;
         margin: 2px 4px 2px 0;
@@ -574,6 +617,10 @@
         .bank-currency-list {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+
+        .bank-flow-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
     }
 
     @media (max-width: 640px) {
@@ -586,7 +633,8 @@
         }
 
         .bank-hero__metrics,
-        .bank-currency-list {
+        .bank-currency-list,
+        .bank-flow-grid {
             grid-template-columns: 1fr;
         }
 

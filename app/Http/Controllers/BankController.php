@@ -71,7 +71,26 @@ class BankController extends Controller
 
     public function clearing(): View
     {
-        return $this->placeholder('Клиринг проектов', 'Взаимозачеты, долги и требования между проектами холдинга.');
+        $project = $this->bankProject();
+        $holdingProjects = $this->holdingProjects($project);
+        $settlementEvents = $this->settlementEvents($holdingProjects, $project);
+        $settlementRows = $settlementEvents->map(fn ($event) => $this->settlementRow($event, $holdingProjects, $project));
+        $latestEvent = $settlementEvents->first();
+
+        return view('bank.clearing', [
+            'project' => $project,
+            'holdingProjects' => $holdingProjects,
+            'accountMatrix' => $this->accountMatrix($holdingProjects, $project),
+            'settlementRows' => $settlementRows,
+            'debtRows' => $this->intercompanyDebtRows($settlementRows),
+            'serviceStatus' => [
+                'listener_status' => $latestEvent ? 'online' : (Schema::hasTable('fund_pool_events') ? 'waiting' : 'not_configured'),
+                'latest_tx' => (string) ($latestEvent->tx_digest ?? ''),
+                'latest_event_at' => (string) ($latestEvent->event_at ?? ''),
+                'events_total' => Schema::hasTable('fund_pool_events') ? (int) DB::table('fund_pool_events')->count() : 0,
+                'ledger_ready' => Schema::hasTable('transactions') && Schema::hasTable('entries') && Schema::hasTable('accounts'),
+            ],
+        ]);
     }
 
     public function payments(): View
@@ -223,6 +242,214 @@ class BankController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function holdingProjects(Project $bankProject)
+    {
+        if (! Schema::hasTable('project')) {
+            return collect();
+        }
+
+        $projectColumns = Schema::getColumnListing('project');
+        $select = [];
+        foreach (['id', 'num', 'name', 'project_type', 'holding_id', 'phone', 'email'] as $column) {
+            if (in_array($column, $projectColumns, true)) {
+                $select[] = $column;
+            }
+        }
+
+        if ($select === []) {
+            return collect();
+        }
+
+        $scope = HoldingScope::projectIdsFor((string) $bankProject->id);
+
+        return DB::table('project')
+            ->when($scope !== [], fn ($query) => $query->whereIn('id', array_map('intval', $scope)))
+            ->orderBy('num')
+            ->orderBy('name')
+            ->get($select)
+            ->map(function ($project) {
+                $role = $this->clearingProjectRole($project);
+
+                return (object) [
+                    'id' => (int) ($project->id ?? 0),
+                    'name' => trim((string) ($project->name ?? '')) ?: 'Проект #' . (string) ($project->id ?? ''),
+                    'type' => trim((string) ($project->project_type ?? '')) ?: 'project',
+                    'role' => $role,
+                    'role_label' => $this->clearingRoleLabel($role),
+                    'email' => trim((string) ($project->email ?? '')),
+                    'phone' => trim((string) ($project->phone ?? '')),
+                ];
+            })
+            ->values();
+    }
+
+    private function accountMatrix($holdingProjects, Project $bankProject)
+    {
+        $exchangeProject = $this->projectByRole($holdingProjects, 'exchange') ?: $this->projectObjectFromModel($bankProject, 'exchange');
+        $financeProject = $this->projectByRole($holdingProjects, 'finance') ?: $this->projectObjectFromModel($bankProject, 'finance');
+        $tradeProject = $this->projectByRole($holdingProjects, 'trade');
+
+        $rows = collect([
+            (object) [
+                'operation' => 'Покупка AV8 за USDC',
+                'source' => 'Blockchain Listener: успешный swap/deposit',
+                'debit_project' => $exchangeProject,
+                'credit_project' => $financeProject,
+                'debit_account' => $this->intercompanyAccountCode('377', $exchangeProject, $financeProject, 'USDC'),
+                'credit_account' => $this->intercompanyAccountCode('685', $financeProject, $exchangeProject, 'USDC'),
+                'currency' => 'USDC',
+                'rule' => 'Дт Проект_Обмен - Кт Проект_Финансы',
+            ],
+        ]);
+
+        if ($tradeProject) {
+            $rows->push((object) [
+                'operation' => 'Отгрузка/услуга внутри холдинга',
+                'source' => 'ERP/ордер проекта торговли',
+                'debit_project' => $tradeProject,
+                'credit_project' => $financeProject,
+                'debit_account' => $this->intercompanyAccountCode('377', $tradeProject, $financeProject, 'UAH'),
+                'credit_account' => $this->intercompanyAccountCode('685', $financeProject, $tradeProject, 'UAH'),
+                'currency' => 'UAH',
+                'rule' => 'Дт Проект_Торговля - Кт Проект_Финансы',
+            ]);
+        }
+
+        return $rows;
+    }
+
+    private function settlementEvents($holdingProjects, Project $bankProject)
+    {
+        if (! Schema::hasTable('fund_pool_events')) {
+            return collect();
+        }
+
+        return DB::table('fund_pool_events')
+            ->whereIn('event_type', ['deposit', 'withdraw'])
+            ->orderByDesc('event_at')
+            ->orderByDesc('id')
+            ->limit(80)
+            ->get(['id', 'network', 'event_type', 'tx_digest', 'event_seq', 'pool_object_id', 'owner_address', 'amount_usdc', 'pool_shares', 'event_at'])
+            ->map(function ($event) {
+                $event->amount = $this->usdcAmount($event->amount_usdc ?? '0');
+                return $event;
+            })
+            ->filter(fn ($event) => (float) $event->amount > 0)
+            ->values();
+    }
+
+    private function settlementRow(object $event, $holdingProjects, Project $bankProject): object
+    {
+        $exchangeProject = $this->projectByRole($holdingProjects, 'exchange') ?: $this->projectObjectFromModel($bankProject, 'exchange');
+        $financeProject = $this->projectByRole($holdingProjects, 'finance') ?: $this->projectObjectFromModel($bankProject, 'finance');
+        $isWithdraw = (string) ($event->event_type ?? '') === 'withdraw';
+        $debitProject = $isWithdraw ? $financeProject : $exchangeProject;
+        $creditProject = $isWithdraw ? $exchangeProject : $financeProject;
+        $debitPrefix = $isWithdraw ? '685' : '377';
+        $creditPrefix = $isWithdraw ? '377' : '685';
+
+        return (object) [
+            'event_id' => (int) ($event->id ?? 0),
+            'event_type' => (string) ($event->event_type ?? ''),
+            'event_label' => $isWithdraw ? 'Закрытие/вывод' : 'Покупка AV8 за USDC',
+            'event_at' => (string) ($event->event_at ?? ''),
+            'tx_digest' => (string) ($event->tx_digest ?? ''),
+            'network' => (string) ($event->network ?? ''),
+            'pool_object_id' => (string) ($event->pool_object_id ?? ''),
+            'owner_address' => (string) ($event->owner_address ?? ''),
+            'amount' => (float) ($event->amount ?? 0),
+            'currency' => 'USDC',
+            'debit_project' => $debitProject,
+            'credit_project' => $creditProject,
+            'debit_account' => $this->intercompanyAccountCode($debitPrefix, $debitProject, $creditProject, 'USDC'),
+            'credit_account' => $this->intercompanyAccountCode($creditPrefix, $creditProject, $debitProject, 'USDC'),
+            'status' => 'Готово к двойной записи',
+        ];
+    }
+
+    private function intercompanyDebtRows($settlementRows)
+    {
+        return $settlementRows
+            ->groupBy(fn ($row) => $row->debit_project->id . ':' . $row->credit_project->id . ':' . $row->currency)
+            ->map(function ($rows) {
+                $first = $rows->first();
+
+                return (object) [
+                    'debtor' => $first->debit_project,
+                    'creditor' => $first->credit_project,
+                    'currency' => $first->currency,
+                    'amount' => (float) $rows->sum('amount'),
+                    'events_count' => $rows->count(),
+                    'last_event_at' => (string) ($rows->max('event_at') ?? ''),
+                ];
+            })
+            ->sortByDesc('amount')
+            ->values();
+    }
+
+    private function clearingProjectRole(object $project): string
+    {
+        $type = mb_strtolower(trim((string) ($project->project_type ?? '')));
+        $name = mb_strtolower(trim((string) ($project->name ?? '')));
+
+        if (str_contains($name, 'обмен') || str_contains($name, 'exchange') || str_contains($name, 'swap')) {
+            return 'exchange';
+        }
+        if ($type === 'bank' || str_contains($name, 'финанс') || str_contains($name, 'finance')) {
+            return 'finance';
+        }
+        if ($type === 'trade' || str_contains($name, 'торг') || str_contains($name, 'trade')) {
+            return 'trade';
+        }
+
+        return 'holding';
+    }
+
+    private function clearingRoleLabel(string $role): string
+    {
+        return [
+            'exchange' => 'Проект обмена',
+            'finance' => 'Проект финансов',
+            'trade' => 'Проект торговли',
+            'holding' => 'Проект холдинга',
+        ][$role] ?? 'Проект холдинга';
+    }
+
+    private function projectByRole($projects, string $role): ?object
+    {
+        return $projects->first(fn ($project) => $project->role === $role);
+    }
+
+    private function projectObjectFromModel(Project $project, string $role): object
+    {
+        return (object) [
+            'id' => (int) $project->id,
+            'name' => trim((string) ($project->name ?? '')) ?: 'Проект #' . $project->id,
+            'type' => trim((string) ($project->project_type ?? '')) ?: 'project',
+            'role' => $role,
+            'role_label' => $this->clearingRoleLabel($role),
+        ];
+    }
+
+    private function intercompanyAccountCode(string $prefix, object $project, object $counterparty, string $currency): string
+    {
+        return $prefix . '.' . (string) $project->id . '.' . (string) $counterparty->id . '.' . mb_strtoupper($currency);
+    }
+
+    private function usdcAmount(mixed $value): float
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return 0.0;
+        }
+
+        if (str_contains($value, '.')) {
+            return (float) $value;
+        }
+
+        return is_numeric($value) ? ((float) $value / 1000000) : 0.0;
     }
 
     private function personOwners(string $fid, $clientAccounts)
