@@ -255,6 +255,36 @@ class BankController extends Controller
         ]);
     }
 
+    public function invest(): View
+    {
+        $project = $this->bankProject();
+        $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        $deposits = $this->bankDeposits($projectIds);
+        $pools = $this->investmentPools();
+        $poolEvents = $this->investmentPoolEvents();
+        $portfolioRows = $this->investmentPortfolioRows($deposits, $pools);
+        $portfolioTotal = (float) $portfolioRows->sum('value_usd');
+        $liquidTotal = (float) $portfolioRows->where('group', 'liquid')->sum('value_usd');
+        $defiTotal = (float) $portfolioRows->where('group', 'defi')->sum('value_usd');
+
+        return view('bank.invest', [
+            'project' => $project,
+            'portfolioRows' => $portfolioRows,
+            'pools' => $pools,
+            'poolEvents' => $poolEvents,
+            'summary' => [
+                'nav' => $portfolioTotal,
+                'liquid' => $liquidTotal,
+                'defi' => $defiTotal,
+                'health' => $portfolioTotal > 0 ? min(100, max(0, round($liquidTotal / $portfolioTotal * 100))) : 0,
+                'pools' => $pools->count(),
+                'active_pools' => $pools->where('active', true)->count(),
+                'events' => $poolEvents->count(),
+                'avg_apy_bps' => $pools->count() > 0 ? (int) round($pools->avg('apy_bps')) : 0,
+            ],
+        ]);
+    }
+
     public function updateExchangeOrderStatus(Request $request, int $order): RedirectResponse
     {
         $project = $this->bankProject();
@@ -376,6 +406,165 @@ class BankController extends Controller
         abort_unless(strtolower(trim((string) ($project->project_type ?? ''))) === 'bank', 403);
 
         return $project;
+    }
+
+    private function investmentPools()
+    {
+        if (! Schema::hasTable('fund_pools')) {
+            return collect();
+        }
+
+        $eventsByPool = Schema::hasTable('fund_pool_events')
+            ? DB::table('fund_pool_events')
+                ->orderByDesc('event_at')
+                ->orderByDesc('id')
+                ->get()
+                ->groupBy(fn ($event) => strtolower((string) ($event->pool_object_id ?? '')))
+            : collect();
+
+        return DB::table('fund_pools')
+            ->orderByDesc(Schema::hasColumn('fund_pools', 'active') ? 'active' : 'id')
+            ->orderBy('risk_level')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($pool) use ($eventsByPool) {
+                $poolObjectId = (string) ($pool->pool_object_id ?? '');
+                $latestEvent = $eventsByPool->get(strtolower($poolObjectId), collect())->first();
+                $balanceUsdc = $latestEvent
+                    ? $this->usdcAtomicToFloat((string) ($latestEvent->balance_usdc ?? '0'))
+                    : 0.0;
+                $targetApy = (int) ($latestEvent->target_apy_bps ?? $pool->target_apy_bps ?? 0);
+                $realizedApy = (int) ($latestEvent->realized_apy_bps ?? $pool->realized_apy_bps ?? 0);
+
+                return (object) [
+                    'id' => (int) $pool->id,
+                    'name' => (string) ($pool->name ?? 'Pool #' . $pool->id),
+                    'description' => (string) ($pool->description ?? ''),
+                    'network' => (string) ($pool->network ?? ''),
+                    'symbol' => (string) ($pool->symbol ?? $this->symbolFromCoinType((string) ($pool->coin_type ?? ''))),
+                    'coin_type' => (string) ($pool->coin_type ?? ''),
+                    'pool_object_id' => $poolObjectId,
+                    'pool_object_short' => $this->shortHash($poolObjectId),
+                    'risk_level' => (int) ($pool->risk_level ?? 0),
+                    'target_apy_bps' => $targetApy,
+                    'realized_apy_bps' => $realizedApy,
+                    'apy_bps' => $realizedApy > 0 ? $realizedApy : $targetApy,
+                    'min_deposit_usdc' => $this->usdcAtomicToFloat((string) ($pool->min_deposit_usdc ?? '0')),
+                    'min_av8_balance' => $this->tokenAtomicToFloat((string) ($pool->min_av8_balance ?? '0'), 9),
+                    'max_weight_bps' => (int) ($pool->max_weight_bps ?? 0),
+                    'active' => (bool) ($pool->active ?? true),
+                    'is_default_deposit' => (bool) ($pool->is_default_deposit ?? false),
+                    'logo_url' => (string) ($pool->logo_url ?? ''),
+                    'source_type' => (string) ($pool->source_type ?? ''),
+                    'credit_request_status' => (string) ($pool->credit_request_status ?? ''),
+                    'collateral_label' => (string) ($pool->collateral_label ?? ''),
+                    'collateral_protocol' => (string) ($pool->collateral_protocol ?? ''),
+                    'balance_usdc' => $balanceUsdc,
+                    'latest_event_at' => (string) ($latestEvent->event_at ?? ''),
+                    'latest_event_type' => (string) ($latestEvent->event_type ?? ''),
+                ];
+            });
+    }
+
+    private function investmentPoolEvents()
+    {
+        if (! Schema::hasTable('fund_pool_events')) {
+            return collect();
+        }
+
+        return DB::table('fund_pool_events')
+            ->orderByDesc('event_at')
+            ->orderByDesc('id')
+            ->limit(12)
+            ->get()
+            ->map(fn ($event) => (object) [
+                'event_at' => (string) ($event->event_at ?? ''),
+                'event_type' => (string) ($event->event_type ?? ''),
+                'network' => (string) ($event->network ?? ''),
+                'pool_object_id' => (string) ($event->pool_object_id ?? ''),
+                'pool_object_short' => $this->shortHash((string) ($event->pool_object_id ?? '')),
+                'owner_address' => (string) ($event->owner_address ?? ''),
+                'owner_short' => $this->shortHash((string) ($event->owner_address ?? '')),
+                'amount_usdc' => $this->usdcAtomicToFloat((string) ($event->amount_usdc ?? '0')),
+                'balance_usdc' => $this->usdcAtomicToFloat((string) ($event->balance_usdc ?? '0')),
+                'tx_digest' => (string) ($event->tx_digest ?? ''),
+                'tx_short' => $this->shortHash((string) ($event->tx_digest ?? '')),
+            ]);
+    }
+
+    private function investmentPortfolioRows($deposits, $pools)
+    {
+        $depositRows = $deposits->map(fn ($deposit) => (object) [
+            'group' => 'liquid',
+            'type' => 'Депозит',
+            'name' => (string) $deposit->name,
+            'description' => (string) $deposit->project_name,
+            'currency' => (string) $deposit->currency,
+            'value_usd' => (float) $deposit->balance,
+            'share' => 0.0,
+            'status' => $deposit->is_active ? 'active' : 'paused',
+            'tone' => 'assets',
+        ]);
+
+        $poolRows = $pools->map(fn ($pool) => (object) [
+            'group' => 'defi',
+            'type' => $pool->source_type === 'credit_request' ? 'Кредитный пул' : 'Пул',
+            'name' => $pool->name,
+            'description' => $pool->collateral_label !== ''
+                ? trim($pool->collateral_label . ' ' . $pool->collateral_protocol)
+                : ($pool->description !== '' ? $pool->description : $pool->pool_object_short),
+            'currency' => 'USDC',
+            'value_usd' => (float) $pool->balance_usdc,
+            'share' => 0.0,
+            'status' => $pool->active ? 'active' : 'paused',
+            'tone' => 'defi',
+        ]);
+
+        $rows = $depositRows->concat($poolRows)->values();
+        $total = (float) $rows->sum('value_usd');
+
+        return $rows->map(function ($row) use ($total) {
+            $row->share = $total > 0 ? (float) $row->value_usd / $total * 100 : 0.0;
+            return $row;
+        });
+    }
+
+    private function tokenAtomicToFloat(string $value, int $decimals): float
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0.0;
+        }
+        if (str_contains($value, '.')) {
+            return (float) $value;
+        }
+
+        return (float) $value / (10 ** $decimals);
+    }
+
+    private function usdcAtomicToFloat(string $value): float
+    {
+        return $this->tokenAtomicToFloat($value, 6);
+    }
+
+    private function symbolFromCoinType(string $coinType): string
+    {
+        $parts = explode('::', trim($coinType));
+        $symbol = strtoupper((string) end($parts));
+
+        return $symbol !== '' ? $symbol : 'TOKEN';
+    }
+
+    private function shortHash(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '—';
+        }
+
+        return mb_strlen($value) > 18
+            ? mb_substr($value, 0, 10) . '...' . mb_substr($value, -6)
+            : $value;
     }
 
     private function bankDeposits(array $projectIds)

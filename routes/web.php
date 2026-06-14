@@ -94,6 +94,7 @@ Route::middleware(['auth'])->group(function () {
             ->name('person-accounts.destroy');
         Route::get('/loans', fn () => redirect()->route('bank.deposit'))->name('loans.redirect');
         Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
+        Route::get('/invest', [BankController::class, 'invest'])->name('invest');
         Route::get('/exchange', [BankController::class, 'exchange'])->name('exchange');
         Route::post('/exchange/orders/{order}/status', [BankController::class, 'updateExchangeOrderStatus'])
             ->whereNumber('order')

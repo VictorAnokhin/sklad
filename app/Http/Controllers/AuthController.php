@@ -136,6 +136,12 @@ class AuthController extends Controller
                 'url' => route('bank.deposit'),
             ],
             [
+                'title' => 'Инвестиции',
+                'description' => 'Портфель банка, инвестиционные пулы, APY и on-chain события.',
+                'icon' => '💹',
+                'url' => route('bank.invest'),
+            ],
+            [
                 'title' => 'Кредиты',
                 'description' => 'Кредитные продукты и заявки клиентов.',
                 'icon' => '🤝',
