@@ -1229,6 +1229,14 @@ class BankController extends Controller
             ->get(['event_type', 'network', 'tx_digest', 'owner_address', 'amount_usdc', 'pool_shares', 'event_at'])
             ->map(function ($event) {
                 $event->amount = $this->storedUsdcToDecimal($event->amount_usdc ?? '0');
+                $txDigest = trim((string) ($event->tx_digest ?? ''));
+                $event->tx_digest_short = $txDigest !== '' && mb_strlen($txDigest) > 18
+                    ? mb_substr($txDigest, 0, 10) . '...' . mb_substr($txDigest, -6)
+                    : $txDigest;
+                $event->tx_explorer_url = $txDigest !== ''
+                    ? 'https://suiexplorer.com/txblock/' . rawurlencode($txDigest) . '?network=mainnet'
+                    : '';
+
                 return $event;
             });
     }

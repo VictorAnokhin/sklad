@@ -390,10 +390,7 @@
                     <select name="project_id" class="form-select">
                         <option value="">Не выбран</option>
                         @php
-                            $selectedProjectId = old(
-                                'project_id',
-                                $client->project_id ?? (is_numeric($fid ?? null) ? (int) $fid : '')
-                            );
+                            $selectedProjectId = old('project_id', $client->project_id ?? '');
                         @endphp
                         @foreach($projects ?? [] as $project)
                             <option value="{{ $project->id }}" {{ (string) $selectedProjectId === (string) $project->id ? 'selected' : '' }}>

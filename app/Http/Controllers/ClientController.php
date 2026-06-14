@@ -773,9 +773,7 @@ class ClientController extends Controller
                 'hbd' => $stringValue($request->input('hbd', '')),
                 'kyc_status' => $stringValue($request->input('kyc_status', 'not_started')),
                 'firma' => $targetFirma,
-                'project_id' => $request->filled('project_id')
-                    ? (int) $request->input('project_id')
-                    : (is_numeric($targetFirma) ? (int) $targetFirma : null),
+                'project_id' => $request->filled('project_id') ? (int) $request->input('project_id') : null,
             ];
 
             $password = trim((string) $request->input('pass', ''));

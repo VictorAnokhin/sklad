@@ -109,7 +109,6 @@
                         <th>Оплата</th>
                         <th class="text-end">AV8</th>
                         <th>Кошелек</th>
-                        <th>Клиент</th>
                         <th>Статус</th>
                     </tr>
                 </thead>
@@ -121,6 +120,10 @@
                                 $decodedMeta = json_decode((string) $order->meta, true);
                                 $orderMeta = is_array($decodedMeta) ? $decodedMeta : [];
                             }
+                            $walletAddress = (string) $order->wallet_address;
+                            $walletAddressShort = $walletAddress !== '' && mb_strlen($walletAddress) > 18
+                                ? mb_substr($walletAddress, 0, 10) . '...' . mb_substr($walletAddress, -6)
+                                : $walletAddress;
                             $orderPayload = [
                                 'id' => $order->id,
                                 'created_at' => (string) $order->created_at,
@@ -132,7 +135,7 @@
                                 'fee_amount' => number_format((float) $order->fee_amount, 8, '.', ' '),
                                 'expected_av8' => number_format((float) $order->expected_av8, 8, '.', ' '),
                                 'payment_method' => (string) $order->payment_method,
-                                'wallet_address' => (string) $order->wallet_address,
+                                'wallet_address' => $walletAddress,
                                 'client_email' => (string) ($order->client_email ?? ''),
                                 'client_phone' => (string) ($order->client_phone ?? ''),
                                 'status' => (string) $order->status,
@@ -158,16 +161,12 @@
                                 <div class="bank-meta">{{ number_format((float) $order->pay_amount, 2, '.', ' ') }} {{ $order->pay_currency }}</div>
                             </td>
                             <td class="text-end fw-semibold">{{ number_format((float) $order->expected_av8, 6, '.', ' ') }}</td>
-                            <td class="bank-mono bank-table__wallet">{{ $order->wallet_address !== '' ? $order->wallet_address : '—' }}</td>
-                            <td>
-                                <div>{{ $order->client_email ?: '—' }}</div>
-                                <div class="bank-meta">{{ $order->client_phone ?: '' }}</div>
-                            </td>
+                            <td class="bank-mono bank-table__wallet" title="{{ $walletAddress }}">{{ $walletAddressShort !== '' ? $walletAddressShort : '—' }}</td>
                             <td><span class="bank-status">{{ $order->status }}</span></td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">Заявок обмена пока нет.</td>
+                            <td colspan="6" class="text-center text-muted py-4">Заявок обмена пока нет.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -280,7 +279,6 @@
                         <th>Дата</th>
                         <th>Событие</th>
                         <th class="text-end">USDC</th>
-                        <th>Wallet</th>
                         <th>TX</th>
                     </tr>
                 </thead>
@@ -291,12 +289,23 @@
                             <td>{{ $event->event_at ?: '—' }}</td>
                             <td><span class="bank-pill bank-pill--currency">{{ strtoupper($event->event_type) }}</span></td>
                             <td class="text-end fw-semibold">{{ number_format((float) $event->amount, 2, '.', ' ') }}</td>
-                            <td class="bank-mono">{{ $event->owner_address ?: '—' }}</td>
-                            <td class="bank-mono">{{ $event->tx_digest ?: '—' }}</td>
+                            <td class="bank-mono">
+                                @if($event->tx_digest)
+                                    <span title="{{ $event->tx_digest }}">{{ $event->tx_digest_short }}</span>
+                                    <a
+                                        href="{{ $event->tx_explorer_url }}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="bank-account-link ms-2"
+                                    >Sui</a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-4">Blockchain Listener еще не передал события обмена.</td>
+                            <td colspan="5" class="text-center text-muted py-4">Blockchain Listener еще не передал события обмена.</td>
                         </tr>
                     @endforelse
                 </tbody>
