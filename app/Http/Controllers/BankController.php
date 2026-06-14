@@ -7,6 +7,7 @@ use App\Support\HoldingScope;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -262,20 +263,29 @@ class BankController extends Controller
         $deposits = $this->bankDeposits($projectIds);
         $pools = $this->investmentPools();
         $poolEvents = $this->investmentPoolEvents();
+        $walletPortfolio = $this->googleAccountWalletPortfolio();
         $portfolioRows = $this->investmentPortfolioRows($deposits, $pools);
         $portfolioTotal = (float) $portfolioRows->sum('value_usd');
         $liquidTotal = (float) $portfolioRows->where('group', 'liquid')->sum('value_usd');
         $defiTotal = (float) $portfolioRows->where('group', 'defi')->sum('value_usd');
+        $walletTokensTotal = (float) $walletPortfolio['tokens']->sum('value_usd');
+        $walletDefiTotal = (float) $walletPortfolio['defiPositions']->sum('value_usd');
+        $walletNftTotal = (float) $walletPortfolio['nfts']->sum('value_usd');
 
         return view('bank.invest', [
             'project' => $project,
             'portfolioRows' => $portfolioRows,
             'pools' => $pools,
             'poolEvents' => $poolEvents,
+            'walletPortfolio' => $walletPortfolio,
             'summary' => [
                 'nav' => $portfolioTotal,
                 'liquid' => $liquidTotal,
                 'defi' => $defiTotal,
+                'wallet_tokens' => $walletTokensTotal,
+                'wallet_defi' => $walletDefiTotal,
+                'wallet_nfts' => $walletNftTotal,
+                'wallet_total' => $walletTokensTotal + $walletDefiTotal + $walletNftTotal,
                 'health' => $portfolioTotal > 0 ? min(100, max(0, round($liquidTotal / $portfolioTotal * 100))) : 0,
                 'pools' => $pools->count(),
                 'active_pools' => $pools->where('active', true)->count(),
@@ -406,6 +416,250 @@ class BankController extends Controller
         abort_unless(strtolower(trim((string) ($project->project_type ?? ''))) === 'bank', 403);
 
         return $project;
+    }
+
+    private function googleAccountWalletPortfolio(): array
+    {
+        $wallets = $this->googleAccountWallets();
+        $addresses = $wallets->pluck('address')
+            ->map(fn ($address) => strtolower(trim((string) $address)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($addresses->isEmpty() || ! Schema::hasTable('wallets')) {
+            return [
+                'wallets' => $wallets,
+                'tokens' => collect(),
+                'defiPositions' => collect(),
+                'nfts' => collect(),
+            ];
+        }
+
+        $walletRows = DB::table('wallets')
+            ->whereIn(DB::raw('LOWER(address)'), $addresses->all())
+            ->get(['id', 'address'])
+            ->mapWithKeys(fn ($wallet) => [(int) $wallet->id => strtolower((string) $wallet->address)]);
+
+        return [
+            'wallets' => $wallets,
+            'tokens' => $this->walletPortfolioTokens($walletRows, $wallets),
+            'defiPositions' => $this->walletDefiPositions($walletRows, $wallets),
+            'nfts' => $this->walletNftPositions($walletRows, $wallets),
+        ];
+    }
+
+    private function googleAccountWallets()
+    {
+        $user = Auth::user();
+        if (! $user) {
+            return collect();
+        }
+
+        if (! Schema::hasTable('user_wallets')) {
+            $address = trim((string) ($user->wallet_address ?? ''));
+
+            return $address !== ''
+                ? collect([(object) [
+                    'address' => $address,
+                    'address_short' => $this->shortHash($address),
+                    'network' => (string) ($user->wallet_network ?? ''),
+                    'chain_id' => (string) ($user->wallet_network ?? ''),
+                    'connected_at' => (string) ($user->wallet_connected_at ?? ''),
+                    'web3auth' => 0,
+                    'source' => 'profile',
+                ]])
+                : collect();
+        }
+
+        $columns = ['address', 'network', 'connected_at'];
+        if (Schema::hasColumn('user_wallets', 'web3auth')) {
+            $columns[] = 'web3auth';
+        }
+
+        return DB::table('user_wallets')
+            ->where('user_id', $user->id)
+            ->orderByDesc(Schema::hasColumn('user_wallets', 'web3auth') ? 'web3auth' : 'id')
+            ->orderByDesc('connected_at')
+            ->orderByDesc('id')
+            ->get($columns)
+            ->map(fn ($wallet) => (object) [
+                'address' => (string) $wallet->address,
+                'address_short' => $this->shortHash((string) $wallet->address),
+                'network' => (string) ($wallet->network ?? ''),
+                'chain_id' => (string) ($wallet->network ?? ''),
+                'connected_at' => (string) ($wallet->connected_at ?? ''),
+                'web3auth' => (int) ($wallet->web3auth ?? 0),
+                'source' => (int) ($wallet->web3auth ?? 0) === 1 ? 'google' : 'linked',
+            ]);
+    }
+
+    private function walletPortfolioTokens($walletRows, $wallets)
+    {
+        if ($walletRows->isEmpty() || ! Schema::hasTable('wallet_tokens')) {
+            return collect();
+        }
+
+        $walletAddressById = $walletRows->all();
+        $linkedWallets = $wallets->keyBy(fn ($wallet) => strtolower((string) $wallet->address));
+
+        return DB::table('wallet_tokens')
+            ->whereIn('wallet_id', array_keys($walletAddressById))
+            ->where(function ($query): void {
+                $query->whereNull('is_spam')->orWhere('is_spam', false);
+            })
+            ->orderByDesc('value_usd')
+            ->orderBy('symbol')
+            ->limit(80)
+            ->get()
+            ->map(function ($token) use ($walletAddressById, $linkedWallets) {
+                $walletAddress = $walletAddressById[(int) $token->wallet_id] ?? '';
+                $wallet = $linkedWallets->get(strtolower($walletAddress));
+
+                return (object) [
+                    'wallet_address' => $walletAddress,
+                    'wallet_short' => $this->shortHash($walletAddress),
+                    'wallet_source' => $wallet?->source ?? 'linked',
+                    'chain' => (string) ($token->chain ?? ''),
+                    'symbol' => (string) ($token->symbol ?? 'TOKEN'),
+                    'name' => (string) ($token->name ?? ''),
+                    'token_address' => (string) ($token->token_address ?? ''),
+                    'token_short' => $this->shortHash((string) ($token->token_address ?? '')),
+                    'balance' => (float) ($token->balance ?? 0),
+                    'price_usd' => $token->price_usd !== null ? (float) $token->price_usd : null,
+                    'value_usd' => $token->value_usd !== null ? (float) $token->value_usd : 0.0,
+                    'logo' => (string) ($token->logo ?? ''),
+                    'synced_at' => (string) ($token->synced_at ?? ''),
+                ];
+            });
+    }
+
+    private function walletDefiPositions($walletRows, $wallets)
+    {
+        if ($walletRows->isEmpty() || ! Schema::hasTable('wallet_protocol_snapshots')) {
+            return collect();
+        }
+
+        $walletAddressById = $walletRows->all();
+        $linkedWallets = $wallets->keyBy(fn ($wallet) => strtolower((string) $wallet->address));
+
+        return DB::table('wallet_protocol_snapshots')
+            ->whereIn('wallet_id', array_keys($walletAddressById))
+            ->orderByDesc('synced_at')
+            ->get()
+            ->flatMap(function ($snapshot) use ($walletAddressById, $linkedWallets) {
+                $walletAddress = $walletAddressById[(int) $snapshot->wallet_id] ?? '';
+                $wallet = $linkedWallets->get(strtolower($walletAddress));
+                $payload = json_decode((string) $snapshot->payload, true);
+                $payload = is_array($payload) ? $payload : [];
+
+                return $this->extractDefiPositionsFromProtocols($payload, $walletAddress, $wallet?->source ?? 'linked', (string) $snapshot->chain_id, (string) ($snapshot->synced_at ?? ''));
+            })
+            ->sortByDesc('value_usd')
+            ->values()
+            ->take(80);
+    }
+
+    private function walletNftPositions($walletRows, $wallets)
+    {
+        if ($walletRows->isEmpty() || ! Schema::hasTable('wallet_protocol_snapshots')) {
+            return collect();
+        }
+
+        $walletAddressById = $walletRows->all();
+        $linkedWallets = $wallets->keyBy(fn ($wallet) => strtolower((string) $wallet->address));
+
+        return DB::table('wallet_protocol_snapshots')
+            ->whereIn('wallet_id', array_keys($walletAddressById))
+            ->orderByDesc('synced_at')
+            ->get()
+            ->flatMap(function ($snapshot) use ($walletAddressById, $linkedWallets) {
+                $walletAddress = $walletAddressById[(int) $snapshot->wallet_id] ?? '';
+                $wallet = $linkedWallets->get(strtolower($walletAddress));
+                $payload = json_decode((string) $snapshot->payload, true);
+                $payload = is_array($payload) ? $payload : [];
+
+                return $this->extractNftsFromPayload($payload, $walletAddress, $wallet?->source ?? 'linked', (string) $snapshot->chain_id, (string) ($snapshot->synced_at ?? ''));
+            })
+            ->sortByDesc('value_usd')
+            ->values()
+            ->take(80);
+    }
+
+    private function extractDefiPositionsFromProtocols(array $protocols, string $walletAddress, string $walletSource, string $chainId, string $syncedAt)
+    {
+        return collect($protocols)
+            ->flatMap(function ($protocol) use ($walletAddress, $walletSource, $chainId, $syncedAt) {
+                if (! is_array($protocol)) {
+                    return [];
+                }
+
+                $protocolName = (string) ($protocol['name'] ?? 'Protocol');
+                $protocolUrl = (string) ($protocol['url'] ?? '');
+                $protocolIcon = (string) ($protocol['icon'] ?? '');
+                $items = [];
+
+                foreach (['tokens' => 'Token', 'pools' => 'Pool', 'loans' => 'Loan'] as $bucket => $kind) {
+                    foreach ((array) ($protocol[$bucket] ?? []) as $position) {
+                        if (! is_array($position)) {
+                            continue;
+                        }
+
+                        $value = (float) ($position['usd_value'] ?? $position['asset_usd_value'] ?? 0);
+                        if ($bucket === 'loans') {
+                            $value *= -1;
+                        }
+
+                        $items[] = (object) [
+                            'wallet_address' => $walletAddress,
+                            'wallet_short' => $this->shortHash($walletAddress),
+                            'wallet_source' => $walletSource,
+                            'chain' => (string) ($position['chain'] ?? $chainId),
+                            'protocol' => $protocolName,
+                            'protocol_url' => $protocolUrl,
+                            'protocol_icon' => $protocolIcon,
+                            'kind' => $kind,
+                            'name' => (string) ($position['name'] ?? $protocolName),
+                            'symbol' => (string) ($position['symbol'] ?? ''),
+                            'amount' => $position['amount'] ?? null,
+                            'value_usd' => $value,
+                            'link' => (string) ($position['link'] ?? $protocolUrl),
+                            'synced_at' => $syncedAt,
+                        ];
+                    }
+                }
+
+                return $items;
+            })
+            ->filter(fn ($position) => abs((float) $position->value_usd) > 0.000001)
+            ->values();
+    }
+
+    private function extractNftsFromPayload(array $payload, string $walletAddress, string $walletSource, string $chainId, string $syncedAt)
+    {
+        $candidates = collect();
+        foreach (['nfts', 'nft', 'collectibles', 'assets'] as $key) {
+            if (isset($payload[$key]) && is_array($payload[$key])) {
+                $candidates = $candidates->concat($payload[$key]);
+            }
+        }
+
+        return $candidates
+            ->filter(fn ($item) => is_array($item))
+            ->map(fn (array $item) => (object) [
+                'wallet_address' => $walletAddress,
+                'wallet_short' => $this->shortHash($walletAddress),
+                'wallet_source' => $walletSource,
+                'chain' => (string) ($item['chain'] ?? $chainId),
+                'name' => (string) ($item['name'] ?? $item['title'] ?? $item['symbol'] ?? 'NFT'),
+                'collection' => (string) ($item['collection'] ?? $item['collection_name'] ?? $item['protocol'] ?? ''),
+                'object_id' => (string) ($item['object_id'] ?? $item['token_id'] ?? $item['id'] ?? ''),
+                'object_short' => $this->shortHash((string) ($item['object_id'] ?? $item['token_id'] ?? $item['id'] ?? '')),
+                'value_usd' => (float) ($item['value_usd'] ?? $item['usd_value'] ?? 0),
+                'image_url' => (string) ($item['image_url'] ?? $item['image'] ?? $item['logo_url'] ?? ''),
+                'synced_at' => $syncedAt,
+            ])
+            ->values();
     }
 
     private function investmentPools()

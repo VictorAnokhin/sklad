@@ -54,9 +54,9 @@
                 <div class="bank-meta">Баланс пулов по последним событиям.</div>
             </div>
             <div class="bank-panel">
-                <div class="bank-label">Portfolio Health</div>
-                <div class="bank-value">{{ number_format((float) $summary['health'], 0, '.', ' ') }}%</div>
-                <div class="bank-meta">Доля ликвидности в NAV.</div>
+                <div class="bank-label">Google wallets</div>
+                <div class="bank-value">{{ $walletPortfolio['wallets']->count() }}</div>
+                <div class="bank-meta">{{ $formatMoney($summary['wallet_total']) }} USD в cached wallet data.</div>
             </div>
         </section>
 
@@ -94,6 +94,178 @@
                     <span style="height: 84%"></span>
                 </div>
                 <div class="bank-meta">График отражает структуру экрана Portfolio; фактическая динамика подключается через события и оценки активов.</div>
+            </div>
+        </section>
+
+        <section class="bank-panel bank-invest-wallets">
+            <div class="bank-table-header">
+                <div>
+                    <div class="bank-label">Google account wallets</div>
+                    <div class="bank-meta">Кошельки, привязанные к текущему аккаунту. Google / zkLogin кошельки помечены бейджем Google.</div>
+                </div>
+                <div class="bank-meta">{{ $walletPortfolio['wallets']->count() }} кошельков</div>
+            </div>
+            <div class="bank-wallet-strip">
+                @forelse($walletPortfolio['wallets'] as $wallet)
+                    <div class="bank-wallet-card">
+                        <div>
+                            <span class="bank-status {{ $wallet->source === 'google' ? '' : 'bank-status--pending' }}">{{ $wallet->source === 'google' ? 'Google' : 'Linked' }}</span>
+                            <strong class="bank-mono" title="{{ $wallet->address }}">{{ $wallet->address_short }}</strong>
+                        </div>
+                        <div class="bank-meta">{{ strtoupper($wallet->network !== '' ? $wallet->network : 'network') }}{{ $wallet->connected_at !== '' ? ' · ' . $wallet->connected_at : '' }}</div>
+                    </div>
+                @empty
+                    <div class="bank-empty">К текущему аккаунту не привязаны кошельки.</div>
+                @endforelse
+            </div>
+        </section>
+
+        <section class="bank-invest-wallet-grid">
+            <div class="bank-panel bank-table-panel">
+                <div class="bank-table-header">
+                    <div>
+                        <div class="bank-label">Tokens</div>
+                        <div class="bank-meta">Токены из cached wallet_tokens по привязанным кошелькам.</div>
+                    </div>
+                    <div class="bank-meta">{{ $walletPortfolio['tokens']->count() }} токенов · {{ $formatMoney($summary['wallet_tokens']) }} USD</div>
+                </div>
+                <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
+                    <table class="table table-dark table-hover table-sm align-middle bank-table">
+                        <thead>
+                            <tr>
+                                <th class="bank-table__num">№</th>
+                                <th>Токен</th>
+                                <th>Кошелек</th>
+                                <th>Chain</th>
+                                <th class="text-end">Баланс</th>
+                                <th class="text-end">Цена</th>
+                                <th class="text-end">Value USD</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($walletPortfolio['tokens'] as $token)
+                                <tr>
+                                    <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                    <td>
+                                        <strong>{{ $token->symbol }}</strong>
+                                        <div class="bank-meta">{{ $token->name !== '' ? $token->name : ($token->token_short !== '—' ? $token->token_short : 'native') }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="bank-mono" title="{{ $token->wallet_address }}">{{ $token->wallet_short }}</span>
+                                        @if($token->wallet_source === 'google')
+                                            <span class="bank-status ms-1">Google</span>
+                                        @endif
+                                    </td>
+                                    <td><span class="bank-pill bank-pill--currency">{{ strtoupper($token->chain !== '' ? $token->chain : 'chain') }}</span></td>
+                                    <td class="text-end bank-mono">{{ number_format((float) $token->balance, 6, '.', ' ') }}</td>
+                                    <td class="text-end">{{ $token->price_usd !== null ? $formatMoney($token->price_usd) : '—' }}</td>
+                                    <td class="text-end fw-semibold">{{ $formatMoney($token->value_usd) }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">Cached токены для привязанных кошельков пока не найдены.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bank-panel bank-table-panel">
+                <div class="bank-table-header">
+                    <div>
+                        <div class="bank-label">DeFi positions</div>
+                        <div class="bank-meta">Позиции из wallet_protocol_snapshots: protocols tokens / pools / loans.</div>
+                    </div>
+                    <div class="bank-meta">{{ $walletPortfolio['defiPositions']->count() }} позиций · {{ $formatMoney($summary['wallet_defi']) }} USD</div>
+                </div>
+                <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
+                    <table class="table table-dark table-hover table-sm align-middle bank-table">
+                        <thead>
+                            <tr>
+                                <th class="bank-table__num">№</th>
+                                <th>Protocol</th>
+                                <th>Позиция</th>
+                                <th>Кошелек</th>
+                                <th class="text-end">Value USD</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($walletPortfolio['defiPositions'] as $position)
+                                <tr>
+                                    <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                    <td>
+                                        <strong>{{ $position->protocol }}</strong>
+                                        <div class="bank-meta">{{ strtoupper($position->chain !== '' ? $position->chain : 'chain') }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="bank-pill bank-pill--company">{{ $position->kind }}</span>
+                                        <div class="bank-meta">{{ $position->name }}{{ $position->symbol !== '' ? ' · ' . $position->symbol : '' }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="bank-mono" title="{{ $position->wallet_address }}">{{ $position->wallet_short }}</span>
+                                        @if($position->wallet_source === 'google')
+                                            <span class="bank-status ms-1">Google</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-end fw-semibold {{ $position->value_usd < 0 ? 'text-danger' : '' }}">{{ $formatMoney($position->value_usd) }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">Cached DeFi-позиции пока не найдены. Откройте кошелек и обновите протоколы.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="bank-panel bank-table-panel">
+            <div class="bank-table-header">
+                <div>
+                    <div class="bank-label">NFT</div>
+                    <div class="bank-meta">NFT/RWA позиции из cached protocol payload, если провайдер вернул такие данные.</div>
+                </div>
+                <div class="bank-meta">{{ $walletPortfolio['nfts']->count() }} NFT · {{ $formatMoney($summary['wallet_nfts']) }} USD</div>
+            </div>
+            <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
+                <table class="table table-dark table-hover table-sm align-middle bank-table">
+                    <thead>
+                        <tr>
+                            <th class="bank-table__num">№</th>
+                            <th>NFT</th>
+                            <th>Collection</th>
+                            <th>Кошелек</th>
+                            <th>Chain</th>
+                            <th class="text-end">Value USD</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($walletPortfolio['nfts'] as $nft)
+                            <tr>
+                                <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                <td>
+                                    <strong>{{ $nft->name }}</strong>
+                                    <div class="bank-meta bank-mono" title="{{ $nft->object_id }}">{{ $nft->object_short }}</div>
+                                </td>
+                                <td>{{ $nft->collection !== '' ? $nft->collection : '—' }}</td>
+                                <td>
+                                    <span class="bank-mono" title="{{ $nft->wallet_address }}">{{ $nft->wallet_short }}</span>
+                                    @if($nft->wallet_source === 'google')
+                                        <span class="bank-status ms-1">Google</span>
+                                    @endif
+                                </td>
+                                <td><span class="bank-pill bank-pill--currency">{{ strtoupper($nft->chain !== '' ? $nft->chain : 'chain') }}</span></td>
+                                <td class="text-end fw-semibold">{{ $formatMoney($nft->value_usd) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">NFT для привязанных кошельков пока не найдены в кеше.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </section>
 
@@ -316,6 +488,35 @@
         margin-bottom: 12px;
     }
 
+    .bank-invest-wallet-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .bank-wallet-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 14px;
+    }
+
+    .bank-wallet-card {
+        min-width: 240px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        background: rgba(2, 6, 23, 0.42);
+    }
+
+    .bank-wallet-card > div:first-child {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+    }
+
     .bank-invest-command h2,
     .bank-invest-health h2 {
         margin: 0 0 8px;
@@ -447,6 +648,7 @@
 
     @media (max-width: 1100px) {
         .bank-invest-grid,
+        .bank-invest-wallet-grid,
         .bank-pool-card {
             grid-template-columns: 1fr;
         }
