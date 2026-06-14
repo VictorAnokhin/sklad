@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Project;
+use Illuminate\Support\Facades\Schema;
+
 /**
  * PanelService
  * Migrated from: resources/views/partials/panel.blade.php (@php block)
@@ -66,38 +69,57 @@ class PanelService
         }
 
         if ($currentReport !== '') {
-            $reportTabs = [
-                $this->makeReportTab('summary', 'Зведення', $currentReport),
-                $this->makeReportTab('sales', 'Продажі', $currentReport),
-                $this->makeReportTab('abcxyz', 'ABC / XYZ', $currentReport),
-                $this->makeReportTab('inventory', 'Остатки', $currentReport),
-                $this->makeReportTab('turnover', 'Обіг', $currentReport),
-                $this->makeReportTab('purchases', 'Закупки', $currentReport),
-                $this->makeReportTab('stocks', 'Товарні залишки', $currentReport),
-                $this->makeReportTab('finance', 'Фінанси', $currentReport),
-            ];
+            if ($this->isBankProject()) {
+                $reportTabs = [
+                    $this->makeReportTab('summary', 'Bank overview', $currentReport),
+                    $this->makeReportTab('finance', 'Ликвидность', $currentReport),
+                    $this->makeReportTab('cashflowstmt', 'Cash Flow', $currentReport),
+                ];
 
-            $investorReportTabs = [
-                $this->makeReportTab('pnlsegments', 'P&L сегменти', $currentReport),
-                $this->makeReportTab('uniteconomics', 'Unit-економіка', $currentReport),
-                $this->makeReportTab('grossprofit', 'Валова прибуток', $currentReport),
-            ];
+                $financialReportTabs = [
+                    $this->makeReportTab('balancesheet', 'Баланс банка', $currentReport),
+                    $this->makeReportTab('trialbalance', 'Оборотка', $currentReport),
+                    $this->makeReportTab('journal', 'Журнал проводок', $currentReport),
+                    $this->makeReportTab('financialpnl', 'Доходы / расходы', $currentReport),
+                ];
 
-            $financialReportTabs = [
-                $this->makeReportTab('financialpnl', 'P&L', $currentReport),
-                $this->makeReportTab('balancesheet', 'Баланс', $currentReport),
-                $this->makeReportTab('cashflowstmt', 'Cash Flow', $currentReport),
-                $this->makeReportTab('trialbalance', 'Оборотка', $currentReport),
-                $this->makeReportTab('journal', 'Журнал проводок', $currentReport),
-            ];
+                $strategicReportTabs = [
+                    $this->makeReportTab('webchatactivity', 'WebChat активность', $currentReport),
+                ];
+            } else {
+                $reportTabs = [
+                    $this->makeReportTab('summary', 'Зведення', $currentReport),
+                    $this->makeReportTab('sales', 'Продажі', $currentReport),
+                    $this->makeReportTab('abcxyz', 'ABC / XYZ', $currentReport),
+                    $this->makeReportTab('inventory', 'Остатки', $currentReport),
+                    $this->makeReportTab('turnover', 'Обіг', $currentReport),
+                    $this->makeReportTab('purchases', 'Закупки', $currentReport),
+                    $this->makeReportTab('stocks', 'Товарні залишки', $currentReport),
+                    $this->makeReportTab('finance', 'Фінанси', $currentReport),
+                ];
 
-            $strategicReportTabs = [
-                $this->makeReportTab('salesforecast', 'Forecast', $currentReport),
-                $this->makeReportTab('purchaseplan', 'План закупок', $currentReport),
-                $this->makeReportTab('profitplan', 'План прибыли', $currentReport),
-                $this->makeReportTab('demandtrends', 'Тренды спроса', $currentReport),
-                $this->makeReportTab('webchatactivity', 'WebChat активность', $currentReport),
-            ];
+                $investorReportTabs = [
+                    $this->makeReportTab('pnlsegments', 'P&L сегменти', $currentReport),
+                    $this->makeReportTab('uniteconomics', 'Unit-економіка', $currentReport),
+                    $this->makeReportTab('grossprofit', 'Валова прибуток', $currentReport),
+                ];
+
+                $financialReportTabs = [
+                    $this->makeReportTab('financialpnl', 'P&L', $currentReport),
+                    $this->makeReportTab('balancesheet', 'Баланс', $currentReport),
+                    $this->makeReportTab('cashflowstmt', 'Cash Flow', $currentReport),
+                    $this->makeReportTab('trialbalance', 'Оборотка', $currentReport),
+                    $this->makeReportTab('journal', 'Журнал проводок', $currentReport),
+                ];
+
+                $strategicReportTabs = [
+                    $this->makeReportTab('salesforecast', 'Forecast', $currentReport),
+                    $this->makeReportTab('purchaseplan', 'План закупок', $currentReport),
+                    $this->makeReportTab('profitplan', 'План прибыли', $currentReport),
+                    $this->makeReportTab('demandtrends', 'Тренды спроса', $currentReport),
+                    $this->makeReportTab('webchatactivity', 'WebChat активность', $currentReport),
+                ];
+            }
         }
 
         return compact('salesTabs', 'managerTabs', 'productionTabs', 'reportTabs', 'investorReportTabs', 'financialReportTabs', 'strategicReportTabs');
@@ -160,5 +182,19 @@ class PanelService
             },
             'active' => $report === $currentReport,
         ];
+    }
+
+    private function isBankProject(): bool
+    {
+        $fid = (int) session('fid', 0);
+        if ($fid <= 0 || !Schema::hasTable('project') || !Schema::hasColumn('project', 'project_type')) {
+            return false;
+        }
+
+        $projectType = Project::query()
+            ->whereKey($fid)
+            ->value('project_type');
+
+        return strtolower(trim((string) $projectType)) === 'bank';
     }
 }

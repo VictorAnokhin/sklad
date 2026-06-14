@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Project;
 use App\Models\Report;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class ReportController extends Controller
 {
@@ -15,6 +17,12 @@ class ReportController extends Controller
             (string) $request->input('date_from', ''),
             (string) $request->input('date_to', '')
         );
+
+        if ($this->isBankProject($fid)) {
+            return view('reports.bank_index', array_merge($summary, [
+                'bankReportCards' => $this->bankReportCards(),
+            ]));
+        }
 
         return view('reports.index', $summary);
     }
@@ -369,6 +377,61 @@ class ReportController extends Controller
         );
 
         return view('reports.finance', $data);
+    }
+
+    private function isBankProject(string $fid): bool
+    {
+        if ($fid === '' || !Schema::hasTable('project') || !Schema::hasColumn('project', 'project_type')) {
+            return false;
+        }
+
+        $projectType = Project::query()
+            ->whereKey((int) $fid)
+            ->value('project_type');
+
+        return strtolower(trim((string) $projectType)) === 'bank';
+    }
+
+    private function bankReportCards(): array
+    {
+        return [
+            [
+                'title' => 'Ликвидность',
+                'description' => 'Движение денег по кассам и счетам, поступления, списания и чистый денежный поток.',
+                'url' => route('reports.finance'),
+                'accent' => 'text-success',
+            ],
+            [
+                'title' => 'Cash Flow',
+                'description' => 'Денежные потоки по операционной, инвестиционной и финансовой активности.',
+                'url' => route('reports.cashflowstmt'),
+                'accent' => 'text-primary',
+            ],
+            [
+                'title' => 'Баланс банка',
+                'description' => 'Активы, обязательства и капитал на дату отчёта.',
+                'url' => route('reports.balancesheet'),
+                'accent' => 'text-info',
+            ],
+            [
+                'title' => 'Оборотно-сальдовая ведомость',
+                'description' => 'Обороты и остатки по счетам для контроля бухгалтерской модели.',
+                'url' => route('reports.trialbalance'),
+                'accent' => 'text-warning',
+            ],
+            [
+                'title' => 'Журнал проводок',
+                'description' => 'Детальный audit trail транзакций и проводок по счетам.',
+                'url' => route('reports.journal'),
+                'accent' => 'text-light',
+            ],
+            [
+                'title' => 'Доходы / расходы',
+                'description' => 'Финансовый результат периода и структура операционных расходов.',
+                'url' => route('reports.financialpnl'),
+                'accent' => 'text-danger',
+            ],
+        ];
     }
 
     private function exportSalesForecast(string $fid, string $dateFrom, string $dateTo): array
