@@ -264,7 +264,16 @@ class BankController extends Controller
         $pools = $this->investmentPools();
         $poolEvents = $this->investmentPoolEvents();
         $walletPortfolio = $this->googleAccountWalletPortfolio();
-        $portfolioRows = $this->investmentPortfolioRows($deposits, $pools);
+        $tokenRows = $this->tokenManifestRows($walletPortfolio['tokens']);
+        $hiddenTokenRows = $this->tokenManifestRows($walletPortfolio['tokens'], true)
+            ->filter(fn ($token) => (bool) ($token->manifest_hidden ?? false))
+            ->values();
+        $assetManifestSettings = $this->assetManifestSettings((int) $project->id);
+        $portfolioRows = $this->investmentPortfolioRows($deposits, $pools, $assetManifestSettings);
+        $assetManifestRows = $this->assetManifestRows($portfolioRows);
+        $assetManifestHiddenRows = $this->assetManifestRows($portfolioRows, true)
+            ->filter(fn ($row) => (bool) ($row->manifest_hidden ?? false))
+            ->values();
         $portfolioTotal = (float) $portfolioRows->sum('value_usd');
         $liquidTotal = (float) $portfolioRows->where('group', 'liquid')->sum('value_usd');
         $defiTotal = (float) $portfolioRows->where('group', 'defi')->sum('value_usd');
@@ -275,6 +284,10 @@ class BankController extends Controller
         return view('bank.invest', [
             'project' => $project,
             'portfolioRows' => $portfolioRows,
+            'assetManifestRows' => $assetManifestRows,
+            'assetManifestHiddenRows' => $assetManifestHiddenRows,
+            'tokenRows' => $tokenRows,
+            'hiddenTokenRows' => $hiddenTokenRows,
             'pools' => $pools,
             'poolEvents' => $poolEvents,
             'walletPortfolio' => $walletPortfolio,
@@ -293,6 +306,72 @@ class BankController extends Controller
                 'avg_apy_bps' => $pools->count() > 0 ? (int) round($pools->avg('apy_bps')) : 0,
             ],
         ]);
+    }
+
+    public function updateAssetManifestItem(Request $request, string $source, int $asset): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_asset_manifest_items'), 404);
+        abort_unless($this->assetManifestTargetExists($source, $asset, (int) $project->id), 404);
+
+        $payload = $request->validate([
+            'position' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            'hidden' => ['nullable', 'boolean'],
+        ]);
+        $now = now();
+        $key = [
+            'project_id' => (int) $project->id,
+            'asset_type' => $source,
+            'asset_id' => $asset,
+        ];
+        $values = [
+            'position' => (int) ($payload['position'] ?? 0),
+            'hidden' => $request->boolean('hidden'),
+            'updated_at' => $now,
+        ];
+
+        $existing = DB::table('bank_asset_manifest_items')->where($key)->exists();
+        if ($existing) {
+            DB::table('bank_asset_manifest_items')->where($key)->update($values);
+        } else {
+            DB::table('bank_asset_manifest_items')->insert($key + $values + ['created_at' => $now]);
+        }
+
+        return redirect()
+            ->route('bank.invest')
+            ->with('success', 'Позиция Asset manifest обновлена.');
+    }
+
+    public function updateTokenManifestItem(Request $request, int $token): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_token_manifest_items'), 404);
+        abort_unless($this->tokenManifestTargetExists($token), 404);
+
+        $request->validate([
+            'hidden' => ['nullable', 'boolean'],
+        ]);
+
+        $now = now();
+        $key = [
+            'project_id' => (int) $project->id,
+            'wallet_token_id' => $token,
+        ];
+        $values = [
+            'hidden' => $request->boolean('hidden'),
+            'updated_at' => $now,
+        ];
+
+        $existing = DB::table('bank_token_manifest_items')->where($key)->exists();
+        if ($existing) {
+            DB::table('bank_token_manifest_items')->where($key)->update($values);
+        } else {
+            DB::table('bank_token_manifest_items')->insert($key + $values + ['created_at' => $now]);
+        }
+
+        return redirect()
+            ->route('bank.invest')
+            ->with('success', 'Позиция Tokens обновлена.');
     }
 
     public function updateExchangeOrderStatus(Request $request, int $order): RedirectResponse
@@ -440,10 +519,11 @@ class BankController extends Controller
             ->whereIn(DB::raw('LOWER(address)'), $addresses->all())
             ->get(['id', 'address'])
             ->mapWithKeys(fn ($wallet) => [(int) $wallet->id => strtolower((string) $wallet->address)]);
+        $tokenManifestSettings = $this->tokenManifestSettings((int) $this->bankProject()->id);
 
         return [
             'wallets' => $wallets,
-            'tokens' => $this->walletPortfolioTokens($walletRows, $wallets),
+            'tokens' => $this->walletPortfolioTokens($walletRows, $wallets, $tokenManifestSettings),
             'defiPositions' => $this->walletDefiPositions($walletRows, $wallets),
             'nfts' => $this->walletNftPositions($walletRows, $wallets),
         ];
@@ -494,12 +574,13 @@ class BankController extends Controller
             ]);
     }
 
-    private function walletPortfolioTokens($walletRows, $wallets)
+    private function walletPortfolioTokens($walletRows, $wallets, $tokenManifestSettings = null)
     {
         if ($walletRows->isEmpty() || ! Schema::hasTable('wallet_tokens')) {
             return collect();
         }
 
+        $tokenManifestSettings = $tokenManifestSettings ?: collect();
         $walletAddressById = $walletRows->all();
         $linkedWallets = $wallets->keyBy(fn ($wallet) => strtolower((string) $wallet->address));
 
@@ -517,6 +598,7 @@ class BankController extends Controller
                 $wallet = $linkedWallets->get(strtolower($walletAddress));
 
                 return (object) [
+                    'id' => (int) $token->id,
                     'wallet_address' => $walletAddress,
                     'wallet_short' => $this->shortHash($walletAddress),
                     'wallet_source' => $wallet?->source ?? 'linked',
@@ -530,8 +612,58 @@ class BankController extends Controller
                     'value_usd' => $token->value_usd !== null ? (float) $token->value_usd : 0.0,
                     'logo' => (string) ($token->logo ?? ''),
                     'synced_at' => (string) ($token->synced_at ?? ''),
+                    'manifest_hidden' => (bool) ($tokenManifestSettings->get((int) $token->id)->hidden ?? false),
                 ];
             });
+    }
+
+    private function tokenManifestRows($tokens, bool $includeHidden = false)
+    {
+        return $tokens
+            ->when(! $includeHidden, fn ($rows) => $rows->reject(fn ($token) => (bool) ($token->manifest_hidden ?? false)))
+            ->values();
+    }
+
+    private function tokenManifestSettings(int $projectId)
+    {
+        if (! Schema::hasTable('bank_token_manifest_items')) {
+            return collect();
+        }
+
+        return DB::table('bank_token_manifest_items')
+            ->where('project_id', $projectId)
+            ->get(['wallet_token_id', 'hidden'])
+            ->mapWithKeys(fn ($item) => [
+                (int) $item->wallet_token_id => (object) [
+                    'hidden' => (bool) ($item->hidden ?? false),
+                ],
+            ]);
+    }
+
+    private function tokenManifestTargetExists(int $token): bool
+    {
+        $wallets = $this->googleAccountWallets();
+        $addresses = $wallets->pluck('address')
+            ->map(fn ($address) => strtolower(trim((string) $address)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($addresses->isEmpty() || ! Schema::hasTable('wallets') || ! Schema::hasTable('wallet_tokens')) {
+            return false;
+        }
+
+        $walletIds = DB::table('wallets')
+            ->whereIn(DB::raw('LOWER(address)'), $addresses->all())
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return $walletIds !== []
+            && DB::table('wallet_tokens')
+                ->where('id', $token)
+                ->whereIn('wallet_id', $walletIds)
+                ->exists();
     }
 
     private function walletDefiPositions($walletRows, $wallets)
@@ -746,9 +878,13 @@ class BankController extends Controller
             ]);
     }
 
-    private function investmentPortfolioRows($deposits, $pools)
+    private function investmentPortfolioRows($deposits, $pools, $assetManifestSettings = null)
     {
+        $assetManifestSettings = $assetManifestSettings ?: collect();
+
         $depositRows = $deposits->map(fn ($deposit) => (object) [
+            'asset_type' => 'deposit',
+            'asset_id' => (int) $deposit->id,
             'group' => 'liquid',
             'type' => 'Депозит',
             'name' => (string) $deposit->name,
@@ -761,6 +897,8 @@ class BankController extends Controller
         ]);
 
         $poolRows = $pools->map(fn ($pool) => (object) [
+            'asset_type' => 'pool',
+            'asset_id' => (int) $pool->id,
             'group' => 'defi',
             'type' => $pool->source_type === 'credit_request' ? 'Кредитный пул' : 'Пул',
             'name' => $pool->name,
@@ -777,10 +915,62 @@ class BankController extends Controller
         $rows = $depositRows->concat($poolRows)->values();
         $total = (float) $rows->sum('value_usd');
 
-        return $rows->map(function ($row) use ($total) {
+        return $rows->map(function ($row, int $index) use ($total, $assetManifestSettings) {
+            $settings = $assetManifestSettings->get($row->asset_type . ':' . $row->asset_id);
             $row->share = $total > 0 ? (float) $row->value_usd / $total * 100 : 0.0;
+            $row->manifest_position = (int) ($settings->position ?? 0);
+            $row->manifest_hidden = (bool) ($settings->hidden ?? false);
+            $row->manifest_order = $index;
             return $row;
         });
+    }
+
+    private function assetManifestRows($portfolioRows, bool $includeHidden = false)
+    {
+        return $portfolioRows
+            ->when(! $includeHidden, fn ($rows) => $rows->reject(fn ($row) => (bool) ($row->manifest_hidden ?? false)))
+            ->sortBy(fn ($row) => sprintf(
+                '%010d:%010d',
+                (int) ($row->manifest_position ?? 0) > 0 ? (int) $row->manifest_position : 999999999,
+                (int) ($row->manifest_order ?? 0)
+            ))
+            ->values();
+    }
+
+    private function assetManifestSettings(int $projectId)
+    {
+        if (! Schema::hasTable('bank_asset_manifest_items')) {
+            return collect();
+        }
+
+        return DB::table('bank_asset_manifest_items')
+            ->where('project_id', $projectId)
+            ->get(['asset_type', 'asset_id', 'position', 'hidden'])
+            ->mapWithKeys(fn ($item) => [
+                (string) $item->asset_type . ':' . (int) $item->asset_id => (object) [
+                    'position' => (int) ($item->position ?? 0),
+                    'hidden' => (bool) ($item->hidden ?? false),
+                ],
+            ]);
+    }
+
+    private function assetManifestTargetExists(string $source, int $asset, int $projectId): bool
+    {
+        if ($source === 'deposit') {
+            return Schema::hasTable('conf')
+                && DB::table('conf')
+                    ->where('id', $asset)
+                    ->where('type', 'deposit')
+                    ->whereIn('firma', array_map('intval', HoldingScope::projectIdsFor((string) $projectId)))
+                    ->exists();
+        }
+
+        if ($source === 'pool') {
+            return Schema::hasTable('fund_pools')
+                && DB::table('fund_pools')->where('id', $asset)->exists();
+        }
+
+        return false;
     }
 
     private function tokenAtomicToFloat(string $value, int $decimals): float

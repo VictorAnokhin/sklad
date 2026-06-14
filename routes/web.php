@@ -95,6 +95,13 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/loans', fn () => redirect()->route('bank.deposit'))->name('loans.redirect');
         Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
         Route::get('/invest', [BankController::class, 'invest'])->name('invest');
+        Route::post('/invest/assets/{source}/{asset}', [BankController::class, 'updateAssetManifestItem'])
+            ->whereIn('source', ['deposit', 'pool'])
+            ->whereNumber('asset')
+            ->name('asset-manifest.update');
+        Route::post('/invest/tokens/{token}', [BankController::class, 'updateTokenManifestItem'])
+            ->whereNumber('token')
+            ->name('token-manifest.update');
         Route::get('/exchange', [BankController::class, 'exchange'])->name('exchange');
         Route::post('/exchange/orders/{order}/status', [BankController::class, 'updateExchangeOrderStatus'])
             ->whereNumber('order')

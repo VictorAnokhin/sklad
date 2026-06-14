@@ -120,14 +120,26 @@
             </div>
         </section>
 
-        <section class="bank-invest-wallet-grid">
+        <section class="bank-invest-tabs bank-invest-tabs--sub" role="tablist" aria-label="Wallet asset sections">
+            <button type="button" class="bank-invest-tab is-active" data-wallet-asset-tab="tokens">Tokens</button>
+            <button type="button" class="bank-invest-tab" data-wallet-asset-tab="all">Все активы</button>
+        </section>
+
+        <section class="bank-invest-wallet-grid" data-wallet-asset-panel="tokens">
             <div class="bank-panel bank-table-panel">
                 <div class="bank-table-header">
                     <div>
                         <div class="bank-label">Tokens</div>
                         <div class="bank-meta">Токены из cached wallet_tokens по привязанным кошелькам.</div>
                     </div>
-                    <div class="bank-meta">{{ $walletPortfolio['tokens']->count() }} токенов · {{ $formatMoney($summary['wallet_tokens']) }} USD</div>
+                    <div class="bank-table-header__actions">
+                        @if($hiddenTokenRows->isNotEmpty())
+                            <button type="button" class="btn btn-sm btn-outline-light" data-token-manifest-toggle-hidden>
+                                Показать скрытые ({{ $hiddenTokenRows->count() }})
+                            </button>
+                        @endif
+                        <div class="bank-meta">{{ $tokenRows->count() }} токенов · {{ $formatMoney($summary['wallet_tokens']) }} USD</div>
+                    </div>
                 </div>
                 <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
                     <table class="table table-dark table-hover table-sm align-middle bank-table">
@@ -140,10 +152,11 @@
                                 <th class="text-end">Баланс</th>
                                 <th class="text-end">Цена</th>
                                 <th class="text-end">Value USD</th>
+                                <th class="text-end">Действия</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($walletPortfolio['tokens'] as $token)
+                            @forelse($tokenRows as $token)
                                 <tr>
                                     <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                     <td>
@@ -160,67 +173,62 @@
                                     <td class="text-end bank-mono">{{ number_format((float) $token->balance, 6, '.', ' ') }}</td>
                                     <td class="text-end">{{ $token->price_usd !== null ? $formatMoney($token->price_usd) : '—' }}</td>
                                     <td class="text-end fw-semibold">{{ $formatMoney($token->value_usd) }}</td>
+                                    <td class="text-end">
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-light"
+                                            data-token-manifest-open
+                                            data-token-name="{{ $token->symbol }}"
+                                            data-token-description="{{ $token->name !== '' ? $token->name : ($token->token_short !== '—' ? $token->token_short : 'native') }}"
+                                            data-token-wallet="{{ $token->wallet_short }}"
+                                            data-token-hidden="{{ $token->manifest_hidden ? '1' : '0' }}"
+                                            data-token-action="{{ route('bank.token-manifest.update', ['token' => $token->id]) }}"
+                                        >Изменить</button>
+                                    </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">Cached токены для привязанных кошельков пока не найдены.</td>
+                                <tr @if($hiddenTokenRows->isNotEmpty()) data-token-manifest-empty-visible @endif>
+                                    <td colspan="8" class="text-center text-muted py-4">Cached токены для привязанных кошельков пока не найдены или все позиции скрыты.</td>
                                 </tr>
                             @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="bank-panel bank-table-panel">
-                <div class="bank-table-header">
-                    <div>
-                        <div class="bank-label">DeFi positions</div>
-                        <div class="bank-meta">Позиции из wallet_protocol_snapshots: protocols tokens / pools / loans.</div>
-                    </div>
-                    <div class="bank-meta">{{ $walletPortfolio['defiPositions']->count() }} позиций · {{ $formatMoney($summary['wallet_defi']) }} USD</div>
-                </div>
-                <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
-                    <table class="table table-dark table-hover table-sm align-middle bank-table">
-                        <thead>
-                            <tr>
-                                <th class="bank-table__num">№</th>
-                                <th>Protocol</th>
-                                <th>Позиция</th>
-                                <th>Кошелек</th>
-                                <th class="text-end">Value USD</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($walletPortfolio['defiPositions'] as $position)
-                                <tr>
-                                    <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                            @foreach($hiddenTokenRows as $token)
+                                <tr data-token-manifest-hidden-row hidden>
+                                    <td class="bank-table__num bank-mono">—</td>
                                     <td>
-                                        <strong>{{ $position->protocol }}</strong>
-                                        <div class="bank-meta">{{ strtoupper($position->chain !== '' ? $position->chain : 'chain') }}</div>
+                                        <strong>{{ $token->symbol }}</strong>
+                                        <div class="bank-meta">{{ $token->name !== '' ? $token->name : ($token->token_short !== '—' ? $token->token_short : 'native') }}</div>
                                     </td>
                                     <td>
-                                        <span class="bank-pill bank-pill--company">{{ $position->kind }}</span>
-                                        <div class="bank-meta">{{ $position->name }}{{ $position->symbol !== '' ? ' · ' . $position->symbol : '' }}</div>
-                                    </td>
-                                    <td>
-                                        <span class="bank-mono" title="{{ $position->wallet_address }}">{{ $position->wallet_short }}</span>
-                                        @if($position->wallet_source === 'google')
+                                        <span class="bank-mono" title="{{ $token->wallet_address }}">{{ $token->wallet_short }}</span>
+                                        @if($token->wallet_source === 'google')
                                             <span class="bank-status ms-1">Google</span>
                                         @endif
                                     </td>
-                                    <td class="text-end fw-semibold {{ $position->value_usd < 0 ? 'text-danger' : '' }}">{{ $formatMoney($position->value_usd) }}</td>
+                                    <td><span class="bank-pill bank-pill--currency">{{ strtoupper($token->chain !== '' ? $token->chain : 'chain') }}</span></td>
+                                    <td class="text-end bank-mono">{{ number_format((float) $token->balance, 6, '.', ' ') }}</td>
+                                    <td class="text-end">{{ $token->price_usd !== null ? $formatMoney($token->price_usd) : '—' }}</td>
+                                    <td class="text-end fw-semibold">{{ $formatMoney($token->value_usd) }}</td>
+                                    <td class="text-end">
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-light"
+                                            data-token-manifest-open
+                                            data-token-name="{{ $token->symbol }}"
+                                            data-token-description="{{ $token->name !== '' ? $token->name : ($token->token_short !== '—' ? $token->token_short : 'native') }}"
+                                            data-token-wallet="{{ $token->wallet_short }}"
+                                            data-token-hidden="{{ $token->manifest_hidden ? '1' : '0' }}"
+                                            data-token-action="{{ route('bank.token-manifest.update', ['token' => $token->id]) }}"
+                                        >Изменить</button>
+                                    </td>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">Cached DeFi-позиции пока не найдены. Откройте кошелек и обновите протоколы.</td>
-                                </tr>
-                            @endforelse
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
             </div>
         </section>
 
+        <section data-wallet-asset-panel="all" hidden>
         <section class="bank-panel bank-table-panel">
             <div class="bank-table-header">
                 <div>
@@ -275,25 +283,35 @@
                     <div class="bank-label">Asset manifest</div>
                     <div class="bank-meta">Основные категории активов и их доли в портфеле.</div>
                 </div>
-                <div class="bank-meta">{{ $portfolioRows->count() }} позиций</div>
+                <div class="bank-table-header__actions">
+                    @if($assetManifestHiddenRows->isNotEmpty())
+                        <button type="button" class="btn btn-sm btn-outline-light" data-asset-manifest-toggle-hidden>
+                            Показать скрытые ({{ $assetManifestHiddenRows->count() }})
+                        </button>
+                    @endif
+                    <div class="bank-meta">{{ $assetManifestRows->count() }} позиций</div>
+                </div>
             </div>
             <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
                 <table class="table table-dark table-hover table-sm align-middle bank-table">
                     <thead>
                         <tr>
                             <th class="bank-table__num">№</th>
+                            <th>Позиция</th>
                             <th>Актив</th>
                             <th>Категория</th>
                             <th>Валюта</th>
                             <th class="text-end">Оценка</th>
                             <th class="text-end">Доля</th>
                             <th>Статус</th>
+                            <th class="text-end">Действия</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($portfolioRows as $row)
+                        @forelse($assetManifestRows as $row)
                             <tr>
                                 <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                <td class="bank-mono">{{ (int) $row->manifest_position > 0 ? (int) $row->manifest_position : '—' }}</td>
                                 <td>
                                     <strong>{{ $row->name }}</strong>
                                     <div class="bank-meta">{{ $row->description !== '' ? $row->description : '—' }}</div>
@@ -303,15 +321,55 @@
                                 <td class="text-end fw-semibold">{{ $formatMoney($row->value_usd) }}</td>
                                 <td class="text-end">{{ number_format((float) $row->share, 1, '.', ' ') }}%</td>
                                 <td><span class="bank-status {{ $row->status === 'active' ? '' : 'bank-status--pending' }}">{{ $row->status }}</span></td>
+                                <td class="text-end">
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-light"
+                                        data-asset-manifest-open
+                                        data-asset-name="{{ $row->name }}"
+                                        data-asset-type="{{ $row->type }}"
+                                        data-asset-position="{{ (int) $row->manifest_position }}"
+                                        data-asset-hidden="{{ $row->manifest_hidden ? '1' : '0' }}"
+                                        data-asset-action="{{ route('bank.asset-manifest.update', ['source' => $row->asset_type, 'asset' => $row->asset_id]) }}"
+                                    >Изменить</button>
+                                </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-4">Портфель пока пуст.</td>
+                            <tr @if($assetManifestHiddenRows->isNotEmpty()) data-asset-manifest-empty-visible @endif>
+                                <td colspan="9" class="text-center text-muted py-4">Портфель пока пуст или все позиции скрыты.</td>
                             </tr>
                         @endforelse
+                        @foreach($assetManifestHiddenRows as $row)
+                            <tr data-asset-manifest-hidden-row hidden>
+                                <td class="bank-table__num bank-mono">—</td>
+                                <td class="bank-mono">{{ (int) $row->manifest_position > 0 ? (int) $row->manifest_position : '—' }}</td>
+                                <td>
+                                    <strong>{{ $row->name }}</strong>
+                                    <div class="bank-meta">{{ $row->description !== '' ? $row->description : '—' }}</div>
+                                </td>
+                                <td><span class="bank-pill {{ $row->group === 'defi' ? 'bank-pill--company' : 'bank-pill--currency' }}">{{ $row->type }}</span></td>
+                                <td>{{ $row->currency }}</td>
+                                <td class="text-end fw-semibold">{{ $formatMoney($row->value_usd) }}</td>
+                                <td class="text-end">{{ number_format((float) $row->share, 1, '.', ' ') }}%</td>
+                                <td><span class="bank-status bank-status--pending">hidden</span></td>
+                                <td class="text-end">
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-light"
+                                        data-asset-manifest-open
+                                        data-asset-name="{{ $row->name }}"
+                                        data-asset-type="{{ $row->type }}"
+                                        data-asset-position="{{ (int) $row->manifest_position }}"
+                                        data-asset-hidden="{{ $row->manifest_hidden ? '1' : '0' }}"
+                                        data-asset-action="{{ route('bank.asset-manifest.update', ['source' => $row->asset_type, 'asset' => $row->asset_id]) }}"
+                                    >Изменить</button>
+                                </td>
+                            </tr>
+                        @endforeach
                     </tbody>
                 </table>
             </div>
+        </section>
         </section>
     </section>
 
@@ -449,6 +507,84 @@
             </div>
         </section>
     </section>
+
+    <div class="bank-modal" data-token-manifest-modal hidden>
+        <div class="bank-modal__backdrop" data-token-manifest-close></div>
+        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tokenManifestModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Tokens</div>
+                    <h2 id="tokenManifestModalTitle">Изменить токен</h2>
+                    <div class="bank-meta" data-token-manifest-context></div>
+                </div>
+                <button type="button" class="bank-modal__close" data-token-manifest-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="POST" class="bank-requisites-form" data-token-manifest-form>
+                @csrf
+                <div class="bank-form-grid">
+                    <label>
+                        <span>Токен</span>
+                        <input type="text" data-token-manifest-name readonly>
+                    </label>
+                    <label>
+                        <span>Кошелек</span>
+                        <input type="text" data-token-manifest-wallet readonly>
+                    </label>
+                    <label class="bank-form-full">
+                        <span>Описание</span>
+                        <input type="text" data-token-manifest-description readonly>
+                    </label>
+                    <label class="bank-checkbox-field">
+                        <input type="checkbox" name="hidden" value="1" data-token-manifest-hidden>
+                        <span>Скрыть в Tokens</span>
+                    </label>
+                </div>
+                <div class="bank-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-token-manifest-close>Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="bank-modal" data-asset-manifest-modal hidden>
+        <div class="bank-modal__backdrop" data-asset-manifest-close></div>
+        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="assetManifestModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Asset manifest</div>
+                    <h2 id="assetManifestModalTitle">Изменить позицию</h2>
+                    <div class="bank-meta" data-asset-manifest-context></div>
+                </div>
+                <button type="button" class="bank-modal__close" data-asset-manifest-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="POST" class="bank-requisites-form" data-asset-manifest-form>
+                @csrf
+                <div class="bank-form-grid">
+                    <label>
+                        <span>Актив</span>
+                        <input type="text" data-asset-manifest-name readonly>
+                    </label>
+                    <label>
+                        <span>Категория</span>
+                        <input type="text" data-asset-manifest-type readonly>
+                    </label>
+                    <label>
+                        <span>Позиция в таблице</span>
+                        <input type="number" name="position" min="0" step="1" inputmode="numeric" data-asset-manifest-position>
+                    </label>
+                    <label class="bank-checkbox-field">
+                        <input type="checkbox" name="hidden" value="1" data-asset-manifest-hidden>
+                        <span>Скрыть в Asset manifest</span>
+                    </label>
+                </div>
+                <div class="bank-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-asset-manifest-close>Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 @include('bank.partials.styles')
@@ -481,6 +617,10 @@
         color: #111827;
     }
 
+    .bank-invest-tabs--sub {
+        margin-top: 12px;
+    }
+
     .bank-invest-grid {
         display: grid;
         grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
@@ -493,6 +633,18 @@
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 12px;
         margin-bottom: 12px;
+    }
+
+    .bank-invest-wallet-grid > .bank-table-panel:only-child {
+        grid-column: 1 / -1;
+    }
+
+    .bank-table-header__actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        align-items: center;
     }
 
     .bank-wallet-strip {
@@ -646,6 +798,21 @@
         padding: 10px;
     }
 
+    .bank-checkbox-field {
+        display: flex !important;
+        flex-direction: row;
+        align-items: center;
+        gap: 10px !important;
+        min-height: 42px;
+        padding-top: 22px;
+    }
+
+    .bank-checkbox-field input {
+        width: 18px !important;
+        height: 18px;
+        flex: 0 0 18px;
+    }
+
     @media (max-width: 1100px) {
         .bank-invest-grid,
         .bank-invest-wallet-grid,
@@ -683,6 +850,132 @@
         tabs.forEach((tab) => {
             tab.addEventListener('click', () => activate(tab.dataset.bankInvestTab || 'portfolio'));
         });
+
+        const walletAssetTabs = root.querySelectorAll('[data-wallet-asset-tab]');
+        const walletAssetPanels = root.querySelectorAll('[data-wallet-asset-panel]');
+
+        function activateWalletAssetPanel(name) {
+            walletAssetTabs.forEach((tab) => {
+                tab.classList.toggle('is-active', tab.dataset.walletAssetTab === name);
+            });
+            walletAssetPanels.forEach((panel) => {
+                panel.hidden = panel.dataset.walletAssetPanel !== name;
+            });
+        }
+
+        walletAssetTabs.forEach((tab) => {
+            tab.addEventListener('click', () => activateWalletAssetPanel(tab.dataset.walletAssetTab || 'tokens'));
+        });
+
+        const manifestModal = root.querySelector('[data-asset-manifest-modal]');
+        const manifestForm = root.querySelector('[data-asset-manifest-form]');
+        const manifestContext = root.querySelector('[data-asset-manifest-context]');
+        const manifestName = root.querySelector('[data-asset-manifest-name]');
+        const manifestType = root.querySelector('[data-asset-manifest-type]');
+        const manifestPosition = root.querySelector('[data-asset-manifest-position]');
+        const manifestHidden = root.querySelector('[data-asset-manifest-hidden]');
+
+        const tokenModal = root.querySelector('[data-token-manifest-modal]');
+        const tokenForm = root.querySelector('[data-token-manifest-form]');
+        const tokenContext = root.querySelector('[data-token-manifest-context]');
+        const tokenName = root.querySelector('[data-token-manifest-name]');
+        const tokenDescription = root.querySelector('[data-token-manifest-description]');
+        const tokenWallet = root.querySelector('[data-token-manifest-wallet]');
+        const tokenHidden = root.querySelector('[data-token-manifest-hidden]');
+
+        root.querySelectorAll('[data-token-manifest-open]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (!tokenModal || !tokenForm) {
+                    return;
+                }
+
+                tokenForm.action = button.dataset.tokenAction || '';
+                tokenName.value = button.dataset.tokenName || '';
+                tokenDescription.value = button.dataset.tokenDescription || '';
+                tokenWallet.value = button.dataset.tokenWallet || '';
+                tokenHidden.checked = button.dataset.tokenHidden === '1';
+                tokenContext.textContent = [button.dataset.tokenName || '', button.dataset.tokenWallet || '']
+                    .filter(Boolean)
+                    .join(' · ');
+                tokenModal.hidden = false;
+                tokenHidden.focus();
+            });
+        });
+
+        root.querySelectorAll('[data-token-manifest-close]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (tokenModal) {
+                    tokenModal.hidden = true;
+                }
+            });
+        });
+
+        const tokenHiddenToggle = root.querySelector('[data-token-manifest-toggle-hidden]');
+        const tokenHiddenRows = root.querySelectorAll('[data-token-manifest-hidden-row]');
+        const tokenVisibleEmpty = root.querySelector('[data-token-manifest-empty-visible]');
+        let tokenHiddenRowsVisible = false;
+
+        if (tokenHiddenToggle) {
+            tokenHiddenToggle.addEventListener('click', () => {
+                tokenHiddenRowsVisible = !tokenHiddenRowsVisible;
+                tokenHiddenRows.forEach((row) => {
+                    row.hidden = !tokenHiddenRowsVisible;
+                });
+                if (tokenVisibleEmpty) {
+                    tokenVisibleEmpty.hidden = tokenHiddenRowsVisible;
+                }
+                tokenHiddenToggle.textContent = tokenHiddenRowsVisible
+                    ? 'Скрыть скрытые'
+                    : `Показать скрытые (${tokenHiddenRows.length})`;
+            });
+        }
+
+        root.querySelectorAll('[data-asset-manifest-open]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (!manifestModal || !manifestForm) {
+                    return;
+                }
+
+                manifestForm.action = button.dataset.assetAction || '';
+                manifestName.value = button.dataset.assetName || '';
+                manifestType.value = button.dataset.assetType || '';
+                manifestPosition.value = button.dataset.assetPosition || '0';
+                manifestHidden.checked = button.dataset.assetHidden === '1';
+                manifestContext.textContent = [button.dataset.assetName || '', button.dataset.assetType || '']
+                    .filter(Boolean)
+                    .join(' · ');
+                manifestModal.hidden = false;
+                manifestPosition.focus();
+            });
+        });
+
+        root.querySelectorAll('[data-asset-manifest-close]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (manifestModal) {
+                    manifestModal.hidden = true;
+                }
+            });
+        });
+
+        const hiddenToggle = root.querySelector('[data-asset-manifest-toggle-hidden]');
+        const hiddenRows = root.querySelectorAll('[data-asset-manifest-hidden-row]');
+        const visibleEmpty = root.querySelector('[data-asset-manifest-empty-visible]');
+        let hiddenRowsVisible = false;
+
+        if (hiddenToggle) {
+            hiddenToggle.addEventListener('click', () => {
+                hiddenRowsVisible = !hiddenRowsVisible;
+                hiddenRows.forEach((row) => {
+                    row.hidden = !hiddenRowsVisible;
+                });
+                if (visibleEmpty) {
+                    visibleEmpty.hidden = hiddenRowsVisible;
+                }
+                hiddenToggle.textContent = hiddenRowsVisible
+                    ? 'Скрыть скрытые'
+                    : `Показать скрытые (${hiddenRows.length})`;
+            });
+        }
     });
 </script>
 @endpush
