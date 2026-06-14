@@ -217,7 +217,7 @@ class SettingsController extends Controller
             }
         }
 
-        return redirect()->back()->with('success', 'Активний проєкт змінено');
+        return redirect()->route('dashboard')->with('success', 'Активний проєкт змінено');
     }
 
     private function resetWorkspaceSessionState(Request $request): void
@@ -1359,14 +1359,24 @@ class SettingsController extends Controller
             return response()->json(['success' => false, 'message' => 'Проєкт не знайдено'], 404);
         }
 
-        $project->fill($this->validateProject($request))->save();
+        $wasActiveProject = (int) session('fid', 0) === (int) $project->id;
+        $previousProjectType = strtolower(trim((string) ($project->project_type ?? '')));
+        $payload = $this->validateProject($request);
+        $nextProjectType = strtolower(trim((string) ($payload['project_type'] ?? '')));
+
+        $project->fill($payload)->save();
         $projectUserId = $this->ensureProjectUserCopy($project);
 
         if ($projectUserId && Schema::hasColumn('project', 'userid')) {
             $project->forceFill(['userid' => $projectUserId])->save();
         }
 
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'redirect_url' => $wasActiveProject && $previousProjectType !== $nextProjectType
+                ? route('dashboard')
+                : null,
+        ]);
     }
 
     public function projectsDestroy($id)

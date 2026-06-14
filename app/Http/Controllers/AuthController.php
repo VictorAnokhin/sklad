@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Project;
 use App\Services\AiClientFactory;
 use App\Services\OpenDataBotTransportService;
 use App\Services\ShinamiClient;
@@ -59,6 +60,12 @@ class AuthController extends Controller
         $today = now()->format('d-m-Y');
         $currentUserId = (int) (Auth::id() ?: session('userid', 0));
         $currentUserBalance = 0.0;
+        $activeProject = Schema::hasTable('project') && $fid !== ''
+            ? Project::query()->find((int) $fid)
+            : null;
+        $activeProjectType = strtolower(trim((string) ($activeProject->project_type ?? '')));
+        $isBankProject = $activeProjectType === 'bank';
+        $bankServices = $isBankProject ? $this->bankDashboardServices() : [];
 
         if ($currentUserId > 0) {
             $currentUserBalance = (float) DB::table('users')
@@ -95,7 +102,70 @@ class AuthController extends Controller
             ->limit(20)
             ->get();
 
-        return view('dashboard', compact('cashboxes', 'dailyIncome', 'newOrders', 'today', 'currentUserBalance'));
+        return view('dashboard', compact(
+            'cashboxes',
+            'dailyIncome',
+            'newOrders',
+            'today',
+            'currentUserBalance',
+            'activeProject',
+            'isBankProject',
+            'bankServices',
+        ));
+    }
+
+    private function bankDashboardServices(): array
+    {
+        return [
+            [
+                'title' => 'Счета и кассы',
+                'description' => 'Операционные счета банка, счета проектов и клиентские остатки.',
+                'icon' => '🏦',
+                'url' => route('bank.cash-accounts'),
+            ],
+            [
+                'title' => 'Платежи',
+                'description' => 'Исходящие и входящие платежи, статусы обработки и контроль операций.',
+                'icon' => '💳',
+                'url' => route('bank.payments'),
+            ],
+            [
+                'title' => 'Депозиты',
+                'description' => 'Депозитные продукты, начисления, пополнения и снятия.',
+                'icon' => '📈',
+                'url' => route('bank.deposit'),
+            ],
+            [
+                'title' => 'Кредиты',
+                'description' => 'Кредитные продукты и заявки клиентов.',
+                'icon' => '🤝',
+                'url' => route('bank.loans.redirect'),
+            ],
+            [
+                'title' => 'Обмен валют',
+                'description' => 'Фиатно-криптовалютный обмен и заявки на конвертацию.',
+                'icon' => '💱',
+                'url' => route('bank.exchange'),
+            ],
+            [
+                'title' => 'Клиринг',
+                'description' => 'Взаиморасчёты между проектами и сверка обязательств.',
+                'icon' => '🔁',
+                'url' => route('bank.clearing'),
+            ],
+            [
+                'title' => 'Сверка',
+                'description' => 'Сверка остатков касс, ledger-проводок и blockchain-транзакций.',
+                'icon' => '✅',
+                'url' => route('bank.reconciliation'),
+            ],
+            [
+                'title' => 'Blockchain Monitor',
+                'description' => 'Мониторинг on-chain событий и синхронизация blockchain-операций.',
+                'icon' => '⛓',
+                'url' => route('blockchain-monitor.index'),
+            ],
+        ];
     }
 
     public function transportLookup(Request $request, OpenDataBotTransportService $openDataBot)

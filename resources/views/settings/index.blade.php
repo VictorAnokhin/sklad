@@ -2786,6 +2786,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 resetProjectForm();
                 loadHoldings();
                 loadProjects();
+
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                }
             })
             .catch((error) => alert(error?.message || _ts('js.network_error')));
         });

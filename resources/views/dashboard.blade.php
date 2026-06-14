@@ -105,9 +105,107 @@
         word-break: break-word;
         margin: 0;
     }
+    .bank-dashboard-hero {
+        background:
+            radial-gradient(circle at top left, rgba(249, 168, 38, .18), transparent 32%),
+            linear-gradient(135deg, rgba(30, 41, 59, .92), rgba(15, 23, 42, .84));
+    }
+    .bank-service-card {
+        display: block;
+        height: 100%;
+        color: inherit;
+        text-decoration: none;
+        transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .bank-service-card:hover {
+        color: #fff;
+        transform: translateY(-2px);
+        border-color: rgba(249, 168, 38, .55);
+        background: rgba(255, 255, 255, .055);
+    }
+    .bank-service-card__icon {
+        width: 44px;
+        height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: rgba(249, 168, 38, .14);
+        font-size: 1.35rem;
+        margin-bottom: .85rem;
+    }
 </style>
 
 <div class="container mt-4 dashboard-container pb-5">
+    @if($isBankProject)
+    <div class="card glass-card-dashboard bank-dashboard-hero mb-4">
+        <div class="card-body d-flex flex-column flex-lg-row justify-content-between gap-3">
+            <div>
+                <div class="text-muted small mb-2">Bank dashboard</div>
+                <h3 class="card-title mb-2">{{ $activeProject->name ?? 'Банк' }}</h3>
+                <div class="text-muted">Основные банковские сервисы и операционный контроль проекта.</div>
+            </div>
+            <div class="text-lg-end">
+                <div class="text-muted small">Активный проект</div>
+                <div class="fs-5 fw-semibold">#{{ session('fid') }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        @foreach($bankServices as $service)
+        <div class="col-12 col-md-6 col-xl-3">
+            <a href="{{ $service['url'] }}" class="card glass-card-dashboard bank-service-card">
+                <div class="card-body">
+                    <div class="bank-service-card__icon">{{ $service['icon'] }}</div>
+                    <h5 class="card-title mb-2">{{ $service['title'] }}</h5>
+                    <div class="text-muted small">{{ $service['description'] }}</div>
+                </div>
+            </a>
+        </div>
+        @endforeach
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card glass-card-dashboard h-100">
+                <div class="card-body">
+                    <h4 class="card-title mb-3">💰 {{ __('dashboard.cashbox_balances') }}</h4>
+
+                    @if(($cashboxes ?? collect())->isEmpty())
+                    <div class="text-muted">{{ __('dashboard.cashboxes_not_configured') }}</div>
+                    @else
+                    <div class="list-group list-group-flush">
+                        @foreach($cashboxes as $cashbox)
+                        <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <div class="fw-semibold">{{ $cashbox->name }}</div>
+                                <div class="text-muted small">{{ __('dashboard.cashbox_id') }}: {{ $cashbox->id }}</div>
+                            </div>
+                            <div class="fw-bold fs-5">{{ number_format((float)($cashbox->value ?? 0), 2, '.', ' ') }} грн</div>
+                        </div>
+                        @endforeach
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card glass-card-dashboard h-100">
+                <div class="card-body">
+                    <h4 class="card-title mb-3">Операционный день</h4>
+                    <div class="list-group list-group-flush">
+                        <a class="list-group-item list-group-item-action px-0" href="{{ route('bank.payments') }}">Платежи к обработке</a>
+                        <a class="list-group-item list-group-item-action px-0" href="{{ route('bank.reconciliation') }}">Сверка остатков</a>
+                        <a class="list-group-item list-group-item-action px-0" href="{{ route('bank.exchange') }}">Заявки на обмен</a>
+                        <a class="list-group-item list-group-item-action px-0" href="{{ route('blockchain-monitor.index') }}">On-chain мониторинг</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @else
     <div class="row g-4">
         <div class="col-12">
             <div class="card glass-card-dashboard border-success-accent">
@@ -233,6 +331,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     <div class="card glass-card-dashboard mt-4">
         <div class="card-body">

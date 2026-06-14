@@ -142,7 +142,6 @@
     @if(!$isBankProject)
       <div class="header-nav-menu__section-label">Бизнес</div>
       <div class="header-nav-menu__grid">
-        <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
         <a class="header-nav-menu__link header-nav-menu__link--with-badge" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">
           {{ __('nav.orders') }}
           @if($newOrdersCount > 0)
@@ -163,6 +162,7 @@
 
     <div class="header-nav-menu__section-label">Менеджмент</div>
     <div class="header-nav-menu__grid">
+      <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
       <a class="header-nav-menu__link" href="{{ route('team') }}">Команда</a>
       <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
       <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
