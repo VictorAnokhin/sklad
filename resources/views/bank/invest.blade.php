@@ -157,7 +157,15 @@
                         </thead>
                         <tbody>
                             @forelse($tokenRows as $token)
-                                <tr>
+                                <tr
+                                    class="bank-clickable-row"
+                                    data-token-manifest-open
+                                    data-token-name="{{ $token->symbol }}"
+                                    data-token-description="{{ $token->name !== '' ? $token->name : ($token->token_short !== '—' ? $token->token_short : 'native') }}"
+                                    data-token-wallet="{{ $token->wallet_short }}"
+                                    data-token-hidden="{{ $token->manifest_hidden ? '1' : '0' }}"
+                                    data-token-action="{{ route('bank.token-manifest.update', ['token' => $token->id]) }}"
+                                >
                                     <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                     <td>
                                         <strong>{{ $token->symbol }}</strong>
@@ -192,7 +200,17 @@
                                 </tr>
                             @endforelse
                             @foreach($hiddenTokenRows as $token)
-                                <tr data-token-manifest-hidden-row hidden>
+                                <tr
+                                    class="bank-clickable-row"
+                                    data-token-manifest-hidden-row
+                                    data-token-manifest-open
+                                    data-token-name="{{ $token->symbol }}"
+                                    data-token-description="{{ $token->name !== '' ? $token->name : ($token->token_short !== '—' ? $token->token_short : 'native') }}"
+                                    data-token-wallet="{{ $token->wallet_short }}"
+                                    data-token-hidden="{{ $token->manifest_hidden ? '1' : '0' }}"
+                                    data-token-action="{{ route('bank.token-manifest.update', ['token' => $token->id]) }}"
+                                    hidden
+                                >
                                     <td class="bank-table__num bank-mono">—</td>
                                     <td>
                                         <strong>{{ $token->symbol }}</strong>
@@ -251,7 +269,15 @@
                     </thead>
                     <tbody>
                         @forelse($walletPortfolio['nfts'] as $nft)
-                            <tr>
+                            <tr
+                                class="bank-clickable-row"
+                                data-asset-manifest-open
+                                data-asset-name="{{ $row->name }}"
+                                data-asset-type="{{ $row->type }}"
+                                data-asset-position="{{ (int) $row->manifest_position }}"
+                                data-asset-hidden="{{ $row->manifest_hidden ? '1' : '0' }}"
+                                data-asset-action="{{ route('bank.asset-manifest.update', ['source' => $row->asset_type, 'asset' => $row->asset_id]) }}"
+                            >
                                 <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                 <td>
                                     <strong>{{ $nft->name }}</strong>
@@ -340,7 +366,17 @@
                             </tr>
                         @endforelse
                         @foreach($assetManifestHiddenRows as $row)
-                            <tr data-asset-manifest-hidden-row hidden>
+                            <tr
+                                class="bank-clickable-row"
+                                data-asset-manifest-hidden-row
+                                data-asset-manifest-open
+                                data-asset-name="{{ $row->name }}"
+                                data-asset-type="{{ $row->type }}"
+                                data-asset-position="{{ (int) $row->manifest_position }}"
+                                data-asset-hidden="{{ $row->manifest_hidden ? '1' : '0' }}"
+                                data-asset-action="{{ route('bank.asset-manifest.update', ['source' => $row->asset_type, 'asset' => $row->asset_id]) }}"
+                                hidden
+                            >
                                 <td class="bank-table__num bank-mono">—</td>
                                 <td class="bank-mono">{{ (int) $row->manifest_position > 0 ? (int) $row->manifest_position : '—' }}</td>
                                 <td>
@@ -647,6 +683,51 @@
         align-items: center;
     }
 
+    .bank-invest-page .bank-table-header {
+        padding: 10px 14px;
+    }
+
+    .bank-invest-page .bank-table {
+        font-size: 0.82rem;
+    }
+
+    .bank-invest-page .bank-table th,
+    .bank-invest-page .bank-table td {
+        padding: 0.34rem 0.5rem;
+    }
+
+    .bank-invest-page .bank-table .bank-meta {
+        margin-top: 1px;
+        font-size: 0.73rem;
+        line-height: 1.25;
+    }
+
+    .bank-invest-page .bank-table .bank-mono {
+        font-size: 0.78rem;
+    }
+
+    .bank-invest-page .bank-table .bank-pill,
+    .bank-invest-page .bank-table .bank-status {
+        min-height: 20px;
+        padding: 1px 6px;
+        font-size: 0.72rem;
+        line-height: 1.2;
+    }
+
+    .bank-invest-page .bank-table .btn-sm {
+        --bs-btn-padding-y: 0.12rem;
+        --bs-btn-padding-x: 0.42rem;
+        --bs-btn-font-size: 0.74rem;
+    }
+
+    .bank-clickable-row {
+        cursor: pointer;
+    }
+
+    .bank-clickable-row:hover td {
+        background: rgba(251, 191, 36, 0.08);
+    }
+
     .bank-wallet-strip {
         display: flex;
         flex-wrap: wrap;
@@ -884,7 +965,8 @@
         const tokenHidden = root.querySelector('[data-token-manifest-hidden]');
 
         root.querySelectorAll('[data-token-manifest-open]').forEach((button) => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
                 if (!tokenModal || !tokenForm) {
                     return;
                 }
@@ -931,7 +1013,8 @@
         }
 
         root.querySelectorAll('[data-asset-manifest-open]').forEach((button) => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
                 if (!manifestModal || !manifestForm) {
                     return;
                 }
