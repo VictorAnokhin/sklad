@@ -62,23 +62,9 @@
 
         <section class="bank-invest-grid">
             <div class="bank-panel bank-invest-command">
-                <div class="bank-label">Command routes</div>
-                <h2>Контроль капитала</h2>
-                <p>Как в Portfolio: быстрые операционные маршруты вынесены рядом с агрегированным состоянием портфеля.</p>
-                <div class="bank-invest-actions">
-                    <a href="{{ route('bank.deposit') }}" class="bank-invest-action">
-                        <strong>Депозитные счета</strong>
-                        <span>Пополнения, выводы, лимиты</span>
-                    </a>
-                    <a href="{{ route('bank.payments') }}" class="bank-invest-action">
-                        <strong>Платежи</strong>
-                        <span>Потоки fiat и ledger</span>
-                    </a>
-                    <a href="{{ route('bank.clearing') }}" class="bank-invest-action">
-                        <strong>Клиринг</strong>
-                        <span>Внутренние расчеты холдинга</span>
-                    </a>
-                </div>
+                <div class="bank-label">Катитал</div>
+                <div class="bank-value">{{ $formatMoney($summary['wallet_tokens_visible']) }} USD</div>
+                <div class="bank-meta">Сумма токенов, которые сейчас не скрыты в таблице Tokens.</div>
             </div>
 
             <div class="bank-panel bank-invest-health">

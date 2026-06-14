@@ -278,6 +278,7 @@ class BankController extends Controller
         $liquidTotal = (float) $portfolioRows->where('group', 'liquid')->sum('value_usd');
         $defiTotal = (float) $portfolioRows->where('group', 'defi')->sum('value_usd');
         $walletTokensTotal = (float) $walletPortfolio['tokens']->sum('value_usd');
+        $visibleWalletTokensTotal = (float) $tokenRows->sum('value_usd');
         $walletDefiTotal = (float) $walletPortfolio['defiPositions']->sum('value_usd');
         $walletNftTotal = (float) $walletPortfolio['nfts']->sum('value_usd');
 
@@ -296,6 +297,7 @@ class BankController extends Controller
                 'liquid' => $liquidTotal,
                 'defi' => $defiTotal,
                 'wallet_tokens' => $walletTokensTotal,
+                'wallet_tokens_visible' => $visibleWalletTokensTotal,
                 'wallet_defi' => $walletDefiTotal,
                 'wallet_nfts' => $walletNftTotal,
                 'wallet_total' => $walletTokensTotal + $walletDefiTotal + $walletNftTotal,
