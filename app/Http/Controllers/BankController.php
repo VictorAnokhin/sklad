@@ -586,14 +586,17 @@ class BankController extends Controller
 
         return DB::table('wallet_tokens')
             ->whereIn('wallet_id', array_keys($walletAddressById))
-            ->where(function ($query): void {
-                $query->whereNull('is_spam')->orWhere('is_spam', false);
-            })
+            ->when(
+                Schema::hasColumn('wallet_tokens', 'is_spam'),
+                fn ($query) => $query->where(function ($nested): void {
+                    $nested->whereNull('is_spam')->orWhere('is_spam', false);
+                })
+            )
             ->orderByDesc('value_usd')
             ->orderBy('symbol')
             ->limit(80)
             ->get()
-            ->map(function ($token) use ($walletAddressById, $linkedWallets) {
+            ->map(function ($token) use ($walletAddressById, $linkedWallets, $tokenManifestSettings) {
                 $walletAddress = $walletAddressById[(int) $token->wallet_id] ?? '';
                 $wallet = $linkedWallets->get(strtolower($walletAddress));
 
