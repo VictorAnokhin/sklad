@@ -141,6 +141,80 @@ class WalletController extends Controller
         );
     }
 
+    public function manualDefiPositions(Request $request)
+    {
+        $validated = $request->validate([
+            'address' => ['required', 'string', 'max:120'],
+            'chain_id' => ['nullable', 'string', 'max:40'],
+            'fid' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        if (! Schema::hasTable('manual_defi_positions')) {
+            return response()->json([]);
+        }
+
+        $walletAddress = $this->normalizeManualDefiAddress((string) $validated['address']);
+        $chainId = strtolower(trim((string) ($validated['chain_id'] ?? '')));
+        $fid = (int) ($validated['fid'] ?? 0);
+
+        return response()->json(
+            DB::table('manual_defi_positions')
+                ->where('wallet_address', $walletAddress)
+                ->where('fid', $fid)
+                ->when($chainId !== '', fn ($query) => $query->where('chain_id', $chainId))
+                ->orderByDesc('id')
+                ->get()
+                ->map(fn ($row) => $this->manualDefiPositionPayload($row))
+                ->values()
+        );
+    }
+
+    public function storeManualDefiPosition(Request $request)
+    {
+        if (! Schema::hasTable('manual_defi_positions')) {
+            return response()->json(['message' => 'Manual DeFi positions storage is not configured.'], 503);
+        }
+
+        $validated = $request->validate([
+            'address' => ['required', 'string', 'max:120'],
+            'chain_id' => ['required', 'string', 'max:40'],
+            'fid' => ['nullable', 'integer', 'min:0'],
+            'protocol_key' => ['required', 'string', 'max:80'],
+            'protocol_name' => ['required', 'string', 'max:120'],
+            'position_address' => ['required', 'string', 'max:180'],
+        ]);
+
+        $walletAddress = $this->normalizeManualDefiAddress((string) $validated['address']);
+        $chainId = strtolower(trim((string) $validated['chain_id']));
+        $protocolKey = strtolower(trim((string) $validated['protocol_key']));
+        $protocolName = trim((string) $validated['protocol_name']);
+        $positionAddress = trim((string) $validated['position_address']);
+        $fid = (int) ($validated['fid'] ?? 0);
+        $now = now();
+        $key = [
+            'fid' => $fid,
+            'wallet_address' => $walletAddress,
+            'chain_id' => $chainId,
+            'protocol_key' => $protocolKey,
+            'position_address' => $positionAddress,
+        ];
+        $values = [
+            'protocol_name' => $protocolName,
+            'updated_at' => $now,
+        ];
+
+        $existing = DB::table('manual_defi_positions')->where($key)->first();
+        if ($existing) {
+            DB::table('manual_defi_positions')->where('id', $existing->id)->update($values);
+            $row = DB::table('manual_defi_positions')->where('id', $existing->id)->first();
+        } else {
+            $id = DB::table('manual_defi_positions')->insertGetId($key + $values + ['created_at' => $now]);
+            $row = DB::table('manual_defi_positions')->where('id', $id)->first();
+        }
+
+        return response()->json($this->manualDefiPositionPayload($row), $existing ? 200 : 201);
+    }
+
     public function overview(Request $request)
     {
         $validated = $request->validate([
@@ -662,5 +736,29 @@ class WalletController extends Controller
         }
 
         return strtolower($trimmed);
+    }
+
+    private function normalizeManualDefiAddress(string $address): string
+    {
+        return $this->normalizeOverviewWalletAddress($address);
+    }
+
+    private function manualDefiPositionPayload(?object $row): array
+    {
+        if (! $row) {
+            return [];
+        }
+
+        return [
+            'id' => (int) $row->id,
+            'fid' => (int) ($row->fid ?? 0),
+            'wallet_address' => (string) ($row->wallet_address ?? ''),
+            'chain_id' => (string) ($row->chain_id ?? ''),
+            'protocol_key' => (string) ($row->protocol_key ?? ''),
+            'protocol_name' => (string) ($row->protocol_name ?? ''),
+            'position_address' => (string) ($row->position_address ?? ''),
+            'created_at' => (string) ($row->created_at ?? ''),
+            'updated_at' => (string) ($row->updated_at ?? ''),
+        ];
     }
 }
