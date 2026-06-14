@@ -97,6 +97,19 @@
                 </select>
             </div>
             <div>
+                <label for="paymentDatePreset">Период</label>
+                <select id="paymentDatePreset" name="date_preset" class="form-select" data-date-preset>
+                    <option value="today" {{ $filters['date_preset'] === 'today' ? 'selected' : '' }}>Сегодня</option>
+                    <option value="yesterday" {{ $filters['date_preset'] === 'yesterday' ? 'selected' : '' }}>Вчера</option>
+                    <option value="week" {{ $filters['date_preset'] === 'week' ? 'selected' : '' }}>За неделю</option>
+                    <option value="current_month" {{ $filters['date_preset'] === 'current_month' ? 'selected' : '' }}>Текущий месяц</option>
+                    <option value="previous_month" {{ $filters['date_preset'] === 'previous_month' ? 'selected' : '' }}>Прошлый месяц</option>
+                    <option value="year" {{ $filters['date_preset'] === 'year' ? 'selected' : '' }}>За год</option>
+                    <option value="previous_year" {{ $filters['date_preset'] === 'previous_year' ? 'selected' : '' }}>За прошлый год</option>
+                    <option value="manual" {{ $filters['date_preset'] === 'manual' ? 'selected' : '' }}>Ручной диапазон дат</option>
+                </select>
+            </div>
+            <div data-manual-date-filter>
                 <label for="paymentDateFrom">Дата с</label>
                 <input
                     type="date"
@@ -106,7 +119,7 @@
                     value="{{ $filters['date_from'] }}"
                 >
             </div>
-            <div>
+            <div data-manual-date-filter>
                 <label for="paymentDateTo">Дата по</label>
                 <input
                     type="date"
@@ -243,3 +256,25 @@
 
 @include('bank.partials.styles')
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const preset = document.querySelector('[data-date-preset]');
+        const manualFields = Array.from(document.querySelectorAll('[data-manual-date-filter]'));
+
+        function syncManualDateFields() {
+            const isManual = preset?.value === 'manual';
+            manualFields.forEach((field) => {
+                field.hidden = !isManual;
+                field.querySelectorAll('input').forEach((input) => {
+                    input.disabled = !isManual;
+                });
+            });
+        }
+
+        preset?.addEventListener('change', syncManualDateFields);
+        syncManualDateFields();
+    });
+</script>
+@endpush

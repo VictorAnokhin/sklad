@@ -236,7 +236,7 @@
 
     .bank-payment-filters form {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
         gap: 12px;
         align-items: end;
     }

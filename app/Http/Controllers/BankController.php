@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Support\HoldingScope;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -310,6 +311,11 @@ class BankController extends Controller
     {
         $project = $this->bankProject();
         $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        [$datePreset, $dateFrom, $dateTo] = $this->paymentDateFilter(
+            (string) $request->query('date_preset', 'current_month'),
+            $request->query('date_from'),
+            $request->query('date_to')
+        );
         $filters = [
             'direction' => in_array($request->query('direction'), ['incoming', 'outgoing'], true)
                 ? (string) $request->query('direction')
@@ -320,12 +326,10 @@ class BankController extends Controller
             'project' => in_array((string) $request->query('project'), $projectIds, true)
                 ? (string) $request->query('project')
                 : '',
-            'date_from' => $this->normalizeDateFilter($request->query('date_from')),
-            'date_to' => $this->normalizeDateFilter($request->query('date_to')),
+            'date_preset' => $datePreset,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
         ];
-        if ($filters['date_from'] !== '' && $filters['date_to'] !== '' && $filters['date_from'] > $filters['date_to']) {
-            [$filters['date_from'], $filters['date_to']] = [$filters['date_to'], $filters['date_from']];
-        }
         $paymentRows = $this->paymentRows($projectIds, $filters);
 
         return view('bank.payments', [
@@ -705,6 +709,52 @@ class BankController extends Controller
         }
 
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';
+    }
+
+    private function paymentDateFilter(string $preset, mixed $dateFrom, mixed $dateTo): array
+    {
+        $allowedPresets = [
+            'today',
+            'yesterday',
+            'week',
+            'current_month',
+            'previous_month',
+            'year',
+            'previous_year',
+            'manual',
+        ];
+        $preset = in_array($preset, $allowedPresets, true) ? $preset : 'current_month';
+        $today = Carbon::today();
+
+        [$from, $to] = match ($preset) {
+            'today' => [$today->copy(), $today->copy()],
+            'yesterday' => [$today->copy()->subDay(), $today->copy()->subDay()],
+            'week' => [$today->copy()->subDays(6), $today->copy()],
+            'previous_month' => [
+                $today->copy()->subMonthNoOverflow()->startOfMonth(),
+                $today->copy()->subMonthNoOverflow()->endOfMonth(),
+            ],
+            'year' => [$today->copy()->startOfYear(), $today->copy()],
+            'previous_year' => [
+                $today->copy()->subYearNoOverflow()->startOfYear(),
+                $today->copy()->subYearNoOverflow()->endOfYear(),
+            ],
+            'manual' => [
+                $this->normalizeDateFilter($dateFrom),
+                $this->normalizeDateFilter($dateTo),
+            ],
+            default => [$today->copy()->startOfMonth(), $today->copy()],
+        };
+
+        if ($preset === 'manual') {
+            if ($from !== '' && $to !== '' && $from > $to) {
+                [$from, $to] = [$to, $from];
+            }
+
+            return [$preset, $from, $to];
+        }
+
+        return [$preset, $from->toDateString(), $to->toDateString()];
     }
 
     private function paymentStatus(object $document, ?object $ledger): string
