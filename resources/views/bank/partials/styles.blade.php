@@ -236,7 +236,7 @@
 
     .bank-payment-filters form {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
         gap: 12px;
         align-items: end;
     }
@@ -250,10 +250,16 @@
         text-transform: uppercase;
     }
 
-    .bank-payment-filters .form-select {
+    .bank-payment-filters .form-select,
+    .bank-payment-filters .form-control {
         color: #fff;
         border-color: rgba(148, 163, 184, 0.24);
         background-color: rgba(15, 23, 42, 0.9);
+    }
+
+    .bank-payment-filters .form-control::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+        opacity: 0.75;
     }
 
     .bank-payment-filters__actions {

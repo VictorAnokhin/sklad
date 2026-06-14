@@ -180,65 +180,6 @@
         </div>
     </div>
 
-    <section class="bank-panel bank-table-panel">
-        <div class="bank-table-header">
-            <div>
-                <div class="bank-label">Операции по депозитам</div>
-                <div class="bank-meta">Последние пополнения и выводы с состоянием бухгалтерской проводки.</div>
-            </div>
-            <div class="bank-meta">{{ $operations->count() }} операций</div>
-        </div>
-        <div class="table-responsive bank-table-scroll">
-            <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--deposit-operations">
-                <thead>
-                    <tr>
-                        <th>Дата / документ</th>
-                        <th>Операция</th>
-                        <th>Депозит</th>
-                        <th>Проект</th>
-                        <th>Владелец</th>
-                        <th class="text-end">Сумма</th>
-                        <th>Статус</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($operations as $operation)
-                        <tr>
-                            <td>
-                                <strong>{{ $operation->date ?: '—' }}</strong>
-                                <div class="bank-meta">PP №{{ $operation->number }} · ID {{ $operation->id }}</div>
-                            </td>
-                            <td>
-                                <span class="bank-pill {{ $operation->mode === 'withdraw' ? 'bank-pill--outgoing' : '' }}">
-                                    {{ $operation->mode_label }}
-                                </span>
-                            </td>
-                            <td>{{ $operation->deposit_name }}</td>
-                            <td>{{ $operation->project_name }}</td>
-                            <td>
-                                <div>{{ $operation->owner_name }}</div>
-                                @if($operation->description !== '')
-                                    <div class="bank-meta">{{ $operation->description }}</div>
-                                @endif
-                            </td>
-                            <td class="text-end fw-semibold {{ $operation->mode === 'withdraw' ? 'text-danger' : 'text-success' }}">
-                                {{ $operation->mode === 'withdraw' ? '−' : '+' }}{{ number_format((float) $operation->amount, 2, '.', ' ') }}
-                                {{ $operation->currency }}
-                            </td>
-                            <td>
-                                <span class="bank-status bank-status--{{ $operation->status }}">{{ $operation->status_label }}</span>
-                                <div class="bank-meta">{{ $operation->ledger_id > 0 ? 'TX #' . $operation->ledger_id : 'Ledger TX отсутствует' }}</div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-4">Операций по депозитам пока нет.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </section>
 </div>
 
 @include('bank.partials.styles')

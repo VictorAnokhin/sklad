@@ -320,14 +320,19 @@ class BankController extends Controller
             'project' => in_array((string) $request->query('project'), $projectIds, true)
                 ? (string) $request->query('project')
                 : '',
+            'date_from' => $this->normalizeDateFilter($request->query('date_from')),
+            'date_to' => $this->normalizeDateFilter($request->query('date_to')),
         ];
+        if ($filters['date_from'] !== '' && $filters['date_to'] !== '' && $filters['date_from'] > $filters['date_to']) {
+            [$filters['date_from'], $filters['date_to']] = [$filters['date_to'], $filters['date_from']];
+        }
         $paymentRows = $this->paymentRows($projectIds, $filters);
 
         return view('bank.payments', [
             'project' => $project,
             'holdingProjects' => $this->holdingProjects($project),
             'paymentRows' => $paymentRows,
-            'ledgerRows' => $this->paymentLedgerRows($projectIds),
+            'ledgerRows' => $this->paymentLedgerRows($projectIds, $filters),
             'filters' => $filters,
             'summary' => [
                 'incoming' => (float) $paymentRows->where('direction', 'incoming')->sum('amount'),
@@ -514,6 +519,14 @@ class BankController extends Controller
             $query->where('d.firma', (int) $filters['project']);
         }
 
+        if ($filters['date_from'] !== '') {
+            $query->whereRaw("COALESCE(STR_TO_DATE(d.data, '%d-%m-%Y'), DATE(d.dt)) >= ?", [$filters['date_from']]);
+        }
+
+        if ($filters['date_to'] !== '') {
+            $query->whereRaw("COALESCE(STR_TO_DATE(d.data, '%d-%m-%Y'), DATE(d.dt)) <= ?", [$filters['date_to']]);
+        }
+
         $documents = $query
             ->orderByRaw("COALESCE(STR_TO_DATE(d.data, '%d-%m-%Y'), d.dt) DESC")
             ->orderByDesc('d.id')
@@ -607,13 +620,13 @@ class BankController extends Controller
             ->keyBy(fn ($row) => (string) $row->reference_id);
     }
 
-    private function paymentLedgerRows(array $projectIds)
+    private function paymentLedgerRows(array $projectIds, array $filters = [])
     {
         if (! Schema::hasTable('transactions') || ! Schema::hasTable('entries') || ! Schema::hasTable('accounts')) {
             return collect();
         }
 
-        return DB::table('transactions as t')
+        $query = DB::table('transactions as t')
             ->join('entries as e', 'e.transaction_id', '=', 't.id')
             ->join('accounts as a', 'a.id', '=', 'e.account_id')
             ->join('z_document as d', function ($join): void {
@@ -622,7 +635,27 @@ class BankController extends Controller
             ->leftJoin('project as p', 'p.id', '=', 't.company_id')
             ->whereIn('t.company_id', array_map('intval', $projectIds))
             ->where('t.reference_type', 'like', 'z_document:%')
-            ->whereIn('d.type', ['PO', 'RO', 'PPO', 'PRO'])
+            ->whereIn('d.type', ['PO', 'RO', 'PPO', 'PRO']);
+
+        if (($filters['direction'] ?? '') === 'incoming') {
+            $query->whereIn('d.type', ['PO', 'PPO']);
+        } elseif (($filters['direction'] ?? '') === 'outgoing') {
+            $query->whereIn('d.type', ['RO', 'PRO']);
+        }
+
+        if (($filters['project'] ?? '') !== '') {
+            $query->where('t.company_id', (int) $filters['project']);
+        }
+
+        if (($filters['date_from'] ?? '') !== '') {
+            $query->whereDate('t.date', '>=', $filters['date_from']);
+        }
+
+        if (($filters['date_to'] ?? '') !== '') {
+            $query->whereDate('t.date', '<=', $filters['date_to']);
+        }
+
+        return $query
             ->groupBy(
                 't.id',
                 't.date',
@@ -655,7 +688,23 @@ class BankController extends Controller
                 $row->project_name = trim((string) $row->project_name) ?: 'Проект';
 
                 return $row;
-            });
+            })
+            ->when(
+                ($filters['status'] ?? '') !== '',
+                fn ($rows) => $rows->where('status', $filters['status'])
+            )
+            ->values();
+    }
+
+    private function normalizeDateFilter(mixed $value): string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';
     }
 
     private function paymentStatus(object $document, ?object $ledger): string

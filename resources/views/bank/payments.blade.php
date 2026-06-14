@@ -96,6 +96,26 @@
                     @endforeach
                 </select>
             </div>
+            <div>
+                <label for="paymentDateFrom">Дата с</label>
+                <input
+                    type="date"
+                    id="paymentDateFrom"
+                    name="date_from"
+                    class="form-control"
+                    value="{{ $filters['date_from'] }}"
+                >
+            </div>
+            <div>
+                <label for="paymentDateTo">Дата по</label>
+                <input
+                    type="date"
+                    id="paymentDateTo"
+                    name="date_to"
+                    class="form-control"
+                    value="{{ $filters['date_to'] }}"
+                >
+            </div>
             <div class="bank-payment-filters__actions">
                 <button type="submit" class="btn btn-primary">Применить</button>
                 <a href="{{ route('bank.payments') }}" class="btn btn-outline-light">Сбросить</a>
