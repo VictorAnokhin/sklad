@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BankController;
 use App\Http\Controllers\BlockchainMonitorController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\DashboardAgentChatController;
 use App\Http\Controllers\DepositController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\FilterController;
@@ -72,6 +73,8 @@ Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
+    Route::get('/dashboard/agent-chat', [DashboardAgentChatController::class, 'index'])->name('dashboard.agent-chat.index');
+    Route::post('/dashboard/agent-chat', [DashboardAgentChatController::class, 'store'])->name('dashboard.agent-chat.store');
     Route::get('/blockchain-monitor', [BlockchainMonitorController::class, 'page'])->name('blockchain-monitor.index');
     Route::get('/blockchain-monitor/api/summary', [BlockchainMonitorController::class, 'summary'])->name('blockchain-monitor.summary');
     Route::get('/blockchain-monitor/api/events', [BlockchainMonitorController::class, 'events'])->name('blockchain-monitor.events');

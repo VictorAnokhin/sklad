@@ -134,6 +134,59 @@
         font-size: 1.35rem;
         margin-bottom: .85rem;
     }
+    .dashboard-agent-chat__messages {
+        min-height: 260px;
+        max-height: 420px;
+        overflow-y: auto;
+        border: 1px solid #323248;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, .2);
+        padding: .85rem;
+    }
+    .dashboard-agent-chat__message {
+        display: flex;
+        margin-bottom: .75rem;
+    }
+    .dashboard-agent-chat__message:last-child {
+        margin-bottom: 0;
+    }
+    .dashboard-agent-chat__bubble {
+        max-width: min(86%, 780px);
+        border: 1px solid rgba(255, 255, 255, .08);
+        border-radius: 10px;
+        padding: .65rem .8rem;
+        background: rgba(255, 255, 255, .045);
+        color: #e5e7eb;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: .92rem;
+        line-height: 1.45;
+    }
+    .dashboard-agent-chat__message--user {
+        justify-content: flex-end;
+    }
+    .dashboard-agent-chat__message--user .dashboard-agent-chat__bubble {
+        background: rgba(249, 168, 38, .16);
+        border-color: rgba(249, 168, 38, .35);
+        color: #fff;
+    }
+    .dashboard-agent-chat__meta {
+        display: block;
+        color: #a0a0b0;
+        font-size: .74rem;
+        margin-bottom: .25rem;
+    }
+    .dashboard-agent-chat .form-control {
+        background: rgba(255, 255, 255, .06);
+        border-color: #323248;
+        color: #f1f1f1;
+    }
+    .dashboard-agent-chat .form-control:focus {
+        background: rgba(255, 255, 255, .08);
+        border-color: var(--accent, #f9a826);
+        color: #fff;
+        box-shadow: 0 0 0 .2rem rgba(249, 168, 38, .15);
+    }
 </style>
 
 <div class="container mt-4 dashboard-container pb-5">
@@ -333,6 +386,42 @@
     </div>
     @endif
 
+    <div class="card glass-card-dashboard mt-4 dashboard-agent-chat">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                <div>
+                    <h5 class="card-title mb-1">AI агенты</h5>
+                    <div class="text-muted small">WebChatAgent принимает запрос, передает аналитику и публикует ответ для текущего проекта #{{ session('fid') }}.</div>
+                </div>
+                <div id="dashboard-agent-chat-status" class="text-muted small">Загрузка...</div>
+            </div>
+
+            <div id="dashboard-agent-chat-messages" class="dashboard-agent-chat__messages mb-3">
+                <div class="text-muted">История чата загружается...</div>
+            </div>
+
+            <form id="dashboard-agent-chat-form" class="row g-2 align-items-end">
+                @csrf
+                <input type="hidden" id="dashboard-agent-chat-session" value="">
+                <div class="col-12 col-lg">
+                    <label for="dashboard-agent-chat-input" class="form-label text-muted small mb-1">Запрос агентам</label>
+                    <textarea
+                        id="dashboard-agent-chat-input"
+                        class="form-control"
+                        rows="2"
+                        maxlength="4000"
+                        placeholder="Например: проанализируй капитал, риски и ближайшие действия по проекту"
+                    ></textarea>
+                </div>
+                <div class="col-12 col-lg-auto">
+                    <button type="submit" id="dashboard-agent-chat-submit" class="btn btn-outline-accent w-100">
+                        Отправить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="card glass-card-dashboard mt-4">
         <div class="card-body">
             <h5 class="card-title mb-3">⚙️ {{ __('dashboard.session') }}</h5>
@@ -352,6 +441,16 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const agentChat = {
+        form: document.getElementById('dashboard-agent-chat-form'),
+        input: document.getElementById('dashboard-agent-chat-input'),
+        submit: document.getElementById('dashboard-agent-chat-submit'),
+        messages: document.getElementById('dashboard-agent-chat-messages'),
+        status: document.getElementById('dashboard-agent-chat-status'),
+        session: document.getElementById('dashboard-agent-chat-session'),
+        indexEndpoint: @json(route('dashboard.agent-chat.index')),
+        storeEndpoint: @json(route('dashboard.agent-chat.store')),
+    };
     const form = document.getElementById('transport-lookup-form');
     const input = document.getElementById('transport-plate-input');
     const submit = document.getElementById('transport-lookup-submit');
@@ -373,6 +472,143 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
+
+    function formatAgentTime(value) {
+        if (!value) {
+            return '';
+        }
+
+        try {
+            return new Intl.DateTimeFormat('ru-RU', {
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                month: '2-digit',
+            }).format(new Date(value));
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function renderAgentMessages(messages) {
+        if (!agentChat.messages) {
+            return;
+        }
+
+        if (!Array.isArray(messages) || messages.length === 0) {
+            agentChat.messages.innerHTML = '<div class="text-muted">Пока нет сообщений. Отправьте запрос WebChatAgent.</div>';
+            return;
+        }
+
+        agentChat.messages.innerHTML = messages.map((message) => {
+            const role = message.role === 'user' ? 'user' : 'assistant';
+            const agent = message.metadata?.source_agent || (role === 'user' ? 'Dashboard' : 'WebChatAgent');
+            const time = formatAgentTime(message.created_at);
+
+            return `
+                <div class="dashboard-agent-chat__message dashboard-agent-chat__message--${role}">
+                    <div class="dashboard-agent-chat__bubble">
+                        <span class="dashboard-agent-chat__meta">${escapeHtml(agent)}${time ? ' · ' + escapeHtml(time) : ''}</span>
+                        ${escapeHtml(message.content || '')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+        agentChat.messages.scrollTop = agentChat.messages.scrollHeight;
+    }
+
+    async function loadAgentChat(silent = false) {
+        if (!agentChat.messages) {
+            return;
+        }
+
+        if (!silent && agentChat.status) {
+            agentChat.status.textContent = 'Загрузка...';
+        }
+
+        try {
+            const response = await fetch(agentChat.indexEndpoint, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'Не удалось загрузить чат.');
+            }
+
+            if (agentChat.session) {
+                agentChat.session.value = payload.session?.session_token || '';
+            }
+            renderAgentMessages(payload.messages || []);
+            if (agentChat.status) {
+                agentChat.status.textContent = payload.session?.session_token ? `Контекст: ${payload.session.session_token.slice(0, 8)}` : 'Готово';
+            }
+        } catch (error) {
+            if (!silent) {
+                agentChat.messages.innerHTML = `<div class="text-danger">${escapeHtml(error.message || error)}</div>`;
+            }
+            if (agentChat.status) {
+                agentChat.status.textContent = 'Ошибка';
+            }
+        }
+    }
+
+    agentChat.form?.addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const message = agentChat.input?.value.trim() || '';
+        if (!message) {
+            return;
+        }
+
+        agentChat.submit.disabled = true;
+        if (agentChat.status) {
+            agentChat.status.textContent = 'Отправка...';
+        }
+
+        try {
+            const response = await fetch(agentChat.storeEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': agentChat.form.querySelector('input[name="_token"]')?.value || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    message,
+                    session_token: agentChat.session?.value || null,
+                }),
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'Не удалось отправить запрос.');
+            }
+
+            agentChat.input.value = '';
+            if (agentChat.session) {
+                agentChat.session.value = payload.session?.session_token || agentChat.session.value;
+            }
+            renderAgentMessages(payload.messages || []);
+            if (agentChat.status) {
+                agentChat.status.textContent = 'Ожидаем ответ агента';
+            }
+        } catch (error) {
+            if (agentChat.status) {
+                agentChat.status.textContent = 'Ошибка отправки';
+            }
+            agentChat.messages.insertAdjacentHTML('beforeend', `<div class="text-danger">${escapeHtml(error.message || error)}</div>`);
+        } finally {
+            agentChat.submit.disabled = false;
+        }
+    });
+
+    loadAgentChat();
+    window.setInterval(() => loadAgentChat(true), 6000);
 
     function flattenObject(value, prefix = '', output = {}) {
         if (Array.isArray(value)) {

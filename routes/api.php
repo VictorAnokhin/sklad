@@ -16,6 +16,7 @@ use App\Http\Controllers\BackendAgentChatController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\CctpProxyController;
+use App\Http\Controllers\DashboardAgentChatController;
 use App\Http\Controllers\FundPoolController;
 use App\Http\Controllers\FundShareSettingsController;
 use App\Http\Controllers\FundTokenController;
@@ -125,6 +126,10 @@ Route::middleware(['api', 'throttle:120,1'])->prefix('external/webchat')->group(
     Route::get('/events', [WebchatIntelligenceController::class, 'agentEvents']);
     Route::post('/events', [WebchatIntelligenceController::class, 'agentEventStore']);
     Route::post('/unmet-needs', [WidgetIntelligenceController::class, 'storeUnmetNeed']);
+});
+Route::middleware(['api', 'throttle:60,1'])->prefix('external/dashboard-agent-chat')->group(function () {
+    Route::match(['get', 'post'], '/context', [DashboardAgentChatController::class, 'agentContext']);
+    Route::post('/messages', [DashboardAgentChatController::class, 'agentStore']);
 });
 Route::middleware(['api', 'throttle:60,1'])->group(function () {
     Route::get('/ai/knowledge-base', [AiKnowledgeBaseController::class, 'index']);
