@@ -215,6 +215,28 @@ class WalletController extends Controller
         return response()->json($this->manualDefiPositionPayload($row), $existing ? 200 : 201);
     }
 
+    public function deleteManualDefiPosition(Request $request, int $id)
+    {
+        if (! Schema::hasTable('manual_defi_positions')) {
+            return response()->json(['message' => 'Manual DeFi positions storage is not configured.'], 503);
+        }
+
+        $validated = $request->validate([
+            'address' => ['required', 'string', 'max:120'],
+            'fid' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $walletAddress = $this->normalizeManualDefiAddress((string) $validated['address']);
+        $fid = (int) ($validated['fid'] ?? 0);
+        $deleted = DB::table('manual_defi_positions')
+            ->where('id', $id)
+            ->where('wallet_address', $walletAddress)
+            ->where('fid', $fid)
+            ->delete();
+
+        return response()->json(['deleted' => $deleted > 0]);
+    }
+
     public function overview(Request $request)
     {
         $validated = $request->validate([

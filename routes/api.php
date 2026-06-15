@@ -201,6 +201,7 @@ Route::get('/wallet/{address}/tokens/search', [WalletController::class, 'walletT
 Route::get('/wallet/protocols', [WalletController::class, 'protocols']);
 Route::get('/wallet/manual-defi-positions', [WalletController::class, 'manualDefiPositions']);
 Route::post('/wallet/manual-defi-positions', [WalletController::class, 'storeManualDefiPosition']);
+Route::delete('/wallet/manual-defi-positions/{id}', [WalletController::class, 'deleteManualDefiPosition']);
 Route::get('/wallet/overview', [WalletController::class, 'overview']);
 Route::post('/wallet/swap/price', [WalletController::class, 'swapPrice']);
 Route::post('/wallet/swap/quote', [WalletController::class, 'swapQuote']);
