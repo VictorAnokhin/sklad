@@ -34,7 +34,19 @@
                             $selectedFieldsJson = e(json_encode($asset->selected_fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                             $payloadJson = e(json_encode($asset->last_payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                         @endphp
-                        <tr>
+                        <tr
+                            class="bank-clickable-row"
+                            data-tracked-adapter-open
+                            data-adapter-action="{{ $asset->adapter_action }}"
+                            data-adapter-name="{{ $asset->name }}"
+                            data-adapter-type="{{ strtoupper($asset->blockchain) }} · {{ strtoupper($asset->asset_type) }}"
+                            data-adapter-id="{{ $asset->asset_short }}"
+                            data-adapter-fields="{{ $availableFieldsJson }}"
+                            data-adapter-selected="{{ $selectedFieldsJson }}"
+                            data-adapter-payload="{{ $payloadJson }}"
+                            data-adapter-image="{{ $asset->image_url }}"
+                            data-adapter-external="{{ $asset->external_url }}"
+                        >
                             <td class="bank-table__select">
                                 <input type="checkbox" name="tracked_assets[]" value="{{ $asset->id }}" data-bulk-check="tracked-{{ $assetType }}" aria-label="Выбрать {{ $asset->name }}">
                             </td>
@@ -86,6 +98,8 @@
                                     data-adapter-fields="{{ $availableFieldsJson }}"
                                     data-adapter-selected="{{ $selectedFieldsJson }}"
                                     data-adapter-payload="{{ $payloadJson }}"
+                                    data-adapter-image="{{ $asset->image_url }}"
+                                    data-adapter-external="{{ $asset->external_url }}"
                                 >⚙</button>
                             </td>
                         </tr>
@@ -100,7 +114,21 @@
                             $selectedFieldsJson = e(json_encode($asset->selected_fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                             $payloadJson = e(json_encode($asset->last_payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                         @endphp
-                        <tr data-tracked-asset-hidden-row hidden>
+                        <tr
+                            class="bank-clickable-row"
+                            data-tracked-asset-hidden-row
+                            data-tracked-adapter-open
+                            data-adapter-action="{{ $asset->adapter_action }}"
+                            data-adapter-name="{{ $asset->name }}"
+                            data-adapter-type="{{ strtoupper($asset->blockchain) }} · {{ strtoupper($asset->asset_type) }}"
+                            data-adapter-id="{{ $asset->asset_short }}"
+                            data-adapter-fields="{{ $availableFieldsJson }}"
+                            data-adapter-selected="{{ $selectedFieldsJson }}"
+                            data-adapter-payload="{{ $payloadJson }}"
+                            data-adapter-image="{{ $asset->image_url }}"
+                            data-adapter-external="{{ $asset->external_url }}"
+                            hidden
+                        >
                             <td class="bank-table__select">
                                 <input type="checkbox" name="tracked_assets[]" value="{{ $asset->id }}" data-bulk-check="tracked-{{ $assetType }}" aria-label="Выбрать {{ $asset->name }}">
                             </td>
@@ -147,6 +175,8 @@
                                     data-adapter-fields="{{ $availableFieldsJson }}"
                                     data-adapter-selected="{{ $selectedFieldsJson }}"
                                     data-adapter-payload="{{ $payloadJson }}"
+                                    data-adapter-image="{{ $asset->image_url }}"
+                                    data-adapter-external="{{ $asset->external_url }}"
                                 >⚙</button>
                             </td>
                         </tr>

@@ -681,6 +681,7 @@
             </div>
             <form method="POST" class="bank-requisites-form" data-tracked-adapter-form>
                 @csrf
+                <div class="bank-tracked-preview" data-tracked-adapter-preview></div>
                 <div class="bank-adapter-field-list" data-tracked-adapter-fields></div>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-tracked-adapter-close>Отмена</button>
@@ -960,6 +961,45 @@
     .bank-adapter-field input {
         margin-top: 3px;
         accent-color: #fbbf24;
+    }
+
+    .bank-tracked-preview {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .bank-tracked-preview__main {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+        padding: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 12px;
+        background: rgba(2, 6, 23, 0.42);
+    }
+
+    .bank-tracked-preview__main img {
+        width: 86px;
+        height: 86px;
+        border-radius: 12px;
+        object-fit: cover;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+    }
+
+    .bank-tracked-preview__grid {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .bank-tracked-preview__tile {
+        min-width: 0;
+        padding: 9px;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.44);
     }
 
     .bank-clickable-row {
@@ -1268,6 +1308,7 @@
         const trackedAdapterForm = root.querySelector('[data-tracked-adapter-form]');
         const trackedAdapterContext = root.querySelector('[data-tracked-adapter-context]');
         const trackedAdapterFields = root.querySelector('[data-tracked-adapter-fields]');
+        const trackedAdapterPreview = root.querySelector('[data-tracked-adapter-preview]');
 
         function parseJsonAttribute(value, fallback) {
             try {
@@ -1294,62 +1335,127 @@
             return String(value);
         }
 
+        function appendPreviewTile(parent, label, value) {
+            if (value === null || value === undefined || value === '') {
+                return;
+            }
+            const tile = document.createElement('div');
+            tile.className = 'bank-tracked-preview__tile';
+            const title = document.createElement('div');
+            title.className = 'bank-label';
+            title.textContent = label;
+            const body = document.createElement('div');
+            body.className = 'bank-meta bank-mono';
+            body.textContent = Array.isArray(value) || typeof value === 'object' ? JSON.stringify(value) : String(value);
+            tile.appendChild(title);
+            tile.appendChild(body);
+            parent.appendChild(tile);
+        }
+
+        function openTrackedAdapterModal(source) {
+            if (!trackedAdapterModal || !trackedAdapterForm || !trackedAdapterFields) {
+                return;
+            }
+
+            const fields = parseJsonAttribute(source.dataset.adapterFields, []);
+            const selected = parseJsonAttribute(source.dataset.adapterSelected, []);
+            const payload = parseJsonAttribute(source.dataset.adapterPayload, {});
+            trackedAdapterForm.action = source.dataset.adapterAction || '';
+            trackedAdapterFields.innerHTML = '';
+            if (trackedAdapterPreview) {
+                trackedAdapterPreview.innerHTML = '';
+            }
+            if (trackedAdapterContext) {
+                trackedAdapterContext.textContent = [source.dataset.adapterName || '', source.dataset.adapterType || '', source.dataset.adapterId || '']
+                    .filter(Boolean)
+                    .join(' · ');
+            }
+
+            if (trackedAdapterPreview) {
+                const main = document.createElement('div');
+                main.className = 'bank-tracked-preview__main';
+                const imageUrl = source.dataset.adapterImage || payload.image_url || '';
+                if (imageUrl) {
+                    const image = document.createElement('img');
+                    image.src = imageUrl;
+                    image.alt = source.dataset.adapterName || 'Tracked asset';
+                    main.appendChild(image);
+                }
+                const mainText = document.createElement('div');
+                const name = document.createElement('strong');
+                name.textContent = source.dataset.adapterName || payload.name || 'Tracked asset';
+                const meta = document.createElement('div');
+                meta.className = 'bank-meta';
+                meta.textContent = [source.dataset.adapterType || '', source.dataset.adapterId || ''].filter(Boolean).join(' · ');
+                mainText.appendChild(name);
+                mainText.appendChild(meta);
+                const externalUrl = source.dataset.adapterExternal || payload.external_url || '';
+                if (externalUrl) {
+                    const link = document.createElement('a');
+                    link.href = externalUrl;
+                    link.target = '_blank';
+                    link.rel = 'noreferrer';
+                    link.className = 'btn btn-sm btn-outline-light mt-2';
+                    link.textContent = 'Открыть ссылку';
+                    mainText.appendChild(link);
+                }
+                main.appendChild(mainText);
+                trackedAdapterPreview.appendChild(main);
+
+                const grid = document.createElement('div');
+                grid.className = 'bank-tracked-preview__grid';
+                ['description', 'collection', 'owner', 'royalty_bps', 'token_standard', 'compressed', 'attributes', 'creators'].forEach((key) => {
+                    appendPreviewTile(grid, key, payload[key]);
+                });
+                if (grid.children.length > 0) {
+                    trackedAdapterPreview.appendChild(grid);
+                }
+            }
+
+            if (!Array.isArray(fields) || fields.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'bank-empty';
+                empty.textContent = 'Адаптер пока не вернул список полей. Нажмите Обновить для чтения данных.';
+                trackedAdapterFields.appendChild(empty);
+            } else {
+                fields.forEach((field) => {
+                    const key = String(field.key || '');
+                    if (key === '') {
+                        return;
+                    }
+                    const label = document.createElement('label');
+                    label.className = 'bank-adapter-field';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.name = 'selected_fields[]';
+                    checkbox.value = key;
+                    checkbox.checked = Array.isArray(selected) ? selected.includes(key) : false;
+
+                    const content = document.createElement('span');
+                    const title = document.createElement('strong');
+                    title.textContent = field.label || key;
+                    const meta = document.createElement('span');
+                    meta.className = 'bank-meta';
+                    const currentValue = adapterValueFor(payload, key);
+                    meta.textContent = [field.type || 'field', currentValue ? `value: ${currentValue}` : 'no value yet'].join(' · ');
+
+                    content.appendChild(title);
+                    content.appendChild(document.createElement('br'));
+                    content.appendChild(meta);
+                    label.appendChild(checkbox);
+                    label.appendChild(content);
+                    trackedAdapterFields.appendChild(label);
+                });
+            }
+
+            trackedAdapterModal.hidden = false;
+        }
+
         root.querySelectorAll('[data-tracked-adapter-open]').forEach((button) => {
             button.addEventListener('click', (event) => {
                 event.stopPropagation();
-                if (!trackedAdapterModal || !trackedAdapterForm || !trackedAdapterFields) {
-                    return;
-                }
-
-                const fields = parseJsonAttribute(button.dataset.adapterFields, []);
-                const selected = parseJsonAttribute(button.dataset.adapterSelected, []);
-                const payload = parseJsonAttribute(button.dataset.adapterPayload, {});
-                trackedAdapterForm.action = button.dataset.adapterAction || '';
-                trackedAdapterFields.innerHTML = '';
-                if (trackedAdapterContext) {
-                    trackedAdapterContext.textContent = [button.dataset.adapterName || '', button.dataset.adapterType || '', button.dataset.adapterId || '']
-                        .filter(Boolean)
-                        .join(' · ');
-                }
-
-                if (!Array.isArray(fields) || fields.length === 0) {
-                    const empty = document.createElement('div');
-                    empty.className = 'bank-empty';
-                    empty.textContent = 'Адаптер пока не вернул список полей. Нажмите Обновить для чтения данных.';
-                    trackedAdapterFields.appendChild(empty);
-                } else {
-                    fields.forEach((field) => {
-                        const key = String(field.key || '');
-                        if (key === '') {
-                            return;
-                        }
-                        const label = document.createElement('label');
-                        label.className = 'bank-adapter-field';
-
-                        const checkbox = document.createElement('input');
-                        checkbox.type = 'checkbox';
-                        checkbox.name = 'selected_fields[]';
-                        checkbox.value = key;
-                        checkbox.checked = Array.isArray(selected) ? selected.includes(key) : false;
-
-                        const content = document.createElement('span');
-                        const title = document.createElement('strong');
-                        title.textContent = field.label || key;
-                        const meta = document.createElement('span');
-                        meta.className = 'bank-meta';
-                        const currentValue = adapterValueFor(payload, key);
-                        meta.textContent = [field.type || 'field', currentValue ? `value: ${currentValue}` : 'no value yet'].join(' · ');
-
-                        content.appendChild(title);
-                        content.appendChild(document.createElement('br'));
-                        content.appendChild(meta);
-                        label.appendChild(checkbox);
-                        label.appendChild(content);
-                        trackedAdapterFields.appendChild(label);
-                    });
-                }
-
-                trackedAdapterModal.hidden = false;
+                openTrackedAdapterModal(button);
             });
         });
 
