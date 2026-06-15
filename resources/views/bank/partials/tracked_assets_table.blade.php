@@ -16,16 +16,24 @@
                             <input type="checkbox" data-bulk-check-all="tracked-{{ $assetType }}" aria-label="Выбрать все отслеживаемые активы">
                         </th>
                         <th>Актив</th>
+                        <th>Preview</th>
                         <th>Адрес</th>
                         <th>Блокчейн</th>
                         <th>Кошелек / protocol</th>
+                        <th>Данные</th>
                         <th class="text-end">Баланс</th>
                         <th class="text-end">Value USD</th>
                         <th>Статус</th>
+                        <th class="text-end">Настройки</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($rows as $asset)
+                        @php
+                            $availableFieldsJson = e(json_encode($asset->available_fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                            $selectedFieldsJson = e(json_encode($asset->selected_fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                            $payloadJson = e(json_encode($asset->last_payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                        @endphp
                         <tr>
                             <td class="bank-table__select">
                                 <input type="checkbox" name="tracked_assets[]" value="{{ $asset->id }}" data-bulk-check="tracked-{{ $assetType }}" aria-label="Выбрать {{ $asset->name }}">
@@ -34,6 +42,13 @@
                                 <strong>{{ $asset->name }}</strong>
                                 <div class="bank-meta">{{ $asset->symbol !== '' ? $asset->symbol : strtoupper($asset->asset_type) }}{{ $asset->token_id !== '' ? ' · #' . $asset->token_id : '' }}</div>
                             </td>
+                            <td>
+                                @if($asset->image_url !== '')
+                                    <img src="{{ $asset->image_url }}" alt="{{ $asset->name }}" class="bank-tracked-asset-image">
+                                @else
+                                    <span class="bank-meta">—</span>
+                                @endif
+                            </td>
                             <td class="bank-mono" title="{{ $asset->asset_address }}">{{ $asset->asset_short }}</td>
                             <td><span class="bank-pill bank-pill--currency">{{ strtoupper($asset->blockchain) }}</span></td>
                             <td>
@@ -42,16 +57,49 @@
                                     <div class="bank-meta">{{ $asset->protocol }}</div>
                                 @endif
                             </td>
+                            <td>
+                                @foreach($asset->selected_fields as $fieldKey)
+                                    @continue(in_array($fieldKey, ['name', 'symbol', 'image_url'], true))
+                                    @php $fieldValue = data_get($asset->last_payload, $fieldKey); @endphp
+                                    @if($fieldValue !== null && $fieldValue !== '' && ! is_array($fieldValue))
+                                        <div class="bank-meta"><strong>{{ $fieldKey }}:</strong> {{ $fieldValue }}</div>
+                                    @endif
+                                @endforeach
+                            </td>
                             <td class="text-end bank-mono">{{ $asset->last_balance !== null ? number_format((float) $asset->last_balance, 6, '.', ' ') : '—' }}</td>
                             <td class="text-end fw-semibold">{{ $asset->last_value_usd !== null ? $formatMoney($asset->last_value_usd) : '—' }}</td>
-                            <td><span class="bank-status {{ $asset->hidden ? 'bank-status--pending' : '' }}">{{ $asset->sync_status }}</span></td>
+                            <td>
+                                <span class="bank-status {{ $asset->sync_error !== '' ? 'bank-status--pending' : '' }}">{{ $asset->sync_status }}</span>
+                                @if($asset->sync_error !== '')
+                                    <div class="bank-meta">{{ $asset->sync_error }}</div>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-light"
+                                    data-tracked-adapter-open
+                                    data-adapter-action="{{ $asset->adapter_action }}"
+                                    data-adapter-name="{{ $asset->name }}"
+                                    data-adapter-type="{{ strtoupper($asset->blockchain) }} · {{ strtoupper($asset->asset_type) }}"
+                                    data-adapter-id="{{ $asset->asset_short }}"
+                                    data-adapter-fields="{{ $availableFieldsJson }}"
+                                    data-adapter-selected="{{ $selectedFieldsJson }}"
+                                    data-adapter-payload="{{ $payloadJson }}"
+                                >⚙</button>
+                            </td>
                         </tr>
                     @empty
                         <tr @if($hiddenRows->isNotEmpty()) data-tracked-asset-empty-visible @endif>
-                            <td colspan="8" class="text-center text-muted py-4">Отслеживаемые активы этого типа пока не добавлены.</td>
+                            <td colspan="11" class="text-center text-muted py-4">Отслеживаемые активы этого типа пока не добавлены.</td>
                         </tr>
                     @endforelse
                     @foreach($hiddenRows as $asset)
+                        @php
+                            $availableFieldsJson = e(json_encode($asset->available_fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                            $selectedFieldsJson = e(json_encode($asset->selected_fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                            $payloadJson = e(json_encode($asset->last_payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                        @endphp
                         <tr data-tracked-asset-hidden-row hidden>
                             <td class="bank-table__select">
                                 <input type="checkbox" name="tracked_assets[]" value="{{ $asset->id }}" data-bulk-check="tracked-{{ $assetType }}" aria-label="Выбрать {{ $asset->name }}">
@@ -60,6 +108,13 @@
                                 <strong>{{ $asset->name }}</strong>
                                 <div class="bank-meta">{{ $asset->symbol !== '' ? $asset->symbol : strtoupper($asset->asset_type) }}{{ $asset->token_id !== '' ? ' · #' . $asset->token_id : '' }}</div>
                             </td>
+                            <td>
+                                @if($asset->image_url !== '')
+                                    <img src="{{ $asset->image_url }}" alt="{{ $asset->name }}" class="bank-tracked-asset-image">
+                                @else
+                                    <span class="bank-meta">—</span>
+                                @endif
+                            </td>
                             <td class="bank-mono" title="{{ $asset->asset_address }}">{{ $asset->asset_short }}</td>
                             <td><span class="bank-pill bank-pill--currency">{{ strtoupper($asset->blockchain) }}</span></td>
                             <td>
@@ -68,9 +123,32 @@
                                     <div class="bank-meta">{{ $asset->protocol }}</div>
                                 @endif
                             </td>
+                            <td>
+                                @foreach($asset->selected_fields as $fieldKey)
+                                    @continue(in_array($fieldKey, ['name', 'symbol', 'image_url'], true))
+                                    @php $fieldValue = data_get($asset->last_payload, $fieldKey); @endphp
+                                    @if($fieldValue !== null && $fieldValue !== '' && ! is_array($fieldValue))
+                                        <div class="bank-meta"><strong>{{ $fieldKey }}:</strong> {{ $fieldValue }}</div>
+                                    @endif
+                                @endforeach
+                            </td>
                             <td class="text-end bank-mono">{{ $asset->last_balance !== null ? number_format((float) $asset->last_balance, 6, '.', ' ') : '—' }}</td>
                             <td class="text-end fw-semibold">{{ $asset->last_value_usd !== null ? $formatMoney($asset->last_value_usd) : '—' }}</td>
                             <td><span class="bank-status bank-status--pending">hidden</span></td>
+                            <td class="text-end">
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-light"
+                                    data-tracked-adapter-open
+                                    data-adapter-action="{{ $asset->adapter_action }}"
+                                    data-adapter-name="{{ $asset->name }}"
+                                    data-adapter-type="{{ strtoupper($asset->blockchain) }} · {{ strtoupper($asset->asset_type) }}"
+                                    data-adapter-id="{{ $asset->asset_short }}"
+                                    data-adapter-fields="{{ $availableFieldsJson }}"
+                                    data-adapter-selected="{{ $selectedFieldsJson }}"
+                                    data-adapter-payload="{{ $payloadJson }}"
+                                >⚙</button>
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

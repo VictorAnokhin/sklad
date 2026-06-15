@@ -101,6 +101,9 @@ Route::middleware(['auth'])->group(function () {
             ->name('tracked-assets.refresh');
         Route::post('/invest/tracked-assets/bulk', [BankController::class, 'bulkUpdateTrackedAssets'])
             ->name('tracked-assets.bulk');
+        Route::post('/invest/tracked-assets/{asset}/adapter', [BankController::class, 'updateTrackedAssetAdapter'])
+            ->whereNumber('asset')
+            ->name('tracked-assets.adapter');
         Route::post('/invest/assets/{source}/{asset}', [BankController::class, 'updateAssetManifestItem'])
             ->whereIn('source', ['deposit', 'pool'])
             ->whereNumber('asset')

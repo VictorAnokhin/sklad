@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Services\BlockchainAssetAdapterService;
 use App\Support\HoldingScope;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,10 @@ class BankController extends Controller
         'cancelled' => 'Отменена',
         'failed' => 'Ошибка',
     ];
+
+    public function __construct(private readonly BlockchainAssetAdapterService $assetAdapterService)
+    {
+    }
 
     public function cashAccounts(): View
     {
@@ -396,6 +401,7 @@ class BankController extends Controller
         ]);
 
         $now = now();
+        $adapter = $this->assetAdapterService->adapterFor((string) $payload['blockchain'], (string) $payload['asset_type']);
         $key = [
             'project_id' => (int) $project->id,
             'asset_type' => $payload['asset_type'],
@@ -405,10 +411,13 @@ class BankController extends Controller
             'token_id' => trim((string) ($payload['token_id'] ?? '')),
         ];
         $values = [
+            'adapter' => $adapter,
             'name' => trim((string) ($payload['name'] ?? '')),
             'symbol' => strtoupper(trim((string) ($payload['symbol'] ?? ''))),
             'protocol' => trim((string) ($payload['protocol'] ?? '')),
             'decimals' => array_key_exists('decimals', $payload) ? $payload['decimals'] : null,
+            'available_fields' => json_encode($this->assetAdapterService->availableFields($adapter)),
+            'selected_fields' => json_encode($this->assetAdapterService->defaultSelectedFields($adapter)),
             'sync_status' => 'manual',
             'sync_error' => null,
             'hidden' => false,
@@ -439,16 +448,79 @@ class BankController extends Controller
             $query->where('asset_type', $assetType);
         }
 
-        $updated = $query->update([
-            'sync_status' => 'refresh_requested',
-            'sync_error' => null,
-            'last_synced_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $rows = $query->get();
+        $updated = 0;
+        foreach ($rows as $row) {
+            $selectedFields = json_decode((string) ($row->selected_fields ?? '[]'), true);
+            $selectedFields = is_array($selectedFields) ? $selectedFields : null;
+            $result = $this->assetAdapterService->refresh([
+                'adapter' => (string) ($row->adapter ?? ''),
+                'asset_type' => (string) ($row->asset_type ?? ''),
+                'blockchain' => (string) ($row->blockchain ?? ''),
+                'asset_address' => (string) ($row->asset_address ?? ''),
+                'owner_address' => (string) ($row->owner_address ?? ''),
+                'name' => (string) ($row->name ?? ''),
+                'symbol' => (string) ($row->symbol ?? ''),
+                'selected_fields' => $selectedFields,
+            ]);
+
+            DB::table('bank_tracked_assets')->where('id', (int) $row->id)->update([
+                'adapter' => (string) ($result['adapter'] ?? $row->adapter ?? 'manual'),
+                'name' => array_key_exists('name', $result) ? (string) $result['name'] : (string) ($row->name ?? ''),
+                'symbol' => array_key_exists('symbol', $result) ? (string) $result['symbol'] : (string) ($row->symbol ?? ''),
+                'owner_address' => array_key_exists('owner_address', $result) ? (string) $result['owner_address'] : (string) ($row->owner_address ?? ''),
+                'available_fields' => json_encode($result['available_fields'] ?? []),
+                'selected_fields' => json_encode($result['selected_fields'] ?? []),
+                'image_url' => array_key_exists('image_url', $result) ? (string) $result['image_url'] : (string) ($row->image_url ?? ''),
+                'external_url' => array_key_exists('external_url', $result) ? (string) $result['external_url'] : (string) ($row->external_url ?? ''),
+                'last_payload' => array_key_exists('last_payload', $result) ? json_encode($result['last_payload']) : $row->last_payload,
+                'sync_status' => (string) ($result['sync_status'] ?? 'refresh_requested'),
+                'sync_error' => $result['sync_error'] ?? null,
+                'last_synced_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $updated++;
+        }
 
         return redirect()
             ->route('bank.invest')
             ->with('success', $updated > 0 ? 'Обновление активов запрошено.' : 'Нет активов для обновления.');
+    }
+
+    public function updateTrackedAssetAdapter(Request $request, int $asset): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_tracked_assets'), 404);
+
+        $row = DB::table('bank_tracked_assets')
+            ->where('project_id', (int) $project->id)
+            ->where('id', $asset)
+            ->first();
+        abort_unless($row, 404);
+
+        $payload = $request->validate([
+            'selected_fields' => ['nullable', 'array'],
+            'selected_fields.*' => ['string', 'max:80'],
+        ]);
+
+        $availableFields = json_decode((string) ($row->available_fields ?? '[]'), true);
+        $availableKeys = collect(is_array($availableFields) ? $availableFields : [])
+            ->pluck('key')
+            ->filter()
+            ->map(fn ($key) => (string) $key)
+            ->all();
+        $selectedFields = collect($payload['selected_fields'] ?? [])
+            ->map(fn ($key) => (string) $key)
+            ->filter(fn ($key) => in_array($key, $availableKeys, true))
+            ->values()
+            ->all();
+
+        DB::table('bank_tracked_assets')->where('id', (int) $row->id)->update([
+            'selected_fields' => json_encode($selectedFields),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->route('bank.invest')->with('success', 'Настройки адаптера сохранены.');
     }
 
     public function bulkUpdateTrackedAssets(Request $request): RedirectResponse
@@ -890,6 +962,7 @@ class BankController extends Controller
                 return (object) [
                     'id' => (int) $row->id,
                     'asset_type' => (string) ($row->asset_type ?? 'token'),
+                    'adapter' => (string) ($row->adapter ?? 'manual'),
                     'name' => trim((string) ($row->name ?? '')) ?: (trim((string) ($row->symbol ?? '')) ?: 'Tracked asset'),
                     'symbol' => (string) ($row->symbol ?? ''),
                     'blockchain' => (string) ($row->blockchain ?? ''),
@@ -903,7 +976,14 @@ class BankController extends Controller
                     'last_balance' => $row->last_balance !== null ? (float) $row->last_balance : null,
                     'last_price_usd' => $row->last_price_usd !== null ? (float) $row->last_price_usd : null,
                     'last_value_usd' => $row->last_value_usd !== null ? (float) $row->last_value_usd : null,
+                    'last_payload' => json_decode((string) ($row->last_payload ?? '[]'), true) ?: [],
+                    'available_fields' => json_decode((string) ($row->available_fields ?? '[]'), true) ?: [],
+                    'selected_fields' => json_decode((string) ($row->selected_fields ?? '[]'), true) ?: [],
+                    'image_url' => (string) ($row->image_url ?? ''),
+                    'external_url' => (string) ($row->external_url ?? ''),
+                    'adapter_action' => route('bank.tracked-assets.adapter', ['asset' => (int) $row->id]),
                     'sync_status' => (string) ($row->sync_status ?? 'manual'),
+                    'sync_error' => (string) ($row->sync_error ?? ''),
                     'hidden' => (bool) ($row->hidden ?? false),
                     'last_synced_at' => (string) ($row->last_synced_at ?? ''),
                 ];

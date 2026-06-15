@@ -668,6 +668,28 @@
         </div>
     </div>
 
+    <div class="bank-modal" data-tracked-adapter-modal hidden>
+        <div class="bank-modal__backdrop" data-tracked-adapter-close></div>
+        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="trackedAdapterModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Blockchain adapter</div>
+                    <h2 id="trackedAdapterModalTitle">Настройки адаптера</h2>
+                    <div class="bank-meta" data-tracked-adapter-context></div>
+                </div>
+                <button type="button" class="bank-modal__close" data-tracked-adapter-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="POST" class="bank-requisites-form" data-tracked-adapter-form>
+                @csrf
+                <div class="bank-adapter-field-list" data-tracked-adapter-fields></div>
+                <div class="bank-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-tracked-adapter-close>Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="bank-modal" data-token-manifest-modal hidden>
         <div class="bank-modal__backdrop" data-token-manifest-close></div>
         <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tokenManifestModalTitle">
@@ -908,6 +930,36 @@
         justify-content: flex-end;
         padding: 10px 14px 14px;
         border-top: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .bank-tracked-asset-image {
+        width: 42px;
+        height: 42px;
+        border-radius: 8px;
+        object-fit: cover;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(2, 6, 23, 0.6);
+    }
+
+    .bank-adapter-field-list {
+        display: grid;
+        gap: 8px;
+    }
+
+    .bank-adapter-field {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+        padding: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 10px;
+        background: rgba(2, 6, 23, 0.42);
+    }
+
+    .bank-adapter-field input {
+        margin-top: 3px;
+        accent-color: #fbbf24;
     }
 
     .bank-clickable-row {
@@ -1208,6 +1260,103 @@
             button.addEventListener('click', () => {
                 if (trackedAssetModal) {
                     trackedAssetModal.hidden = true;
+                }
+            });
+        });
+
+        const trackedAdapterModal = root.querySelector('[data-tracked-adapter-modal]');
+        const trackedAdapterForm = root.querySelector('[data-tracked-adapter-form]');
+        const trackedAdapterContext = root.querySelector('[data-tracked-adapter-context]');
+        const trackedAdapterFields = root.querySelector('[data-tracked-adapter-fields]');
+
+        function parseJsonAttribute(value, fallback) {
+            try {
+                return JSON.parse(value || '');
+            } catch (error) {
+                return fallback;
+            }
+        }
+
+        function adapterValueFor(payload, key) {
+            if (!payload || typeof payload !== 'object') {
+                return '';
+            }
+            const value = payload[key];
+            if (value === null || value === undefined || value === '') {
+                return '';
+            }
+            if (Array.isArray(value)) {
+                return `${value.length} item(s)`;
+            }
+            if (typeof value === 'object') {
+                return JSON.stringify(value);
+            }
+            return String(value);
+        }
+
+        root.querySelectorAll('[data-tracked-adapter-open]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (!trackedAdapterModal || !trackedAdapterForm || !trackedAdapterFields) {
+                    return;
+                }
+
+                const fields = parseJsonAttribute(button.dataset.adapterFields, []);
+                const selected = parseJsonAttribute(button.dataset.adapterSelected, []);
+                const payload = parseJsonAttribute(button.dataset.adapterPayload, {});
+                trackedAdapterForm.action = button.dataset.adapterAction || '';
+                trackedAdapterFields.innerHTML = '';
+                if (trackedAdapterContext) {
+                    trackedAdapterContext.textContent = [button.dataset.adapterName || '', button.dataset.adapterType || '', button.dataset.adapterId || '']
+                        .filter(Boolean)
+                        .join(' · ');
+                }
+
+                if (!Array.isArray(fields) || fields.length === 0) {
+                    const empty = document.createElement('div');
+                    empty.className = 'bank-empty';
+                    empty.textContent = 'Адаптер пока не вернул список полей. Нажмите Обновить для чтения данных.';
+                    trackedAdapterFields.appendChild(empty);
+                } else {
+                    fields.forEach((field) => {
+                        const key = String(field.key || '');
+                        if (key === '') {
+                            return;
+                        }
+                        const label = document.createElement('label');
+                        label.className = 'bank-adapter-field';
+
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.name = 'selected_fields[]';
+                        checkbox.value = key;
+                        checkbox.checked = Array.isArray(selected) ? selected.includes(key) : false;
+
+                        const content = document.createElement('span');
+                        const title = document.createElement('strong');
+                        title.textContent = field.label || key;
+                        const meta = document.createElement('span');
+                        meta.className = 'bank-meta';
+                        const currentValue = adapterValueFor(payload, key);
+                        meta.textContent = [field.type || 'field', currentValue ? `value: ${currentValue}` : 'no value yet'].join(' · ');
+
+                        content.appendChild(title);
+                        content.appendChild(document.createElement('br'));
+                        content.appendChild(meta);
+                        label.appendChild(checkbox);
+                        label.appendChild(content);
+                        trackedAdapterFields.appendChild(label);
+                    });
+                }
+
+                trackedAdapterModal.hidden = false;
+            });
+        });
+
+        root.querySelectorAll('[data-tracked-adapter-close]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (trackedAdapterModal) {
+                    trackedAdapterModal.hidden = true;
                 }
             });
         });
