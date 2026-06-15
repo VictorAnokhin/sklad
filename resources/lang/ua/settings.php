@@ -186,6 +186,14 @@ return [
         'label_file' => 'Файл:',
         'open_file' => 'Відкрити',
         'file_current' => 'Поточний файл:',
+        'cities' => 'Міста',
+        'cities_of_region' => 'Міста регіону',
+        'add_city' => '+ Додати місто',
+        'city_name_ua' => 'Назва UA (val)',
+        'city_name_ru' => 'Назва RU (valru)',
+        'city_name_en' => 'Назва EN (valen)',
+        'cities_empty' => 'У цьому регіоні міст ще немає',
+        'delete_city_confirm' => 'Видалити місто?',
     ],
 
     'field_modes' => [

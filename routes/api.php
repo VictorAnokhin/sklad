@@ -182,6 +182,7 @@ Route::middleware('auth:sanctum')->post('/goods/rating/{id}', [GoodsController::
 Route::middleware('auth:sanctum')->post('/goods/{id}/rating', [GoodsController::class, 'saveRating']);
 Route::get('/goods/{id}', [GoodsController::class, 'getOne']);
 Route::get('/regions', [GoodsController::class, 'getRegions']);
+Route::get('/cities', [GoodsController::class, 'getCities']);
 
 // ── News API ──────────────────────────────────────────────────────────────
 

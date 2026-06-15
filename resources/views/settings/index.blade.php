@@ -504,9 +504,9 @@
                             <tr>
                                 <th class="catalog-id-cell">{{ __('settings.catalog_modal.th_id') }}</th>
                                 <th>{{ __('settings.catalog_modal.th_names') }}</th>
-                                <th id="" class="catalog-description-cell">{{ __('settings.catalog_modal.th_description') }}</th>
+                                <th id="catalog-description-head" class="catalog-description-cell">{{ __('settings.catalog_modal.th_description') }}</th>
                                 <th id="catalog-flags-head" class="catalog-flags-cell">{{ __('settings.catalog_modal.th_flags') }}</th>
-                                <th id="catalog-description-head" class="catalog-children-cell">{{ __('settings.catalog_modal.th_subcategories') }}</th>
+                                <th id="catalog-children-head" class="catalog-children-cell">{{ __('settings.catalog_modal.th_subcategories') }}</th>
                                 <th class="catalog-actions-cell">{{ __('settings.common.actions') }}</th>
                             </tr>
                         </thead>
@@ -514,6 +514,56 @@
                     </table>
                 </div>
                 <p class="text-center text-muted" id="catalog-empty-msg" style="display:none">{{ __('settings.field_modes.catalog.empty') }}</p>
+            </div>
+
+            <div class="modal-body" id="region-cities-area" style="display:none">
+                <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                    <h6 class="mb-0" id="region-cities-title"></h6>
+                    <button type="button" class="btn btn-sm btn-primary" id="btn-region-city-add">{{ __('settings.catalog_modal.add_city') }}</button>
+                </div>
+                <div id="region-city-form-area" class="glass-card p-3 mb-3" style="display:none">
+                    <form id="region-city-form">
+                        <input type="hidden" id="region-city-id">
+                        <div class="row">
+                            <div class="col-md-3 mb-2">
+                                <label class="form-label">{{ __('settings.catalog_modal.city_name_ua') }} <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="region-city-val" maxlength="60" required>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <label class="form-label">{{ __('settings.catalog_modal.city_name_ru') }}</label>
+                                <input type="text" class="form-control" id="region-city-valru" maxlength="60">
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <label class="form-label">{{ __('settings.catalog_modal.city_name_en') }}</label>
+                                <input type="text" class="form-control" id="region-city-valen" maxlength="60">
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <label class="form-label">{{ __('settings.catalog_modal.num') }}</label>
+                                <input type="number" class="form-control" id="region-city-num" min="0" max="65535" value="0">
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">{{ __('settings.common.save') }}</button>
+                            <button type="button" class="btn btn-secondary" id="btn-region-city-cancel">{{ __('settings.common.cancel') }}</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>UA (val)</th>
+                                <th>RU (valru)</th>
+                                <th>EN (valen)</th>
+                                <th>num</th>
+                                <th class="text-end">{{ __('settings.common.actions') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="region-cities-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-muted" id="region-cities-empty" style="display:none">{{ __('settings.catalog_modal.cities_empty') }}</p>
             </div>
         </div>
     </div>
@@ -4219,12 +4269,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const descriptionHead = document.getElementById('catalog-description-head');
         const childrenHead = document.getElementById('catalog-children-head');
         const newsCatalogSelect = document.getElementById('catalog-news-catalog');
+        const regionCitiesArea = document.getElementById('region-cities-area');
+        const regionCitiesTitle = document.getElementById('region-cities-title');
+        const regionCitiesTbody = document.getElementById('region-cities-tbody');
+        const regionCitiesEmpty = document.getElementById('region-cities-empty');
+        const regionCityFormArea = document.getElementById('region-city-form-area');
+        const regionCityForm = document.getElementById('region-city-form');
+        const regionCityAddBtn = document.getElementById('btn-region-city-add');
+        const regionCityCancelBtn = document.getElementById('btn-region-city-cancel');
         const newsMap = new Map((newsOptions || []).map((item) => [String(item.id), item.title]));
 
         hydrateNewsSelect(newsCatalogSelect, newsOptions || []);
 
         let currentKeyfield = 'catalog';
         let currentParentId = '0';
+        let selectedRegion = null;
         const fieldModeConfig = window.SettingsI18n.field_modes || {};
         let breadcrumb = [{ id: 0, name: fieldModeConfig.catalog.root }];
 
@@ -4237,13 +4296,20 @@ document.addEventListener('DOMContentLoaded', () => {
             resetCatalogForm();
             currentKeyfield = 'catalog';
             currentParentId = '0';
+            selectedRegion = null;
             breadcrumb = [{ id: 0, name: fieldModeConfig.catalog.root }];
+            hideRegionCities();
         });
 
         modeCatalogBtn?.addEventListener('click', () => switchFieldMode('catalog'));
         modeCityBtn?.addEventListener('click', () => switchFieldMode('city'));
 
         addBtn.addEventListener('click', () => {
+            if (selectedRegion) {
+                resetRegionCityForm();
+                regionCityFormArea.style.display = 'block';
+                return;
+            }
             resetCatalogForm();
             document.getElementById('catalog-parent-id').value = currentKeyfield === 'catalog' ? currentParentId : '0';
             document.getElementById('catalog-keyfield').value = currentKeyfield;
@@ -4257,6 +4323,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         backBtn.addEventListener('click', () => {
+            if (selectedRegion) {
+                hideRegionCities();
+                loadCatalog('0');
+                return;
+            }
             if (currentKeyfield === 'catalog' && breadcrumb.length > 1) {
                 const target = breadcrumb[breadcrumb.length - 2];
                 loadCatalog(String(target.id));
@@ -4276,6 +4347,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = btn.dataset.id;
             if (btn.dataset.action === 'open') {
                 loadCatalog(String(id));
+            }
+            if (btn.dataset.action === 'cities') {
+                openRegionCities({
+                    id,
+                    name: btn.dataset.name || `#${id}`,
+                });
             }
             if (btn.dataset.action === 'edit') {
                 editCategory(id);
@@ -4399,7 +4476,7 @@ document.addEventListener('DOMContentLoaded', () => {
             emptyMsg.style.display = 'none';
             items.forEach((item) => {
                 const tr = document.createElement('tr');
-                const childLabel = currentKeyfield === 'catalog' && item.children_count > 0
+                const childLabel = item.children_count > 0
                     ? `<span class="badge bg-info text-dark">${item.children_count}</span>`
                     : '<span class="text-muted">0</span>';
                 const flags = fieldModeConfig[currentKeyfield].showExtra ? `
@@ -4416,7 +4493,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ` : '<span class="text-muted">—</span>';
                 const openButton = currentKeyfield === 'catalog'
                     ? `<button class="btn btn-sm btn-outline-secondary action-btn" data-action="open" data-id="${item.id}">📂</button>`
-                    : '';
+                    : `<button class="btn btn-sm btn-outline-secondary action-btn" data-action="cities" data-id="${item.id}" data-name="${escapeHtml(item.name_ua || item.name_ru || `#${item.id}`)}">${escapeHtml(_ts('catalog_modal.cities'))}</button>`;
                 tr.innerHTML = `
                     <td >${item.id}</td>
                     <td>
@@ -4609,7 +4686,9 @@ document.addEventListener('DOMContentLoaded', () => {
         function switchFieldMode(mode) {
             currentKeyfield = mode;
             currentParentId = '0';
+            selectedRegion = null;
             breadcrumb = [{ id: 0, name: fieldModeConfig[mode].root }];
+            hideRegionCities();
             hideCatalogForm();
             resetCatalogForm();
             applyFieldMode();
@@ -4633,6 +4712,154 @@ document.addEventListener('DOMContentLoaded', () => {
             if (childrenHead) childrenHead.textContent = config.allowChildren ? _ts('crud.column_subcategories') : _ts('crud.column_records');
             if (breadcrumbBox) breadcrumbBox.style.display = config.allowChildren ? '' : 'none';
             if (backBtn) backBtn.style.display = 'none';
+        }
+
+        async function openRegionCities(region) {
+            selectedRegion = region;
+            hideCatalogForm();
+            listArea.style.display = 'none';
+            regionCitiesArea.style.display = 'block';
+            regionCityFormArea.style.display = 'none';
+            regionCitiesTitle.textContent = `${_ts('catalog_modal.cities_of_region')}: ${region.name}`;
+            currentLevel.textContent = regionCitiesTitle.textContent;
+            addBtn.style.display = 'none';
+            backBtn.style.display = 'inline-block';
+            await loadRegionCities();
+        }
+
+        function hideRegionCities() {
+            selectedRegion = null;
+            regionCitiesArea.style.display = 'none';
+            regionCityFormArea.style.display = 'none';
+            addBtn.style.display = '';
+            listArea.style.display = 'block';
+        }
+
+        async function loadRegionCities() {
+            if (!selectedRegion) return;
+
+            regionCitiesTbody.innerHTML = `<tr><td colspan="6" class="text-muted">${escapeHtml(_ts('js.loading'))}</td></tr>`;
+            const response = await fetch(`/settings/region-cities?region_id=${encodeURIComponent(selectedRegion.id)}`, {
+                headers: { Accept: 'application/json' },
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                alert(data.message || _ts('js.error_generic'));
+                return;
+            }
+
+            const items = data.items || [];
+            regionCitiesTbody.innerHTML = '';
+            regionCitiesEmpty.style.display = items.length ? 'none' : 'block';
+            items.forEach((city) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${city.id}</td>
+                    <td>${escapeHtml(city.val)}</td>
+                    <td>${escapeHtml(city.valru || '—')}</td>
+                    <td>${escapeHtml(city.valen || '—')}</td>
+                    <td>${city.num}</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-primary region-city-edit" data-id="${city.id}">✏</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger region-city-delete" data-id="${city.id}">🗑</button>
+                    </td>
+                `;
+                regionCitiesTbody.appendChild(tr);
+            });
+        }
+
+        regionCityAddBtn.addEventListener('click', () => {
+            resetRegionCityForm();
+            regionCityFormArea.style.display = 'block';
+        });
+
+        regionCityCancelBtn.addEventListener('click', () => {
+            resetRegionCityForm();
+            regionCityFormArea.style.display = 'none';
+        });
+
+        regionCitiesTbody.addEventListener('click', async (event) => {
+            const editButton = event.target.closest('.region-city-edit');
+            const deleteButton = event.target.closest('.region-city-delete');
+
+            if (editButton) {
+                const response = await fetch(`/settings/region-cities/${encodeURIComponent(editButton.dataset.id)}`, {
+                    headers: { Accept: 'application/json' },
+                });
+                const city = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    alert(city.message || _ts('js.error_generic'));
+                    return;
+                }
+                document.getElementById('region-city-id').value = city.id;
+                document.getElementById('region-city-val').value = city.val || '';
+                document.getElementById('region-city-valru').value = city.valru || '';
+                document.getElementById('region-city-valen').value = city.valen || '';
+                document.getElementById('region-city-num').value = city.num ?? 0;
+                regionCityFormArea.style.display = 'block';
+            }
+
+            if (deleteButton) {
+                if (!confirm(_ts('catalog_modal.delete_city_confirm'))) return;
+                const response = await fetch(`/settings/region-cities/${encodeURIComponent(deleteButton.dataset.id)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    alert(data.message || _ts('js.delete_error'));
+                    return;
+                }
+                await loadRegionCities();
+            }
+        });
+
+        regionCityForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!selectedRegion) return;
+
+            const id = document.getElementById('region-city-id').value;
+            const payload = {
+                region_id: Number(selectedRegion.id),
+                val: document.getElementById('region-city-val').value.trim(),
+                valru: document.getElementById('region-city-valru').value.trim(),
+                valen: document.getElementById('region-city-valen').value.trim(),
+                num: Number(document.getElementById('region-city-num').value) || 0,
+            };
+            if (!payload.val) {
+                alert(_ts('js.name_ua_required'));
+                return;
+            }
+
+            const response = await fetch(id
+                ? `/settings/region-cities/${encodeURIComponent(id)}`
+                : '/settings/region-cities', {
+                method: id ? 'PUT' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                alert(data.message || _ts('js.save_error'));
+                return;
+            }
+
+            resetRegionCityForm();
+            regionCityFormArea.style.display = 'none';
+            await loadRegionCities();
+        });
+
+        function resetRegionCityForm() {
+            regionCityForm.reset();
+            document.getElementById('region-city-id').value = '';
+            document.getElementById('region-city-num').value = '0';
         }
     }
 

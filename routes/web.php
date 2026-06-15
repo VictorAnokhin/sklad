@@ -288,6 +288,11 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/catalog-filters', [SettingsController::class, 'catalogFiltersStore'])->name('catalogFilters.store');
             Route::put('/catalog-filters/{id}', [SettingsController::class, 'catalogFiltersUpdate'])->name('catalogFilters.update');
             Route::delete('/catalog-filters/{id}', [SettingsController::class, 'catalogFiltersDestroy'])->name('catalogFilters.destroy');
+            Route::get('/region-cities', [SettingsController::class, 'regionCitiesIndex'])->name('regionCities.index');
+            Route::get('/region-cities/{id}', [SettingsController::class, 'regionCitiesShow'])->name('regionCities.show');
+            Route::post('/region-cities', [SettingsController::class, 'regionCitiesStore'])->name('regionCities.store');
+            Route::put('/region-cities/{id}', [SettingsController::class, 'regionCitiesUpdate'])->name('regionCities.update');
+            Route::delete('/region-cities/{id}', [SettingsController::class, 'regionCitiesDestroy'])->name('regionCities.destroy');
             Route::get('/banners', [SettingsController::class , 'bannersIndex'])->name('banners.index');
             Route::get('/banners/{id}', [SettingsController::class , 'bannersShow'])->name('banners.show');
             Route::post('/banners', [SettingsController::class , 'bannersStore'])->name('banners.store');

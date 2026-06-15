@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -417,10 +418,96 @@ class GoodsController extends Controller
         $fid = $this->resolveApiFid($request, '2');
         $locale = $this->resolveApiLocale($request);
         $regions = Field::getRegionsList($fid, $locale);
+        $regionIds = $regions->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $citiesByRegion = collect();
+
+        if ($regionIds !== [] && Schema::hasTable('filter')) {
+            $citiesByRegion = Filter::query()
+                ->where('keyfield', 'city')
+                ->whereIn('idkeyfield', $regionIds)
+                ->orderBy('num')
+                ->orderBy('val')
+                ->orderBy('id')
+                ->get(['id', 'idkeyfield', 'val', 'valru', 'valen', 'num'])
+                ->map(function ($city) use ($locale) {
+                    $nameUa = trim((string) ($city->val ?? ''));
+                    $nameRu = trim((string) ($city->valru ?? ''));
+                    $nameEn = trim((string) ($city->valen ?? ''));
+                    $slugSource = $nameRu !== '' ? $nameRu : ($nameEn !== '' ? $nameEn : $nameUa);
+
+                    return [
+                        'id' => (int) $city->id,
+                        'region_id' => (int) $city->idkeyfield,
+                        'slug' => Str::slug($slugSource) ?: 'city-' . $city->id,
+                        'name' => Field::localizedValue($locale, $nameRu, $nameUa, $nameEn),
+                        'val' => $nameUa,
+                        'valru' => $nameRu,
+                        'valen' => $nameEn,
+                        'num' => (int) ($city->num ?? 0),
+                    ];
+                })
+                ->groupBy('region_id');
+        }
+
+        $regions = $regions->map(function (array $region) use ($citiesByRegion) {
+            $region['cities'] = $citiesByRegion->get($region['id'], collect())->values();
+
+            return $region;
+        })->values();
 
         return response()->json([
             'success' => true,
             'data' => $regions,
+            'locale' => $locale,
+        ]);
+    }
+
+    public function getCities(Request $request)
+    {
+        $fid = $this->resolveApiFid($request, '2');
+        $locale = $this->resolveApiLocale($request);
+        $regionIds = Field::getRegionsList($fid, $locale)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($regionIds === [] || !Schema::hasTable('filter')) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'locale' => $locale,
+            ]);
+        }
+
+        $cities = Filter::query()
+            ->where('keyfield', 'city')
+            ->whereIn('idkeyfield', $regionIds)
+            ->orderBy('num')
+            ->orderBy('val')
+            ->orderBy('id')
+            ->get(['id', 'idkeyfield', 'val', 'valru', 'valen', 'num'])
+            ->map(function ($city) use ($locale) {
+                $nameUa = trim((string) ($city->val ?? ''));
+                $nameRu = trim((string) ($city->valru ?? ''));
+                $nameEn = trim((string) ($city->valen ?? ''));
+                $slugSource = $nameRu !== '' ? $nameRu : ($nameEn !== '' ? $nameEn : $nameUa);
+
+                return [
+                    'id' => (int) $city->id,
+                    'region_id' => (int) $city->idkeyfield,
+                    'slug' => Str::slug($slugSource) ?: 'city-' . $city->id,
+                    'name' => Field::localizedValue($locale, $nameRu, $nameUa, $nameEn),
+                    'val' => $nameUa,
+                    'valru' => $nameRu,
+                    'valen' => $nameEn,
+                    'num' => (int) ($city->num ?? 0),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => $cities,
             'locale' => $locale,
         ]);
     }

@@ -1772,6 +1772,143 @@ class SettingsController extends Controller
         return response()->json(['success' => true]);
     }
 
+    // ── Region cities (filter.keyfield = city, idkeyfield = field.id region) ──
+
+    public function regionCitiesIndex(Request $request)
+    {
+        if (!Schema::hasTable('filter')) {
+            return response()->json(['items' => [], 'region_id' => null]);
+        }
+
+        $regionId = (int) $request->query('region_id', 0);
+        if (!$this->fieldRegionFind(session('fid', ''), $regionId)) {
+            return response()->json(['message' => 'Регіон не знайдено'], 404);
+        }
+
+        $items = Filter::query()
+            ->where('keyfield', 'city')
+            ->where('idkeyfield', $regionId)
+            ->orderBy('num')
+            ->orderBy('val')
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($row) => $this->serializeRegionCity($row))
+            ->values();
+
+        return response()->json(['items' => $items, 'region_id' => $regionId]);
+    }
+
+    public function regionCitiesShow($id)
+    {
+        $row = $this->regionCityFind(session('fid', ''), $id);
+        if (!$row) {
+            return response()->json(['message' => 'Місто не знайдено'], 404);
+        }
+
+        return response()->json($this->serializeRegionCity($row));
+    }
+
+    public function regionCitiesStore(Request $request)
+    {
+        if (!Schema::hasTable('filter')) {
+            return response()->json(['success' => false, 'message' => 'Таблиця filter відсутня'], 404);
+        }
+
+        $data = $this->validateRegionCity($request, true);
+        $regionId = (int) $data['region_id'];
+        if (!$this->fieldRegionFind(session('fid', ''), $regionId)) {
+            return response()->json(['success' => false, 'message' => 'Регіон не знайдено'], 404);
+        }
+
+        $payload = $this->regionCityPayload($data);
+        $payload['idkeyfield'] = $regionId;
+        $payload['idfilter'] = 0;
+        $payload['keyfield'] = 'city';
+        $payload['count'] = 0;
+        $payload['top'] = 0;
+        foreach (['description', 'descriptionen', 'descriptionru'] as $column) {
+            if (Schema::hasColumn('filter', $column)) {
+                $payload[$column] = '';
+            }
+        }
+
+        $id = Filter::query()->insertGetId($payload);
+        $row = Filter::query()->find($id);
+
+        return response()->json([
+            'success' => true,
+            'item' => $row ? $this->serializeRegionCity($row) : null,
+        ]);
+    }
+
+    public function regionCitiesUpdate(Request $request, $id)
+    {
+        $row = $this->regionCityFind(session('fid', ''), $id);
+        if (!$row) {
+            return response()->json(['success' => false, 'message' => 'Місто не знайдено'], 404);
+        }
+
+        $data = $this->validateRegionCity($request);
+        Filter::query()->where('id', $row->id)->update($this->regionCityPayload($data));
+        $fresh = Filter::query()->find($row->id);
+
+        return response()->json([
+            'success' => true,
+            'item' => $fresh ? $this->serializeRegionCity($fresh) : null,
+        ]);
+    }
+
+    public function regionCitiesDestroy($id)
+    {
+        $row = $this->regionCityFind(session('fid', ''), $id);
+        if (!$row) {
+            return response()->json(['success' => false, 'message' => 'Місто не знайдено'], 404);
+        }
+
+        Filter::query()->where('id', $row->id)->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    private function validateRegionCity(Request $request, bool $withRegion = false): array
+    {
+        $rules = [
+            'val' => 'required|string|max:60',
+            'valru' => 'nullable|string|max:60',
+            'valen' => 'nullable|string|max:60',
+            'num' => 'nullable|integer|min:0|max:65535',
+        ];
+        if ($withRegion) {
+            $rules['region_id'] = 'required|integer|min:1';
+        }
+
+        return $request->validate($rules);
+    }
+
+    private function regionCityPayload(array $data): array
+    {
+        $payload = [
+            'val' => $data['val'],
+            'valru' => (string) ($data['valru'] ?? ''),
+            'valen' => (string) ($data['valen'] ?? ''),
+            'num' => (int) ($data['num'] ?? 0),
+        ];
+
+        return $payload;
+    }
+
+    private function serializeRegionCity(object $row): array
+    {
+        return [
+            'id' => (int) $row->id,
+            'region_id' => (int) ($row->idkeyfield ?? 0),
+            'val' => (string) ($row->val ?? ''),
+            'valru' => (string) ($row->valru ?? ''),
+            'valen' => (string) ($row->valen ?? ''),
+            'num' => (int) ($row->num ?? 0),
+        ];
+    }
+
     private function catalogFieldLabelPath($byId, int $id): string
     {
         $segments = [];
@@ -2605,6 +2742,34 @@ class SettingsController extends Controller
         return $this->fieldFilterCatalogBaseQuery($fid)->where('id', $id)->first();
     }
 
+    private function fieldRegionFind($fid, $regionId): ?object
+    {
+        if (!Schema::hasTable('field')) {
+            return null;
+        }
+
+        $id = (int) $regionId;
+        if ($id <= 0) {
+            return null;
+        }
+
+        return $this->fieldBaseQuery($fid, 'city')->where('id', $id)->first();
+    }
+
+    private function regionCityFind($fid, $cityId): ?object
+    {
+        if (!Schema::hasTable('filter')) {
+            return null;
+        }
+
+        $row = Filter::query()
+            ->where('id', (int) $cityId)
+            ->where('keyfield', 'city')
+            ->first();
+
+        return $row && $this->fieldRegionFind($fid, $row->idkeyfield) ? $row : null;
+    }
+
     private function fieldColumns(): array
     {
         return Schema::hasTable('field') ? Schema::getColumnListing('field') : [];
@@ -2857,7 +3022,13 @@ class SettingsController extends Controller
                 ->selectRaw('idkeyfield, COUNT(*) as total')
                 ->groupBy('idkeyfield')
                 ->pluck('total', 'idkeyfield')
-            : collect();
+            : (Schema::hasTable('filter')
+                ? Filter::query()
+                    ->where('keyfield', 'city')
+                    ->selectRaw('idkeyfield, COUNT(*) as total')
+                    ->groupBy('idkeyfield')
+                    ->pluck('total', 'idkeyfield')
+                : collect());
 
         $payload = $items->map(function ($item) use ($childCounts, $fieldColumns) {
             return $this->normalizeFieldItem($item, $childCounts, $fieldColumns);
@@ -2975,6 +3146,15 @@ class SettingsController extends Controller
                 if ($usedInGoods) {
                     return response()->json(['success' => false, 'message' => 'Категорія використовується в товарах'], 422);
                 }
+            }
+        } elseif (Schema::hasTable('filter')) {
+            $hasCities = Filter::query()
+                ->where('keyfield', 'city')
+                ->where('idkeyfield', (int) $id)
+                ->exists();
+
+            if ($hasCities) {
+                return response()->json(['success' => false, 'message' => 'Спочатку видаліть міста регіону'], 422);
             }
         }
 

@@ -186,6 +186,14 @@ return [
         'label_file' => 'File:',
         'open_file' => 'Open',
         'file_current' => 'Current file:',
+        'cities' => 'Cities',
+        'cities_of_region' => 'Region cities',
+        'add_city' => '+ Add city',
+        'city_name_ua' => 'UA name (val)',
+        'city_name_ru' => 'RU name (valru)',
+        'city_name_en' => 'EN name (valen)',
+        'cities_empty' => 'This region has no cities yet',
+        'delete_city_confirm' => 'Delete city?',
     ],
 
     'field_modes' => [
