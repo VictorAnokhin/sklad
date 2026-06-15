@@ -376,6 +376,124 @@ class BankController extends Controller
             ->with('success', 'Позиция Tokens обновлена.');
     }
 
+    public function bulkUpdateTokenManifestItems(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('wallet_tokens'), 404);
+
+        $payload = $request->validate([
+            'action' => ['required', 'string', Rule::in(['delete', 'hide', 'show'])],
+            'tokens' => ['required', 'array', 'min:1'],
+            'tokens.*' => ['integer', 'min:1'],
+        ]);
+
+        $tokenIds = collect($payload['tokens'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->filter(fn ($id) => $this->tokenManifestTargetExists($id))
+            ->values();
+
+        if ($tokenIds->isEmpty()) {
+            return redirect()->route('bank.invest')->with('error', 'Выберите токены для действия.');
+        }
+
+        if ($payload['action'] === 'delete') {
+            if (Schema::hasTable('bank_token_manifest_items')) {
+                DB::table('bank_token_manifest_items')
+                    ->where('project_id', (int) $project->id)
+                    ->whereIn('wallet_token_id', $tokenIds->all())
+                    ->delete();
+            }
+            DB::table('wallet_tokens')->whereIn('id', $tokenIds->all())->delete();
+
+            return redirect()->route('bank.invest')->with('success', 'Выбранные токены удалены из кеша.');
+        }
+
+        abort_unless(Schema::hasTable('bank_token_manifest_items'), 404);
+        $now = now();
+        $hidden = $payload['action'] === 'hide';
+        foreach ($tokenIds as $tokenId) {
+            $key = [
+                'project_id' => (int) $project->id,
+                'wallet_token_id' => $tokenId,
+            ];
+            $values = [
+                'hidden' => $hidden,
+                'updated_at' => $now,
+            ];
+            $existing = DB::table('bank_token_manifest_items')->where($key)->exists();
+            if ($existing) {
+                DB::table('bank_token_manifest_items')->where($key)->update($values);
+            } else {
+                DB::table('bank_token_manifest_items')->insert($key + $values + ['created_at' => $now]);
+            }
+        }
+
+        return redirect()
+            ->route('bank.invest')
+            ->with('success', $hidden ? 'Выбранные токены скрыты.' : 'Выбранные токены показаны.');
+    }
+
+    public function bulkUpdateAssetManifestItems(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_asset_manifest_items'), 404);
+
+        $payload = $request->validate([
+            'action' => ['required', 'string', Rule::in(['delete', 'hide', 'show'])],
+            'assets' => ['required', 'array', 'min:1'],
+            'assets.*' => ['string', 'max:80'],
+        ]);
+
+        $targets = collect($payload['assets'])
+            ->map(function ($value) {
+                [$source, $asset] = array_pad(explode(':', (string) $value, 2), 2, null);
+
+                return [
+                    'source' => (string) $source,
+                    'asset' => (int) $asset,
+                ];
+            })
+            ->filter(fn ($target) => in_array($target['source'], ['deposit', 'pool'], true)
+                && $target['asset'] > 0
+                && $this->assetManifestTargetExists($target['source'], $target['asset'], (int) $project->id))
+            ->unique(fn ($target) => $target['source'] . ':' . $target['asset'])
+            ->values();
+
+        if ($targets->isEmpty()) {
+            return redirect()->route('bank.invest')->with('error', 'Выберите позиции для действия.');
+        }
+
+        $now = now();
+        $hidden = in_array($payload['action'], ['delete', 'hide'], true);
+        foreach ($targets as $target) {
+            $key = [
+                'project_id' => (int) $project->id,
+                'asset_type' => $target['source'],
+                'asset_id' => $target['asset'],
+            ];
+            $existing = DB::table('bank_asset_manifest_items')->where($key)->first();
+            $values = [
+                'position' => (int) ($existing->position ?? 0),
+                'hidden' => $hidden,
+                'updated_at' => $now,
+            ];
+            if ($existing) {
+                DB::table('bank_asset_manifest_items')->where($key)->update($values);
+            } else {
+                DB::table('bank_asset_manifest_items')->insert($key + $values + ['created_at' => $now]);
+            }
+        }
+
+        $message = match ($payload['action']) {
+            'show' => 'Выбранные позиции показаны.',
+            'delete' => 'Выбранные позиции удалены из таблицы.',
+            default => 'Выбранные позиции скрыты.',
+        };
+
+        return redirect()->route('bank.invest')->with('success', $message);
+    }
+
     public function updateExchangeOrderStatus(Request $request, int $order): RedirectResponse
     {
         $project = $this->bankProject();

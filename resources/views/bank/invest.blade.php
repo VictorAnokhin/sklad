@@ -8,6 +8,8 @@
 @php
     $formatMoney = static fn ($value): string => number_format((float) $value, 2, '.', ' ');
     $formatBps = static fn ($value): string => number_format((float) $value / 100, 2, '.', ' ') . '%';
+    $defiAssetRows = $assetManifestRows->where('group', 'defi')->values();
+    $hiddenDefiAssetRows = $assetManifestHiddenRows->where('group', 'defi')->values();
 @endphp
 
 <div class="bank-page bank-invest-page" data-bank-invest-page>
@@ -106,32 +108,45 @@
             </div>
         </section>
 
-        <section class="bank-invest-tabs bank-invest-tabs--sub" role="tablist" aria-label="Wallet asset sections">
-            <button type="button" class="bank-invest-tab is-active" data-wallet-asset-tab="tokens">Tokens</button>
-            <button type="button" class="bank-invest-tab" data-wallet-asset-tab="all">Все активы</button>
+        <section class="bank-panel bank-invest-asset-filter" aria-label="Wallet asset filter">
+            <div>
+                <div class="bank-label">Активы</div>
+                <div class="bank-meta">Фильтр по типу активов привязанных кошельков.</div>
+            </div>
+            <div class="bank-invest-asset-filter__controls">
+                <label>
+                    <span>Активы</span>
+                    <select data-wallet-asset-filter>
+                        <option value="tokens">Токены</option>
+                        <option value="nft">NFT</option>
+                        <option value="defi">DEFI</option>
+                    </select>
+                </label>
+                <label class="bank-checkbox-field bank-checkbox-field--inline">
+                    <input type="checkbox" data-wallet-asset-show-hidden>
+                    <span>Показать скрытые</span>
+                </label>
+            </div>
         </section>
 
-        <section class="bank-invest-wallet-grid" data-wallet-asset-panel="tokens">
+        <section class="bank-invest-wallet-grid" data-wallet-asset-panel="tokens" data-wallet-asset-hidden-count="{{ $hiddenTokenRows->count() }}">
             <div class="bank-panel bank-table-panel">
                 <div class="bank-table-header">
                     <div>
                         <div class="bank-label">Tokens</div>
                         <div class="bank-meta">Токены из cached wallet_tokens по привязанным кошелькам.</div>
                     </div>
-                    <div class="bank-table-header__actions">
-                        @if($hiddenTokenRows->isNotEmpty())
-                            <button type="button" class="btn btn-sm btn-outline-light" data-token-manifest-toggle-hidden>
-                                Показать скрытые ({{ $hiddenTokenRows->count() }})
-                            </button>
-                        @endif
-                        <div class="bank-meta">{{ $tokenRows->count() }} токенов · {{ $formatMoney($summary['wallet_tokens']) }} USD</div>
-                    </div>
+                    <div class="bank-meta">{{ $tokenRows->count() }} токенов · {{ $formatMoney($summary['wallet_tokens']) }} USD</div>
                 </div>
+                <form method="POST" action="{{ route('bank.token-manifest.bulk') }}" data-bulk-form="tokens">
+                    @csrf
                 <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
                     <table class="table table-dark table-hover table-sm align-middle bank-table">
                         <thead>
                             <tr>
-                                <th class="bank-table__num">№</th>
+                                <th class="bank-table__select">
+                                    <input type="checkbox" data-bulk-check-all="tokens" aria-label="Выбрать все токены">
+                                </th>
                                 <th>Токен</th>
                                 <th>Кошелек</th>
                                 <th>Chain</th>
@@ -152,7 +167,9 @@
                                     data-token-hidden="{{ $token->manifest_hidden ? '1' : '0' }}"
                                     data-token-action="{{ route('bank.token-manifest.update', ['token' => $token->id]) }}"
                                 >
-                                    <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                    <td class="bank-table__select">
+                                        <input type="checkbox" name="tokens[]" value="{{ $token->id }}" data-bulk-check="tokens" aria-label="Выбрать {{ $token->symbol }}">
+                                    </td>
                                     <td>
                                         <strong>{{ $token->symbol }}</strong>
                                         <div class="bank-meta">{{ $token->name !== '' ? $token->name : ($token->token_short !== '—' ? $token->token_short : 'native') }}</div>
@@ -197,7 +214,9 @@
                                     data-token-action="{{ route('bank.token-manifest.update', ['token' => $token->id]) }}"
                                     hidden
                                 >
-                                    <td class="bank-table__num bank-mono">—</td>
+                                    <td class="bank-table__select">
+                                        <input type="checkbox" name="tokens[]" value="{{ $token->id }}" data-bulk-check="tokens" aria-label="Выбрать {{ $token->symbol }}">
+                                    </td>
                                     <td>
                                         <strong>{{ $token->symbol }}</strong>
                                         <div class="bank-meta">{{ $token->name !== '' ? $token->name : ($token->token_short !== '—' ? $token->token_short : 'native') }}</div>
@@ -229,10 +248,17 @@
                         </tbody>
                     </table>
                 </div>
+                    <div class="bank-bulk-actions">
+                        <span class="bank-meta">С выбранными:</span>
+                        <button type="submit" name="action" value="delete" class="btn btn-sm btn-outline-danger">Удалить</button>
+                        <button type="submit" name="action" value="hide" class="btn btn-sm btn-outline-light">Скрыть</button>
+                        <button type="submit" name="action" value="show" class="btn btn-sm btn-outline-light">Показать</button>
+                    </div>
+                </form>
             </div>
         </section>
 
-        <section data-wallet-asset-panel="all" hidden>
+        <section data-wallet-asset-panel="nft" data-wallet-asset-hidden-count="0" hidden>
         <section class="bank-panel bank-table-panel">
             <div class="bank-table-header">
                 <div>
@@ -245,7 +271,9 @@
                 <table class="table table-dark table-hover table-sm align-middle bank-table">
                     <thead>
                         <tr>
-                            <th class="bank-table__num">№</th>
+                            <th class="bank-table__select">
+                                <input type="checkbox" disabled aria-label="Выбрать все NFT">
+                            </th>
                             <th>NFT</th>
                             <th>Collection</th>
                             <th>Кошелек</th>
@@ -255,16 +283,10 @@
                     </thead>
                     <tbody>
                         @forelse($walletPortfolio['nfts'] as $nft)
-                            <tr
-                                class="bank-clickable-row"
-                                data-asset-manifest-open
-                                data-asset-name="{{ $row->name }}"
-                                data-asset-type="{{ $row->type }}"
-                                data-asset-position="{{ (int) $row->manifest_position }}"
-                                data-asset-hidden="{{ $row->manifest_hidden ? '1' : '0' }}"
-                                data-asset-action="{{ route('bank.asset-manifest.update', ['source' => $row->asset_type, 'asset' => $row->asset_id]) }}"
-                            >
-                                <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                            <tr>
+                                <td class="bank-table__select">
+                                    <input type="checkbox" disabled aria-label="Выбрать {{ $nft->name }}">
+                                </td>
                                 <td>
                                     <strong>{{ $nft->name }}</strong>
                                     <div class="bank-meta bank-mono" title="{{ $nft->object_id }}">{{ $nft->object_short }}</div>
@@ -288,27 +310,26 @@
                 </table>
             </div>
         </section>
+        </section>
 
+        <section data-wallet-asset-panel="defi" data-wallet-asset-hidden-count="{{ $hiddenDefiAssetRows->count() }}" hidden>
         <section class="bank-panel bank-table-panel">
             <div class="bank-table-header">
                 <div>
-                    <div class="bank-label">Asset manifest</div>
-                    <div class="bank-meta">Основные категории активов и их доли в портфеле.</div>
+                    <div class="bank-label">DEFI</div>
+                    <div class="bank-meta">DeFi-позиции из Asset manifest.</div>
                 </div>
-                <div class="bank-table-header__actions">
-                    @if($assetManifestHiddenRows->isNotEmpty())
-                        <button type="button" class="btn btn-sm btn-outline-light" data-asset-manifest-toggle-hidden>
-                            Показать скрытые ({{ $assetManifestHiddenRows->count() }})
-                        </button>
-                    @endif
-                    <div class="bank-meta">{{ $assetManifestRows->count() }} позиций</div>
-                </div>
+                <div class="bank-meta">{{ $defiAssetRows->count() }} позиций</div>
             </div>
+            <form method="POST" action="{{ route('bank.asset-manifest.bulk') }}" data-bulk-form="defi">
+                @csrf
             <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
                 <table class="table table-dark table-hover table-sm align-middle bank-table">
                     <thead>
                         <tr>
-                            <th class="bank-table__num">№</th>
+                            <th class="bank-table__select">
+                                <input type="checkbox" data-bulk-check-all="defi" aria-label="Выбрать все DEFI">
+                            </th>
                             <th>Позиция</th>
                             <th>Актив</th>
                             <th>Категория</th>
@@ -320,9 +341,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($assetManifestRows as $row)
+                        @forelse($defiAssetRows as $row)
                             <tr>
-                                <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                <td class="bank-table__select">
+                                    <input type="checkbox" name="assets[]" value="{{ $row->asset_type }}:{{ $row->asset_id }}" data-bulk-check="defi" aria-label="Выбрать {{ $row->name }}">
+                                </td>
                                 <td class="bank-mono">{{ (int) $row->manifest_position > 0 ? (int) $row->manifest_position : '—' }}</td>
                                 <td>
                                     <strong>{{ $row->name }}</strong>
@@ -347,11 +370,11 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr @if($assetManifestHiddenRows->isNotEmpty()) data-asset-manifest-empty-visible @endif>
+                            <tr @if($hiddenDefiAssetRows->isNotEmpty()) data-asset-manifest-empty-visible @endif>
                                 <td colspan="9" class="text-center text-muted py-4">Портфель пока пуст или все позиции скрыты.</td>
                             </tr>
                         @endforelse
-                        @foreach($assetManifestHiddenRows as $row)
+                        @foreach($hiddenDefiAssetRows as $row)
                             <tr
                                 class="bank-clickable-row"
                                 data-asset-manifest-hidden-row
@@ -363,7 +386,9 @@
                                 data-asset-action="{{ route('bank.asset-manifest.update', ['source' => $row->asset_type, 'asset' => $row->asset_id]) }}"
                                 hidden
                             >
-                                <td class="bank-table__num bank-mono">—</td>
+                                <td class="bank-table__select">
+                                    <input type="checkbox" name="assets[]" value="{{ $row->asset_type }}:{{ $row->asset_id }}" data-bulk-check="defi" aria-label="Выбрать {{ $row->name }}">
+                                </td>
                                 <td class="bank-mono">{{ (int) $row->manifest_position > 0 ? (int) $row->manifest_position : '—' }}</td>
                                 <td>
                                     <strong>{{ $row->name }}</strong>
@@ -391,6 +416,13 @@
                     </tbody>
                 </table>
             </div>
+                <div class="bank-bulk-actions">
+                    <span class="bank-meta">С выбранными:</span>
+                    <button type="submit" name="action" value="delete" class="btn btn-sm btn-outline-danger">Удалить</button>
+                    <button type="submit" name="action" value="hide" class="btn btn-sm btn-outline-light">Скрыть</button>
+                    <button type="submit" name="action" value="show" class="btn btn-sm btn-outline-light">Показать</button>
+                </div>
+            </form>
         </section>
         </section>
     </section>
@@ -643,6 +675,45 @@
         margin-top: 12px;
     }
 
+    .bank-invest-asset-filter {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: end;
+        margin: 12px 0;
+        padding: 12px 14px;
+    }
+
+    .bank-invest-asset-filter__controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: end;
+    }
+
+    .bank-invest-asset-filter label:not(.bank-checkbox-field) {
+        display: grid;
+        gap: 5px;
+        min-width: 180px;
+        color: rgba(203, 213, 225, 0.8);
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .bank-invest-asset-filter select {
+        min-height: 38px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+        background: rgba(2, 6, 23, 0.72);
+        color: #fff;
+        padding: 7px 10px;
+        font-size: 0.9rem;
+        text-transform: none;
+        outline: none;
+    }
+
     .bank-invest-grid {
         display: grid;
         grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
@@ -704,6 +775,28 @@
         --bs-btn-padding-y: 0.12rem;
         --bs-btn-padding-x: 0.42rem;
         --bs-btn-font-size: 0.74rem;
+    }
+
+    .bank-table__select {
+        width: 42px;
+        text-align: center;
+    }
+
+    .bank-table__select input {
+        width: 16px;
+        height: 16px;
+        vertical-align: middle;
+        accent-color: #fbbf24;
+    }
+
+    .bank-bulk-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 10px 14px 14px;
+        border-top: 1px solid rgba(148, 163, 184, 0.12);
     }
 
     .bank-clickable-row {
@@ -918,21 +1011,45 @@
             tab.addEventListener('click', () => activate(tab.dataset.bankInvestTab || 'portfolio'));
         });
 
-        const walletAssetTabs = root.querySelectorAll('[data-wallet-asset-tab]');
+        const walletAssetFilter = root.querySelector('[data-wallet-asset-filter]');
+        const walletAssetShowHidden = root.querySelector('[data-wallet-asset-show-hidden]');
         const walletAssetPanels = root.querySelectorAll('[data-wallet-asset-panel]');
 
         function activateWalletAssetPanel(name) {
-            walletAssetTabs.forEach((tab) => {
-                tab.classList.toggle('is-active', tab.dataset.walletAssetTab === name);
-            });
             walletAssetPanels.forEach((panel) => {
                 panel.hidden = panel.dataset.walletAssetPanel !== name;
             });
+            syncHiddenRows();
         }
 
-        walletAssetTabs.forEach((tab) => {
-            tab.addEventListener('click', () => activateWalletAssetPanel(tab.dataset.walletAssetTab || 'tokens'));
-        });
+        function activeWalletAssetPanel() {
+            return Array.from(walletAssetPanels).find((panel) => !panel.hidden);
+        }
+
+        function syncHiddenRows() {
+            const activePanel = activeWalletAssetPanel();
+            const showHidden = Boolean(walletAssetShowHidden && walletAssetShowHidden.checked);
+            walletAssetPanels.forEach((panel) => {
+                const panelActive = panel === activePanel;
+                panel.querySelectorAll('[data-token-manifest-hidden-row], [data-asset-manifest-hidden-row]').forEach((row) => {
+                    row.hidden = !(panelActive && showHidden);
+                });
+                const emptyVisible = panel.querySelector('[data-token-manifest-empty-visible], [data-asset-manifest-empty-visible]');
+                if (emptyVisible) {
+                    emptyVisible.hidden = panelActive && showHidden;
+                }
+            });
+        }
+
+        if (walletAssetFilter) {
+            walletAssetFilter.addEventListener('change', () => activateWalletAssetPanel(walletAssetFilter.value || 'tokens'));
+        }
+
+        if (walletAssetShowHidden) {
+            walletAssetShowHidden.addEventListener('change', syncHiddenRows);
+        }
+
+        activateWalletAssetPanel(walletAssetFilter ? (walletAssetFilter.value || 'tokens') : 'tokens');
 
         const manifestModal = root.querySelector('[data-asset-manifest-modal]');
         const manifestForm = root.querySelector('[data-asset-manifest-form]');
@@ -978,25 +1095,31 @@
             });
         });
 
-        const tokenHiddenToggle = root.querySelector('[data-token-manifest-toggle-hidden]');
-        const tokenHiddenRows = root.querySelectorAll('[data-token-manifest-hidden-row]');
-        const tokenVisibleEmpty = root.querySelector('[data-token-manifest-empty-visible]');
-        let tokenHiddenRowsVisible = false;
+        root.querySelectorAll('[data-bulk-check]').forEach((checkbox) => {
+            checkbox.addEventListener('click', (event) => event.stopPropagation());
+        });
 
-        if (tokenHiddenToggle) {
-            tokenHiddenToggle.addEventListener('click', () => {
-                tokenHiddenRowsVisible = !tokenHiddenRowsVisible;
-                tokenHiddenRows.forEach((row) => {
-                    row.hidden = !tokenHiddenRowsVisible;
+        root.querySelectorAll('[data-bulk-check-all]').forEach((checkbox) => {
+            checkbox.addEventListener('click', (event) => event.stopPropagation());
+            checkbox.addEventListener('change', () => {
+                const group = checkbox.dataset.bulkCheckAll || '';
+                root.querySelectorAll(`[data-bulk-check="${group}"]`).forEach((item) => {
+                    if (!item.closest('tr')?.hidden && !item.disabled) {
+                        item.checked = checkbox.checked;
+                    }
                 });
-                if (tokenVisibleEmpty) {
-                    tokenVisibleEmpty.hidden = tokenHiddenRowsVisible;
-                }
-                tokenHiddenToggle.textContent = tokenHiddenRowsVisible
-                    ? 'Скрыть скрытые'
-                    : `Показать скрытые (${tokenHiddenRows.length})`;
             });
-        }
+        });
+
+        root.querySelectorAll('[data-bulk-form]').forEach((form) => {
+            form.addEventListener('submit', (event) => {
+                const checked = form.querySelectorAll('[data-bulk-check]:checked');
+                if (checked.length === 0) {
+                    event.preventDefault();
+                    window.alert('Выберите хотя бы одну позицию.');
+                }
+            });
+        });
 
         root.querySelectorAll('[data-asset-manifest-open]').forEach((button) => {
             button.addEventListener('click', (event) => {
@@ -1026,25 +1149,7 @@
             });
         });
 
-        const hiddenToggle = root.querySelector('[data-asset-manifest-toggle-hidden]');
-        const hiddenRows = root.querySelectorAll('[data-asset-manifest-hidden-row]');
-        const visibleEmpty = root.querySelector('[data-asset-manifest-empty-visible]');
-        let hiddenRowsVisible = false;
-
-        if (hiddenToggle) {
-            hiddenToggle.addEventListener('click', () => {
-                hiddenRowsVisible = !hiddenRowsVisible;
-                hiddenRows.forEach((row) => {
-                    row.hidden = !hiddenRowsVisible;
-                });
-                if (visibleEmpty) {
-                    visibleEmpty.hidden = hiddenRowsVisible;
-                }
-                hiddenToggle.textContent = hiddenRowsVisible
-                    ? 'Скрыть скрытые'
-                    : `Показать скрытые (${hiddenRows.length})`;
-            });
-        }
+        syncHiddenRows();
     });
 </script>
 @endpush

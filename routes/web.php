@@ -99,9 +99,13 @@ Route::middleware(['auth'])->group(function () {
             ->whereIn('source', ['deposit', 'pool'])
             ->whereNumber('asset')
             ->name('asset-manifest.update');
+        Route::post('/invest/assets/bulk', [BankController::class, 'bulkUpdateAssetManifestItems'])
+            ->name('asset-manifest.bulk');
         Route::post('/invest/tokens/{token}', [BankController::class, 'updateTokenManifestItem'])
             ->whereNumber('token')
             ->name('token-manifest.update');
+        Route::post('/invest/tokens/bulk', [BankController::class, 'bulkUpdateTokenManifestItems'])
+            ->name('token-manifest.bulk');
         Route::get('/exchange', [BankController::class, 'exchange'])->name('exchange');
         Route::post('/exchange/orders/{order}/status', [BankController::class, 'updateExchangeOrderStatus'])
             ->whereNumber('order')
