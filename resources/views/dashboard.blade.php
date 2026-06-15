@@ -139,13 +139,13 @@
         max-height: 420px;
         overflow-y: auto;
         border: 1px solid #323248;
-        border-radius: 10px;
+        border-radius: 6px;
         background: rgba(0, 0, 0, .2);
-        padding: .85rem;
+        padding: .3rem;
     }
     .dashboard-agent-chat__message {
         display: flex;
-        margin-bottom: .75rem;
+        margin-bottom: .25rem;
     }
     .dashboard-agent-chat__message:last-child {
         margin-bottom: 0;
@@ -153,14 +153,14 @@
     .dashboard-agent-chat__bubble {
         max-width: min(86%, 780px);
         border: 1px solid rgba(255, 255, 255, .08);
-        border-radius: 10px;
-        padding: .65rem .8rem;
+        border-radius: 6px;
+        padding: .3rem .4rem;
         background: rgba(255, 255, 255, .045);
         color: #e5e7eb;
         white-space: pre-wrap;
         word-break: break-word;
         font-size: .92rem;
-        line-height: 1.45;
+        line-height: 1.3;
     }
     .dashboard-agent-chat__message--user {
         justify-content: flex-end;
@@ -174,7 +174,57 @@
         display: block;
         color: #a0a0b0;
         font-size: .74rem;
-        margin-bottom: .25rem;
+        margin-bottom: .1rem;
+    }
+    .dashboard-agent-chat__message-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .35rem;
+        min-height: 18px;
+    }
+    .dashboard-agent-chat__copy {
+        position: relative;
+        flex: 0 0 auto;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: #a0a0b0;
+        opacity: .72;
+    }
+    .dashboard-agent-chat__copy:hover,
+    .dashboard-agent-chat__copy:focus-visible {
+        background: rgba(255, 255, 255, .09);
+        color: #fff;
+        opacity: 1;
+    }
+    .dashboard-agent-chat__copy::before,
+    .dashboard-agent-chat__copy::after {
+        content: '';
+        position: absolute;
+        width: 8px;
+        height: 9px;
+        border: 1px solid currentColor;
+        border-radius: 2px;
+    }
+    .dashboard-agent-chat__copy::before {
+        top: 5px;
+        left: 5px;
+    }
+    .dashboard-agent-chat__copy::after {
+        top: 7px;
+        left: 7px;
+        background: inherit;
+    }
+    .dashboard-agent-chat__copy--done {
+        color: #28c76f;
+        opacity: 1;
+    }
+    .dashboard-agent-chat .card-body {
+        padding: .5rem;
     }
     .dashboard-agent-chat .form-control {
         background: rgba(255, 255, 255, .06);
@@ -388,19 +438,19 @@
 
     <div class="card glass-card-dashboard mt-4 dashboard-agent-chat">
         <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+            <div class="d-flex justify-content-between align-items-start gap-1 flex-wrap mb-1">
                 <div>
-                    <h5 class="card-title mb-1">AI агенты</h5>
+                    <h5 class="card-title mb-0">AI агенты</h5>
                     <div class="text-muted small">WebChatAgent принимает запрос, передает аналитику и публикует ответ для текущего проекта #{{ session('fid') }}.</div>
                 </div>
                 <div id="dashboard-agent-chat-status" class="text-muted small">Загрузка...</div>
             </div>
 
-            <div id="dashboard-agent-chat-messages" class="dashboard-agent-chat__messages mb-3">
+            <div id="dashboard-agent-chat-messages" class="dashboard-agent-chat__messages mb-1">
                 <div class="text-muted">История чата загружается...</div>
             </div>
 
-            <form id="dashboard-agent-chat-form" class="row g-2 align-items-end">
+            <form id="dashboard-agent-chat-form" class="row g-1 align-items-end">
                 @csrf
                 <input type="hidden" id="dashboard-agent-chat-session" value="">
                 <div class="col-12 col-lg">
@@ -504,18 +554,65 @@ document.addEventListener('DOMContentLoaded', function () {
             const role = message.role === 'user' ? 'user' : 'assistant';
             const agent = message.metadata?.source_agent || (role === 'user' ? 'Dashboard' : 'WebChatAgent');
             const time = formatAgentTime(message.created_at);
+            const content = message.content || '';
 
             return `
                 <div class="dashboard-agent-chat__message dashboard-agent-chat__message--${role}">
                     <div class="dashboard-agent-chat__bubble">
-                        <span class="dashboard-agent-chat__meta">${escapeHtml(agent)}${time ? ' · ' + escapeHtml(time) : ''}</span>
-                        ${escapeHtml(message.content || '')}
+                        <div class="dashboard-agent-chat__message-head">
+                            <span class="dashboard-agent-chat__meta">${escapeHtml(agent)}${time ? ' · ' + escapeHtml(time) : ''}</span>
+                            <button
+                                type="button"
+                                class="dashboard-agent-chat__copy"
+                                data-copy-message="${escapeHtml(content)}"
+                                aria-label="Копировать сообщение"
+                                title="Копировать сообщение"
+                            ></button>
+                        </div>
+                        <div>${escapeHtml(content)}</div>
                     </div>
                 </div>
             `;
         }).join('');
         agentChat.messages.scrollTop = agentChat.messages.scrollHeight;
     }
+
+    async function copyAgentMessage(button) {
+        const content = button.dataset.copyMessage || '';
+
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(content);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = content;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                textarea.remove();
+            }
+
+            button.classList.add('dashboard-agent-chat__copy--done');
+            button.setAttribute('aria-label', 'Сообщение скопировано');
+            button.title = 'Скопировано';
+            window.setTimeout(() => {
+                button.classList.remove('dashboard-agent-chat__copy--done');
+                button.setAttribute('aria-label', 'Копировать сообщение');
+                button.title = 'Копировать сообщение';
+            }, 1200);
+        } catch (error) {
+            button.title = 'Не удалось скопировать';
+        }
+    }
+
+    agentChat.messages?.addEventListener('click', function (event) {
+        const button = event.target.closest('.dashboard-agent-chat__copy');
+        if (button) {
+            copyAgentMessage(button);
+        }
+    });
 
     async function loadAgentChat(silent = false) {
         if (!agentChat.messages) {
