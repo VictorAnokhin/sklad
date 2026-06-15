@@ -40,6 +40,11 @@ class ManagerAiBridgeClient
             'mode' => $this->mode($payload, $body),
         ];
 
+        $targetAgentName = trim((string) ($payload['target_agent'] ?? ''));
+        if ($targetAgentName !== '') {
+            $requestBody['targetAgentName'] = $targetAgentName;
+        }
+
         $targetIssueId = $this->targetIssueId();
         if ($targetIssueId !== '') {
             $requestBody['targetIssueId'] = $targetIssueId;
