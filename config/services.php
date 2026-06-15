@@ -146,7 +146,7 @@ return [
         'laravel_api_url' => env('MANAGER_AI_LARAVEL_API_URL', env('APP_URL', '')),
         'company_id' => env('MANAGER_AI_COMPANY_ID', ''),
         'bridge_secret' => env('MANAGER_AI_BRIDGE_SECRET', ''),
-        'webchat_issue_id' => env('MANAGER_AI_WEBCHAT_ISSUE_ID', '81f877ad-f466-4520-87d5-025540d4a185'),
+        'webchat_issue_id' => env('MANAGER_AI_WEBCHAT_ISSUE_ID', ''),
         'timeout' => (int) env('MANAGER_AI_TIMEOUT', 10),
         'fallback_to_local' => env('MANAGER_AI_FALLBACK_TO_LOCAL', true),
     ],

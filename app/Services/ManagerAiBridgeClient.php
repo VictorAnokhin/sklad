@@ -51,6 +51,21 @@ class ManagerAiBridgeClient
             ->withHeaders($headers)
             ->post($this->url().'/api/external/site-chat/messages', $requestBody);
 
+        if (
+            ! $response->successful()
+            && $targetIssueId !== ''
+            && $response->status() === 404
+            && str_contains($response->body(), 'Target issue not found')
+        ) {
+            unset($requestBody['targetIssueId']);
+
+            $response = Http::acceptJson()
+                ->asJson()
+                ->timeout($this->timeout())
+                ->withHeaders($headers)
+                ->post($this->url().'/api/external/site-chat/messages', $requestBody);
+        }
+
         if (! $response->successful()) {
             throw new RuntimeException(sprintf(
                 'ManagerAI bridge failed with HTTP %s: %s',
