@@ -264,6 +264,7 @@ class BankController extends Controller
         $pools = $this->investmentPools();
         $poolEvents = $this->investmentPoolEvents();
         $walletPortfolio = $this->googleAccountWalletPortfolio();
+        $trackedAssets = $this->trackedAssetRows((int) $project->id);
         $tokenRows = $this->tokenManifestRows($walletPortfolio['tokens']);
         $hiddenTokenRows = $this->tokenManifestRows($walletPortfolio['tokens'], true)
             ->filter(fn ($token) => (bool) ($token->manifest_hidden ?? false))
@@ -292,6 +293,7 @@ class BankController extends Controller
             'pools' => $pools,
             'poolEvents' => $poolEvents,
             'walletPortfolio' => $walletPortfolio,
+            'trackedAssets' => $trackedAssets,
             'summary' => [
                 'nav' => $portfolioTotal,
                 'liquid' => $liquidTotal,
@@ -374,6 +376,120 @@ class BankController extends Controller
         return redirect()
             ->route('bank.invest')
             ->with('success', 'Позиция Tokens обновлена.');
+    }
+
+    public function storeTrackedAsset(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_tracked_assets'), 404);
+
+        $payload = $request->validate([
+            'asset_type' => ['required', 'string', Rule::in(['token', 'nft', 'defi'])],
+            'name' => ['nullable', 'string', 'max:160'],
+            'symbol' => ['nullable', 'string', 'max:40'],
+            'blockchain' => ['required', 'string', 'max:60'],
+            'asset_address' => ['required', 'string', 'max:190'],
+            'owner_address' => ['nullable', 'string', 'max:190'],
+            'protocol' => ['nullable', 'string', 'max:120'],
+            'token_id' => ['nullable', 'string', 'max:120'],
+            'decimals' => ['nullable', 'integer', 'min:0', 'max:255'],
+        ]);
+
+        $now = now();
+        $key = [
+            'project_id' => (int) $project->id,
+            'asset_type' => $payload['asset_type'],
+            'blockchain' => strtolower(trim((string) $payload['blockchain'])),
+            'asset_address' => trim((string) $payload['asset_address']),
+            'owner_address' => trim((string) ($payload['owner_address'] ?? '')),
+            'token_id' => trim((string) ($payload['token_id'] ?? '')),
+        ];
+        $values = [
+            'name' => trim((string) ($payload['name'] ?? '')),
+            'symbol' => strtoupper(trim((string) ($payload['symbol'] ?? ''))),
+            'protocol' => trim((string) ($payload['protocol'] ?? '')),
+            'decimals' => array_key_exists('decimals', $payload) ? $payload['decimals'] : null,
+            'sync_status' => 'manual',
+            'sync_error' => null,
+            'hidden' => false,
+            'updated_at' => $now,
+        ];
+
+        $existing = DB::table('bank_tracked_assets')->where($key)->exists();
+        if ($existing) {
+            DB::table('bank_tracked_assets')->where($key)->update($values);
+        } else {
+            DB::table('bank_tracked_assets')->insert($key + $values + ['created_at' => $now]);
+        }
+
+        return redirect()->route('bank.invest')->with('success', 'Актив добавлен для отслеживания.');
+    }
+
+    public function refreshTrackedAssets(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_tracked_assets'), 404);
+
+        $payload = $request->validate([
+            'asset_type' => ['nullable', 'string', Rule::in(['tokens', 'nft', 'defi', 'token'])],
+        ]);
+        $assetType = $this->normalizeTrackedAssetType((string) ($payload['asset_type'] ?? ''));
+        $query = DB::table('bank_tracked_assets')->where('project_id', (int) $project->id);
+        if ($assetType !== '') {
+            $query->where('asset_type', $assetType);
+        }
+
+        $updated = $query->update([
+            'sync_status' => 'refresh_requested',
+            'sync_error' => null,
+            'last_synced_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()
+            ->route('bank.invest')
+            ->with('success', $updated > 0 ? 'Обновление активов запрошено.' : 'Нет активов для обновления.');
+    }
+
+    public function bulkUpdateTrackedAssets(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_tracked_assets'), 404);
+
+        $payload = $request->validate([
+            'action' => ['required', 'string', Rule::in(['delete', 'hide', 'show'])],
+            'tracked_assets' => ['required', 'array', 'min:1'],
+            'tracked_assets.*' => ['integer', 'min:1'],
+        ]);
+
+        $ids = collect($payload['tracked_assets'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return redirect()->route('bank.invest')->with('error', 'Выберите активы для действия.');
+        }
+
+        $query = DB::table('bank_tracked_assets')
+            ->where('project_id', (int) $project->id)
+            ->whereIn('id', $ids->all());
+
+        if ($payload['action'] === 'delete') {
+            $query->delete();
+
+            return redirect()->route('bank.invest')->with('success', 'Выбранные отслеживаемые активы удалены.');
+        }
+
+        $hidden = $payload['action'] === 'hide';
+        $query->update([
+            'hidden' => $hidden,
+            'updated_at' => now(),
+        ]);
+
+        return redirect()
+            ->route('bank.invest')
+            ->with('success', $hidden ? 'Выбранные отслеживаемые активы скрыты.' : 'Выбранные отслеживаемые активы показаны.');
     }
 
     public function bulkUpdateTokenManifestItems(Request $request): RedirectResponse
@@ -745,6 +861,72 @@ class BankController extends Controller
         return $tokens
             ->when(! $includeHidden, fn ($rows) => $rows->reject(fn ($token) => (bool) ($token->manifest_hidden ?? false)))
             ->values();
+    }
+
+    private function trackedAssetRows(int $projectId)
+    {
+        if (! Schema::hasTable('bank_tracked_assets')) {
+            return collect([
+                'token' => collect(),
+                'nft' => collect(),
+                'defi' => collect(),
+                'hidden_token' => collect(),
+                'hidden_nft' => collect(),
+                'hidden_defi' => collect(),
+            ]);
+        }
+
+        $rows = DB::table('bank_tracked_assets')
+            ->where('project_id', $projectId)
+            ->orderBy('hidden')
+            ->orderBy('asset_type')
+            ->orderBy('name')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($row) {
+                $address = (string) ($row->asset_address ?? '');
+                $owner = (string) ($row->owner_address ?? '');
+
+                return (object) [
+                    'id' => (int) $row->id,
+                    'asset_type' => (string) ($row->asset_type ?? 'token'),
+                    'name' => trim((string) ($row->name ?? '')) ?: (trim((string) ($row->symbol ?? '')) ?: 'Tracked asset'),
+                    'symbol' => (string) ($row->symbol ?? ''),
+                    'blockchain' => (string) ($row->blockchain ?? ''),
+                    'asset_address' => $address,
+                    'asset_short' => $this->shortHash($address),
+                    'owner_address' => $owner,
+                    'owner_short' => $owner !== '' ? $this->shortHash($owner) : '—',
+                    'protocol' => (string) ($row->protocol ?? ''),
+                    'token_id' => (string) ($row->token_id ?? ''),
+                    'decimals' => $row->decimals !== null ? (int) $row->decimals : null,
+                    'last_balance' => $row->last_balance !== null ? (float) $row->last_balance : null,
+                    'last_price_usd' => $row->last_price_usd !== null ? (float) $row->last_price_usd : null,
+                    'last_value_usd' => $row->last_value_usd !== null ? (float) $row->last_value_usd : null,
+                    'sync_status' => (string) ($row->sync_status ?? 'manual'),
+                    'hidden' => (bool) ($row->hidden ?? false),
+                    'last_synced_at' => (string) ($row->last_synced_at ?? ''),
+                ];
+            });
+
+        return collect([
+            'token' => $rows->where('asset_type', 'token')->reject(fn ($row) => $row->hidden)->values(),
+            'nft' => $rows->where('asset_type', 'nft')->reject(fn ($row) => $row->hidden)->values(),
+            'defi' => $rows->where('asset_type', 'defi')->reject(fn ($row) => $row->hidden)->values(),
+            'hidden_token' => $rows->where('asset_type', 'token')->filter(fn ($row) => $row->hidden)->values(),
+            'hidden_nft' => $rows->where('asset_type', 'nft')->filter(fn ($row) => $row->hidden)->values(),
+            'hidden_defi' => $rows->where('asset_type', 'defi')->filter(fn ($row) => $row->hidden)->values(),
+        ]);
+    }
+
+    private function normalizeTrackedAssetType(string $assetType): string
+    {
+        return match (strtolower(trim($assetType))) {
+            'tokens', 'token' => 'token',
+            'nft' => 'nft',
+            'defi' => 'defi',
+            default => '',
+        };
     }
 
     private function tokenManifestSettings(int $projectId)

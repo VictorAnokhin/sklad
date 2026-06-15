@@ -10,6 +10,12 @@
     $formatBps = static fn ($value): string => number_format((float) $value / 100, 2, '.', ' ') . '%';
     $defiAssetRows = $assetManifestRows->where('group', 'defi')->values();
     $hiddenDefiAssetRows = $assetManifestHiddenRows->where('group', 'defi')->values();
+    $trackedTokenRows = $trackedAssets->get('token', collect());
+    $hiddenTrackedTokenRows = $trackedAssets->get('hidden_token', collect());
+    $trackedNftRows = $trackedAssets->get('nft', collect());
+    $hiddenTrackedNftRows = $trackedAssets->get('hidden_nft', collect());
+    $trackedDefiRows = $trackedAssets->get('defi', collect());
+    $hiddenTrackedDefiRows = $trackedAssets->get('hidden_defi', collect());
 @endphp
 
 <div class="bank-page bank-invest-page" data-bank-invest-page>
@@ -126,6 +132,14 @@
                     <input type="checkbox" data-wallet-asset-show-hidden>
                     <span>Показать скрытые</span>
                 </label>
+                <button type="button" class="btn btn-sm btn-outline-light" data-tracked-asset-open>
+                    Добавить
+                </button>
+                <form method="POST" action="{{ route('bank.tracked-assets.refresh') }}" class="bank-inline-form">
+                    @csrf
+                    <input type="hidden" name="asset_type" data-wallet-asset-refresh-type value="tokens">
+                    <button type="submit" class="btn btn-sm btn-primary">Обновить</button>
+                </form>
             </div>
         </section>
 
@@ -256,6 +270,13 @@
                     </div>
                 </form>
             </div>
+            @include('bank.partials.tracked_assets_table', [
+                'assetType' => 'token',
+                'title' => 'Отслеживаемые токены',
+                'rows' => $trackedTokenRows,
+                'hiddenRows' => $hiddenTrackedTokenRows,
+                'formatMoney' => $formatMoney,
+            ])
         </section>
 
         <section data-wallet-asset-panel="nft" data-wallet-asset-hidden-count="0" hidden>
@@ -310,6 +331,13 @@
                 </table>
             </div>
         </section>
+        @include('bank.partials.tracked_assets_table', [
+            'assetType' => 'nft',
+            'title' => 'Отслеживаемые NFT',
+            'rows' => $trackedNftRows,
+            'hiddenRows' => $hiddenTrackedNftRows,
+            'formatMoney' => $formatMoney,
+        ])
         </section>
 
         <section data-wallet-asset-panel="defi" data-wallet-asset-hidden-count="{{ $hiddenDefiAssetRows->count() }}" hidden>
@@ -424,6 +452,13 @@
                 </div>
             </form>
         </section>
+        @include('bank.partials.tracked_assets_table', [
+            'assetType' => 'defi',
+            'title' => 'Отслеживаемые DEFI',
+            'rows' => $trackedDefiRows,
+            'hiddenRows' => $hiddenTrackedDefiRows,
+            'formatMoney' => $formatMoney,
+        ])
         </section>
     </section>
 
@@ -562,6 +597,77 @@
         </section>
     </section>
 
+    <div class="bank-modal" data-tracked-asset-modal hidden>
+        <div class="bank-modal__backdrop" data-tracked-asset-close></div>
+        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="trackedAssetModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Активы</div>
+                    <h2 id="trackedAssetModalTitle">Добавить актив</h2>
+                    <div class="bank-meta">Данные для отслеживания актива в блокчейне.</div>
+                </div>
+                <button type="button" class="bank-modal__close" data-tracked-asset-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="POST" action="{{ route('bank.tracked-assets.store') }}" class="bank-requisites-form">
+                @csrf
+                <div class="bank-form-grid">
+                    <label>
+                        <span>Тип</span>
+                        <select name="asset_type" data-tracked-asset-type required>
+                            <option value="token">Токен</option>
+                            <option value="nft">NFT</option>
+                            <option value="defi">DEFI</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Блокчейн</span>
+                        <select name="blockchain" required>
+                            <option value="solana">Solana</option>
+                            <option value="sui">Sui</option>
+                            <option value="arbitrum">Arbitrum</option>
+                            <option value="ethereum">Ethereum</option>
+                            <option value="base">Base</option>
+                            <option value="polygon">Polygon</option>
+                            <option value="bnb">BNB</option>
+                        </select>
+                    </label>
+                    <label class="bank-form-full">
+                        <span>Адрес актива / позиции</span>
+                        <input type="text" name="asset_address" required placeholder="0x..., mint, object id, pool address">
+                    </label>
+                    <label class="bank-form-full">
+                        <span>Кошелек владельца</span>
+                        <input type="text" name="owner_address" placeholder="Адрес кошелька, если нужен для чтения позиции">
+                    </label>
+                    <label>
+                        <span>Название</span>
+                        <input type="text" name="name" placeholder="USDC / Orca LP / NFT">
+                    </label>
+                    <label>
+                        <span>Symbol</span>
+                        <input type="text" name="symbol" placeholder="USDC">
+                    </label>
+                    <label>
+                        <span>Protocol</span>
+                        <input type="text" name="protocol" placeholder="Orca, Cetus, Aave">
+                    </label>
+                    <label>
+                        <span>Token ID</span>
+                        <input type="text" name="token_id" placeholder="Для NFT">
+                    </label>
+                    <label>
+                        <span>Decimals</span>
+                        <input type="number" name="decimals" min="0" max="255" step="1" inputmode="numeric" placeholder="6">
+                    </label>
+                </div>
+                <div class="bank-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-tracked-asset-close>Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="bank-modal" data-token-manifest-modal hidden>
         <div class="bank-modal__backdrop" data-token-manifest-close></div>
         <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tokenManifestModalTitle">
@@ -690,6 +796,11 @@
         flex-wrap: wrap;
         gap: 12px;
         align-items: end;
+    }
+
+    .bank-inline-form {
+        display: inline-flex;
+        margin: 0;
     }
 
     .bank-invest-asset-filter label:not(.bank-checkbox-field) {
@@ -1034,15 +1145,20 @@
                 panel.querySelectorAll('[data-token-manifest-hidden-row], [data-asset-manifest-hidden-row]').forEach((row) => {
                     row.hidden = !(panelActive && showHidden);
                 });
-                const emptyVisible = panel.querySelector('[data-token-manifest-empty-visible], [data-asset-manifest-empty-visible]');
-                if (emptyVisible) {
+                panel.querySelectorAll('[data-tracked-asset-hidden-row]').forEach((row) => {
+                    row.hidden = !(panelActive && showHidden);
+                });
+                panel.querySelectorAll('[data-token-manifest-empty-visible], [data-asset-manifest-empty-visible], [data-tracked-asset-empty-visible]').forEach((emptyVisible) => {
                     emptyVisible.hidden = panelActive && showHidden;
-                }
+                });
             });
         }
 
         if (walletAssetFilter) {
-            walletAssetFilter.addEventListener('change', () => activateWalletAssetPanel(walletAssetFilter.value || 'tokens'));
+            walletAssetFilter.addEventListener('change', () => {
+                syncTrackedAssetType();
+                activateWalletAssetPanel(walletAssetFilter.value || 'tokens');
+            });
         }
 
         if (walletAssetShowHidden) {
@@ -1050,6 +1166,51 @@
         }
 
         activateWalletAssetPanel(walletAssetFilter ? (walletAssetFilter.value || 'tokens') : 'tokens');
+
+        const trackedAssetModal = root.querySelector('[data-tracked-asset-modal]');
+        const trackedAssetType = root.querySelector('[data-tracked-asset-type]');
+        const trackedAssetRefreshType = root.querySelector('[data-wallet-asset-refresh-type]');
+
+        function currentAssetType() {
+            return walletAssetFilter ? (walletAssetFilter.value || 'tokens') : 'tokens';
+        }
+
+        function normalizedTrackedType() {
+            const type = currentAssetType();
+            return type === 'tokens' ? 'token' : type;
+        }
+
+        function syncTrackedAssetType() {
+            if (trackedAssetType) {
+                trackedAssetType.value = normalizedTrackedType();
+            }
+            if (trackedAssetRefreshType) {
+                trackedAssetRefreshType.value = currentAssetType();
+            }
+        }
+
+        syncTrackedAssetType();
+
+        root.querySelectorAll('[data-tracked-asset-open]').forEach((button) => {
+            button.addEventListener('click', () => {
+                syncTrackedAssetType();
+                if (trackedAssetModal) {
+                    trackedAssetModal.hidden = false;
+                    const addressInput = trackedAssetModal.querySelector('[name="asset_address"]');
+                    if (addressInput) {
+                        addressInput.focus();
+                    }
+                }
+            });
+        });
+
+        root.querySelectorAll('[data-tracked-asset-close]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (trackedAssetModal) {
+                    trackedAssetModal.hidden = true;
+                }
+            });
+        });
 
         const manifestModal = root.querySelector('[data-asset-manifest-modal]');
         const manifestForm = root.querySelector('[data-asset-manifest-form]');
