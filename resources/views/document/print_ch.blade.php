@@ -130,6 +130,7 @@
             border-bottom: 1px solid #111827;
             height: 18px;
             margin-bottom: 3px;
+            text-align: center;
         }
 
         .goods-signature-hint {
@@ -327,13 +328,13 @@
         <div class="goods-signatures">
             <div class="goods-signature-box">
                 <div class="goods-signature-title">Відпустив (здав):</div>
-                <div class="goods-signature-line"></div>
-                <div class="goods-signature-hint">(должность, подпись)</div>
+                <div class="goods-signature-line">{{ $signatureName ?: '' }}</div>
+                <div class="goods-signature-hint">(подпись)</div>
                 <div class="goods-signature-stamp">М.П. (за наявності)</div>
             </div>
             <div class="goods-signature-box">
                 <div class="goods-signature-title">Прийняв (отримав):</div>
-                <div class="goods-signature-line"></div>
+                <div class="goods-signature-line">{{ trim((string) ($client->name2 ?? '')) }}</div>
                 <div class="goods-signature-hint">(должность, подпись)</div>
                 <div class="goods-signature-stamp">М.П. (за наявності)</div>
             </div>
