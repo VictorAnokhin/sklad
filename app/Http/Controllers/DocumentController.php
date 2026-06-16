@@ -703,9 +703,11 @@ class DocumentController extends Controller
         }
 
         $docTitle = $doc === 'RN'
-            ? 'Видаткова накладна'
-            : Document::typeName($doc);
-        $itemsTitle = $doc === 'RN' ? 'Позиції накладної' : 'Позиції рахунку';
+            ? __('document.print.titles.rn')
+            : __('document.print.titles.ch');
+        $itemsTitle = $doc === 'RN'
+            ? __('document.print.items.shipment')
+            : __('document.print.items.invoice');
         $skladName = '';
 
         if (!empty($document->sklads)) {

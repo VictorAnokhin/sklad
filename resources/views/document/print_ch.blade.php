@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Друк {{ $docTitle ?? 'документа' }} № {{ $document->num }}</title>
+    <title>{{ __('document.print.browser_title', ['title' => $docTitle ?? __('document.print.document_fallback'), 'num' => $document->num]) }}</title>
     <style>
         body {
             margin: 0;
@@ -222,30 +222,30 @@
         <div class="print-header">
             <div>
                 <h1 class="print-title">{{ $docTitle }} № {{ $document->num }}</h1>
-                <p class="print-subtitle">Дата: {{ $document->data ?: '—' }}</p>
+                <p class="print-subtitle">{{ __('document.print.date') }}: {{ $document->data ?: '—' }}</p>
             </div>
         </div>
 
         @if($firma)
             <div class="print-card">
-                <h3>Постачальник</h3>
+                <h3>{{ __('document.print.supplier') }}</h3>
                 <table class="compact-table">
                     <tbody>
                         <tr>
-                            <td><strong>Назва компанії:</strong> {{ $firma->name ?: '—' }}</td>
-                            <td><strong>ЄДРПОУ:</strong> {{ $firma->regnum ?: '—' }}</td>
+                            <td><strong>{{ __('document.print.company_name') }}:</strong> {{ $firma->name ?: '—' }}</td>
+                            <td><strong>{{ __('document.print.edrpou') }}:</strong> {{ $firma->regnum ?: '—' }}</td>
                         </tr>
                         <tr>
-                            <td><strong>ІПН:</strong> {{ $firma->inn ?: '—' }}</td>
-                            <td><strong>Р/р:</strong> {{ $firma->schet ?: '—' }}</td>
+                            <td><strong>{{ __('document.print.ipn') }}:</strong> {{ $firma->inn ?: '—' }}</td>
+                            <td><strong>{{ __('document.print.account') }}:</strong> {{ $firma->schet ?: '—' }}</td>
                         </tr>
                         <tr>
-                            <td><strong>Банк:</strong> {{ $firma->bank ?: '—' }}</td>
-                            <td><strong>МФО:</strong> {{ $firma->mfo ?: '—' }}</td>
+                            <td><strong>{{ __('document.print.bank') }}:</strong> {{ $firma->bank ?: '—' }}</td>
+                            <td><strong>{{ __('document.print.mfo') }}:</strong> {{ $firma->mfo ?: '—' }}</td>
                         </tr>
                         <tr>
-                            <td><strong>Адреса:</strong> {{ $firma->address ?: '—' }}</td>
-                            <td><strong>Телефон:</strong> {{ $firma->phone ?: '—' }}</td>
+                            <td><strong>{{ __('document.print.address') }}:</strong> {{ $firma->address ?: '—' }}</td>
+                            <td><strong>{{ __('document.print.phone') }}:</strong> {{ $firma->phone ?: '—' }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -253,7 +253,7 @@
         @endif
 
         <div class="print-card">
-            <h3>Покупець</h3>
+            <h3>{{ __('document.print.buyer') }}</h3>
             @if($client)
                 @php
                     $clientName = trim((string) ($client->orgname ?? ''));
@@ -261,33 +261,33 @@
                     $clientPhone = trim((string) ($client->phone ?? ''));
                     $clientDetails = array_filter([
                         $clientName !== '' ? $clientName : '—',
-                        $clientEdrpou !== '' ? 'ЄДРПОУ: ' . $clientEdrpou : null,
-                        $clientPhone !== '' ? 'Телефон: ' . $clientPhone : null,
+                        $clientEdrpou !== '' ? __('document.print.edrpou') . ': ' . $clientEdrpou : null,
+                        $clientPhone !== '' ? __('document.print.phone') . ': ' . $clientPhone : null,
                     ]);
                 @endphp
                 <div>{{ implode(' | ', $clientDetails) }}</div>
             @else
-                <div>Клієнта не вказано.</div>
+                <div>{{ __('document.print.client_missing') }}</div>
             @endif
         </div>
 
         @if(!empty($document->content))
             <div class="print-card">
-                <h3>Коментар</h3>
+                <h3>{{ __('document.print.comment') }}</h3>
                 <div>{{ $document->content }}</div>
             </div>
         @endif
 
         <div class="print-card">
-            <h3>{{ $itemsTitle ?? 'Позиції документа' }}</h3>
+            <h3>{{ $itemsTitle ?? __('document.print.items.document') }}</h3>
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 48px;">№</th>
-                        <th>Найменування</th>
-                        <th class="num" style="width: 72px;">К-ть</th>
-                        <th class="num" style="width: 102px;">Ціна</th>
-                        <th class="num" style="width: 112px;">Сума</th>
+                        <th style="width: 48px;">{{ __('document.print.columns.number') }}</th>
+                        <th>{{ __('document.print.columns.name') }}</th>
+                        <th class="num" style="width: 72px;">{{ __('document.print.columns.quantity') }}</th>
+                        <th class="num" style="width: 102px;">{{ __('document.print.columns.price') }}</th>
+                        <th class="num" style="width: 112px;">{{ __('document.print.columns.amount') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -301,7 +301,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5">У документі немає товарних позицій.</td>
+                            <td colspan="5">{{ __('document.print.empty_items') }}</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -311,13 +311,13 @@
                 <div class="totals-box">
                     @if((float) ($document->discount ?? 0) > 0)
                         <div class="totals-line">
-                            <span>Знижка</span>
-                            <span>{{ number_format((float) $document->discount, 2, '.', ' ') }} грн</span>
+                            <span>{{ __('document.print.discount') }}</span>
+                            <span>{{ number_format((float) $document->discount, 2, '.', ' ') }} {{ __('document.currency') }}</span>
                         </div>
                     @endif
                     <div class="totals-line">
-                        <span>Разом</span>
-                        <span>{{ number_format((float) ($document->summa ?? 0), 2, '.', ' ') }} грн</span>
+                        <span>{{ __('document.print.total') }}</span>
+                        <span>{{ number_format((float) ($document->summa ?? 0), 2, '.', ' ') }} {{ __('document.currency') }}</span>
                     </div>
                 </div>
             </div>
@@ -325,30 +325,30 @@
 
         @if(!empty($skladName))
             <div class="table-meta">
-                <strong>Склад:</strong> {{ $skladName }}
+                <strong>{{ __('document.print.warehouse') }}:</strong> {{ $skladName }}
             </div>
         @endif
 
         @if(($doc ?? '') === 'RN')
             <div class="goods-signatures">
                 <div class="goods-signature-box">
-                    <div class="goods-signature-title">Відпустив (здав):</div>
+                    <div class="goods-signature-title">{{ __('document.print.released') }}:</div>
                     <div class="goods-signature-line goods-signature-line--right">{{ $signatureName ?: '' }}</div>
-                    <div class="goods-signature-hint">(подпись)</div>
-                    <div class="goods-signature-stamp">М.П. (за наявності)</div>
+                    <div class="goods-signature-hint">{{ __('document.print.signature_hint') }}</div>
+                    <div class="goods-signature-stamp">{{ __('document.print.stamp') }}</div>
                 </div>
                 <div class="goods-signature-box">
-                    <div class="goods-signature-title">Прийняв (отримав):</div>
+                    <div class="goods-signature-title">{{ __('document.print.received') }}:</div>
                     <div class="goods-signature-line goods-signature-line--right">{{ trim((string) ($client->name2 ?? '')) }}</div>
-                    <div class="goods-signature-hint">(подпись)</div>
-                    <div class="goods-signature-stamp">М.П. (за наявності)</div>
+                    <div class="goods-signature-hint">{{ __('document.print.signature_hint') }}</div>
+                    <div class="goods-signature-stamp">{{ __('document.print.stamp') }}</div>
                 </div>
             </div>
         @else
             <div class="signature-block">
                 <div class="signature-box">
                     <div class="signature-line">
-                        <div class="signature-label">Выдал</div>
+                        <div class="signature-label">{{ __('document.print.issued') }}</div>
                         <div class="signature-space signature-space--right">{{ $signatureName ?: '' }}</div>
                     </div>
                 </div>
