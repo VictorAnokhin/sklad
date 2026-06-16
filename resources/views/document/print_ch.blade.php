@@ -113,6 +113,35 @@
             color: #4b5563;
         }
 
+        .goods-signatures {
+            margin-top: 18px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 42px;
+            font-size: 13px;
+        }
+
+        .goods-signature-title {
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+
+        .goods-signature-line {
+            border-bottom: 1px solid #111827;
+            height: 18px;
+            margin-bottom: 3px;
+        }
+
+        .goods-signature-hint {
+            text-align: center;
+            font-size: 12px;
+            color: #4b5563;
+        }
+
+        .goods-signature-stamp {
+            margin-top: 18px;
+        }
+
         .signature-block {
             margin-top: 16px;
             display: flex;
@@ -268,6 +297,21 @@
                     @endforelse
                 </tbody>
             </table>
+
+            <div class="goods-signatures">
+                <div class="goods-signature-box">
+                    <div class="goods-signature-title">Відпустив (здав):</div>
+                    <div class="goods-signature-line"></div>
+                    <div class="goods-signature-hint">(должность, подпись)</div>
+                    <div class="goods-signature-stamp">М.П. (за наявності)</div>
+                </div>
+                <div class="goods-signature-box">
+                    <div class="goods-signature-title">Прийняв (отримав):</div>
+                    <div class="goods-signature-line"></div>
+                    <div class="goods-signature-hint">(должность, подпись)</div>
+                    <div class="goods-signature-stamp">М.П. (за наявності)</div>
+                </div>
+            </div>
 
             <div class="totals">
                 <div class="totals-box">
