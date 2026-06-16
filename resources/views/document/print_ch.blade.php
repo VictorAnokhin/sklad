@@ -173,6 +173,10 @@
             border-bottom: 1px solid #111827;
         }
 
+        .signature-space--right {
+            text-align: right;
+        }
+
         .signature-image {
             max-width: 170px;
             max-height: 70px;
@@ -325,20 +329,31 @@
             </div>
         @endif
 
-        <div class="goods-signatures">
-            <div class="goods-signature-box">
-                <div class="goods-signature-title">Відпустив (здав):</div>
-                <div class="goods-signature-line goods-signature-line--right">{{ $signatureName ?: '' }}</div>
-                <div class="goods-signature-hint">(подпись)</div>
-                <div class="goods-signature-stamp">М.П. (за наявності)</div>
+        @if(($doc ?? '') === 'RN')
+            <div class="goods-signatures">
+                <div class="goods-signature-box">
+                    <div class="goods-signature-title">Відпустив (здав):</div>
+                    <div class="goods-signature-line goods-signature-line--right">{{ $signatureName ?: '' }}</div>
+                    <div class="goods-signature-hint">(подпись)</div>
+                    <div class="goods-signature-stamp">М.П. (за наявності)</div>
+                </div>
+                <div class="goods-signature-box">
+                    <div class="goods-signature-title">Прийняв (отримав):</div>
+                    <div class="goods-signature-line goods-signature-line--right">{{ trim((string) ($client->name2 ?? '')) }}</div>
+                    <div class="goods-signature-hint">(подпись)</div>
+                    <div class="goods-signature-stamp">М.П. (за наявності)</div>
+                </div>
             </div>
-            <div class="goods-signature-box">
-                <div class="goods-signature-title">Прийняв (отримав):</div>
-                <div class="goods-signature-line goods-signature-line--right">{{ trim((string) ($client->name2 ?? '')) }}</div>
-                <div class="goods-signature-hint">(подпись)</div>
-                <div class="goods-signature-stamp">М.П. (за наявності)</div>
+        @else
+            <div class="signature-block">
+                <div class="signature-box">
+                    <div class="signature-line">
+                        <div class="signature-label">Выдал</div>
+                        <div class="signature-space signature-space--right">{{ $signatureName ?: '' }}</div>
+                    </div>
+                </div>
             </div>
-        </div>
+        @endif
     </div>
 
     <script>

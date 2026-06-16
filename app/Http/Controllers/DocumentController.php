@@ -715,7 +715,7 @@ class DocumentController extends Controller
                 ->value('name');
         }
 
-        return view('document.print_ch', compact('document', 'lineItems', 'client', 'firma', 'docTitle', 'itemsTitle', 'skladName'));
+        return view('document.print_ch', compact('document', 'lineItems', 'client', 'firma', 'doc', 'docTitle', 'itemsTitle', 'skladName'));
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────
