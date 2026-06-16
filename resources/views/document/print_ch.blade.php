@@ -133,6 +133,10 @@
             text-align: center;
         }
 
+        .goods-signature-line--right {
+            text-align: right;
+        }
+
         .goods-signature-hint {
             text-align: center;
             font-size: 12px;
@@ -328,14 +332,14 @@
         <div class="goods-signatures">
             <div class="goods-signature-box">
                 <div class="goods-signature-title">Відпустив (здав):</div>
-                <div class="goods-signature-line">{{ $signatureName ?: '' }}</div>
+                <div class="goods-signature-line goods-signature-line--right">{{ $signatureName ?: '' }}</div>
                 <div class="goods-signature-hint">(подпись)</div>
                 <div class="goods-signature-stamp">М.П. (за наявності)</div>
             </div>
             <div class="goods-signature-box">
                 <div class="goods-signature-title">Прийняв (отримав):</div>
-                <div class="goods-signature-line">{{ trim((string) ($client->name2 ?? '')) }}</div>
-                <div class="goods-signature-hint">(должность, подпись)</div>
+                <div class="goods-signature-line goods-signature-line--right">{{ trim((string) ($client->name2 ?? '')) }}</div>
+                <div class="goods-signature-hint">(подпись)</div>
                 <div class="goods-signature-stamp">М.П. (за наявності)</div>
             </div>
         </div>
