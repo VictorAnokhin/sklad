@@ -188,18 +188,9 @@
             </div>
         </div>
 
-        <div class="print-card">
-            <h3>Покупець</h3>
-            @if($client)
-                <div>{{ $client->orgname ?: '—' }}</div>
-            @else
-                <div>Клієнта не вказано.</div>
-            @endif
-        </div>
-
         @if($firma)
             <div class="print-card">
-                <h3>Реквізити</h3>
+                <h3>Постачальник</h3>
                 <table class="compact-table">
                     <tbody>
                         <tr>
@@ -222,6 +213,25 @@
                 </table>
             </div>
         @endif
+
+        <div class="print-card">
+            <h3>Покупець</h3>
+            @if($client)
+                @php
+                    $clientName = trim((string) ($client->orgname ?? ''));
+                    $clientEdrpou = trim((string) ($client->kod1 ?? ''));
+                    $clientPhone = trim((string) ($client->phone ?? ''));
+                    $clientDetails = array_filter([
+                        $clientName !== '' ? $clientName : '—',
+                        $clientEdrpou !== '' ? 'ЄДРПОУ: ' . $clientEdrpou : null,
+                        $clientPhone !== '' ? 'Телефон: ' . $clientPhone : null,
+                    ]);
+                @endphp
+                <div>{{ implode(' | ', $clientDetails) }}</div>
+            @else
+                <div>Клієнта не вказано.</div>
+            @endif
+        </div>
 
         @if(!empty($document->content))
             <div class="print-card">
