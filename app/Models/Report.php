@@ -334,12 +334,15 @@ class Report extends Model
         string $dateToInput = '',
         string $sort = 'product_name',
         string $direction = 'asc',
-        bool $exportAll = false
+        bool $exportAll = false,
+        array $filters = []
     ): array
     {
         [$dateFromUi, $dateToUi, $dateFromLegacy, $dateToLegacy] = self::normalizePeriod($dateFromInput, $dateToInput);
         $skladId = trim($skladId);
         $search = trim($search);
+        $productNameFilter = trim((string) ($filters['product_name'] ?? ''));
+        $productCodeFilter = trim((string) ($filters['product_code'] ?? ''));
         $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
         $productNameSql = "COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(c.nickname, ''), NULLIF(c.namedoc, ''), NULLIF(c.name, ''), CONCAT('Товар #', ps.pnum))";
 
@@ -370,6 +373,14 @@ class Report extends Model
                 $join->on('zb.pnum', '=', 'c2.id')
                     ->on('zb.firma', '=', 'c2.firma');
             })
+            ->leftJoin('descript as d2', function ($join) {
+                $join->on('d2.pnum', '=', 'zb.pnum')
+                    ->on('d2.firma', '=', 'zb.firma');
+            })
+            ->leftJoin('conf as skl2', function ($join) {
+                $join->on('zd.sklads', '=', 'skl2.id')
+                    ->where('skl2.type', '=', 'sklads');
+            })
             ->leftJoin('price as pr', function ($join) {
                 $join->on('zb.pnum', '=', 'pr.pnum')
                     ->on('zb.firma', '=', 'pr.firma');
@@ -389,9 +400,30 @@ class Report extends Model
         if ($search !== '') {
             $salesQuery->where(function ($nested) use ($search) {
                 $nested->where('zb.pnum', 'like', "%{$search}%")
+                    ->orWhere('d2.name', 'like', "%{$search}%")
+                    ->orWhere('d2.name_ua', 'like', "%{$search}%")
+                    ->orWhere('d2.name_en', 'like', "%{$search}%")
                     ->orWhere('c2.nickname', 'like', "%{$search}%")
                     ->orWhere('c2.namedoc', 'like', "%{$search}%")
-                    ->orWhere('c2.name', 'like', "%{$search}%");
+                    ->orWhere('c2.name', 'like', "%{$search}%")
+                    ->orWhere('skl2.name', 'like', "%{$search}%");
+            });
+        }
+
+        if ($productNameFilter !== '') {
+            $salesQuery->where(function ($nested) use ($productNameFilter) {
+                $nested->where('d2.name', 'like', "%{$productNameFilter}%")
+                    ->orWhere('d2.name_ua', 'like', "%{$productNameFilter}%")
+                    ->orWhere('d2.name_en', 'like', "%{$productNameFilter}%")
+                    ->orWhere('c2.namedoc', 'like', "%{$productNameFilter}%")
+                    ->orWhere('c2.name', 'like', "%{$productNameFilter}%");
+            });
+        }
+
+        if ($productCodeFilter !== '') {
+            $salesQuery->where(function ($nested) use ($productCodeFilter) {
+                $nested->where('zb.pnum', 'like', "%{$productCodeFilter}%")
+                    ->orWhere('c2.nickname', 'like', "%{$productCodeFilter}%");
             });
         }
 
@@ -449,7 +481,25 @@ class Report extends Model
                     ->orWhere('d.name_en', 'like', "%{$search}%")
                     ->orWhere('c.nickname', 'like', "%{$search}%")
                     ->orWhere('c.namedoc', 'like', "%{$search}%")
-                    ->orWhere('c.name', 'like', "%{$search}%");
+                    ->orWhere('c.name', 'like', "%{$search}%")
+                    ->orWhere('skl.name', 'like', "%{$search}%");
+            });
+        }
+
+        if ($productNameFilter !== '') {
+            $query->where(function ($nested) use ($productNameFilter) {
+                $nested->where('d.name', 'like', "%{$productNameFilter}%")
+                    ->orWhere('d.name_ua', 'like', "%{$productNameFilter}%")
+                    ->orWhere('d.name_en', 'like', "%{$productNameFilter}%")
+                    ->orWhere('c.namedoc', 'like', "%{$productNameFilter}%")
+                    ->orWhere('c.name', 'like', "%{$productNameFilter}%");
+            });
+        }
+
+        if ($productCodeFilter !== '') {
+            $query->where(function ($nested) use ($productCodeFilter) {
+                $nested->where('ps.pnum', 'like', "%{$productCodeFilter}%")
+                    ->orWhere('c.nickname', 'like', "%{$productCodeFilter}%");
             });
         }
 
@@ -512,6 +562,8 @@ class Report extends Model
             'monthLabel' => self::periodLabel($dateFromUi, $dateToUi),
             'skladId' => $skladId,
             'search' => $search,
+            'productNameFilter' => $productNameFilter,
+            'productCodeFilter' => $productCodeFilter,
             'sort' => $sort,
             'direction' => $direction,
             'sklads' => $sklads,
@@ -745,9 +797,29 @@ class Report extends Model
         ];
     }
 
-    public static function inventoryOperations(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
+    public static function inventoryOperations(
+        string $fid,
+        string $dateFromInput = '',
+        string $dateToInput = '',
+        string $productNameFilter = '',
+        string $productCodeFilter = '',
+        string $skladId = ''
+    ): array
     {
-        $stocks = self::stockBalances($fid, '', '', $dateFromInput, $dateToInput, 'count', 'desc', true);
+        $stocks = self::stockBalances(
+            $fid,
+            $skladId,
+            '',
+            $dateFromInput,
+            $dateToInput,
+            'count',
+            'desc',
+            true,
+            [
+                'product_name' => $productNameFilter,
+                'product_code' => $productCodeFilter,
+            ]
+        );
         $periodDays = max(1, Carbon::createFromFormat('Y-m-d', $stocks['dateFrom'])->diffInDays(Carbon::createFromFormat('Y-m-d', $stocks['dateTo'])) + 1);
 
         $items = collect($stocks['items'])->map(function ($item) use ($periodDays) {
@@ -770,6 +842,10 @@ class Report extends Model
             'monthLabel' => $stocks['monthLabel'],
             'periodDays' => $periodDays,
             'items' => $items,
+            'skladId' => $stocks['skladId'] ?? '',
+            'sklads' => $stocks['sklads'] ?? collect(),
+            'productNameFilter' => $stocks['productNameFilter'] ?? '',
+            'productCodeFilter' => $stocks['productCodeFilter'] ?? '',
             'skuCount' => $items->count(),
             'totalQty' => (float) $items->sum(fn ($item) => (float) ($item->count ?? 0)),
             'outOfStockCount' => $items->where('stock_status', 'out_of_stock')->count(),

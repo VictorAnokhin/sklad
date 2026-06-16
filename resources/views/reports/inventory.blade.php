@@ -7,10 +7,57 @@
 
 @section('content')
 <div class="container mt-4 reports-page" data-bs-theme="dark">
-    @include('reports.period_form', [
-        'periodFormAction' => route('reports.inventory'),
-        'periodResetUrl' => route('reports.inventory'),
-    ])
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary">
+        <div class="card-body">
+            <form method="get" action="{{ route('reports.inventory') }}" class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label for="date_from" class="form-label">Період з</label>
+                    <input type="date" id="date_from" name="date_from" value="{{ $dateFrom }}" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label for="date_to" class="form-label">Період по</label>
+                    <input type="date" id="date_to" name="date_to" value="{{ $dateTo }}" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label for="product_name" class="form-label">Назва товару</label>
+                    <input
+                        type="text"
+                        id="product_name"
+                        name="product_name"
+                        value="{{ $productNameFilter ?? '' }}"
+                        class="form-control"
+                        placeholder="Пошук за назвою"
+                    >
+                </div>
+                <div class="col-md-2">
+                    <label for="product_code" class="form-label">Код товару</label>
+                    <input
+                        type="text"
+                        id="product_code"
+                        name="product_code"
+                        value="{{ $productCodeFilter ?? '' }}"
+                        class="form-control"
+                        placeholder="Код"
+                    >
+                </div>
+                <div class="col-md-2">
+                    <label for="sklad" class="form-label">Склад</label>
+                    <select id="sklad" name="sklad" class="form-select">
+                        <option value="">Усі склади</option>
+                        @foreach(($sklads ?? collect()) as $sklad)
+                            <option value="{{ $sklad->id }}" @selected((string) ($skladId ?? '') === (string) $sklad->id)>
+                                {{ $sklad->name ?: ('Склад #' . $sklad->id) }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-12 col-xl-auto d-flex gap-2 flex-wrap">
+                    <button type="submit" class="btn btn-primary">Показати</button>
+                    <a href="{{ route('reports.inventory') }}" class="btn btn-outline-secondary">Скинути</a>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
         <div class="card-body">
