@@ -319,10 +319,6 @@
             </div>
         </div>
 
-        <div class="print-note">
-            Документ сформовано {{ now()->format('d-m-Y H:i') }}.
-        </div>
-
         @if(!empty($skladName))
             <div class="table-meta">
                 <strong>Склад:</strong> {{ $skladName }}
