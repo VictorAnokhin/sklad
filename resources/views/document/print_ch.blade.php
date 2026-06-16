@@ -298,21 +298,6 @@
                 </tbody>
             </table>
 
-            <div class="goods-signatures">
-                <div class="goods-signature-box">
-                    <div class="goods-signature-title">Відпустив (здав):</div>
-                    <div class="goods-signature-line"></div>
-                    <div class="goods-signature-hint">(должность, подпись)</div>
-                    <div class="goods-signature-stamp">М.П. (за наявності)</div>
-                </div>
-                <div class="goods-signature-box">
-                    <div class="goods-signature-title">Прийняв (отримав):</div>
-                    <div class="goods-signature-line"></div>
-                    <div class="goods-signature-hint">(должность, подпись)</div>
-                    <div class="goods-signature-stamp">М.П. (за наявності)</div>
-                </div>
-            </div>
-
             <div class="totals">
                 <div class="totals-box">
                     @if((float) ($document->discount ?? 0) > 0)
@@ -339,24 +324,18 @@
             </div>
         @endif
 
-        <div class="signature-block">
-            <div class="signature-box">
-                <div class="signature-line">
-                    <div class="signature-label">Підпис</div>
-                    @if($signatureImage)
-                        <img src="{{ $signatureImage }}" alt="Підпис" class="signature-image">
-                    @else
-                        <div class="signature-space"></div>
-                    @endif
-                </div>
-                @if(!empty($signatureName))
-                    <div class="signature-name">
-                        {{ $signatureName }}
-                    </div>
-                @endif
-                @if($stampImage)
-                    <img src="{{ $stampImage }}" alt="Печатка" class="stamp-image">
-                @endif
+        <div class="goods-signatures">
+            <div class="goods-signature-box">
+                <div class="goods-signature-title">Відпустив (здав):</div>
+                <div class="goods-signature-line"></div>
+                <div class="goods-signature-hint">(должность, подпись)</div>
+                <div class="goods-signature-stamp">М.П. (за наявності)</div>
+            </div>
+            <div class="goods-signature-box">
+                <div class="goods-signature-title">Прийняв (отримав):</div>
+                <div class="goods-signature-line"></div>
+                <div class="goods-signature-hint">(должность, подпись)</div>
+                <div class="goods-signature-stamp">М.П. (за наявності)</div>
             </div>
         </div>
     </div>
