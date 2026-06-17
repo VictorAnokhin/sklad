@@ -539,6 +539,75 @@ class InventoryCostServiceTest extends TestCase
         $this->assertUserCacheBalance($ownerId, 'USD', 10);
     }
 
+    public function test_profile_balance_exchange_uses_holding_scoped_cache_rows(): void
+    {
+        $accountFirma = $this->companyId + 100000;
+        $holdingId = DB::table('holding')->insertGetId([
+            'name' => "Exchange holding {$this->companyId}",
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('project')->insert([
+            [
+                'id' => $this->companyId,
+                'name' => 'Exchange user project',
+                'holding_id' => $holdingId,
+            ],
+            [
+                'id' => $accountFirma,
+                'name' => 'Exchange account project',
+                'holding_id' => $holdingId,
+            ],
+        ]);
+
+        $ownerId = DB::table('users')->insertGetId([
+            'name' => 'Exchange holding owner',
+            'email' => "exchange-holding-owner-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+
+        DB::table('users_cashe')->insert([
+            'userid' => (string) $ownerId,
+            'firma' => $accountFirma,
+            'user_id' => $ownerId,
+            'balance' => 600,
+            'valuta' => 'UAH',
+        ]);
+
+        $balances = Money::cachedUserBalances((string) $ownerId, (string) $this->companyId);
+        $this->assertContains('UAH', array_column($balances, 'currency'));
+
+        $docId = DB::table('z_document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => 'PPP',
+            'firma' => (string) $this->companyId,
+            'client1' => '0',
+            'client2' => (string) $ownerId,
+            'summa' => 549,
+            'summa2' => 100,
+            'currency_from' => 'UAH',
+            'currency_to' => 'USD',
+            'exchange_rate' => 0.18214936,
+            'data' => '12-06-2026',
+            'docum' => 'exchange',
+            'provodka' => 0,
+        ]);
+
+        $result = Money::provodka($docId, (string) $this->companyId);
+
+        $this->assertTrue($result['isPosted'], $result['error'] ?? '');
+        $this->assertEqualsWithDelta(
+            51,
+            (float) DB::table('users_cashe')
+                ->where('userid', (string) $ownerId)
+                ->where('firma', $accountFirma)
+                ->where('valuta', 'UAH')
+                ->value('balance'),
+            0.001
+        );
+    }
+
     public function test_money_order_posting_creates_missing_user_cache_in_order_currency(): void
     {
         $ownerId = DB::table('users')->insertGetId([

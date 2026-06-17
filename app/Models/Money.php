@@ -928,6 +928,7 @@ class Money extends Model
         $hasValuta = in_array('valuta', $cacheColumns, true);
         $currency = self::normalizeCurrency($currency);
         $firmaScope = HoldingScope::projectIdsFor($fid);
+        $firmaScopeInts = array_map('intval', $firmaScope);
         $user = DB::table('users')
             ->where('id', $userId)
             ->when($firmaScope !== [], fn ($query) => $query->whereIn('firma', $firmaScope))
@@ -939,22 +940,24 @@ class Money extends Model
 
         $criteria = ['userid' => (string) $user->id];
         if (in_array('firma', $cacheColumns, true)) {
-            $criteria['firma'] = (int) ($user->firma ?? $fid);
+            $criteria['firma'] = self::balanceCacheInsertFirma($fid, $user->firma ?? null, $firmaScopeInts);
         }
         if ($hasValuta) {
             $criteria['valuta'] = $currency;
         }
 
         $existing = self::userBalanceCacheQuery((string) $user->id, $cacheColumns)
-            ->when(in_array('firma', $cacheColumns, true), fn ($query) => $query->where('firma', (int) ($user->firma ?? $fid)))
+            ->when(in_array('firma', $cacheColumns, true) && $firmaScopeInts !== [], fn ($query) => $query->whereIn('firma', $firmaScopeInts))
             ->when($hasValuta, fn ($query) => $query->where('valuta', $currency))
             ->lockForUpdate()
-            ->first(['id', 'balance']);
+            ->first(array_values(array_filter(['id', 'balance', in_array('firma', $cacheColumns, true) ? 'firma' : null])));
 
         $values = ['balance' => round((float) ($existing->balance ?? 0) + $delta, 2)];
         $values['userid'] = (string) $user->id;
         if (in_array('firma', $cacheColumns, true)) {
-            $values['firma'] = (int) ($user->firma ?? $fid);
+            $values['firma'] = $existing
+                ? (int) ($existing->firma ?? $criteria['firma'])
+                : $criteria['firma'];
         }
         if (in_array('user_id', $cacheColumns, true)) {
             $values['user_id'] = (int) $user->id;
@@ -981,6 +984,7 @@ class Money extends Model
         $hasValuta = in_array('valuta', $cacheColumns, true);
         $currency = self::normalizeCurrency($currency);
         $firmaScope = HoldingScope::projectIdsFor($fid);
+        $firmaScopeInts = array_map('intval', $firmaScope);
         $user = DB::table('users')
             ->where('id', $userId)
             ->when($firmaScope !== [], fn ($query) => $query->whereIn('firma', $firmaScope))
@@ -990,16 +994,8 @@ class Money extends Model
             throw new RuntimeException('Користувача балансу не знайдено');
         }
 
-        $criteria = ['userid' => (string) $user->id];
-        if (in_array('firma', $cacheColumns, true)) {
-            $criteria['firma'] = (int) ($user->firma ?? $fid);
-        }
-        if ($hasValuta) {
-            $criteria['valuta'] = $currency;
-        }
-
         $existing = self::userBalanceCacheQuery((string) $user->id, $cacheColumns)
-            ->when(in_array('firma', $cacheColumns, true), fn ($query) => $query->where('firma', (int) ($user->firma ?? $fid)))
+            ->when(in_array('firma', $cacheColumns, true) && $firmaScopeInts !== [], fn ($query) => $query->whereIn('firma', $firmaScopeInts))
             ->when($hasValuta, fn ($query) => $query->where('valuta', $currency))
             ->lockForUpdate()
             ->first(['id', 'balance']);
@@ -1025,6 +1021,7 @@ class Money extends Model
         $hasValuta = in_array('valuta', $cacheColumns, true);
         $currency = self::normalizeCurrency($currency);
         $firmaScope = HoldingScope::projectIdsFor($fid);
+        $firmaScopeInts = array_map('intval', $firmaScope);
         $user = DB::table('users')
             ->where('id', $userId)
             ->when($firmaScope !== [], fn ($query) => $query->whereIn('firma', $firmaScope))
@@ -1036,14 +1033,14 @@ class Money extends Model
 
         $criteria = ['userid' => (string) $user->id];
         if (in_array('firma', $cacheColumns, true)) {
-            $criteria['firma'] = (int) ($user->firma ?? $fid);
+            $criteria['firma'] = self::balanceCacheInsertFirma($fid, $user->firma ?? null, $firmaScopeInts);
         }
         if ($hasValuta) {
             $criteria['valuta'] = $currency;
         }
 
         $exists = self::userBalanceCacheQuery((string) $user->id, $cacheColumns)
-            ->when(in_array('firma', $cacheColumns, true), fn ($query) => $query->where('firma', (int) ($user->firma ?? $fid)))
+            ->when(in_array('firma', $cacheColumns, true) && $firmaScopeInts !== [], fn ($query) => $query->whereIn('firma', $firmaScopeInts))
             ->when($hasValuta, fn ($query) => $query->where('valuta', $currency))
             ->lockForUpdate()
             ->exists();
@@ -1075,6 +1072,16 @@ class Money extends Model
                     $query->orWhere('user_id', (int) $userId);
                 }
             });
+    }
+
+    private static function balanceCacheInsertFirma(string $fid, mixed $userFirma, array $firmaScopeInts): int
+    {
+        $userFirmaInt = (int) ($userFirma ?? 0);
+        if ($userFirmaInt > 0 && ($firmaScopeInts === [] || in_array($userFirmaInt, $firmaScopeInts, true))) {
+            return $userFirmaInt;
+        }
+
+        return (int) $fid;
     }
 
     private static function canUseUserBalanceCache(): bool
