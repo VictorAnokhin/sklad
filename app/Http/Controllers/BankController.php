@@ -248,6 +248,50 @@ class BankController extends Controller
         ]);
     }
 
+    public function storeDeposit(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $payload = $this->validateDepositSettings($request);
+
+        DB::table('conf')->insert([
+            'type' => 'deposit',
+            'name' => $payload['name'],
+            'status' => 1,
+            'firma' => (string) $project->id,
+            'vision' => '1',
+            'hide' => 0,
+            'constanta' => '0',
+            'value' => 0,
+            'value1' => 0,
+            'currency' => 'UAH',
+            'doc' => $payload['deposit_type'],
+        ]);
+
+        return redirect()->route('bank.deposit')->with('success', 'Депозит создан.');
+    }
+
+    public function updateDeposit(Request $request, int $deposit): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        $payload = $this->validateDepositSettings($request);
+
+        $updated = DB::table('conf')
+            ->where('id', $deposit)
+            ->where('type', 'deposit')
+            ->whereIn('firma', array_map('intval', $projectIds))
+            ->update([
+                'name' => $payload['name'],
+                'doc' => $payload['deposit_type'],
+            ]);
+
+        if ($updated === 0) {
+            return redirect()->route('bank.deposit')->with('error', 'Депозит не найден.');
+        }
+
+        return redirect()->route('bank.deposit')->with('success', 'Настройки депозита сохранены.');
+    }
+
     public function exchange(): View
     {
         $project = $this->bankProject();
@@ -803,6 +847,19 @@ class BankController extends Controller
         abort_unless(strtolower(trim((string) ($project->project_type ?? ''))) === 'bank', 403);
 
         return $project;
+    }
+
+    private function validateDepositSettings(Request $request): array
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:200'],
+            'deposit_type' => ['required', Rule::in(['bank', 'personal'])],
+        ]);
+
+        return [
+            'name' => trim((string) $validated['name']),
+            'deposit_type' => (string) $validated['deposit_type'],
+        ];
     }
 
     private function googleAccountWalletPortfolio(): array
@@ -1417,10 +1474,13 @@ class BankController extends Controller
                 'c.currency',
                 'c.status',
                 'c.vision',
+                'c.doc',
                 'p.name as project_name',
             ])
             ->map(function ($deposit) {
                 $status = (int) ($deposit->status ?? 0);
+                $depositType = trim((string) ($deposit->doc ?? ''));
+                $depositType = in_array($depositType, ['bank', 'personal'], true) ? $depositType : 'bank';
 
                 return (object) [
                     'id' => (string) $deposit->id,
@@ -1429,6 +1489,8 @@ class BankController extends Controller
                     'balance' => (float) ($deposit->value ?? 0),
                     'limit' => (float) ($deposit->value1 ?? 0),
                     'currency' => $this->normalizeCurrencyCode($deposit->currency ?? 'UAH'),
+                    'deposit_type' => $depositType,
+                    'deposit_type_label' => $depositType === 'personal' ? 'Личный' : 'Банковский',
                     'is_active' => $status === 1,
                     'status_label' => $status === 1 ? 'Активен' : ($status === 3 ? 'Закрыт' : 'На проверке'),
                     'is_visible' => (string) ($deposit->vision ?? '1') !== '0',

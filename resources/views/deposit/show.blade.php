@@ -82,7 +82,7 @@
                 <option value="" data-currency="">{{ __('deposit.select_deposit') }}</option>
                 @foreach($deposits as $deposit)
                 <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency ?? 'UAH' }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
-                    {{ $deposit->name }} @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} {{ $deposit->currency ?? 'UAH' }} @endif
+                    {{ $deposit->name }} @if(($deposit->deposit_type ?? '') === 'bank') · банк @endif @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} {{ $deposit->currency ?? 'UAH' }} @endif
                 </option>
                 @endforeach
             </select>

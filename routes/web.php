@@ -97,6 +97,10 @@ Route::middleware(['auth'])->group(function () {
             ->name('person-accounts.destroy');
         Route::get('/loans', fn () => redirect()->route('bank.deposit'))->name('loans.redirect');
         Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
+        Route::post('/deposit', [BankController::class, 'storeDeposit'])->name('deposit.store');
+        Route::put('/deposit/{deposit}', [BankController::class, 'updateDeposit'])
+            ->whereNumber('deposit')
+            ->name('deposit.update');
         Route::get('/invest', [BankController::class, 'invest'])->name('invest');
         Route::post('/invest/tracked-assets', [BankController::class, 'storeTrackedAsset'])
             ->name('tracked-assets.store');

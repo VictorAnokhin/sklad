@@ -26,6 +26,13 @@
         </div>
     </section>
 
+    @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
+
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel bank-panel--accent">
             <div class="bank-label">Депозитов</div>
@@ -71,7 +78,17 @@
                 <div class="bank-label">Портфель депозитов</div>
                 <div class="bank-meta">Текущие остатки и установленные лимиты депозитных счетов.</div>
             </div>
-            <div class="bank-meta">{{ $deposits->count() }} счетов</div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="bank-meta">{{ $deposits->count() }} счетов</div>
+                <button type="button"
+                    class="btn btn-sm btn-primary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#depositMovementModal"
+                    data-deposit-create="1"
+                    data-store-url="{{ route('bank.deposit.store') }}">
+                    Создать депозит
+                </button>
+            </div>
         </div>
         <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
             <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--deposits">
@@ -102,11 +119,14 @@
                             data-deposit-name="{{ $deposit->name }}"
                             data-deposit-currency="{{ $deposit->currency }}"
                             data-deposit-balance="{{ number_format((float) $deposit->balance, 2, '.', ' ') }}"
+                            data-deposit-type="{{ $deposit->deposit_type }}"
+                            data-deposit-type-label="{{ $deposit->deposit_type_label }}"
+                            data-update-url="{{ route('bank.deposit.update', ['deposit' => $deposit->id]) }}"
                         >
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td>
                                 <strong>{{ $deposit->name }}</strong>
-                                <div class="bank-meta">ID {{ $deposit->id }}{{ $deposit->is_visible ? '' : ' · скрыт' }}</div>
+                                <div class="bank-meta">ID {{ $deposit->id }} · {{ $deposit->deposit_type_label }}{{ $deposit->is_visible ? '' : ' · скрыт' }}</div>
                             </td>
                             <td>{{ $deposit->project_name }}</td>
                             <td><span class="bank-pill bank-pill--currency">{{ $deposit->currency }}</span></td>
@@ -138,42 +158,82 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="bank-order-modal__summary">
-                        <div>
-                            <span>Текущий остаток</span>
-                            <strong data-deposit-summary="balance"></strong>
-                        </div>
-                        <div>
-                            <span>Пополнения</span>
-                            <strong class="text-success" data-deposit-summary="topups"></strong>
-                        </div>
-                        <div>
-                            <span>Выводы</span>
-                            <strong class="text-danger" data-deposit-summary="withdrawals"></strong>
-                        </div>
-                        <div>
-                            <span>Чистое движение</span>
-                            <strong data-deposit-summary="net"></strong>
-                        </div>
-                    </div>
+                    <ul class="nav nav-tabs bank-modal-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="depositOperationsTab" data-bs-toggle="tab" data-bs-target="#depositOperationsPane" type="button" role="tab">
+                                Операции
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="depositSettingsTab" data-bs-toggle="tab" data-bs-target="#depositSettingsPane" type="button" role="tab">
+                                Настройки
+                            </button>
+                        </li>
+                    </ul>
 
-                    <div class="table-responsive bank-deposit-movement-table">
-                        <table class="table table-dark table-hover table-sm align-middle bank-table">
-                            <thead>
-                                <tr>
-                                    <th class="bank-table__num">№</th>
-                                    <th>Дата / документ</th>
-                                    <th>Операция</th>
-                                    <th>Владелец</th>
-                                    <th class="text-end">Сумма</th>
-                                    <th>Статус</th>
-                                </tr>
-                            </thead>
-                            <tbody data-deposit-movements></tbody>
-                        </table>
-                    </div>
-                    <div class="bank-empty bank-deposit-movement-empty" data-deposit-movements-empty hidden>
-                        По этому депозиту движения средств не найдены.
+                    <div class="tab-content pt-3">
+                        <div class="tab-pane fade show active" id="depositOperationsPane" role="tabpanel" aria-labelledby="depositOperationsTab">
+                            <div class="bank-order-modal__summary">
+                                <div>
+                                    <span>Текущий остаток</span>
+                                    <strong data-deposit-summary="balance"></strong>
+                                </div>
+                                <div>
+                                    <span>Пополнения</span>
+                                    <strong class="text-success" data-deposit-summary="topups"></strong>
+                                </div>
+                                <div>
+                                    <span>Выводы</span>
+                                    <strong class="text-danger" data-deposit-summary="withdrawals"></strong>
+                                </div>
+                                <div>
+                                    <span>Чистое движение</span>
+                                    <strong data-deposit-summary="net"></strong>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive bank-deposit-movement-table">
+                                <table class="table table-dark table-hover table-sm align-middle bank-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="bank-table__num">№</th>
+                                            <th>Дата / документ</th>
+                                            <th>Операция</th>
+                                            <th>Владелец</th>
+                                            <th class="text-end">Сумма</th>
+                                            <th>Статус</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-deposit-movements></tbody>
+                                </table>
+                            </div>
+                            <div class="bank-empty bank-deposit-movement-empty" data-deposit-movements-empty hidden>
+                                По этому депозиту движения средств не найдены.
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="depositSettingsPane" role="tabpanel" aria-labelledby="depositSettingsTab">
+                            <form method="post" data-deposit-settings-form>
+                                @csrf
+                                <input type="hidden" name="_method" value="POST" data-deposit-settings-method>
+                                <div class="row g-3">
+                                    <div class="col-md-8">
+                                        <label class="form-label">Название</label>
+                                        <input type="text" name="name" class="form-control" data-deposit-settings-name required maxlength="200">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Тип депозита</label>
+                                        <select name="deposit_type" class="form-select" data-deposit-settings-type required>
+                                            <option value="bank">Банковский</option>
+                                            <option value="personal">Личный</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-end gap-2 mt-3">
+                                    <button type="submit" class="btn btn-primary" data-deposit-settings-submit>Сохранить</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -196,6 +256,13 @@
         const operations = @json($operations->values());
         const movementsBody = modal.querySelector('[data-deposit-movements]');
         const emptyState = modal.querySelector('[data-deposit-movements-empty]');
+        const settingsForm = modal.querySelector('[data-deposit-settings-form]');
+        const settingsMethod = modal.querySelector('[data-deposit-settings-method]');
+        const settingsName = modal.querySelector('[data-deposit-settings-name]');
+        const settingsType = modal.querySelector('[data-deposit-settings-type]');
+        const settingsSubmit = modal.querySelector('[data-deposit-settings-submit]');
+        const operationsTab = modal.querySelector('#depositOperationsTab');
+        const settingsTab = modal.querySelector('#depositSettingsTab');
 
         function formatAmount(value) {
             return Number(value || 0).toLocaleString('ru-RU', {
@@ -223,6 +290,27 @@
                 return;
             }
 
+            const isCreate = trigger.dataset.depositCreate === '1';
+            if (isCreate) {
+                modal.querySelector('#depositMovementModalLabel').textContent = 'Новый депозит';
+                setSummary('balance', '0.00 UAH');
+                setSummary('topups', '+0.00 UAH');
+                setSummary('withdrawals', '−0.00 UAH');
+                setSummary('net', '+0.00 UAH');
+                movementsBody.replaceChildren();
+                emptyState.hidden = false;
+
+                if (settingsForm && settingsMethod && settingsName && settingsType && settingsSubmit) {
+                    settingsForm.action = trigger.dataset.storeUrl || '';
+                    settingsMethod.value = 'POST';
+                    settingsName.value = '';
+                    settingsType.value = 'bank';
+                    settingsSubmit.textContent = 'Создать депозит';
+                }
+                bootstrap.Tab.getOrCreateInstance(settingsTab).show();
+                return;
+            }
+
             const depositId = String(trigger.dataset.depositId || '');
             const currency = String(trigger.dataset.depositCurrency || 'UAH');
             const movements = operations.filter((operation) => String(operation.deposit_id) === depositId);
@@ -238,6 +326,14 @@
             setSummary('topups', `+${formatAmount(topups)} ${currency}`);
             setSummary('withdrawals', `−${formatAmount(withdrawals)} ${currency}`);
             setSummary('net', `${topups - withdrawals >= 0 ? '+' : '−'}${formatAmount(Math.abs(topups - withdrawals))} ${currency}`);
+            if (settingsForm && settingsMethod && settingsName && settingsType && settingsSubmit) {
+                settingsForm.action = trigger.dataset.updateUrl || '';
+                settingsMethod.value = 'PUT';
+                settingsName.value = trigger.dataset.depositName || '';
+                settingsType.value = trigger.dataset.depositType || 'bank';
+                settingsSubmit.textContent = 'Сохранить';
+            }
+            bootstrap.Tab.getOrCreateInstance(operationsTab).show();
 
             movementsBody.replaceChildren();
             emptyState.hidden = movements.length > 0;

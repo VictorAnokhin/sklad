@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\AccountingService;
+use App\Support\HoldingScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -155,13 +156,26 @@ class Deposit extends Model
 
     public static function deposits(string $fid)
     {
+        $hasDoc = Schema::hasColumn('conf', 'doc');
+
         return DB::table('conf')
             ->where('type', 'deposit')
-            ->where('firma', $fid)
+            ->where(function ($query) use ($fid, $hasDoc): void {
+                $query->where('firma', $fid);
+
+                if ($hasDoc) {
+                    $query->orWhere(function ($bankQuery) use ($fid): void {
+                        $bankQuery
+                            ->where('doc', 'bank')
+                            ->whereIn('firma', array_map('intval', HoldingScope::projectIdsFor($fid)));
+                    });
+                }
+            })
             ->orderBy('name')
-            ->get(array_filter(['id', 'name', 'value', Schema::hasColumn('conf', 'currency') ? 'currency' : null]))
+            ->get(array_filter(['id', 'name', 'value', 'firma', Schema::hasColumn('conf', 'currency') ? 'currency' : null, Schema::hasColumn('conf', 'doc') ? 'doc' : null]))
             ->map(function ($deposit) {
                 $deposit->currency = self::normalizeCurrency($deposit->currency ?? 'UAH');
+                $deposit->deposit_type = (string) ($deposit->doc ?? '') === 'bank' ? 'bank' : 'personal';
 
                 return $deposit;
             });
@@ -242,11 +256,11 @@ class Deposit extends Model
         DB::transaction(function () use ($fid, $direction, $summa, $mode, $depositId, $ownerUserId, $currency, $id, $wasPosted, $doc): void {
             if ($mode === 'topup' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
                 self::shiftUserBalance($fid, $ownerUserId, -1 * $summa * $direction, $currency);
-                self::shiftConfValue($fid, 'deposit', $depositId, $summa * $direction);
+                self::shiftDepositValue($fid, $depositId, $summa * $direction);
             }
 
             if ($mode === 'withdraw' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
-                self::shiftConfValue($fid, 'deposit', $depositId, -1 * $summa * $direction);
+                self::shiftDepositValue($fid, $depositId, -1 * $summa * $direction);
                 self::shiftUserBalance($fid, $ownerUserId, $summa * $direction, $currency);
             }
 
@@ -304,6 +318,23 @@ class Deposit extends Model
             ->update(['value' => $currentValue + $delta]);
     }
 
+    private static function shiftDepositValue(string $fid, string $depositId, float $delta): void
+    {
+        $deposit = self::depositQuery($fid, $depositId)
+            ->lockForUpdate()
+            ->first(['id', 'firma', 'value']);
+
+        if (!$deposit) {
+            return;
+        }
+
+        DB::table('conf')
+            ->where('id', $deposit->id)
+            ->where('type', 'deposit')
+            ->where('firma', $deposit->firma)
+            ->update(['value' => (float) ($deposit->value ?? 0) + $delta]);
+    }
+
     public static function depositCurrency(string $fid, string $depositId): string
     {
         if ($depositId === '' || !Schema::hasColumn('conf', 'currency')) {
@@ -311,12 +342,30 @@ class Deposit extends Model
         }
 
         $currency = DB::table('conf')
-            ->where('id', $depositId)
-            ->where('type', 'deposit')
-            ->where('firma', $fid)
+            ->fromSub(self::depositQuery($fid, $depositId), 'deposit_scope')
             ->value('currency');
 
         return self::normalizeCurrency($currency ?? 'UAH');
+    }
+
+    private static function depositQuery(string $fid, string $depositId)
+    {
+        $hasDoc = Schema::hasColumn('conf', 'doc');
+
+        return DB::table('conf')
+            ->where('id', $depositId)
+            ->where('type', 'deposit')
+            ->where(function ($query) use ($fid, $hasDoc): void {
+                $query->where('firma', $fid);
+
+                if ($hasDoc) {
+                    $query->orWhere(function ($bankQuery) use ($fid): void {
+                        $bankQuery
+                            ->where('doc', 'bank')
+                            ->whereIn('firma', array_map('intval', HoldingScope::projectIdsFor($fid)));
+                    });
+                }
+            });
     }
 
     private static function shiftUserBalance(string $fid, string $userId, float $delta, string $currency): void
