@@ -310,6 +310,7 @@
             <div class="modal-content">
                 <form method="POST" action="{{ route('bank.deposit.transfer.store') }}" data-deposit-transfer-form>
                     @csrf
+                    <input type="hidden" name="direction" value="account_to_deposit" data-deposit-transfer-direction>
                     <div class="modal-header">
                         <div>
                             <div class="bank-label">Трансфер</div>
@@ -320,11 +321,20 @@
                     <div class="modal-body">
                         <div class="row g-3">
                             <div class="col-12">
+                                <label class="form-label">Маршрут</label>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <span class="bank-pill bank-pill--currency" data-deposit-transfer-route-label>Счет → депозит</span>
+                                    <button type="button" class="btn btn-sm btn-outline-light" data-deposit-transfer-toggle-route>
+                                        Изменить маршрут
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-12">
                                 <label class="form-label">Депозит</label>
                                 <select name="deposit_id" class="form-select" required data-deposit-transfer-deposit>
                                     <option value="">Выберите депозит</option>
                                     @foreach($deposits as $deposit)
-                                        <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency }}">
+                                        <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency }}" data-balance="{{ number_format((float) $deposit->balance, 2, '.', '') }}">
                                             {{ $deposit->name }} · {{ $deposit->currency }} · {{ number_format((float) $deposit->balance, 2, '.', ' ') }}
                                         </option>
                                     @endforeach
@@ -383,6 +393,9 @@
         const operationsTab = modal.querySelector('#depositOperationsTab');
         const settingsTab = modal.querySelector('#depositSettingsTab');
         const transferForm = document.querySelector('[data-deposit-transfer-form]');
+        const transferDirection = document.querySelector('[data-deposit-transfer-direction]');
+        const transferRouteLabel = document.querySelector('[data-deposit-transfer-route-label]');
+        const transferToggleRoute = document.querySelector('[data-deposit-transfer-toggle-route]');
         const transferDeposit = document.querySelector('[data-deposit-transfer-deposit]');
         const transferAccount = document.querySelector('[data-deposit-transfer-account]');
         const transferAmount = document.querySelector('[data-deposit-transfer-amount]');
@@ -422,6 +435,7 @@
             const depositOption = selectedOption(transferDeposit);
             const accountOption = selectedOption(transferAccount);
             const depositCurrency = depositOption?.dataset.currency || '';
+            const direction = transferDirection?.value || 'account_to_deposit';
             const amount = Number(transferAmount.value || 0);
             let message = '';
 
@@ -445,16 +459,26 @@
             } else if (amount <= 0) {
                 message = 'Введите сумму трансфера.';
             } else {
-                const balance = Number(refreshedAccountOption.dataset.balance || 0);
-                if (balance + 0.000001 < amount) {
-                    message = 'Недостаточно средств на операционном счете.';
+                const sourceBalance = direction === 'deposit_to_account'
+                    ? Number(depositOption?.dataset.balance || 0)
+                    : Number(refreshedAccountOption.dataset.balance || 0);
+                if (sourceBalance + 0.000001 < amount) {
+                    message = direction === 'deposit_to_account'
+                        ? 'Недостаточно средств на депозите.'
+                        : 'Недостаточно средств на операционном счете.';
                 }
             }
 
             if (transferAccountMeta) {
-                const balance = Number((selectedOption(transferAccount)?.dataset.balance) || 0);
-                transferAccountMeta.textContent = selectedOption(transferAccount)?.value
-                    ? `Доступно ${formatAmount(balance)} ${selectedOption(transferAccount).dataset.currency || ''}`
+                const currentAccount = selectedOption(transferAccount);
+                const accountBalance = Number(currentAccount?.dataset.balance || 0);
+                const depositBalance = Number(depositOption?.dataset.balance || 0);
+                transferAccountMeta.textContent = currentAccount?.value
+                    ? (
+                        direction === 'deposit_to_account'
+                            ? `Источник: депозит, доступно ${formatAmount(depositBalance)} ${depositCurrency}`
+                            : `Источник: счет, доступно ${formatAmount(accountBalance)} ${currentAccount.dataset.currency || ''}`
+                    )
                     : '';
             }
 
@@ -464,6 +488,26 @@
 
             return message === '';
         }
+
+        function syncTransferRouteLabel() {
+            if (!transferDirection || !transferRouteLabel) {
+                return;
+            }
+            transferRouteLabel.textContent = transferDirection.value === 'deposit_to_account'
+                ? 'Депозит → счет'
+                : 'Счет → депозит';
+            validateTransferForm();
+        }
+
+        transferToggleRoute?.addEventListener('click', () => {
+            if (!transferDirection) {
+                return;
+            }
+            transferDirection.value = transferDirection.value === 'deposit_to_account'
+                ? 'account_to_deposit'
+                : 'deposit_to_account';
+            syncTransferRouteLabel();
+        });
 
         [transferDeposit, transferAccount, transferAmount].forEach((element) => {
             element?.addEventListener('input', validateTransferForm);
@@ -477,7 +521,7 @@
         });
 
         document.getElementById('depositTransferModal')?.addEventListener('shown.bs.modal', () => {
-            validateTransferForm();
+            syncTransferRouteLabel();
         });
 
         modal.addEventListener('show.bs.modal', (event) => {

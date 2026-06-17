@@ -401,14 +401,16 @@ class BankController extends Controller
             'deposit_id' => ['required', 'integer'],
             'operational_account_id' => ['required', 'integer'],
             'amount' => ['required', 'numeric', 'min:0.01'],
+            'direction' => ['required', Rule::in(['account_to_deposit', 'deposit_to_account'])],
         ]);
 
         $amount = round((float) $payload['amount'], 2);
         $depositId = (int) $payload['deposit_id'];
         $accountId = (int) $payload['operational_account_id'];
+        $direction = (string) $payload['direction'];
 
         try {
-            DB::transaction(function () use ($project, $projectIds, $depositId, $accountId, $amount): void {
+            DB::transaction(function () use ($project, $projectIds, $depositId, $accountId, $amount, $direction): void {
                 $deposit = DB::table('conf')
                     ->where('id', $depositId)
                     ->where('type', 'deposit')
@@ -434,7 +436,9 @@ class BankController extends Controller
                 }
 
                 $accountBalance = round((float) ($account->value ?? 0), 2);
-                if ($accountBalance + 0.000001 < $amount) {
+                $depositBalance = round((float) ($deposit->value ?? 0), 2);
+
+                if ($direction === 'account_to_deposit' && $accountBalance + 0.000001 < $amount) {
                     throw new \RuntimeException(
                         'Недостаточно средств на операционном счете. Доступно '
                         . number_format($accountBalance, 2, '.', ' ')
@@ -444,12 +448,31 @@ class BankController extends Controller
                     );
                 }
 
-                DB::table('conf')->where('id', $accountId)->update([
-                    'value' => DB::raw('COALESCE(value, 0) - ' . $amount),
-                ]);
-                DB::table('conf')->where('id', $depositId)->update([
-                    'value' => DB::raw('COALESCE(value, 0) + ' . $amount),
-                ]);
+                if ($direction === 'deposit_to_account' && $depositBalance + 0.000001 < $amount) {
+                    throw new \RuntimeException(
+                        'Недостаточно средств на депозите. Доступно '
+                        . number_format($depositBalance, 2, '.', ' ')
+                        . ", нужно "
+                        . number_format($amount, 2, '.', ' ')
+                        . " {$depositCurrency}."
+                    );
+                }
+
+                if ($direction === 'account_to_deposit') {
+                    DB::table('conf')->where('id', $accountId)->update([
+                        'value' => DB::raw('COALESCE(value, 0) - ' . $amount),
+                    ]);
+                    DB::table('conf')->where('id', $depositId)->update([
+                        'value' => DB::raw('COALESCE(value, 0) + ' . $amount),
+                    ]);
+                } else {
+                    DB::table('conf')->where('id', $depositId)->update([
+                        'value' => DB::raw('COALESCE(value, 0) - ' . $amount),
+                    ]);
+                    DB::table('conf')->where('id', $accountId)->update([
+                        'value' => DB::raw('COALESCE(value, 0) + ' . $amount),
+                    ]);
+                }
 
                 $documentId = $this->createDepositTransferDocument(
                     (string) $project->id,
@@ -458,7 +481,8 @@ class BankController extends Controller
                     $amount,
                     $accountCurrency,
                     trim((string) ($account->name ?? '')),
-                    trim((string) ($deposit->name ?? ''))
+                    trim((string) ($deposit->name ?? '')),
+                    $direction
                 );
 
                 $document = DB::table('z_document')->where('id', $documentId)->first();
@@ -1709,25 +1733,29 @@ class BankController extends Controller
         float $amount,
         string $currency,
         string $accountName,
-        string $depositName
+        string $depositName,
+        string $direction
     ): int {
         $columns = Schema::getColumnListing('z_document');
         $maxNum = DB::table('z_document')
             ->where('firma', $projectId)
             ->where('type', 'PP')
             ->max(DB::raw('CAST(num AS UNSIGNED)'));
+        $isDepositToAccount = $direction === 'deposit_to_account';
 
         $payload = [
             'type' => 'PP',
             'firma' => $projectId,
             'num' => $maxNum ? (int) $maxNum + 1 : 1,
             'summa' => $amount,
-            'content' => trim("Трансфер с операционного счета {$accountName} на депозит {$depositName}"),
+            'content' => $isDepositToAccount
+                ? trim("Трансфер с депозита {$depositName} на операционный счет {$accountName}")
+                : trim("Трансфер с операционного счета {$accountName} на депозит {$depositName}"),
             'data' => date('d-m-Y'),
             'time' => date('H:i:s'),
-            'docum' => 'topup',
-            'oplata' => (string) $accountId,
-            'oplata2' => '',
+            'docum' => $isDepositToAccount ? 'withdraw' : 'topup',
+            'oplata' => $isDepositToAccount ? '' : (string) $accountId,
+            'oplata2' => $isDepositToAccount ? (string) $accountId : '',
             'money' => (string) $depositId,
             'client1' => '0',
             'client2' => '0',
