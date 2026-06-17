@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 
 /**
  * Money — cash documents from z_document
@@ -592,28 +593,45 @@ class Money extends Model
         $currencyFrom = self::normalizeCurrency($doc->currency_from ?? 'UAH');
         $currencyTo = self::normalizeCurrency($doc->currency_to ?? $currencyFrom);
 
-        DB::transaction(function () use ($ownerUserId, $fid, $amountFrom, $amountTo, $currencyFrom, $currencyTo, $direction, $id, $wasPosted, $doc): void {
-            if ($ownerUserId !== '' && $ownerUserId !== '0') {
-                self::shiftUserBalance($fid, $ownerUserId, -1 * $amountFrom * $direction, $currencyFrom);
-                self::shiftUserBalance($fid, $ownerUserId, $amountTo * $direction, $currencyTo);
+        try {
+            DB::transaction(function () use ($ownerUserId, $fid, $amountFrom, $amountTo, $currencyFrom, $currencyTo, $direction, $id, $wasPosted, $doc): void {
+                if ($ownerUserId !== '' && $ownerUserId !== '0') {
+                    if (!$wasPosted) {
+                        self::assertUserBalanceAvailable($fid, $ownerUserId, $currencyFrom, $amountFrom);
+                    }
+
+                    self::shiftUserBalance($fid, $ownerUserId, -1 * $amountFrom * $direction, $currencyFrom);
+                    self::shiftUserBalance($fid, $ownerUserId, $amountTo * $direction, $currencyTo);
+                }
+
+                app(AccountingService::class)->createDocumentTransaction(
+                    'z_document:balance_exchange',
+                    $id,
+                    'PPP',
+                    $doc,
+                    [],
+                    $fid,
+                    $wasPosted
+                );
+
+                DB::table('z_document')
+                    ->where('id', $id)
+                    ->where('firma', $fid)
+                    ->where('type', 'PPP')
+                    ->update(['provodka' => $wasPosted ? 0 : 1]);
+            });
+        } catch (RuntimeException $exception) {
+            $message = $exception->getMessage();
+            if (! str_starts_with($message, 'Недостатньо') && $message !== 'Користувача балансу не знайдено') {
+                throw $exception;
             }
 
-            app(AccountingService::class)->createDocumentTransaction(
-                'z_document:balance_exchange',
-                $id,
-                'PPP',
-                $doc,
-                [],
-                $fid,
-                $wasPosted
-            );
-
-            DB::table('z_document')
-                ->where('id', $id)
-                ->where('firma', $fid)
-                ->where('type', 'PPP')
-                ->update(['provodka' => $wasPosted ? 0 : 1]);
-        });
+            return [
+                'document' => $doc,
+                'isPosted' => $wasPosted,
+                'error' => $message,
+            ];
+        }
 
         $fresh = DB::table('z_document')
             ->where('id', $id)
@@ -655,29 +673,46 @@ class Money extends Model
             $amountTo = $amountFrom;
         }
 
-        DB::transaction(function () use ($fid, $fromCashboxId, $toCashboxId, $amountFrom, $amountTo, $commissionAmount, $direction, $id, $wasPosted, $doc): void {
-            if ($fromCashboxId !== '' && $toCashboxId !== '') {
-                self::shiftConfValue($fid, 'oplata', $fromCashboxId, -1 * ($amountFrom + $commissionAmount) * $direction);
-                self::shiftConfValue($fid, 'oplata', $toCashboxId, $amountTo * $direction);
+        try {
+            DB::transaction(function () use ($fid, $fromCashboxId, $toCashboxId, $amountFrom, $amountTo, $commissionAmount, $direction, $id, $wasPosted, $doc): void {
+                if ($fromCashboxId !== '' && $toCashboxId !== '') {
+                    if (!$wasPosted) {
+                        self::assertCashboxBalanceAvailable($fid, 'oplata', $fromCashboxId, $amountFrom + $commissionAmount);
+                    }
+
+                    self::shiftConfValue($fid, 'oplata', $fromCashboxId, -1 * ($amountFrom + $commissionAmount) * $direction);
+                    self::shiftConfValue($fid, 'oplata', $toCashboxId, $amountTo * $direction);
+                }
+
+                app(AccountingService::class)->createDocumentTransaction(
+                    'z_document:money_transfer',
+                    $id,
+                    'PP',
+                    $doc,
+                    [],
+                    $fid,
+                    $wasPosted
+                );
+
+                DB::table('z_document')
+                    ->where('id', $id)
+                    ->where('firma', $fid)
+                    ->where('type', 'PP')
+                    ->where('docum', 'exchange')
+                    ->update(['provodka' => $wasPosted ? 0 : 1]);
+            });
+        } catch (RuntimeException $exception) {
+            $message = $exception->getMessage();
+            if (! str_starts_with($message, 'Недостатньо')) {
+                throw $exception;
             }
 
-            app(AccountingService::class)->createDocumentTransaction(
-                'z_document:money_transfer',
-                $id,
-                'PP',
-                $doc,
-                [],
-                $fid,
-                $wasPosted
-            );
-
-            DB::table('z_document')
-                ->where('id', $id)
-                ->where('firma', $fid)
-                ->where('type', 'PP')
-                ->where('docum', 'exchange')
-                ->update(['provodka' => $wasPosted ? 0 : 1]);
-        });
+            return [
+                'document' => $doc,
+                'isPosted' => $wasPosted,
+                'error' => $message,
+            ];
+        }
 
         $fresh = self::findTransfer($id, $fid);
 
@@ -700,6 +735,31 @@ class Money extends Model
             ->where('type', $type)
             ->where('firma', $fid)
             ->update(['value' => $currentValue + $delta]);
+    }
+
+    private static function assertCashboxBalanceAvailable(string $fid, string $type, string $id, float $amount): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        $cashbox = DB::table('conf')
+            ->where('id', $id)
+            ->where('type', $type)
+            ->where('firma', $fid)
+            ->lockForUpdate()
+            ->first(['name', 'value']);
+
+        $available = (float) ($cashbox->value ?? 0);
+        if (!$cashbox || $available + 0.000001 < $amount) {
+            $name = trim((string) ($cashbox->name ?? $id));
+            throw new RuntimeException(sprintf(
+                'Недостатньо коштів у касі %s. Доступно %s, потрібно %s',
+                $name !== '' ? $name : $id,
+                self::formatBalanceAmount($available),
+                self::formatBalanceAmount($amount)
+            ));
+        }
     }
 
     private static function parseDecimal(mixed $value): float
@@ -895,6 +955,49 @@ class Money extends Model
         }
 
         DB::table('users_cashe')->updateOrInsert($criteria, $values);
+    }
+
+    private static function assertUserBalanceAvailable(string $fid, string $userId, string $currency, float $amount): void
+    {
+        if ($amount <= 0 || ! self::canUseUserBalanceCache()) {
+            return;
+        }
+
+        $cacheColumns = Schema::getColumnListing('users_cashe');
+        $hasValuta = in_array('valuta', $cacheColumns, true);
+        $currency = self::normalizeCurrency($currency);
+        $firmaScope = HoldingScope::projectIdsFor($fid);
+        $user = DB::table('users')
+            ->where('id', $userId)
+            ->when($firmaScope !== [], fn ($query) => $query->whereIn('firma', $firmaScope))
+            ->first(['id', 'firma']);
+
+        if (!$user) {
+            throw new RuntimeException('Користувача балансу не знайдено');
+        }
+
+        $criteria = ['userid' => (string) $user->id];
+        if (in_array('firma', $cacheColumns, true)) {
+            $criteria['firma'] = (int) ($user->firma ?? $fid);
+        }
+        if ($hasValuta) {
+            $criteria['valuta'] = $currency;
+        }
+
+        $existing = DB::table('users_cashe')
+            ->where($criteria)
+            ->lockForUpdate()
+            ->first(['id', 'balance']);
+        $available = (float) ($existing->balance ?? 0);
+
+        if (!$existing || $available + 0.000001 < $amount) {
+            throw new RuntimeException(sprintf(
+                'Недостатньо коштів на балансі %s. Доступно %s, потрібно %s',
+                $currency,
+                self::formatBalanceAmount($available),
+                self::formatBalanceAmount($amount)
+            ));
+        }
     }
 
     private static function ensureUserBalanceCache(string $fid, string $userId, string $currency): void

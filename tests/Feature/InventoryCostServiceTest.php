@@ -417,6 +417,79 @@ class InventoryCostServiceTest extends TestCase
         $this->assertUserCacheBalance($ownerId, 'USD', 10);
     }
 
+    public function test_profile_balance_exchange_cannot_overdraw_or_create_missing_source_balance(): void
+    {
+        $ownerId = DB::table('users')->insertGetId([
+            'name' => 'Exchange limited owner',
+            'email' => "exchange-limited-owner-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+
+        DB::table('users_cashe')->insert([
+            'userid' => (string) $ownerId,
+            'firma' => $this->companyId,
+            'user_id' => $ownerId,
+            'balance' => 50,
+            'valuta' => 'UAH',
+        ]);
+
+        $overdraftDocId = DB::table('z_document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => 'PPP',
+            'firma' => (string) $this->companyId,
+            'client1' => '0',
+            'client2' => (string) $ownerId,
+            'summa' => 100,
+            'summa2' => 25,
+            'currency_from' => 'UAH',
+            'currency_to' => 'USD',
+            'exchange_rate' => 0.25,
+            'data' => '12-06-2026',
+            'docum' => 'exchange',
+            'provodka' => 0,
+        ]);
+
+        $overdraftResult = Money::provodka($overdraftDocId, (string) $this->companyId);
+
+        $this->assertFalse($overdraftResult['isPosted']);
+        $this->assertStringContainsString('Недостатньо коштів', $overdraftResult['error'] ?? '');
+        $this->assertEquals(0, (int) DB::table('z_document')->where('id', $overdraftDocId)->value('provodka'));
+        $this->assertUserCacheBalance($ownerId, 'UAH', 50);
+        $this->assertFalse(DB::table('users_cashe')
+            ->where('userid', (string) $ownerId)
+            ->where('firma', $this->companyId)
+            ->where('valuta', 'USD')
+            ->exists());
+
+        $missingSourceDocId = DB::table('z_document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => 'PPP',
+            'firma' => (string) $this->companyId,
+            'client1' => '0',
+            'client2' => (string) $ownerId,
+            'summa' => 10,
+            'summa2' => 5,
+            'currency_from' => 'EUR',
+            'currency_to' => 'USD',
+            'exchange_rate' => 0.5,
+            'data' => '12-06-2026',
+            'docum' => 'exchange',
+            'provodka' => 0,
+        ]);
+
+        $missingSourceResult = Money::provodka($missingSourceDocId, (string) $this->companyId);
+
+        $this->assertFalse($missingSourceResult['isPosted']);
+        $this->assertStringContainsString('Недостатньо коштів', $missingSourceResult['error'] ?? '');
+        $this->assertEquals(0, (int) DB::table('z_document')->where('id', $missingSourceDocId)->value('provodka'));
+        $this->assertFalse(DB::table('users_cashe')
+            ->where('userid', (string) $ownerId)
+            ->where('firma', $this->companyId)
+            ->where('valuta', 'EUR')
+            ->exists());
+    }
+
     public function test_money_order_posting_creates_missing_user_cache_in_order_currency(): void
     {
         $ownerId = DB::table('users')->insertGetId([

@@ -80,7 +80,7 @@
             <div class="col-md-4 mb-3">
                 <label>{{ __('money.field_commission') }}</label>
                 <div class="input-group">
-                    <input type="text" name="commission_amount" class="form-control" value="{{ old('commission_amount', $document->commission_amount ?? 0) }}"
+                    <input type="text" name="commission_amount" id="transferCommissionAmount" class="form-control" value="{{ old('commission_amount', $document->commission_amount ?? 0) }}"
                         inputmode="decimal" autocomplete="off" data-decimal-input="1">
                     <input type="text" name="commission_currency" id="transferCommissionCurrency" class="form-control" style="max-width:90px;" value="{{ old('commission_currency', $document->commission_currency ?? ($document->currency_from ?? 'UAH')) }}" maxlength="10" readonly>
                 </div>
@@ -92,7 +92,7 @@
             <select name="oplata" id="transferCashboxFrom" class="form-control" required>
                 <option value="">{{ __('money.select_cashbox') }}</option>
                 @foreach($kassas as $kassa)
-                <option value="{{ $kassa->id }}" data-currency="{{ $kassa->currency ?? 'UAH' }}" {{ (string) old('oplata', $document->oplata ?? '') === (string) $kassa->id ? 'selected' : '' }}>
+                <option value="{{ $kassa->id }}" data-currency="{{ $kassa->currency ?? 'UAH' }}" data-balance="{{ (float) ($kassa->balance ?? 0) }}" {{ (string) old('oplata', $document->oplata ?? '') === (string) $kassa->id ? 'selected' : '' }}>
                     {{ $kassa->name }} ({{ number_format((float) ($kassa->balance ?? 0), 2, '.', ' ') }} {{ $kassa->currency ?? 'UAH' }})
                 </option>
                 @endforeach
@@ -106,7 +106,7 @@
             <select name="oplata2" id="transferCashboxTo" class="form-control" required>
                 <option value="">{{ __('money.select_cashbox') }}</option>
                 @foreach($targetKassas ?? $kassas as $kassa)
-                <option value="{{ $kassa->id }}" data-currency="{{ $kassa->currency ?? 'UAH' }}" {{ (string) old('oplata2', $document->oplata2 ?? '') === (string) $kassa->id ? 'selected' : '' }}>
+                <option value="{{ $kassa->id }}" data-currency="{{ $kassa->currency ?? 'UAH' }}" data-balance="{{ (float) ($kassa->balance ?? 0) }}" {{ (string) old('oplata2', $document->oplata2 ?? '') === (string) $kassa->id ? 'selected' : '' }}>
                     {{ $kassa->name }} ({{ number_format((float) ($kassa->balance ?? 0), 2, '.', ' ') }} {{ $kassa->currency ?? 'UAH' }})
                 </option>
                 @endforeach
@@ -149,10 +149,12 @@
             const rate = document.getElementById('transferExchangeRate');
             const currencyFrom = document.getElementById('transferCurrencyFrom');
             const currencyTo = document.getElementById('transferCurrencyTo');
+            const commissionAmount = document.getElementById('transferCommissionAmount');
             const commissionCurrency = document.getElementById('transferCommissionCurrency');
             const cashboxFrom = document.getElementById('transferCashboxFrom');
             const cashboxTo = document.getElementById('transferCashboxTo');
             const rateHint = document.getElementById('transferRateHint');
+            const form = amountFrom?.form;
             let editedFields = [];
 
             const parseDecimal = (value) => {
@@ -174,6 +176,25 @@
                 return normalized || 'UAH';
             };
             const selectedCurrency = (select) => select?.selectedOptions?.[0]?.dataset?.currency || '';
+            const selectedBalance = (select) => parseDecimal(select?.selectedOptions?.[0]?.dataset?.balance || 0);
+            const shouldPostAfterSave = () => {
+                const checkbox = form?.querySelector('input[name="post_after_save"][type="checkbox"]');
+
+                return checkbox ? checkbox.checked : false;
+            };
+            const validateAvailableCashbox = (enforce = shouldPostAfterSave()) => {
+                const available = selectedBalance(cashboxFrom);
+                const required = parseDecimal(amountFrom.value) + parseDecimal(commissionAmount?.value);
+                const currency = normalizeCurrency(currencyFrom.value);
+
+                if (enforce && required > available + 0.000001) {
+                    amountFrom.setCustomValidity(`Недостатньо коштів у касі: доступно ${formatDecimal(available)} ${currency}, потрібно ${formatDecimal(required)} ${currency}`);
+                    return false;
+                }
+
+                amountFrom.setCustomValidity('');
+                return true;
+            };
             const syncRateHint = () => {
                 const from = normalizeCurrency(currencyFrom.value);
                 const to = normalizeCurrency(currencyTo.value);
@@ -218,22 +239,32 @@
                     syncRateHint();
                 });
             });
-            amountFrom.addEventListener('input', () => { markEdited('amount_from'); recalculate(); });
+            amountFrom.addEventListener('input', () => { markEdited('amount_from'); recalculate(); validateAvailableCashbox(); });
             amountTo.addEventListener('input', () => { markEdited('amount_to'); recalculate(); });
             rate.addEventListener('input', () => { markEdited('rate'); recalculate(); });
+            commissionAmount?.addEventListener('input', validateAvailableCashbox);
             cashboxFrom.addEventListener('change', () => {
                 syncCurrencyFromCashbox(cashboxFrom, currencyFrom);
                 commissionCurrency.value = currencyFrom.value;
                 syncRateHint();
+                validateAvailableCashbox();
             });
             cashboxTo.addEventListener('change', () => {
                 syncCurrencyFromCashbox(cashboxTo, currencyTo);
                 syncRateHint();
             });
+            form?.querySelector('input[name="post_after_save"][type="checkbox"]')?.addEventListener('change', () => validateAvailableCashbox());
+            form?.addEventListener('submit', (event) => {
+                if (!validateAvailableCashbox(shouldPostAfterSave())) {
+                    event.preventDefault();
+                    amountFrom.reportValidity();
+                }
+            });
 
             syncCurrencyFromCashbox(cashboxFrom, currencyFrom);
             syncCurrencyFromCashbox(cashboxTo, currencyTo);
             commissionCurrency.value = currencyFrom.value;
+            validateAvailableCashbox();
             syncRateHint();
         });
     </script>
@@ -406,6 +437,25 @@
                 if (!Number.isFinite(value)) return '';
                 return value.toFixed(digits).replace(/\.?0+$/, '');
             };
+            const selectedBalance = (select) => parseDecimal(select?.selectedOptions?.[0]?.dataset?.amount || 0);
+            const shouldPostAfterSave = () => {
+                const checkbox = form?.querySelector('input[name="post_after_save"][type="checkbox"]');
+
+                return checkbox ? checkbox.checked : false;
+            };
+            const validateAvailableBalance = (enforce = shouldPostAfterSave()) => {
+                const available = selectedBalance(currencyFrom);
+                const required = parseDecimal(amountFrom.value);
+                const currency = currencyFrom.value || '';
+
+                if (enforce && required > available + 0.000001) {
+                    amountFrom.setCustomValidity(`Недостатньо коштів на балансі ${currency}: доступно ${formatDecimal(available)}, потрібно ${formatDecimal(required)}`);
+                    return false;
+                }
+
+                amountFrom.setCustomValidity('');
+                return true;
+            };
             const syncTerminalAmountState = (input) => {
                 if (input?.dataset.terminalInputBound === '1') {
                     input.dataset.terminalAmountCents = String(Math.round(parseDecimal(input.value) * 100));
@@ -481,6 +531,9 @@
                     if (recalc) {
                         markEdited(field);
                         recalculate();
+                        if (input === amountFrom) {
+                            validateAvailableBalance();
+                        }
                     }
                 };
                 const getDigits = () => {
@@ -578,12 +631,20 @@
                 rate.value = formatDisplayRate(effectiveRate || 1);
                 syncHint();
             });
-            currencyFrom.addEventListener('change', syncHint);
+            currencyFrom.addEventListener('change', () => { syncHint(); validateAvailableBalance(); });
             currencyTo.addEventListener('change', syncHint);
-            form?.addEventListener('submit', () => {
+            form?.querySelector('input[name="post_after_save"][type="checkbox"]')?.addEventListener('change', () => validateAvailableBalance());
+            form?.addEventListener('submit', (event) => {
+                if (!validateAvailableBalance(shouldPostAfterSave())) {
+                    event.preventDefault();
+                    amountFrom.reportValidity();
+                    return;
+                }
+
                 rate.value = formatDecimal(getEffectiveRate() || parseDecimal(rate.value) || 1, 8);
                 rateMode = 'from_to';
             });
+            validateAvailableBalance();
             syncHint();
         });
     </script>

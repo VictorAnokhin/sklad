@@ -234,6 +234,18 @@ class MoneyController extends Controller
                     return redirect()->route('money.transfers')->with('error', 'Документ не знайдено');
                 }
 
+                if (($result['error'] ?? '') !== '') {
+                    return redirect()->route('money.show', [
+                        'id' => $savedId,
+                        'tab' => 'transfers',
+                        'return_q' => $returnFilters['q'] ?? null,
+                        'return_money' => $returnFilters['money'] ?? null,
+                        'return_date_from' => $returnFilters['date_from'] ?? null,
+                        'return_date_to' => $returnFilters['date_to'] ?? null,
+                        'return_pos' => $returnFilters['pos'] ?? null,
+                    ])->with('error', $result['error']);
+                }
+
                 $message = $shouldPost ? 'Збережено та проведено' : 'Збережено, проводку скасовано';
             }
 
@@ -302,6 +314,21 @@ class MoneyController extends Controller
 
                 if (!($result['document'] ?? null)) {
                     return redirect()->route('money.index', $returnFilters)->with('error', 'Документ не знайдено');
+                }
+
+                if (($result['error'] ?? '') !== '') {
+                    return redirect()->route('money.show', [
+                        'id' => $savedId,
+                        'type' => 'PPP',
+                        'tab' => 'orders',
+                        'return_q' => $returnFilters['q'] ?? null,
+                        'return_filter_type' => $returnFilters['type'] ?? null,
+                        'return_money' => $returnFilters['money'] ?? null,
+                        'return_reestr' => $returnFilters['reestr'] ?? null,
+                        'return_date_from' => $returnFilters['date_from'] ?? null,
+                        'return_date_to' => $returnFilters['date_to'] ?? null,
+                        'return_pos' => $returnFilters['pos'] ?? null,
+                    ])->with('error', $result['error']);
                 }
 
                 $message = $shouldPost ? 'Збережено та проведено' : 'Збережено, проводку скасовано';
@@ -415,6 +442,21 @@ class MoneyController extends Controller
 
         if (!$document) {
             return redirect()->route('money.index', $returnFilters)->with('error', 'Документ не знайдено');
+        }
+
+        if (($result['error'] ?? '') !== '') {
+            return redirect()->route('money.show', [
+                'id' => $document->id,
+                'type' => $tab === 'transfers' ? null : $document->type,
+                'tab' => $tab,
+                'return_q' => $returnFilters['q'] ?? null,
+                'return_filter_type' => $returnFilters['type'] ?? null,
+                'return_money' => $returnFilters['money'] ?? null,
+                'return_reestr' => $returnFilters['reestr'] ?? null,
+                'return_date_from' => $returnFilters['date_from'] ?? null,
+                'return_date_to' => $returnFilters['date_to'] ?? null,
+                'return_pos' => $returnFilters['pos'] ?? null,
+            ])->with('error', $result['error']);
         }
 
         return redirect()->route('money.show', [
