@@ -174,32 +174,6 @@
                         Создать
                     </button>
                 </div>
-                <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
-                    <table class="table table-dark table-hover table-sm align-middle bank-table">
-                        <thead>
-                            <tr>
-                                <th>Депозит</th>
-                                <th>Валюта</th>
-                                <th class="text-end">Остаток депозита</th>
-                                <th class="text-end">Операционных счетов в валюте</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($deposits as $deposit)
-                                <tr>
-                                    <td>{{ $deposit->name }}</td>
-                                    <td><span class="bank-pill bank-pill--currency">{{ $deposit->currency }}</span></td>
-                                    <td class="text-end fw-semibold">{{ number_format((float) $deposit->balance, 2, '.', ' ') }}</td>
-                                    <td class="text-end">{{ $operationalAccounts->where('currency', $deposit->currency)->count() }}</td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">Депозиты пока не созданы.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
             </section>
         </div>
     </div>
