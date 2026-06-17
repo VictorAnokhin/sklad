@@ -490,6 +490,55 @@ class InventoryCostServiceTest extends TestCase
             ->exists());
     }
 
+    public function test_profile_balance_exchange_uses_legacy_user_id_only_cache_rows(): void
+    {
+        $ownerId = DB::table('users')->insertGetId([
+            'name' => 'Exchange legacy owner',
+            'email' => "exchange-legacy-owner-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+
+        DB::table('users_cashe')->insert([
+            'userid' => '',
+            'firma' => $this->companyId,
+            'user_id' => $ownerId,
+            'balance' => 70,
+            'valuta' => 'EUR',
+        ]);
+
+        $balances = Money::cachedUserBalances((string) $ownerId, (string) $this->companyId);
+        $this->assertContains('EUR', array_column($balances, 'currency'));
+
+        $docId = DB::table('z_document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => 'PPP',
+            'firma' => (string) $this->companyId,
+            'client1' => '0',
+            'client2' => (string) $ownerId,
+            'summa' => 20,
+            'summa2' => 10,
+            'currency_from' => 'EUR',
+            'currency_to' => 'USD',
+            'exchange_rate' => 0.5,
+            'data' => '12-06-2026',
+            'docum' => 'exchange',
+            'provodka' => 0,
+        ]);
+
+        $result = Money::provodka($docId, (string) $this->companyId);
+
+        $this->assertTrue($result['isPosted']);
+        $legacyRow = DB::table('users_cashe')
+            ->where('user_id', $ownerId)
+            ->where('firma', $this->companyId)
+            ->where('valuta', 'EUR')
+            ->first(['userid', 'balance']);
+        $this->assertSame((string) $ownerId, (string) $legacyRow->userid);
+        $this->assertEqualsWithDelta(50, (float) $legacyRow->balance, 0.001);
+        $this->assertUserCacheBalance($ownerId, 'USD', 10);
+    }
+
     public function test_money_order_posting_creates_missing_user_cache_in_order_currency(): void
     {
         $ownerId = DB::table('users')->insertGetId([

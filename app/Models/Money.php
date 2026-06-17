@@ -877,9 +877,16 @@ class Money extends Model
             return self::userBalances($fallbackBalance);
         }
 
-        $query = DB::table('users_cashe')->where('userid', $userId);
+        $cacheColumns = Schema::getColumnListing('users_cashe');
+        $query = DB::table('users_cashe')
+            ->where(function ($nested) use ($userId, $cacheColumns): void {
+                $nested->where('userid', $userId);
+                if (in_array('user_id', $cacheColumns, true) && is_numeric($userId)) {
+                    $nested->orWhere('user_id', (int) $userId);
+                }
+            });
 
-        if (Schema::hasColumn('users_cashe', 'firma')) {
+        if (in_array('firma', $cacheColumns, true)) {
             $firmaScope = HoldingScope::projectIdsFor($fid);
             if ($firmaScope !== []) {
                 $query->whereIn('firma', array_map('intval', $firmaScope));
@@ -887,7 +894,7 @@ class Money extends Model
         }
 
         $columns = ['balance'];
-        $columns[] = Schema::hasColumn('users_cashe', 'valuta')
+        $columns[] = in_array('valuta', $cacheColumns, true)
             ? 'valuta'
             : DB::raw("'UAH' as valuta");
 
@@ -938,12 +945,14 @@ class Money extends Model
             $criteria['valuta'] = $currency;
         }
 
-        $existing = DB::table('users_cashe')
-            ->where($criteria)
+        $existing = self::userBalanceCacheQuery((string) $user->id, $cacheColumns)
+            ->when(in_array('firma', $cacheColumns, true), fn ($query) => $query->where('firma', (int) ($user->firma ?? $fid)))
+            ->when($hasValuta, fn ($query) => $query->where('valuta', $currency))
             ->lockForUpdate()
             ->first(['id', 'balance']);
 
         $values = ['balance' => round((float) ($existing->balance ?? 0) + $delta, 2)];
+        $values['userid'] = (string) $user->id;
         if (in_array('firma', $cacheColumns, true)) {
             $values['firma'] = (int) ($user->firma ?? $fid);
         }
@@ -954,7 +963,12 @@ class Money extends Model
             $values['valuta'] = $currency;
         }
 
-        DB::table('users_cashe')->updateOrInsert($criteria, $values);
+        if ($existing) {
+            DB::table('users_cashe')->where('id', $existing->id)->update($values);
+            return;
+        }
+
+        DB::table('users_cashe')->insert(array_merge($criteria, $values));
     }
 
     private static function assertUserBalanceAvailable(string $fid, string $userId, string $currency, float $amount): void
@@ -984,8 +998,9 @@ class Money extends Model
             $criteria['valuta'] = $currency;
         }
 
-        $existing = DB::table('users_cashe')
-            ->where($criteria)
+        $existing = self::userBalanceCacheQuery((string) $user->id, $cacheColumns)
+            ->when(in_array('firma', $cacheColumns, true), fn ($query) => $query->where('firma', (int) ($user->firma ?? $fid)))
+            ->when($hasValuta, fn ($query) => $query->where('valuta', $currency))
             ->lockForUpdate()
             ->first(['id', 'balance']);
         $available = (float) ($existing->balance ?? 0);
@@ -1027,8 +1042,9 @@ class Money extends Model
             $criteria['valuta'] = $currency;
         }
 
-        $exists = DB::table('users_cashe')
-            ->where($criteria)
+        $exists = self::userBalanceCacheQuery((string) $user->id, $cacheColumns)
+            ->when(in_array('firma', $cacheColumns, true), fn ($query) => $query->where('firma', (int) ($user->firma ?? $fid)))
+            ->when($hasValuta, fn ($query) => $query->where('valuta', $currency))
             ->lockForUpdate()
             ->exists();
 
@@ -1048,6 +1064,17 @@ class Money extends Model
         }
 
         DB::table('users_cashe')->insert($values);
+    }
+
+    private static function userBalanceCacheQuery(string $userId, array $cacheColumns)
+    {
+        return DB::table('users_cashe')
+            ->where(function ($query) use ($userId, $cacheColumns): void {
+                $query->where('userid', $userId);
+                if (in_array('user_id', $cacheColumns, true) && is_numeric($userId)) {
+                    $query->orWhere('user_id', (int) $userId);
+                }
+            });
     }
 
     private static function canUseUserBalanceCache(): bool
