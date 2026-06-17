@@ -553,6 +553,10 @@
         cursor: pointer;
     }
 
+    .bank-account-edit-row {
+        cursor: pointer;
+    }
+
     .bank-accordion-row.is-open {
         background: rgba(30, 41, 59, 0.72);
     }

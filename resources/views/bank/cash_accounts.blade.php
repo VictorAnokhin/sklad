@@ -101,6 +101,7 @@
                     <tr>
                         <th class="bank-table__num">ID</th>
                         <th>Название счета</th>
+                        <th>Тип</th>
                         <th>Валюта</th>
                         <th class="text-end">Сумма</th>
                         <th>Google Auth</th>
@@ -108,16 +109,26 @@
                 </thead>
                 <tbody>
                     @forelse($cashAccounts as $account)
-                        <tr>
+                        <tr class="bank-account-edit-row"
+                            data-bank-operational-account-open
+                            data-account-id="{{ $account->id }}"
+                            data-account-name="{{ $account->label }}"
+                            data-account-type="{{ $account->account_type }}"
+                            data-account-currency="{{ $account->currency }}"
+                            data-account-amount="{{ number_format((float) $account->balance, 2, '.', '') }}"
+                            data-account-google-auth="{{ trim((string) ($account->google_map ?? '')) }}"
+                            data-update-url="{{ route('bank.operational-accounts.update', ['account' => $account->id]) }}"
+                            data-delete-url="{{ route('bank.operational-accounts.destroy', ['account' => $account->id]) }}">
                             <td class="bank-table__num bank-mono">{{ $account->id }}</td>
                             <td>{{ $account->label }}</td>
+                            <td><span class="bank-pill bank-pill--company">{{ $account->account_type_label }}</span></td>
                             <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
                             <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
                             <td class="bank-mono">{{ trim((string) ($account->google_map ?? '')) !== '' ? $account->google_map : '—' }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">Операционные счета не созданы.</td>
+                            <td colspan="6" class="text-center text-muted py-4">Операционные счета не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -542,16 +553,24 @@
                 </div>
                 <button type="button" class="bank-modal__close" data-bank-operational-account-close aria-label="Закрыть">×</button>
             </div>
-            <form method="POST" action="{{ route('bank.operational-accounts.store') }}" class="bank-requisites-form">
+            <form method="POST" action="{{ route('bank.operational-accounts.store') }}" class="bank-requisites-form" data-bank-operational-account-form>
                 @csrf
+                <input type="hidden" name="_method" value="POST" data-bank-operational-account-method>
                 <div class="bank-form-grid">
                     <label>
                         <span>Название счета</span>
-                        <input type="text" name="name" required maxlength="255" autocomplete="off">
+                        <input type="text" name="name" required maxlength="255" autocomplete="off" data-bank-operational-account-name>
+                    </label>
+                    <label>
+                        <span>Тип</span>
+                        <select name="account_type" required data-bank-operational-account-type>
+                            <option value="bank">Банк</option>
+                            <option value="personal">Личный</option>
+                        </select>
                     </label>
                     <label>
                         <span>Валюта</span>
-                        <select name="currency" required>
+                        <select name="currency" required data-bank-operational-account-currency>
                             @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
                                 <option value="{{ $currency }}">{{ $currency }}</option>
                             @endforeach
@@ -559,17 +578,22 @@
                     </label>
                     <label>
                         <span>Сумма</span>
-                        <input type="number" name="amount" min="0" step="0.01" value="0" required inputmode="decimal">
+                        <input type="number" name="amount" min="0" step="0.01" value="0" required inputmode="decimal" data-bank-operational-account-amount>
                     </label>
                     <label>
                         <span>Google Auth</span>
-                        <input type="text" name="google_auth" maxlength="255" autocomplete="off">
+                        <input type="text" name="google_auth" maxlength="255" autocomplete="off" data-bank-operational-account-google-auth>
                     </label>
                 </div>
                 <div class="bank-modal__actions">
+                    <button type="submit" form="bankOperationalAccountDeleteForm" class="btn btn-outline-danger me-auto" data-bank-operational-account-delete hidden onclick="return confirm('Удалить операционный счёт?');">Удалить</button>
                     <button type="button" class="btn btn-secondary" data-bank-operational-account-close>Отмена</button>
-                    <button type="submit" class="btn btn-primary">Создать</button>
+                    <button type="submit" class="btn btn-primary" data-bank-operational-account-submit>Создать</button>
                 </div>
+            </form>
+            <form method="POST" id="bankOperationalAccountDeleteForm" data-bank-operational-account-delete-form>
+                @csrf
+                @method('DELETE')
             </form>
         </div>
     </div>
@@ -642,13 +666,62 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const operationalModal = root.querySelector('[data-bank-operational-account-modal]');
-    const operationalOpen = root.querySelector('[data-bank-operational-account-open]');
-    if (operationalOpen && operationalModal) {
-        operationalOpen.addEventListener('click', () => {
-            operationalModal.hidden = false;
-            operationalModal.querySelector('input[name="name"]')?.focus();
-        });
+    const operationalForm = root.querySelector('[data-bank-operational-account-form]');
+    const operationalMethod = root.querySelector('[data-bank-operational-account-method]');
+    const operationalTitle = root.querySelector('#bankOperationalAccountTitle');
+    const operationalName = root.querySelector('[data-bank-operational-account-name]');
+    const operationalType = root.querySelector('[data-bank-operational-account-type]');
+    const operationalCurrency = root.querySelector('[data-bank-operational-account-currency]');
+    const operationalAmount = root.querySelector('[data-bank-operational-account-amount]');
+    const operationalGoogleAuth = root.querySelector('[data-bank-operational-account-google-auth]');
+    const operationalSubmit = root.querySelector('[data-bank-operational-account-submit]');
+    const operationalDelete = root.querySelector('[data-bank-operational-account-delete]');
+    const operationalDeleteForm = root.querySelector('[data-bank-operational-account-delete-form]');
+    const operationalStoreUrl = @json(route('bank.operational-accounts.store'));
+
+    function openOperationalAccountModal(trigger) {
+        if (!operationalModal || !operationalForm || !operationalMethod) {
+            return;
+        }
+
+        const isEdit = trigger.dataset.accountId !== undefined;
+        operationalForm.action = isEdit ? (trigger.dataset.updateUrl || '') : operationalStoreUrl;
+        operationalMethod.value = isEdit ? 'PUT' : 'POST';
+        if (operationalTitle) {
+            operationalTitle.textContent = isEdit ? 'Редактировать счет' : 'Создать счет';
+        }
+        if (operationalName) {
+            operationalName.value = isEdit ? (trigger.dataset.accountName || '') : '';
+        }
+        if (operationalType) {
+            operationalType.value = isEdit ? (trigger.dataset.accountType || 'bank') : 'bank';
+        }
+        if (operationalCurrency) {
+            operationalCurrency.value = isEdit ? (trigger.dataset.accountCurrency || 'UAH') : 'UAH';
+        }
+        if (operationalAmount) {
+            operationalAmount.value = isEdit ? (trigger.dataset.accountAmount || '0.00') : '0';
+        }
+        if (operationalGoogleAuth) {
+            operationalGoogleAuth.value = isEdit ? (trigger.dataset.accountGoogleAuth || '') : '';
+        }
+        if (operationalSubmit) {
+            operationalSubmit.textContent = isEdit ? 'Сохранить' : 'Создать';
+        }
+        if (operationalDelete && operationalDeleteForm) {
+            operationalDelete.hidden = !isEdit;
+            operationalDeleteForm.action = isEdit ? (trigger.dataset.deleteUrl || '') : '';
+        }
+
+        operationalModal.hidden = false;
+        operationalName?.focus();
     }
+
+    root.querySelectorAll('[data-bank-operational-account-open]').forEach((trigger) => {
+        trigger.addEventListener('click', () => {
+            openOperationalAccountModal(trigger);
+        });
+    });
 
     root.querySelectorAll('[data-bank-operational-account-close]').forEach((button) => {
         button.addEventListener('click', () => {

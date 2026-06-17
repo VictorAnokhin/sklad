@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Services\AccountingService;
 use App\Services\BlockchainAssetAdapterService;
 use App\Support\HoldingScope;
 use Carbon\Carbon;
@@ -111,6 +112,7 @@ class BankController extends Controller
 
         $payload = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'account_type' => ['nullable', Rule::in(['bank', 'personal'])],
             'currency' => ['required', 'string', 'max:20'],
             'amount' => ['nullable', 'numeric', 'min:0'],
             'google_auth' => ['nullable', 'string', 'max:255'],
@@ -128,7 +130,7 @@ class BankController extends Controller
         ];
 
         if (in_array('doc', $columns, true)) {
-            $values['doc'] = 'operational';
+            $values['doc'] = (string) ($payload['account_type'] ?? 'bank');
         }
         if (in_array('google_map', $columns, true)) {
             $values['google_map'] = trim((string) ($payload['google_auth'] ?? ''));
@@ -137,6 +139,65 @@ class BankController extends Controller
         DB::table('conf')->insert($values);
 
         return redirect()->route('bank.cash-accounts')->with('success', 'Операционный счёт создан.');
+    }
+
+    public function updateOperationalAccount(Request $request, int $account): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('conf'), 404);
+
+        $payload = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'account_type' => ['required', Rule::in(['bank', 'personal'])],
+            'currency' => ['required', 'string', 'max:20'],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'google_auth' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $columns = Schema::getColumnListing('conf');
+        $values = [
+            'name' => trim((string) $payload['name']),
+            'currency' => $this->normalizeCurrencyCode($payload['currency']),
+            'value' => (float) $payload['amount'],
+        ];
+
+        if (in_array('doc', $columns, true)) {
+            $values['doc'] = (string) $payload['account_type'];
+        }
+        if (in_array('google_map', $columns, true)) {
+            $values['google_map'] = trim((string) ($payload['google_auth'] ?? ''));
+        }
+
+        $query = DB::table('conf')
+            ->where('id', $account)
+            ->where('type', 'oplata')
+            ->where('firma', (string) $project->id);
+
+        if (! $query->exists()) {
+            return redirect()->route('bank.cash-accounts')->with('error', 'Операционный счёт не найден.');
+        }
+
+        $query->update($values);
+
+        return redirect()->route('bank.cash-accounts')->with('success', 'Операционный счёт сохранён.');
+    }
+
+    public function destroyOperationalAccount(int $account): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('conf'), 404);
+
+        $deleted = DB::table('conf')
+            ->where('id', $account)
+            ->where('type', 'oplata')
+            ->where('firma', (string) $project->id)
+            ->delete();
+
+        if ($deleted === 0) {
+            return redirect()->route('bank.cash-accounts')->with('error', 'Операционный счёт не найден.');
+        }
+
+        return redirect()->route('bank.cash-accounts')->with('success', 'Операционный счёт удалён.');
     }
 
     public function destroyProjectAccount(int $project, int $account): RedirectResponse
@@ -263,11 +324,13 @@ class BankController extends Controller
         $projectIds = HoldingScope::projectIdsFor((string) $project->id);
         $deposits = $this->bankDeposits($projectIds);
         $operations = $this->bankDepositOperations($projectIds);
+        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
 
         return view('bank.deposit', [
             'project' => $project,
             'deposits' => $deposits,
             'operations' => $operations,
+            'operationalAccounts' => $operationalAccounts,
             'totalByCurrency' => $deposits
                 ->groupBy('currency')
                 ->map(fn ($rows) => (float) $rows->sum('balance')),
@@ -326,6 +389,95 @@ class BankController extends Controller
         }
 
         return redirect()->route('bank.deposit')->with('success', 'Настройки депозита сохранены.');
+    }
+
+    public function storeDepositTransfer(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        abort_unless(Schema::hasTable('conf') && Schema::hasTable('z_document'), 404);
+
+        $payload = $request->validate([
+            'deposit_id' => ['required', 'integer'],
+            'operational_account_id' => ['required', 'integer'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+        ]);
+
+        $amount = round((float) $payload['amount'], 2);
+        $depositId = (int) $payload['deposit_id'];
+        $accountId = (int) $payload['operational_account_id'];
+
+        try {
+            DB::transaction(function () use ($project, $projectIds, $depositId, $accountId, $amount): void {
+                $deposit = DB::table('conf')
+                    ->where('id', $depositId)
+                    ->where('type', 'deposit')
+                    ->whereIn('firma', array_map('intval', $projectIds))
+                    ->lockForUpdate()
+                    ->first();
+
+                $account = DB::table('conf')
+                    ->where('id', $accountId)
+                    ->where('type', 'oplata')
+                    ->where('firma', (string) $project->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $deposit || ! $account) {
+                    throw new \RuntimeException('Депозит или операционный счёт не найден.');
+                }
+
+                $depositCurrency = $this->normalizeCurrencyCode($deposit->currency ?? 'UAH');
+                $accountCurrency = $this->normalizeCurrencyCode($account->currency ?? 'UAH');
+                if ($depositCurrency !== $accountCurrency) {
+                    throw new \RuntimeException("Валюта депозита {$depositCurrency} не совпадает с валютой счета {$accountCurrency}.");
+                }
+
+                $accountBalance = round((float) ($account->value ?? 0), 2);
+                if ($accountBalance + 0.000001 < $amount) {
+                    throw new \RuntimeException(
+                        'Недостаточно средств на операционном счете. Доступно '
+                        . number_format($accountBalance, 2, '.', ' ')
+                        . ", нужно "
+                        . number_format($amount, 2, '.', ' ')
+                        . " {$accountCurrency}."
+                    );
+                }
+
+                DB::table('conf')->where('id', $accountId)->update([
+                    'value' => DB::raw('COALESCE(value, 0) - ' . $amount),
+                ]);
+                DB::table('conf')->where('id', $depositId)->update([
+                    'value' => DB::raw('COALESCE(value, 0) + ' . $amount),
+                ]);
+
+                $documentId = $this->createDepositTransferDocument(
+                    (string) $project->id,
+                    $depositId,
+                    $accountId,
+                    $amount,
+                    $accountCurrency,
+                    trim((string) ($account->name ?? '')),
+                    trim((string) ($deposit->name ?? ''))
+                );
+
+                $document = DB::table('z_document')->where('id', $documentId)->first();
+                if ($document) {
+                    app(AccountingService::class)->createDocumentTransaction(
+                        'z_document:deposit_operation',
+                        $documentId,
+                        'PP',
+                        $document,
+                        collect(),
+                        (string) $project->id
+                    );
+                }
+            });
+        } catch (\RuntimeException $exception) {
+            return redirect()->route('bank.deposit')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('bank.deposit')->with('success', 'Трансфер выполнен.');
     }
 
     public function exchange(): View
@@ -1536,6 +1688,63 @@ class BankController extends Controller
             });
     }
 
+    private function bankOperationalAccounts(string $projectId)
+    {
+        if (! Schema::hasTable('conf')) {
+            return collect();
+        }
+
+        return DB::table('conf')
+            ->where('type', 'oplata')
+            ->where('firma', $projectId)
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($account) => $this->normalizeCashAccount($account));
+    }
+
+    private function createDepositTransferDocument(
+        string $projectId,
+        int $depositId,
+        int $accountId,
+        float $amount,
+        string $currency,
+        string $accountName,
+        string $depositName
+    ): int {
+        $columns = Schema::getColumnListing('z_document');
+        $maxNum = DB::table('z_document')
+            ->where('firma', $projectId)
+            ->where('type', 'PP')
+            ->max(DB::raw('CAST(num AS UNSIGNED)'));
+
+        $payload = [
+            'type' => 'PP',
+            'firma' => $projectId,
+            'num' => $maxNum ? (int) $maxNum + 1 : 1,
+            'summa' => $amount,
+            'content' => trim("Трансфер с операционного счета {$accountName} на депозит {$depositName}"),
+            'data' => date('d-m-Y'),
+            'time' => date('H:i:s'),
+            'docum' => 'topup',
+            'oplata' => (string) $accountId,
+            'oplata2' => '',
+            'money' => (string) $depositId,
+            'client1' => '0',
+            'client2' => '0',
+        ];
+
+        if (in_array('currency_from', $columns, true)) {
+            $payload['currency_from'] = $currency;
+        }
+        if (in_array('provodka', $columns, true)) {
+            $payload['provodka'] = 1;
+        }
+
+        return (int) DB::table('z_document')->insertGetId(
+            array_intersect_key($payload, array_flip($columns))
+        );
+    }
+
     private function bankDepositOperations(array $projectIds)
     {
         if (! Schema::hasTable('z_document')) {
@@ -1925,6 +2134,8 @@ class BankController extends Controller
         $account->currency = trim((string) ($account->currency ?? '')) ?: $this->currencyFromName((string) ($account->name ?? ''));
         $account->label = trim((string) ($account->name ?? '')) ?: 'Касса #' . (string) ($account->id ?? '');
         $account->doc = trim((string) ($account->doc ?? ''));
+        $account->account_type = in_array($account->doc, ['bank', 'personal'], true) ? $account->doc : 'bank';
+        $account->account_type_label = $account->account_type === 'personal' ? 'Личный' : 'Банк';
         $account->color = trim((string) ($account->color ?? ''));
 
         return $account;

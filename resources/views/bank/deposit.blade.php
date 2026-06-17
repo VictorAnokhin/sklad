@@ -72,6 +72,21 @@
         </div>
     </section>
 
+    <ul class="nav nav-tabs bank-modal-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="bankDepositsPortfolioTab" data-bs-toggle="tab" data-bs-target="#bankDepositsPortfolioPane" type="button" role="tab">
+                Депозиты
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="bankDepositsTransferTab" data-bs-toggle="tab" data-bs-target="#bankDepositsTransferPane" type="button" role="tab">
+                Трансфер
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="bankDepositsPortfolioPane" role="tabpanel" aria-labelledby="bankDepositsPortfolioTab">
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
             <div>
@@ -146,6 +161,48 @@
             </table>
         </div>
     </section>
+        </div>
+
+        <div class="tab-pane fade" id="bankDepositsTransferPane" role="tabpanel" aria-labelledby="bankDepositsTransferTab">
+            <section class="bank-panel bank-table-panel">
+                <div class="bank-table-header">
+                    <div>
+                        <div class="bank-label">Трансфер</div>
+                        <div class="bank-meta">Перевод с операционного счета банка на депозит. Валюта депозита и счета должна совпадать.</div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#depositTransferModal">
+                        Создать
+                    </button>
+                </div>
+                <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
+                    <table class="table table-dark table-hover table-sm align-middle bank-table">
+                        <thead>
+                            <tr>
+                                <th>Депозит</th>
+                                <th>Валюта</th>
+                                <th class="text-end">Остаток депозита</th>
+                                <th class="text-end">Операционных счетов в валюте</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($deposits as $deposit)
+                                <tr>
+                                    <td>{{ $deposit->name }}</td>
+                                    <td><span class="bank-pill bank-pill--currency">{{ $deposit->currency }}</span></td>
+                                    <td class="text-end fw-semibold">{{ number_format((float) $deposit->balance, 2, '.', ' ') }}</td>
+                                    <td class="text-end">{{ $operationalAccounts->where('currency', $deposit->currency)->count() }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">Депозиты пока не созданы.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
 
     <div class="modal fade bank-order-modal" id="depositMovementModal" tabindex="-1" aria-labelledby="depositMovementModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-xl">
@@ -248,6 +305,59 @@
         </div>
     </div>
 
+    <div class="modal fade bank-order-modal" id="depositTransferModal" tabindex="-1" aria-labelledby="depositTransferModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" action="{{ route('bank.deposit.transfer.store') }}" data-deposit-transfer-form>
+                    @csrf
+                    <div class="modal-header">
+                        <div>
+                            <div class="bank-label">Трансфер</div>
+                            <h5 class="modal-title" id="depositTransferModalLabel">Создать трансфер</h5>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Депозит</label>
+                                <select name="deposit_id" class="form-select" required data-deposit-transfer-deposit>
+                                    <option value="">Выберите депозит</option>
+                                    @foreach($deposits as $deposit)
+                                        <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency }}">
+                                            {{ $deposit->name }} · {{ $deposit->currency }} · {{ number_format((float) $deposit->balance, 2, '.', ' ') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Операционный счет</label>
+                                <select name="operational_account_id" class="form-select" required data-deposit-transfer-account>
+                                    <option value="">Выберите счет</option>
+                                    @foreach($operationalAccounts as $account)
+                                        <option value="{{ $account->id }}" data-currency="{{ $account->currency }}" data-balance="{{ number_format((float) $account->balance, 2, '.', '') }}">
+                                            {{ $account->label }} · {{ $account->currency }} · {{ number_format((float) $account->balance, 2, '.', ' ') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="bank-meta" data-deposit-transfer-account-meta></div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Сумма</label>
+                                <input type="number" name="amount" class="form-control" min="0.01" step="0.01" required data-deposit-transfer-amount>
+                            </div>
+                        </div>
+                        <div class="alert alert-danger mt-3 mb-0" data-deposit-transfer-error hidden></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-primary" data-deposit-transfer-submit>Выполнить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 @include('bank.partials.styles')
@@ -272,6 +382,13 @@
         const settingsSubmit = modal.querySelector('[data-deposit-settings-submit]');
         const operationsTab = modal.querySelector('#depositOperationsTab');
         const settingsTab = modal.querySelector('#depositSettingsTab');
+        const transferForm = document.querySelector('[data-deposit-transfer-form]');
+        const transferDeposit = document.querySelector('[data-deposit-transfer-deposit]');
+        const transferAccount = document.querySelector('[data-deposit-transfer-account]');
+        const transferAmount = document.querySelector('[data-deposit-transfer-amount]');
+        const transferError = document.querySelector('[data-deposit-transfer-error]');
+        const transferSubmit = document.querySelector('[data-deposit-transfer-submit]');
+        const transferAccountMeta = document.querySelector('[data-deposit-transfer-account-meta]');
 
         function formatAmount(value) {
             return Number(value || 0).toLocaleString('ru-RU', {
@@ -292,6 +409,76 @@
                 element.textContent = value;
             }
         }
+
+        function selectedOption(select) {
+            return select?.selectedOptions?.[0] || null;
+        }
+
+        function validateTransferForm() {
+            if (!transferForm || !transferDeposit || !transferAccount || !transferAmount || !transferError || !transferSubmit) {
+                return true;
+            }
+
+            const depositOption = selectedOption(transferDeposit);
+            const accountOption = selectedOption(transferAccount);
+            const depositCurrency = depositOption?.dataset.currency || '';
+            const amount = Number(transferAmount.value || 0);
+            let message = '';
+
+            Array.from(transferAccount.options).forEach((option) => {
+                if (!option.value) {
+                    option.hidden = false;
+                    return;
+                }
+                option.hidden = depositCurrency !== '' && option.dataset.currency !== depositCurrency;
+            });
+
+            if (accountOption && accountOption.value && depositCurrency !== '' && accountOption.dataset.currency !== depositCurrency) {
+                transferAccount.value = '';
+            }
+
+            const refreshedAccountOption = selectedOption(transferAccount);
+            if (depositCurrency === '') {
+                message = 'Выберите депозит.';
+            } else if (!refreshedAccountOption?.value) {
+                message = 'Выберите операционный счет в валюте ' + depositCurrency + '.';
+            } else if (amount <= 0) {
+                message = 'Введите сумму трансфера.';
+            } else {
+                const balance = Number(refreshedAccountOption.dataset.balance || 0);
+                if (balance + 0.000001 < amount) {
+                    message = 'Недостаточно средств на операционном счете.';
+                }
+            }
+
+            if (transferAccountMeta) {
+                const balance = Number((selectedOption(transferAccount)?.dataset.balance) || 0);
+                transferAccountMeta.textContent = selectedOption(transferAccount)?.value
+                    ? `Доступно ${formatAmount(balance)} ${selectedOption(transferAccount).dataset.currency || ''}`
+                    : '';
+            }
+
+            transferError.textContent = message;
+            transferError.hidden = message === '';
+            transferSubmit.disabled = message !== '';
+
+            return message === '';
+        }
+
+        [transferDeposit, transferAccount, transferAmount].forEach((element) => {
+            element?.addEventListener('input', validateTransferForm);
+            element?.addEventListener('change', validateTransferForm);
+        });
+
+        transferForm?.addEventListener('submit', (event) => {
+            if (!validateTransferForm()) {
+                event.preventDefault();
+            }
+        });
+
+        document.getElementById('depositTransferModal')?.addEventListener('shown.bs.modal', () => {
+            validateTransferForm();
+        });
 
         modal.addEventListener('show.bs.modal', (event) => {
             const trigger = event.relatedTarget;

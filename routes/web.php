@@ -83,6 +83,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/cash-accounts', [BankController::class, 'cashAccounts'])->name('cash-accounts');
         Route::post('/cash-accounts/operational-accounts', [BankController::class, 'storeOperationalAccount'])
             ->name('operational-accounts.store');
+        Route::put('/cash-accounts/operational-accounts/{account}', [BankController::class, 'updateOperationalAccount'])
+            ->whereNumber('account')
+            ->name('operational-accounts.update');
+        Route::delete('/cash-accounts/operational-accounts/{account}', [BankController::class, 'destroyOperationalAccount'])
+            ->whereNumber('account')
+            ->name('operational-accounts.destroy');
         Route::post('/cash-accounts/projects/{project}/accounts', [BankController::class, 'storeProjectAccount'])
             ->whereNumber('project')
             ->name('project-accounts.store');
@@ -100,6 +106,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/loans', fn () => redirect()->route('bank.deposit'))->name('loans.redirect');
         Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
         Route::post('/deposit', [BankController::class, 'storeDeposit'])->name('deposit.store');
+        Route::post('/deposit/transfer', [BankController::class, 'storeDepositTransfer'])->name('deposit.transfer.store');
         Route::put('/deposit/{deposit}', [BankController::class, 'updateDeposit'])
             ->whereNumber('deposit')
             ->name('deposit.update');
