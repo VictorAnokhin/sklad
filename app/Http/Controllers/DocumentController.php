@@ -529,6 +529,7 @@ class DocumentController extends Controller
             ->orderBy('name')
             ->get();
         $clientStatuses = DB::table('conf')->where('type', 'tclient')->where('firma', $fid)->orderBy('name')->get();
+        $clientGroups = DB::table('conf')->where('type', 'usergroup')->where('firma', $fid)->orderBy('name')->get();
         $myCompanies = collect();
 
         if ($doc === 'CH') {
@@ -614,7 +615,7 @@ class DocumentController extends Controller
         return view('document.show', compact(
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
-            'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses',
+            'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
             'mappingTargetProjectId'
         ));
     }

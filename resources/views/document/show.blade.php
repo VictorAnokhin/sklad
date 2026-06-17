@@ -636,7 +636,9 @@
                             data-city="{{ $client->city ?? '' }}"
                             data-region="{{ $client->region ?? '' }}"
                             data-poshta="{{ $client->poshta ?? '' }}"
-                            data-status="{{ $client->idstatus ?? '' }}">
+                            data-status="{{ $client->idstatus ?? '' }}"
+                            data-usergroup="{{ $client->usergroup ?? '' }}"
+                            data-usergroup-name="{{ optional(($clientGroups ?? collect())->firstWhere('id', $client->usergroup ?? null))->name ?? '' }}">
                         <div id="selectedClientDetails"
                             class="alert {{ $client ? 'alert-secondary' : 'alert-warning' }} py-1 mt-1 selected-client-details {{ $client ? 'selected-client-details--filled' : 'selected-client-details--empty' }}">
                             @if($client)
@@ -928,6 +930,17 @@
                         <input type="hidden" id="newClientId" value="0">
                         <div class="row g-2 modal-client-grid">
                             <div class="col-12 client-modal-field">
+                                <label class="form-label small mb-0">Группа</label>
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientGroupName"
+                                    list="newClientGroupList" autocomplete="off" placeholder="Почніть вводити назву групи">
+                                <input type="hidden" id="newClientGroupId" value="">
+                                <datalist id="newClientGroupList">
+                                    @foreach(($clientGroups ?? collect()) as $group)
+                                        <option value="{{ $group->name }}" data-id="{{ $group->id }}"></option>
+                                    @endforeach
+                                </datalist>
+                            </div>
+                            <div class="col-12 client-modal-field">
                                 <label class="form-label small mb-0">Організація</label>
                                 <input type="text" class="form-control form-control-sm text-white" id="newClientOrgname">
                             </div>
@@ -1173,6 +1186,8 @@
                                     client1Id.dataset.region = user.region || '';
                                     client1Id.dataset.poshta = user.poshta || '';
                                     client1Id.dataset.status = user.idstatus || '';
+                                    client1Id.dataset.usergroup = user.usergroup || '';
+                                    client1Id.dataset.usergroupName = user.usergroup_name || '';
 
                                     if (editClientBtn) {
                                         editClientBtn.style.display = 'inline-block';
@@ -1213,11 +1228,69 @@
             const newClientPhoneField = document.getElementById('newClientPhone');
             const newClientIdField = document.getElementById('newClientId');
             const newClientOrgnameField = document.getElementById('newClientOrgname');
+            const newClientGroupNameField = document.getElementById('newClientGroupName');
+            const newClientGroupIdField = document.getElementById('newClientGroupId');
+            const newClientGroupList = document.getElementById('newClientGroupList');
+            let clientGroupsCache = @json(collect($clientGroups ?? [])->map(fn ($group) => ['id' => (int) $group->id, 'name' => (string) $group->name])->values());
+
+            const normalizeGroupName = (value) => String(value || '').trim().toLowerCase();
+            const syncClientGroupIdFromName = () => {
+                if (!newClientGroupNameField || !newClientGroupIdField) {
+                    return;
+                }
+
+                const normalized = normalizeGroupName(newClientGroupNameField.value);
+                const match = clientGroupsCache.find((group) => normalizeGroupName(group.name) === normalized);
+                newClientGroupIdField.value = match ? String(match.id) : '';
+            };
+            const renderClientGroupOptions = (items) => {
+                if (!newClientGroupList) {
+                    return;
+                }
+
+                const known = new Map(clientGroupsCache.map((group) => [String(group.id), group]));
+                (items || []).forEach((group) => {
+                    known.set(String(group.id), { id: group.id, name: group.name });
+                });
+                clientGroupsCache = Array.from(known.values()).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+                newClientGroupList.innerHTML = '';
+                clientGroupsCache.forEach((group) => {
+                    const option = document.createElement('option');
+                    option.value = group.name || '';
+                    option.dataset.id = group.id;
+                    newClientGroupList.appendChild(option);
+                });
+                syncClientGroupIdFromName();
+            };
+            const searchClientGroups = () => {
+                if (!newClientGroupNameField) {
+                    return;
+                }
+
+                const q = newClientGroupNameField.value.trim();
+                fetch("{{ route('client.groups.index') }}?" + new URLSearchParams({ q }).toString(), {
+                    headers: { 'Accept': 'application/json' }
+                })
+                    .then(res => res.json())
+                    .then(payload => renderClientGroupOptions(payload.items || []))
+                    .catch(() => {});
+            };
+            let clientGroupSearchTimeout = null;
+            if (newClientGroupNameField) {
+                newClientGroupNameField.addEventListener('input', () => {
+                    syncClientGroupIdFromName();
+                    clearTimeout(clientGroupSearchTimeout);
+                    clientGroupSearchTimeout = setTimeout(searchClientGroups, 250);
+                });
+                newClientGroupNameField.addEventListener('change', syncClientGroupIdFromName);
+            }
 
             if(newClientBtn) {
                 newClientBtn.addEventListener('click', () => {
                     document.getElementById('newClientModalLabel').textContent = 'Новий клієнт';
                     newClientIdField.value = '0';
+                    if (newClientGroupNameField) newClientGroupNameField.value = '';
+                    if (newClientGroupIdField) newClientGroupIdField.value = '';
                     newClientOrgnameField.value = '';
                     document.getElementById('newClientName').value = '';
                     document.getElementById('newClientSecondname').value = '';
@@ -1234,6 +1307,8 @@
                 editClientBtn.addEventListener('click', () => {
                     document.getElementById('newClientModalLabel').textContent = 'Змінити клієнта';
                     newClientIdField.value = client1Id.value || '0';
+                    if (newClientGroupNameField) newClientGroupNameField.value = client1Id.dataset.usergroupName || '';
+                    if (newClientGroupIdField) newClientGroupIdField.value = client1Id.dataset.usergroup || '';
                     newClientOrgnameField.value = client1Id.dataset.orgname || '';
                     document.getElementById('newClientName').value = client1Id.dataset.name || '';
                     document.getElementById('newClientSecondname').value = client1Id.dataset.secondname || '';
@@ -1290,6 +1365,8 @@
                     const regionField = document.getElementById('newClientRegion');
                     const poshtaField = document.getElementById('newClientPoshta');
                     const statusField = document.getElementById('newClientStatus');
+                    const groupNameField = newClientGroupNameField;
+                    const groupIdField = newClientGroupIdField;
                     const orgname = orgnameField.value.trim();
                     const name = nameField.value.trim();
                     const secondname = secondnameField.value.trim();
@@ -1298,6 +1375,9 @@
                     const region = regionField.value.trim();
                     const poshta = poshtaField.value.trim();
                     const idstatus = statusField.value;
+                    const usergroupName = groupNameField ? groupNameField.value.trim() : '';
+                    syncClientGroupIdFromName();
+                    const usergroup = groupIdField ? groupIdField.value : '';
                     const errorDiv = document.getElementById('newClientError');
                     [nameField, secondnameField, phoneField, statusField].forEach(field => field.classList.remove('is-invalid'));
                     if (!name && !secondname && !phone) {
@@ -1324,7 +1404,7 @@
                             'Accept': 'application/json',
                             'X-CSRF-TOKEN': '{{ csrf_token() }}'
                         },
-                        body: JSON.stringify({ id, orgname, name, secondname, phone, city, region, poshta, idstatus })
+                        body: JSON.stringify({ id, orgname, name, secondname, phone, city, region, poshta, idstatus, usergroup, usergroup_name: usergroupName })
                     })
                         .then(async res => {
                             const payload = await res.json().catch(() => ({}));
@@ -1343,6 +1423,11 @@
                             client1Id.dataset.region = user.region || '';
                             client1Id.dataset.poshta = user.poshta || '';
                             client1Id.dataset.status = user.idstatus || '';
+                            client1Id.dataset.usergroup = user.usergroup || '';
+                            client1Id.dataset.usergroupName = user.usergroup_name || '';
+                            if (user.usergroup && user.usergroup_name) {
+                                renderClientGroupOptions([{ id: user.usergroup, name: user.usergroup_name }]);
+                            }
                             
                             if (editClientBtn) {
                                 editClientBtn.style.display = 'inline-block';
@@ -1364,6 +1449,8 @@
                             regionField.value = '';
                             poshtaField.value = '';
                             statusField.value = '';
+                            if (groupNameField) groupNameField.value = '';
+                            if (groupIdField) groupIdField.value = '';
                         })
                         .catch(err => { errorDiv.textContent = 'Помилка: ' + err.message; errorDiv.style.display = 'block'; })
                         .finally(() => { saveNewClientBtn.disabled = false; saveNewClientBtn.textContent = 'Зберегти'; });

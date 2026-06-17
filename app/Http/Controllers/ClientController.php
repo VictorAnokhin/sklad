@@ -84,19 +84,38 @@ class ClientController extends Controller
         $teamOnly = $request->boolean('team_only');
         $clientFirmaScope = $this->clientFirmaScope($fid);
 
-        $users = DB::table('users')
-            ->whereIn('firma', $clientFirmaScope)
-            ->when($teamOnly, fn ($query) => $query->where('firmuser', '1'))
+        $users = DB::table('users as u')
+            ->leftJoin('conf as client_group', function ($join) use ($fid): void {
+                $join->on('client_group.id', '=', 'u.usergroup')
+                    ->where('client_group.type', '=', 'usergroup')
+                    ->where('client_group.firma', '=', $fid);
+            })
+            ->whereIn('u.firma', $clientFirmaScope)
+            ->when($teamOnly, fn ($query) => $query->where('u.firmuser', '1'))
             ->where(function ($query) use ($q, $qBase) {
-            $query->where('orgname', 'LIKE', "%{$qBase}%")
-                ->orWhere('name', 'LIKE', "%{$qBase}%")
-                ->orWhere('secondname', 'LIKE', "%{$qBase}%")
-                ->orWhere('phone', 'LIKE', "%{$q}%");
+            $query->where('u.orgname', 'LIKE', "%{$qBase}%")
+                ->orWhere('u.name', 'LIKE', "%{$qBase}%")
+                ->orWhere('u.secondname', 'LIKE', "%{$qBase}%")
+                ->orWhere('u.phone', 'LIKE', "%{$q}%");
             if (User::hasUsersColumn('email')) {
-                $query->orWhereRaw('LOWER(email) LIKE ?', ['%' . mb_strtolower($qBase) . '%']);
+                $query->orWhereRaw('LOWER(u.email) LIKE ?', ['%' . mb_strtolower($qBase) . '%']);
             }
         })
-            ->select('id', 'orgname', 'name', 'name2', 'secondname', 'phone', 'city', 'region', 'poshta', 'idstatus', 'balance')
+            ->select(
+                'u.id',
+                'u.orgname',
+                'u.name',
+                'u.name2',
+                'u.secondname',
+                'u.phone',
+                'u.city',
+                'u.region',
+                'u.poshta',
+                'u.idstatus',
+                'u.usergroup',
+                'u.balance',
+                'client_group.name as usergroup_name'
+            )
             ->limit(20)
             ->get()
             ->map(function ($u) {
@@ -111,6 +130,8 @@ class ClientController extends Controller
             'region' => $u->region,
             'poshta' => $u->poshta,
             'idstatus' => $u->idstatus,
+            'usergroup' => $u->usergroup,
+            'usergroup_name' => $u->usergroup_name,
             'client_balance' => (float) ($u->balance ?? 0),
             ];
         });
@@ -175,6 +196,11 @@ class ClientController extends Controller
         $region = trim((string) ($request->input('region') ?? ''));
         $poshta = trim((string) ($request->input('poshta') ?? ''));
         $idstatus = (int) $request->input('idstatus', 0);
+        $usergroup = $this->resolveQuickClientGroup(
+            $fid,
+            (int) $request->input('usergroup', 0),
+            trim((string) ($request->input('usergroup_name') ?? ''))
+        );
 
         if ($name === '' && $secondname === '' && $phone === '') {
             return response()->json([
@@ -223,6 +249,7 @@ class ClientController extends Controller
             'firma' => $fid,
             'idstatus' => $idstatus,
             'ustype' => $idstatus,
+            'usergroup' => $usergroup,
             'top' => 1,
         ];
 
@@ -241,7 +268,14 @@ class ClientController extends Controller
 
         $id = User::edit($idParam, $data, false);
 
-        $user = DB::table('users')->where('id', $id)->first();
+        $user = DB::table('users as u')
+            ->leftJoin('conf as client_group', function ($join) use ($fid): void {
+                $join->on('client_group.id', '=', 'u.usergroup')
+                    ->where('client_group.type', '=', 'usergroup')
+                    ->where('client_group.firma', '=', $fid);
+            })
+            ->where('u.id', $id)
+            ->first(['u.*', 'client_group.name as usergroup_name']);
 
         return response()->json($user);
     }
@@ -391,6 +425,37 @@ class ClientController extends Controller
         return DB::table('conf')
             ->where('type', 'usergroup')
             ->where('firma', $fid);
+    }
+
+    private function resolveQuickClientGroup(string $fid, int $groupId, string $groupName): int
+    {
+        if ($groupId > 0 && $this->clientGroupsQuery($fid)->where('id', $groupId)->exists()) {
+            return $groupId;
+        }
+
+        $groupName = trim($groupName);
+        if ($groupName === '') {
+            return 0;
+        }
+
+        $existingId = $this->clientGroupsQuery($fid)
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($groupName)])
+            ->value('id');
+
+        if ($existingId) {
+            return (int) $existingId;
+        }
+
+        return (int) DB::table('conf')->insertGetId([
+            'type' => 'usergroup',
+            'name' => $groupName,
+            'color' => '',
+            'status' => '0',
+            'firma' => $fid,
+            'constanta' => '0',
+            'vision' => '1',
+            'hide' => '0',
+        ]);
     }
 
     private function validateClientGroup(Request $request): array
