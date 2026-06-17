@@ -69,6 +69,7 @@ Route::middleware('api')->prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->post('/wallet/challenge', [AuthController::class, 'web3LinkChallenge']);
     Route::middleware('auth:sanctum')->post('/wallet/link', [AuthController::class, 'linkWallet']);
     Route::middleware('auth:sanctum')->post('/wallet/unlink', [AuthController::class, 'unlinkWallet']);
+    Route::middleware('auth:sanctum')->delete('/wallet', [AuthController::class, 'unlinkWallet']);
     Route::middleware('auth:sanctum')->post('/wallet/update-token-data', [WalletController::class, 'updateTokenData']);
 });
 
