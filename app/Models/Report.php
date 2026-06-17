@@ -431,7 +431,7 @@ class Report extends Model
             COUNT(DISTINCT zb.pnum) as sold_sku_count,
             COALESCE(SUM(zb.pcount), 0) as sold_qty_total,
             COALESCE(SUM(zb.psumma), 0) as revenue_total,
-            COALESCE(SUM(COALESCE(NULLIF(zb.zvalue, ""), pr.pay, 0) * zb.pcount), 0) as estimated_cost_total
+            COALESCE(SUM(COALESCE(NULLIF(zb.zvalue, ""), pr.pay0, pr.pay, 0) * zb.pcount), 0) as estimated_cost_total
         ')->first();
 
         $salesSubquery = (clone $salesQuery)
@@ -441,7 +441,7 @@ class Report extends Model
                 DB::raw('zd.sklads as sklad'),
                 DB::raw('SUM(zb.pcount) as sold_qty'),
                 DB::raw('SUM(zb.psumma) as sold_sum'),
-                DB::raw('SUM(COALESCE(NULLIF(zb.zvalue, ""), pr.pay, 0) * zb.pcount) as estimated_cost'),
+                DB::raw('SUM(COALESCE(NULLIF(zb.zvalue, ""), pr.pay0, pr.pay, 0) * zb.pcount) as estimated_cost'),
                 DB::raw('COUNT(DISTINCT zd.id) as sales_docs_count'),
             ]);
 
@@ -1717,9 +1717,9 @@ class Report extends Model
                 DB::raw('COALESCE(zb.pcount, 0) as qty'),
                 DB::raw('COALESCE(zb.pprice, 0) as unit_price'),
                 DB::raw('COALESCE(zb.psumma, 0) as revenue'),
-                DB::raw('COALESCE(NULLIF(zb.zvalue, ""), pr.pay, 0) as cost_unit'),
-                DB::raw('COALESCE(NULLIF(zb.zvalue, ""), pr.pay, 0) * COALESCE(zb.pcount, 0) as cost_total'),
-                DB::raw('(COALESCE(zb.psumma, 0) - (COALESCE(NULLIF(zb.zvalue, ""), pr.pay, 0) * COALESCE(zb.pcount, 0))) as gross_profit'),
+                DB::raw('COALESCE(NULLIF(zb.zvalue, ""), pr.pay0, pr.pay, 0) as cost_unit'),
+                DB::raw('COALESCE(NULLIF(zb.zvalue, ""), pr.pay0, pr.pay, 0) * COALESCE(zb.pcount, 0) as cost_total'),
+                DB::raw('(COALESCE(zb.psumma, 0) - (COALESCE(NULLIF(zb.zvalue, ""), pr.pay0, pr.pay, 0) * COALESCE(zb.pcount, 0))) as gross_profit'),
                 DB::raw('GREATEST((COALESCE(zb.pprice, 0) * COALESCE(zb.pcount, 0)) - COALESCE(zb.psumma, 0), 0) as line_discount_impact'),
                 DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(c.nickname, ''), NULLIF(c.namedoc, ''), NULLIF(c.name, ''), CONCAT('Товар #', zb.pnum)) as product_name"),
                 DB::raw("COALESCE(NULLIF(cat.val, ''), 'Без категорії') as category_name"),

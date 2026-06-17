@@ -78,8 +78,10 @@ return new class extends Migration
             return;
         }
 
+        $costColumn = Schema::hasColumn('price', 'pay0') ? 'pay0' : 'pay';
+
         $priceSubquery = DB::table('price')
-            ->selectRaw('firma, pnum, MAX(pay) as unit_cost')
+            ->selectRaw("firma, pnum, MAX({$costColumn}) as unit_cost")
             ->groupBy('firma', 'pnum');
 
         DB::table('price_sklad as ps')

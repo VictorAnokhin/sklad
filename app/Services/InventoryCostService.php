@@ -593,10 +593,11 @@ class InventoryCostService
             ->where('sklad', $warehouseId)
             ->where('pnum', $productId)
             ->sum('count') ?? 0);
+        $costColumn = Schema::hasColumn('price', 'pay0') ? 'pay0' : 'pay';
         $openingCost = (float) (DB::table('price')
             ->where('firma', $companyId)
             ->where('pnum', $productId)
-            ->value('pay') ?? 0);
+            ->value($costColumn) ?? 0);
 
         DB::table('inventory_cost_balances')->insertOrIgnore([
             'company_id' => $companyId,
@@ -631,10 +632,12 @@ class InventoryCostService
 
     private function setReferenceCost(int $companyId, string $productId, float $averageCost): void
     {
+        $costColumn = Schema::hasColumn('price', 'pay0') ? 'pay0' : 'pay';
+
         DB::table('price')
             ->where('firma', $companyId)
             ->where('pnum', $productId)
-            ->update(['pay' => max(0, round($averageCost, 6))]);
+            ->update([$costColumn => max(0, round($averageCost, 6))]);
     }
 
     private function activeMovements(int $companyId, string $sourceType, string $sourceId)

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ZBody extends Model
 {
@@ -70,10 +71,11 @@ class ZBody extends Model
 
     public static function resolveUnitCost($pnum, $fid): string
     {
+        $costColumn = Schema::hasColumn('price', 'pay0') ? 'pay0' : 'pay';
         $cost = DB::table('price')
             ->where('pnum', $pnum)
             ->where('firma', $fid)
-            ->value('pay');
+            ->value($costColumn);
 
         return number_format((float) ($cost ?? 0), 2, '.', '');
     }

@@ -186,6 +186,7 @@ return new class extends Migration
             $t->string('tgroup', 20)->default('');
             $t->string('idagent', 20)->default('');
             $t->decimal('pay', 10, 2)->default(0);
+            $t->decimal('pay0', 14, 6)->default(0);
             $t->decimal('pay1', 10, 2)->default(0);
             $t->decimal('oldpay', 10, 2)->default(0);
             $t->integer('count')->default(0);
