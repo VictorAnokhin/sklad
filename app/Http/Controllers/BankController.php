@@ -104,6 +104,41 @@ class BankController extends Controller
         return redirect()->route('bank.cash-accounts')->with('success', 'Счёт проекта добавлен.');
     }
 
+    public function storeOperationalAccount(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('conf'), 404);
+
+        $payload = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'currency' => ['required', 'string', 'max:20'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
+            'google_auth' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $columns = Schema::getColumnListing('conf');
+        $values = [
+            'type' => 'oplata',
+            'name' => trim((string) $payload['name']),
+            'firma' => (string) $project->id,
+            'currency' => $this->normalizeCurrencyCode($payload['currency']),
+            'value' => (float) ($payload['amount'] ?? 0),
+            'status' => 1,
+            'vision' => '1',
+        ];
+
+        if (in_array('doc', $columns, true)) {
+            $values['doc'] = 'operational';
+        }
+        if (in_array('google_map', $columns, true)) {
+            $values['google_map'] = trim((string) ($payload['google_auth'] ?? ''));
+        }
+
+        DB::table('conf')->insert($values);
+
+        return redirect()->route('bank.cash-accounts')->with('success', 'Операционный счёт создан.');
+    }
+
     public function destroyProjectAccount(int $project, int $account): RedirectResponse
     {
         $bankProject = $this->bankProject();
@@ -263,7 +298,7 @@ class BankController extends Controller
             'constanta' => '0',
             'value' => 0,
             'value1' => 0,
-            'currency' => 'UAH',
+            'currency' => $payload['currency'],
             'doc' => $payload['deposit_type'],
         ]);
 
@@ -283,6 +318,7 @@ class BankController extends Controller
             ->update([
                 'name' => $payload['name'],
                 'doc' => $payload['deposit_type'],
+                'currency' => $payload['currency'],
             ]);
 
         if ($updated === 0) {
@@ -854,11 +890,13 @@ class BankController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'deposit_type' => ['required', Rule::in(['bank', 'personal'])],
+            'currency' => ['required', 'string', 'max:20'],
         ]);
 
         return [
             'name' => trim((string) $validated['name']),
             'deposit_type' => (string) $validated['deposit_type'],
+            'currency' => $this->normalizeCurrencyCode($validated['currency']),
         ];
     }
 

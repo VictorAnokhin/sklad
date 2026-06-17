@@ -955,6 +955,7 @@
     }
 
     .bank-requisites-form input,
+    .bank-requisites-form select,
     .bank-requisites-form textarea {
         width: 100%;
         border-radius: 8px;
@@ -971,6 +972,7 @@
     }
 
     .bank-requisites-form input:focus,
+    .bank-requisites-form select:focus,
     .bank-requisites-form textarea:focus {
         border-color: rgba(251, 191, 36, 0.62);
         box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12);

@@ -228,6 +228,14 @@
                                             <option value="personal">Личный</option>
                                         </select>
                                     </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Валюта</label>
+                                        <select name="currency" class="form-select" data-deposit-settings-currency required>
+                                            @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
+                                                <option value="{{ $currency }}">{{ $currency }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
                                 </div>
                                 <div class="d-flex justify-content-end gap-2 mt-3">
                                     <button type="submit" class="btn btn-primary" data-deposit-settings-submit>Сохранить</button>
@@ -260,6 +268,7 @@
         const settingsMethod = modal.querySelector('[data-deposit-settings-method]');
         const settingsName = modal.querySelector('[data-deposit-settings-name]');
         const settingsType = modal.querySelector('[data-deposit-settings-type]');
+        const settingsCurrency = modal.querySelector('[data-deposit-settings-currency]');
         const settingsSubmit = modal.querySelector('[data-deposit-settings-submit]');
         const operationsTab = modal.querySelector('#depositOperationsTab');
         const settingsTab = modal.querySelector('#depositSettingsTab');
@@ -300,11 +309,12 @@
                 movementsBody.replaceChildren();
                 emptyState.hidden = false;
 
-                if (settingsForm && settingsMethod && settingsName && settingsType && settingsSubmit) {
+                if (settingsForm && settingsMethod && settingsName && settingsType && settingsCurrency && settingsSubmit) {
                     settingsForm.action = trigger.dataset.storeUrl || '';
                     settingsMethod.value = 'POST';
                     settingsName.value = '';
                     settingsType.value = 'bank';
+                    settingsCurrency.value = 'UAH';
                     settingsSubmit.textContent = 'Создать депозит';
                 }
                 bootstrap.Tab.getOrCreateInstance(settingsTab).show();
@@ -326,11 +336,12 @@
             setSummary('topups', `+${formatAmount(topups)} ${currency}`);
             setSummary('withdrawals', `−${formatAmount(withdrawals)} ${currency}`);
             setSummary('net', `${topups - withdrawals >= 0 ? '+' : '−'}${formatAmount(Math.abs(topups - withdrawals))} ${currency}`);
-            if (settingsForm && settingsMethod && settingsName && settingsType && settingsSubmit) {
+            if (settingsForm && settingsMethod && settingsName && settingsType && settingsCurrency && settingsSubmit) {
                 settingsForm.action = trigger.dataset.updateUrl || '';
                 settingsMethod.value = 'PUT';
                 settingsName.value = trigger.dataset.depositName || '';
                 settingsType.value = trigger.dataset.depositType || 'bank';
+                settingsCurrency.value = currency;
                 settingsSubmit.textContent = 'Сохранить';
             }
             bootstrap.Tab.getOrCreateInstance(operationsTab).show();

@@ -54,8 +54,8 @@
         </button>
         <button type="button" class="bank-panel bank-panel--button" data-bank-section-trigger="operational">
             <div class="bank-label">Операционные счета</div>
-            <div class="bank-value">{{ $emailWalletBindings->count() }}</div>
-            <div class="bank-meta">Привязки email к криптокошелькам</div>
+            <div class="bank-value">{{ $cashAccounts->count() }}</div>
+            <div class="bank-meta">Счета банка и Google Auth привязки</div>
         </button>
         <div class="bank-panel">
             <div class="bank-label">Основной остаток</div>
@@ -87,9 +87,41 @@
         <div class="bank-table-header">
             <div>
                 <div class="bank-label">Операционные счета</div>
-                <div class="bank-meta">Таблица привязки email к криптокошельку. Нажмите на строку, чтобы увидеть монеты и количество.</div>
+                <div class="bank-meta">Счета банка и привязки email к криптокошельку.</div>
             </div>
-            <div class="bank-meta">{{ $emailWalletBindings->count() }} привязок</div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="bank-meta">{{ $cashAccounts->count() }} счетов · {{ $emailWalletBindings->count() }} привязок</div>
+                <button type="button" class="btn btn-sm btn-primary" data-bank-operational-account-open>Создать</button>
+            </div>
+        </div>
+
+        <div class="table-responsive bank-table-scroll mb-4">
+            <table class="table table-dark table-hover table-sm align-middle bank-table">
+                <thead>
+                    <tr>
+                        <th class="bank-table__num">ID</th>
+                        <th>Название счета</th>
+                        <th>Валюта</th>
+                        <th class="text-end">Сумма</th>
+                        <th>Google Auth</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($cashAccounts as $account)
+                        <tr>
+                            <td class="bank-table__num bank-mono">{{ $account->id }}</td>
+                            <td>{{ $account->label }}</td>
+                            <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
+                            <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
+                            <td class="bank-mono">{{ trim((string) ($account->google_map ?? '')) !== '' ? $account->google_map : '—' }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">Операционные счета не созданы.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
 
         <div class="table-responsive bank-table-scroll">
@@ -499,6 +531,48 @@
             </form>
         </div>
     </div>
+
+    <div class="bank-modal" data-bank-operational-account-modal hidden>
+        <div class="bank-modal__backdrop" data-bank-operational-account-close></div>
+        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="bankOperationalAccountTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Операционные счета</div>
+                    <h2 id="bankOperationalAccountTitle">Создать счет</h2>
+                </div>
+                <button type="button" class="bank-modal__close" data-bank-operational-account-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="POST" action="{{ route('bank.operational-accounts.store') }}" class="bank-requisites-form">
+                @csrf
+                <div class="bank-form-grid">
+                    <label>
+                        <span>Название счета</span>
+                        <input type="text" name="name" required maxlength="255" autocomplete="off">
+                    </label>
+                    <label>
+                        <span>Валюта</span>
+                        <select name="currency" required>
+                            @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
+                                <option value="{{ $currency }}">{{ $currency }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label>
+                        <span>Сумма</span>
+                        <input type="number" name="amount" min="0" step="0.01" value="0" required inputmode="decimal">
+                    </label>
+                    <label>
+                        <span>Google Auth</span>
+                        <input type="text" name="google_auth" maxlength="255" autocomplete="off">
+                    </label>
+                </div>
+                <div class="bank-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-bank-operational-account-close>Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 @include('bank.partials.styles')
@@ -563,6 +637,23 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => {
             if (requisitesModal) {
                 requisitesModal.hidden = true;
+            }
+        });
+    });
+
+    const operationalModal = root.querySelector('[data-bank-operational-account-modal]');
+    const operationalOpen = root.querySelector('[data-bank-operational-account-open]');
+    if (operationalOpen && operationalModal) {
+        operationalOpen.addEventListener('click', () => {
+            operationalModal.hidden = false;
+            operationalModal.querySelector('input[name="name"]')?.focus();
+        });
+    }
+
+    root.querySelectorAll('[data-bank-operational-account-close]').forEach((button) => {
+        button.addEventListener('click', () => {
+            if (operationalModal) {
+                operationalModal.hidden = true;
             }
         });
     });
