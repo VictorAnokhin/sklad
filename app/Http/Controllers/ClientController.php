@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -267,6 +268,7 @@ class ClientController extends Controller
         }
 
         $id = User::edit($idParam, $data, false);
+        $this->syncClientCityReference($fid, $region, $city);
 
         $user = DB::table('users as u')
             ->leftJoin('conf as client_group', function ($join) use ($fid): void {
@@ -278,6 +280,114 @@ class ClientController extends Controller
             ->first(['u.*', 'client_group.name as usergroup_name']);
 
         return response()->json($user);
+    }
+
+    private function syncClientCityReference(string $fid, string $region, string $city): void
+    {
+        if ($city === '' || $region === '' || !Schema::hasTable('field') || !Schema::hasTable('filter')) {
+            return;
+        }
+
+        try {
+            $regionRow = $this->findClientRegionReference($fid, $region);
+            if (!$regionRow) {
+                Log::warning('Client city was not added to filter: region not found', [
+                    'fid' => $fid,
+                    'region' => $region,
+                    'city' => $city,
+                ]);
+                return;
+            }
+
+            $filterColumns = Schema::getColumnListing('filter');
+            $hasFilterColumn = static fn (string $column): bool => in_array($column, $filterColumns, true);
+            $nameColumns = array_values(array_intersect(['val', 'valru', 'valen'], $filterColumns));
+            if (!$nameColumns) {
+                return;
+            }
+
+            $cityValue = mb_substr($city, 0, 60);
+            $existsQuery = DB::table('filter')
+                ->where('keyfield', 'city')
+                ->where('idkeyfield', (int) $regionRow->id);
+
+            $existsQuery->where(function ($query) use ($nameColumns, $cityValue): void {
+                foreach ($nameColumns as $index => $column) {
+                    $index === 0
+                        ? $query->where($column, $cityValue)
+                        : $query->orWhere($column, $cityValue);
+                }
+            });
+
+            if ($existsQuery->exists()) {
+                return;
+            }
+
+            $payload = [];
+            if ($hasFilterColumn('idkeyfield')) {
+                $payload['idkeyfield'] = (int) $regionRow->id;
+            }
+            if ($hasFilterColumn('idfilter')) {
+                $payload['idfilter'] = 0;
+            }
+            if ($hasFilterColumn('keyfield')) {
+                $payload['keyfield'] = 'city';
+            }
+            if ($hasFilterColumn('type')) {
+                $payload['type'] = 'city';
+            }
+            if ($hasFilterColumn('val')) {
+                $payload['val'] = $cityValue;
+            }
+            if ($hasFilterColumn('valru')) {
+                $payload['valru'] = $cityValue;
+            }
+            if ($hasFilterColumn('valen')) {
+                $payload['valen'] = '';
+            }
+            foreach (['description', 'descriptionen', 'descriptionru'] as $column) {
+                if ($hasFilterColumn($column)) {
+                    $payload[$column] = '';
+                }
+            }
+            foreach (['count', 'top', 'num'] as $column) {
+                if ($hasFilterColumn($column)) {
+                    $payload[$column] = 0;
+                }
+            }
+
+            DB::table('filter')->insert($payload);
+        } catch (Throwable $e) {
+            Log::warning('Client city sync failed', [
+                'fid' => $fid,
+                'region' => $region,
+                'city' => $city,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function findClientRegionReference(string $fid, string $region): ?object
+    {
+        $regionValue = mb_substr($region, 0, 255);
+        $fieldColumns = Schema::getColumnListing('field');
+        $nameColumns = array_values(array_intersect(['val', 'valua', 'val_ua', 'valru', 'valen', 'val_en'], $fieldColumns));
+
+        if (!$nameColumns) {
+            return null;
+        }
+
+        return DB::table('field')
+            ->where('keyfield', 'city')
+            ->where('firma', $fid)
+            ->where(function ($query) use ($nameColumns, $regionValue): void {
+                foreach ($nameColumns as $index => $column) {
+                    $index === 0
+                        ? $query->where($column, $regionValue)
+                        : $query->orWhere($column, $regionValue);
+                }
+            })
+            ->first();
     }
 
     // ── Show / edit form ──────────────────────────────────────────────────────
@@ -849,6 +959,7 @@ class ClientController extends Controller
             }
 
             $id = User::edit($id, $data, false);
+            $this->syncClientCityReference((string) $targetFirma, $data['region'], $data['city']);
 
             session(['client1' => $id]);
             return redirect()->route('client.show', ['id' => $id])->with('success', 'Збережено');
