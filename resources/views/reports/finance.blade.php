@@ -11,14 +11,26 @@
         <div class="card-body">
             <form method="get" action="{{ route('reports.finance') }}" class="row g-3 align-items-end">
                 <div class="col-md-3">
+                    <label for="period" class="form-label">Период</label>
+                    <select id="period" name="period" class="form-select">
+                        <option value="today" {{ ($periodFilter ?? 'month') === 'today' ? 'selected' : '' }}>Сегодня</option>
+                        <option value="yesterday" {{ ($periodFilter ?? 'month') === 'yesterday' ? 'selected' : '' }}>Вчера</option>
+                        <option value="week" {{ ($periodFilter ?? 'month') === 'week' ? 'selected' : '' }}>За неделю</option>
+                        <option value="month" {{ ($periodFilter ?? 'month') === 'month' ? 'selected' : '' }}>За месяц</option>
+                        <option value="same_month_last_year" {{ ($periodFilter ?? 'month') === 'same_month_last_year' ? 'selected' : '' }}>Этот месяц в прошлом году</option>
+                        <option value="year" {{ ($periodFilter ?? 'month') === 'year' ? 'selected' : '' }}>За год</option>
+                        <option value="manual" {{ ($periodFilter ?? 'month') === 'manual' ? 'selected' : '' }}>Ручной выбор</option>
+                    </select>
+                </div>
+                <div class="col-md-2 finance-manual-period">
                     <label for="date_from" class="form-label">Період з</label>
                     <input type="date" id="date_from" name="date_from" value="{{ $dateFrom }}" class="form-control">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2 finance-manual-period">
                     <label for="date_to" class="form-label">Період по</label>
                     <input type="date" id="date_to" name="date_to" value="{{ $dateTo }}" class="form-control">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="oplata" class="form-label">Каса</label>
                     <select id="oplata" name="oplata" class="form-select">
                         <option value="">— Усі каси —</option>
@@ -36,6 +48,23 @@
             </form>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const periodSelect = document.getElementById('period');
+            const manualFields = document.querySelectorAll('.finance-manual-period');
+
+            const toggleManualPeriod = () => {
+                const isManual = periodSelect?.value === 'manual';
+                manualFields.forEach((field) => {
+                    field.classList.toggle('d-none', !isManual);
+                });
+            };
+
+            periodSelect?.addEventListener('change', toggleManualPeriod);
+            toggleManualPeriod();
+        });
+    </script>
 
     <div class="row g-4">
         <div class="col-md-3">

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\Report;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
@@ -372,14 +373,71 @@ class ReportController extends Controller
     public function finance(Request $request)
     {
         $fid = (string) session('fid', '');
+        $period = (string) $request->input('period', 'month');
+        [$dateFrom, $dateTo, $period] = $this->resolveFinancePeriod(
+            $period,
+            (string) $request->input('date_from', ''),
+            (string) $request->input('date_to', '')
+        );
         $data = Report::finance(
             $fid,
-            (string) $request->input('date_from', ''),
-            (string) $request->input('date_to', ''),
+            $dateFrom,
+            $dateTo,
             (string) $request->input('oplata', '')
         );
 
-        return view('reports.finance', $data);
+        return view('reports.finance', array_merge($data, [
+            'periodFilter' => $period,
+        ]));
+    }
+
+    private function resolveFinancePeriod(string $period, string $dateFromInput, string $dateToInput): array
+    {
+        $today = CarbonImmutable::today();
+        $period = in_array($period, [
+            'today',
+            'yesterday',
+            'week',
+            'month',
+            'same_month_last_year',
+            'year',
+            'manual',
+        ], true) ? $period : 'month';
+
+        [$start, $end] = match ($period) {
+            'today' => [$today, $today],
+            'yesterday' => [$today->subDay(), $today->subDay()],
+            'week' => [$today->subDays(6), $today],
+            'same_month_last_year' => [
+                $today->subYear()->startOfMonth(),
+                $today->subYear()->endOfMonth(),
+            ],
+            'year' => [$today->subDays(364), $today],
+            'manual' => [
+                $this->parseFinanceDate($dateFromInput, $today->startOfMonth()),
+                $this->parseFinanceDate($dateToInput, $today),
+            ],
+            default => [$today->subDays(29), $today],
+        };
+
+        if ($start->gt($end)) {
+            [$start, $end] = [$end, $start];
+        }
+
+        return [$start->format('Y-m-d'), $end->format('Y-m-d'), $period];
+    }
+
+    private function parseFinanceDate(string $value, CarbonImmutable $fallback): CarbonImmutable
+    {
+        if ($value === '') {
+            return $fallback;
+        }
+
+        try {
+            return CarbonImmutable::createFromFormat('Y-m-d', $value)->startOfDay();
+        } catch (\Throwable) {
+            return $fallback;
+        }
     }
 
     private function isBankProject(string $fid): bool
