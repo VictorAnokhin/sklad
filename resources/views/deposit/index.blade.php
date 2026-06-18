@@ -50,13 +50,12 @@
         <div class="glass-card money-summary__card">
             <div class="money-summary__icon">🏦</div>
             <div class="money-summary__label">{{ __('deposit.deposit_operations') }}</div>
-            <div class="money-summary__value money-summary__value--income">{{ number_format($sumPP ?? 0, 2, '.', ' ') }} грн</div>
             @if(!empty($depositTotals) && $depositTotals->isNotEmpty())
             <div class="mt-2" style="display:grid; gap:6px; font-size:0.86rem;">
                 @foreach($depositTotals as $depositTotal)
                 <div style="display:flex; justify-content:space-between; gap:12px; color:var(--muted-foreground);">
                     <span style="overflow:hidden; text-overflow:ellipsis;">{{ $depositTotal->name }}</span>
-                    <strong style="white-space:nowrap; color:var(--foreground);">{{ number_format($depositTotal->total_sum, 2, '.', ' ') }} грн</strong>
+                    <strong style="white-space:nowrap; color:var(--foreground);">{{ number_format($depositTotal->total_sum, 2, '.', ' ') }}</strong>
                 </div>
                 @endforeach
             </div>
