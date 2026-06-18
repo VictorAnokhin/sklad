@@ -52,7 +52,8 @@ class DepositController extends Controller
         }
 
         $deposits = Deposit::deposits($fid);
-        $ownerBalances = Money::userBalances($document->owner_balance ?? '');
+        $ownerUserId = (string) (($document->client2 ?? '') ?: (Auth::id() ?: session('userid', '0')));
+        $ownerBalances = Money::cachedUserBalances($ownerUserId, $fid, $document->owner_balance ?? '');
         if ($ownerBalances === []) {
             $ownerBalances = [[
                 'amount' => '0',
