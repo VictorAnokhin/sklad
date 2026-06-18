@@ -394,6 +394,10 @@ class Document extends Model
                     throw new \RuntimeException('Для проводки грошового документа потрібно вибрати касу.');
                 }
 
+                if (!$wasPosted && $docType === 'RO') {
+                    self::assertCashboxBalanceAvailable($fid, $kasId, $summa, $confColumns);
+                }
+
                 if (in_array($docType, ['PO', 'RO'], true) && in_array('value', $confColumns, true)) {
                     $currentValue = (float) DB::table('conf')
                         ->where('id', $kasId)
@@ -423,6 +427,10 @@ class Document extends Model
 
                 if (trim($kasId) === '') {
                     throw new \RuntimeException('Для проводки зарплати потрібно вибрати касу.');
+                }
+
+                if (!$wasPosted) {
+                    self::assertCashboxBalanceAvailable($fid, $kasId, $summa, $confColumns);
                 }
 
                 if (in_array('value', $confColumns, true)) {
@@ -838,6 +846,51 @@ class Document extends Model
         }
 
         return self::currencyFromCashboxName((string) ($cashbox->name ?? ''));
+    }
+
+    private static function assertCashboxBalanceAvailable(string $fid, string $cashboxId, float $amount, array $confColumns): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        if (in_array('value', $confColumns, true)) {
+            $cashbox = DB::table('conf')
+                ->where('id', $cashboxId)
+                ->where('type', 'oplata')
+                ->where('firma', $fid)
+                ->lockForUpdate()
+                ->first(['name', 'value']);
+
+            $available = (float) ($cashbox->value ?? 0);
+            if (!$cashbox || $available + 0.000001 < $amount) {
+                $name = trim((string) ($cashbox->name ?? $cashboxId));
+                throw new \RuntimeException(sprintf(
+                    'Недостаточно средств в кассе %s. Доступно %s, нужно %s',
+                    $name !== '' ? $name : $cashboxId,
+                    self::formatBalanceAmount($available),
+                    self::formatBalanceAmount($amount)
+                ));
+            }
+
+            return;
+        }
+
+        $cashbox = DB::table('kassa')
+            ->where('id', $cashboxId)
+            ->lockForUpdate()
+            ->first(['name', 'balance']);
+
+        $available = (float) ($cashbox->balance ?? 0);
+        if (!$cashbox || $available + 0.000001 < $amount) {
+            $name = trim((string) ($cashbox->name ?? $cashboxId));
+            throw new \RuntimeException(sprintf(
+                'Недостаточно средств в кассе %s. Доступно %s, нужно %s',
+                $name !== '' ? $name : $cashboxId,
+                self::formatBalanceAmount($available),
+                self::formatBalanceAmount($amount)
+            ));
+        }
     }
 
     private static function currencyFromCashboxName(string $name): string
