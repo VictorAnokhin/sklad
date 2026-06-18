@@ -959,7 +959,9 @@
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Місто</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientCity">
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientCity"
+                                    list="newClientCityList" autocomplete="off">
+                                <datalist id="newClientCityList"></datalist>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Область</label>
@@ -1231,9 +1233,160 @@
             const newClientGroupNameField = document.getElementById('newClientGroupName');
             const newClientGroupIdField = document.getElementById('newClientGroupId');
             const newClientGroupList = document.getElementById('newClientGroupList');
+            const newClientCityField = document.getElementById('newClientCity');
+            const newClientRegionField = document.getElementById('newClientRegion');
+            const newClientCityList = document.getElementById('newClientCityList');
             let clientGroupsCache = @json(collect($clientGroups ?? [])->map(fn ($group) => ['id' => (int) $group->id, 'name' => (string) $group->name])->values());
+            let clientCitiesCache = [];
+            let clientCitiesLoadPromise = null;
 
             const normalizeGroupName = (value) => String(value || '').trim().toLowerCase();
+            const normalizeLocationName = (value) => String(value || '').trim().toLowerCase();
+            const capitalizeTextWords = (value) => String(value || '').replace(
+                /(^|[\s\-'"`(])([a-zа-яёіїєґ])/giu,
+                (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`
+            );
+            const bindCapitalizedInput = (field) => {
+                if (!field) {
+                    return;
+                }
+
+                field.addEventListener('input', () => {
+                    const selectionStart = field.selectionStart;
+                    const selectionEnd = field.selectionEnd;
+                    const nextValue = capitalizeTextWords(field.value);
+
+                    if (nextValue === field.value) {
+                        return;
+                    }
+
+                    field.value = nextValue;
+                    if (selectionStart !== null && selectionEnd !== null) {
+                        field.setSelectionRange(selectionStart, selectionEnd);
+                    }
+                });
+            };
+            const applyCapitalizedValue = (field) => {
+                if (field) {
+                    field.value = capitalizeTextWords(field.value);
+                }
+            };
+            [
+                newClientGroupNameField,
+                newClientOrgnameField,
+                document.getElementById('newClientSecondname'),
+                document.getElementById('newClientName'),
+                newClientCityField,
+                newClientRegionField,
+                document.getElementById('newClientPoshta'),
+            ].forEach(bindCapitalizedInput);
+            const regionDisplayName = (region) => region?.name || region?.name_ua || region?.name_ru || region?.name_en || '';
+            const cityDisplayName = (city) => city?.val || city?.valru || city?.valen || '';
+            const cityMatchesQuery = (city, query) => {
+                if (!query) {
+                    return true;
+                }
+
+                return [
+                    city.name,
+                    city.valru,
+                    city.valen,
+                    city.region_name,
+                ].some((value) => normalizeLocationName(value).includes(query));
+            };
+            const syncClientRegionFromCity = () => {
+                if (!newClientCityField || !newClientRegionField) {
+                    return;
+                }
+
+                const cityName = normalizeLocationName(newClientCityField.value);
+                if (!cityName) {
+                    return;
+                }
+
+                const selectedCity = clientCitiesCache.find((city) => normalizeLocationName(city.name) === cityName);
+                if (selectedCity) {
+                    newClientRegionField.value = selectedCity.region_name || newClientRegionField.value;
+                }
+            };
+            const renderClientCityOptions = () => {
+                if (!newClientCityList) {
+                    return;
+                }
+
+                const query = normalizeLocationName(newClientCityField?.value || '');
+                const fragment = document.createDocumentFragment();
+                clientCitiesCache
+                    .filter((city) => cityMatchesQuery(city, query))
+                    .slice(0, 200)
+                    .forEach((city) => {
+                        const option = document.createElement('option');
+                        option.value = city.name;
+                        option.label = city.region_name ? `${city.region_name} | ${city.name}` : city.name;
+                        option.dataset.regionId = city.region_id;
+                        option.dataset.regionName = city.region_name;
+                        fragment.appendChild(option);
+                    });
+
+                newClientCityList.innerHTML = '';
+                newClientCityList.appendChild(fragment);
+                syncClientRegionFromCity();
+            };
+            const loadClientCities = () => {
+                if (!newClientCityField || !newClientCityList) {
+                    return Promise.resolve();
+                }
+
+                if (clientCitiesLoadPromise) {
+                    return clientCitiesLoadPromise;
+                }
+
+                const regionsUrl = new URL("{{ route('settings.fields.index') }}", window.location.origin);
+                regionsUrl.searchParams.set('keyfield', 'city');
+                regionsUrl.searchParams.set('parent_id', '0');
+
+                clientCitiesLoadPromise = fetch(regionsUrl.toString(), { headers: { Accept: 'application/json' } })
+                    .then(async (response) => {
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok) {
+                            throw new Error(data.message || 'Не вдалося завантажити регіони');
+                        }
+
+                        const regions = data.items || [];
+
+                        return Promise.all(regions.map(async (region) => {
+                            const citiesUrl = new URL("{{ route('settings.regionCities.index') }}", window.location.origin);
+                            citiesUrl.searchParams.set('region_id', region.id);
+
+                            const citiesResponse = await fetch(citiesUrl.toString(), { headers: { Accept: 'application/json' } });
+                            const citiesData = await citiesResponse.json().catch(() => ({}));
+                            if (!citiesResponse.ok) {
+                                return [];
+                            }
+
+                            const regionName = regionDisplayName(region);
+
+                            return (citiesData.items || []).map((city) => ({
+                                ...city,
+                                name: cityDisplayName(city),
+                                region_name: regionName,
+                            }));
+                        }));
+                    })
+                    .then((groups) => {
+                        clientCitiesCache = groups
+                            .flat()
+                            .filter((city) => city.name)
+                            .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+                        renderClientCityOptions();
+                    })
+                    .catch((error) => {
+                        console.error('City search load failed:', error);
+                        clientCitiesLoadPromise = null;
+                    });
+
+                return clientCitiesLoadPromise;
+            };
             const syncClientGroupIdFromName = () => {
                 if (!newClientGroupNameField || !newClientGroupIdField) {
                     return;
@@ -1283,6 +1436,20 @@
                     clientGroupSearchTimeout = setTimeout(searchClientGroups, 250);
                 });
                 newClientGroupNameField.addEventListener('change', syncClientGroupIdFromName);
+            }
+
+            let clientCitySearchTimeout = null;
+            if (newClientCityField) {
+                newClientCityField.addEventListener('focus', () => {
+                    loadClientCities();
+                });
+                newClientCityField.addEventListener('input', () => {
+                    clearTimeout(clientCitySearchTimeout);
+                    clientCitySearchTimeout = setTimeout(() => {
+                        loadClientCities().then(renderClientCityOptions);
+                    }, 150);
+                });
+                newClientCityField.addEventListener('change', syncClientRegionFromCity);
             }
 
             if(newClientBtn) {
@@ -1367,6 +1534,7 @@
                     const statusField = document.getElementById('newClientStatus');
                     const groupNameField = newClientGroupNameField;
                     const groupIdField = newClientGroupIdField;
+                    [orgnameField, nameField, secondnameField, cityField, regionField, poshtaField, groupNameField].forEach(applyCapitalizedValue);
                     const orgname = orgnameField.value.trim();
                     const name = nameField.value.trim();
                     const secondname = secondnameField.value.trim();
