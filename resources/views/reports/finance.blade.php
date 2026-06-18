@@ -7,20 +7,18 @@
 
 @section('content')
 <div class="container mt-4 reports-page" data-bs-theme="dark">
-    @include('reports.period_form', [
-        'periodFormAction' => route('reports.finance'),
-        'periodResetUrl' => route('reports.finance'),
-        'periodResetLabel' => 'Поточний місяць',
-        'periodHiddenFields' => ['oplata' => $oplataId],
-    ])
-
     <div class="card shadow-sm mb-4 bg-transparent border-secondary">
         <div class="card-body">
             <form method="get" action="{{ route('reports.finance') }}" class="row g-3 align-items-end">
-                <input type="hidden" name="date_from" value="{{ $dateFrom }}">
-                <input type="hidden" name="date_to" value="{{ $dateTo }}">
-
-                <div class="col-md-8">
+                <div class="col-md-3">
+                    <label for="date_from" class="form-label">Період з</label>
+                    <input type="date" id="date_from" name="date_from" value="{{ $dateFrom }}" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label for="date_to" class="form-label">Період по</label>
+                    <input type="date" id="date_to" name="date_to" value="{{ $dateTo }}" class="form-control">
+                </div>
+                <div class="col-md-4">
                     <label for="oplata" class="form-label">Каса</label>
                     <select id="oplata" name="oplata" class="form-select">
                         <option value="">— Усі каси —</option>
@@ -31,9 +29,9 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-4 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Фільтрувати</button>
-                    <a href="{{ route('reports.finance', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="btn btn-outline-secondary">Скинути касу</a>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Показати</button>
+                    <a href="{{ route('reports.finance') }}" class="btn btn-outline-secondary">Скинути</a>
                 </div>
             </form>
         </div>
