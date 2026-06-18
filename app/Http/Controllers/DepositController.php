@@ -115,7 +115,13 @@ class DepositController extends Controller
         $savedId = Deposit::saveDocument($id, $fid, $data);
 
         if ($shouldPost) {
-            Deposit::provodka($savedId, $fid);
+            $postingResult = Deposit::provodka($savedId, $fid);
+            if (($postingResult['error'] ?? '') !== '') {
+                return redirect()
+                    ->route('deposit.show', ['id' => $savedId])
+                    ->withInput()
+                    ->with('error', $postingResult['error']);
+            }
         }
 
         return redirect()
@@ -151,6 +157,12 @@ class DepositController extends Controller
 
         if (!$document) {
             return redirect()->route('deposit.index')->with('error', 'Документ не знайдено');
+        }
+
+        if (($result['error'] ?? '') !== '') {
+            return redirect()
+                ->route('deposit.show', ['id' => $document->id])
+                ->with('error', $result['error']);
         }
 
         return redirect()

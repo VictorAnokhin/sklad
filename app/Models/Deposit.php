@@ -7,6 +7,7 @@ use App\Support\HoldingScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 
 class Deposit extends Model
 {
@@ -253,43 +254,60 @@ class Deposit extends Model
         $ownerUserId = trim((string) ($doc->client2 ?? ''));
         $currency = self::normalizeCurrency($doc->currency_from ?? self::depositCurrency($fid, $depositId));
 
-        DB::transaction(function () use ($fid, $direction, $summa, $mode, $depositId, $ownerUserId, $currency, $id, $wasPosted, $doc): void {
-            if ($mode === 'topup' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
-                self::shiftUserBalance($fid, $ownerUserId, -1 * $summa * $direction, $currency);
-                self::shiftDepositValue($fid, $depositId, $summa * $direction);
-            }
+        try {
+            DB::transaction(function () use ($fid, $direction, $summa, $mode, $depositId, $ownerUserId, $currency, $id, $wasPosted, $doc): void {
+                if ($mode === 'topup' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
+                    if (!$wasPosted) {
+                        Money::assertUserBalanceAvailable($fid, $ownerUserId, $currency, $summa);
+                    }
 
-            if ($mode === 'withdraw' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
-                self::shiftDepositValue($fid, $depositId, -1 * $summa * $direction);
-                self::shiftUserBalance($fid, $ownerUserId, $summa * $direction, $currency);
-            }
-
-            if ($mode === 'exchange') {
-                $fromCashboxId = trim((string) ($doc->oplata ?? ''));
-                $toCashboxId = trim((string) ($doc->oplata2 ?? ''));
-
-                if ($fromCashboxId !== '' && $toCashboxId !== '') {
-                    self::shiftConfValue($fid, 'oplata', $fromCashboxId, -1 * $summa * $direction);
-                    self::shiftConfValue($fid, 'oplata', $toCashboxId, $summa * $direction);
+                    Money::shiftUserBalance($fid, $ownerUserId, -1 * $summa * $direction, $currency);
+                    self::shiftDepositValue($fid, $depositId, $summa * $direction);
                 }
+
+                if ($mode === 'withdraw' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
+                    self::shiftDepositValue($fid, $depositId, -1 * $summa * $direction);
+                    Money::shiftUserBalance($fid, $ownerUserId, $summa * $direction, $currency);
+                }
+
+                if ($mode === 'exchange') {
+                    $fromCashboxId = trim((string) ($doc->oplata ?? ''));
+                    $toCashboxId = trim((string) ($doc->oplata2 ?? ''));
+
+                    if ($fromCashboxId !== '' && $toCashboxId !== '') {
+                        self::shiftConfValue($fid, 'oplata', $fromCashboxId, -1 * $summa * $direction);
+                        self::shiftConfValue($fid, 'oplata', $toCashboxId, $summa * $direction);
+                    }
+                }
+
+                app(AccountingService::class)->createDocumentTransaction(
+                    'z_document:deposit_operation',
+                    $id,
+                    'PP',
+                    $doc,
+                    [],
+                    $fid,
+                    $wasPosted
+                );
+
+                DB::table('z_document')
+                    ->where('id', $id)
+                    ->where('firma', $fid)
+                    ->where('type', 'PP')
+                    ->update(['provodka' => $wasPosted ? 0 : 1]);
+            });
+        } catch (RuntimeException $exception) {
+            $message = $exception->getMessage();
+            if (! str_starts_with($message, 'Недостатньо') && $message !== 'Користувача балансу не знайдено') {
+                throw $exception;
             }
 
-            app(AccountingService::class)->createDocumentTransaction(
-                'z_document:deposit_operation',
-                $id,
-                'PP',
-                $doc,
-                [],
-                $fid,
-                $wasPosted
-            );
-
-            DB::table('z_document')
-                ->where('id', $id)
-                ->where('firma', $fid)
-                ->where('type', 'PP')
-                ->update(['provodka' => $wasPosted ? 0 : 1]);
-        });
+            return [
+                'document' => $doc,
+                'isPosted' => $wasPosted,
+                'error' => $message,
+            ];
+        }
 
         $fresh = DB::table('z_document')
             ->where('id', $id)
@@ -366,61 +384,6 @@ class Deposit extends Model
                     });
                 }
             });
-    }
-
-    private static function shiftUserBalance(string $fid, string $userId, float $delta, string $currency): void
-    {
-        if ($delta == 0.0 || !Schema::hasColumn('users', 'balance')) {
-            return;
-        }
-
-        $user = DB::table('users')
-            ->where('id', $userId)
-            ->where('firma', $fid)
-            ->lockForUpdate()
-            ->first(['id', 'balance']);
-
-        if (!$user) {
-            return;
-        }
-
-        $currency = self::normalizeCurrency($currency);
-        $balances = Money::userBalances($user->balance ?? '');
-        $found = false;
-
-        foreach ($balances as &$balance) {
-            if ($balance['currency'] !== $currency) {
-                continue;
-            }
-
-            $balance['amount'] = self::formatBalanceAmount((float) $balance['amount'] + $delta);
-            $found = true;
-            break;
-        }
-        unset($balance);
-
-        if (!$found) {
-            $balances[] = [
-                'amount' => self::formatBalanceAmount($delta),
-                'currency' => $currency,
-            ];
-        }
-
-        DB::table('users')
-            ->where('id', $user->id)
-            ->update(['balance' => self::serializeUserBalances($balances)]);
-    }
-
-    private static function serializeUserBalances(array $balances): ?string
-    {
-        $segments = [];
-        foreach ($balances as $balance) {
-            $amount = self::formatBalanceAmount((float) ($balance['amount'] ?? 0));
-            $currency = self::normalizeCurrency($balance['currency'] ?? 'UAH');
-            $segments[] = "{$amount}:{$currency};";
-        }
-
-        return $segments === [] ? null : implode('', $segments);
     }
 
     private static function normalizeCurrency(mixed $value): string

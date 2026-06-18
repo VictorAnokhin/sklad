@@ -918,7 +918,7 @@ class Money extends Model
             ->all();
     }
 
-    private static function shiftUserBalance(string $fid, string $userId, float $delta, string $currency): void
+    public static function shiftUserBalance(string $fid, string $userId, float $delta, string $currency): void
     {
         if ($delta == 0.0 || ! self::canUseUserBalanceCache()) {
             return;
@@ -974,7 +974,7 @@ class Money extends Model
         DB::table('users_cashe')->insert(array_merge($criteria, $values));
     }
 
-    private static function assertUserBalanceAvailable(string $fid, string $userId, string $currency, float $amount): void
+    public static function assertUserBalanceAvailable(string $fid, string $userId, string $currency, float $amount): void
     {
         if ($amount <= 0 || ! self::canUseUserBalanceCache()) {
             return;
