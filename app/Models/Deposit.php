@@ -44,8 +44,35 @@ class Deposit extends Model
             $baseQuery->whereRaw("STR_TO_DATE(d.data, '%d-%m-%Y') <= STR_TO_DATE(?, '%d-%m-%Y')", [$to]);
         }
 
+        $oplataMap = DB::table('conf')
+            ->where('type', 'oplata')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
+        $depositMap = DB::table('conf')
+            ->where('type', 'deposit')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
         $total = (clone $baseQuery)->count();
         $sumPP = (clone $baseQuery)->sum('d.summa');
+        $depositTotals = (clone $baseQuery)
+            ->select('d.money', DB::raw('SUM(d.summa) as total_sum'), DB::raw('COUNT(*) as docs_count'))
+            ->groupBy('d.money')
+            ->orderByDesc('total_sum')
+            ->get()
+            ->map(function ($row) use ($depositMap) {
+                $depositId = (string) ($row->money ?? '');
+
+                return (object) [
+                    'id' => $depositId,
+                    'name' => $depositMap[$depositId] ?? ($depositId !== '' ? $depositId : '—'),
+                    'total_sum' => (float) ($row->total_sum ?? 0),
+                    'docs_count' => (int) ($row->docs_count ?? 0),
+                ];
+            });
 
         $documents = (clone $baseQuery)
             ->orderByDesc('d.id')
@@ -66,19 +93,7 @@ class Deposit extends Model
                 'd.provodka',
             ]);
 
-        $oplataMap = DB::table('conf')
-            ->where('type', 'oplata')
-            ->where('firma', $fid)
-            ->orderBy('name')
-            ->pluck('name', 'id');
-
-        $depositMap = DB::table('conf')
-            ->where('type', 'deposit')
-            ->where('firma', $fid)
-            ->orderBy('name')
-            ->pluck('name', 'id');
-
-        return compact('documents', 'sumPP', 'total', 'oplataMap', 'depositMap');
+        return compact('documents', 'sumPP', 'total', 'oplataMap', 'depositMap', 'depositTotals');
     }
 
     public function firmaObj()
