@@ -23,6 +23,7 @@ use App\Http\Controllers\FundTokenController;
 use App\Http\Controllers\GarageVehicleController;
 use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\NovaPoshtaController;
 use App\Http\Controllers\RwaAdminCapController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SolanaRpcProxyController;
@@ -237,6 +238,11 @@ Route::middleware(['api', 'throttle:60,1'])->get('/av8-swap/orders', [Av8SwapOrd
 Route::middleware(['api', 'throttle:20,1'])->post('/av8-swap/orders', [Av8SwapOrderController::class, 'store']);
 
 // ── Orders (Zakaz) API ─────────────────────────────────────────────────────
+
+Route::middleware(['api', 'throttle:60,1'])->prefix('nova-poshta')->group(function () {
+    Route::get('/cities', [NovaPoshtaController::class, 'cities']);
+    Route::get('/warehouses', [NovaPoshtaController::class, 'warehouses']);
+});
 
 Route::post('/order', [ZakazController::class, 'store']);
 Route::middleware('auth:sanctum')->post('/car-request', [ZakazController::class, 'storeCarRequest']);

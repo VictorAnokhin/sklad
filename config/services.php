@@ -71,6 +71,12 @@ return [
         'endpoint' => env('SMSCLUB_ENDPOINT', 'https://im.smsclub.mobi/sms/send'),
     ],
 
+    'nova_poshta' => [
+        'api_key' => env('NOVA_POSHTA_API_KEY', ''),
+        'endpoint' => env('NOVA_POSHTA_ENDPOINT', 'https://api.novaposhta.ua/v2.0/json/'),
+        'timeout' => (int) env('NOVA_POSHTA_TIMEOUT', 10),
+    ],
+
     'sui' => [
         'zklogin_prover_url' => env('SUI_ZKLOGIN_PROVER_URL', 'https://prover-dev.mystenlabs.com/v1'),
         'verify_node_binary' => env('SUI_VERIFY_NODE_BINARY', 'node'),
