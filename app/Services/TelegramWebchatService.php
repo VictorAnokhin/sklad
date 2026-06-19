@@ -54,6 +54,73 @@ class TelegramWebchatService
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
+    public function diagnostics(array $payload, int $fid = 0): array
+    {
+        $domain = $this->normalizeDomain((string) ($payload['site_domain'] ?? ''));
+        $globalEnabled = (bool) config('services.telegram_webchat.enabled');
+        $botToken = trim((string) config('services.telegram_webchat.bot_token'));
+        $sites = config('services.telegram_webchat.sites', []);
+        $siteDiagnostics = [];
+        $matchedSite = null;
+
+        if (is_array($sites)) {
+            foreach ($sites as $key => $site) {
+                if (! is_array($site)) {
+                    continue;
+                }
+
+                $domains = array_map(fn ($item): string => $this->normalizeDomain((string) $item), (array) ($site['domains'] ?? []));
+                $matchesDomain = $domain !== '' && in_array($domain, $domains, true);
+                $siteEnabled = (bool) ($site['enabled'] ?? false);
+                $chatId = trim((string) ($site['chat_id'] ?? config('services.telegram_webchat.operator_chat_id', '')));
+
+                $siteDiagnostics[(string) $key] = [
+                    'enabled' => $siteEnabled,
+                    'domains' => $domains,
+                    'matches_domain' => $matchesDomain,
+                    'chat_id_present' => $chatId !== '',
+                    'thread_id_present' => trim((string) ($site['thread_id'] ?? '')) !== '',
+                ];
+
+                if ($matchesDomain) {
+                    $matchedSite = (string) $key;
+                }
+            }
+        }
+
+        $resolved = $this->resolveSite($payload, $fid);
+        $reason = null;
+        if (! $globalEnabled) {
+            $reason = 'TELEGRAM_WEBCHAT_ENABLED is false';
+        } elseif ($botToken === '') {
+            $reason = 'TELEGRAM_WEBCHAT_BOT_TOKEN and TELEGRAM_BOT_TOKEN are empty';
+        } elseif ($matchedSite === null) {
+            $reason = 'site_domain does not match any configured TELEGRAM_WEBCHAT_*_DOMAINS';
+        } elseif (! (bool) ($siteDiagnostics[$matchedSite]['enabled'] ?? false)) {
+            $reason = "TELEGRAM_WEBCHAT_".strtoupper($matchedSite)."_ENABLED is false";
+        } elseif (! (bool) ($siteDiagnostics[$matchedSite]['chat_id_present'] ?? false)) {
+            $reason = "TELEGRAM_WEBCHAT_".strtoupper($matchedSite)."_CHAT_ID is empty";
+        }
+
+        return [
+            'enabled' => $resolved !== null,
+            'reason' => $resolved !== null ? null : $reason,
+            'site_domain' => $domain,
+            'fid' => $fid,
+            'global_enabled' => $globalEnabled,
+            'bot_token_present' => $botToken !== '',
+            'webhook_secret_present' => trim((string) config('services.telegram_webchat.webhook_secret')) !== '',
+            'operator_chat_id_present' => trim((string) config('services.telegram_webchat.operator_chat_id')) !== '',
+            'matched_site' => $matchedSite,
+            'resolved_site' => $resolved,
+            'sites' => $siteDiagnostics,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
     public function forwardUserMessage(ChatSession $session, ChatMessage $message, array $payload, int $fid, ?int $firma): array
     {
         $site = $this->resolveSite($payload, $fid);

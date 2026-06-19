@@ -159,27 +159,27 @@ return [
 
     'telegram_webchat' => [
         'enabled' => env('TELEGRAM_WEBCHAT_ENABLED', false),
-        'bot_token' => env('TELEGRAM_WEBCHAT_BOT_TOKEN', env('TELEGRAM_BOT_TOKEN', '')),
-        'webhook_secret' => env('TELEGRAM_WEBCHAT_WEBHOOK_SECRET', env('WEBHOOK_SECRET', '')),
-        'operator_chat_id' => env('TELEGRAM_WEBCHAT_DEFAULT_CHAT_ID', env('TELEGRAM_OPERATOR_CHAT_ID', '')),
+        'bot_token' => env('TELEGRAM_WEBCHAT_BOT_TOKEN') ?: env('TELEGRAM_BOT_TOKEN', ''),
+        'webhook_secret' => env('TELEGRAM_WEBCHAT_WEBHOOK_SECRET') ?: env('WEBHOOK_SECRET', ''),
+        'operator_chat_id' => env('TELEGRAM_WEBCHAT_DEFAULT_CHAT_ID') ?: env('TELEGRAM_OPERATOR_CHAT_ID', ''),
         'timeout' => (int) env('TELEGRAM_WEBCHAT_TIMEOUT', 10),
         'sites' => [
             'av8' => [
                 'enabled' => env('TELEGRAM_WEBCHAT_AV8_ENABLED', env('TELEGRAM_WEBCHAT_ENABLED', false)),
                 'domains' => array_filter(array_map('trim', explode(',', (string) env('TELEGRAM_WEBCHAT_AV8_DOMAINS', 'av8.fund,www.av8.fund')))),
-                'chat_id' => env('TELEGRAM_WEBCHAT_AV8_CHAT_ID', env('TELEGRAM_WEBCHAT_DEFAULT_CHAT_ID', env('TELEGRAM_OPERATOR_CHAT_ID', ''))),
+                'chat_id' => env('TELEGRAM_WEBCHAT_AV8_CHAT_ID') ?: (env('TELEGRAM_WEBCHAT_DEFAULT_CHAT_ID') ?: env('TELEGRAM_OPERATOR_CHAT_ID', '')),
                 'thread_id' => env('TELEGRAM_WEBCHAT_AV8_THREAD_ID', ''),
             ],
             'autoagent' => [
                 'enabled' => env('TELEGRAM_WEBCHAT_AUTOAGENT_ENABLED', env('TELEGRAM_WEBCHAT_ENABLED', false)),
                 'domains' => array_filter(array_map('trim', explode(',', (string) env('TELEGRAM_WEBCHAT_AUTOAGENT_DOMAINS', 'autoagent.in.ua,www.autoagent.in.ua')))),
-                'chat_id' => env('TELEGRAM_WEBCHAT_AUTOAGENT_CHAT_ID', env('TELEGRAM_WEBCHAT_DEFAULT_CHAT_ID', env('TELEGRAM_OPERATOR_CHAT_ID', ''))),
+                'chat_id' => env('TELEGRAM_WEBCHAT_AUTOAGENT_CHAT_ID') ?: (env('TELEGRAM_WEBCHAT_DEFAULT_CHAT_ID') ?: env('TELEGRAM_OPERATOR_CHAT_ID', '')),
                 'thread_id' => env('TELEGRAM_WEBCHAT_AUTOAGENT_THREAD_ID', ''),
             ],
             'gosnomera' => [
                 'enabled' => env('TELEGRAM_WEBCHAT_GOSNOMERA_ENABLED', env('TELEGRAM_WEBCHAT_ENABLED', false)),
                 'domains' => array_filter(array_map('trim', explode(',', (string) env('TELEGRAM_WEBCHAT_GOSNOMERA_DOMAINS', 'gosnomera.net.ua,www.gosnomera.net.ua')))),
-                'chat_id' => env('TELEGRAM_WEBCHAT_GOSNOMERA_CHAT_ID', env('TELEGRAM_WEBCHAT_DEFAULT_CHAT_ID', env('TELEGRAM_OPERATOR_CHAT_ID', ''))),
+                'chat_id' => env('TELEGRAM_WEBCHAT_GOSNOMERA_CHAT_ID') ?: (env('TELEGRAM_WEBCHAT_DEFAULT_CHAT_ID') ?: env('TELEGRAM_OPERATOR_CHAT_ID', '')),
                 'thread_id' => env('TELEGRAM_WEBCHAT_GOSNOMERA_THREAD_ID', ''),
             ],
         ],
