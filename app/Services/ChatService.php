@@ -33,6 +33,7 @@ class ChatService
         private readonly AiClientFactory $aiFactory,
         private readonly ManagerAiBridgeClient $managerAiBridge,
         private readonly WebchatIntelligenceService $webchatIntelligence,
+        private readonly TelegramWebchatService $telegramWebchat,
     ) {
         $this->ai = $this->aiFactory->make(self::SHARED_AI_CHANNEL);
     }
@@ -203,13 +204,39 @@ class ChatService
         $session->updateTitle($message);
 
         // Сохраняем сообщение пользователя вместе с webchat intelligence контекстом.
-        $this->saveMessage($session->id, $fid, $firma, 'user', $message, [
+        $userMessage = $this->saveMessage($session->id, $fid, $firma, 'user', $message, [
             'visitor_uid' => $payload['visitor_uid'] ?? null,
             'fingerprint_hash' => $payload['fingerprint_hash'] ?? null,
             'site_domain' => $payload['site_domain'] ?? null,
             'page_url' => $payload['page_url'] ?? null,
             'referrer' => $payload['referrer'] ?? null,
         ]);
+
+        if ($this->telegramWebchat->enabledFor($payload, $fid)) {
+            $telegram = $this->telegramWebchat->forwardUserMessage($session, $userMessage, $payload, $fid, $firma);
+            $answer = $this->telegramOperatorWaitingAnswer($language);
+
+            return [
+                'session_token' => $session->session_token,
+                'answer' => $answer,
+                'status' => 'waiting_operator',
+                'provider' => 'telegram_operator',
+                'model' => null,
+                'usage' => null,
+                'db_tools_enabled' => false,
+                'intent' => [
+                    'type' => 'operator_handoff',
+                    'reason' => 'telegram_webchat_enabled',
+                ],
+                'knowledge_curation' => null,
+                'actions' => [],
+                'telegram' => $telegram,
+                'billing' => [
+                    'paid_by' => 'project',
+                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+                ],
+            ];
+        }
 
         $intent = $this->intentDetector->detect($message, $page, $language);
         $visitorContext = $this->webchatVisitorContext($fid, (string) ($payload['visitor_uid'] ?? ''));
@@ -1309,6 +1336,15 @@ class ChatService
         }
 
         return self::ANALYST_FID;
+    }
+
+    private function telegramOperatorWaitingAnswer(string $language): string
+    {
+        return match ($language) {
+            'ua' => 'Передав повідомлення оператору. Відповідь з’явиться тут, щойно оператор відповість.',
+            'en' => 'I sent your message to an operator. The reply will appear here as soon as they answer.',
+            default => 'Передал сообщение оператору. Ответ появится здесь, как только оператор ответит.',
+        };
     }
 
     private function isCatalogNavigationIntent(array $intent): bool

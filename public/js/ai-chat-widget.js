@@ -14,6 +14,7 @@
     fid: null,
     firma: null,
     apiUrl: "/api/ai/chat",
+    historyUrl: "/api/ai/chat/sessions/{sessionToken}/history",
     configUrl: "/api/webchat/config",
     eventsUrl: "/api/webchat/events",
     voiceSttUrl: "/api/ai/voice/stt",
@@ -92,6 +93,10 @@
     speakingIndex: -1, // index of message currently being spoken, -1 = none
     visitorUid: null,
     sessionToken: null,
+    operatorPolling: false,
+    operatorPollingTimer: null,
+    operatorPollingUntil: 0,
+    seenMessageIds: {},
   };
 
   var elements = {};
@@ -834,6 +839,9 @@
         rememberSessionToken(data.session_token);
         state.rows.push({ role: "assistant", content: data.answer || data.message || "" });
         state.busy = false;
+        if (data.status === "waiting_operator") {
+          startOperatorPolling();
+        }
         trackEvent("assistant_answered", {
           funnel_step: "chat_answer",
           metadata: {
@@ -941,6 +949,85 @@
     }
   }
 
+  function historyUrlForSession(token) {
+    var template = CONFIG.historyUrl || "/api/ai/chat/sessions/{sessionToken}/history";
+    return template.replace("{sessionToken}", encodeURIComponent(token));
+  }
+
+  function startOperatorPolling() {
+    if (!state.sessionToken || state.operatorPolling) return;
+
+    state.operatorPolling = true;
+    state.operatorPollingUntil = Date.now() + 5 * 60 * 1000;
+
+    var poll = function () {
+      if (!state.operatorPolling || !state.sessionToken) return;
+
+      fetch(historyUrlForSession(state.sessionToken), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          var messages = Array.isArray(data.messages) ? data.messages : [];
+          var appended = false;
+
+          messages.forEach(function (item) {
+            var id = String(item.id || "");
+            if (!id || state.seenMessageIds[id]) return;
+            state.seenMessageIds[id] = true;
+
+            var metadata = item.metadata || {};
+            if (item.role === "assistant" && metadata.source === "telegram_operator" && item.content) {
+              state.rows.push({
+                role: "assistant",
+                content: item.content,
+                id: item.id,
+                source: "telegram_operator",
+              });
+              appended = true;
+            }
+          });
+
+          if (appended) {
+            state.operatorPollingUntil = Date.now() + 30 * 1000;
+            renderMessages();
+            trackEvent("assistant_answered", {
+              funnel_step: "telegram_operator_answer",
+              metadata: {
+                provider: "telegram_operator",
+              },
+            });
+          }
+        })
+        .catch(function (err) {
+          if (window.console && console.debug) console.debug("[AI Chat] operator polling failed:", err);
+        })
+        .finally(function () {
+          if (state.operatorPolling && Date.now() <= state.operatorPollingUntil) {
+            state.operatorPollingTimer = window.setTimeout(poll, 4000);
+          } else {
+            stopOperatorPolling();
+          }
+        });
+    };
+
+    poll();
+  }
+
+  function stopOperatorPolling() {
+    state.operatorPolling = false;
+    state.operatorPollingUntil = 0;
+    if (state.operatorPollingTimer) {
+      window.clearTimeout(state.operatorPollingTimer);
+      state.operatorPollingTimer = null;
+    }
+  }
+
   // ── Init ───────────────────────────────────────────────
   function init(userConfig) {
     userConfig = userConfig || window.AI_CHAT_CONFIG || readScriptConfig();
@@ -958,7 +1045,9 @@
         var apiBase = apiBaseFromChatUrl(userConfig.apiUrl);
         if (apiBase && !userConfig.configUrl) CONFIG.configUrl = apiBase + "/api/webchat/config";
         if (apiBase && !userConfig.eventsUrl) CONFIG.eventsUrl = apiBase + "/api/webchat/events";
+        if (apiBase && !userConfig.historyUrl) CONFIG.historyUrl = apiBase + "/api/ai/chat/sessions/{sessionToken}/history";
       }
+      if (userConfig.historyUrl) CONFIG.historyUrl = userConfig.historyUrl;
       if (userConfig.configUrl) CONFIG.configUrl = userConfig.configUrl;
       if (userConfig.eventsUrl) CONFIG.eventsUrl = userConfig.eventsUrl;
       if (userConfig.voiceSttUrl) CONFIG.voiceSttUrl = userConfig.voiceSttUrl;
@@ -1013,6 +1102,7 @@
     loadUiConfig();
 
     window.addEventListener("beforeunload", function () {
+      stopOperatorPolling();
       trackEvent("session_dropped", {
         funnel_step: state.open ? "window_unload_chat_open" : "window_unload_chat_closed",
       });

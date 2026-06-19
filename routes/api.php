@@ -27,6 +27,7 @@ use App\Http\Controllers\NovaPoshtaController;
 use App\Http\Controllers\RwaAdminCapController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SolanaRpcProxyController;
+use App\Http\Controllers\TelegramWebchatController;
 use App\Http\Controllers\WalrusProxyController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WebchatIntelligenceController;
@@ -101,6 +102,9 @@ Route::middleware('api')->post('/debug/frontend', function (Request $request) {
 // ── AI Voice (Speech-to-Text & Text-to-Speech) ─────────────────────────────────────
 Route::middleware(['api', 'throttle:20,1'])->post('/ai/voice/stt', [AiVoiceController::class, 'stt']);
 Route::middleware(['api', 'throttle:20,1'])->post('/ai/voice/tts', [AiVoiceController::class, 'tts']);
+
+// ── Telegram operator bridge for website webchats ─────────────────────────────
+Route::middleware(['api', 'throttle:120,1'])->post('/telegram/webchat/webhook/{secret}', [TelegramWebchatController::class, 'webhook']);
 
 // ── AI Chat & Knowledge Base ─────────────────────────────────────────────────────
 Route::middleware(['api', 'throttle:20,1'])->post('/ai/chat', [AiChatController::class, 'chat']);
