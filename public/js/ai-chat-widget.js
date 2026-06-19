@@ -871,6 +871,8 @@
       elements.window.classList.toggle("open", state.open);
       if (state.open) {
         trackEvent("chat_opened", { funnel_step: "chat_open" });
+        loadSessionHistory();
+        startOperatorPolling();
         elements.input.focus();
         elements.messages.scrollTop = elements.messages.scrollHeight;
       } else {
@@ -1028,6 +1030,45 @@
     }
   }
 
+  function loadSessionHistory() {
+    if (!state.sessionToken) return Promise.resolve();
+
+    return fetch(historyUrlForSession(state.sessionToken), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        var messages = Array.isArray(data.messages) ? data.messages : [];
+        if (!messages.length) return;
+
+        var restoredRows = [];
+        messages.forEach(function (item) {
+          if (item.id) state.seenMessageIds[String(item.id)] = true;
+          if ((item.role === "user" || item.role === "assistant") && item.content) {
+            restoredRows.push({
+              role: item.role,
+              content: item.content,
+              id: item.id,
+              source: item.metadata && item.metadata.source ? item.metadata.source : null,
+            });
+          }
+        });
+
+        if (restoredRows.length) {
+          state.rows = restoredRows;
+          renderMessages();
+        }
+      })
+      .catch(function (err) {
+        if (window.console && console.debug) console.debug("[AI Chat] history restore failed:", err);
+      });
+  }
+
   // ── Init ───────────────────────────────────────────────
   function init(userConfig) {
     userConfig = userConfig || window.AI_CHAT_CONFIG || readScriptConfig();
@@ -1100,6 +1141,7 @@
     bindEvents();
     trackEvent("page_view", { funnel_step: "page_view" });
     loadUiConfig();
+    loadSessionHistory();
 
     window.addEventListener("beforeunload", function () {
       stopOperatorPolling();

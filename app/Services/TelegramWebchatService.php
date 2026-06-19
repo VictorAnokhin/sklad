@@ -201,23 +201,23 @@ class TelegramWebchatService
     {
         $telegramMessage = $update['message'] ?? null;
         if (! is_array($telegramMessage)) {
-            return ['ok' => true, 'ignored' => 'no_message'];
+            return $this->ignored('no_message', $update);
         }
 
         if ((bool) ($telegramMessage['from']['is_bot'] ?? false)) {
-            return ['ok' => true, 'ignored' => 'bot_message'];
+            return $this->ignored('bot_message', $telegramMessage);
         }
 
         $text = trim((string) ($telegramMessage['text'] ?? $telegramMessage['caption'] ?? ''));
         if ($text === '') {
-            return ['ok' => true, 'ignored' => 'empty_text'];
+            return $this->ignored('empty_text', $telegramMessage);
         }
 
         $chatId = (string) ($telegramMessage['chat']['id'] ?? '');
         $messageId = (int) ($telegramMessage['message_id'] ?? 0);
         $replyToMessageId = (int) ($telegramMessage['reply_to_message']['message_id'] ?? 0);
         if ($chatId === '' || $messageId <= 0 || $replyToMessageId <= 0) {
-            return ['ok' => true, 'ignored' => 'not_reply'];
+            return $this->ignored('not_reply', $telegramMessage);
         }
 
         $source = TelegramWebchatMessage::query()
@@ -227,12 +227,12 @@ class TelegramWebchatService
             ->first();
 
         if ($source === null) {
-            return ['ok' => true, 'ignored' => 'unknown_reply'];
+            return $this->ignored('unknown_reply', $telegramMessage);
         }
 
         $session = $source->session;
         if ($session === null) {
-            return ['ok' => true, 'ignored' => 'missing_session'];
+            return $this->ignored('missing_session', $telegramMessage);
         }
 
         $existing = TelegramWebchatMessage::query()
@@ -287,6 +287,26 @@ class TelegramWebchatService
             'session_token' => $session->session_token,
             'chat_message_id' => $chatMessage->id,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function ignored(string $reason, array $payload): array
+    {
+        $message = is_array($payload['message'] ?? null) ? $payload['message'] : $payload;
+
+        Log::info('Telegram webchat webhook update ignored.', [
+            'reason' => $reason,
+            'chat_id' => $message['chat']['id'] ?? null,
+            'message_id' => $message['message_id'] ?? null,
+            'message_thread_id' => $message['message_thread_id'] ?? null,
+            'reply_to_message_id' => $message['reply_to_message']['message_id'] ?? null,
+            'text_present' => trim((string) ($message['text'] ?? $message['caption'] ?? '')) !== '',
+        ]);
+
+        return ['ok' => true, 'ignored' => $reason];
     }
 
     private function apiUrl(string $method): string
