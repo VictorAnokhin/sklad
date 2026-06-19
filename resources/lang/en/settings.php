@@ -8,6 +8,10 @@ return [
     'sitemap_desc' => 'Manual sitemap.xml generation for the frontend',
     'languages_regions' => 'Languages / regions',
     'languages_regions_desc' => 'Categories, labels and regions',
+    'catalog_directory' => 'Categories / labels',
+    'catalog_directory_desc' => 'Catalog categories and labels',
+    'regions_cities' => 'Regions and cities',
+    'regions_cities_desc' => 'Regions and cities directory',
     'validation' => [
         'firma_phone_unique' => 'A company with this phone number already exists',
     ],
@@ -103,6 +107,7 @@ return [
         'stats_line' => 'catalog: :catalog | city: :city',
         'line_catalog' => 'catalog:',
         'line_city' => 'city:',
+        'regions_count' => 'regions',
     ],
 
     'sitemap_modal' => [
@@ -152,6 +157,8 @@ return [
 
     'catalog_modal' => [
         'current_level_catalog' => 'Categories and labels',
+        'title_catalog' => 'Categories / labels',
+        'title_city' => 'Regions and cities',
         'aria_mode' => 'Reference mode',
         'btn_mode_catalog' => 'Categories / labels',
         'btn_mode_city' => 'Regions',

@@ -8,6 +8,10 @@ return [
     'sitemap_desc' => 'Ручна генерація sitemap.xml для фронтенда',
     'languages_regions' => 'Мови / регіони',
     'languages_regions_desc' => 'Категорії, підписи та регіони',
+    'catalog_directory' => 'Категорії / підписи',
+    'catalog_directory_desc' => 'Категорії каталогу та підписи',
+    'regions_cities' => 'Регіони та міста',
+    'regions_cities_desc' => 'Довідник регіонів і міст',
     'validation' => [
         'firma_phone_unique' => 'Компанія з таким телефоном вже існує',
     ],
@@ -103,6 +107,7 @@ return [
         'stats_line' => 'catalog: :catalog | city: :city',
         'line_catalog' => 'catalog:',
         'line_city' => 'city:',
+        'regions_count' => 'регіони',
     ],
 
     'sitemap_modal' => [
@@ -152,6 +157,8 @@ return [
 
     'catalog_modal' => [
         'current_level_catalog' => 'Категорії й підписи',
+        'title_catalog' => 'Категорії / підписи',
+        'title_city' => 'Регіони та міста',
         'aria_mode' => 'Режим довідника',
         'btn_mode_catalog' => 'Категорії / підписи',
         'btn_mode_city' => 'Регіони',

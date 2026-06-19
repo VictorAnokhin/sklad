@@ -107,14 +107,23 @@
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog">
+            <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog" data-field-mode="catalog">
                 <div class="card-body text-center">
-                    <h5 class="card-title">🌐 {{ __('settings.languages_regions') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.languages_regions_desc') }}</p>
-                    <span class="badge bg-info text-dark" id="badge-field-total">{{ $fieldTranslationsCount ?? 0 }}</span>
+                    <h5 class="card-title">🌐 {{ __('settings.catalog_directory') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.catalog_directory_desc') }}</p>
+                    <span class="badge bg-info text-dark" id="badge-catalog">{{ $fieldCatalogTopCount ?? 0 }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog" data-field-mode="city">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📍 {{ __('settings.regions_cities') }}</h5>
+                    <p class="card-text text-muted">{{ __('settings.regions_cities_desc') }}</p>
+                    <span class="badge bg-info text-dark" id="badge-city">{{ $fieldCityCount ?? 0 }}</span>
                     <div class="small text-muted mt-2">
-                        {{ __('settings.catalog.line_catalog') }} <span id="badge-catalog">{{ $fieldCatalogTopCount ?? 0 }}</span>
-                        | {{ __('settings.catalog.line_city') }} <span id="badge-city">{{ $fieldCityCount ?? 0 }}</span>
+                        {{ __('settings.catalog.regions_count') }}
                     </div>
                 </div>
             </div>
@@ -402,7 +411,7 @@
         <div class="modal-content glass-card border-0">
             <div class="modal-header d-flex align-items-center flex-wrap gap-2">
                 <div>
-                    <h5 class="modal-title" id="modalCatalogLabel">🌐 {{ __('settings.languages_regions') }}</h5>
+                    <h5 class="modal-title" id="modalCatalogLabel">🌐 {{ __('settings.catalog_directory') }}</h5>
                     <div class="small text-muted" id="catalog-current-level">{{ __('settings.catalog_modal.current_level_catalog') }}</div>
                 </div>
                 <div class="btn-group btn-group-sm ms-md-3" role="group" aria-label="{{ __('settings.catalog_modal.aria_mode') }}">
@@ -4247,6 +4256,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initCatalogCrud(csrfToken, newsOptions) {
         const modal = document.getElementById('modalCatalog');
+        const modalTitle = document.getElementById('modalCatalogLabel');
         const listArea = document.getElementById('catalog-list-area');
         const formArea = document.getElementById('catalog-form-area');
         const tbody = document.getElementById('catalog-tbody');
@@ -4260,7 +4270,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentLevel = document.getElementById('catalog-current-level');
         const badgeCatalog = document.getElementById('badge-catalog');
         const badgeCity = document.getElementById('badge-city');
-        const badgeTotal = document.getElementById('badge-field-total');
         const modeCatalogBtn = document.getElementById('btn-field-mode-catalog');
         const modeCityBtn = document.getElementById('btn-field-mode-city');
         const flagsRow = document.getElementById('catalog-flags-row');
@@ -4287,8 +4296,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const fieldModeConfig = window.SettingsI18n.field_modes || {};
         let breadcrumb = [{ id: 0, name: fieldModeConfig.catalog.root }];
 
-        modal.addEventListener('show.bs.modal', () => {
-            switchFieldMode('catalog');
+        modal.addEventListener('show.bs.modal', (event) => {
+            const triggerMode = event.relatedTarget?.dataset?.fieldMode;
+            switchFieldMode(triggerMode === 'city' ? 'city' : 'catalog');
         });
 
         modal.addEventListener('hidden.bs.modal', () => {
@@ -4622,9 +4632,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (badgeCity) {
                     badgeCity.textContent = String(cityCount);
                 }
-                if (badgeTotal) {
-                    badgeTotal.textContent = String(catalogCount + cityCount);
-                }
             });
         }
 
@@ -4697,6 +4704,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function applyFieldMode() {
             const config = fieldModeConfig[currentKeyfield];
+            const catalogModalTexts = window.SettingsI18n.catalog_modal || {};
+            if (modalTitle) {
+                modalTitle.textContent = currentKeyfield === 'city'
+                    ? `📍 ${catalogModalTexts.title_city || config.current}`
+                    : `🌐 ${catalogModalTexts.title_catalog || config.current}`;
+            }
             modeCatalogBtn?.classList.toggle('active', currentKeyfield === 'catalog');
             modeCityBtn?.classList.toggle('active', currentKeyfield === 'city');
             addBtn.textContent = config.addLabel;

@@ -8,6 +8,10 @@ return [
     'sitemap_desc' => 'Ручная генерация sitemap.xml для фронтенда',
     'languages_regions' => 'Языки / регионы',
     'languages_regions_desc' => 'Категории, подписи и регионы',
+    'catalog_directory' => 'Категории / подписи',
+    'catalog_directory_desc' => 'Категории каталога и подписи',
+    'regions_cities' => 'Регионы и города',
+    'regions_cities_desc' => 'Справочник регионов и городов',
     'validation' => [
         'firma_phone_unique' => 'Компания с таким телефоном уже существует',
     ],
@@ -103,6 +107,7 @@ return [
         'stats_line' => 'catalog: :catalog | city: :city',
         'line_catalog' => 'catalog:',
         'line_city' => 'city:',
+        'regions_count' => 'регионы',
     ],
 
     'sitemap_modal' => [
@@ -152,6 +157,8 @@ return [
 
     'catalog_modal' => [
         'current_level_catalog' => 'Категории и подписи',
+        'title_catalog' => 'Категории / подписи',
+        'title_city' => 'Регионы и города',
         'aria_mode' => 'Режим справочника',
         'btn_mode_catalog' => 'Категории / подписи',
         'btn_mode_city' => 'Регионы',
