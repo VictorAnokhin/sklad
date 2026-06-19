@@ -14,7 +14,8 @@
         $isFilterActive = $isCategoryFiltered
             || !empty($filters['fName'])
             || ($filters['skladNone'] ?? '') === '1'
-            || ($filters['showAllGoods'] ?? '') === '1';
+            || ($filters['showAllGoods'] ?? '') === '1'
+            || ($filters['hitOnly'] ?? '') === '1';
         $goodsFilterBtnCls = $isFilterActive ? 'button_submit_start' : 'button_submit_start0';
     @endphp
 
@@ -85,6 +86,14 @@
 
                     <div style="display:flex;align-items:flex-end;padding-bottom:8px;">
                         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;">
+                            <input type="checkbox" name="hitOnly" value="1" style="width:auto;"
+                                   {{ ($filters['hitOnly'] ?? '') === '1' ? 'checked' : '' }}>
+                            {{ __('goods.show_hits') }}
+                        </label>
+                    </div>
+
+                    <div style="display:flex;align-items:flex-end;padding-bottom:8px;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;">
                             <input type="checkbox" name="showAllGoods" value="1" style="width:auto;"
                                    {{ ($filters['showAllGoods'] ?? '') === '1' ? 'checked' : '' }}>
                             {{ __('goods.show_all_goods') }}
@@ -97,7 +106,7 @@
                     <button type="submit" style="flex:1;padding:10px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:8px;box-shadow:0 4px 12px rgba(251,191,36,0.3);color:#000;font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;justify-content:center;gap:6px;">
                         <span>🔍</span> {{ __('document.filter.find') }}
                     </button>
-                    <a href="{{ route('goods.index') }}?fName=&igla=&idcapt=&skladNone=&showAllGoods="
+                    <a href="{{ route('goods.index') }}?fName=&igla=&idcapt=&skladNone=&hitOnly=&showAllGoods="
                        style="flex:1;padding:10px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:var(--foreground);font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;">
                         <span>✕</span> {{ __('document.filter.reset') }}
                     </a>
@@ -198,6 +207,9 @@
                         <a href="{{ route('goods.show', ['pnum' => $comp->id]) }}">
                             {{ $comp->name ?? $comp->nickname }}
                         </a>
+                        @if((string)($comp->hit ?? '0') === '1')
+                            <span class="goods-hit-badge">{{ __('goods.hit') }}</span>
+                        @endif
                     </td>
                     <td>{{ number_format((float)($comp->price_pay ?? 0), 2, '.', ' ') }}</td>
                     <td>{{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}</td>
@@ -231,7 +243,12 @@
                 @endif
                 <div class="goods-mobile-content">
                     <div class="goods-mobile-header">
-                        <h3 class="goods-mobile-name">{{ $comp->name ?? $comp->nickname }}</h3>
+                        <h3 class="goods-mobile-name">
+                            {{ $comp->name ?? $comp->nickname }}
+                            @if((string)($comp->hit ?? '0') === '1')
+                                <span class="goods-hit-badge">{{ __('goods.hit') }}</span>
+                            @endif
+                        </h3>
                         @if($hasStock)
                         <span class="goods-stock-badge in-stock">{{ __('goods.table.stock') }}</span>
                         @else

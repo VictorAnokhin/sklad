@@ -64,6 +64,7 @@ class Goods extends Model
         $filterBrand = $filters['filterBrand'] ?? '';
         $inStockOnly = ($filters['skladNone'] ?? '') === '1';
         $showAllGoods = ($filters['showAllGoods'] ?? '') === '1';
+        $hitOnly = ($filters['hitOnly'] ?? '') === '1';
 
         $query = self::query()
             ->leftJoin('descript as d', function ($join) {
@@ -107,6 +108,8 @@ class Goods extends Model
             $query->where('comp.idtype', $filterBrand);
         if ($inStockOnly)
             $query->where('comp.sklad', '1');
+        if ($hitOnly)
+            $query->where('comp.hit', '1');
         return $query;
     }
 

@@ -10,7 +10,9 @@ return [
     'subcategory' => 'Підкатегорія',
     'all' => '— Всі —',
     'show_without_stock' => 'На складі',
+    'show_hits' => 'Хіти',
     'show_all_goods' => 'Показати всі товари',
+    'hit' => 'Hit',
     'find' => '🔍 Знайти',
     'reset' => '✕ Скинути',
     'table' => [

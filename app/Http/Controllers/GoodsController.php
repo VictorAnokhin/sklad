@@ -36,7 +36,7 @@ class GoodsController extends Controller
     {
         $fid = session('fid', '');
         $locale = $this->resolveBackendLocale($request);
-        $hasFilterRequest = $request->hasAny(['fName', 'filterBrand', 'skladNone', 'showAllGoods', 'igla', 'idcapt']);
+        $hasFilterRequest = $request->hasAny(['fName', 'filterBrand', 'skladNone', 'showAllGoods', 'hitOnly', 'igla', 'idcapt']);
         $idglava = $hasFilterRequest ? $request->input('igla', '') : session('idglava', '');
         $idcaption = $hasFilterRequest ? $request->input('idcapt', '') : session('idcaption', '');
         $pos = (int) $request->input('pos', session('goods_pos', 0));
@@ -48,6 +48,7 @@ class GoodsController extends Controller
             'filterBrand' => $request->input('filterBrand', session('filter_brand', '')),
             'skladNone' => $hasFilterRequest ? $request->input('skladNone', '') : session('sklad_none', ''),
             'showAllGoods' => $hasFilterRequest ? $request->input('showAllGoods', '') : session('show_all_goods', ''),
+            'hitOnly' => $hasFilterRequest ? $request->input('hitOnly', '') : session('hit_only', ''),
         ];
 
         session([
@@ -59,6 +60,7 @@ class GoodsController extends Controller
             'filter_brand' => $filters['filterBrand'],
             'sklad_none' => $filters['skladNone'],
             'show_all_goods' => $filters['showAllGoods'],
+            'hit_only' => $filters['hitOnly'],
         ]);
 
         $result = Goods::init($fid, $idcaption, $idglava, $pos, $pos2, $sort, $filters, $locale);

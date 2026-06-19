@@ -3413,6 +3413,23 @@ small,
         color: #dc3545;
     }
 
+    .goods-hit-badge {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 0.45rem;
+        padding: 0.14rem 0.5rem;
+        border-radius: 999px;
+        background: rgba(251, 191, 36, 0.16);
+        border: 1px solid rgba(251, 191, 36, 0.35);
+        color: #fbbf24;
+        font-size: 0.68rem;
+        font-weight: 700;
+        line-height: 1.1;
+        text-transform: uppercase;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
     .goods-mobile-prices {
         display: flex;
         flex-direction: column;
@@ -3599,6 +3616,23 @@ small,
 
 .goods-index-table tbody td:nth-child(3) a:hover {
     color: #fbbf24;
+}
+
+.goods-index-table .goods-hit-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.45rem;
+    padding: 0.14rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(251, 191, 36, 0.16);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    color: #fbbf24;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.1;
+    text-transform: uppercase;
+    vertical-align: middle;
+    white-space: nowrap;
 }
 
 /* Image column */

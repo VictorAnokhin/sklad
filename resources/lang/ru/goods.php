@@ -10,7 +10,9 @@ return [
     'subcategory' => 'Подкатегория',
     'all' => '— Все —',
     'show_without_stock' => 'На складе',
+    'show_hits' => 'Хиты',
     'show_all_goods' => 'Показать все товары',
+    'hit' => 'Hit',
     'find' => '🔍 Найти',
     'reset' => '✕ Сбросить',
     'table' => [
