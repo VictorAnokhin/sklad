@@ -83,6 +83,11 @@
                 Трансфер
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="bankDepositsPoolsTab" data-bs-toggle="tab" data-bs-target="#bankDepositsPoolsPane" type="button" role="tab">
+                Пулы
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content">
@@ -234,6 +239,159 @@
                     </table>
                 </div>
             </section>
+        </div>
+
+        <div class="tab-pane fade" id="bankDepositsPoolsPane" role="tabpanel" aria-labelledby="bankDepositsPoolsTab">
+            <section class="bank-panel bank-table-panel">
+                <div class="bank-table-header">
+                    <div>
+                        <div class="bank-label">Пулы</div>
+                        <div class="bank-meta">Пулы из fund_pools с депозитными агрегатами по валюте пула.</div>
+                    </div>
+                    <div class="bank-meta">{{ $depositPools->count() }} пулов</div>
+                </div>
+                <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
+                    <table class="table table-dark table-hover table-sm align-middle bank-table">
+                        <thead>
+                            <tr>
+                                <th class="bank-table__num">№</th>
+                                <th>Пул</th>
+                                <th>Статус сети</th>
+                                <th class="text-end">Депозиты</th>
+                                <th class="text-end">Лимит депозитов</th>
+                                <th class="text-end">Учетный остаток</th>
+                                <th class="text-end">On-chain остаток</th>
+                                <th class="text-end">Разница</th>
+                                <th class="text-end">APY</th>
+                                <th>Сеть</th>
+                                <th>Статус</th>
+                                <th class="text-end">Действие</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($depositPools as $pool)
+                                <tr>
+                                    <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                    <td>
+                                        <strong>{{ $pool->name }}</strong>
+                                        <div class="bank-meta">
+                                            {{ $pool->symbol ?: '—' }}
+                                            @if($pool->chain_status === 'onchain')
+                                                · {{ $pool->pool_object_short }}
+                                            @endif
+                                            @if($pool->is_default_deposit)
+                                                · default deposit
+                                            @endif
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="bank-status {{ $pool->chain_status === 'onchain' ? '' : 'bank-status--pending' }}">
+                                            {{ $pool->chain_status_label }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end fw-semibold">
+                                        {{ number_format((float) $pool->deposit_balance, 2, '.', ' ') }} {{ $pool->deposit_currency }}
+                                        <div class="bank-meta">{{ $pool->deposit_count }} депозитов</div>
+                                    </td>
+                                    <td class="text-end">
+                                        {{ $pool->deposit_limit > 0 ? number_format((float) $pool->deposit_limit, 2, '.', ' ') . ' ' . $pool->deposit_currency : '—' }}
+                                    </td>
+                                    <td class="text-end fw-semibold">
+                                        {{ number_format((float) $pool->accounting_balance_usd, 2, '.', ' ') }} USDC
+                                        <div class="bank-meta">{{ $pool->accounting_operations_count }} операций</div>
+                                    </td>
+                                    <td class="text-end">
+                                        {{ number_format((float) $pool->balance_usdc, 2, '.', ' ') }} USDC
+                                    </td>
+                                    <td class="text-end {{ abs((float) $pool->accounting_difference_usd) > 0.000001 ? 'text-warning' : '' }}">
+                                        {{ number_format((float) $pool->accounting_difference_usd, 2, '.', ' ') }} USDC
+                                    </td>
+                                    <td class="text-end">{{ number_format(((int) $pool->apy_bps) / 100, 2, '.', ' ') }}%</td>
+                                    <td>
+                                        <span class="bank-pill bank-pill--currency">{{ $pool->network ?: '—' }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="bank-status {{ $pool->active ? '' : 'bank-status--reversed' }}">{{ $pool->active ? 'active' : 'paused' }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="button"
+                                            class="btn btn-sm btn-outline-light"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#poolTransferModal"
+                                            data-pool-transfer-create="1"
+                                            data-pool-asset-key="{{ $pool->asset_key }}"
+                                            data-pool-name="{{ $pool->name }}"
+                                            data-pool-balance="{{ number_format((float) ($pool->accounting_operations_count > 0 ? $pool->accounting_balance_usd : $pool->balance_usdc), 8, '.', '') }}"
+                                            data-pool-currency="USDC">
+                                            На счет
+                                        </button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="12" class="text-center text-muted py-4">Пулы пока не созданы.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="modal fade bank-order-modal" id="poolTransferModal" tabindex="-1" aria-labelledby="poolTransferModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" action="{{ route('bank.invest-operations.store') }}" data-pool-transfer-form>
+                    @csrf
+                    <input type="hidden" name="direction" value="asset_to_account">
+                    <input type="hidden" name="asset_key" data-pool-transfer-asset>
+                    <input type="hidden" name="currency" value="USDC">
+                    <input type="hidden" name="quantity" value="0">
+                    <input type="hidden" name="update_account_balance" value="1">
+                    <input type="hidden" name="redirect_to" value="bank.deposit">
+                    <div class="modal-header">
+                        <div>
+                            <div class="bank-label">Пул → операционный счет</div>
+                            <h5 class="modal-title" id="poolTransferModalLabel" data-pool-transfer-title>Перевести из пула</h5>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Операционный счет</label>
+                                <select name="account_id" class="form-select" required data-pool-transfer-account>
+                                    <option value="">Выберите счет</option>
+                                    @foreach($operationalAccounts as $account)
+                                        <option value="{{ $account->id }}" data-currency="{{ $account->currency }}" data-balance="{{ number_format((float) $account->balance, 2, '.', '') }}">
+                                            {{ $account->label }} · {{ $account->currency }} · {{ number_format((float) $account->balance, 2, '.', ' ') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="bank-meta" data-pool-transfer-account-meta></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Сумма USDC</label>
+                                <input type="number" name="amount" class="form-control" min="0.00000001" step="0.00000001" required data-pool-transfer-amount>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Дата</label>
+                                <input type="date" name="operated_at" class="form-control" data-pool-transfer-date>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Комментарий</label>
+                                <textarea name="note" class="form-control" rows="3" data-pool-transfer-note></textarea>
+                            </div>
+                        </div>
+                        <div class="alert alert-danger mt-3 mb-0" data-pool-transfer-error hidden></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-primary" data-pool-transfer-submit>Выполнить</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -446,6 +604,17 @@
         const transferDelete = document.querySelector('[data-deposit-transfer-delete]');
         const transferDeleteForm = document.querySelector('[data-deposit-transfer-delete-form]');
         const transferStoreAction = transferForm ? transferForm.action : '';
+        const poolTransferModal = document.getElementById('poolTransferModal');
+        const poolTransferForm = document.querySelector('[data-pool-transfer-form]');
+        const poolTransferTitle = document.querySelector('[data-pool-transfer-title]');
+        const poolTransferAsset = document.querySelector('[data-pool-transfer-asset]');
+        const poolTransferAccount = document.querySelector('[data-pool-transfer-account]');
+        const poolTransferAccountMeta = document.querySelector('[data-pool-transfer-account-meta]');
+        const poolTransferAmount = document.querySelector('[data-pool-transfer-amount]');
+        const poolTransferDate = document.querySelector('[data-pool-transfer-date]');
+        const poolTransferNote = document.querySelector('[data-pool-transfer-note]');
+        const poolTransferError = document.querySelector('[data-pool-transfer-error]');
+        const poolTransferSubmit = document.querySelector('[data-pool-transfer-submit]');
 
         function formatAmount(value) {
             return Number(value || 0).toLocaleString('ru-RU', {
@@ -530,6 +699,44 @@
             transferError.textContent = message;
             transferError.hidden = message === '';
             transferSubmit.disabled = message !== '';
+
+            return message === '';
+        }
+
+        function validatePoolTransferForm() {
+            if (!poolTransferForm || !poolTransferAccount || !poolTransferAmount || !poolTransferError || !poolTransferSubmit) {
+                return true;
+            }
+
+            Array.from(poolTransferAccount.options).forEach((option) => {
+                if (!option.value) {
+                    option.hidden = false;
+                    return;
+                }
+                option.hidden = option.dataset.currency !== 'USDC';
+            });
+
+            const accountOption = selectedOption(poolTransferAccount);
+            const amount = Number(poolTransferAmount.value || 0);
+            let message = '';
+
+            if (!accountOption?.value) {
+                message = 'Выберите операционный счет USDC.';
+            } else if (accountOption.dataset.currency !== 'USDC') {
+                message = 'Для перевода из пула нужен операционный счет USDC.';
+            } else if (amount <= 0) {
+                message = 'Введите сумму перевода.';
+            }
+
+            if (poolTransferAccountMeta) {
+                poolTransferAccountMeta.textContent = accountOption?.value
+                    ? `После выполнения остаток счета будет увеличен на ${formatAmount(amount)} USDC.`
+                    : '';
+            }
+
+            poolTransferError.textContent = message;
+            poolTransferError.hidden = message === '';
+            poolTransferSubmit.disabled = message !== '';
 
             return message === '';
         }
@@ -634,6 +841,45 @@
                 fillTransferForm(trigger);
             } else {
                 syncTransferRouteLabel();
+            }
+        });
+
+        poolTransferModal?.addEventListener('show.bs.modal', (event) => {
+            const trigger = event.relatedTarget;
+            if (!(trigger instanceof HTMLElement) || trigger.dataset.poolTransferCreate !== '1') {
+                return;
+            }
+
+            if (poolTransferForm) {
+                poolTransferForm.reset();
+            }
+            if (poolTransferTitle) {
+                poolTransferTitle.textContent = `Перевести из пула ${trigger.dataset.poolName || ''}`.trim();
+            }
+            if (poolTransferAsset) {
+                poolTransferAsset.value = trigger.dataset.poolAssetKey || '';
+            }
+            if (poolTransferAmount) {
+                const balance = Number(trigger.dataset.poolBalance || 0);
+                poolTransferAmount.value = balance > 0 ? balance.toFixed(8) : '';
+            }
+            if (poolTransferDate) {
+                poolTransferDate.value = new Date().toISOString().slice(0, 10);
+            }
+            if (poolTransferNote) {
+                poolTransferNote.value = `Перевод из пула ${trigger.dataset.poolName || ''} на операционный счет`.trim();
+            }
+            validatePoolTransferForm();
+        });
+
+        [poolTransferAccount, poolTransferAmount].forEach((element) => {
+            element?.addEventListener('input', validatePoolTransferForm);
+            element?.addEventListener('change', validatePoolTransferForm);
+        });
+
+        poolTransferForm?.addEventListener('submit', (event) => {
+            if (!validatePoolTransferForm()) {
+                event.preventDefault();
             }
         });
 

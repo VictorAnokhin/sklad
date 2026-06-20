@@ -326,6 +326,7 @@ class BankController extends Controller
         $operations = $this->bankDepositOperations($projectIds);
         $depositTransfers = $this->bankDepositTransfers($projectIds);
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $depositPools = $this->bankDepositPoolRows($deposits, (int) $project->id);
 
         return view('bank.deposit', [
             'project' => $project,
@@ -333,6 +334,7 @@ class BankController extends Controller
             'operations' => $operations,
             'depositTransfers' => $depositTransfers,
             'operationalAccounts' => $operationalAccounts,
+            'depositPools' => $depositPools,
             'totalByCurrency' => $deposits
                 ->groupBy('currency')
                 ->map(fn ($rows) => (float) $rows->sum('balance')),
@@ -719,11 +721,17 @@ class BankController extends Controller
             }
             DB::table('bank_invest_operations')->where('id', $operationId)->update($updates);
 
+            if ((bool) ($payload['update_account_balance'] ?? false)) {
+                $this->applyInvestOperationAccountBalance($account, (string) $payload['direction'], $amount, $currency);
+            }
+
             return $operationId;
         });
 
+        $redirectRoute = $this->bankRedirectRoute((string) $request->input('redirect_to', 'bank.invest'));
+
         return redirect()
-            ->route('bank.invest')
+            ->route($redirectRoute)
             ->with('success', "Операция Счет ↔ Актив #{$operationId} выполнена.");
     }
 
@@ -802,6 +810,7 @@ class BankController extends Controller
             'price_usd' => ['nullable', 'numeric', 'min:0'],
             'operated_at' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:2000'],
+            'update_account_balance' => ['nullable', 'boolean'],
         ]);
 
         $asset = $assetOptions->firstWhere('asset_key', (string) $payload['asset_key']);
@@ -823,11 +832,39 @@ class BankController extends Controller
             ? (float) $payload['quantity'] * $priceUsd
             : $amount);
         $currency = $this->normalizeCurrencyCode((string) $payload['currency']);
+        if ((bool) ($payload['update_account_balance'] ?? false)) {
+            abort_unless((string) $payload['direction'] === 'asset_to_account', 422, 'Изменение остатка счета разрешено только для перевода из актива на счет.');
+            $accountCurrency = $this->normalizeCurrencyCode((string) ($account->currency ?? ''));
+            abort_unless($accountCurrency === $currency, 422, "Валюта счета {$accountCurrency} не совпадает с валютой операции {$currency}.");
+        }
         $operatedAt = $request->filled('operated_at')
             ? Carbon::parse((string) $payload['operated_at'])->toDateString()
             : now()->toDateString();
 
         return [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt];
+    }
+
+    private function applyInvestOperationAccountBalance(?object $account, string $direction, float $amount, string $currency): void
+    {
+        if (! $account || ! Schema::hasTable('conf')) {
+            return;
+        }
+
+        $accountCurrency = $this->normalizeCurrencyCode((string) ($account->currency ?? ''));
+        if ($accountCurrency !== $currency) {
+            throw new \RuntimeException("Валюта счета {$accountCurrency} не совпадает с валютой операции {$currency}.");
+        }
+
+        $operator = $direction === 'asset_to_account' ? '+' : '-';
+        DB::table('conf')
+            ->where('id', (int) $account->id)
+            ->where('type', 'oplata')
+            ->update(['value' => DB::raw('COALESCE(value, 0) ' . $operator . ' ' . abs($amount))]);
+    }
+
+    private function bankRedirectRoute(string $route): string
+    {
+        return in_array($route, ['bank.invest', 'bank.deposit'], true) ? $route : 'bank.invest';
     }
 
     public function storeInvestAsset(Request $request): RedirectResponse
@@ -1992,6 +2029,8 @@ class BankController extends Controller
                     'coin_type' => (string) ($pool->coin_type ?? ''),
                     'pool_object_id' => $poolObjectId,
                     'pool_object_short' => $this->shortHash($poolObjectId),
+                    'chain_status' => $this->isOnChainPoolObject($poolObjectId) ? 'onchain' : 'offchain',
+                    'chain_status_label' => $this->isOnChainPoolObject($poolObjectId) ? 'On-chain' : 'Off-chain',
                     'risk_level' => (int) ($pool->risk_level ?? 0),
                     'target_apy_bps' => $targetApy,
                     'realized_apy_bps' => $realizedApy,
@@ -2009,6 +2048,74 @@ class BankController extends Controller
                     'balance_usdc' => $balanceUsdc,
                     'latest_event_at' => (string) ($latestEvent->event_at ?? ''),
                     'latest_event_type' => (string) ($latestEvent->event_type ?? ''),
+                ];
+            });
+    }
+
+    private function isOnChainPoolObject(string $poolObjectId): bool
+    {
+        $value = strtolower(trim($poolObjectId));
+
+        return $value !== ''
+            && $value !== '0x'
+            && ! preg_match('/^0x0+$/', $value);
+    }
+
+    private function bankDepositPoolRows($deposits, int $projectId)
+    {
+        $depositsByCurrency = $deposits
+            ->groupBy(fn ($deposit) => strtoupper((string) ($deposit->currency ?? '')));
+        $accountingByAsset = $this->poolAccountingBalancesFromOperations($projectId);
+
+        return $this->investmentPools()
+            ->map(function ($pool) use ($depositsByCurrency, $accountingByAsset) {
+                $symbol = strtoupper((string) ($pool->symbol ?? ''));
+                $matchingDeposits = $depositsByCurrency->get($symbol, collect());
+                $assetKey = 'pool:' . (int) $pool->id;
+                $accounting = $accountingByAsset->get($assetKey, (object) [
+                    'balance' => 0.0,
+                    'operations_count' => 0,
+                ]);
+
+                $pool->deposit_currency = $symbol;
+                $pool->deposit_count = $matchingDeposits->count();
+                $pool->deposit_balance = (float) $matchingDeposits->sum('balance');
+                $pool->deposit_limit = (float) $matchingDeposits->sum('limit');
+                $pool->asset_key = $assetKey;
+                $pool->accounting_balance_usd = (float) $accounting->balance;
+                $pool->accounting_operations_count = (int) $accounting->operations_count;
+                $pool->accounting_difference_usd = (float) $pool->accounting_balance_usd - (float) $pool->balance_usdc;
+
+                return $pool;
+            });
+    }
+
+    private function poolAccountingBalancesFromOperations(int $projectId)
+    {
+        if (! Schema::hasTable('bank_invest_operations')) {
+            return collect();
+        }
+
+        return DB::table('bank_invest_operations')
+            ->where('project_id', $projectId)
+            ->where('asset_type', 'pool')
+            ->where('asset_key', 'like', 'pool:%')
+            ->get(['asset_key', 'direction', 'value_usd'])
+            ->groupBy('asset_key')
+            ->map(function ($operations) {
+                $balance = (float) $operations->sum(function ($operation) {
+                    $value = (float) ($operation->value_usd ?? 0);
+
+                    return match ((string) $operation->direction) {
+                        'asset_to_account' => -abs($value),
+                        'revaluation' => $value,
+                        default => abs($value),
+                    };
+                });
+
+                return (object) [
+                    'balance' => $balance,
+                    'operations_count' => $operations->count(),
                 ];
             });
     }
@@ -2127,7 +2234,26 @@ class BankController extends Controller
 
     private function investOperationAssetOptions(int $projectId)
     {
-        return $this->manualInvestmentAssetRows($projectId);
+        return $this->manualInvestmentAssetRows($projectId)
+            ->concat($this->investmentPoolAssetRows())
+            ->unique('asset_key')
+            ->values();
+    }
+
+    private function investmentPoolAssetRows()
+    {
+        return $this->investmentPools()
+            ->map(fn ($pool) => (object) [
+                'asset_type' => 'pool',
+                'asset_key' => 'pool:' . (int) $pool->id,
+                'source_id' => (int) $pool->id,
+                'name' => (string) $pool->name,
+                'description' => $pool->description !== '' ? (string) $pool->description : (string) $pool->pool_object_short,
+                'currency' => 'USDC',
+                'value_usd' => (float) $pool->balance_usdc,
+                'source' => 'fund_pools',
+                'status' => $pool->active ? 'active' : 'paused',
+            ]);
     }
 
     private function bankInvestOperations(int $projectId, $operationalAccounts, $fixedAssetRows)
