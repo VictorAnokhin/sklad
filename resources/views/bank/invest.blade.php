@@ -16,6 +16,12 @@
     $hiddenTrackedNftRows = $trackedAssets->get('hidden_nft', collect());
     $trackedDefiRows = $trackedAssets->get('defi', collect());
     $hiddenTrackedDefiRows = $trackedAssets->get('hidden_defi', collect());
+    $investorLiquidRows = $portfolioRows->where('group', 'liquid')->values();
+    $investorPoolRows = $portfolioRows->where('group', 'defi')->values();
+    $investorLiquidTotal = (float) $investorLiquidRows->sum('value_usd');
+    $investorPoolTotal = (float) $investorPoolRows->sum('value_usd');
+    $investorTotal = $investorLiquidTotal + $investorPoolTotal;
+    $investorPoolShare = $investorTotal > 0 ? $investorPoolTotal / $investorTotal * 100 : 0;
 @endphp
 
 <div class="bank-page bank-invest-page" data-bank-invest-page>
@@ -65,6 +71,114 @@
                 <div class="bank-label">Google wallets</div>
                 <div class="bank-value">{{ $walletPortfolio['wallets']->count() }}</div>
                 <div class="bank-meta">{{ $formatMoney($summary['wallet_total']) }} USD в cached wallet data.</div>
+            </div>
+        </section>
+
+        <section class="bank-panel bank-table-panel">
+            <div class="bank-table-header">
+                <div>
+                    <div class="bank-label">Портфель вкладчика</div>
+                    <div class="bank-meta">Депозитный остаток плюс доля в инвестиционных пулах. Пулы показаны как look-through exposure.</div>
+                </div>
+                <div class="bank-meta">Итого: {{ $formatMoney($investorTotal) }} USD</div>
+            </div>
+
+            <div class="bank-investor-metrics">
+                <div class="bank-investor-metric bank-investor-metric--accent">
+                    <div class="bank-label">Итого вкладчика</div>
+                    <div class="bank-value">{{ $formatMoney($investorTotal) }}</div>
+                    <div class="bank-meta">Ликвидная часть + текущая оценка доли в пулах.</div>
+                </div>
+                <div class="bank-investor-metric">
+                    <div class="bank-label">Ликвидный депозит</div>
+                    <div class="bank-value">{{ $formatMoney($investorLiquidTotal) }}</div>
+                    <div class="bank-meta">{{ $investorLiquidRows->count() }} депозитных позиций.</div>
+                </div>
+                <div class="bank-investor-metric">
+                    <div class="bank-label">Доля в инвестиционных пулах</div>
+                    <div class="bank-value">{{ $formatMoney($investorPoolTotal) }}</div>
+                    <div class="bank-meta">{{ number_format($investorPoolShare, 2, '.', ' ') }}% портфеля вкладчика.</div>
+                </div>
+                <div class="bank-investor-metric">
+                    <div class="bank-label">Look-through активы</div>
+                    <div class="bank-value">{{ $investorPoolRows->count() }}</div>
+                    <div class="bank-meta">Расшифровка доли по пулам/активам ниже.</div>
+                </div>
+            </div>
+
+            <div class="table-responsive bank-table-scroll bank-table-scroll--compact mt-3">
+                <table class="table table-dark table-hover table-sm align-middle bank-table">
+                    <thead>
+                        <tr>
+                            <th>Слой</th>
+                            <th>Актив</th>
+                            <th>Описание</th>
+                            <th>Валюта</th>
+                            <th class="text-end">Оценка</th>
+                            <th class="text-end">Доля</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="bank-pill bank-pill--currency">Итого</span></td>
+                            <td><strong>Портфель вкладчика</strong></td>
+                            <td class="bank-meta">Суммарная стоимость депозитного остатка и инвестиционных позиций.</td>
+                            <td>USD</td>
+                            <td class="text-end fw-semibold">{{ $formatMoney($investorTotal) }}</td>
+                            <td class="text-end">100.0%</td>
+                            <td><span class="bank-status">active</span></td>
+                        </tr>
+
+                        <tr>
+                            <td><span class="bank-pill bank-pill--currency">Депозит</span></td>
+                            <td><strong>Ликвидный остаток</strong></td>
+                            <td class="bank-meta">Средства, которые ещё не переведены в инвестиционный пул.</td>
+                            <td>USD</td>
+                            <td class="text-end fw-semibold">{{ $formatMoney($investorLiquidTotal) }}</td>
+                            <td class="text-end">{{ $investorTotal > 0 ? number_format($investorLiquidTotal / $investorTotal * 100, 1, '.', ' ') : '0.0' }}%</td>
+                            <td><span class="bank-status {{ $investorLiquidTotal > 0 ? '' : 'bank-status--pending' }}">{{ $investorLiquidTotal > 0 ? 'liquid' : 'empty' }}</span></td>
+                        </tr>
+
+                        @foreach($investorLiquidRows as $row)
+                            <tr>
+                                <td class="bank-meta">└─ deposit</td>
+                                <td>{{ $row->name }}</td>
+                                <td class="bank-meta">{{ $row->description !== '' ? $row->description : '—' }}</td>
+                                <td>{{ $row->currency }}</td>
+                                <td class="text-end">{{ $formatMoney($row->value_usd) }}</td>
+                                <td class="text-end">{{ $investorTotal > 0 ? number_format((float) $row->value_usd / $investorTotal * 100, 1, '.', ' ') : '0.0' }}%</td>
+                                <td><span class="bank-status {{ $row->status === 'active' ? '' : 'bank-status--pending' }}">{{ $row->status }}</span></td>
+                            </tr>
+                        @endforeach
+
+                        <tr>
+                            <td><span class="bank-pill bank-pill--company">Пулы</span></td>
+                            <td><strong>Доля в инвестиционных пулах</strong></td>
+                            <td class="bank-meta">Текущая оценка позиции после распределения средств из депозита.</td>
+                            <td>USDC</td>
+                            <td class="text-end fw-semibold">{{ $formatMoney($investorPoolTotal) }}</td>
+                            <td class="text-end">{{ $investorTotal > 0 ? number_format($investorPoolTotal / $investorTotal * 100, 1, '.', ' ') : '0.0' }}%</td>
+                            <td><span class="bank-status {{ $investorPoolTotal > 0 ? '' : 'bank-status--pending' }}">{{ $investorPoolTotal > 0 ? 'invested' : 'empty' }}</span></td>
+                        </tr>
+
+                        @forelse($investorPoolRows as $row)
+                            <tr>
+                                <td class="bank-meta">└─ exposure</td>
+                                <td>{{ $row->name }}</td>
+                                <td class="bank-meta">{{ $row->description !== '' ? $row->description : '—' }}</td>
+                                <td>{{ $row->currency }}</td>
+                                <td class="text-end">{{ $formatMoney($row->value_usd) }}</td>
+                                <td class="text-end">{{ $investorPoolTotal > 0 ? number_format((float) $row->value_usd / $investorPoolTotal * 100, 1, '.', ' ') : '0.0' }}%</td>
+                                <td><span class="bank-status {{ $row->status === 'active' ? '' : 'bank-status--pending' }}">{{ $row->status }}</span></td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">Позиции в инвестиционных пулах пока не найдены.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </section>
 
@@ -911,6 +1025,32 @@
         --bs-btn-font-size: 0.74rem;
     }
 
+    .bank-investor-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        padding: 14px;
+        border-top: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .bank-investor-metric {
+        min-width: 0;
+        padding: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 8px;
+        background: rgba(2, 6, 23, 0.35);
+    }
+
+    .bank-investor-metric--accent {
+        border-color: rgba(251, 191, 36, 0.36);
+        background: rgba(251, 191, 36, 0.1);
+    }
+
+    .bank-investor-metric .bank-value {
+        font-size: clamp(1.25rem, 1.8vw, 1.7rem);
+        line-height: 1.1;
+    }
+
     .bank-table__select {
         width: 42px;
         text-align: center;
@@ -1184,6 +1324,16 @@
         }
 
         .bank-invest-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .bank-investor-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 700px) {
+        .bank-investor-metrics {
             grid-template-columns: 1fr;
         }
     }
