@@ -594,6 +594,7 @@ class BankController extends Controller
     public function exchange(): View
     {
         $project = $this->bankProject();
+        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
 
         return view('bank.exchange', [
             'project' => $project,
@@ -601,6 +602,7 @@ class BankController extends Controller
             'swapOrders' => $this->swapOrders((string) $project->id),
             'exchangeOrderStatuses' => self::EXCHANGE_ORDER_STATUSES,
             'blockchainExchangeEvents' => $this->blockchainExchangeEvents(),
+            'operationalAccounts' => $operationalAccounts,
         ]);
     }
 
@@ -1466,6 +1468,184 @@ class BankController extends Controller
         return redirect()
             ->route('bank.exchange')
             ->with('success', 'Статус заявки обновлен.');
+    }
+
+    public function storeFiatCryptoExchange(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('av8_swap_orders'), 404);
+
+        $payload = $request->validate([
+            'side' => ['required', Rule::in(['buy', 'sell'])],
+            'fiat_currency' => ['required', 'string', 'max:20'],
+            'crypto_currency' => ['required', 'string', 'max:20'],
+            'fiat_account_id' => ['required', 'integer'],
+            'crypto_account_id' => ['required', 'integer'],
+            'fiat_amount' => ['nullable', 'numeric', 'min:0'],
+            'crypto_amount' => ['nullable', 'numeric', 'min:0'],
+            'rate' => ['required', 'numeric', 'min:0.00000001'],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $side = (string) $payload['side'];
+        $rate = (float) $payload['rate'];
+        $fiatAmount = $request->filled('fiat_amount') ? (float) $payload['fiat_amount'] : 0.0;
+        $cryptoAmount = $request->filled('crypto_amount') ? (float) $payload['crypto_amount'] : 0.0;
+
+        if ($side === 'buy') {
+            abort_unless($fiatAmount > 0, 422, 'Введите сумму фиата.');
+            $cryptoAmount = $fiatAmount / $rate;
+        } else {
+            abort_unless($cryptoAmount > 0, 422, 'Введите сумму крипты.');
+            $fiatAmount = $cryptoAmount * $rate;
+        }
+
+        $fiatCurrency = $this->normalizeCurrencyCode((string) $payload['fiat_currency']);
+        $cryptoCurrency = strtoupper(trim((string) $payload['crypto_currency'])) ?: 'USDC';
+        $now = now();
+        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $operationalAccountsById = $operationalAccounts->keyBy(fn ($account) => (int) $account->id);
+        $fiatAccount = $operationalAccountsById->get((int) $payload['fiat_account_id']);
+        $cryptoAccount = $operationalAccountsById->get((int) $payload['crypto_account_id']);
+        abort_unless($fiatAccount, 422, 'Фиатный операционный счет не найден.');
+        abort_unless($cryptoAccount, 422, 'Крипто операционный счет не найден.');
+        abort_unless($this->normalizeCurrencyCode((string) $fiatAccount->currency) === $fiatCurrency, 422, "Валюта фиатного счета должна быть {$fiatCurrency}.");
+        abort_unless($this->normalizeCurrencyCode((string) $cryptoAccount->currency) === $cryptoCurrency, 422, "Валюта крипто-счета должна быть {$cryptoCurrency}.");
+
+        if ($side === 'buy') {
+            abort_unless((float) $fiatAccount->balance + 0.000001 >= $fiatAmount, 422, 'Недостаточно средств на фиатном операционном счете.');
+        } else {
+            abort_unless((float) $cryptoAccount->balance + 0.00000001 >= $cryptoAmount, 422, 'Недостаточно средств на крипто операционном счете.');
+        }
+
+        DB::transaction(function () use ($project, $payload, $side, $fiatCurrency, $cryptoCurrency, $fiatAmount, $cryptoAmount, $rate, $fiatAccount, $cryptoAccount, $now): void {
+            if ($side === 'buy') {
+                DB::table('conf')->where('id', (int) $fiatAccount->id)->where('type', 'oplata')->update([
+                    'value' => DB::raw('COALESCE(value, 0) - ' . abs($fiatAmount)),
+                ]);
+                DB::table('conf')->where('id', (int) $cryptoAccount->id)->where('type', 'oplata')->update([
+                    'value' => DB::raw('COALESCE(value, 0) + ' . abs($cryptoAmount)),
+                ]);
+            } else {
+                DB::table('conf')->where('id', (int) $cryptoAccount->id)->where('type', 'oplata')->update([
+                    'value' => DB::raw('COALESCE(value, 0) - ' . abs($cryptoAmount)),
+                ]);
+                DB::table('conf')->where('id', (int) $fiatAccount->id)->where('type', 'oplata')->update([
+                    'value' => DB::raw('COALESCE(value, 0) + ' . abs($fiatAmount)),
+                ]);
+            }
+
+            $orderId = (int) DB::table('av8_swap_orders')->insertGetId([
+                'fid' => (int) $project->id,
+                'mode' => $side,
+                'pay_currency' => $fiatCurrency,
+                'pay_amount' => $fiatAmount,
+                'rate_usdc' => $rate,
+                'fee_percent' => 0,
+                'fee_amount' => 0,
+                'expected_av8' => $cryptoAmount,
+                'payment_method' => "Fiat/{$cryptoCurrency}",
+                'wallet_address' => '',
+                'client_email' => null,
+                'client_phone' => null,
+                'status' => 'new',
+                'source' => 'bank.exchange.crypto',
+                'meta' => json_encode([
+                    'side' => $side,
+                    'fiat_currency' => $fiatCurrency,
+                    'fiat_amount' => $fiatAmount,
+                    'fiat_account_id' => (int) $fiatAccount->id,
+                    'fiat_account_label' => (string) $fiatAccount->label,
+                    'crypto_currency' => $cryptoCurrency,
+                    'crypto_amount' => $cryptoAmount,
+                    'crypto_account_id' => (int) $cryptoAccount->id,
+                    'crypto_account_label' => (string) $cryptoAccount->label,
+                    'rate_fiat_per_crypto' => $rate,
+                    'note' => trim((string) ($payload['note'] ?? '')),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            $ledger = $this->createFiatCryptoExchangeLedger(
+                $orderId,
+                (int) $project->id,
+                $side,
+                $fiatAccount,
+                $cryptoAccount,
+                $fiatAmount,
+                $cryptoAmount,
+                $fiatCurrency,
+                $cryptoCurrency
+            );
+
+            if ($ledger) {
+                $row = DB::table('av8_swap_orders')->where('id', $orderId)->first();
+                $meta = json_decode((string) ($row->meta ?? '{}'), true);
+                $meta = is_array($meta) ? $meta : [];
+                $meta['ledger_transaction_id'] = (int) $ledger->id;
+                DB::table('av8_swap_orders')->where('id', $orderId)->update([
+                    'meta' => json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'updated_at' => now(),
+                ]);
+            }
+        });
+
+        return redirect()
+            ->route('bank.exchange')
+            ->with('success', 'Операция Фиат/Крипта сохранена.');
+    }
+
+    private function createFiatCryptoExchangeLedger(
+        int $orderId,
+        int $projectId,
+        string $side,
+        object $fiatAccount,
+        object $cryptoAccount,
+        float $fiatAmount,
+        float $cryptoAmount,
+        string $fiatCurrency,
+        string $cryptoCurrency
+    ) {
+        if ($fiatAmount <= 0 || ! Schema::hasTable('accounts') || ! Schema::hasTable('transactions') || ! Schema::hasTable('entries')) {
+            return null;
+        }
+
+        $fiatLedgerAccount = $this->ensureBankLedgerAccount(
+            "311.{$projectId}." . (int) $fiatAccount->id,
+            'Операционный счет ' . trim((string) $fiatAccount->label),
+            'asset',
+            '311'
+        );
+        $cryptoLedgerAccount = $this->ensureBankLedgerAccount(
+            "311.{$projectId}." . (int) $cryptoAccount->id,
+            'Операционный счет ' . trim((string) $cryptoAccount->label),
+            'asset',
+            '311'
+        );
+
+        $debitAccountId = $side === 'buy' ? (int) $cryptoLedgerAccount->id : (int) $fiatLedgerAccount->id;
+        $creditAccountId = $side === 'buy' ? (int) $fiatLedgerAccount->id : (int) $cryptoLedgerAccount->id;
+        $description = $side === 'buy'
+            ? "Покупка {$cryptoAmount} {$cryptoCurrency} за {$fiatAmount} {$fiatCurrency}"
+            : "Продажа {$cryptoAmount} {$cryptoCurrency} за {$fiatAmount} {$fiatCurrency}";
+
+        return app(AccountingService::class)->createTransaction(
+            [
+                ['account_id' => $debitAccountId, 'debit' => $fiatAmount, 'credit' => 0, 'currency' => $fiatCurrency],
+                ['account_id' => $creditAccountId, 'debit' => 0, 'credit' => $fiatAmount, 'currency' => $fiatCurrency],
+            ],
+            $description,
+            [
+                'date' => now()->toDateString(),
+                'company_id' => $projectId,
+                'reference_type' => 'bank_exchange_crypto',
+                'reference_id' => $orderId,
+                'currency' => $fiatCurrency,
+                'amount' => $fiatAmount,
+                'amount_base' => $fiatAmount,
+            ]
+        );
     }
 
     public function clearing(): View

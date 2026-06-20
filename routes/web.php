@@ -148,6 +148,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/invest/tokens/bulk', [BankController::class, 'bulkUpdateTokenManifestItems'])
             ->name('token-manifest.bulk');
         Route::get('/exchange', [BankController::class, 'exchange'])->name('exchange');
+        Route::post('/exchange/crypto', [BankController::class, 'storeFiatCryptoExchange'])
+            ->name('exchange.crypto.store');
         Route::post('/exchange/orders/{order}/status', [BankController::class, 'updateExchangeOrderStatus'])
             ->whereNumber('order')
             ->name('exchange-orders.status');
