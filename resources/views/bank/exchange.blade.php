@@ -316,6 +316,51 @@
                     </div>
                 </div>
 
+                <div class="bank-filter-panel" data-fiat-crypto-filter>
+                    <div class="bank-filter-panel__controls">
+                        @foreach([
+                            'today' => 'Сегодня',
+                            'yesterday' => 'Вчера',
+                            'month' => 'За месяц',
+                            'year' => 'За год',
+                            'previous_year' => 'За прошлый год',
+                            'manual' => 'Ручной ввод',
+                        ] as $filterKey => $filterLabel)
+                            <button type="button" class="btn btn-sm btn-outline-light" data-fiat-crypto-date-filter="{{ $filterKey }}">
+                                {{ $filterLabel }}
+                            </button>
+                        @endforeach
+                    </div>
+                    <div class="bank-filter-panel__manual" data-fiat-crypto-manual-dates hidden>
+                        <label>
+                            <span>С</span>
+                            <input type="date" class="form-control form-control-sm" data-fiat-crypto-date-from>
+                        </label>
+                        <label>
+                            <span>По</span>
+                            <input type="date" class="form-control form-control-sm" data-fiat-crypto-date-to>
+                        </label>
+                    </div>
+                    <div class="bank-yield-summary">
+                        <div>
+                            <div class="bank-meta">Операций</div>
+                            <div class="bank-yield-summary__value" data-fiat-crypto-summary-count>0</div>
+                        </div>
+                        <div>
+                            <div class="bank-meta">Покупки</div>
+                            <div class="bank-yield-summary__value" data-fiat-crypto-summary-buy>—</div>
+                        </div>
+                        <div>
+                            <div class="bank-meta">Продажи</div>
+                            <div class="bank-yield-summary__value" data-fiat-crypto-summary-sell>—</div>
+                        </div>
+                        <div>
+                            <div class="bank-meta">Доходность в фиате</div>
+                            <div class="bank-yield-summary__value" data-fiat-crypto-summary-net>—</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
                     <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--exchange-crypto">
                         <thead>
@@ -344,8 +389,15 @@
                                     $cryptoAccountLabel = (string) ($meta['crypto_account_label'] ?? '');
                                     $ledgerTransactionId = (int) ($meta['ledger_transaction_id'] ?? 0);
                                     $operatedAt = (string) ($meta['operated_at'] ?? $order->created_at);
+                                    $operationDate = substr($operatedAt, 0, 10);
                                 @endphp
-                                <tr>
+                                <tr
+                                    data-fiat-crypto-row
+                                    data-operation-date="{{ $operationDate }}"
+                                    data-operation-side="{{ $side }}"
+                                    data-fiat-amount="{{ number_format((float) $order->pay_amount, 8, '.', '') }}"
+                                    data-fiat-currency="{{ $order->pay_currency }}"
+                                >
                                     <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                     <td class="bank-table__date">{{ $operatedAt }}</td>
                                     <td>
@@ -531,6 +583,74 @@
         padding: 1px 5px;
         font-size: 0.68rem;
         line-height: 1.1;
+    }
+
+    .bank-page .bank-filter-panel {
+        display: grid;
+        gap: 0.55rem;
+        margin-bottom: 0.75rem;
+        padding: 0.65rem;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.35);
+    }
+
+    .bank-page .bank-filter-panel__controls,
+    .bank-page .bank-filter-panel__manual {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+    }
+
+    .bank-page .bank-filter-panel__controls .btn {
+        padding: 0.18rem 0.5rem;
+        font-size: 0.74rem;
+        line-height: 1.25;
+    }
+
+    .bank-page .bank-filter-panel__controls .btn.active {
+        color: #0f172a;
+        background: #e2e8f0;
+        border-color: #e2e8f0;
+    }
+
+    .bank-page .bank-filter-panel__manual label {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        margin: 0;
+        color: #94a3b8;
+        font-size: 0.72rem;
+    }
+
+    .bank-page .bank-filter-panel__manual .form-control {
+        width: 142px;
+        min-height: 28px;
+        padding: 0.15rem 0.45rem;
+    }
+
+    .bank-page .bank-yield-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(120px, 1fr));
+        gap: 0.45rem;
+    }
+
+    .bank-page .bank-yield-summary > div {
+        min-width: 0;
+        padding: 0.45rem 0.55rem;
+        border-radius: 7px;
+        background: rgba(2, 6, 23, 0.28);
+    }
+
+    .bank-page .bank-yield-summary__value {
+        overflow: hidden;
+        margin-top: 0.12rem;
+        color: #f8fafc;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .bank-page .bank-table--exchange-orders th:nth-child(1),
@@ -720,9 +840,129 @@
         const fiatCryptoDate = document.querySelector('[data-fiat-crypto-date]');
         const fiatCryptoBuyOutput = document.querySelector('[data-fiat-crypto-buy-output]');
         const fiatCryptoSellOutput = document.querySelector('[data-fiat-crypto-sell-output]');
+        const fiatCryptoFilterStorageKey = 'bank.exchange.fiatCryptoDateFilter';
+        const fiatCryptoRows = document.querySelectorAll('[data-fiat-crypto-row]');
+        const fiatCryptoDateFilters = document.querySelectorAll('[data-fiat-crypto-date-filter]');
+        const fiatCryptoManualDates = document.querySelector('[data-fiat-crypto-manual-dates]');
+        const fiatCryptoDateFrom = document.querySelector('[data-fiat-crypto-date-from]');
+        const fiatCryptoDateTo = document.querySelector('[data-fiat-crypto-date-to]');
+        const fiatCryptoSummaryCount = document.querySelector('[data-fiat-crypto-summary-count]');
+        const fiatCryptoSummaryBuy = document.querySelector('[data-fiat-crypto-summary-buy]');
+        const fiatCryptoSummarySell = document.querySelector('[data-fiat-crypto-summary-sell]');
+        const fiatCryptoSummaryNet = document.querySelector('[data-fiat-crypto-summary-net]');
 
         function selectedOption(select) {
             return select?.selectedOptions?.[0] || null;
+        }
+
+        function localDateString(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function fiatCryptoDateRange(preset) {
+            const today = new Date();
+            const start = new Date(today);
+            const end = new Date(today);
+
+            if (preset === 'yesterday') {
+                start.setDate(today.getDate() - 1);
+                end.setDate(today.getDate() - 1);
+            } else if (preset === 'month') {
+                start.setDate(1);
+            } else if (preset === 'year') {
+                start.setMonth(0, 1);
+            } else if (preset === 'previous_year') {
+                start.setFullYear(today.getFullYear() - 1, 0, 1);
+                end.setFullYear(today.getFullYear() - 1, 11, 31);
+            } else if (preset === 'manual') {
+                return {
+                    from: fiatCryptoDateFrom?.value || '',
+                    to: fiatCryptoDateTo?.value || '',
+                };
+            }
+
+            return {
+                from: localDateString(start),
+                to: localDateString(end),
+            };
+        }
+
+        function formatFiatAmount(value, currency, withSign = false) {
+            const sign = withSign && value > 0 ? '+' : '';
+            return `${sign}${value.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            })} ${currency}`;
+        }
+
+        function formatFiatGroups(groups, withSign = false) {
+            const entries = Object.entries(groups).filter(([, value]) => Math.abs(value) > 0.000001);
+            if (entries.length === 0) {
+                return '0.00';
+            }
+
+            return entries
+                .map(([currency, value]) => formatFiatAmount(value, currency, withSign))
+                .join(' · ');
+        }
+
+        function applyFiatCryptoDateFilter(preset = 'today') {
+            const range = fiatCryptoDateRange(preset);
+            const totals = {
+                buy: {},
+                sell: {},
+                net: {},
+            };
+            let visibleCount = 0;
+
+            fiatCryptoDateFilters.forEach((button) => {
+                button.classList.toggle('active', button.dataset.fiatCryptoDateFilter === preset);
+            });
+            if (fiatCryptoManualDates) {
+                fiatCryptoManualDates.hidden = preset !== 'manual';
+            }
+
+            fiatCryptoRows.forEach((row) => {
+                const operationDate = row.dataset.operationDate || '';
+                const inRange = (!range.from || operationDate >= range.from) && (!range.to || operationDate <= range.to);
+                row.hidden = !inRange;
+
+                if (!inRange) {
+                    return;
+                }
+
+                visibleCount += 1;
+                const side = row.dataset.operationSide || 'buy';
+                const currency = row.dataset.fiatCurrency || 'FIAT';
+                const amount = Number(row.dataset.fiatAmount || 0);
+                totals.buy[currency] = totals.buy[currency] || 0;
+                totals.sell[currency] = totals.sell[currency] || 0;
+                totals.net[currency] = totals.net[currency] || 0;
+
+                if (side === 'sell') {
+                    totals.sell[currency] += amount;
+                    totals.net[currency] += amount;
+                } else {
+                    totals.buy[currency] += amount;
+                    totals.net[currency] -= amount;
+                }
+            });
+
+            if (fiatCryptoSummaryCount) {
+                fiatCryptoSummaryCount.textContent = String(visibleCount);
+            }
+            if (fiatCryptoSummaryBuy) {
+                fiatCryptoSummaryBuy.textContent = formatFiatGroups(totals.buy);
+            }
+            if (fiatCryptoSummarySell) {
+                fiatCryptoSummarySell.textContent = formatFiatGroups(totals.sell);
+            }
+            if (fiatCryptoSummaryNet) {
+                fiatCryptoSummaryNet.textContent = formatFiatGroups(totals.net, true);
+            }
         }
 
         function calculateFiatCrypto() {
@@ -840,6 +1080,21 @@
             field?.addEventListener('change', calculateFiatCrypto);
         });
 
+        fiatCryptoDateFilters.forEach((button) => {
+            button.addEventListener('click', () => {
+                const preset = button.dataset.fiatCryptoDateFilter || 'today';
+                window.localStorage?.setItem(fiatCryptoFilterStorageKey, preset);
+                applyFiatCryptoDateFilter(preset);
+            });
+        });
+
+        [fiatCryptoDateFrom, fiatCryptoDateTo].forEach((field) => {
+            field?.addEventListener('change', () => {
+                window.localStorage?.setItem(fiatCryptoFilterStorageKey, 'manual');
+                applyFiatCryptoDateFilter('manual');
+            });
+        });
+
         fiatCryptoForm?.addEventListener('reset', () => {
             window.setTimeout(() => {
                 setFiatCryptoSide('buy');
@@ -874,6 +1129,7 @@
         });
 
         filterFiatCryptoAccounts();
+        applyFiatCryptoDateFilter(window.localStorage?.getItem(fiatCryptoFilterStorageKey) || 'today');
     });
 </script>
 @endpush
