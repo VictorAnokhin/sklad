@@ -50,130 +50,12 @@
     </section>
 
     <section class="bank-invest-tabs" role="tablist" aria-label="Invest sections">
-        <button type="button" class="bank-invest-tab is-active" data-bank-invest-tab="portfolio">Портфолио</button>
+        <button type="button" class="bank-invest-tab is-active" data-bank-invest-tab="portfolio">Счета</button>
         <button type="button" class="bank-invest-tab" data-bank-invest-tab="operations">Операции</button>
         <button type="button" class="bank-invest-tab" data-bank-invest-tab="assets">Активы</button>
     </section>
 
     <section data-bank-invest-panel="portfolio">
-        <section class="bank-grid bank-grid--summary">
-            <div class="bank-panel bank-panel--accent">
-                <div class="bank-label">Portfolio NAV</div>
-                <div class="bank-value">{{ $formatMoney($summary['nav']) }}</div>
-                <div class="bank-meta">Депозиты, ликвидность и пулы в единой оценке.</div>
-            </div>
-            <div class="bank-panel">
-                <div class="bank-label">Ликвидная часть</div>
-                <div class="bank-value">{{ $formatMoney($summary['liquid']) }}</div>
-                <div class="bank-meta">Свободные депозитные позиции.</div>
-            </div>
-            <div class="bank-panel">
-                <div class="bank-label">DeFi / пулы</div>
-                <div class="bank-value">{{ $formatMoney($summary['defi']) }}</div>
-                <div class="bank-meta">Баланс пулов по последним событиям.</div>
-            </div>
-            <div class="bank-panel">
-                <div class="bank-label">Google wallets</div>
-                <div class="bank-value">{{ $walletPortfolio['wallets']->count() }}</div>
-                <div class="bank-meta">{{ $formatMoney($summary['wallet_total']) }} USD в cached wallet data.</div>
-            </div>
-        </section>
-
-        <section class="bank-panel bank-table-panel">
-            <div class="bank-table-header">
-                <div>
-                    <div class="bank-label">Портфель вкладчика</div>
-                    <div class="bank-meta">Инвестиционная позиция вкладчика в пулах раскрыта как look-through exposure.</div>
-                </div>
-                <div class="bank-meta">Итого: {{ $formatMoney($investorTotal) }} USD</div>
-            </div>
-
-            <div class="bank-investor-metrics">
-                <div class="bank-investor-metric bank-investor-metric--accent">
-                    <div class="bank-label">Итого вкладчика</div>
-                    <div class="bank-value">{{ $formatMoney($investorTotal) }}</div>
-                    <div class="bank-meta">Текущая оценка инвестиционной позиции.</div>
-                </div>
-                <div class="bank-investor-metric">
-                    <div class="bank-label">Инвестиционная позиция</div>
-                    <div class="bank-value">{{ $formatMoney($investorPoolTotal) }}</div>
-                    <div class="bank-meta">Доля в пулах: {{ number_format($investorPoolShare, 2, '.', ' ') }}% портфеля.</div>
-                </div>
-                <div class="bank-investor-metric">
-                    <div class="bank-label">Look-through активы</div>
-                    <div class="bank-value">{{ $investorPoolRows->count() }}</div>
-                    <div class="bank-meta">Расшифровка доли по пулам/активам ниже.</div>
-                </div>
-            </div>
-
-            <div class="bank-investor-ledger">
-                <article class="bank-investor-layer bank-investor-layer--position">
-                    <div class="bank-investor-layer__head">
-                        <div>
-                            <div class="bank-label">Инвестиция отдельно</div>
-                            <strong>Позиция вкладчика в пулах</strong>
-                        </div>
-                        <span class="bank-pill bank-pill--company">{{ $investorPoolRows->count() }} позиций</span>
-                    </div>
-                    <div class="bank-investor-layer__amount">{{ $formatMoney($investorPoolTotal) }} USDC</div>
-                    <div class="bank-meta">Это не свободный депозит, а инвестиционная доля вкладчика после перевода средств в пул.</div>
-                </article>
-            </div>
-
-            <div class="table-responsive bank-table-scroll bank-table-scroll--compact mt-3">
-                <table class="table table-dark table-hover table-sm align-middle bank-table">
-                    <thead>
-                        <tr>
-                            <th>Слой</th>
-                            <th>Актив</th>
-                            <th>Описание</th>
-                            <th>Валюта</th>
-                            <th class="text-end">Оценка</th>
-                            <th class="text-end">Доля</th>
-                            <th>Статус</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><span class="bank-pill bank-pill--currency">Итого</span></td>
-                            <td><strong>Портфель вкладчика</strong></td>
-                            <td class="bank-meta">Суммарная стоимость инвестиционной позиции вкладчика.</td>
-                            <td>USD</td>
-                            <td class="text-end fw-semibold">{{ $formatMoney($investorTotal) }}</td>
-                            <td class="text-end">100.0%</td>
-                            <td><span class="bank-status">active</span></td>
-                        </tr>
-
-                        <tr>
-                            <td><span class="bank-pill bank-pill--company">Пулы</span></td>
-                            <td><strong>Инвестиционная позиция</strong></td>
-                            <td class="bank-meta">Текущая оценка доли после распределения средств из депозита в пул.</td>
-                            <td>USDC</td>
-                            <td class="text-end fw-semibold">{{ $formatMoney($investorPoolTotal) }}</td>
-                            <td class="text-end">{{ number_format($investorPoolShare, 1, '.', ' ') }}%</td>
-                            <td><span class="bank-status {{ $investorPoolTotal > 0 ? '' : 'bank-status--pending' }}">{{ $investorPoolTotal > 0 ? 'invested' : 'empty' }}</span></td>
-                        </tr>
-
-                        @forelse($investorPoolRows as $row)
-                            <tr>
-                                <td class="bank-meta">└─ exposure</td>
-                                <td>{{ $row->name }}</td>
-                                <td class="bank-meta">{{ $row->description !== '' ? $row->description : '—' }}</td>
-                                <td>{{ $row->currency }}</td>
-                                <td class="text-end">{{ $formatMoney($row->value_usd) }}</td>
-                                <td class="text-end">{{ $investorPoolTotal > 0 ? number_format((float) $row->value_usd / $investorPoolTotal * 100, 1, '.', ' ') : '0.0' }}%</td>
-                                <td><span class="bank-status {{ $row->status === 'active' ? '' : 'bank-status--pending' }}">{{ $row->status }}</span></td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-4">Позиции в инвестиционных пулах пока не найдены.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
         <section class="bank-panel bank-table-panel">
             <div class="bank-table-header">
                 <div>
@@ -226,7 +108,9 @@
                 </table>
             </div>
         </section>
+    </section>
 
+    {{-- Removed from the Accounts tab: capital, wallets, wallet assets, token and tracked token panels.
         <section class="bank-invest-grid">
             <div class="bank-panel bank-invest-command">
                 <div class="bank-label">Катитал</div>
@@ -620,6 +504,7 @@
         ])
         </section>
     </section>
+    --}}
 
     <section data-bank-invest-panel="operations" hidden>
         <section class="bank-panel bank-table-panel">
@@ -776,6 +661,7 @@
                     <div class="bank-form-full bank-operation-mode" role="tablist" aria-label="Тип операции">
                         <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Купить</button>
                         <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="asset_to_account">Продать</button>
+                        <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="revaluation">Переоценка</button>
                         <input type="hidden" name="direction" value="account_to_asset" data-invest-operation-direction>
                     </div>
                     <label>
@@ -803,14 +689,14 @@
                         <input type="text" name="currency" value="USD" maxlength="20" required data-invest-operation-currency>
                     </label>
                     <label>
-                        <span>Сумма</span>
-                        <input type="number" name="amount" min="0" step="0.00000001" inputmode="decimal" required data-invest-operation-amount>
+                        <span data-invest-operation-amount-label>Сумма</span>
+                        <input type="number" name="amount" step="0.00000001" inputmode="decimal" required data-invest-operation-amount>
                     </label>
-                    <label>
+                    <label data-invest-operation-trade-field>
                         <span>Количество</span>
                         <input type="number" name="quantity" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-quantity>
                     </label>
-                    <label>
+                    <label data-invest-operation-trade-field>
                         <span>Цена USD</span>
                         <input type="number" name="price_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-price>
                     </label>
@@ -1126,7 +1012,7 @@
 
     .bank-operation-mode {
         display: grid !important;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 6px;
         align-items: stretch;
         padding: 4px;
@@ -1249,6 +1135,12 @@
         padding: 1px 6px;
         font-size: 0.72rem;
         line-height: 1.2;
+    }
+
+    .bank-invest-page .bank-pill--warning {
+        background: rgba(245, 158, 11, 0.12);
+        border-color: rgba(245, 158, 11, 0.28);
+        color: #fde68a;
     }
 
     .bank-invest-page .bank-table .btn-sm {
@@ -1751,8 +1643,10 @@
         const investOperationAsset = root.querySelector('[data-invest-operation-asset]');
         const investOperationCurrency = root.querySelector('[data-invest-operation-currency]');
         const investOperationAmount = root.querySelector('[data-invest-operation-amount]');
+        const investOperationAmountLabel = root.querySelector('[data-invest-operation-amount-label]');
         const investOperationQuantity = root.querySelector('[data-invest-operation-quantity]');
         const investOperationPrice = root.querySelector('[data-invest-operation-price]');
+        const investOperationTradeFields = root.querySelectorAll('[data-invest-operation-trade-field]');
         const investOperationDate = root.querySelector('[data-invest-operation-date]');
         const investOperationNote = root.querySelector('[data-invest-operation-note]');
         const investOperationStoreAction = investOperationForm ? investOperationForm.action : '';
@@ -1768,6 +1662,29 @@
             investOperationDirectionTabs.forEach((tab) => {
                 tab.classList.toggle('is-active', tab.dataset.investOperationDirectionTab === direction);
             });
+            investOperationTradeFields.forEach((field) => {
+                field.hidden = direction === 'revaluation';
+            });
+            if (investOperationAmountLabel) {
+                investOperationAmountLabel.textContent = direction === 'revaluation' ? 'Дельта стоимости' : 'Сумма';
+            }
+            if (investOperationAmount) {
+                if (direction === 'revaluation') {
+                    investOperationAmount.removeAttribute('min');
+                    investOperationAmount.placeholder = '+200 или -150';
+                } else {
+                    investOperationAmount.min = '0.00000001';
+                    investOperationAmount.placeholder = '';
+                }
+            }
+            if (direction === 'revaluation') {
+                if (investOperationQuantity) {
+                    investOperationQuantity.value = '';
+                }
+                if (investOperationPrice) {
+                    investOperationPrice.value = '';
+                }
+            }
         }
 
         investOperationDirectionTabs.forEach((tab) => {
@@ -1902,13 +1819,16 @@
                     movements.forEach((movement, index) => {
                         const rowEl = document.createElement('tr');
                         const ledgerText = movement.ledger_transaction_id > 0 ? `TX #${movement.ledger_transaction_id}` : 'проводки нет';
+                        const directionClass = movement.direction === 'revaluation'
+                            ? 'bank-pill--warning'
+                            : (movement.direction === 'asset_to_account' ? 'bank-pill--currency' : 'bank-pill--company');
                         const editButton = movement.can_edit
                             ? `<button type="button" class="btn btn-sm btn-outline-light" data-invest-movement-edit="${index}">Изменить</button>`
                             : '<span class="bank-meta">закрыто</span>';
                         rowEl.innerHTML = `
                             <td class="bank-table__num bank-mono">${movement.id}</td>
                             <td>${escapeHtml(movement.date || '—')}</td>
-                            <td><span class="bank-pill ${movement.direction === 'asset_to_account' ? 'bank-pill--currency' : 'bank-pill--company'}">${escapeHtml(movement.direction_label || movement.direction)}</span></td>
+                            <td><span class="bank-pill ${directionClass}">${escapeHtml(movement.direction_label || movement.direction)}</span></td>
                             <td class="text-end bank-mono">${formatQuantityValue(movement.quantity)}</td>
                             <td class="text-end fw-semibold">${formatMoneyValue(movement.value_usd)} USD</td>
                             <td><span class="bank-status ${movement.status === 'posted' ? '' : 'bank-status--pending'}">${escapeHtml(movement.status || 'pending')}</span><div class="bank-meta">${escapeHtml(ledgerText)}</div></td>

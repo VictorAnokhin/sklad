@@ -709,10 +709,10 @@ class BankController extends Controller
 
         $payload = $request->validate([
             'account_id' => ['required', Rule::in($accountIds)],
-            'direction' => ['required', Rule::in(['account_to_asset', 'asset_to_account'])],
+            'direction' => ['required', Rule::in(['account_to_asset', 'asset_to_account', 'revaluation'])],
             'asset_key' => ['required', Rule::in($assetKeys)],
             'currency' => ['required', 'string', 'max:20'],
-            'amount' => ['required', 'numeric', 'min:0.00000001'],
+            'amount' => ['required', 'numeric'],
             'quantity' => ['nullable', 'numeric', 'min:0'],
             'price_usd' => ['nullable', 'numeric', 'min:0'],
             'operated_at' => ['nullable', 'date'],
@@ -725,10 +725,18 @@ class BankController extends Controller
             ?? $operationalAccounts->firstWhere('id', (int) $payload['account_id']);
 
         $amount = (float) $payload['amount'];
+        if ((string) $payload['direction'] !== 'revaluation' && $amount <= 0) {
+            abort(422, 'Сумма операции должна быть больше нуля.');
+        }
+        if ((string) $payload['direction'] === 'revaluation' && abs($amount) <= 0.00000001) {
+            abort(422, 'Сумма переоценки не должна быть нулевой.');
+        }
         $priceUsd = $request->filled('price_usd') ? (float) $payload['price_usd'] : null;
-        $valueUsd = $priceUsd !== null && (float) ($payload['quantity'] ?? 0) > 0
+        $valueUsd = (string) $payload['direction'] === 'revaluation'
+            ? $amount
+            : ($priceUsd !== null && (float) ($payload['quantity'] ?? 0) > 0
             ? (float) $payload['quantity'] * $priceUsd
-            : $amount;
+            : $amount);
         $currency = $this->normalizeCurrencyCode((string) $payload['currency']);
         $operatedAt = $request->filled('operated_at')
             ? Carbon::parse((string) $payload['operated_at'])->toDateString()
@@ -845,16 +853,10 @@ class BankController extends Controller
         string $currency,
         string $operatedAt
     ) {
-        if ($valueUsd <= 0 || ! Schema::hasTable('accounts') || ! Schema::hasTable('transactions') || ! Schema::hasTable('entries')) {
+        if (abs($valueUsd) <= 0.00000001 || ! Schema::hasTable('accounts') || ! Schema::hasTable('transactions') || ! Schema::hasTable('entries')) {
             return null;
         }
 
-        $cashAccount = $this->ensureBankLedgerAccount(
-            "311.{$projectId}." . (int) ($account->id ?? 0),
-            'Операционный счет ' . trim((string) ($account->label ?? ('#' . (int) ($account->id ?? 0)))),
-            'asset',
-            '311'
-        );
         $investAccount = $this->ensureBankLedgerAccount(
             "141.{$projectId}." . substr(md5((string) $asset->asset_key), 0, 12),
             'Инвестиционный актив ' . trim((string) $asset->name),
@@ -862,16 +864,33 @@ class BankController extends Controller
             '141'
         );
 
-        $debitAccountId = $direction === 'asset_to_account' ? (int) $cashAccount->id : (int) $investAccount->id;
-        $creditAccountId = $direction === 'asset_to_account' ? (int) $investAccount->id : (int) $cashAccount->id;
-        $description = $direction === 'asset_to_account'
-            ? "Возврат из актива {$asset->name} на операционный счет"
-            : "Распределение средств операционного счета в актив {$asset->name}";
+        $amount = abs($valueUsd);
+        if ($direction === 'revaluation') {
+            $incomeAccount = $this->ensureBankLedgerAccount('746', 'Доход от переоценки инвестиционных активов', 'income');
+            $expenseAccount = $this->ensureBankLedgerAccount('975', 'Расход от переоценки инвестиционных активов', 'expense');
+            $debitAccountId = $valueUsd > 0 ? (int) $investAccount->id : (int) $expenseAccount->id;
+            $creditAccountId = $valueUsd > 0 ? (int) $incomeAccount->id : (int) $investAccount->id;
+            $description = $valueUsd > 0
+                ? "Увеличение стоимости актива {$asset->name}"
+                : "Уменьшение стоимости актива {$asset->name}";
+        } else {
+            $cashAccount = $this->ensureBankLedgerAccount(
+                "311.{$projectId}." . (int) ($account->id ?? 0),
+                'Операционный счет ' . trim((string) ($account->label ?? ('#' . (int) ($account->id ?? 0)))),
+                'asset',
+                '311'
+            );
+            $debitAccountId = $direction === 'asset_to_account' ? (int) $cashAccount->id : (int) $investAccount->id;
+            $creditAccountId = $direction === 'asset_to_account' ? (int) $investAccount->id : (int) $cashAccount->id;
+            $description = $direction === 'asset_to_account'
+                ? "Возврат из актива {$asset->name} на операционный счет"
+                : "Распределение средств операционного счета в актив {$asset->name}";
+        }
 
         return app(AccountingService::class)->createTransaction(
             [
-                ['account_id' => $debitAccountId, 'debit' => $valueUsd, 'credit' => 0, 'currency' => $currency],
-                ['account_id' => $creditAccountId, 'debit' => 0, 'credit' => $valueUsd, 'currency' => $currency],
+                ['account_id' => $debitAccountId, 'debit' => $amount, 'credit' => 0, 'currency' => $currency],
+                ['account_id' => $creditAccountId, 'debit' => 0, 'credit' => $amount, 'currency' => $currency],
             ],
             $description,
             [
@@ -880,8 +899,8 @@ class BankController extends Controller
                 'reference_type' => 'bank_invest_operation',
                 'reference_id' => $operationId,
                 'currency' => $currency,
-                'amount' => $valueUsd,
-                'amount_base' => $valueUsd,
+                'amount' => $amount,
+                'amount_base' => $amount,
             ]
         );
     }
@@ -2042,7 +2061,11 @@ class BankController extends Controller
                     'account_id' => (int) $row->account_id,
                     'account_label' => $account?->label ?? ('Счет #' . (int) $row->account_id),
                     'direction' => (string) $row->direction,
-                    'direction_label' => $row->direction === 'asset_to_account' ? 'Актив -> Счет' : 'Счет -> Актив',
+                    'direction_label' => match ((string) $row->direction) {
+                        'asset_to_account' => 'Актив -> Счет',
+                        'revaluation' => 'Переоценка',
+                        default => 'Счет -> Актив',
+                    },
                     'asset_type' => (string) $row->asset_type,
                     'asset_key' => (string) $row->asset_key,
                     'asset_label' => $asset?->name ?? (string) $row->asset_label,
@@ -2068,9 +2091,15 @@ class BankController extends Controller
                 $value = (float) $operations->sum(fn ($operation) => $operation->direction === 'asset_to_account'
                     ? -1 * (float) $operation->value_usd
                     : (float) $operation->value_usd);
-                $quantity = (float) $operations->sum(fn ($operation) => $operation->direction === 'asset_to_account'
-                    ? -1 * (float) $operation->quantity
-                    : (float) $operation->quantity);
+                $quantity = (float) $operations->sum(function ($operation) {
+                    if ($operation->direction === 'revaluation') {
+                        return 0;
+                    }
+
+                    return $operation->direction === 'asset_to_account'
+                        ? -1 * (float) $operation->quantity
+                        : (float) $operation->quantity;
+                });
                 $movements = $operations->sortByDesc('operated_at')->values()->map(fn ($operation) => [
                     'id' => (int) $operation->id,
                     'date' => (string) $operation->operated_at,
@@ -2126,9 +2155,15 @@ class BankController extends Controller
                     $value = (float) $operations->sum(fn ($operation) => $operation->direction === 'asset_to_account'
                         ? -1 * (float) $operation->value_usd
                         : (float) $operation->value_usd);
-                    $quantity = (float) $operations->sum(fn ($operation) => $operation->direction === 'asset_to_account'
-                        ? -1 * (float) $operation->quantity
-                        : (float) $operation->quantity);
+                    $quantity = (float) $operations->sum(function ($operation) {
+                        if ($operation->direction === 'revaluation') {
+                            return 0;
+                        }
+
+                        return $operation->direction === 'asset_to_account'
+                            ? -1 * (float) $operation->quantity
+                            : (float) $operation->quantity;
+                    });
 
                     return (object) [
                         'asset_key' => (string) $first->asset_key,
