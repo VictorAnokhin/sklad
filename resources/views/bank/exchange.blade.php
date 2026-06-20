@@ -674,6 +674,9 @@
             const statusSelect = modal.querySelector('[data-order-status-select]');
             if (statusForm instanceof HTMLFormElement) {
                 statusForm.action = statusRouteTemplate.replace('__ORDER__', encodeURIComponent(String(order.id || '')));
+                statusForm.addEventListener('submit', () => {
+                    window.localStorage?.setItem(exchangeTabStorageKey, 'av8');
+                }, { once: true });
             }
             if (statusSelect instanceof HTMLSelectElement) {
                 statusSelect.value = order.status || 'new';
@@ -853,6 +856,7 @@
         });
 
         fiatCryptoForm?.addEventListener('submit', (event) => {
+            window.localStorage?.setItem(exchangeTabStorageKey, 'crypto');
             const side = fiatCryptoSide?.value || 'buy';
             const fiat = Number(fiatCryptoFiat?.value || 0);
             const crypto = Number(fiatCryptoCrypto?.value || 0);
