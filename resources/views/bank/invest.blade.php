@@ -629,7 +629,7 @@
                     <div class="bank-meta">Движения между операционными счетами и инвестиционными активами.</div>
                 </div>
                 <div class="bank-table-header__actions">
-                    <div class="bank-meta">{{ $investOperations->count() }} операций</div>
+                    <div class="bank-meta">{{ $investOperationPositions->count() }} позиций · {{ $investOperations->count() }} движений</div>
                     <button type="button" class="btn btn-sm btn-primary" data-invest-operation-open>Создать</button>
                 </div>
             </div>
@@ -638,38 +638,35 @@
                     <thead>
                         <tr>
                             <th class="bank-table__num">№</th>
-                            <th>Дата</th>
-                            <th>Направление</th>
                             <th>Счет</th>
                             <th>Актив</th>
-                            <th class="text-end">Количество</th>
-                            <th class="text-end">Сумма</th>
-                            <th>Ledger</th>
-                            <th>Комментарий</th>
+                            <th class="text-end">Позиция</th>
+                            <th class="text-end">Стоимость</th>
+                            <th>Движения</th>
+                            <th>Последняя дата</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($investOperations as $operation)
-                            <tr>
-                                <td class="bank-table__num bank-mono">{{ $operation->id }}</td>
-                                <td>{{ $operation->operated_at !== '' ? $operation->operated_at : '—' }}</td>
-                                <td><span class="bank-pill {{ $operation->direction === 'asset_to_account' ? 'bank-pill--currency' : 'bank-pill--company' }}">{{ $operation->direction_label }}</span></td>
-                                <td>{{ $operation->account_label }}</td>
+                        @forelse($investOperationPositions as $position)
+                            <tr class="bank-table-row--clickable"
+                                data-invest-position-open
+                                data-position-account="{{ $position->account_label }}"
+                                data-position-asset="{{ $position->asset_label }}"
+                                data-position-movements="{{ $position->movements_json }}">
+                                <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                <td>{{ $position->account_label }}</td>
                                 <td>
-                                    <strong>{{ $operation->asset_label }}</strong>
-                                    <div class="bank-meta">{{ $assetTypeLabels[$operation->asset_type] ?? $operation->asset_type }}</div>
+                                    <strong>{{ $position->asset_label }}</strong>
+                                    <div class="bank-meta">{{ $assetTypeLabels[$position->asset_type] ?? $position->asset_type }}</div>
                                 </td>
-                                <td class="text-end bank-mono">{{ number_format((float) $operation->quantity, 8, '.', ' ') }}</td>
-                                <td class="text-end fw-semibold">{{ $formatMoney($operation->value_usd) }} USD</td>
-                                <td>
-                                    <span class="bank-status {{ $operation->status === 'posted' ? '' : 'bank-status--pending' }}">{{ $operation->status }}</span>
-                                    <div class="bank-meta">{{ $operation->ledger_transaction_id > 0 ? 'TX #' . $operation->ledger_transaction_id : 'проводки нет' }}</div>
-                                </td>
-                                <td class="bank-meta">{{ $operation->note !== '' ? $operation->note : '—' }}</td>
+                                <td class="text-end bank-mono">{{ number_format((float) $position->quantity, 8, '.', ' ') }}</td>
+                                <td class="text-end fw-semibold">{{ $formatMoney($position->value_usd) }} USD</td>
+                                <td>{{ $position->movement_count }}</td>
+                                <td>{{ $position->last_operated_at !== '' ? $position->last_operated_at : '—' }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">Операции Счет ↔ Актив пока не созданы.</td>
+                                <td colspan="7" class="text-center text-muted py-4">Позиции Счет / Актив пока не созданы.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -729,7 +726,15 @@
                     </thead>
                     <tbody>
                         @forelse($fixedAssetRows as $asset)
-                            <tr>
+                            <tr class="bank-table-row--clickable"
+                                data-invest-asset-edit
+                                data-action="{{ $asset->update_action }}"
+                                data-asset-type="{{ $asset->asset_type }}"
+                                data-asset-address="{{ $asset->object_address }}"
+                                data-asset-name="{{ $asset->name }}"
+                                data-asset-quantity="{{ number_format((float) $asset->quantity, 8, '.', '') }}"
+                                data-asset-price="{{ number_format((float) $asset->price_usd, 8, '.', '') }}"
+                                data-asset-value="{{ number_format((float) $asset->value_usd, 8, '.', '') }}">
                                 <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                 <td><span class="bank-pill {{ $asset->asset_type === 'pool' ? 'bank-pill--company' : 'bank-pill--currency' }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }}</span></td>
                                 <td class="bank-mono" title="{{ $asset->object_address }}">{{ $asset->object_short }}</td>
@@ -759,17 +764,23 @@
             <div class="bank-modal__header">
                 <div>
                     <div class="bank-label">Операция</div>
-                    <h2 id="investOperationModalTitle">Создать Счет ↔ Актив</h2>
-                    <div class="bank-meta">Фиксирует распределение операционного счета в инвестиционный актив без изменения остатка счета.</div>
+                    <h2 id="investOperationModalTitle" data-invest-operation-title>Создать Счет ↔ Актив</h2>
+                    <div class="bank-meta" data-invest-operation-subtitle>Фиксирует распределение операционного счета в инвестиционный актив с двойной записью учета.</div>
                 </div>
                 <button type="button" class="bank-modal__close" data-invest-operation-close aria-label="Закрыть">×</button>
             </div>
-            <form method="POST" action="{{ route('bank.invest-operations.store') }}" class="bank-requisites-form">
+            <form method="POST" action="{{ route('bank.invest-operations.store') }}" class="bank-requisites-form" data-invest-operation-form>
                 @csrf
+                <input type="hidden" name="_method" value="PUT" data-invest-operation-method disabled>
                 <div class="bank-form-grid">
+                    <div class="bank-form-full bank-operation-mode" role="tablist" aria-label="Тип операции">
+                        <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Купить</button>
+                        <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="asset_to_account">Продать</button>
+                        <input type="hidden" name="direction" value="account_to_asset" data-invest-operation-direction>
+                    </div>
                     <label>
                         <span>Операционный счет</span>
-                        <select name="account_id" required>
+                        <select name="account_id" required data-invest-operation-account>
                             @forelse($operationalAccounts as $account)
                                 <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
                             @empty
@@ -778,15 +789,8 @@
                         </select>
                     </label>
                     <label>
-                        <span>Направление</span>
-                        <select name="direction" required>
-                            <option value="account_to_asset">Счет → Актив</option>
-                            <option value="asset_to_account">Актив → Счет</option>
-                        </select>
-                    </label>
-                    <label>
                         <span>Актив</span>
-                        <select name="asset_key" required>
+                        <select name="asset_key" required data-invest-operation-asset>
                             @forelse($fixedAssetRows as $asset)
                                 <option value="{{ $asset->asset_key }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }} · {{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
                             @empty
@@ -796,34 +800,69 @@
                     </label>
                     <label>
                         <span>Валюта</span>
-                        <input type="text" name="currency" value="USD" maxlength="20" required>
+                        <input type="text" name="currency" value="USD" maxlength="20" required data-invest-operation-currency>
                     </label>
                     <label>
                         <span>Сумма</span>
-                        <input type="number" name="amount" min="0" step="0.00000001" inputmode="decimal" required>
+                        <input type="number" name="amount" min="0" step="0.00000001" inputmode="decimal" required data-invest-operation-amount>
                     </label>
                     <label>
                         <span>Количество</span>
-                        <input type="number" name="quantity" min="0" step="0.00000001" inputmode="decimal">
+                        <input type="number" name="quantity" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-quantity>
                     </label>
                     <label>
                         <span>Цена USD</span>
-                        <input type="number" name="price_usd" min="0" step="0.00000001" inputmode="decimal">
+                        <input type="number" name="price_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-price>
                     </label>
                     <label>
                         <span>Дата</span>
-                        <input type="datetime-local" name="operated_at">
+                        <input type="date" name="operated_at" data-invest-operation-date>
                     </label>
                 </div>
                 <label class="bank-form-field">
                     <span>Комментарий</span>
-                    <textarea name="note" rows="3"></textarea>
+                    <textarea name="note" rows="3" data-invest-operation-note></textarea>
                 </label>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-invest-operation-close>Отмена</button>
-                    <button type="submit" class="btn btn-primary">Выполнить</button>
+                    <button type="submit" class="btn btn-primary" data-invest-operation-submit>Выполнить</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div class="bank-modal" data-invest-position-modal hidden>
+        <div class="bank-modal__backdrop" data-invest-position-close></div>
+        <div class="bank-modal__dialog bank-modal__dialog--wide" role="dialog" aria-modal="true" aria-labelledby="investPositionModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Движение средств</div>
+                    <h2 id="investPositionModalTitle" data-invest-position-title>Операционный счет / Актив</h2>
+                    <div class="bank-meta" data-invest-position-subtitle></div>
+                </div>
+                <button type="button" class="bank-modal__close" data-invest-position-close aria-label="Закрыть">×</button>
+            </div>
+            <div class="table-responsive bank-table-scroll">
+                <table class="table table-dark table-hover table-sm align-middle bank-table">
+                    <thead>
+                        <tr>
+                            <th class="bank-table__num">№</th>
+                            <th>Дата</th>
+                            <th>Движение</th>
+                            <th class="text-end">Количество</th>
+                            <th class="text-end">Сумма</th>
+                            <th>Учет</th>
+                            <th>Комментарий</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody data-invest-position-movements>
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">Выберите позицию.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -833,28 +872,29 @@
             <div class="bank-modal__header">
                 <div>
                     <div class="bank-label">Активы</div>
-                    <h2 id="investAssetModalTitle">Создать актив</h2>
-                    <div class="bank-meta">Ручная фиксация инвестиционного актива для распределения средств со счетов.</div>
+                    <h2 id="investAssetModalTitle" data-invest-asset-title>Создать актив</h2>
+                    <div class="bank-meta" data-invest-asset-subtitle>Ручная фиксация инвестиционного актива для распределения средств со счетов.</div>
                 </div>
                 <button type="button" class="bank-modal__close" data-invest-asset-close aria-label="Закрыть">×</button>
             </div>
             <form method="POST" action="{{ route('bank.invest-assets.store') }}" class="bank-requisites-form" data-invest-asset-form>
                 @csrf
+                <input type="hidden" name="_method" value="PUT" data-invest-asset-method disabled>
                 <div class="bank-form-grid">
                     <label>
                         <span>Тип актива</span>
-                        <select name="asset_type" required>
+                        <select name="asset_type" required data-invest-asset-type>
                             <option value="token">Токен</option>
                             <option value="pool">Пул</option>
                         </select>
                     </label>
                     <label>
                         <span>Наименование</span>
-                        <input type="text" name="name" maxlength="160" required placeholder="USDC / AV8 Pool">
+                        <input type="text" name="name" maxlength="160" required placeholder="USDC / AV8 Pool" data-invest-asset-name>
                     </label>
                     <label class="bank-form-full">
                         <span>Адрес объекта</span>
-                        <input type="text" name="asset_address" maxlength="190" required placeholder="0x..., mint, pool object id">
+                        <input type="text" name="asset_address" maxlength="190" required placeholder="0x..., mint, pool object id" data-invest-asset-address>
                     </label>
                     <label>
                         <span>Количество</span>
@@ -871,7 +911,7 @@
                 </div>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-invest-asset-close>Отмена</button>
-                    <button type="submit" class="btn btn-primary">Создать</button>
+                    <button type="submit" class="btn btn-primary" data-invest-asset-submit>Создать</button>
                 </div>
             </form>
         </div>
@@ -1084,6 +1124,32 @@
         margin-top: 12px;
     }
 
+    .bank-operation-mode {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        align-items: stretch;
+        padding: 4px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.72);
+    }
+
+    .bank-operation-mode__button {
+        min-height: 38px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: rgba(226, 232, 240, 0.82);
+        font-weight: 800;
+    }
+
+    .bank-operation-mode__button.is-active {
+        background: rgba(56, 189, 248, 0.18);
+        color: #fff;
+        box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.36);
+    }
+
     .bank-invest-asset-filter {
         display: flex;
         flex-wrap: wrap;
@@ -1189,6 +1255,14 @@
         --bs-btn-padding-y: 0.12rem;
         --bs-btn-padding-x: 0.42rem;
         --bs-btn-font-size: 0.74rem;
+    }
+
+    .bank-table-row--clickable {
+        cursor: pointer;
+    }
+
+    .bank-invest-page .bank-modal__dialog--wide {
+        max-width: min(1040px, calc(100vw - 28px));
     }
 
     .bank-investor-metrics {
@@ -1666,17 +1740,204 @@
         });
 
         const investOperationModal = root.querySelector('[data-invest-operation-modal]');
+        const investOperationForm = root.querySelector('[data-invest-operation-form]');
+        const investOperationMethod = root.querySelector('[data-invest-operation-method]');
+        const investOperationTitle = root.querySelector('[data-invest-operation-title]');
+        const investOperationSubtitle = root.querySelector('[data-invest-operation-subtitle]');
+        const investOperationSubmit = root.querySelector('[data-invest-operation-submit]');
+        const investOperationDirection = root.querySelector('[data-invest-operation-direction]');
+        const investOperationDirectionTabs = root.querySelectorAll('[data-invest-operation-direction-tab]');
+        const investOperationAccount = root.querySelector('[data-invest-operation-account]');
+        const investOperationAsset = root.querySelector('[data-invest-operation-asset]');
+        const investOperationCurrency = root.querySelector('[data-invest-operation-currency]');
+        const investOperationAmount = root.querySelector('[data-invest-operation-amount]');
+        const investOperationQuantity = root.querySelector('[data-invest-operation-quantity]');
+        const investOperationPrice = root.querySelector('[data-invest-operation-price]');
+        const investOperationDate = root.querySelector('[data-invest-operation-date]');
+        const investOperationNote = root.querySelector('[data-invest-operation-note]');
+        const investOperationStoreAction = investOperationForm ? investOperationForm.action : '';
+        const investPositionModal = root.querySelector('[data-invest-position-modal]');
+        const investPositionTitle = root.querySelector('[data-invest-position-title]');
+        const investPositionSubtitle = root.querySelector('[data-invest-position-subtitle]');
+        const investPositionMovements = root.querySelector('[data-invest-position-movements]');
+
+        function setInvestOperationDirection(direction) {
+            if (investOperationDirection) {
+                investOperationDirection.value = direction;
+            }
+            investOperationDirectionTabs.forEach((tab) => {
+                tab.classList.toggle('is-active', tab.dataset.investOperationDirectionTab === direction);
+            });
+        }
+
+        investOperationDirectionTabs.forEach((tab) => {
+            tab.addEventListener('click', () => {
+                setInvestOperationDirection(tab.dataset.investOperationDirectionTab || 'account_to_asset');
+            });
+        });
+
+        function formatMoneyValue(value) {
+            const number = Number.parseFloat(value || '0');
+            return number.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatQuantityValue(value) {
+            const number = Number.parseFloat(value || '0');
+            return number.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 8 });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function resetInvestOperationForm() {
+            if (investOperationForm) {
+                investOperationForm.reset();
+                investOperationForm.action = investOperationStoreAction;
+            }
+            if (investOperationMethod) {
+                investOperationMethod.disabled = true;
+            }
+            setInvestOperationDirection('account_to_asset');
+            if (investOperationTitle) {
+                investOperationTitle.textContent = 'Создать Счет ↔ Актив';
+            }
+            if (investOperationSubtitle) {
+                investOperationSubtitle.textContent = 'Фиксирует распределение операционного счета в инвестиционный актив с двойной записью учета.';
+            }
+            if (investOperationSubmit) {
+                investOperationSubmit.textContent = 'Выполнить';
+            }
+        }
+
+        function fillInvestOperationForm(movement) {
+            if (!investOperationForm || !movement) {
+                return;
+            }
+            investOperationForm.action = movement.update_action || investOperationStoreAction;
+            if (investOperationMethod) {
+                investOperationMethod.disabled = false;
+            }
+            setInvestOperationDirection(movement.direction || 'account_to_asset');
+            if (investOperationAccount) {
+                investOperationAccount.value = String(movement.account_id || '');
+            }
+            if (investOperationAsset) {
+                investOperationAsset.value = movement.asset_key || '';
+            }
+            if (investOperationCurrency) {
+                investOperationCurrency.value = movement.currency || 'USD';
+            }
+            if (investOperationAmount) {
+                investOperationAmount.value = movement.amount || movement.value_usd || '';
+            }
+            if (investOperationQuantity) {
+                investOperationQuantity.value = movement.quantity || '';
+            }
+            if (investOperationPrice) {
+                investOperationPrice.value = movement.price_usd || '';
+            }
+            if (investOperationDate) {
+                investOperationDate.value = String(movement.date || '').slice(0, 10);
+            }
+            if (investOperationNote) {
+                investOperationNote.value = movement.note || '';
+            }
+            if (investOperationTitle) {
+                investOperationTitle.textContent = `Редактировать движение #${movement.id}`;
+            }
+            if (investOperationSubtitle) {
+                investOperationSubtitle.textContent = 'Редактирование доступно только до создания двойной записи учета.';
+            }
+            if (investOperationSubmit) {
+                investOperationSubmit.textContent = 'Сохранить';
+            }
+        }
 
         root.querySelectorAll('[data-invest-operation-open]').forEach((button) => {
             button.addEventListener('click', () => {
                 if (!investOperationModal) {
                     return;
                 }
+                resetInvestOperationForm();
                 investOperationModal.hidden = false;
                 const accountSelect = investOperationModal.querySelector('[name="account_id"]');
                 if (accountSelect) {
                     accountSelect.focus();
                 }
+            });
+        });
+
+        root.querySelectorAll('[data-invest-position-close]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (investPositionModal) {
+                    investPositionModal.hidden = true;
+                }
+            });
+        });
+
+        root.querySelectorAll('[data-invest-position-open]').forEach((row) => {
+            row.addEventListener('click', () => {
+                if (!investPositionModal || !investPositionMovements) {
+                    return;
+                }
+
+                const movements = parseJsonAttribute(row.dataset.positionMovements, []);
+                if (investPositionTitle) {
+                    investPositionTitle.textContent = `${row.dataset.positionAccount || 'Счет'} / ${row.dataset.positionAsset || 'Актив'}`;
+                }
+                if (investPositionSubtitle) {
+                    investPositionSubtitle.textContent = `${Array.isArray(movements) ? movements.length : 0} движений по позиции`;
+                }
+
+                investPositionMovements.innerHTML = '';
+                if (!Array.isArray(movements) || movements.length === 0) {
+                    investPositionMovements.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Движения не найдены.</td></tr>';
+                } else {
+                    movements.forEach((movement, index) => {
+                        const rowEl = document.createElement('tr');
+                        const ledgerText = movement.ledger_transaction_id > 0 ? `TX #${movement.ledger_transaction_id}` : 'проводки нет';
+                        const editButton = movement.can_edit
+                            ? `<button type="button" class="btn btn-sm btn-outline-light" data-invest-movement-edit="${index}">Изменить</button>`
+                            : '<span class="bank-meta">закрыто</span>';
+                        rowEl.innerHTML = `
+                            <td class="bank-table__num bank-mono">${movement.id}</td>
+                            <td>${escapeHtml(movement.date || '—')}</td>
+                            <td><span class="bank-pill ${movement.direction === 'asset_to_account' ? 'bank-pill--currency' : 'bank-pill--company'}">${escapeHtml(movement.direction_label || movement.direction)}</span></td>
+                            <td class="text-end bank-mono">${formatQuantityValue(movement.quantity)}</td>
+                            <td class="text-end fw-semibold">${formatMoneyValue(movement.value_usd)} USD</td>
+                            <td><span class="bank-status ${movement.status === 'posted' ? '' : 'bank-status--pending'}">${escapeHtml(movement.status || 'pending')}</span><div class="bank-meta">${escapeHtml(ledgerText)}</div></td>
+                            <td class="bank-meta">${escapeHtml(movement.note || '—')}</td>
+                            <td class="text-end">${editButton}</td>
+                        `;
+                        investPositionMovements.appendChild(rowEl);
+                    });
+
+                    investPositionMovements.querySelectorAll('[data-invest-movement-edit]').forEach((button) => {
+                        button.addEventListener('click', (event) => {
+                            event.stopPropagation();
+                            const movement = movements[Number.parseInt(button.dataset.investMovementEdit || '0', 10)];
+                            if (!movement) {
+                                return;
+                            }
+                            fillInvestOperationForm(movement);
+                            investPositionModal.hidden = true;
+                            if (investOperationModal) {
+                                investOperationModal.hidden = false;
+                                if (investOperationAmount) {
+                                    investOperationAmount.focus();
+                                }
+                            }
+                        });
+                    });
+                }
+
+                investPositionModal.hidden = false;
             });
         });
 
@@ -1689,9 +1950,18 @@
         });
 
         const investAssetModal = root.querySelector('[data-invest-asset-modal]');
+        const investAssetForm = root.querySelector('[data-invest-asset-form]');
+        const investAssetMethod = root.querySelector('[data-invest-asset-method]');
+        const investAssetTitle = root.querySelector('[data-invest-asset-title]');
+        const investAssetSubtitle = root.querySelector('[data-invest-asset-subtitle]');
+        const investAssetSubmit = root.querySelector('[data-invest-asset-submit]');
+        const investAssetType = root.querySelector('[data-invest-asset-type]');
+        const investAssetAddress = root.querySelector('[data-invest-asset-address]');
+        const investAssetName = root.querySelector('[data-invest-asset-name]');
         const investAssetQuantity = root.querySelector('[data-invest-asset-quantity]');
         const investAssetPrice = root.querySelector('[data-invest-asset-price]');
         const investAssetValue = root.querySelector('[data-invest-asset-value]');
+        const investAssetStoreAction = investAssetForm ? investAssetForm.action : '';
 
         function syncInvestAssetValue() {
             if (!investAssetQuantity || !investAssetPrice || !investAssetValue) {
@@ -1715,10 +1985,68 @@
                 if (!investAssetModal) {
                     return;
                 }
+                if (investAssetForm) {
+                    investAssetForm.reset();
+                    investAssetForm.action = investAssetStoreAction;
+                }
+                if (investAssetMethod) {
+                    investAssetMethod.disabled = true;
+                }
+                if (investAssetTitle) {
+                    investAssetTitle.textContent = 'Создать актив';
+                }
+                if (investAssetSubtitle) {
+                    investAssetSubtitle.textContent = 'Ручная фиксация инвестиционного актива для распределения средств со счетов.';
+                }
+                if (investAssetSubmit) {
+                    investAssetSubmit.textContent = 'Создать';
+                }
                 investAssetModal.hidden = false;
-                const addressInput = investAssetModal.querySelector('[name="asset_address"]');
-                if (addressInput) {
-                    addressInput.focus();
+                if (investAssetAddress) {
+                    investAssetAddress.focus();
+                }
+            });
+        });
+
+        root.querySelectorAll('[data-invest-asset-edit]').forEach((row) => {
+            row.addEventListener('click', () => {
+                if (!investAssetModal || !investAssetForm) {
+                    return;
+                }
+                investAssetForm.action = row.dataset.action || investAssetStoreAction;
+                if (investAssetMethod) {
+                    investAssetMethod.disabled = false;
+                }
+                if (investAssetType) {
+                    investAssetType.value = row.dataset.assetType || 'token';
+                }
+                if (investAssetAddress) {
+                    investAssetAddress.value = row.dataset.assetAddress || '';
+                }
+                if (investAssetName) {
+                    investAssetName.value = row.dataset.assetName || '';
+                }
+                if (investAssetQuantity) {
+                    investAssetQuantity.value = row.dataset.assetQuantity || '';
+                }
+                if (investAssetPrice) {
+                    investAssetPrice.value = row.dataset.assetPrice || '';
+                }
+                if (investAssetValue) {
+                    investAssetValue.value = row.dataset.assetValue || '';
+                }
+                if (investAssetTitle) {
+                    investAssetTitle.textContent = 'Редактировать актив';
+                }
+                if (investAssetSubtitle) {
+                    investAssetSubtitle.textContent = 'Изменение ручной записи инвестиционного актива.';
+                }
+                if (investAssetSubmit) {
+                    investAssetSubmit.textContent = 'Сохранить';
+                }
+                investAssetModal.hidden = false;
+                if (investAssetAddress) {
+                    investAssetAddress.focus();
                 }
             });
         });

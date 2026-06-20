@@ -535,6 +535,7 @@ class BankController extends Controller
         $portfolioRows = $this->investmentPortfolioRows($deposits, $pools, $assetManifestSettings);
         $fixedAssetRows = $this->manualInvestmentAssetRows((int) $project->id);
         $investOperations = $this->bankInvestOperations((int) $project->id, $operationalAccounts, $fixedAssetRows);
+        $investOperationPositions = $this->investOperationPositions($investOperations);
         $accountAssetAllocations = $this->accountAssetAllocations($operationalAccounts, $investOperations);
         $assetManifestRows = $this->assetManifestRows($portfolioRows);
         $assetManifestHiddenRows = $this->assetManifestRows($portfolioRows, true)
@@ -553,6 +554,7 @@ class BankController extends Controller
             'operationalAccounts' => $operationalAccounts,
             'accountAssetAllocations' => $accountAssetAllocations,
             'investOperations' => $investOperations,
+            'investOperationPositions' => $investOperationPositions,
             'fixedAssetRows' => $fixedAssetRows,
             'portfolioRows' => $portfolioRows,
             'assetManifestRows' => $assetManifestRows,
@@ -586,38 +588,7 @@ class BankController extends Controller
         $project = $this->bankProject();
         abort_unless(Schema::hasTable('bank_invest_operations'), 404);
 
-        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
-        $accountIds = $operationalAccounts->pluck('id')->map(fn ($id) => (string) $id)->all();
-        $assetOptions = $this->investOperationAssetOptions((int) $project->id);
-        $assetKeys = $assetOptions->pluck('asset_key')->all();
-
-        $payload = $request->validate([
-            'account_id' => ['required', Rule::in($accountIds)],
-            'direction' => ['required', Rule::in(['account_to_asset', 'asset_to_account'])],
-            'asset_key' => ['required', Rule::in($assetKeys)],
-            'currency' => ['required', 'string', 'max:20'],
-            'amount' => ['required', 'numeric', 'min:0.00000001'],
-            'quantity' => ['nullable', 'numeric', 'min:0'],
-            'price_usd' => ['nullable', 'numeric', 'min:0'],
-            'operated_at' => ['nullable', 'date'],
-            'note' => ['nullable', 'string', 'max:2000'],
-        ]);
-
-        $asset = $assetOptions->firstWhere('asset_key', (string) $payload['asset_key']);
-        if (! $asset) {
-            return redirect()->route('bank.invest')->with('error', 'Актив для операции не найден.');
-        }
-
-        $amount = (float) $payload['amount'];
-        $priceUsd = $request->filled('price_usd') ? (float) $payload['price_usd'] : null;
-        $valueUsd = $priceUsd !== null && (float) ($payload['quantity'] ?? 0) > 0
-            ? (float) $payload['quantity'] * $priceUsd
-            : $amount;
-
-        $account = $operationalAccounts->firstWhere('id', (string) $payload['account_id'])
-            ?? $operationalAccounts->firstWhere('id', (int) $payload['account_id']);
-        $currency = $this->normalizeCurrencyCode((string) $payload['currency']);
-        $operatedAt = $payload['operated_at'] ?? now();
+        [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id);
         $operationId = DB::transaction(function () use ($project, $payload, $asset, $account, $amount, $priceUsd, $valueUsd, $currency, $operatedAt): int {
             $now = now();
             $values = [
@@ -671,11 +642,145 @@ class BankController extends Controller
             ->with('success', "Операция Счет ↔ Актив #{$operationId} выполнена.");
     }
 
+    public function updateInvestOperation(Request $request, int $operation): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_invest_operations'), 404);
+
+        $current = DB::table('bank_invest_operations')
+            ->where('id', $operation)
+            ->where('project_id', (int) $project->id)
+            ->first();
+        abort_unless($current, 404);
+
+        if ((int) ($current->ledger_transaction_id ?? 0) > 0 || (string) ($current->status ?? 'pending') === 'posted') {
+            return redirect()->route('bank.invest')->with('error', 'Проведенная операция уже имеет двойную запись и не редактируется. Создайте обратную операцию.');
+        }
+
+        [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id);
+        DB::transaction(function () use ($operation, $project, $payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt): void {
+            $now = now();
+            DB::table('bank_invest_operations')->where('id', $operation)->update([
+                'account_id' => (int) $payload['account_id'],
+                'direction' => (string) $payload['direction'],
+                'asset_type' => (string) $asset->asset_type,
+                'asset_key' => (string) $asset->asset_key,
+                'asset_label' => (string) $asset->name,
+                'currency' => $currency,
+                'quantity' => (float) ($payload['quantity'] ?? 0),
+                'amount' => $amount,
+                'price_usd' => $priceUsd,
+                'value_usd' => $valueUsd,
+                'note' => trim((string) ($payload['note'] ?? '')),
+                'operated_at' => $operatedAt,
+                'updated_at' => $now,
+            ]);
+
+            $ledger = $this->createInvestOperationLedger(
+                $operation,
+                (int) $project->id,
+                $account,
+                $asset,
+                (string) $payload['direction'],
+                $valueUsd,
+                $currency,
+                (string) $operatedAt
+            );
+
+            $updates = ['updated_at' => $now];
+            if (Schema::hasColumn('bank_invest_operations', 'ledger_transaction_id')) {
+                $updates['ledger_transaction_id'] = $ledger?->id;
+            }
+            if (Schema::hasColumn('bank_invest_operations', 'status')) {
+                $updates['status'] = $ledger ? 'posted' : 'pending';
+            }
+            DB::table('bank_invest_operations')->where('id', $operation)->update($updates);
+        });
+
+        return redirect()->route('bank.invest')->with('success', "Операция Счет ↔ Актив #{$operation} обновлена.");
+    }
+
+    private function investOperationPayload(Request $request, int $projectId): array
+    {
+        $operationalAccounts = $this->bankOperationalAccounts((string) $projectId);
+        $accountIds = $operationalAccounts->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $assetOptions = $this->investOperationAssetOptions($projectId);
+        $assetKeys = $assetOptions->pluck('asset_key')->all();
+
+        $payload = $request->validate([
+            'account_id' => ['required', Rule::in($accountIds)],
+            'direction' => ['required', Rule::in(['account_to_asset', 'asset_to_account'])],
+            'asset_key' => ['required', Rule::in($assetKeys)],
+            'currency' => ['required', 'string', 'max:20'],
+            'amount' => ['required', 'numeric', 'min:0.00000001'],
+            'quantity' => ['nullable', 'numeric', 'min:0'],
+            'price_usd' => ['nullable', 'numeric', 'min:0'],
+            'operated_at' => ['nullable', 'date'],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $asset = $assetOptions->firstWhere('asset_key', (string) $payload['asset_key']);
+        abort_unless($asset, 422, 'Актив для операции не найден.');
+        $account = $operationalAccounts->firstWhere('id', (string) $payload['account_id'])
+            ?? $operationalAccounts->firstWhere('id', (int) $payload['account_id']);
+
+        $amount = (float) $payload['amount'];
+        $priceUsd = $request->filled('price_usd') ? (float) $payload['price_usd'] : null;
+        $valueUsd = $priceUsd !== null && (float) ($payload['quantity'] ?? 0) > 0
+            ? (float) $payload['quantity'] * $priceUsd
+            : $amount;
+        $currency = $this->normalizeCurrencyCode((string) $payload['currency']);
+        $operatedAt = $request->filled('operated_at')
+            ? Carbon::parse((string) $payload['operated_at'])->toDateString()
+            : now()->toDateString();
+
+        return [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt];
+    }
+
     public function storeInvestAsset(Request $request): RedirectResponse
     {
         $project = $this->bankProject();
         abort_unless(Schema::hasTable('bank_tracked_assets'), 404);
 
+        [$key, $values] = $this->investAssetPayload($request, (int) $project->id);
+        $existing = DB::table('bank_tracked_assets')->where($key)->exists();
+        if ($existing) {
+            DB::table('bank_tracked_assets')->where($key)->update($values);
+        } else {
+            DB::table('bank_tracked_assets')->insert($key + $values + ['created_at' => now()]);
+        }
+
+        return redirect()->route('bank.invest')->with('success', 'Инвестиционный актив добавлен.');
+    }
+
+    public function updateInvestAsset(Request $request, int $asset): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_tracked_assets'), 404);
+
+        $current = DB::table('bank_tracked_assets')
+            ->where('id', $asset)
+            ->where('project_id', (int) $project->id)
+            ->whereIn('asset_type', ['token', 'pool'])
+            ->when(
+                Schema::hasColumn('bank_tracked_assets', 'adapter'),
+                fn ($query) => $query->where(function ($subQuery) {
+                    $subQuery->where('adapter', 'manual')
+                        ->orWhere('blockchain', 'manual');
+                }),
+                fn ($query) => $query->where('blockchain', 'manual')
+            )
+            ->first();
+        abort_unless($current, 404);
+
+        [$key, $values] = $this->investAssetPayload($request, (int) $project->id);
+        DB::table('bank_tracked_assets')->where('id', $asset)->update($key + $values);
+
+        return redirect()->route('bank.invest')->with('success', 'Инвестиционный актив обновлен.');
+    }
+
+    private function investAssetPayload(Request $request, int $projectId): array
+    {
         $payload = $request->validate([
             'asset_type' => ['required', Rule::in(['token', 'pool'])],
             'asset_address' => ['required', 'string', 'max:190'],
@@ -691,7 +796,7 @@ class BankController extends Controller
         $assetType = (string) $payload['asset_type'];
         $now = now();
         $key = [
-            'project_id' => (int) $project->id,
+            'project_id' => $projectId,
             'asset_type' => $assetType,
             'blockchain' => 'manual',
             'asset_address' => trim((string) $payload['asset_address']),
@@ -727,14 +832,7 @@ class BankController extends Controller
             }
         }
 
-        $existing = DB::table('bank_tracked_assets')->where($key)->exists();
-        if ($existing) {
-            DB::table('bank_tracked_assets')->where($key)->update($values);
-        } else {
-            DB::table('bank_tracked_assets')->insert($key + $values + ['created_at' => $now]);
-        }
-
-        return redirect()->route('bank.invest')->with('success', 'Инвестиционный актив добавлен.');
+        return [$key, $values];
     }
 
     private function createInvestOperationLedger(
@@ -1550,6 +1648,7 @@ class BankController extends Controller
                     'asset_type' => $type,
                     'asset_key' => 'manual:' . (int) $asset->id,
                     'source_id' => (int) $asset->id,
+                    'update_action' => route('bank.invest-assets.update', ['asset' => (int) $asset->id]),
                     'name' => trim((string) ($asset->name ?? '')) ?: ($type === 'pool' ? 'Пул' : 'Токен'),
                     'description' => $address,
                     'object_address' => $address,
@@ -1958,6 +2057,60 @@ class BankController extends Controller
                     'operated_at' => (string) ($row->operated_at ?? ''),
                 ];
             });
+    }
+
+    private function investOperationPositions($investOperations)
+    {
+        return $investOperations
+            ->groupBy(fn ($operation) => (int) $operation->account_id . '|' . (string) $operation->asset_key)
+            ->map(function ($operations) {
+                $first = $operations->first();
+                $value = (float) $operations->sum(fn ($operation) => $operation->direction === 'asset_to_account'
+                    ? -1 * (float) $operation->value_usd
+                    : (float) $operation->value_usd);
+                $quantity = (float) $operations->sum(fn ($operation) => $operation->direction === 'asset_to_account'
+                    ? -1 * (float) $operation->quantity
+                    : (float) $operation->quantity);
+                $movements = $operations->sortByDesc('operated_at')->values()->map(fn ($operation) => [
+                    'id' => (int) $operation->id,
+                    'date' => (string) $operation->operated_at,
+                    'direction' => (string) $operation->direction,
+                    'direction_label' => (string) $operation->direction_label,
+                    'account_id' => (int) $operation->account_id,
+                    'account_label' => (string) $operation->account_label,
+                    'asset_key' => (string) $operation->asset_key,
+                    'asset_label' => (string) $operation->asset_label,
+                    'asset_type' => (string) $operation->asset_type,
+                    'currency' => (string) $operation->currency,
+                    'quantity' => (float) $operation->quantity,
+                    'amount' => (float) $operation->amount,
+                    'price_usd' => $operation->price_usd !== null ? (float) $operation->price_usd : null,
+                    'value_usd' => (float) $operation->value_usd,
+                    'status' => (string) $operation->status,
+                    'ledger_transaction_id' => (int) $operation->ledger_transaction_id,
+                    'can_edit' => (int) $operation->ledger_transaction_id <= 0 && (string) $operation->status !== 'posted',
+                    'update_action' => route('bank.invest-operations.update', ['operation' => (int) $operation->id]),
+                    'note' => (string) $operation->note,
+                ])->values();
+
+                return (object) [
+                    'position_key' => md5((string) $first->account_id . '|' . (string) $first->asset_key),
+                    'account_id' => (int) $first->account_id,
+                    'account_label' => (string) $first->account_label,
+                    'asset_key' => (string) $first->asset_key,
+                    'asset_type' => (string) $first->asset_type,
+                    'asset_label' => (string) $first->asset_label,
+                    'currency' => (string) $first->currency,
+                    'quantity' => $quantity,
+                    'value_usd' => $value,
+                    'movement_count' => $movements->count(),
+                    'last_operated_at' => (string) ($movements->first()['date'] ?? ''),
+                    'movements_json' => json_encode($movements, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE),
+                ];
+            })
+            ->filter(fn ($position) => $position->movement_count > 0)
+            ->sortByDesc('last_operated_at')
+            ->values();
     }
 
     private function accountAssetAllocations($operationalAccounts, $investOperations)

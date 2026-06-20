@@ -113,8 +113,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/invest', [BankController::class, 'invest'])->name('invest');
         Route::post('/invest/assets', [BankController::class, 'storeInvestAsset'])
             ->name('invest-assets.store');
+        Route::put('/invest/assets/{asset}', [BankController::class, 'updateInvestAsset'])
+            ->whereNumber('asset')
+            ->name('invest-assets.update');
         Route::post('/invest/operations', [BankController::class, 'storeInvestOperation'])
             ->name('invest-operations.store');
+        Route::put('/invest/operations/{operation}', [BankController::class, 'updateInvestOperation'])
+            ->whereNumber('operation')
+            ->name('invest-operations.update');
         Route::post('/invest/tracked-assets', [BankController::class, 'storeTrackedAsset'])
             ->name('tracked-assets.store');
         Route::post('/invest/tracked-assets/refresh', [BankController::class, 'refreshTrackedAssets'])
