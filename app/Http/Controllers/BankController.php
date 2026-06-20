@@ -521,6 +521,7 @@ class BankController extends Controller
     {
         $project = $this->bankProject();
         $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
         $deposits = $this->bankDeposits($projectIds);
         $pools = $this->investmentPools();
         $poolEvents = $this->investmentPoolEvents();
@@ -532,6 +533,9 @@ class BankController extends Controller
             ->values();
         $assetManifestSettings = $this->assetManifestSettings((int) $project->id);
         $portfolioRows = $this->investmentPortfolioRows($deposits, $pools, $assetManifestSettings);
+        $fixedAssetRows = $this->fixedInvestmentAssetRows($tokenRows, $walletPortfolio['nfts'], $pools, $trackedAssets);
+        $investOperations = $this->bankInvestOperations((int) $project->id, $operationalAccounts, $fixedAssetRows);
+        $accountAssetAllocations = $this->accountAssetAllocations($operationalAccounts, $investOperations);
         $assetManifestRows = $this->assetManifestRows($portfolioRows);
         $assetManifestHiddenRows = $this->assetManifestRows($portfolioRows, true)
             ->filter(fn ($row) => (bool) ($row->manifest_hidden ?? false))
@@ -546,6 +550,10 @@ class BankController extends Controller
 
         return view('bank.invest', [
             'project' => $project,
+            'operationalAccounts' => $operationalAccounts,
+            'accountAssetAllocations' => $accountAssetAllocations,
+            'investOperations' => $investOperations,
+            'fixedAssetRows' => $fixedAssetRows,
             'portfolioRows' => $portfolioRows,
             'assetManifestRows' => $assetManifestRows,
             'assetManifestHiddenRows' => $assetManifestHiddenRows,
@@ -571,6 +579,60 @@ class BankController extends Controller
                 'avg_apy_bps' => $pools->count() > 0 ? (int) round($pools->avg('apy_bps')) : 0,
             ],
         ]);
+    }
+
+    public function storeInvestOperation(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_invest_operations'), 404);
+
+        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $accountIds = $operationalAccounts->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $assetOptions = $this->investOperationAssetOptions((int) $project->id);
+        $assetKeys = $assetOptions->pluck('asset_key')->all();
+
+        $payload = $request->validate([
+            'account_id' => ['required', Rule::in($accountIds)],
+            'direction' => ['required', Rule::in(['account_to_asset', 'asset_to_account'])],
+            'asset_key' => ['required', Rule::in($assetKeys)],
+            'currency' => ['required', 'string', 'max:20'],
+            'amount' => ['required', 'numeric', 'min:0.00000001'],
+            'quantity' => ['nullable', 'numeric', 'min:0'],
+            'price_usd' => ['nullable', 'numeric', 'min:0'],
+            'operated_at' => ['nullable', 'date'],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $asset = $assetOptions->firstWhere('asset_key', (string) $payload['asset_key']);
+        if (! $asset) {
+            return redirect()->route('bank.invest')->with('error', 'Актив для операции не найден.');
+        }
+
+        $amount = (float) $payload['amount'];
+        $priceUsd = $request->filled('price_usd') ? (float) $payload['price_usd'] : null;
+        $valueUsd = $priceUsd !== null && (float) ($payload['quantity'] ?? 0) > 0
+            ? (float) $payload['quantity'] * $priceUsd
+            : $amount;
+
+        DB::table('bank_invest_operations')->insert([
+            'project_id' => (int) $project->id,
+            'account_id' => (int) $payload['account_id'],
+            'direction' => (string) $payload['direction'],
+            'asset_type' => (string) $asset->asset_type,
+            'asset_key' => (string) $asset->asset_key,
+            'asset_label' => (string) $asset->name,
+            'currency' => $this->normalizeCurrencyCode((string) $payload['currency']),
+            'quantity' => (float) ($payload['quantity'] ?? 0),
+            'amount' => $amount,
+            'price_usd' => $priceUsd,
+            'value_usd' => $valueUsd,
+            'note' => trim((string) ($payload['note'] ?? '')),
+            'operated_at' => $payload['operated_at'] ?? now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->route('bank.invest')->with('success', 'Операция Счет ↔ Актив создана.');
     }
 
     public function updateAssetManifestItem(Request $request, string $source, int $asset): RedirectResponse
@@ -1532,6 +1594,164 @@ class BankController extends Controller
                 'tx_digest' => (string) ($event->tx_digest ?? ''),
                 'tx_short' => $this->shortHash((string) ($event->tx_digest ?? '')),
             ]);
+    }
+
+    private function fixedInvestmentAssetRows($tokenRows, $nftRows, $pools, $trackedAssets)
+    {
+        $tokens = $tokenRows->map(fn ($token) => (object) [
+            'asset_type' => 'token',
+            'asset_key' => 'token:' . (int) $token->id,
+            'source_id' => (int) $token->id,
+            'name' => trim((string) $token->symbol) ?: 'Token #' . (int) $token->id,
+            'description' => trim((string) $token->name) ?: ($token->token_short !== '—' ? $token->token_short : 'native'),
+            'currency' => trim((string) $token->symbol) ?: 'TOKEN',
+            'value_usd' => (float) $token->value_usd,
+            'source' => 'wallet_tokens',
+            'status' => 'cached',
+        ]);
+
+        $nfts = $nftRows->map(fn ($nft, int $index) => (object) [
+            'asset_type' => 'nft',
+            'asset_key' => 'nft:' . ($nft->object_id !== '' ? $nft->object_id : $index),
+            'source_id' => 0,
+            'name' => (string) $nft->name,
+            'description' => (string) ($nft->collection !== '' ? $nft->collection : $nft->object_short),
+            'currency' => 'NFT',
+            'value_usd' => (float) $nft->value_usd,
+            'source' => 'wallet_protocol_snapshots',
+            'status' => 'cached',
+        ]);
+
+        $poolRows = $pools->map(fn ($pool) => (object) [
+            'asset_type' => 'pool',
+            'asset_key' => 'pool:' . (int) $pool->id,
+            'source_id' => (int) $pool->id,
+            'name' => (string) $pool->name,
+            'description' => $pool->description !== '' ? (string) $pool->description : (string) $pool->pool_object_short,
+            'currency' => 'USDC',
+            'value_usd' => (float) $pool->balance_usdc,
+            'source' => 'fund_pools',
+            'status' => $pool->active ? 'active' : 'paused',
+        ]);
+
+        $tracked = collect(['token', 'nft', 'defi'])
+            ->flatMap(fn ($type) => $trackedAssets->get($type, collect()))
+            ->map(fn ($asset) => (object) [
+                'asset_type' => $asset->asset_type === 'defi' ? 'defi' : (string) $asset->asset_type,
+                'asset_key' => 'tracked:' . (int) $asset->id,
+                'source_id' => (int) $asset->id,
+                'name' => (string) $asset->name,
+                'description' => trim((string) ($asset->protocol !== '' ? $asset->protocol : $asset->asset_short)),
+                'currency' => trim((string) $asset->symbol) ?: strtoupper((string) $asset->asset_type),
+                'value_usd' => (float) ($asset->last_value_usd ?? 0),
+                'source' => 'bank_tracked_assets',
+                'status' => (string) $asset->sync_status,
+            ]);
+
+        return $tokens
+            ->concat($nfts)
+            ->concat($poolRows)
+            ->concat($tracked)
+            ->sortBy([['asset_type', 'asc'], ['name', 'asc']])
+            ->values();
+    }
+
+    private function investOperationAssetOptions(int $projectId)
+    {
+        $walletPortfolio = $this->googleAccountWalletPortfolio();
+        $tokenRows = $this->tokenManifestRows($walletPortfolio['tokens']);
+        $trackedAssets = $this->trackedAssetRows($projectId);
+
+        return $this->fixedInvestmentAssetRows(
+            $tokenRows,
+            $walletPortfolio['nfts'],
+            $this->investmentPools(),
+            $trackedAssets
+        );
+    }
+
+    private function bankInvestOperations(int $projectId, $operationalAccounts, $fixedAssetRows)
+    {
+        if (! Schema::hasTable('bank_invest_operations')) {
+            return collect();
+        }
+
+        $accountsById = $operationalAccounts->keyBy(fn ($account) => (int) $account->id);
+        $assetsByKey = $fixedAssetRows->keyBy('asset_key');
+
+        return DB::table('bank_invest_operations')
+            ->where('project_id', $projectId)
+            ->orderByDesc('operated_at')
+            ->orderByDesc('id')
+            ->limit(200)
+            ->get()
+            ->map(function ($row) use ($accountsById, $assetsByKey) {
+                $account = $accountsById->get((int) $row->account_id);
+                $asset = $assetsByKey->get((string) $row->asset_key);
+
+                return (object) [
+                    'id' => (int) $row->id,
+                    'account_id' => (int) $row->account_id,
+                    'account_label' => $account?->label ?? ('Счет #' . (int) $row->account_id),
+                    'direction' => (string) $row->direction,
+                    'direction_label' => $row->direction === 'asset_to_account' ? 'Актив -> Счет' : 'Счет -> Актив',
+                    'asset_type' => (string) $row->asset_type,
+                    'asset_key' => (string) $row->asset_key,
+                    'asset_label' => $asset?->name ?? (string) $row->asset_label,
+                    'currency' => (string) $row->currency,
+                    'quantity' => (float) $row->quantity,
+                    'amount' => (float) $row->amount,
+                    'price_usd' => $row->price_usd !== null ? (float) $row->price_usd : null,
+                    'value_usd' => (float) $row->value_usd,
+                    'note' => (string) ($row->note ?? ''),
+                    'operated_at' => (string) ($row->operated_at ?? ''),
+                ];
+            });
+    }
+
+    private function accountAssetAllocations($operationalAccounts, $investOperations)
+    {
+        $operationsByAccount = $investOperations->groupBy('account_id');
+
+        return $operationalAccounts->map(function ($account) use ($operationsByAccount) {
+            $rows = $operationsByAccount
+                ->get((int) $account->id, collect())
+                ->groupBy('asset_key')
+                ->map(function ($operations) {
+                    $first = $operations->first();
+                    $value = (float) $operations->sum(fn ($operation) => $operation->direction === 'asset_to_account'
+                        ? -1 * (float) $operation->value_usd
+                        : (float) $operation->value_usd);
+                    $quantity = (float) $operations->sum(fn ($operation) => $operation->direction === 'asset_to_account'
+                        ? -1 * (float) $operation->quantity
+                        : (float) $operation->quantity);
+
+                    return (object) [
+                        'asset_key' => (string) $first->asset_key,
+                        'asset_type' => (string) $first->asset_type,
+                        'asset_label' => (string) $first->asset_label,
+                        'currency' => (string) $first->currency,
+                        'quantity' => $quantity,
+                        'value_usd' => $value,
+                    ];
+                })
+                ->filter(fn ($row) => abs((float) $row->value_usd) > 0.000001 || abs((float) $row->quantity) > 0.000001)
+                ->sortByDesc('value_usd')
+                ->values();
+
+            $total = (float) $rows->sum('value_usd');
+            $rows = $rows->map(function ($row) use ($total) {
+                $row->share = $total > 0 ? (float) $row->value_usd / $total * 100 : 0.0;
+                return $row;
+            });
+
+            return (object) [
+                'account' => $account,
+                'assets' => $rows,
+                'invested_total' => $total,
+                'available_balance' => (float) $account->balance,
+            ];
+        });
     }
 
     private function investmentPortfolioRows($deposits, $pools, $assetManifestSettings = null)
