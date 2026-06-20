@@ -683,32 +683,35 @@
             <div class="bank-panel bank-panel--accent">
                 <div class="bank-label">Активы</div>
                 <div class="bank-value">{{ $fixedAssetRows->count() }}</div>
-                <div class="bank-meta">Токены, NFT, DeFi и пулы, зафиксированные в БД.</div>
+                <div class="bank-meta">Активы, введенные вручную в bank/invest.</div>
             </div>
             <div class="bank-panel">
                 <div class="bank-label">Токены</div>
                 <div class="bank-value">{{ $fixedAssetRows->where('asset_type', 'token')->count() }}</div>
-                <div class="bank-meta">Cached wallet_tokens и tracked tokens.</div>
-            </div>
-            <div class="bank-panel">
-                <div class="bank-label">NFT / DeFi</div>
-                <div class="bank-value">{{ $fixedAssetRows->whereIn('asset_type', ['nft', 'defi'])->count() }}</div>
-                <div class="bank-meta">NFT и DeFi позиции из кеша/реестра.</div>
+                <div class="bank-meta">Ручные токены инвестиционного реестра.</div>
             </div>
             <div class="bank-panel">
                 <div class="bank-label">Пулы</div>
-                <div class="bank-value">{{ $summary['pools'] }}</div>
-                <div class="bank-meta">{{ $summary['active_pools'] }} активных · APY {{ $formatBps($summary['avg_apy_bps']) }}</div>
+                <div class="bank-value">{{ $fixedAssetRows->where('asset_type', 'pool')->count() }}</div>
+                <div class="bank-meta">Ручные пулы инвестиционного реестра.</div>
+            </div>
+            <div class="bank-panel">
+                <div class="bank-label">Стоимость</div>
+                <div class="bank-value">{{ $formatMoney($fixedAssetRows->sum('value_usd')) }}</div>
+                <div class="bank-meta">Итоговая стоимость введенных активов.</div>
             </div>
         </section>
 
         <section class="bank-panel bank-table-panel">
             <div class="bank-table-header">
                 <div>
-                    <div class="bank-label">Все активы</div>
-                    <div class="bank-meta">Единый список активов из wallet_tokens, NFT payload, bank_tracked_assets и fund_pools.</div>
+                    <div class="bank-label">Введенные активы</div>
+                    <div class="bank-meta">В таблице отображаются только активы, созданные через форму во вкладке Активы.</div>
                 </div>
-                <div class="bank-meta">{{ $fixedAssetRows->count() }} записей</div>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="bank-meta">{{ $fixedAssetRows->count() }} записей</div>
+                    <button type="button" class="btn btn-sm btn-primary" data-invest-asset-open>Создать</button>
+                </div>
             </div>
             <div class="table-responsive bank-table-scroll">
                 <table class="table table-dark table-hover table-sm align-middle bank-table">
@@ -716,10 +719,11 @@
                         <tr>
                             <th class="bank-table__num">№</th>
                             <th>Тип</th>
-                            <th>Актив</th>
-                            <th>Источник</th>
-                            <th>Валюта</th>
-                            <th class="text-end">Оценка USD</th>
+                            <th>Адрес объекта</th>
+                            <th>Наименование</th>
+                            <th class="text-end">Количество</th>
+                            <th class="text-end">Цена</th>
+                            <th class="text-end">Стоимость</th>
                             <th>Статус</th>
                         </tr>
                     </thead>
@@ -728,128 +732,19 @@
                             <tr>
                                 <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                 <td><span class="bank-pill {{ $asset->asset_type === 'pool' ? 'bank-pill--company' : 'bank-pill--currency' }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }}</span></td>
+                                <td class="bank-mono" title="{{ $asset->object_address }}">{{ $asset->object_short }}</td>
                                 <td>
                                     <strong>{{ $asset->name }}</strong>
-                                    <div class="bank-meta">{{ $asset->description !== '' ? $asset->description : '—' }}</div>
+                                    <div class="bank-meta">{{ $asset->currency }}</div>
                                 </td>
-                                <td class="bank-mono">{{ $asset->source }}</td>
-                                <td>{{ $asset->currency }}</td>
+                                <td class="text-end bank-mono">{{ number_format((float) $asset->quantity, 8, '.', ' ') }}</td>
+                                <td class="text-end">{{ $formatMoney($asset->price_usd) }}</td>
                                 <td class="text-end fw-semibold">{{ $formatMoney($asset->value_usd) }}</td>
-                                <td><span class="bank-status {{ $asset->status === 'active' || $asset->status === 'cached' ? '' : 'bank-status--pending' }}">{{ $asset->status }}</span></td>
+                                <td><span class="bank-status {{ $asset->status === 'manual' ? '' : 'bank-status--pending' }}">{{ $asset->status }}</span></td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">Активы в БД пока не найдены.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="bank-panel bank-invest-pools">
-            <div class="bank-table-header">
-                <div>
-                    <div class="bank-label">Capital</div>
-                    <div class="bank-meta">Пулы концентрируют классы активов и показывают TVL, порог входа, доходность и snapshot.</div>
-                </div>
-                <div class="bank-meta">{{ $pools->count() }} пулов</div>
-            </div>
-
-            <div class="bank-pool-list">
-                @forelse($pools as $pool)
-                    @php
-                        $spark = [28, 42, 36, 58, 52, 70, 64];
-                        $apy = (int) $pool->apy_bps;
-                    @endphp
-                    <article class="bank-pool-card">
-                        <div class="bank-pool-card__main">
-                            <div class="bank-pool-avatar">
-                                @if($pool->logo_url !== '')
-                                    <img src="{{ $pool->logo_url }}" alt="{{ $pool->name }}">
-                                @else
-                                    {{ mb_substr($pool->symbol ?: 'AV8', 0, 3) }}
-                                @endif
-                            </div>
-                            <div>
-                                <div class="bank-pool-title">
-                                    <strong>{{ $pool->name }}</strong>
-                                    @if($pool->is_default_deposit)
-                                        <span class="bank-status">default</span>
-                                    @endif
-                                    @if(! $pool->active)
-                                        <span class="bank-status bank-status--pending">paused</span>
-                                    @endif
-                                </div>
-                                <div class="bank-meta">
-                                    <span class="bank-pill bank-pill--currency">{{ $pool->symbol }}</span>
-                                    <span class="bank-pill bank-pill--company">AV8</span>
-                                    <span class="bank-mono" title="{{ $pool->pool_object_id }}">{{ $pool->pool_object_short }}</span>
-                                </div>
-                                @if($pool->description !== '')
-                                    <div class="bank-meta">{{ $pool->description }}</div>
-                                @endif
-                            </div>
-                        </div>
-                        <div class="bank-pool-card__metric">
-                            <span>TVL / Supply</span>
-                            <strong>{{ $formatMoney($pool->balance_usdc) }} USDC</strong>
-                        </div>
-                        <div class="bank-pool-card__metric">
-                            <span>Entry threshold</span>
-                            <strong>{{ $pool->min_deposit_usdc > 0 ? $formatMoney($pool->min_deposit_usdc) . ' USDC' : number_format((float) $pool->min_av8_balance, 2, '.', ' ') . ' AV8' }}</strong>
-                        </div>
-                        <div class="bank-pool-card__metric">
-                            <span>Fee / APY</span>
-                            <strong>{{ $formatBps($apy) }}</strong>
-                        </div>
-                        <div class="bank-pool-spark" aria-label="Pool performance snapshot">
-                            @foreach($spark as $height)
-                                <span style="height: {{ max(12, min(90, $height + ($apy % 17))) }}%"></span>
-                            @endforeach
-                        </div>
-                    </article>
-                @empty
-                    <div class="bank-empty">Пулы пока не заведены. Создайте их через админку fund_pools.</div>
-                @endforelse
-            </div>
-        </section>
-
-        <section class="bank-panel bank-table-panel">
-            <div class="bank-table-header">
-                <div>
-                    <div class="bank-label">On-chain events</div>
-                    <div class="bank-meta">Последние события pool_manager / fund_core.</div>
-                </div>
-                <div class="bank-meta">{{ $poolEvents->count() }} событий</div>
-            </div>
-            <div class="table-responsive bank-table-scroll">
-                <table class="table table-dark table-hover table-sm align-middle bank-table">
-                    <thead>
-                        <tr>
-                            <th class="bank-table__num">№</th>
-                            <th>Дата</th>
-                            <th>Событие</th>
-                            <th>Pool</th>
-                            <th>Owner</th>
-                            <th class="text-end">Amount USDC</th>
-                            <th>TX</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($poolEvents as $event)
-                            <tr>
-                                <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
-                                <td>{{ $event->event_at !== '' ? $event->event_at : '—' }}</td>
-                                <td><span class="bank-pill bank-pill--company">{{ $event->event_type }}</span></td>
-                                <td class="bank-mono" title="{{ $event->pool_object_id }}">{{ $event->pool_object_short }}</td>
-                                <td class="bank-mono" title="{{ $event->owner_address }}">{{ $event->owner_short }}</td>
-                                <td class="text-end fw-semibold">{{ $formatMoney($event->amount_usdc) }}</td>
-                                <td class="bank-mono" title="{{ $event->tx_digest }}">{{ $event->tx_short }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-4">События пулов пока не синхронизированы.</td>
+                                <td colspan="8" class="text-center text-muted py-4">Введенные активы пока не созданы.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -927,6 +822,56 @@
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-invest-operation-close>Отмена</button>
                     <button type="submit" class="btn btn-primary">Выполнить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="bank-modal" data-invest-asset-modal hidden>
+        <div class="bank-modal__backdrop" data-invest-asset-close></div>
+        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="investAssetModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Активы</div>
+                    <h2 id="investAssetModalTitle">Создать актив</h2>
+                    <div class="bank-meta">Ручная фиксация инвестиционного актива для распределения средств со счетов.</div>
+                </div>
+                <button type="button" class="bank-modal__close" data-invest-asset-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="POST" action="{{ route('bank.invest-assets.store') }}" class="bank-requisites-form" data-invest-asset-form>
+                @csrf
+                <div class="bank-form-grid">
+                    <label>
+                        <span>Тип актива</span>
+                        <select name="asset_type" required>
+                            <option value="token">Токен</option>
+                            <option value="pool">Пул</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Наименование</span>
+                        <input type="text" name="name" maxlength="160" required placeholder="USDC / AV8 Pool">
+                    </label>
+                    <label class="bank-form-full">
+                        <span>Адрес объекта</span>
+                        <input type="text" name="asset_address" maxlength="190" required placeholder="0x..., mint, pool object id">
+                    </label>
+                    <label>
+                        <span>Количество</span>
+                        <input type="number" name="quantity" min="0" step="0.00000001" inputmode="decimal" data-invest-asset-quantity>
+                    </label>
+                    <label>
+                        <span>Цена</span>
+                        <input type="number" name="price_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-asset-price>
+                    </label>
+                    <label>
+                        <span>Стоимость</span>
+                        <input type="number" name="value_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-asset-value>
+                    </label>
+                </div>
+                <div class="bank-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-invest-asset-close>Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать</button>
                 </div>
             </form>
         </div>
@@ -1739,6 +1684,49 @@
             button.addEventListener('click', () => {
                 if (investOperationModal) {
                     investOperationModal.hidden = true;
+                }
+            });
+        });
+
+        const investAssetModal = root.querySelector('[data-invest-asset-modal]');
+        const investAssetQuantity = root.querySelector('[data-invest-asset-quantity]');
+        const investAssetPrice = root.querySelector('[data-invest-asset-price]');
+        const investAssetValue = root.querySelector('[data-invest-asset-value]');
+
+        function syncInvestAssetValue() {
+            if (!investAssetQuantity || !investAssetPrice || !investAssetValue) {
+                return;
+            }
+            const quantity = Number.parseFloat(investAssetQuantity.value || '0');
+            const price = Number.parseFloat(investAssetPrice.value || '0');
+            if (quantity > 0 && price >= 0) {
+                investAssetValue.value = (quantity * price).toFixed(8);
+            }
+        }
+
+        [investAssetQuantity, investAssetPrice].forEach((field) => {
+            if (field) {
+                field.addEventListener('input', syncInvestAssetValue);
+            }
+        });
+
+        root.querySelectorAll('[data-invest-asset-open]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (!investAssetModal) {
+                    return;
+                }
+                investAssetModal.hidden = false;
+                const addressInput = investAssetModal.querySelector('[name="asset_address"]');
+                if (addressInput) {
+                    addressInput.focus();
+                }
+            });
+        });
+
+        root.querySelectorAll('[data-invest-asset-close]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (investAssetModal) {
+                    investAssetModal.hidden = true;
                 }
             });
         });

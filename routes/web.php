@@ -111,6 +111,8 @@ Route::middleware(['auth'])->group(function () {
             ->whereNumber('deposit')
             ->name('deposit.update');
         Route::get('/invest', [BankController::class, 'invest'])->name('invest');
+        Route::post('/invest/assets', [BankController::class, 'storeInvestAsset'])
+            ->name('invest-assets.store');
         Route::post('/invest/operations', [BankController::class, 'storeInvestOperation'])
             ->name('invest-operations.store');
         Route::post('/invest/tracked-assets', [BankController::class, 'storeTrackedAsset'])

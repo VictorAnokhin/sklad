@@ -533,7 +533,7 @@ class BankController extends Controller
             ->values();
         $assetManifestSettings = $this->assetManifestSettings((int) $project->id);
         $portfolioRows = $this->investmentPortfolioRows($deposits, $pools, $assetManifestSettings);
-        $fixedAssetRows = $this->fixedInvestmentAssetRows($tokenRows, $walletPortfolio['nfts'], $pools, $trackedAssets);
+        $fixedAssetRows = $this->manualInvestmentAssetRows((int) $project->id);
         $investOperations = $this->bankInvestOperations((int) $project->id, $operationalAccounts, $fixedAssetRows);
         $accountAssetAllocations = $this->accountAssetAllocations($operationalAccounts, $investOperations);
         $assetManifestRows = $this->assetManifestRows($portfolioRows);
@@ -669,6 +669,74 @@ class BankController extends Controller
         return redirect()
             ->route('bank.invest')
             ->with('success', "Операция Счет ↔ Актив #{$operationId} выполнена.");
+    }
+
+    public function storeInvestAsset(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_tracked_assets'), 404);
+
+        $payload = $request->validate([
+            'asset_type' => ['required', Rule::in(['token', 'pool'])],
+            'asset_address' => ['required', 'string', 'max:190'],
+            'name' => ['required', 'string', 'max:160'],
+            'quantity' => ['nullable', 'numeric', 'min:0'],
+            'price_usd' => ['nullable', 'numeric', 'min:0'],
+            'value_usd' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $quantity = $request->filled('quantity') ? (float) $payload['quantity'] : 0.0;
+        $priceUsd = $request->filled('price_usd') ? (float) $payload['price_usd'] : 0.0;
+        $valueUsd = $request->filled('value_usd') ? (float) $payload['value_usd'] : $quantity * $priceUsd;
+        $assetType = (string) $payload['asset_type'];
+        $now = now();
+        $key = [
+            'project_id' => (int) $project->id,
+            'asset_type' => $assetType,
+            'blockchain' => 'manual',
+            'asset_address' => trim((string) $payload['asset_address']),
+            'owner_address' => '',
+            'token_id' => '',
+        ];
+        $values = [
+            'name' => trim((string) $payload['name']),
+            'symbol' => $assetType === 'pool' ? 'POOL' : 'TOKEN',
+            'protocol' => 'bank/invest',
+            'decimals' => null,
+            'last_balance' => $quantity,
+            'last_price_usd' => $priceUsd,
+            'last_value_usd' => $valueUsd,
+            'available_fields' => json_encode([]),
+            'selected_fields' => json_encode([]),
+            'last_payload' => json_encode([
+                'quantity' => $quantity,
+                'price_usd' => $priceUsd,
+                'value_usd' => $valueUsd,
+            ]),
+            'sync_status' => 'manual',
+            'sync_error' => null,
+            'hidden' => false,
+            'last_synced_at' => $now,
+            'updated_at' => $now,
+        ];
+        foreach ([
+            'adapter' => 'manual',
+            'available_fields' => json_encode([]),
+            'selected_fields' => json_encode([]),
+        ] as $column => $value) {
+            if (Schema::hasColumn('bank_tracked_assets', $column)) {
+                $values[$column] = $value;
+            }
+        }
+
+        $existing = DB::table('bank_tracked_assets')->where($key)->exists();
+        if ($existing) {
+            DB::table('bank_tracked_assets')->where($key)->update($values);
+        } else {
+            DB::table('bank_tracked_assets')->insert($key + $values + ['created_at' => $now]);
+        }
+
+        return redirect()->route('bank.invest')->with('success', 'Инвестиционный актив добавлен.');
     }
 
     private function createInvestOperationLedger(
@@ -1454,6 +1522,51 @@ class BankController extends Controller
         ]);
     }
 
+    private function manualInvestmentAssetRows(int $projectId)
+    {
+        if (! Schema::hasTable('bank_tracked_assets')) {
+            return collect();
+        }
+
+        return DB::table('bank_tracked_assets')
+            ->where('project_id', $projectId)
+            ->whereIn('asset_type', ['token', 'pool'])
+            ->where('hidden', false)
+            ->when(
+                Schema::hasColumn('bank_tracked_assets', 'adapter'),
+                fn ($query) => $query->where(function ($subQuery) {
+                    $subQuery->where('adapter', 'manual')
+                        ->orWhere('blockchain', 'manual');
+                }),
+                fn ($query) => $query->where('blockchain', 'manual')
+            )
+            ->orderBy('asset_type')
+            ->orderBy('name')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($asset) {
+                $address = (string) ($asset->asset_address ?? '');
+                $type = (string) ($asset->asset_type ?? 'token');
+
+                return (object) [
+                    'asset_type' => $type,
+                    'asset_key' => 'manual:' . (int) $asset->id,
+                    'source_id' => (int) $asset->id,
+                    'name' => trim((string) ($asset->name ?? '')) ?: ($type === 'pool' ? 'Пул' : 'Токен'),
+                    'description' => $address,
+                    'object_address' => $address,
+                    'object_short' => $this->shortHash($address),
+                    'currency' => (string) ($asset->symbol ?? ($type === 'pool' ? 'POOL' : 'TOKEN')),
+                    'quantity' => $asset->last_balance !== null ? (float) $asset->last_balance : 0.0,
+                    'price_usd' => $asset->last_price_usd !== null ? (float) $asset->last_price_usd : 0.0,
+                    'value_usd' => $asset->last_value_usd !== null ? (float) $asset->last_value_usd : 0.0,
+                    'source' => 'bank_tracked_assets',
+                    'status' => (string) ($asset->sync_status ?? 'manual'),
+                ];
+            })
+            ->values();
+    }
+
     private function normalizeTrackedAssetType(string $assetType): string
     {
         return match (strtolower(trim($assetType))) {
@@ -1806,16 +1919,7 @@ class BankController extends Controller
 
     private function investOperationAssetOptions(int $projectId)
     {
-        $walletPortfolio = $this->googleAccountWalletPortfolio();
-        $tokenRows = $this->tokenManifestRows($walletPortfolio['tokens']);
-        $trackedAssets = $this->trackedAssetRows($projectId);
-
-        return $this->fixedInvestmentAssetRows(
-            $tokenRows,
-            $walletPortfolio['nfts'],
-            $this->investmentPools(),
-            $trackedAssets
-        );
+        return $this->manualInvestmentAssetRows($projectId);
     }
 
     private function bankInvestOperations(int $projectId, $operationalAccounts, $fixedAssetRows)
