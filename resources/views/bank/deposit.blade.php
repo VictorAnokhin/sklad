@@ -175,14 +175,23 @@
                         <div class="bank-label">Трансфер</div>
                         <div class="bank-meta">Перевод с операционного счета банка на депозит. Валюта депозита и счета должна совпадать.</div>
                     </div>
-                    <button type="button"
-                        class="btn btn-sm btn-primary"
-                        data-bs-toggle="modal"
-                        data-bs-target="#depositTransferModal"
-                        data-deposit-transfer-create="1"
-                        data-store-url="{{ route('bank.deposit.transfer.store') }}">
-                        Создать
-                    </button>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <button type="button"
+                            class="btn btn-sm btn-outline-light"
+                            data-bs-toggle="modal"
+                            data-bs-target="#poolTransferModal"
+                            data-pool-transfer-create="1">
+                            Создать трансфер пула
+                        </button>
+                        <button type="button"
+                            class="btn btn-sm btn-primary"
+                            data-bs-toggle="modal"
+                            data-bs-target="#depositTransferModal"
+                            data-deposit-transfer-create="1"
+                            data-store-url="{{ route('bank.deposit.transfer.store') }}">
+                            Создать
+                        </button>
+                    </div>
                 </div>
             </section>
             <section class="bank-panel bank-table-panel mt-3">
@@ -194,7 +203,7 @@
                     <div class="bank-meta">{{ $depositTransfers->count() }} записей</div>
                 </div>
                 <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
-                    <table class="table table-dark table-hover table-sm align-middle bank-table">
+                    <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--deposit-transfers">
                         <thead>
                             <tr>
                                 <th class="bank-table__num">№</th>
@@ -251,7 +260,7 @@
                     <div class="bank-meta">{{ $depositPools->count() }} пулов</div>
                 </div>
                 <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
-                    <table class="table table-dark table-hover table-sm align-middle bank-table">
+                    <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--deposit-pools">
                         <thead>
                             <tr>
                                 <th class="bank-table__num">№</th>
@@ -273,7 +282,17 @@
                                 <tr>
                                     <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                     <td>
-                                        <strong>{{ $pool->name }}</strong>
+                                        <button type="button"
+                                            class="bank-account-link bank-pool-transfer-link"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#poolTransferModal"
+                                            data-pool-transfer-create="1"
+                                            data-pool-asset-key="{{ $pool->asset_key }}"
+                                            data-pool-name="{{ $pool->name }}"
+                                            data-pool-balance="{{ number_format((float) ($pool->accounting_operations_count > 0 ? $pool->accounting_balance_usd : $pool->balance_usdc), 8, '.', '') }}"
+                                            data-pool-currency="USDC">
+                                            <strong>{{ $pool->name }}</strong>
+                                        </button>
                                         <div class="bank-meta">
                                             {{ $pool->symbol ?: '—' }}
                                             @if($pool->chain_status === 'onchain')
@@ -369,6 +388,20 @@
                                         Пул → счет
                                     </button>
                                 </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Пул</label>
+                                <select class="form-select" required data-pool-transfer-pool>
+                                    <option value="">Выберите пул</option>
+                                    @foreach($depositPools as $pool)
+                                        <option value="{{ $pool->asset_key }}"
+                                            data-name="{{ $pool->name }}"
+                                            data-balance="{{ number_format((float) ($pool->accounting_operations_count > 0 ? $pool->accounting_balance_usd : $pool->balance_usdc), 8, '.', '') }}"
+                                            data-currency="USDC">
+                                            {{ $pool->name }} · {{ $pool->chain_status_label }} · {{ number_format((float) $pool->accounting_balance_usd, 2, '.', ' ') }} USDC
+                                        </option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Операционный счет</label>
@@ -579,6 +612,160 @@
 </div>
 
 @include('bank.partials.styles')
+<style>
+    .bank-page .bank-table--deposits {
+        table-layout: fixed;
+        min-width: 920px;
+    }
+
+    .bank-page .bank-table--deposit-transfers {
+        table-layout: fixed;
+        min-width: 860px;
+    }
+
+    .bank-page .bank-table--deposit-pools {
+        table-layout: fixed;
+        min-width: 1120px;
+    }
+
+    .bank-page .bank-table--deposits th,
+    .bank-page .bank-table--deposits td,
+    .bank-page .bank-table--deposit-transfers th,
+    .bank-page .bank-table--deposit-transfers td,
+    .bank-page .bank-table--deposit-pools th,
+    .bank-page .bank-table--deposit-pools td {
+        overflow: hidden;
+        padding-right: 0.35rem;
+        padding-left: 0.35rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bank-page .bank-table--deposits th:not(.bank-table__num),
+    .bank-page .bank-table--deposits td:not(.bank-table__num) {
+        min-width: 0;
+    }
+
+    .bank-page .bank-table--deposits th:nth-child(1),
+    .bank-page .bank-table--deposits td:nth-child(1),
+    .bank-page .bank-table--deposit-transfers th:nth-child(1),
+    .bank-page .bank-table--deposit-transfers td:nth-child(1),
+    .bank-page .bank-table--deposit-pools th:nth-child(1),
+    .bank-page .bank-table--deposit-pools td:nth-child(1) {
+        width: 38px;
+    }
+
+    .bank-page .bank-table--deposits th:nth-child(2),
+    .bank-page .bank-table--deposits td:nth-child(2) {
+        width: 220px;
+        min-width: 0;
+    }
+
+    .bank-page .bank-table--deposits th:nth-child(3),
+    .bank-page .bank-table--deposits td:nth-child(3) {
+        width: 190px;
+        min-width: 0;
+    }
+
+    .bank-page .bank-table--deposits th:nth-child(4),
+    .bank-page .bank-table--deposits td:nth-child(4) {
+        width: 74px;
+    }
+
+    .bank-page .bank-table--deposits th:nth-child(5),
+    .bank-page .bank-table--deposits td:nth-child(5),
+    .bank-page .bank-table--deposits th:nth-child(6),
+    .bank-page .bank-table--deposits td:nth-child(6) {
+        width: 112px;
+    }
+
+    .bank-page .bank-table--deposits th:nth-child(7),
+    .bank-page .bank-table--deposits td:nth-child(7),
+    .bank-page .bank-table--deposits th:nth-child(8),
+    .bank-page .bank-table--deposits td:nth-child(8) {
+        width: 92px;
+    }
+
+    .bank-page .bank-table--deposit-transfers th:nth-child(2),
+    .bank-page .bank-table--deposit-transfers td:nth-child(2) {
+        width: 130px;
+    }
+
+    .bank-page .bank-table--deposit-transfers th:nth-child(3),
+    .bank-page .bank-table--deposit-transfers td:nth-child(3) {
+        width: 112px;
+    }
+
+    .bank-page .bank-table--deposit-transfers th:nth-child(4),
+    .bank-page .bank-table--deposit-transfers td:nth-child(4),
+    .bank-page .bank-table--deposit-transfers th:nth-child(5),
+    .bank-page .bank-table--deposit-transfers td:nth-child(5) {
+        width: 190px;
+    }
+
+    .bank-page .bank-table--deposit-transfers th:nth-child(6),
+    .bank-page .bank-table--deposit-transfers td:nth-child(6) {
+        width: 130px;
+    }
+
+    .bank-page .bank-table--deposit-transfers th:nth-child(7),
+    .bank-page .bank-table--deposit-transfers td:nth-child(7) {
+        width: 86px;
+    }
+
+    .bank-page .bank-table--deposit-pools th:nth-child(2),
+    .bank-page .bank-table--deposit-pools td:nth-child(2) {
+        width: 180px;
+    }
+
+    .bank-page .bank-table--deposit-pools th:nth-child(3),
+    .bank-page .bank-table--deposit-pools td:nth-child(3),
+    .bank-page .bank-table--deposit-pools th:nth-child(10),
+    .bank-page .bank-table--deposit-pools td:nth-child(10),
+    .bank-page .bank-table--deposit-pools th:nth-child(11),
+    .bank-page .bank-table--deposit-pools td:nth-child(11) {
+        width: 82px;
+    }
+
+    .bank-page .bank-table--deposit-pools th:nth-child(4),
+    .bank-page .bank-table--deposit-pools td:nth-child(4),
+    .bank-page .bank-table--deposit-pools th:nth-child(5),
+    .bank-page .bank-table--deposit-pools td:nth-child(5),
+    .bank-page .bank-table--deposit-pools th:nth-child(6),
+    .bank-page .bank-table--deposit-pools td:nth-child(6),
+    .bank-page .bank-table--deposit-pools th:nth-child(7),
+    .bank-page .bank-table--deposit-pools td:nth-child(7),
+    .bank-page .bank-table--deposit-pools th:nth-child(8),
+    .bank-page .bank-table--deposit-pools td:nth-child(8) {
+        width: 108px;
+    }
+
+    .bank-page .bank-table--deposit-pools th:nth-child(9),
+    .bank-page .bank-table--deposit-pools td:nth-child(9) {
+        width: 64px;
+    }
+
+    .bank-page .bank-table--deposit-pools th:nth-child(12),
+    .bank-page .bank-table--deposit-pools td:nth-child(12) {
+        width: 92px;
+    }
+
+    .bank-page .bank-table--deposits .bank-meta,
+    .bank-page .bank-table--deposit-transfers .bank-meta,
+    .bank-page .bank-table--deposit-pools .bank-meta {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bank-pool-transfer-link {
+        display: inline;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        text-align: left;
+    }
+</style>
 @endsection
 
 @push('scripts')
@@ -621,6 +808,7 @@
         const poolTransferDirection = document.querySelector('[data-pool-transfer-direction]');
         const poolTransferDirectionButtons = document.querySelectorAll('[data-pool-transfer-direction-button]');
         const poolTransferAsset = document.querySelector('[data-pool-transfer-asset]');
+        const poolTransferPool = document.querySelector('[data-pool-transfer-pool]');
         const poolTransferAccount = document.querySelector('[data-pool-transfer-account]');
         const poolTransferAccountMeta = document.querySelector('[data-pool-transfer-account-meta]');
         const poolTransferAmount = document.querySelector('[data-pool-transfer-amount]');
@@ -717,7 +905,7 @@
         }
 
         function validatePoolTransferForm() {
-            if (!poolTransferForm || !poolTransferAccount || !poolTransferAmount || !poolTransferError || !poolTransferSubmit || !poolTransferDirection) {
+            if (!poolTransferForm || !poolTransferAccount || !poolTransferAmount || !poolTransferError || !poolTransferSubmit || !poolTransferDirection || !poolTransferPool || !poolTransferAsset) {
                 return true;
             }
 
@@ -730,11 +918,16 @@
             });
 
             const accountOption = selectedOption(poolTransferAccount);
+            const poolOption = selectedOption(poolTransferPool);
             const amount = Number(poolTransferAmount.value || 0);
             const direction = poolTransferDirection.value || 'asset_to_account';
             let message = '';
 
-            if (!accountOption?.value) {
+            poolTransferAsset.value = poolOption?.value || '';
+
+            if (!poolOption?.value) {
+                message = 'Выберите пул.';
+            } else if (!accountOption?.value) {
                 message = 'Выберите операционный счет USDC.';
             } else if (accountOption.dataset.currency !== 'USDC') {
                 message = 'Для перевода из пула нужен операционный счет USDC.';
@@ -759,6 +952,25 @@
             poolTransferSubmit.disabled = message !== '';
 
             return message === '';
+        }
+
+        function syncPoolTransferPool(defaultAmount = false) {
+            const poolOption = selectedOption(poolTransferPool);
+            const poolName = poolOption?.dataset.name || '';
+            if (poolTransferAsset) {
+                poolTransferAsset.value = poolOption?.value || '';
+            }
+            if (poolTransferTitle) {
+                poolTransferTitle.textContent = poolName !== '' ? `Трансфер пула ${poolName}` : 'Трансфер пула';
+            }
+            if (defaultAmount && poolTransferAmount) {
+                const balance = Number(poolOption?.dataset.balance || 0);
+                poolTransferAmount.value = balance > 0 ? balance.toFixed(8) : '';
+            }
+            if (poolTransferNote && poolName !== '') {
+                poolTransferNote.value = `Трансфер пул ↔ операционный счет: ${poolName}`;
+            }
+            validatePoolTransferForm();
         }
 
         function setPoolTransferDirection(direction) {
@@ -887,21 +1099,16 @@
                 poolTransferForm.reset();
             }
             setPoolTransferDirection('asset_to_account');
-            if (poolTransferTitle) {
-                poolTransferTitle.textContent = `Трансфер пула ${trigger.dataset.poolName || ''}`.trim();
+            if (poolTransferPool) {
+                poolTransferPool.value = trigger.dataset.poolAssetKey || '';
             }
-            if (poolTransferAsset) {
-                poolTransferAsset.value = trigger.dataset.poolAssetKey || '';
-            }
-            if (poolTransferAmount) {
-                const balance = Number(trigger.dataset.poolBalance || 0);
-                poolTransferAmount.value = balance > 0 ? balance.toFixed(8) : '';
+            if (poolTransferPool?.value) {
+                syncPoolTransferPool(true);
+            } else if (poolTransferTitle) {
+                poolTransferTitle.textContent = 'Трансфер пула';
             }
             if (poolTransferDate) {
                 poolTransferDate.value = new Date().toISOString().slice(0, 10);
-            }
-            if (poolTransferNote) {
-                poolTransferNote.value = `Трансфер пул ↔ операционный счет: ${trigger.dataset.poolName || ''}`.trim();
             }
             validatePoolTransferForm();
         });
@@ -912,9 +1119,13 @@
             });
         });
 
-        [poolTransferAccount, poolTransferAmount].forEach((element) => {
+        [poolTransferPool, poolTransferAccount, poolTransferAmount].forEach((element) => {
             element?.addEventListener('input', validatePoolTransferForm);
             element?.addEventListener('change', validatePoolTransferForm);
+        });
+
+        poolTransferPool?.addEventListener('change', () => {
+            syncPoolTransferPool(true);
         });
 
         poolTransferForm?.addEventListener('submit', (event) => {
