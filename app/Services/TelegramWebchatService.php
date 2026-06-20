@@ -195,6 +195,79 @@ class TelegramWebchatService
     }
 
     /**
+     * Mirror an assistant/agent answer into the same Telegram operator thread.
+     */
+    public function mirrorAssistantMessage(ChatSession $session, ChatMessage $message): void
+    {
+        $target = TelegramWebchatMessage::query()
+            ->where('chat_session_id', $session->id)
+            ->where('direction', 'web_to_telegram')
+            ->latest('id')
+            ->first();
+
+        if ($target === null) {
+            return;
+        }
+
+        $payload = [
+            'chat_id' => $target->telegram_chat_id,
+            'text' => $this->formatAssistantMessage($session, $message),
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
+
+        if ($target->telegram_thread_id !== null && $target->telegram_thread_id !== '') {
+            $payload['message_thread_id'] = $target->telegram_thread_id;
+        }
+
+        try {
+            $response = Http::timeout((int) config('services.telegram_webchat.timeout', 10))
+                ->asForm()
+                ->post($this->apiUrl('sendMessage'), $payload);
+
+            if (! $response->successful()) {
+                Log::warning('Telegram webchat assistant mirror failed.', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'session_token' => $session->session_token,
+                ]);
+
+                return;
+            }
+
+            $data = $response->json();
+            $result = is_array($data) ? ($data['result'] ?? []) : [];
+            $telegramMessageId = (int) ($result['message_id'] ?? 0);
+            if ($telegramMessageId <= 0) {
+                return;
+            }
+
+            TelegramWebchatMessage::create([
+                'chat_session_id' => $session->id,
+                'chat_message_id' => $message->id,
+                'fid' => $message->fid,
+                'firma' => $message->firma,
+                'site_key' => $target->site_key,
+                'site_domain' => $target->site_domain,
+                'telegram_chat_id' => $target->telegram_chat_id,
+                'telegram_thread_id' => $target->telegram_thread_id,
+                'telegram_message_id' => $telegramMessageId,
+                'telegram_reply_to_message_id' => null,
+                'direction' => 'web_to_telegram',
+                'payload' => [
+                    'mirror_role' => 'assistant',
+                    'telegram_result' => $result,
+                ],
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('Telegram webchat assistant mirror exception.', [
+                'message' => $e->getMessage(),
+                'session_token' => $session->session_token,
+            ]);
+        }
+    }
+
+    /**
      * @param  array<string, mixed>  $update
      * @return array<string, mixed>
      */
@@ -243,6 +316,22 @@ class TelegramWebchatService
 
         if ($existing !== null) {
             return ['ok' => true, 'duplicate' => true, 'chat_message_id' => $existing->chat_message_id];
+        }
+
+        $command = $this->replyModeCommand($text);
+        if ($command !== null) {
+            return $this->handleReplyModeCommand($command, $session, $source, $telegramMessage, $update);
+        }
+
+        if (($session->reply_mode ?? 'agent') !== 'telegram') {
+            $this->sendOperatorNotice(
+                chatId: $chatId,
+                threadId: isset($telegramMessage['message_thread_id']) ? (string) $telegramMessage['message_thread_id'] : $source->telegram_thread_id,
+                text: "Сейчас режим webchat-сессии: <code>agent</code>.\n".
+                    "Обычный Reply не отправлен клиенту. Ответьте <code>/telegram</code>, чтобы оператор перехватил следующие сообщения, или <code>/status</code> для проверки режима.",
+            );
+
+            return $this->ignored('operator_reply_while_agent_mode', $telegramMessage);
         }
 
         $operatorName = $this->operatorName($telegramMessage);
@@ -367,9 +456,118 @@ class TelegramWebchatService
         $lines[] = '<b>Сообщение:</b>';
         $lines[] = $this->escapeHtml($message->content);
         $lines[] = '';
-        $lines[] = 'Ответьте Reply на это сообщение, чтобы отправить ответ в вебчат.';
+        $lines[] = 'Команды Reply: <code>/telegram</code> оператор отвечает клиенту, <code>/agent</code> отвечает AI, <code>/status</code> текущий режим.';
+        $lines[] = 'В режиме <code>/telegram</code> обычный Reply отправляется клиенту в вебчат.';
 
         return implode("\n", array_filter($lines, fn ($line): bool => $line !== null));
+    }
+
+    private function formatAssistantMessage(ChatSession $session, ChatMessage $message): string
+    {
+        return implode("\n", [
+            '<b>Ответ агента вебчата</b>',
+            'Session: <code>'.$this->escapeHtml((string) $session->session_token).'</code>',
+            'Режим: <code>'.$this->escapeHtml((string) ($session->reply_mode ?: 'agent')).'</code>',
+            '',
+            $this->escapeHtml($message->content),
+            '',
+            'Reply <code>/telegram</code>, чтобы оператор перехватил следующие сообщения клиента.',
+        ]);
+    }
+
+    private function replyModeCommand(string $text): ?string
+    {
+        $firstToken = strtolower(trim(strtok($text, " \t\r\n") ?: ''));
+        $firstToken = preg_replace('/@.+$/', '', $firstToken) ?? $firstToken;
+
+        return match ($firstToken) {
+            '/telegram', '/operator' => 'telegram',
+            '/agent', '/ai' => 'agent',
+            '/status' => 'status',
+            default => null,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $telegramMessage
+     * @param  array<string, mixed>  $update
+     * @return array<string, mixed>
+     */
+    private function handleReplyModeCommand(
+        string $command,
+        ChatSession $session,
+        TelegramWebchatMessage $source,
+        array $telegramMessage,
+        array $update,
+    ): array {
+        $chatId = (string) ($telegramMessage['chat']['id'] ?? '');
+        $messageId = (int) ($telegramMessage['message_id'] ?? 0);
+        $replyToMessageId = (int) ($telegramMessage['reply_to_message']['message_id'] ?? 0);
+        $mode = $session->reply_mode ?: 'agent';
+
+        if ($command !== 'status') {
+            $mode = $command;
+            $session->update(['reply_mode' => $mode]);
+        }
+
+        TelegramWebchatMessage::create([
+            'chat_session_id' => $session->id,
+            'chat_message_id' => null,
+            'fid' => $source->fid,
+            'firma' => $source->firma,
+            'site_key' => $source->site_key,
+            'site_domain' => $source->site_domain,
+            'telegram_chat_id' => $chatId,
+            'telegram_thread_id' => isset($telegramMessage['message_thread_id']) ? (string) $telegramMessage['message_thread_id'] : $source->telegram_thread_id,
+            'telegram_message_id' => $messageId,
+            'telegram_reply_to_message_id' => $replyToMessageId,
+            'direction' => 'telegram_command',
+            'payload' => [
+                'command' => $command,
+                'reply_mode' => $mode,
+                'update_id' => $update['update_id'] ?? null,
+            ],
+        ]);
+
+        $this->sendOperatorNotice(
+            chatId: $chatId,
+            threadId: isset($telegramMessage['message_thread_id']) ? (string) $telegramMessage['message_thread_id'] : $source->telegram_thread_id,
+            text: "Режим webchat-сессии: <code>{$mode}</code>\n".
+                ($mode === 'telegram'
+                    ? 'Обычные Reply оператора будут отправляться клиенту.'
+                    : 'Клиенту отвечает AI agent, переписка дублируется сюда.'),
+        );
+
+        return [
+            'ok' => true,
+            'command' => $command,
+            'reply_mode' => $mode,
+            'session_token' => $session->session_token,
+        ];
+    }
+
+    private function sendOperatorNotice(string $chatId, ?string $threadId, string $text): void
+    {
+        $payload = [
+            'chat_id' => $chatId,
+            'text' => $text,
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
+
+        if ($threadId !== null && $threadId !== '') {
+            $payload['message_thread_id'] = $threadId;
+        }
+
+        try {
+            Http::timeout((int) config('services.telegram_webchat.timeout', 10))
+                ->asForm()
+                ->post($this->apiUrl('sendMessage'), $payload);
+        } catch (Throwable $e) {
+            Log::debug('Telegram webchat operator notice failed.', [
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function escapeHtml(string $value): string

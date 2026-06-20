@@ -214,28 +214,35 @@ class ChatService
 
         if ($this->telegramWebchat->enabledFor($payload, $fid)) {
             $telegram = $this->telegramWebchat->forwardUserMessage($session, $userMessage, $payload, $fid, $firma);
-            $answer = $this->telegramOperatorWaitingAnswer($language);
+            $replyMode = $session->reply_mode ?: 'agent';
 
-            return [
-                'session_token' => $session->session_token,
-                'answer' => $answer,
-                'status' => 'waiting_operator',
-                'provider' => 'telegram_operator',
-                'model' => null,
-                'usage' => null,
-                'db_tools_enabled' => false,
-                'intent' => [
-                    'type' => 'operator_handoff',
-                    'reason' => 'telegram_webchat_enabled',
-                ],
-                'knowledge_curation' => null,
-                'actions' => [],
-                'telegram' => $telegram,
-                'billing' => [
-                    'paid_by' => 'project',
-                    'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
-                ],
-            ];
+            if ($replyMode !== 'telegram') {
+                $session->update(['reply_mode' => 'agent']);
+                $telegram['reply_mode'] = 'agent';
+            } else {
+                $answer = $this->telegramOperatorWaitingAnswer($language);
+
+                return [
+                    'session_token' => $session->session_token,
+                    'answer' => $answer,
+                    'status' => 'waiting_operator',
+                    'provider' => 'telegram_operator',
+                    'model' => null,
+                    'usage' => null,
+                    'db_tools_enabled' => false,
+                    'intent' => [
+                        'type' => 'operator_handoff',
+                        'reason' => 'telegram_webchat_reply_mode',
+                    ],
+                    'knowledge_curation' => null,
+                    'actions' => [],
+                    'telegram' => $telegram,
+                    'billing' => [
+                        'paid_by' => 'project',
+                        'sui_gas_sponsor_available' => $this->suiGasSponsorAvailable(),
+                    ],
+                ];
+            }
         }
 
         $intent = $this->intentDetector->detect($message, $page, $language);
@@ -1558,7 +1565,7 @@ class ChatService
      */
     private function saveMessage(int $sessionId, ?int $fid, ?int $firma, string $role, string $content, ?array $metadata = null): ChatMessage
     {
-        return ChatMessage::create([
+        $message = ChatMessage::create([
             'chat_session_id' => $sessionId,
             'fid' => $fid,
             'firma' => $firma,
@@ -1566,6 +1573,15 @@ class ChatService
             'content' => $content,
             'metadata' => $metadata,
         ]);
+
+        if ($role === 'assistant') {
+            $session = ChatSession::find($sessionId);
+            if ($session !== null) {
+                $this->telegramWebchat->mirrorAssistantMessage($session, $message);
+            }
+        }
+
+        return $message;
     }
 
     /**

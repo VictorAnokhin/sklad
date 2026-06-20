@@ -21,6 +21,7 @@ class ChatSession extends Model
         'page',
         'title',
         'status',
+        'reply_mode',
     ];
 
     protected $casts = [
