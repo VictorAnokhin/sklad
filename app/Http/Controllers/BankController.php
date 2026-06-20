@@ -881,6 +881,7 @@ class BankController extends Controller
             'quantity' => ['nullable', 'numeric', 'min:0'],
             'price_usd' => ['nullable', 'numeric', 'min:0'],
             'value_usd' => ['nullable', 'numeric', 'min:0'],
+            'created_on' => ['nullable', 'date'],
         ]);
 
         $quantity = $request->filled('quantity') ? (float) $payload['quantity'] : 0.0;
@@ -915,6 +916,11 @@ class BankController extends Controller
             'last_synced_at' => $now,
             'updated_at' => $now,
         ];
+        if (Schema::hasColumn('bank_tracked_assets', 'created_on')) {
+            $values['created_on'] = $request->filled('created_on')
+                ? Carbon::parse((string) $payload['created_on'])->toDateString()
+                : $now->toDateString();
+        }
         foreach ([
             'adapter' => 'manual',
             'available_fields' => json_encode([]),
@@ -1761,6 +1767,7 @@ class BankController extends Controller
                     'quantity' => $asset->last_balance !== null ? (float) $asset->last_balance : 0.0,
                     'price_usd' => $asset->last_price_usd !== null ? (float) $asset->last_price_usd : 0.0,
                     'value_usd' => $asset->last_value_usd !== null ? (float) $asset->last_value_usd : 0.0,
+                    'created_on' => (string) ($asset->created_on ?? ''),
                     'source' => 'bank_tracked_assets',
                     'status' => (string) ($asset->sync_status ?? 'manual'),
                 ];

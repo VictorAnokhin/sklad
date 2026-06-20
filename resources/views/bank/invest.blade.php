@@ -65,19 +65,21 @@
                 <div class="bank-meta">{{ $operationalAccounts->count() }} счетов</div>
             </div>
             <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
-                <table class="table table-dark table-hover table-sm align-middle bank-table">
+                <table class="table table-dark table-hover table-sm align-middle bank-table bank-accounts-table">
                     <thead>
                         <tr>
-                            <th>Операционный счет</th>
-                            <th>Валюта</th>
-                            <th class="text-end">Остаток счета</th>
-                            <th class="text-end">В активах</th>
-                            <th>Распределение по активам</th>
+                            <th class="bank-table__num">№</th>
+                            <th class="bank-accounts-table__account">Операционный счет</th>
+                            <th class="bank-accounts-table__metric">Валюта</th>
+                            <th class="bank-accounts-table__metric text-end">Остаток счета</th>
+                            <th class="bank-accounts-table__metric text-end">В активах</th>
+                            <th class="bank-accounts-table__metric">Распределение по активам</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($accountAssetAllocations as $allocation)
                             <tr>
+                                <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                 <td>
                                     <strong>{{ $allocation->account->label }}</strong>
                                     <div class="bank-meta">ID {{ $allocation->account->id }} · {{ $allocation->account->account_type_label }}</div>
@@ -101,7 +103,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">Операционные счета не найдены.</td>
+                                <td colspan="6" class="text-center text-muted py-4">Операционные счета не найдены.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -596,17 +598,18 @@
                 </div>
             </div>
             <div class="table-responsive bank-table-scroll">
-                <table class="table table-dark table-hover table-sm align-middle bank-table">
+                <table class="table table-dark table-hover table-sm align-middle bank-table bank-assets-table">
                     <thead>
                         <tr>
                             <th class="bank-table__num">№</th>
-                            <th>Тип</th>
-                            <th>Адрес объекта</th>
-                            <th>Наименование</th>
-                            <th class="text-end">Количество</th>
-                            <th class="text-end">Цена</th>
-                            <th class="text-end">Стоимость</th>
-                            <th>Статус</th>
+                            <th class="bank-assets-table__type">Тип</th>
+                            <th class="bank-assets-table__date">Дата</th>
+                            <th class="bank-assets-table__address">Адрес объекта</th>
+                            <th class="bank-assets-table__name">Наименование</th>
+                            <th class="text-end bank-assets-table__number">Количество</th>
+                            <th class="text-end bank-assets-table__money">Цена</th>
+                            <th class="text-end bank-assets-table__money">Стоимость</th>
+                            <th class="bank-assets-table__status">Статус</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -619,22 +622,24 @@
                                 data-asset-name="{{ $asset->name }}"
                                 data-asset-quantity="{{ number_format((float) $asset->quantity, 8, '.', '') }}"
                                 data-asset-price="{{ number_format((float) $asset->price_usd, 8, '.', '') }}"
-                                data-asset-value="{{ number_format((float) $asset->value_usd, 8, '.', '') }}">
+                                data-asset-value="{{ number_format((float) $asset->value_usd, 8, '.', '') }}"
+                                data-asset-created-on="{{ $asset->created_on }}">
                                 <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
-                                <td><span class="bank-pill {{ $asset->asset_type === 'pool' ? 'bank-pill--company' : 'bank-pill--currency' }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }}</span></td>
-                                <td class="bank-mono" title="{{ $asset->object_address }}">{{ $asset->object_short }}</td>
-                                <td>
+                                <td class="bank-assets-table__type"><span class="bank-pill {{ $asset->asset_type === 'pool' ? 'bank-pill--company' : 'bank-pill--currency' }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }}</span></td>
+                                <td class="bank-assets-table__date">{{ $asset->created_on !== '' ? $asset->created_on : '—' }}</td>
+                                <td class="bank-mono bank-assets-table__address" title="{{ $asset->object_address }}">{{ $asset->object_short }}</td>
+                                <td class="bank-assets-table__name">
                                     <strong>{{ $asset->name }}</strong>
                                     <div class="bank-meta">{{ $asset->currency }}</div>
                                 </td>
-                                <td class="text-end bank-mono">{{ number_format((float) $asset->quantity, 8, '.', ' ') }}</td>
-                                <td class="text-end">{{ $formatMoney($asset->price_usd) }}</td>
-                                <td class="text-end fw-semibold">{{ $formatMoney($asset->value_usd) }}</td>
-                                <td><span class="bank-status {{ $asset->status === 'manual' ? '' : 'bank-status--pending' }}">{{ $asset->status }}</span></td>
+                                <td class="text-end bank-mono bank-assets-table__number">{{ number_format((float) $asset->quantity, 8, '.', ' ') }}</td>
+                                <td class="text-end bank-assets-table__money">{{ $formatMoney($asset->price_usd) }}</td>
+                                <td class="text-end fw-semibold bank-assets-table__money">{{ $formatMoney($asset->value_usd) }}</td>
+                                <td class="bank-assets-table__status"><span class="bank-status {{ $asset->status === 'manual' ? '' : 'bank-status--pending' }}">{{ $asset->status }}</span></td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">Введенные активы пока не созданы.</td>
+                                <td colspan="9" class="text-center text-muted py-4">Введенные активы пока не созданы.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -777,6 +782,10 @@
                     <label>
                         <span>Наименование</span>
                         <input type="text" name="name" maxlength="160" required placeholder="USDC / AV8 Pool" data-invest-asset-name>
+                    </label>
+                    <label>
+                        <span>Дата фиксации</span>
+                        <input type="date" name="created_on" data-invest-asset-created-on>
                     </label>
                     <label class="bank-form-full">
                         <span>Адрес объекта</span>
@@ -1147,6 +1156,74 @@
         --bs-btn-padding-y: 0.12rem;
         --bs-btn-padding-x: 0.42rem;
         --bs-btn-font-size: 0.74rem;
+    }
+
+    .bank-accounts-table {
+        table-layout: fixed;
+    }
+
+    .bank-accounts-table .bank-table__num {
+        width: 48px;
+    }
+
+    .bank-accounts-table__account {
+        width: 42%;
+    }
+
+    .bank-accounts-table__metric {
+        width: 14%;
+    }
+
+    .bank-assets-table {
+        table-layout: fixed;
+        min-width: 900px;
+    }
+
+    .bank-assets-table th,
+    .bank-assets-table td {
+        overflow: hidden;
+        padding-right: 0.35rem;
+        padding-left: 0.35rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bank-assets-table .bank-table__num {
+        width: 38px;
+    }
+
+    .bank-assets-table__type {
+        width: 64px;
+    }
+
+    .bank-assets-table__date {
+        width: 86px;
+    }
+
+    .bank-assets-table__address {
+        width: 118px;
+    }
+
+    .bank-assets-table__name {
+        width: 170px;
+    }
+
+    .bank-assets-table__number {
+        width: 108px;
+    }
+
+    .bank-assets-table__money {
+        width: 96px;
+    }
+
+    .bank-assets-table__status {
+        width: 70px;
+    }
+
+    .bank-assets-table__name .bank-meta {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .bank-table-row--clickable {
@@ -1878,6 +1955,7 @@
         const investAssetType = root.querySelector('[data-invest-asset-type]');
         const investAssetAddress = root.querySelector('[data-invest-asset-address]');
         const investAssetName = root.querySelector('[data-invest-asset-name]');
+        const investAssetCreatedOn = root.querySelector('[data-invest-asset-created-on]');
         const investAssetQuantity = root.querySelector('[data-invest-asset-quantity]');
         const investAssetPrice = root.querySelector('[data-invest-asset-price]');
         const investAssetValue = root.querySelector('[data-invest-asset-value]');
@@ -1921,6 +1999,9 @@
                 if (investAssetSubmit) {
                     investAssetSubmit.textContent = 'Создать';
                 }
+                if (investAssetCreatedOn) {
+                    investAssetCreatedOn.value = new Date().toISOString().slice(0, 10);
+                }
                 investAssetModal.hidden = false;
                 if (investAssetAddress) {
                     investAssetAddress.focus();
@@ -1945,6 +2026,9 @@
                 }
                 if (investAssetName) {
                     investAssetName.value = row.dataset.assetName || '';
+                }
+                if (investAssetCreatedOn) {
+                    investAssetCreatedOn.value = row.dataset.assetCreatedOn || '';
                 }
                 if (investAssetQuantity) {
                     investAssetQuantity.value = row.dataset.assetQuantity || '';
