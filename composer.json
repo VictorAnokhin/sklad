@@ -9,6 +9,7 @@
         "kornrunner/keccak": "^1.1",
         "laravel/framework": "^10.0",
         "laravel/sanctum": "^3.3",
+        "pusher/pusher-php-server": "^7.2",
         "simplito/elliptic-php": "^1.0"
     },
     "require-dev": {
