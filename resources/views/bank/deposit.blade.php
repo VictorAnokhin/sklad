@@ -323,7 +323,7 @@
                                             data-pool-name="{{ $pool->name }}"
                                             data-pool-balance="{{ number_format((float) ($pool->accounting_operations_count > 0 ? $pool->accounting_balance_usd : $pool->balance_usdc), 8, '.', '') }}"
                                             data-pool-currency="USDC">
-                                            На счет
+                                            Трансфер
                                         </button>
                                     </td>
                                 </tr>
@@ -344,7 +344,7 @@
             <div class="modal-content">
                 <form method="POST" action="{{ route('bank.invest-operations.store') }}" data-pool-transfer-form>
                     @csrf
-                    <input type="hidden" name="direction" value="asset_to_account">
+                    <input type="hidden" name="direction" value="asset_to_account" data-pool-transfer-direction>
                     <input type="hidden" name="asset_key" data-pool-transfer-asset>
                     <input type="hidden" name="currency" value="USDC">
                     <input type="hidden" name="quantity" value="0">
@@ -352,13 +352,24 @@
                     <input type="hidden" name="redirect_to" value="bank.deposit">
                     <div class="modal-header">
                         <div>
-                            <div class="bank-label">Пул → операционный счет</div>
-                            <h5 class="modal-title" id="poolTransferModalLabel" data-pool-transfer-title>Перевести из пула</h5>
+                            <div class="bank-label">Пул ↔ операционный счет</div>
+                            <h5 class="modal-title" id="poolTransferModalLabel" data-pool-transfer-title>Трансфер пула</h5>
                         </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                     </div>
                     <div class="modal-body">
                         <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Маршрут</label>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <button type="button" class="btn btn-sm btn-outline-light" data-pool-transfer-direction-button="account_to_asset">
+                                        Счет → пул
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-primary" data-pool-transfer-direction-button="asset_to_account">
+                                        Пул → счет
+                                    </button>
+                                </div>
+                            </div>
                             <div class="col-12">
                                 <label class="form-label">Операционный счет</label>
                                 <select name="account_id" class="form-select" required data-pool-transfer-account>
@@ -607,6 +618,8 @@
         const poolTransferModal = document.getElementById('poolTransferModal');
         const poolTransferForm = document.querySelector('[data-pool-transfer-form]');
         const poolTransferTitle = document.querySelector('[data-pool-transfer-title]');
+        const poolTransferDirection = document.querySelector('[data-pool-transfer-direction]');
+        const poolTransferDirectionButtons = document.querySelectorAll('[data-pool-transfer-direction-button]');
         const poolTransferAsset = document.querySelector('[data-pool-transfer-asset]');
         const poolTransferAccount = document.querySelector('[data-pool-transfer-account]');
         const poolTransferAccountMeta = document.querySelector('[data-pool-transfer-account-meta]');
@@ -704,7 +717,7 @@
         }
 
         function validatePoolTransferForm() {
-            if (!poolTransferForm || !poolTransferAccount || !poolTransferAmount || !poolTransferError || !poolTransferSubmit) {
+            if (!poolTransferForm || !poolTransferAccount || !poolTransferAmount || !poolTransferError || !poolTransferSubmit || !poolTransferDirection) {
                 return true;
             }
 
@@ -718,6 +731,7 @@
 
             const accountOption = selectedOption(poolTransferAccount);
             const amount = Number(poolTransferAmount.value || 0);
+            const direction = poolTransferDirection.value || 'asset_to_account';
             let message = '';
 
             if (!accountOption?.value) {
@@ -726,11 +740,17 @@
                 message = 'Для перевода из пула нужен операционный счет USDC.';
             } else if (amount <= 0) {
                 message = 'Введите сумму перевода.';
+            } else if (direction === 'account_to_asset' && Number(accountOption.dataset.balance || 0) + 0.00000001 < amount) {
+                message = 'Недостаточно средств на операционном счете.';
             }
 
             if (poolTransferAccountMeta) {
                 poolTransferAccountMeta.textContent = accountOption?.value
-                    ? `После выполнения остаток счета будет увеличен на ${formatAmount(amount)} USDC.`
+                    ? (
+                        direction === 'account_to_asset'
+                            ? `После выполнения остаток счета будет уменьшен на ${formatAmount(amount)} USDC, учетный остаток пула увеличится.`
+                            : `После выполнения остаток счета будет увеличен на ${formatAmount(amount)} USDC, учетный остаток пула уменьшится.`
+                    )
                     : '';
             }
 
@@ -739,6 +759,19 @@
             poolTransferSubmit.disabled = message !== '';
 
             return message === '';
+        }
+
+        function setPoolTransferDirection(direction) {
+            if (!poolTransferDirection) {
+                return;
+            }
+            poolTransferDirection.value = direction;
+            poolTransferDirectionButtons.forEach((button) => {
+                const active = button.dataset.poolTransferDirectionButton === direction;
+                button.classList.toggle('btn-primary', active);
+                button.classList.toggle('btn-outline-light', !active);
+            });
+            validatePoolTransferForm();
         }
 
         function syncTransferRouteLabel() {
@@ -853,8 +886,9 @@
             if (poolTransferForm) {
                 poolTransferForm.reset();
             }
+            setPoolTransferDirection('asset_to_account');
             if (poolTransferTitle) {
-                poolTransferTitle.textContent = `Перевести из пула ${trigger.dataset.poolName || ''}`.trim();
+                poolTransferTitle.textContent = `Трансфер пула ${trigger.dataset.poolName || ''}`.trim();
             }
             if (poolTransferAsset) {
                 poolTransferAsset.value = trigger.dataset.poolAssetKey || '';
@@ -867,9 +901,15 @@
                 poolTransferDate.value = new Date().toISOString().slice(0, 10);
             }
             if (poolTransferNote) {
-                poolTransferNote.value = `Перевод из пула ${trigger.dataset.poolName || ''} на операционный счет`.trim();
+                poolTransferNote.value = `Трансфер пул ↔ операционный счет: ${trigger.dataset.poolName || ''}`.trim();
             }
             validatePoolTransferForm();
+        });
+
+        poolTransferDirectionButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                setPoolTransferDirection(button.dataset.poolTransferDirectionButton || 'asset_to_account');
+            });
         });
 
         [poolTransferAccount, poolTransferAmount].forEach((element) => {

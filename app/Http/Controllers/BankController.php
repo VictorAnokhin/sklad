@@ -833,9 +833,16 @@ class BankController extends Controller
             : $amount);
         $currency = $this->normalizeCurrencyCode((string) $payload['currency']);
         if ((bool) ($payload['update_account_balance'] ?? false)) {
-            abort_unless((string) $payload['direction'] === 'asset_to_account', 422, 'Изменение остатка счета разрешено только для перевода из актива на счет.');
+            abort_unless(
+                in_array((string) $payload['direction'], ['account_to_asset', 'asset_to_account'], true),
+                422,
+                'Изменение остатка счета разрешено только для трансфера счет ↔ актив.'
+            );
             $accountCurrency = $this->normalizeCurrencyCode((string) ($account->currency ?? ''));
             abort_unless($accountCurrency === $currency, 422, "Валюта счета {$accountCurrency} не совпадает с валютой операции {$currency}.");
+            if ((string) $payload['direction'] === 'account_to_asset' && (float) ($account->balance ?? 0) + 0.00000001 < $amount) {
+                abort(422, 'Недостаточно средств на операционном счете.');
+            }
         }
         $operatedAt = $request->filled('operated_at')
             ? Carbon::parse((string) $payload['operated_at'])->toDateString()
