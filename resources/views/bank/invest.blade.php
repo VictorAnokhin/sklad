@@ -695,7 +695,7 @@
                     </label>
                     <label>
                         <span data-invest-operation-amount-label>Сумма</span>
-                        <input type="number" name="amount" step="0.00000001" inputmode="decimal" required data-invest-operation-amount>
+                        <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
                     </label>
                     <label data-invest-operation-trade-field>
                         <span>Количество</span>
@@ -801,7 +801,7 @@
                     </label>
                     <label>
                         <span>Стоимость</span>
-                        <input type="number" name="value_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-asset-value>
+                        <input type="text" name="value_usd" inputmode="numeric" data-terminal-amount data-invest-asset-value>
                     </label>
                 </div>
                 <div class="bank-modal__actions">
@@ -986,6 +986,7 @@
 </div>
 
 @include('bank.partials.styles')
+@include('bank.partials.terminal_amount_inputs')
 
 <style>
     .bank-invest-tabs {

@@ -442,7 +442,7 @@
                             </div>
                             <div class="col-12" data-fiat-crypto-buy-field>
                                 <label class="form-label">Сумма Фиат</label>
-                                <input type="number" name="fiat_amount" class="form-control" min="0.01" step="0.01" inputmode="decimal" data-fiat-crypto-fiat>
+                                <input type="text" name="fiat_amount" class="form-control" inputmode="numeric" data-terminal-amount data-fiat-crypto-fiat>
                             </div>
                             <div class="col-12" data-fiat-crypto-sell-field hidden>
                                 <label class="form-label">Крипта</label>
@@ -477,6 +477,7 @@
 </div>
 
 @include('bank.partials.styles')
+@include('bank.partials.terminal_amount_inputs')
 <style>
     .bank-page .bank-table--exchange-orders,
     .bank-page .bank-table--exchange-events,

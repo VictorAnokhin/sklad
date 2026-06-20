@@ -578,7 +578,7 @@
                     </label>
                     <label>
                         <span>Сумма</span>
-                        <input type="number" name="amount" min="0" step="0.01" value="0" required inputmode="decimal" data-bank-operational-account-amount>
+                        <input type="text" name="amount" value="0.00" required inputmode="numeric" data-terminal-amount data-bank-operational-account-amount>
                     </label>
                     <label>
                         <span>Google Auth</span>
@@ -600,6 +600,7 @@
 </div>
 
 @include('bank.partials.styles')
+@include('bank.partials.terminal_amount_inputs')
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {

@@ -590,7 +590,7 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Сумма</label>
-                                <input type="number" name="amount" class="form-control" min="0.01" step="0.01" required data-deposit-transfer-amount>
+                                <input type="text" name="amount" class="form-control" required inputmode="numeric" data-terminal-amount data-deposit-transfer-amount>
                             </div>
                         </div>
                         <div class="alert alert-danger mt-3 mb-0" data-deposit-transfer-error hidden></div>
@@ -612,6 +612,7 @@
 </div>
 
 @include('bank.partials.styles')
+@include('bank.partials.terminal_amount_inputs')
 <style>
     .bank-page .bank-table--deposits {
         table-layout: fixed;
