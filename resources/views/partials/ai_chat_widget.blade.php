@@ -21,8 +21,8 @@
      style="display:none;"
      aria-hidden="true"></div>
 
-<link href="{{ asset('css/ai-chat-widget.css') }}" rel="stylesheet">
-<script src="{{ asset('js/ai-chat-widget.js') }}" defer></script>
+<link href="{{ asset('css/ai-chat-widget.css') }}?v={{ filemtime(public_path('css/ai-chat-widget.css')) }}" rel="stylesheet">
+<script src="{{ asset('js/ai-chat-widget.js') }}?v={{ filemtime(public_path('js/ai-chat-widget.js')) }}" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   if (typeof AiChatWidget !== 'undefined') {
