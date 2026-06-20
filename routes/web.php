@@ -107,6 +107,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
         Route::post('/deposit', [BankController::class, 'storeDeposit'])->name('deposit.store');
         Route::post('/deposit/transfer', [BankController::class, 'storeDepositTransfer'])->name('deposit.transfer.store');
+        Route::put('/deposit/transfer/{transfer}', [BankController::class, 'updateDepositTransfer'])
+            ->whereNumber('transfer')
+            ->name('deposit.transfer.update');
+        Route::delete('/deposit/transfer/{transfer}', [BankController::class, 'destroyDepositTransfer'])
+            ->whereNumber('transfer')
+            ->name('deposit.transfer.destroy');
         Route::put('/deposit/{deposit}', [BankController::class, 'updateDeposit'])
             ->whereNumber('deposit')
             ->name('deposit.update');

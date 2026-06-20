@@ -324,12 +324,14 @@ class BankController extends Controller
         $projectIds = HoldingScope::projectIdsFor((string) $project->id);
         $deposits = $this->bankDeposits($projectIds);
         $operations = $this->bankDepositOperations($projectIds);
+        $depositTransfers = $this->bankDepositTransfers($projectIds);
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
 
         return view('bank.deposit', [
             'project' => $project,
             'deposits' => $deposits,
             'operations' => $operations,
+            'depositTransfers' => $depositTransfers,
             'operationalAccounts' => $operationalAccounts,
             'totalByCurrency' => $deposits
                 ->groupBy('currency')
@@ -502,6 +504,89 @@ class BankController extends Controller
         }
 
         return redirect()->route('bank.deposit')->with('success', 'Трансфер выполнен.');
+    }
+
+    public function updateDepositTransfer(Request $request, int $transfer): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        abort_unless(Schema::hasTable('conf') && Schema::hasTable('z_document'), 404);
+
+        $payload = $this->validateDepositTransferPayload($request);
+
+        try {
+            DB::transaction(function () use ($project, $projectIds, $transfer, $payload): void {
+                $document = $this->depositTransferDocument($transfer, $projectIds, true);
+                if (! $document) {
+                    throw new \RuntimeException('Трансфер не найден.');
+                }
+
+                $oldDirection = (string) $document->docum === 'withdraw' ? 'deposit_to_account' : 'account_to_deposit';
+                $oldAccountId = $oldDirection === 'deposit_to_account' ? (int) $document->oplata2 : (int) $document->oplata;
+                $oldDepositId = (int) $document->money;
+                $oldAmount = round((float) $document->summa, 2);
+
+                $this->reverseDepositTransferBalances($project, $projectIds, $oldDepositId, $oldAccountId, $oldAmount, $oldDirection);
+
+                $depositId = (int) $payload['deposit_id'];
+                $accountId = (int) $payload['operational_account_id'];
+                $amount = round((float) $payload['amount'], 2);
+                $direction = (string) $payload['direction'];
+                [$deposit, $account, $currency] = $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+
+                $this->reverseDepositTransferLedger((int) $project->id, (int) $document->id);
+                $this->updateDepositTransferDocument(
+                    (int) $document->id,
+                    (string) $project->id,
+                    $depositId,
+                    $accountId,
+                    $amount,
+                    $currency,
+                    trim((string) ($account->name ?? '')),
+                    trim((string) ($deposit->name ?? '')),
+                    $direction
+                );
+                $this->postDepositTransferLedger((int) $project->id, (int) $document->id);
+            });
+        } catch (\RuntimeException $exception) {
+            return redirect()->route('bank.deposit')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('bank.deposit')->with('success', 'Трансфер обновлен.');
+    }
+
+    public function destroyDepositTransfer(int $transfer): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        abort_unless(Schema::hasTable('conf') && Schema::hasTable('z_document'), 404);
+
+        try {
+            DB::transaction(function () use ($project, $projectIds, $transfer): void {
+                $document = $this->depositTransferDocument($transfer, $projectIds, true);
+                if (! $document) {
+                    throw new \RuntimeException('Трансфер не найден.');
+                }
+
+                $direction = (string) $document->docum === 'withdraw' ? 'deposit_to_account' : 'account_to_deposit';
+                $accountId = $direction === 'deposit_to_account' ? (int) $document->oplata2 : (int) $document->oplata;
+                $depositId = (int) $document->money;
+                $amount = round((float) $document->summa, 2);
+
+                $this->reverseDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+                $this->reverseDepositTransferLedger((int) $project->id, (int) $document->id);
+
+                DB::table('z_document')->where('id', (int) $document->id)->update([
+                    'status' => '-1',
+                    'close' => 1,
+                    'provodka' => 0,
+                ]);
+            });
+        } catch (\RuntimeException $exception) {
+            return redirect()->route('bank.deposit')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('bank.deposit')->with('success', 'Трансфер удален.');
     }
 
     public function exchange(): View
@@ -2432,6 +2517,220 @@ class BankController extends Controller
         );
     }
 
+    private function validateDepositTransferPayload(Request $request): array
+    {
+        return $request->validate([
+            'deposit_id' => ['required', 'integer'],
+            'operational_account_id' => ['required', 'integer'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'direction' => ['required', Rule::in(['account_to_deposit', 'deposit_to_account'])],
+        ]);
+    }
+
+    private function depositTransferDocument(int $transfer, array $projectIds, bool $lock = false): ?object
+    {
+        $query = DB::table('z_document')
+            ->where('id', $transfer)
+            ->whereIn('firma', array_map('intval', $projectIds))
+            ->where('type', 'PP')
+            ->whereIn('docum', ['topup', 'withdraw'])
+            ->where('status', '!=', '-1');
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->first();
+    }
+
+    private function applyDepositTransferBalances(object $project, array $projectIds, int $depositId, int $accountId, float $amount, string $direction): array
+    {
+        $deposit = DB::table('conf')
+            ->where('id', $depositId)
+            ->where('type', 'deposit')
+            ->whereIn('firma', array_map('intval', $projectIds))
+            ->lockForUpdate()
+            ->first();
+
+        $account = DB::table('conf')
+            ->where('id', $accountId)
+            ->where('type', 'oplata')
+            ->where('firma', (string) $project->id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $deposit || ! $account) {
+            throw new \RuntimeException('Депозит или операционный счёт не найден.');
+        }
+
+        $depositCurrency = $this->normalizeCurrencyCode($deposit->currency ?? 'UAH');
+        $accountCurrency = $this->normalizeCurrencyCode($account->currency ?? 'UAH');
+        if ($depositCurrency !== $accountCurrency) {
+            throw new \RuntimeException("Валюта депозита {$depositCurrency} не совпадает с валютой счета {$accountCurrency}.");
+        }
+
+        $accountBalance = round((float) ($account->value ?? 0), 2);
+        $depositBalance = round((float) ($deposit->value ?? 0), 2);
+        if ($direction === 'account_to_deposit' && $accountBalance + 0.000001 < $amount) {
+            throw new \RuntimeException('Недостаточно средств на операционном счете.');
+        }
+        if ($direction === 'deposit_to_account' && $depositBalance + 0.000001 < $amount) {
+            throw new \RuntimeException('Недостаточно средств на депозите.');
+        }
+
+        if ($direction === 'account_to_deposit') {
+            DB::table('conf')->where('id', $accountId)->update(['value' => DB::raw('COALESCE(value, 0) - ' . $amount)]);
+            DB::table('conf')->where('id', $depositId)->update(['value' => DB::raw('COALESCE(value, 0) + ' . $amount)]);
+        } else {
+            DB::table('conf')->where('id', $depositId)->update(['value' => DB::raw('COALESCE(value, 0) - ' . $amount)]);
+            DB::table('conf')->where('id', $accountId)->update(['value' => DB::raw('COALESCE(value, 0) + ' . $amount)]);
+        }
+
+        return [$deposit, $account, $accountCurrency];
+    }
+
+    private function reverseDepositTransferBalances(object $project, array $projectIds, int $depositId, int $accountId, float $amount, string $direction): void
+    {
+        $reverseDirection = $direction === 'account_to_deposit' ? 'deposit_to_account' : 'account_to_deposit';
+        $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $reverseDirection);
+    }
+
+    private function updateDepositTransferDocument(
+        int $documentId,
+        string $projectId,
+        int $depositId,
+        int $accountId,
+        float $amount,
+        string $currency,
+        string $accountName,
+        string $depositName,
+        string $direction
+    ): void {
+        $columns = Schema::getColumnListing('z_document');
+        $isDepositToAccount = $direction === 'deposit_to_account';
+        $payload = [
+            'summa' => $amount,
+            'content' => $isDepositToAccount
+                ? trim("Трансфер с депозита {$depositName} на операционный счет {$accountName}")
+                : trim("Трансфер с операционного счета {$accountName} на депозит {$depositName}"),
+            'data' => date('d-m-Y'),
+            'time' => date('H:i:s'),
+            'docum' => $isDepositToAccount ? 'withdraw' : 'topup',
+            'oplata' => $isDepositToAccount ? '' : (string) $accountId,
+            'oplata2' => $isDepositToAccount ? (string) $accountId : '',
+            'money' => (string) $depositId,
+            'status' => '0',
+            'close' => 0,
+            'provodka' => 1,
+        ];
+        if (in_array('currency_from', $columns, true)) {
+            $payload['currency_from'] = $currency;
+        }
+
+        DB::table('z_document')
+            ->where('id', $documentId)
+            ->where('firma', $projectId)
+            ->update(array_intersect_key($payload, array_flip($columns)));
+    }
+
+    private function reverseDepositTransferLedger(int $projectId, int $documentId): void
+    {
+        $document = DB::table('z_document')->where('id', $documentId)->first();
+        if ($document) {
+            app(AccountingService::class)->createDocumentTransaction(
+                'z_document:deposit_operation',
+                $documentId,
+                'PP',
+                $document,
+                collect(),
+                (string) $projectId,
+                true
+            );
+        }
+    }
+
+    private function postDepositTransferLedger(int $projectId, int $documentId): void
+    {
+        $document = DB::table('z_document')->where('id', $documentId)->first();
+        if ($document) {
+            app(AccountingService::class)->createDocumentTransaction(
+                'z_document:deposit_operation',
+                $documentId,
+                'PP',
+                $document,
+                collect(),
+                (string) $projectId
+            );
+        }
+    }
+
+    private function bankDepositTransfers(array $projectIds)
+    {
+        if (! Schema::hasTable('z_document')) {
+            return collect();
+        }
+
+        return DB::table('z_document as d')
+            ->leftJoin('conf as dep', function ($join): void {
+                $join->on('dep.id', '=', 'd.money')->where('dep.type', '=', 'deposit');
+            })
+            ->leftJoin('conf as acc_from', function ($join): void {
+                $join->on('acc_from.id', '=', 'd.oplata')->where('acc_from.type', '=', 'oplata');
+            })
+            ->leftJoin('conf as acc_to', function ($join): void {
+                $join->on('acc_to.id', '=', 'd.oplata2')->where('acc_to.type', '=', 'oplata');
+            })
+            ->whereIn('d.firma', array_map('intval', $projectIds))
+            ->where('d.type', 'PP')
+            ->whereIn('d.docum', ['topup', 'withdraw'])
+            ->where('d.status', '!=', '-1')
+            ->orderByRaw("COALESCE(STR_TO_DATE(d.data, '%d-%m-%Y'), d.dt) DESC")
+            ->orderByDesc('d.id')
+            ->get([
+                'd.id',
+                'd.num',
+                'd.data',
+                'd.dt',
+                'd.summa',
+                'd.currency_from',
+                'd.docum',
+                'd.money',
+                'd.oplata',
+                'd.oplata2',
+                'd.provodka',
+                'd.content',
+                'dep.name as deposit_name',
+                'dep.currency as deposit_currency',
+                'acc_from.name as account_from_name',
+                'acc_from.currency as account_from_currency',
+                'acc_to.name as account_to_name',
+                'acc_to.currency as account_to_currency',
+            ])
+            ->map(function ($document) {
+                $isWithdraw = (string) $document->docum === 'withdraw';
+                $accountId = $isWithdraw ? (string) $document->oplata2 : (string) $document->oplata;
+                $accountName = $isWithdraw ? (string) $document->account_to_name : (string) $document->account_from_name;
+
+                return (object) [
+                    'id' => (int) $document->id,
+                    'number' => trim((string) $document->num) ?: (string) $document->id,
+                    'date' => trim((string) $document->data) ?: (string) $document->dt,
+                    'direction' => $isWithdraw ? 'deposit_to_account' : 'account_to_deposit',
+                    'direction_label' => $isWithdraw ? 'Депозит → счет' : 'Счет → депозит',
+                    'deposit_id' => (string) $document->money,
+                    'deposit_name' => trim((string) $document->deposit_name) ?: 'Депозит #' . $document->money,
+                    'account_id' => $accountId,
+                    'account_name' => trim($accountName) ?: 'Счет #' . $accountId,
+                    'amount' => (float) $document->summa,
+                    'currency' => $this->normalizeCurrencyCode($document->deposit_currency ?: $document->currency_from ?: 'UAH'),
+                    'description' => trim((string) $document->content),
+                    'posted' => (int) ($document->provodka ?? 0) === 1,
+                    'update_url' => route('bank.deposit.transfer.update', ['transfer' => (int) $document->id]),
+                    'delete_url' => route('bank.deposit.transfer.destroy', ['transfer' => (int) $document->id]),
+                ];
+            });
+    }
+
     private function bankDepositOperations(array $projectIds)
     {
         if (! Schema::hasTable('z_document')) {
@@ -2448,6 +2747,7 @@ class BankController extends Controller
             ->whereIn('d.firma', array_map('intval', $projectIds))
             ->where('d.type', 'PP')
             ->whereIn('d.docum', ['topup', 'withdraw'])
+            ->where('d.status', '!=', '-1')
             ->orderByRaw("COALESCE(STR_TO_DATE(d.data, '%d-%m-%Y'), d.dt) DESC")
             ->orderByDesc('d.id')
             ->limit(100)

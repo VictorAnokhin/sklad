@@ -170,9 +170,68 @@
                         <div class="bank-label">Трансфер</div>
                         <div class="bank-meta">Перевод с операционного счета банка на депозит. Валюта депозита и счета должна совпадать.</div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#depositTransferModal">
+                    <button type="button"
+                        class="btn btn-sm btn-primary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#depositTransferModal"
+                        data-deposit-transfer-create="1"
+                        data-store-url="{{ route('bank.deposit.transfer.store') }}">
                         Создать
                     </button>
+                </div>
+            </section>
+            <section class="bank-panel bank-table-panel mt-3">
+                <div class="bank-table-header">
+                    <div>
+                        <div class="bank-label">Список трансферов</div>
+                        <div class="bank-meta">Все трансферы между депозитами и операционными счетами.</div>
+                    </div>
+                    <div class="bank-meta">{{ $depositTransfers->count() }} записей</div>
+                </div>
+                <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
+                    <table class="table table-dark table-hover table-sm align-middle bank-table">
+                        <thead>
+                            <tr>
+                                <th class="bank-table__num">№</th>
+                                <th>Дата / документ</th>
+                                <th>Маршрут</th>
+                                <th>Депозит</th>
+                                <th>Операционный счет</th>
+                                <th class="text-end">Сумма</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($depositTransfers as $transfer)
+                                <tr class="bank-deposit-transfer-row"
+                                    role="button"
+                                    tabindex="0"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#depositTransferModal"
+                                    data-transfer-direction="{{ $transfer->direction }}"
+                                    data-transfer-deposit="{{ $transfer->deposit_id }}"
+                                    data-transfer-account="{{ $transfer->account_id }}"
+                                    data-transfer-amount="{{ number_format((float) $transfer->amount, 2, '.', '') }}"
+                                    data-transfer-update-url="{{ $transfer->update_url }}"
+                                    data-transfer-delete-url="{{ $transfer->delete_url }}">
+                                    <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                    <td>
+                                        <strong>#{{ $transfer->number }}</strong>
+                                        <div class="bank-meta">{{ $transfer->date }}</div>
+                                    </td>
+                                    <td><span class="bank-pill {{ $transfer->direction === 'deposit_to_account' ? 'bank-pill--currency' : 'bank-pill--company' }}">{{ $transfer->direction_label }}</span></td>
+                                    <td>{{ $transfer->deposit_name }}</td>
+                                    <td>{{ $transfer->account_name }}</td>
+                                    <td class="text-end fw-semibold">{{ number_format((float) $transfer->amount, 2, '.', ' ') }} {{ $transfer->currency }}</td>
+                                    <td><span class="bank-status {{ $transfer->posted ? '' : 'bank-status--pending' }}">{{ $transfer->posted ? 'posted' : 'draft' }}</span></td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">Трансферы пока не созданы.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
             </section>
         </div>
@@ -284,11 +343,12 @@
             <div class="modal-content">
                 <form method="POST" action="{{ route('bank.deposit.transfer.store') }}" data-deposit-transfer-form>
                     @csrf
+                    <input type="hidden" name="_method" value="PUT" data-deposit-transfer-method disabled>
                     <input type="hidden" name="direction" value="account_to_deposit" data-deposit-transfer-direction>
                     <div class="modal-header">
                         <div>
                             <div class="bank-label">Трансфер</div>
-                            <h5 class="modal-title" id="depositTransferModalLabel">Создать трансфер</h5>
+                            <h5 class="modal-title" id="depositTransferModalLabel" data-deposit-transfer-title>Создать трансфер</h5>
                         </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                     </div>
@@ -334,9 +394,14 @@
                         <div class="alert alert-danger mt-3 mb-0" data-deposit-transfer-error hidden></div>
                     </div>
                     <div class="modal-footer">
+                        <button type="submit" class="btn btn-outline-danger me-auto" form="depositTransferDeleteForm" data-deposit-transfer-delete hidden>Удалить</button>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                         <button type="submit" class="btn btn-primary" data-deposit-transfer-submit>Выполнить</button>
                     </div>
+                </form>
+                <form method="POST" id="depositTransferDeleteForm" data-deposit-transfer-delete-form>
+                    @csrf
+                    <input type="hidden" name="_method" value="DELETE">
                 </form>
             </div>
         </div>
@@ -367,6 +432,8 @@
         const operationsTab = modal.querySelector('#depositOperationsTab');
         const settingsTab = modal.querySelector('#depositSettingsTab');
         const transferForm = document.querySelector('[data-deposit-transfer-form]');
+        const transferMethod = document.querySelector('[data-deposit-transfer-method]');
+        const transferTitle = document.querySelector('[data-deposit-transfer-title]');
         const transferDirection = document.querySelector('[data-deposit-transfer-direction]');
         const transferRouteLabel = document.querySelector('[data-deposit-transfer-route-label]');
         const transferToggleRoute = document.querySelector('[data-deposit-transfer-toggle-route]');
@@ -376,6 +443,9 @@
         const transferError = document.querySelector('[data-deposit-transfer-error]');
         const transferSubmit = document.querySelector('[data-deposit-transfer-submit]');
         const transferAccountMeta = document.querySelector('[data-deposit-transfer-account-meta]');
+        const transferDelete = document.querySelector('[data-deposit-transfer-delete]');
+        const transferDeleteForm = document.querySelector('[data-deposit-transfer-delete-form]');
+        const transferStoreAction = transferForm ? transferForm.action : '';
 
         function formatAmount(value) {
             return Number(value || 0).toLocaleString('ru-RU', {
@@ -411,6 +481,7 @@
             const depositCurrency = depositOption?.dataset.currency || '';
             const direction = transferDirection?.value || 'account_to_deposit';
             const amount = Number(transferAmount.value || 0);
+            const isEdit = Boolean(transferMethod && !transferMethod.disabled);
             let message = '';
 
             Array.from(transferAccount.options).forEach((option) => {
@@ -432,7 +503,7 @@
                 message = 'Выберите операционный счет в валюте ' + depositCurrency + '.';
             } else if (amount <= 0) {
                 message = 'Введите сумму трансфера.';
-            } else {
+            } else if (!isEdit) {
                 const sourceBalance = direction === 'deposit_to_account'
                     ? Number(depositOption?.dataset.balance || 0)
                     : Number(refreshedAccountOption.dataset.balance || 0);
@@ -473,6 +544,67 @@
             validateTransferForm();
         }
 
+        function resetTransferForm(trigger = null) {
+            if (transferForm) {
+                transferForm.reset();
+                transferForm.action = trigger?.dataset.storeUrl || transferStoreAction;
+            }
+            if (transferMethod) {
+                transferMethod.disabled = true;
+            }
+            if (transferDirection) {
+                transferDirection.value = 'account_to_deposit';
+            }
+            if (transferTitle) {
+                transferTitle.textContent = 'Создать трансфер';
+            }
+            if (transferSubmit) {
+                transferSubmit.textContent = 'Выполнить';
+            }
+            if (transferDelete) {
+                transferDelete.hidden = true;
+            }
+            if (transferDeleteForm) {
+                transferDeleteForm.action = '';
+            }
+            syncTransferRouteLabel();
+        }
+
+        function fillTransferForm(trigger) {
+            if (!transferForm || !(trigger instanceof HTMLElement)) {
+                return;
+            }
+            transferForm.action = trigger.dataset.transferUpdateUrl || transferStoreAction;
+            if (transferMethod) {
+                transferMethod.disabled = false;
+            }
+            if (transferDirection) {
+                transferDirection.value = trigger.dataset.transferDirection || 'account_to_deposit';
+            }
+            if (transferDeposit) {
+                transferDeposit.value = trigger.dataset.transferDeposit || '';
+            }
+            if (transferAccount) {
+                transferAccount.value = trigger.dataset.transferAccount || '';
+            }
+            if (transferAmount) {
+                transferAmount.value = trigger.dataset.transferAmount || '';
+            }
+            if (transferTitle) {
+                transferTitle.textContent = 'Изменить трансфер';
+            }
+            if (transferSubmit) {
+                transferSubmit.textContent = 'Сохранить';
+            }
+            if (transferDelete) {
+                transferDelete.hidden = false;
+            }
+            if (transferDeleteForm) {
+                transferDeleteForm.action = trigger.dataset.transferDeleteUrl || '';
+            }
+            syncTransferRouteLabel();
+        }
+
         transferToggleRoute?.addEventListener('click', () => {
             if (!transferDirection) {
                 return;
@@ -494,8 +626,21 @@
             }
         });
 
-        document.getElementById('depositTransferModal')?.addEventListener('shown.bs.modal', () => {
-            syncTransferRouteLabel();
+        document.getElementById('depositTransferModal')?.addEventListener('show.bs.modal', (event) => {
+            const trigger = event.relatedTarget;
+            if (trigger instanceof HTMLElement && trigger.dataset.depositTransferCreate === '1') {
+                resetTransferForm(trigger);
+            } else if (trigger instanceof HTMLElement && trigger.dataset.transferUpdateUrl) {
+                fillTransferForm(trigger);
+            } else {
+                syncTransferRouteLabel();
+            }
+        });
+
+        transferDelete?.addEventListener('click', (event) => {
+            if (!confirm('Удалить трансфер и выполнить обратное движение остатков?')) {
+                event.preventDefault();
+            }
         });
 
         modal.addEventListener('show.bs.modal', (event) => {
