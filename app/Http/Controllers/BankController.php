@@ -706,8 +706,6 @@ class BankController extends Controller
             'last_balance' => $quantity,
             'last_price_usd' => $priceUsd,
             'last_value_usd' => $valueUsd,
-            'available_fields' => json_encode([]),
-            'selected_fields' => json_encode([]),
             'last_payload' => json_encode([
                 'quantity' => $quantity,
                 'price_usd' => $priceUsd,
