@@ -11,19 +11,30 @@
     $ordersTotal = (float) $fiatAv8Orders->sum('pay_amount');
     $av8Total = (float) $fiatAv8Orders->sum('expected_av8');
     $fiatCryptoTotal = (float) $fiatCryptoOrders->sum('pay_amount');
-    $frontendSwapUrl = rtrim((string) config('app.frontend_url', ''), '/') . '/swap';
-    if ($frontendSwapUrl === '/swap') {
-        $frontendSwapUrl = '/swap';
-    }
 @endphp
 <div class="bank-page">
     @include('bank.partials.nav')
 
+    <ul class="nav nav-tabs bank-modal-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="bankExchangeAv8Tab" data-bs-toggle="tab" data-bs-target="#bankExchangeAv8Pane" type="button" role="tab">
+                Фиат/AV8
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="bankExchangeCryptoTab" data-bs-toggle="tab" data-bs-target="#bankExchangeCryptoPane" type="button" role="tab">
+                Фиат/Крипта
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="bankExchangeAv8Pane" role="tabpanel" aria-labelledby="bankExchangeAv8Tab">
     <section class="bank-hero">
         <div>
             <div class="bank-label">Fiat / Crypto → AV8</div>
             <h1>Обмен фиат/крипта на AV8</h1>
-            <p>Основные параметры формы обмена av8fund-react `/swap`, входящие заявки клиентов и история on-chain исполнения.</p>
+            <p>Заявки формы av8fund-react `/swap`, параметры расчета и история on-chain исполнения.</p>
         </div>
         <div class="bank-hero__metrics">
             <div>
@@ -60,49 +71,6 @@
         </div>
     </section>
 
-    <section class="bank-panel bank-exchange-config">
-        <div class="bank-table-header">
-            <div>
-                <div class="bank-label">Параметры frontend-формы</div>
-                <div class="bank-meta">Эти значения использует форма av8fund-react `/swap`; заявка дополнительно пересчитывается на Laravel API.</div>
-            </div>
-            <a class="bank-account-link" href="{{ $frontendSwapUrl }}" target="_blank" rel="noopener">Открыть swap</a>
-        </div>
-        <div class="bank-exchange-grid">
-            <div>
-                <span>Поддерживаемый фиат</span>
-                <strong>USD, EUR, UAH</strong>
-            </div>
-            <div>
-                <span>Поддерживаемая крипта</span>
-                <strong>USDC, USDT, SUI</strong>
-            </div>
-            <div>
-                <span>Минимум покупки</span>
-                <strong>{{ $exchangeSettings->min_buy_usdc > 0 ? number_format((float) $exchangeSettings->min_buy_usdc, 2, '.', ' ') . ' USDC' : 'Не задан' }}</strong>
-            </div>
-            <div>
-                <span>Максимум покупки</span>
-                <strong>{{ $exchangeSettings->max_buy_usdc > 0 ? number_format((float) $exchangeSettings->max_buy_usdc, 2, '.', ' ') . ' USDC' : 'Не задан' }}</strong>
-            </div>
-        </div>
-    </section>
-
-    <ul class="nav nav-tabs bank-modal-tabs mb-3" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="bankExchangeAv8Tab" data-bs-toggle="tab" data-bs-target="#bankExchangeAv8Pane" type="button" role="tab">
-                Фиат/AV8
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="bankExchangeCryptoTab" data-bs-toggle="tab" data-bs-target="#bankExchangeCryptoPane" type="button" role="tab">
-                Фиат/Крипта
-            </button>
-        </li>
-    </ul>
-
-    <div class="tab-content">
-        <div class="tab-pane fade show active" id="bankExchangeAv8Pane" role="tabpanel" aria-labelledby="bankExchangeAv8Tab">
     <section class="bank-panel bank-table-panel">
         @if(session('success'))
             <div class="alert alert-success mx-3 mt-3 mb-0">{{ session('success') }}</div>
