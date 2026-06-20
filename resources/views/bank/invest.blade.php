@@ -16,13 +16,10 @@
     $hiddenTrackedNftRows = $trackedAssets->get('hidden_nft', collect());
     $trackedDefiRows = $trackedAssets->get('defi', collect());
     $hiddenTrackedDefiRows = $trackedAssets->get('hidden_defi', collect());
-    $investorLiquidRows = $portfolioRows->where('group', 'liquid')->values();
     $investorPoolRows = $portfolioRows->where('group', 'defi')->values();
-    $investorLiquidTotal = (float) $investorLiquidRows->sum('value_usd');
     $investorPoolTotal = (float) $investorPoolRows->sum('value_usd');
-    $investorTotal = $investorLiquidTotal + $investorPoolTotal;
+    $investorTotal = $investorPoolTotal;
     $investorPoolShare = $investorTotal > 0 ? $investorPoolTotal / $investorTotal * 100 : 0;
-    $investorLiquidShare = $investorTotal > 0 ? $investorLiquidTotal / $investorTotal * 100 : 0;
     $assetTypeLabels = [
         'token' => 'Токен',
         'nft' => 'NFT',
@@ -86,7 +83,7 @@
             <div class="bank-table-header">
                 <div>
                     <div class="bank-label">Портфель вкладчика</div>
-                    <div class="bank-meta">Депозитный счет и инвестиционная позиция показаны отдельно. Пулы раскрыты как look-through exposure.</div>
+                    <div class="bank-meta">Инвестиционная позиция вкладчика в пулах раскрыта как look-through exposure.</div>
                 </div>
                 <div class="bank-meta">Итого: {{ $formatMoney($investorTotal) }} USD</div>
             </div>
@@ -95,12 +92,7 @@
                 <div class="bank-investor-metric bank-investor-metric--accent">
                     <div class="bank-label">Итого вкладчика</div>
                     <div class="bank-value">{{ $formatMoney($investorTotal) }}</div>
-                    <div class="bank-meta">Депозитный счет + инвестиционная позиция.</div>
-                </div>
-                <div class="bank-investor-metric">
-                    <div class="bank-label">Депозитный счет</div>
-                    <div class="bank-value">{{ $formatMoney($investorLiquidTotal) }}</div>
-                    <div class="bank-meta">Учетный остаток: {{ number_format($investorLiquidShare, 2, '.', ' ') }}% портфеля.</div>
+                    <div class="bank-meta">Текущая оценка инвестиционной позиции.</div>
                 </div>
                 <div class="bank-investor-metric">
                     <div class="bank-label">Инвестиционная позиция</div>
@@ -115,18 +107,6 @@
             </div>
 
             <div class="bank-investor-ledger">
-                <article class="bank-investor-layer">
-                    <div class="bank-investor-layer__head">
-                        <div>
-                            <div class="bank-label">Депозит отдельно</div>
-                            <strong>Депозитный счет вкладчика</strong>
-                        </div>
-                        <span class="bank-pill bank-pill--currency">{{ $investorLiquidRows->count() }} счетов</span>
-                    </div>
-                    <div class="bank-investor-layer__amount">{{ $formatMoney($investorLiquidTotal) }} USD</div>
-                    <div class="bank-meta">Это учетный денежный остаток на депозите. Если средства переведены в пул, эта часть может стать меньше, но вклад не исчезает.</div>
-                </article>
-
                 <article class="bank-investor-layer bank-investor-layer--position">
                     <div class="bank-investor-layer__head">
                         <div>
@@ -157,34 +137,12 @@
                         <tr>
                             <td><span class="bank-pill bank-pill--currency">Итого</span></td>
                             <td><strong>Портфель вкладчика</strong></td>
-                            <td class="bank-meta">Суммарная стоимость депозитного остатка и инвестиционных позиций.</td>
+                            <td class="bank-meta">Суммарная стоимость инвестиционной позиции вкладчика.</td>
                             <td>USD</td>
                             <td class="text-end fw-semibold">{{ $formatMoney($investorTotal) }}</td>
                             <td class="text-end">100.0%</td>
                             <td><span class="bank-status">active</span></td>
                         </tr>
-
-                        <tr>
-                            <td><span class="bank-pill bank-pill--currency">Депозит</span></td>
-                            <td><strong>Депозитный счет</strong></td>
-                            <td class="bank-meta">Учетный остаток депозита. Не включает средства, уже перенесенные в инвестиционную позицию.</td>
-                            <td>USD</td>
-                            <td class="text-end fw-semibold">{{ $formatMoney($investorLiquidTotal) }}</td>
-                            <td class="text-end">{{ number_format($investorLiquidShare, 1, '.', ' ') }}%</td>
-                            <td><span class="bank-status {{ $investorLiquidTotal > 0 ? '' : 'bank-status--pending' }}">{{ $investorLiquidTotal > 0 ? 'accounting' : 'empty' }}</span></td>
-                        </tr>
-
-                        @foreach($investorLiquidRows as $row)
-                            <tr>
-                                <td class="bank-meta">└─ deposit</td>
-                                <td>{{ $row->name }}</td>
-                                <td class="bank-meta">{{ $row->description !== '' ? $row->description : '—' }}</td>
-                                <td>{{ $row->currency }}</td>
-                                <td class="text-end">{{ $formatMoney($row->value_usd) }}</td>
-                                <td class="text-end">{{ $investorTotal > 0 ? number_format((float) $row->value_usd / $investorTotal * 100, 1, '.', ' ') : '0.0' }}%</td>
-                                <td><span class="bank-status {{ $row->status === 'active' ? '' : 'bank-status--pending' }}">{{ $row->status }}</span></td>
-                            </tr>
-                        @endforeach
 
                         <tr>
                             <td><span class="bank-pill bank-pill--company">Пулы</span></td>
@@ -686,6 +644,7 @@
                             <th>Актив</th>
                             <th class="text-end">Количество</th>
                             <th class="text-end">Сумма</th>
+                            <th>Ledger</th>
                             <th>Комментарий</th>
                         </tr>
                     </thead>
@@ -702,11 +661,15 @@
                                 </td>
                                 <td class="text-end bank-mono">{{ number_format((float) $operation->quantity, 8, '.', ' ') }}</td>
                                 <td class="text-end fw-semibold">{{ $formatMoney($operation->value_usd) }} USD</td>
+                                <td>
+                                    <span class="bank-status {{ $operation->status === 'posted' ? '' : 'bank-status--pending' }}">{{ $operation->status }}</span>
+                                    <div class="bank-meta">{{ $operation->ledger_transaction_id > 0 ? 'TX #' . $operation->ledger_transaction_id : 'проводки нет' }}</div>
+                                </td>
                                 <td class="bank-meta">{{ $operation->note !== '' ? $operation->note : '—' }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">Операции Счет ↔ Актив пока не созданы.</td>
+                                <td colspan="9" class="text-center text-muted py-4">Операции Счет ↔ Актив пока не созданы.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -912,9 +875,11 @@
                     <label>
                         <span>Операционный счет</span>
                         <select name="account_id" required>
-                            @foreach($operationalAccounts as $account)
+                            @forelse($operationalAccounts as $account)
                                 <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
-                            @endforeach
+                            @empty
+                                <option value="">Операционные счета не найдены</option>
+                            @endforelse
                         </select>
                     </label>
                     <label>
@@ -927,9 +892,11 @@
                     <label>
                         <span>Актив</span>
                         <select name="asset_key" required>
-                            @foreach($fixedAssetRows as $asset)
-                                <option value="{{ $asset->asset_key }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }} · {{ $asset->name }}</option>
-                            @endforeach
+                            @forelse($fixedAssetRows as $asset)
+                                <option value="{{ $asset->asset_key }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }} · {{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
+                            @empty
+                                <option value="">Активы не найдены</option>
+                            @endforelse
                         </select>
                     </label>
                     <label>
@@ -959,7 +926,7 @@
                 </label>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-invest-operation-close>Отмена</button>
-                    <button type="submit" class="btn btn-primary">Создать</button>
+                    <button type="submit" class="btn btn-primary">Выполнить</button>
                 </div>
             </form>
         </div>
@@ -1749,6 +1716,29 @@
             button.addEventListener('click', () => {
                 if (trackedAssetModal) {
                     trackedAssetModal.hidden = true;
+                }
+            });
+        });
+
+        const investOperationModal = root.querySelector('[data-invest-operation-modal]');
+
+        root.querySelectorAll('[data-invest-operation-open]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (!investOperationModal) {
+                    return;
+                }
+                investOperationModal.hidden = false;
+                const accountSelect = investOperationModal.querySelector('[name="account_id"]');
+                if (accountSelect) {
+                    accountSelect.focus();
+                }
+            });
+        });
+
+        root.querySelectorAll('[data-invest-operation-close]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (investOperationModal) {
+                    investOperationModal.hidden = true;
                 }
             });
         });

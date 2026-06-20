@@ -614,25 +614,147 @@ class BankController extends Controller
             ? (float) $payload['quantity'] * $priceUsd
             : $amount;
 
-        DB::table('bank_invest_operations')->insert([
-            'project_id' => (int) $project->id,
-            'account_id' => (int) $payload['account_id'],
-            'direction' => (string) $payload['direction'],
-            'asset_type' => (string) $asset->asset_type,
-            'asset_key' => (string) $asset->asset_key,
-            'asset_label' => (string) $asset->name,
-            'currency' => $this->normalizeCurrencyCode((string) $payload['currency']),
-            'quantity' => (float) ($payload['quantity'] ?? 0),
-            'amount' => $amount,
-            'price_usd' => $priceUsd,
-            'value_usd' => $valueUsd,
-            'note' => trim((string) ($payload['note'] ?? '')),
-            'operated_at' => $payload['operated_at'] ?? now(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $account = $operationalAccounts->firstWhere('id', (string) $payload['account_id'])
+            ?? $operationalAccounts->firstWhere('id', (int) $payload['account_id']);
+        $currency = $this->normalizeCurrencyCode((string) $payload['currency']);
+        $operatedAt = $payload['operated_at'] ?? now();
+        $operationId = DB::transaction(function () use ($project, $payload, $asset, $account, $amount, $priceUsd, $valueUsd, $currency, $operatedAt): int {
+            $now = now();
+            $values = [
+                'project_id' => (int) $project->id,
+                'account_id' => (int) $payload['account_id'],
+                'direction' => (string) $payload['direction'],
+                'asset_type' => (string) $asset->asset_type,
+                'asset_key' => (string) $asset->asset_key,
+                'asset_label' => (string) $asset->name,
+                'currency' => $currency,
+                'quantity' => (float) ($payload['quantity'] ?? 0),
+                'amount' => $amount,
+                'price_usd' => $priceUsd,
+                'value_usd' => $valueUsd,
+                'note' => trim((string) ($payload['note'] ?? '')),
+                'operated_at' => $operatedAt,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
 
-        return redirect()->route('bank.invest')->with('success', 'Операция Счет ↔ Актив создана.');
+            if (Schema::hasColumn('bank_invest_operations', 'status')) {
+                $values['status'] = 'pending';
+            }
+
+            $operationId = (int) DB::table('bank_invest_operations')->insertGetId($values);
+            $ledger = $this->createInvestOperationLedger(
+                $operationId,
+                (int) $project->id,
+                $account,
+                $asset,
+                (string) $payload['direction'],
+                $valueUsd,
+                $currency,
+                (string) $operatedAt
+            );
+
+            $updates = ['updated_at' => $now];
+            if (Schema::hasColumn('bank_invest_operations', 'ledger_transaction_id')) {
+                $updates['ledger_transaction_id'] = $ledger?->id;
+            }
+            if (Schema::hasColumn('bank_invest_operations', 'status')) {
+                $updates['status'] = $ledger ? 'posted' : 'pending';
+            }
+            DB::table('bank_invest_operations')->where('id', $operationId)->update($updates);
+
+            return $operationId;
+        });
+
+        return redirect()
+            ->route('bank.invest')
+            ->with('success', "Операция Счет ↔ Актив #{$operationId} выполнена.");
+    }
+
+    private function createInvestOperationLedger(
+        int $operationId,
+        int $projectId,
+        ?object $account,
+        object $asset,
+        string $direction,
+        float $valueUsd,
+        string $currency,
+        string $operatedAt
+    ) {
+        if ($valueUsd <= 0 || ! Schema::hasTable('accounts') || ! Schema::hasTable('transactions') || ! Schema::hasTable('entries')) {
+            return null;
+        }
+
+        $cashAccount = $this->ensureBankLedgerAccount(
+            "311.{$projectId}." . (int) ($account->id ?? 0),
+            'Операционный счет ' . trim((string) ($account->label ?? ('#' . (int) ($account->id ?? 0)))),
+            'asset',
+            '311'
+        );
+        $investAccount = $this->ensureBankLedgerAccount(
+            "141.{$projectId}." . substr(md5((string) $asset->asset_key), 0, 12),
+            'Инвестиционный актив ' . trim((string) $asset->name),
+            'asset',
+            '141'
+        );
+
+        $debitAccountId = $direction === 'asset_to_account' ? (int) $cashAccount->id : (int) $investAccount->id;
+        $creditAccountId = $direction === 'asset_to_account' ? (int) $investAccount->id : (int) $cashAccount->id;
+        $description = $direction === 'asset_to_account'
+            ? "Возврат из актива {$asset->name} на операционный счет"
+            : "Распределение средств операционного счета в актив {$asset->name}";
+
+        return app(AccountingService::class)->createTransaction(
+            [
+                ['account_id' => $debitAccountId, 'debit' => $valueUsd, 'credit' => 0, 'currency' => $currency],
+                ['account_id' => $creditAccountId, 'debit' => 0, 'credit' => $valueUsd, 'currency' => $currency],
+            ],
+            $description,
+            [
+                'date' => $this->ledgerDate($operatedAt),
+                'company_id' => $projectId,
+                'reference_type' => 'bank_invest_operation',
+                'reference_id' => $operationId,
+                'currency' => $currency,
+                'amount' => $valueUsd,
+                'amount_base' => $valueUsd,
+            ]
+        );
+    }
+
+    private function ensureBankLedgerAccount(string $code, string $name, string $type, ?string $parentCode = null): object
+    {
+        $parentId = null;
+        if ($parentCode !== null) {
+            $parent = match ($parentCode) {
+                '14' => $this->ensureBankLedgerAccount('14', 'Долгосрочные финансовые инвестиции', 'asset'),
+                '141' => $this->ensureBankLedgerAccount('141', 'Инвестиционные активы', 'asset', '14'),
+                default => DB::table('accounts')->where('code', $parentCode)->first(),
+            };
+            $parentId = $parent?->id;
+        }
+
+        DB::table('accounts')->updateOrInsert(
+            ['code' => $code],
+            [
+                'name' => $name,
+                'type' => $type,
+                'parent_id' => $parentId,
+                'updated_at' => now(),
+                'created_at' => now(),
+            ]
+        );
+
+        return DB::table('accounts')->where('code', $code)->first();
+    }
+
+    private function ledgerDate(string $value): string
+    {
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return now()->toDateString();
+        }
     }
 
     public function updateAssetManifestItem(Request $request, string $source, int $asset): RedirectResponse
@@ -1598,17 +1720,43 @@ class BankController extends Controller
 
     private function fixedInvestmentAssetRows($tokenRows, $nftRows, $pools, $trackedAssets)
     {
-        $tokens = $tokenRows->map(fn ($token) => (object) [
-            'asset_type' => 'token',
-            'asset_key' => 'token:' . (int) $token->id,
-            'source_id' => (int) $token->id,
-            'name' => trim((string) $token->symbol) ?: 'Token #' . (int) $token->id,
-            'description' => trim((string) $token->name) ?: ($token->token_short !== '—' ? $token->token_short : 'native'),
-            'currency' => trim((string) $token->symbol) ?: 'TOKEN',
-            'value_usd' => (float) $token->value_usd,
-            'source' => 'wallet_tokens',
-            'status' => 'cached',
-        ]);
+        $tokens = $tokenRows
+            ->groupBy(function ($token): string {
+                $chain = strtolower(trim((string) $token->chain));
+                $address = strtolower(trim((string) $token->token_address));
+                $symbol = strtoupper(trim((string) $token->symbol));
+
+                return implode(':', [
+                    $chain !== '' ? $chain : 'chain',
+                    $address !== '' ? $address : 'native',
+                    $symbol !== '' ? $symbol : 'TOKEN',
+                ]);
+            })
+            ->map(function ($rows, string $key) {
+                $first = $rows->first();
+                $symbol = trim((string) $first->symbol) ?: 'TOKEN';
+                $chain = trim((string) $first->chain) ?: 'chain';
+                $tokenAddress = trim((string) $first->token_address);
+                $walletCount = $rows
+                    ->pluck('wallet_address')
+                    ->map(fn ($address) => strtolower(trim((string) $address)))
+                    ->filter()
+                    ->unique()
+                    ->count();
+
+                return (object) [
+                    'asset_type' => 'token',
+                    'asset_key' => 'token:' . md5($key),
+                    'source_id' => (int) $first->id,
+                    'name' => $symbol,
+                    'description' => trim((string) $first->name) ?: ($tokenAddress !== '' ? $this->shortHash($tokenAddress) : 'native') . ' · ' . strtoupper($chain) . ' · ' . $walletCount . ' кош.',
+                    'currency' => $symbol,
+                    'value_usd' => (float) $rows->sum('value_usd'),
+                    'source' => 'wallet_tokens',
+                    'status' => 'cached',
+                ];
+            })
+            ->values();
 
         $nfts = $nftRows->map(fn ($nft, int $index) => (object) [
             'asset_type' => 'nft',
@@ -1683,7 +1831,6 @@ class BankController extends Controller
             ->where('project_id', $projectId)
             ->orderByDesc('operated_at')
             ->orderByDesc('id')
-            ->limit(200)
             ->get()
             ->map(function ($row) use ($accountsById, $assetsByKey) {
                 $account = $accountsById->get((int) $row->account_id);
@@ -1703,6 +1850,8 @@ class BankController extends Controller
                     'amount' => (float) $row->amount,
                     'price_usd' => $row->price_usd !== null ? (float) $row->price_usd : null,
                     'value_usd' => (float) $row->value_usd,
+                    'ledger_transaction_id' => (int) ($row->ledger_transaction_id ?? 0),
+                    'status' => (string) ($row->status ?? 'pending'),
                     'note' => (string) ($row->note ?? ''),
                     'operated_at' => (string) ($row->operated_at ?? ''),
                 ];
