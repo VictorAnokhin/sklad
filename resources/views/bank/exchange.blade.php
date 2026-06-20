@@ -11,25 +11,26 @@
     $ordersTotal = (float) $fiatAv8Orders->sum('pay_amount');
     $av8Total = (float) $fiatAv8Orders->sum('expected_av8');
     $fiatCryptoTotal = (float) $fiatCryptoOrders->sum('pay_amount');
+    $activeExchangeTab = session('bank_exchange_tab');
 @endphp
 <div class="bank-page">
     @include('bank.partials.nav')
 
     <ul class="nav nav-tabs bank-modal-tabs mb-3" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="bankExchangeAv8Tab" data-bs-toggle="tab" data-bs-target="#bankExchangeAv8Pane" type="button" role="tab">
+            <button class="nav-link {{ $activeExchangeTab === 'crypto' ? '' : 'active' }}" id="bankExchangeAv8Tab" data-bs-toggle="tab" data-bs-target="#bankExchangeAv8Pane" type="button" role="tab" data-bank-exchange-tab="av8">
                 Фиат/AV8
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="bankExchangeCryptoTab" data-bs-toggle="tab" data-bs-target="#bankExchangeCryptoPane" type="button" role="tab">
+            <button class="nav-link {{ $activeExchangeTab === 'crypto' ? 'active' : '' }}" id="bankExchangeCryptoTab" data-bs-toggle="tab" data-bs-target="#bankExchangeCryptoPane" type="button" role="tab" data-bank-exchange-tab="crypto">
                 Фиат/Крипта
             </button>
         </li>
     </ul>
 
     <div class="tab-content">
-        <div class="tab-pane fade show active" id="bankExchangeAv8Pane" role="tabpanel" aria-labelledby="bankExchangeAv8Tab">
+        <div class="tab-pane fade {{ $activeExchangeTab === 'crypto' ? '' : 'show active' }}" id="bankExchangeAv8Pane" role="tabpanel" aria-labelledby="bankExchangeAv8Tab">
     <section class="bank-hero">
         <div>
             <div class="bank-label">Fiat / Crypto → AV8</div>
@@ -300,7 +301,7 @@
     </section>
         </div>
 
-        <div class="tab-pane fade" id="bankExchangeCryptoPane" role="tabpanel" aria-labelledby="bankExchangeCryptoTab">
+        <div class="tab-pane fade {{ $activeExchangeTab === 'crypto' ? 'show active' : '' }}" id="bankExchangeCryptoPane" role="tabpanel" aria-labelledby="bankExchangeCryptoTab">
             <section class="bank-panel bank-table-panel">
                 <div class="bank-table-header">
                     <div>
@@ -316,7 +317,7 @@
                 </div>
 
                 <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
-                    <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--exchange-orders">
+                    <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--exchange-crypto">
                         <thead>
                             <tr>
                                 <th class="bank-table__num">№</th>
@@ -476,6 +477,130 @@
 </div>
 
 @include('bank.partials.styles')
+<style>
+    .bank-page .bank-table--exchange-orders,
+    .bank-page .bank-table--exchange-events,
+    .bank-page .bank-table--exchange-crypto {
+        table-layout: fixed;
+    }
+
+    .bank-page .bank-table--exchange-orders {
+        min-width: 760px;
+    }
+
+    .bank-page .bank-table--exchange-events {
+        min-width: 640px;
+    }
+
+    .bank-page .bank-table--exchange-crypto {
+        min-width: 820px;
+    }
+
+    .bank-page .bank-table--exchange-orders th,
+    .bank-page .bank-table--exchange-orders td,
+    .bank-page .bank-table--exchange-events th,
+    .bank-page .bank-table--exchange-events td,
+    .bank-page .bank-table--exchange-crypto th,
+    .bank-page .bank-table--exchange-crypto td {
+        overflow: hidden;
+        padding: 0.22rem 0.35rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        line-height: 1.15;
+    }
+
+    .bank-page .bank-table--exchange-orders .bank-meta,
+    .bank-page .bank-table--exchange-events .bank-meta,
+    .bank-page .bank-table--exchange-crypto .bank-meta {
+        overflow: hidden;
+        margin-top: 1px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.68rem;
+        line-height: 1.1;
+    }
+
+    .bank-page .bank-table--exchange-orders .bank-pill,
+    .bank-page .bank-table--exchange-orders .bank-status,
+    .bank-page .bank-table--exchange-events .bank-pill,
+    .bank-page .bank-table--exchange-events .bank-status,
+    .bank-page .bank-table--exchange-crypto .bank-pill,
+    .bank-page .bank-table--exchange-crypto .bank-status {
+        min-height: 18px;
+        padding: 1px 5px;
+        font-size: 0.68rem;
+        line-height: 1.1;
+    }
+
+    .bank-page .bank-table--exchange-orders th:nth-child(1),
+    .bank-page .bank-table--exchange-orders td:nth-child(1),
+    .bank-page .bank-table--exchange-events th:nth-child(1),
+    .bank-page .bank-table--exchange-events td:nth-child(1),
+    .bank-page .bank-table--exchange-crypto th:nth-child(1),
+    .bank-page .bank-table--exchange-crypto td:nth-child(1) {
+        width: 38px;
+    }
+
+    .bank-page .bank-table--exchange-orders th:nth-child(2),
+    .bank-page .bank-table--exchange-orders td:nth-child(2),
+    .bank-page .bank-table--exchange-events th:nth-child(2),
+    .bank-page .bank-table--exchange-events td:nth-child(2),
+    .bank-page .bank-table--exchange-crypto th:nth-child(2),
+    .bank-page .bank-table--exchange-crypto td:nth-child(2) {
+        width: 128px;
+    }
+
+    .bank-page .bank-table--exchange-orders th:nth-child(3),
+    .bank-page .bank-table--exchange-orders td:nth-child(3) {
+        width: 190px;
+    }
+
+    .bank-page .bank-table--exchange-orders th:nth-child(4),
+    .bank-page .bank-table--exchange-orders td:nth-child(4),
+    .bank-page .bank-table--exchange-orders th:nth-child(6),
+    .bank-page .bank-table--exchange-orders td:nth-child(6) {
+        width: 92px;
+    }
+
+    .bank-page .bank-table--exchange-orders th:nth-child(5),
+    .bank-page .bank-table--exchange-orders td:nth-child(5) {
+        width: 210px;
+    }
+
+    .bank-page .bank-table--exchange-events th:nth-child(3),
+    .bank-page .bank-table--exchange-events td:nth-child(3) {
+        width: 92px;
+    }
+
+    .bank-page .bank-table--exchange-events th:nth-child(4),
+    .bank-page .bank-table--exchange-events td:nth-child(4) {
+        width: 112px;
+    }
+
+    .bank-page .bank-table--exchange-events th:nth-child(5),
+    .bank-page .bank-table--exchange-events td:nth-child(5) {
+        width: 270px;
+    }
+
+    .bank-page .bank-table--exchange-crypto th:nth-child(3),
+    .bank-page .bank-table--exchange-crypto td:nth-child(3) {
+        width: 210px;
+    }
+
+    .bank-page .bank-table--exchange-crypto th:nth-child(4),
+    .bank-page .bank-table--exchange-crypto td:nth-child(4),
+    .bank-page .bank-table--exchange-crypto th:nth-child(5),
+    .bank-page .bank-table--exchange-crypto td:nth-child(5),
+    .bank-page .bank-table--exchange-crypto th:nth-child(6),
+    .bank-page .bank-table--exchange-crypto td:nth-child(6) {
+        width: 112px;
+    }
+
+    .bank-page .bank-table--exchange-crypto th:nth-child(7),
+    .bank-page .bank-table--exchange-crypto td:nth-child(7) {
+        width: 128px;
+    }
+</style>
 @endsection
 
 @push('scripts')
@@ -484,9 +609,27 @@
         const modal = document.getElementById('swapOrderModal');
         const statusLabels = @json($exchangeOrderStatuses);
         const statusRouteTemplate = @json(route('bank.exchange-orders.status', ['order' => '__ORDER__']));
+        const serverExchangeTab = @json($activeExchangeTab);
+        const exchangeTabStorageKey = 'bank.exchange.activeTab';
+        const exchangeTabButtons = document.querySelectorAll('[data-bank-exchange-tab]');
         if (!modal) {
             return;
         }
+
+        function activateExchangeTab(tab) {
+            const button = Array.from(exchangeTabButtons).find((item) => item.dataset.bankExchangeTab === tab);
+            if (button && window.bootstrap?.Tab) {
+                bootstrap.Tab.getOrCreateInstance(button).show();
+            }
+        }
+
+        exchangeTabButtons.forEach((button) => {
+            button.addEventListener('shown.bs.tab', () => {
+                window.localStorage?.setItem(exchangeTabStorageKey, button.dataset.bankExchangeTab || 'av8');
+            });
+        });
+
+        activateExchangeTab(serverExchangeTab || window.localStorage?.getItem(exchangeTabStorageKey) || 'av8');
 
         function valueOrDash(value) {
             const normalized = String(value ?? '').trim();

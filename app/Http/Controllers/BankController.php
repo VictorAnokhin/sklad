@@ -1467,7 +1467,8 @@ class BankController extends Controller
 
         return redirect()
             ->route('bank.exchange')
-            ->with('success', 'Статус заявки обновлен.');
+            ->with('success', 'Статус заявки обновлен.')
+            ->with('bank_exchange_tab', 'av8');
     }
 
     public function storeFiatCryptoExchange(Request $request): RedirectResponse
@@ -1599,7 +1600,8 @@ class BankController extends Controller
 
         return redirect()
             ->route('bank.exchange')
-            ->with('success', 'Операция Фиат/Крипта сохранена.');
+            ->with('success', 'Операция Фиат/Крипта сохранена.')
+            ->with('bank_exchange_tab', 'crypto');
     }
 
     private function createFiatCryptoExchangeLedger(
