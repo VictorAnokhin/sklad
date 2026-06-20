@@ -1484,6 +1484,7 @@ class BankController extends Controller
             'fiat_amount' => ['nullable', 'numeric', 'min:0'],
             'crypto_amount' => ['nullable', 'numeric', 'min:0'],
             'rate' => ['required', 'numeric', 'min:0.00000001'],
+            'operated_at' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -1503,6 +1504,9 @@ class BankController extends Controller
         $fiatCurrency = $this->normalizeCurrencyCode((string) $payload['fiat_currency']);
         $cryptoCurrency = strtoupper(trim((string) $payload['crypto_currency'])) ?: 'USDC';
         $now = now();
+        $operatedAt = $request->filled('operated_at')
+            ? Carbon::parse((string) $payload['operated_at'])->toDateString()
+            : $now->toDateString();
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
         $operationalAccountsById = $operationalAccounts->keyBy(fn ($account) => (int) $account->id);
         $fiatAccount = $operationalAccountsById->get((int) $payload['fiat_account_id']);
@@ -1518,7 +1522,7 @@ class BankController extends Controller
             abort_unless((float) $cryptoAccount->balance + 0.00000001 >= $cryptoAmount, 422, 'Недостаточно средств на крипто операционном счете.');
         }
 
-        DB::transaction(function () use ($project, $payload, $side, $fiatCurrency, $cryptoCurrency, $fiatAmount, $cryptoAmount, $rate, $fiatAccount, $cryptoAccount, $now): void {
+        DB::transaction(function () use ($project, $payload, $side, $fiatCurrency, $cryptoCurrency, $fiatAmount, $cryptoAmount, $rate, $fiatAccount, $cryptoAccount, $now, $operatedAt): void {
             if ($side === 'buy') {
                 DB::table('conf')->where('id', (int) $fiatAccount->id)->where('type', 'oplata')->update([
                     'value' => DB::raw('COALESCE(value, 0) - ' . abs($fiatAmount)),
@@ -1561,9 +1565,10 @@ class BankController extends Controller
                     'crypto_account_id' => (int) $cryptoAccount->id,
                     'crypto_account_label' => (string) $cryptoAccount->label,
                     'rate_fiat_per_crypto' => $rate,
+                    'operated_at' => $operatedAt,
                     'note' => trim((string) ($payload['note'] ?? '')),
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                'created_at' => $now,
+                'created_at' => Carbon::parse($operatedAt)->startOfDay(),
                 'updated_at' => $now,
             ]);
 
@@ -1576,7 +1581,8 @@ class BankController extends Controller
                 $fiatAmount,
                 $cryptoAmount,
                 $fiatCurrency,
-                $cryptoCurrency
+                $cryptoCurrency,
+                $operatedAt
             );
 
             if ($ledger) {
@@ -1605,7 +1611,8 @@ class BankController extends Controller
         float $fiatAmount,
         float $cryptoAmount,
         string $fiatCurrency,
-        string $cryptoCurrency
+        string $cryptoCurrency,
+        string $operatedAt
     ) {
         if ($fiatAmount <= 0 || ! Schema::hasTable('accounts') || ! Schema::hasTable('transactions') || ! Schema::hasTable('entries')) {
             return null;
@@ -1637,7 +1644,7 @@ class BankController extends Controller
             ],
             $description,
             [
-                'date' => now()->toDateString(),
+                'date' => $this->ledgerDate($operatedAt),
                 'company_id' => $projectId,
                 'reference_type' => 'bank_exchange_crypto',
                 'reference_id' => $orderId,

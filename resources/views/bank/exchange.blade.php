@@ -342,10 +342,11 @@
                                     $fiatAccountLabel = (string) ($meta['fiat_account_label'] ?? '');
                                     $cryptoAccountLabel = (string) ($meta['crypto_account_label'] ?? '');
                                     $ledgerTransactionId = (int) ($meta['ledger_transaction_id'] ?? 0);
+                                    $operatedAt = (string) ($meta['operated_at'] ?? $order->created_at);
                                 @endphp
                                 <tr>
                                     <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
-                                    <td class="bank-table__date">{{ $order->created_at }}</td>
+                                    <td class="bank-table__date">{{ $operatedAt }}</td>
                                     <td>
                                         <span class="bank-pill {{ $side === 'sell' ? 'bank-pill--outgoing' : 'bank-pill--currency' }}">{{ $side === 'sell' ? 'Продать' : 'Купить' }}</span>
                                         <div class="bank-meta">{{ $fiatAccountLabel !== '' || $cryptoAccountLabel !== '' ? trim($fiatAccountLabel . ' ↔ ' . $cryptoAccountLabel) : 'Счета не указаны' }}</div>
@@ -409,6 +410,10 @@
                                         <option value="{{ $currency }}">{{ $currency }}</option>
                                     @endforeach
                                 </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Дата</label>
+                                <input type="date" name="operated_at" class="form-control" data-fiat-crypto-date>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Фиатный счет</label>
@@ -565,6 +570,7 @@
         const fiatCryptoCryptoAccount = document.querySelector('[data-fiat-crypto-crypto-account]');
         const fiatCryptoFiatAccountMeta = document.querySelector('[data-fiat-crypto-fiat-account-meta]');
         const fiatCryptoCryptoAccountMeta = document.querySelector('[data-fiat-crypto-crypto-account-meta]');
+        const fiatCryptoDate = document.querySelector('[data-fiat-crypto-date]');
         const fiatCryptoBuyOutput = document.querySelector('[data-fiat-crypto-buy-output]');
         const fiatCryptoSellOutput = document.querySelector('[data-fiat-crypto-sell-output]');
 
@@ -691,7 +697,16 @@
             window.setTimeout(() => {
                 setFiatCryptoSide('buy');
                 filterFiatCryptoAccounts();
+                if (fiatCryptoDate) {
+                    fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
+                }
             }, 0);
+        });
+
+        document.getElementById('fiatCryptoExchangeModal')?.addEventListener('show.bs.modal', () => {
+            if (fiatCryptoDate && fiatCryptoDate.value === '') {
+                fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
+            }
         });
 
         fiatCryptoForm?.addEventListener('submit', (event) => {
