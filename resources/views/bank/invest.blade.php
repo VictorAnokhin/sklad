@@ -718,14 +718,6 @@
                                 <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
                                 <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на активе.</small>
                             </label>
-                            <label data-invest-operation-trade-field>
-                                <span>Количество</span>
-                                <input type="number" name="quantity" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-quantity>
-                            </label>
-                            <label data-invest-operation-trade-field>
-                                <span>Цена USD</span>
-                                <input type="number" name="price_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-price>
-                            </label>
                             <label>
                                 <span>Дата</span>
                                 <input type="date" name="operated_at" data-invest-operation-date>
@@ -1986,6 +1978,23 @@
             }
         }
 
+        function openInvestMovementEdit(index, movements) {
+            const movement = Array.isArray(movements) ? movements[index] : null;
+            if (!movement || !movement.can_edit) {
+                return;
+            }
+            fillInvestOperationForm(movement);
+            if (investPositionModal) {
+                investPositionModal.hidden = true;
+            }
+            if (investOperationModal) {
+                investOperationModal.hidden = false;
+                if (investOperationAmount) {
+                    investOperationAmount.focus();
+                }
+            }
+        }
+
         root.querySelectorAll('[data-invest-operation-open]').forEach((button) => {
             button.addEventListener('click', () => {
                 if (!investOperationModal) {
@@ -2034,7 +2043,11 @@
                             : (movement.direction === 'asset_to_account' ? 'bank-pill--currency' : 'bank-pill--company');
                         const editButton = movement.can_edit
                             ? `<button type="button" class="btn btn-sm btn-outline-light" data-invest-movement-edit="${index}">Изменить</button>`
-                            : '<span class="bank-meta">закрыто</span>';
+                            : `<span class="bank-meta">${escapeHtml(movement.edit_hint || 'закрыто')}</span>`;
+                        if (movement.can_edit) {
+                            rowEl.classList.add('bank-table-row--clickable');
+                            rowEl.dataset.investMovementEdit = String(index);
+                        }
                         rowEl.innerHTML = `
                             <td class="bank-table__num bank-mono">${movement.id}</td>
                             <td>${escapeHtml(movement.date || '—')}</td>
@@ -2051,18 +2064,12 @@
                     investPositionMovements.querySelectorAll('[data-invest-movement-edit]').forEach((button) => {
                         button.addEventListener('click', (event) => {
                             event.stopPropagation();
-                            const movement = movements[Number.parseInt(button.dataset.investMovementEdit || '0', 10)];
-                            if (!movement) {
-                                return;
-                            }
-                            fillInvestOperationForm(movement);
-                            investPositionModal.hidden = true;
-                            if (investOperationModal) {
-                                investOperationModal.hidden = false;
-                                if (investOperationAmount) {
-                                    investOperationAmount.focus();
-                                }
-                            }
+                            openInvestMovementEdit(Number.parseInt(button.dataset.investMovementEdit || '0', 10), movements);
+                        });
+                    });
+                    investPositionMovements.querySelectorAll('tr[data-invest-movement-edit]').forEach((movementRow) => {
+                        movementRow.addEventListener('click', () => {
+                            openInvestMovementEdit(Number.parseInt(movementRow.dataset.investMovementEdit || '0', 10), movements);
                         });
                     });
                 }
