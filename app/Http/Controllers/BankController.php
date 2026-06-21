@@ -624,7 +624,7 @@ class BankController extends Controller
         $portfolioRows = $this->investmentPortfolioRows($deposits, $pools, $assetManifestSettings);
         $fixedAssetRows = $this->manualInvestmentAssetRows((int) $project->id);
         $investOperations = $this->bankInvestOperations((int) $project->id, $operationalAccounts, $fixedAssetRows);
-        $investOperationPositions = $this->investOperationPositions($investOperations);
+        $investOperationRows = $this->investOperationRows($investOperations);
         $accountAssetAllocations = $this->accountAssetAllocations($operationalAccounts, $investOperations);
         $assetManifestRows = $this->assetManifestRows($portfolioRows);
         $assetManifestHiddenRows = $this->assetManifestRows($portfolioRows, true)
@@ -643,7 +643,7 @@ class BankController extends Controller
             'operationalAccounts' => $operationalAccounts,
             'accountAssetAllocations' => $accountAssetAllocations,
             'investOperations' => $investOperations,
-            'investOperationPositions' => $investOperationPositions,
+            'investOperationRows' => $investOperationRows,
             'fixedAssetRows' => $fixedAssetRows,
             'portfolioRows' => $portfolioRows,
             'assetManifestRows' => $assetManifestRows,
@@ -2926,77 +2926,50 @@ class BankController extends Controller
             });
     }
 
-    private function investOperationPositions($investOperations)
+    private function investOperationRows($investOperations)
     {
         $latestOperationIdByAsset = $investOperations
             ->groupBy('asset_key')
             ->map(fn ($operations) => (int) $operations->first()->id);
 
         return $investOperations
-            ->groupBy(fn ($operation) => (int) $operation->account_id . '|' . (string) $operation->asset_key)
-            ->map(function ($operations) use ($latestOperationIdByAsset) {
-                $first = $operations->first();
-                $value = (float) $operations->sum(fn ($operation) => $operation->direction === 'asset_to_account'
-                    ? -1 * (float) $operation->value_usd
-                    : (float) $operation->value_usd);
-                $quantity = (float) $operations->sum(function ($operation) {
-                    if ($operation->direction === 'revaluation') {
-                        return 0;
-                    }
-
-                    return $operation->direction === 'asset_to_account'
-                        ? -1 * (float) $operation->quantity
-                        : (float) $operation->quantity;
-                });
-                $movements = $operations->sortByDesc('operated_at')->values()->map(fn ($operation) => [
-                    'id' => (int) $operation->id,
-                    'date' => (string) $operation->operated_at,
-                    'direction' => (string) $operation->direction,
-                    'direction_label' => (string) $operation->direction_label,
-                    'account_id' => (int) $operation->account_id,
-                    'account_label' => (string) $operation->account_label,
-                    'asset_key' => (string) $operation->asset_key,
-                    'asset_label' => (string) $operation->asset_label,
-                    'asset_type' => (string) $operation->asset_type,
-                    'currency' => (string) $operation->currency,
-                    'quantity' => (float) $operation->quantity,
-                    'amount' => (float) $operation->amount,
-                    'price_usd' => $operation->price_usd !== null ? (float) $operation->price_usd : null,
-                    'value_usd' => (float) $operation->value_usd,
-                    'status' => (string) $operation->status,
-                    'ledger_transaction_id' => (int) $operation->ledger_transaction_id,
-                    'can_edit' => (int) $operation->id === (int) ($latestOperationIdByAsset[(string) $operation->asset_key] ?? 0),
-                    'is_posted' => (int) $operation->ledger_transaction_id > 0 && (string) $operation->status === 'posted',
-                    'can_reverse' => (int) $operation->id === (int) ($latestOperationIdByAsset[(string) $operation->asset_key] ?? 0)
-                        && (int) $operation->ledger_transaction_id > 0
-                        && (string) $operation->status === 'posted',
-                    'edit_hint' => (int) $operation->id === (int) ($latestOperationIdByAsset[(string) $operation->asset_key] ?? 0)
-                        ? 'Можно изменить: это последний документ по активу.'
-                        : 'Закрыто: по активу есть более новый документ.',
-                    'update_action' => route('bank.invest-operations.update', ['operation' => (int) $operation->id]),
-                    'destroy_action' => route('bank.invest-operations.destroy', ['operation' => (int) $operation->id]),
-                    'reverse_action' => route('bank.invest-operations.reverse', ['operation' => (int) $operation->id]),
-                    'note' => (string) $operation->note,
-                ])->values();
-
-                return (object) [
-                    'position_key' => md5((string) $first->account_id . '|' . (string) $first->asset_key),
-                    'account_id' => (int) $first->account_id,
-                    'account_label' => (string) $first->account_label,
-                    'asset_key' => (string) $first->asset_key,
-                    'asset_type' => (string) $first->asset_type,
-                    'asset_label' => (string) $first->asset_label,
-                    'currency' => (string) $first->currency,
-                    'quantity' => $quantity,
-                    'value_usd' => $value,
-                    'movement_count' => $movements->count(),
-                    'last_operated_at' => (string) ($movements->first()['date'] ?? ''),
-                    'movements_json' => json_encode($movements, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE),
-                ];
-            })
-            ->filter(fn ($position) => $position->movement_count > 0)
-            ->sortByDesc('last_operated_at')
+            ->map(fn ($operation) => $this->investOperationMovementPayload($operation, $latestOperationIdByAsset))
             ->values();
+    }
+
+    private function investOperationMovementPayload(object $operation, $latestOperationIdByAsset): array
+    {
+        $canEdit = (int) $operation->id === (int) ($latestOperationIdByAsset[(string) $operation->asset_key] ?? 0);
+        $isPosted = (int) $operation->ledger_transaction_id > 0 && (string) $operation->status === 'posted';
+
+        return [
+            'id' => (int) $operation->id,
+            'date' => (string) $operation->operated_at,
+            'direction' => (string) $operation->direction,
+            'direction_label' => (string) $operation->direction_label,
+            'account_id' => (int) $operation->account_id,
+            'account_label' => (string) $operation->account_label,
+            'asset_key' => (string) $operation->asset_key,
+            'asset_label' => (string) $operation->asset_label,
+            'asset_type' => (string) $operation->asset_type,
+            'currency' => (string) $operation->currency,
+            'quantity' => (float) $operation->quantity,
+            'amount' => (float) $operation->amount,
+            'price_usd' => $operation->price_usd !== null ? (float) $operation->price_usd : null,
+            'value_usd' => (float) $operation->value_usd,
+            'status' => (string) $operation->status,
+            'ledger_transaction_id' => (int) $operation->ledger_transaction_id,
+            'can_edit' => $canEdit,
+            'is_posted' => $isPosted,
+            'can_reverse' => $canEdit && $isPosted,
+            'edit_hint' => $canEdit
+                ? 'Можно изменить: это последний документ по активу.'
+                : 'Закрыто: по активу есть более новый документ.',
+            'update_action' => route('bank.invest-operations.update', ['operation' => (int) $operation->id]),
+            'destroy_action' => route('bank.invest-operations.destroy', ['operation' => (int) $operation->id]),
+            'reverse_action' => route('bank.invest-operations.reverse', ['operation' => (int) $operation->id]),
+            'note' => (string) $operation->note,
+        ];
     }
 
     private function accountAssetAllocations($operationalAccounts, $investOperations)

@@ -516,44 +516,60 @@
                     <div class="bank-meta">Движения между операционными счетами и инвестиционными активами.</div>
                 </div>
                 <div class="bank-table-header__actions">
-                    <div class="bank-meta">{{ $investOperationPositions->count() }} позиций · {{ $investOperations->count() }} движений</div>
+                    <div class="bank-meta">{{ $investOperations->count() }} операций</div>
                     <button type="button" class="btn btn-sm btn-primary" data-invest-operation-open>Создать</button>
                 </div>
             </div>
             <div class="table-responsive bank-table-scroll">
-                <table class="table table-dark table-hover table-sm align-middle bank-table">
+                <table class="table table-dark table-hover table-sm align-middle bank-table bank-operation-table">
                     <thead>
                         <tr>
                             <th class="bank-table__num">№</th>
-                            <th>Счет</th>
+                            <th>Дата</th>
+                            <th>Операция</th>
                             <th>Актив</th>
-                            <th class="text-end">Позиция</th>
-                            <th class="text-end">Стоимость</th>
-                            <th>Движения</th>
-                            <th>Последняя дата</th>
+                            <th>Счет</th>
+                            <th class="text-end">Количество</th>
+                            <th class="text-end">Сумма</th>
+                            <th>Проводка</th>
+                            <th>Комментарий</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($investOperationPositions as $position)
+                        @forelse($investOperationRows as $movement)
+                            @php
+                                $directionClass = $movement['direction'] === 'revaluation'
+                                    ? 'bank-pill--warning'
+                                    : ($movement['direction'] === 'asset_to_account' ? 'bank-pill--currency' : 'bank-pill--company');
+                                $movementJson = json_encode($movement, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
+                            @endphp
                             <tr class="bank-table-row--clickable"
-                                data-invest-position-open
-                                data-position-account="{{ $position->account_label }}"
-                                data-position-asset="{{ $position->asset_label }}"
-                                data-position-movements="{{ $position->movements_json }}">
-                                <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
-                                <td>{{ $position->account_label }}</td>
+                                data-invest-operation-edit
+                                data-operation-movement="{{ $movementJson }}">
+                                <td class="bank-table__num bank-mono">{{ $movement['id'] }}</td>
+                                <td>{{ $movement['date'] !== '' ? $movement['date'] : '—' }}</td>
                                 <td>
-                                    <strong>{{ $position->asset_label }}</strong>
-                                    <div class="bank-meta">{{ $assetTypeLabels[$position->asset_type] ?? $position->asset_type }}</div>
+                                    <span class="bank-pill {{ $directionClass }}">{{ $movement['direction_label'] }}</span>
+                                    @unless($movement['can_edit'])
+                                        <div class="bank-meta">{{ $movement['edit_hint'] }}</div>
+                                    @endunless
                                 </td>
-                                <td class="text-end bank-mono">{{ number_format((float) $position->quantity, 8, '.', ' ') }}</td>
-                                <td class="text-end fw-semibold">{{ $formatMoney($position->value_usd) }} USD</td>
-                                <td>{{ $position->movement_count }}</td>
-                                <td>{{ $position->last_operated_at !== '' ? $position->last_operated_at : '—' }}</td>
+                                <td>
+                                    <strong>{{ $movement['asset_label'] }}</strong>
+                                    <div class="bank-meta">{{ $assetTypeLabels[$movement['asset_type']] ?? $movement['asset_type'] }}</div>
+                                </td>
+                                <td>{{ $movement['account_label'] }}</td>
+                                <td class="text-end bank-mono">{{ number_format((float) $movement['quantity'], 8, '.', ' ') }}</td>
+                                <td class="text-end fw-semibold">{{ $formatMoney($movement['value_usd']) }} USD</td>
+                                <td>
+                                    <span class="bank-status {{ $movement['status'] === 'posted' ? '' : 'bank-status--pending' }}">{{ $movement['status'] }}</span>
+                                    <div class="bank-meta">{{ $movement['ledger_transaction_id'] > 0 ? 'TX #' . $movement['ledger_transaction_id'] : 'проводки нет' }}</div>
+                                </td>
+                                <td class="bank-meta">{{ $movement['note'] !== '' ? $movement['note'] : '—' }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">Позиции Счет / Актив пока не созданы.</td>
+                                <td colspan="9" class="text-center text-muted py-4">Операции пока не созданы.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -753,41 +769,6 @@
                     <button type="submit" class="btn btn-primary" data-invest-operation-submit>Сохранить</button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <div class="bank-modal" data-invest-position-modal hidden>
-        <div class="bank-modal__backdrop" data-invest-position-close></div>
-        <div class="bank-modal__dialog bank-modal__dialog--wide" role="dialog" aria-modal="true" aria-labelledby="investPositionModalTitle">
-            <div class="bank-modal__header">
-                <div>
-                    <div class="bank-label">Движение средств</div>
-                    <h2 id="investPositionModalTitle" data-invest-position-title>Операционный счет / Актив</h2>
-                    <div class="bank-meta" data-invest-position-subtitle></div>
-                </div>
-                <button type="button" class="bank-modal__close" data-invest-position-close aria-label="Закрыть">×</button>
-            </div>
-            <div class="table-responsive bank-table-scroll">
-                <table class="table table-dark table-hover table-sm align-middle bank-table">
-                    <thead>
-                        <tr>
-                            <th class="bank-table__num">№</th>
-                            <th>Дата</th>
-                            <th>Движение</th>
-                            <th class="text-end">Количество</th>
-                            <th class="text-end">Сумма</th>
-                            <th>Учет</th>
-                            <th>Комментарий</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody data-invest-position-movements>
-                        <tr>
-                            <td colspan="8" class="text-center text-muted py-4">Выберите позицию.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
         </div>
     </div>
 
@@ -1279,6 +1260,10 @@
         --bs-btn-padding-y: 0.12rem;
         --bs-btn-padding-x: 0.42rem;
         --bs-btn-font-size: 0.74rem;
+    }
+
+    .bank-operation-table {
+        min-width: 1120px;
     }
 
     .bank-accounts-table {
@@ -1859,11 +1844,6 @@
         const investOperationDate = root.querySelector('[data-invest-operation-date]');
         const investOperationNote = root.querySelector('[data-invest-operation-note]');
         const investOperationStoreAction = investOperationForm ? investOperationForm.action : '';
-        const investPositionModal = root.querySelector('[data-invest-position-modal]');
-        const investPositionTitle = root.querySelector('[data-invest-position-title]');
-        const investPositionSubtitle = root.querySelector('[data-invest-position-subtitle]');
-        const investPositionMovements = root.querySelector('[data-invest-position-movements]');
-
         function setInvestOperationDirection(direction) {
             if (investOperationDirection) {
                 investOperationDirection.value = direction;
@@ -1933,23 +1913,25 @@
             });
         });
 
-        function formatMoneyValue(value) {
-            const number = Number.parseFloat(value || '0');
-            return number.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-
-        function formatQuantityValue(value) {
-            const number = Number.parseFloat(value || '0');
-            return number.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 8 });
-        }
-
-        function escapeHtml(value) {
-            return String(value ?? '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
+        function setInvestOperationReadOnly(readOnly) {
+            [
+                investOperationAccount,
+                investOperationAsset,
+                investOperationCurrency,
+                investOperationAmount,
+                investOperationQuantity,
+                investOperationPrice,
+                investOperationDate,
+                investOperationNote,
+                investOperationPostLedger,
+            ].forEach((field) => {
+                if (field) {
+                    field.disabled = readOnly;
+                }
+            });
+            investOperationDirectionTabs.forEach((tab) => {
+                tab.disabled = readOnly;
+            });
         }
 
         function resetInvestOperationForm() {
@@ -1966,6 +1948,7 @@
                 investOperationForm.dataset.deleteAction = '';
                 investOperationForm.dataset.reverseAction = '';
             }
+            setInvestOperationReadOnly(false);
             setInvestOperationDirection('account_to_asset');
             if (investOperationPostLedger) {
                 investOperationPostLedger.checked = true;
@@ -1979,6 +1962,7 @@
             }
             if (investOperationSubmit) {
                 investOperationSubmit.textContent = 'Сохранить';
+                investOperationSubmit.hidden = false;
             }
             if (investOperationDelete) {
                 investOperationDelete.hidden = true;
@@ -2034,12 +2018,15 @@
                 investOperationTitle.textContent = `Редактировать движение #${movement.id}`;
             }
             if (investOperationSubtitle) {
-                investOperationSubtitle.textContent = movement.is_posted
+                investOperationSubtitle.textContent = !movement.can_edit
+                    ? (movement.edit_hint || 'Редактирование закрыто.')
+                    : movement.is_posted
                     ? 'Документ проведен. Можно отменить проводку или сохранить изменения с автоматическим сторно и новой проводкой.'
                     : 'Документ сохранен без проводки. Включите чекбокс, чтобы создать двойную запись.';
             }
             if (investOperationSubmit) {
                 investOperationSubmit.textContent = 'Сохранить';
+                investOperationSubmit.hidden = !movement.can_edit;
             }
             if (investOperationDelete) {
                 investOperationDelete.hidden = !movement.can_edit;
@@ -2047,6 +2034,7 @@
             if (investOperationReverse) {
                 investOperationReverse.hidden = !(movement.can_reverse && movement.is_posted);
             }
+            setInvestOperationReadOnly(!movement.can_edit);
         }
 
         if (investOperationSubmit) {
@@ -2090,15 +2078,11 @@
             });
         }
 
-        function openInvestMovementEdit(index, movements) {
-            const movement = Array.isArray(movements) ? movements[index] : null;
-            if (!movement || !movement.can_edit) {
+        function openInvestOperationEdit(movement) {
+            if (!movement) {
                 return;
             }
             fillInvestOperationForm(movement);
-            if (investPositionModal) {
-                investPositionModal.hidden = true;
-            }
             if (investOperationModal) {
                 investOperationModal.hidden = false;
                 if (investOperationAmount) {
@@ -2121,72 +2105,9 @@
             });
         });
 
-        root.querySelectorAll('[data-invest-position-close]').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (investPositionModal) {
-                    investPositionModal.hidden = true;
-                }
-            });
-        });
-
-        root.querySelectorAll('[data-invest-position-open]').forEach((row) => {
+        root.querySelectorAll('[data-invest-operation-edit]').forEach((row) => {
             row.addEventListener('click', () => {
-                if (!investPositionModal || !investPositionMovements) {
-                    return;
-                }
-
-                const movements = parseJsonAttribute(row.dataset.positionMovements, []);
-                if (investPositionTitle) {
-                    investPositionTitle.textContent = `${row.dataset.positionAccount || 'Счет'} / ${row.dataset.positionAsset || 'Актив'}`;
-                }
-                if (investPositionSubtitle) {
-                    investPositionSubtitle.textContent = `${Array.isArray(movements) ? movements.length : 0} движений по позиции`;
-                }
-
-                investPositionMovements.innerHTML = '';
-                if (!Array.isArray(movements) || movements.length === 0) {
-                    investPositionMovements.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Движения не найдены.</td></tr>';
-                } else {
-                    movements.forEach((movement, index) => {
-                        const rowEl = document.createElement('tr');
-                        const ledgerText = movement.ledger_transaction_id > 0 ? `TX #${movement.ledger_transaction_id}` : 'проводки нет';
-                        const directionClass = movement.direction === 'revaluation'
-                            ? 'bank-pill--warning'
-                            : (movement.direction === 'asset_to_account' ? 'bank-pill--currency' : 'bank-pill--company');
-                        const editButton = movement.can_edit
-                            ? `<button type="button" class="btn btn-sm btn-outline-light" data-invest-movement-edit="${index}">Изменить</button>`
-                            : `<span class="bank-meta">${escapeHtml(movement.edit_hint || 'закрыто')}</span>`;
-                        if (movement.can_edit) {
-                            rowEl.classList.add('bank-table-row--clickable');
-                            rowEl.dataset.investMovementEdit = String(index);
-                        }
-                        rowEl.innerHTML = `
-                            <td class="bank-table__num bank-mono">${movement.id}</td>
-                            <td>${escapeHtml(movement.date || '—')}</td>
-                            <td><span class="bank-pill ${directionClass}">${escapeHtml(movement.direction_label || movement.direction)}</span></td>
-                            <td class="text-end bank-mono">${formatQuantityValue(movement.quantity)}</td>
-                            <td class="text-end fw-semibold">${formatMoneyValue(movement.value_usd)} USD</td>
-                            <td><span class="bank-status ${movement.status === 'posted' ? '' : 'bank-status--pending'}">${escapeHtml(movement.status || 'pending')}</span><div class="bank-meta">${escapeHtml(ledgerText)}</div></td>
-                            <td class="bank-meta">${escapeHtml(movement.note || '—')}</td>
-                            <td class="text-end">${editButton}</td>
-                        `;
-                        investPositionMovements.appendChild(rowEl);
-                    });
-
-                    investPositionMovements.querySelectorAll('[data-invest-movement-edit]').forEach((button) => {
-                        button.addEventListener('click', (event) => {
-                            event.stopPropagation();
-                            openInvestMovementEdit(Number.parseInt(button.dataset.investMovementEdit || '0', 10), movements);
-                        });
-                    });
-                    investPositionMovements.querySelectorAll('tr[data-invest-movement-edit]').forEach((movementRow) => {
-                        movementRow.addEventListener('click', () => {
-                            openInvestMovementEdit(Number.parseInt(movementRow.dataset.investMovementEdit || '0', 10), movements);
-                        });
-                    });
-                }
-
-                investPositionModal.hidden = false;
+                openInvestOperationEdit(parseJsonAttribute(row.dataset.operationMovement, null));
             });
         });
 
