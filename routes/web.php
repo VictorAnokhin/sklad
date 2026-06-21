@@ -130,7 +130,9 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/invest/operations/{operation}', [BankController::class, 'destroyInvestOperation'])
             ->whereNumber('operation')
             ->name('invest-operations.destroy');
-        Route::get('/invest/operations/{operation}/reverse', [BankController::class, 'showReverseInvestOperation'])
+        Route::get('/invest/operations/{operation}/reverse', \Illuminate\Routing\RedirectController::class)
+            ->defaults('destination', '/bank/invest')
+            ->defaults('status', 302)
             ->whereNumber('operation')
             ->name('invest-operations.reverse.show');
         Route::post('/invest/operations/{operation}/reverse', [BankController::class, 'reverseInvestOperation'])
