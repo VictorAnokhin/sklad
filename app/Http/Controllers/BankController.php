@@ -3366,7 +3366,7 @@ class BankController extends Controller
         $account = DB::table('conf')
             ->where('id', $accountId)
             ->where('type', 'oplata')
-            ->where('firma', (string) $project->id)
+            ->whereIn('firma', array_map('intval', $projectIds))
             ->lockForUpdate()
             ->first();
 
