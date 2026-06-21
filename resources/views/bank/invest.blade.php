@@ -1725,6 +1725,10 @@
         tabs.forEach((tab) => {
             tab.addEventListener('click', () => activate(tab.dataset.bankInvestTab || 'portfolio'));
         });
+        const initialInvestTab = new URLSearchParams(window.location.search).get('tab') || 'portfolio';
+        if (['portfolio', 'operations', 'assets'].includes(initialInvestTab)) {
+            activate(initialInvestTab);
+        }
 
         const walletAssetFilter = root.querySelector('[data-wallet-asset-filter]');
         const walletAssetShowHidden = root.querySelector('[data-wallet-asset-show-hidden]');

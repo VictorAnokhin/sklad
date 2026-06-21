@@ -736,7 +736,7 @@ class BankController extends Controller
         $redirectRoute = $this->bankRedirectRoute((string) $request->input('redirect_to', 'bank.invest'));
 
         return redirect()
-            ->route($redirectRoute)
+            ->route($redirectRoute, $redirectRoute === 'bank.invest' ? ['tab' => 'operations'] : [])
             ->with('success', "Операция Счет ↔ Актив #{$operationId} выполнена.");
     }
 
@@ -752,13 +752,13 @@ class BankController extends Controller
         abort_unless($current, 404);
 
         if ($this->hasNewerInvestOperationForAsset((int) $project->id, (string) $current->asset_key, (string) $current->operated_at, (int) $current->id)) {
-            return redirect()->route('bank.invest')->with('error', 'Операция не редактируется: по этому активу уже есть более новый документ.');
+            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'Операция не редактируется: по этому активу уже есть более новый документ.');
         }
 
         [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id);
         if ((string) $asset->asset_key !== (string) $current->asset_key
             && $this->hasNewerInvestOperationForAsset((int) $project->id, (string) $asset->asset_key, (string) $current->operated_at, (int) $current->id)) {
-            return redirect()->route('bank.invest')->with('error', 'Операция не редактируется: по выбранному активу уже есть более новый документ.');
+            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'Операция не редактируется: по выбранному активу уже есть более новый документ.');
         }
 
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
@@ -830,7 +830,7 @@ class BankController extends Controller
             }
         });
 
-        return redirect()->route('bank.invest')->with('success', "Операция Счет ↔ Актив #{$operation} обновлена.");
+        return redirect()->route('bank.invest', ['tab' => 'operations'])->with('success', "Операция Счет ↔ Актив #{$operation} обновлена.");
     }
 
     public function destroyInvestOperation(int $operation): RedirectResponse
@@ -845,7 +845,7 @@ class BankController extends Controller
         abort_unless($current, 404);
 
         if ($this->hasNewerInvestOperationForAsset((int) $project->id, (string) $current->asset_key, (string) $current->operated_at, (int) $current->id)) {
-            return redirect()->route('bank.invest')->with('error', 'Операция не удаляется: по этому активу уже есть более новый документ.');
+            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'Операция не удаляется: по этому активу уже есть более новый документ.');
         }
 
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
@@ -868,13 +868,13 @@ class BankController extends Controller
             DB::table('bank_invest_operations')->where('id', $operation)->delete();
         });
 
-        return redirect()->route('bank.invest')->with('success', "Операция Счет ↔ Актив #{$operation} удалена.");
+        return redirect()->route('bank.invest', ['tab' => 'operations'])->with('success', "Операция Счет ↔ Актив #{$operation} удалена.");
     }
 
     public function showReverseInvestOperation(int $operation): RedirectResponse
     {
         return redirect()
-            ->route('bank.invest')
+            ->route('bank.invest', ['tab' => 'operations'])
             ->with('error', "Отмена проводки операции #{$operation} выполняется из формы редактирования операции.");
     }
 
@@ -890,10 +890,10 @@ class BankController extends Controller
         abort_unless($current, 404);
 
         if ($this->hasNewerInvestOperationForAsset((int) $project->id, (string) $current->asset_key, (string) $current->operated_at, (int) $current->id)) {
-            return redirect()->route('bank.invest')->with('error', 'Проводка не отменяется: по этому активу уже есть более новый документ.');
+            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'Проводка не отменяется: по этому активу уже есть более новый документ.');
         }
         if ((int) ($current->ledger_transaction_id ?? 0) <= 0 && (string) ($current->status ?? 'pending') !== 'posted') {
-            return redirect()->route('bank.invest')->with('error', 'У операции нет активной проводки для отмены.');
+            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'У операции нет активной проводки для отмены.');
         }
 
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
@@ -921,7 +921,7 @@ class BankController extends Controller
             DB::table('bank_invest_operations')->where('id', $operation)->update($updates);
         });
 
-        return redirect()->route('bank.invest')->with('success', "Проводка операции #{$operation} отменена.");
+        return redirect()->route('bank.invest', ['tab' => 'operations'])->with('success', "Проводка операции #{$operation} отменена.");
     }
 
     private function hasNewerInvestOperationForAsset(int $projectId, string $assetKey, string $operatedAt, int $operationId): bool
@@ -1118,7 +1118,7 @@ class BankController extends Controller
             DB::table('bank_tracked_assets')->insert($key + $values + ['created_at' => now()]);
         }
 
-        return redirect()->route('bank.invest')->with('success', 'Инвестиционный актив добавлен.');
+        return redirect()->route('bank.invest', ['tab' => 'assets'])->with('success', 'Инвестиционный актив добавлен.');
     }
 
     public function updateInvestAsset(Request $request, int $asset): RedirectResponse
@@ -1144,7 +1144,7 @@ class BankController extends Controller
         [$key, $values] = $this->investAssetPayload($request, (int) $project->id);
         DB::table('bank_tracked_assets')->where('id', $asset)->update($key + $values);
 
-        return redirect()->route('bank.invest')->with('success', 'Инвестиционный актив обновлен.');
+        return redirect()->route('bank.invest', ['tab' => 'assets'])->with('success', 'Инвестиционный актив обновлен.');
     }
 
     private function investAssetPayload(Request $request, int $projectId): array
