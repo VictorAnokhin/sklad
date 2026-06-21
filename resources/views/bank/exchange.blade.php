@@ -486,20 +486,23 @@
                                             : 'Недостаточно средств на фиатном счете для отмены.');
                                     $fiatCryptoPayload = [
                                         'id' => (int) $order->id,
-                                        'operated_at' => $operatedAt,
+                                        'operated_at' => $operationDate,
                                         'side' => $side,
                                         'side_label' => $side === 'sell' ? 'Продажа крипты' : 'Покупка крипты',
-                                        'fiat_amount' => number_format((float) $order->pay_amount, 2, '.', ' '),
+                                        'fiat_amount' => number_format((float) $order->pay_amount, 8, '.', ''),
                                         'fiat_currency' => (string) $order->pay_currency,
-                                        'crypto_amount' => number_format($cryptoAmount, 8, '.', ' '),
+                                        'crypto_amount' => number_format($cryptoAmount, 8, '.', ''),
                                         'crypto_currency' => $cryptoCurrency,
-                                        'rate' => number_format((float) $order->rate_usdc, 8, '.', ' '),
+                                        'rate' => number_format((float) $order->rate_usdc, 8, '.', ''),
+                                        'fiat_account_id' => $fiatAccountId,
+                                        'crypto_account_id' => $cryptoAccountId,
                                         'fiat_account_label' => $fiatAccountLabel,
                                         'crypto_account_label' => $cryptoAccountLabel,
                                         'ledger_transaction_id' => $ledgerTransactionId,
                                         'reversal_ledger_transaction_id' => $reversalLedgerTransactionId,
                                         'status' => (string) $order->status,
                                         'status_label' => $isReversed ? 'Проводка отменена' : 'Сохранено',
+                                        'can_edit' => ! $isReversed && $ledgerTransactionId <= 0,
                                         'can_reverse' => $canReverse,
                                         'reverse_block_reason' => $canReverse ? '' : $reverseBlockReason,
                                         'reverse_url' => route('bank.exchange.crypto.reverse', ['order' => (int) $order->id]),
@@ -512,7 +515,7 @@
                                     tabindex="0"
                                     data-fiat-crypto-row
                                     data-bs-toggle="modal"
-                                    data-bs-target="#fiatCryptoOperationModal"
+                                    data-bs-target="#fiatCryptoExchangeModal"
                                     data-fiat-crypto-order="{{ json_encode($fiatCryptoPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
                                     data-operation-date="{{ $operationDate }}"
                                     data-operation-side="{{ $side }}"
@@ -548,85 +551,16 @@
         </div>
     </div>
 
-    <div class="modal fade bank-order-modal" id="fiatCryptoOperationModal" tabindex="-1" aria-labelledby="fiatCryptoOperationModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div>
-                        <div class="bank-label">Операция обменки</div>
-                        <h5 class="modal-title" id="fiatCryptoOperationModalLabel">Фиат/Крипта</h5>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="bank-order-modal__summary">
-                        <div>
-                            <span>Статус</span>
-                            <strong data-fiat-crypto-modal-field="status_label"></strong>
-                        </div>
-                        <div>
-                            <span>Фиат</span>
-                            <strong data-fiat-crypto-modal-field="fiat"></strong>
-                        </div>
-                        <div>
-                            <span>Крипта</span>
-                            <strong data-fiat-crypto-modal-field="crypto"></strong>
-                        </div>
-                        <div>
-                            <span>Курс</span>
-                            <strong data-fiat-crypto-modal-field="rate"></strong>
-                        </div>
-                    </div>
-
-                    <div class="bank-order-modal__grid">
-                        <div>
-                            <span>Дата</span>
-                            <strong data-fiat-crypto-modal-field="operated_at"></strong>
-                        </div>
-                        <div>
-                            <span>Операция</span>
-                            <strong data-fiat-crypto-modal-field="side_label"></strong>
-                        </div>
-                        <div>
-                            <span>Фиатный счет</span>
-                            <strong data-fiat-crypto-modal-field="fiat_account_label"></strong>
-                        </div>
-                        <div>
-                            <span>Крипто-счет</span>
-                            <strong data-fiat-crypto-modal-field="crypto_account_label"></strong>
-                        </div>
-                        <div>
-                            <span>Ledger</span>
-                            <strong data-fiat-crypto-modal-field="ledger"></strong>
-                        </div>
-                        <div>
-                            <span>Комментарий</span>
-                            <strong data-fiat-crypto-modal-field="note"></strong>
-                        </div>
-                    </div>
-
-                    <form method="POST" class="bank-order-modal__status-form" data-fiat-crypto-reverse-form onsubmit="return confirm('Отменить проводку и вернуть движения по счетам?');">
-                        @csrf
-                        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
-                            <div class="bank-meta" data-fiat-crypto-reverse-help></div>
-                            <button type="submit" class="btn btn-danger" data-fiat-crypto-reverse-button>Отменить проводку</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="modal fade bank-order-modal" id="fiatCryptoExchangeModal" tabindex="-1" aria-labelledby="fiatCryptoExchangeModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <form method="POST" action="{{ route('bank.exchange.crypto.store') }}" data-fiat-crypto-form>
+                <form method="POST" action="{{ route('bank.exchange.crypto.store') }}" data-default-action="{{ route('bank.exchange.crypto.store') }}" data-fiat-crypto-form>
                     @csrf
                     <input type="hidden" name="side" value="buy" data-fiat-crypto-side>
                     <div class="modal-header">
                         <div>
                             <div class="bank-label">Обменка</div>
-                            <h5 class="modal-title" id="fiatCryptoExchangeModalLabel">Фиат/Крипта</h5>
+                            <h5 class="modal-title" id="fiatCryptoExchangeModalLabel" data-fiat-crypto-form-title>Фиат/Крипта</h5>
                         </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                     </div>
@@ -707,13 +641,20 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Комментарий</label>
-                                <textarea name="note" class="form-control" rows="3"></textarea>
+                                <textarea name="note" class="form-control" rows="3" data-fiat-crypto-note></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label class="d-flex align-items-center gap-2 mb-0">
+                                    <input type="checkbox" name="post_ledger" value="1" class="form-check-input m-0" data-fiat-crypto-post-ledger checked>
+                                    <span>Проводка</span>
+                                </label>
+                                <div class="bank-meta" data-fiat-crypto-post-ledger-meta>При сохранении будут обновлены остатки счетов и создана ledger-проводка.</div>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                        <button type="submit" class="btn btn-primary" data-fiat-crypto-submit>Сохранить</button>
                     </div>
                 </form>
             </div>
@@ -1000,9 +941,9 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('swapOrderModal');
-        const fiatCryptoOperationModal = document.getElementById('fiatCryptoOperationModal');
         const statusLabels = @json($exchangeOrderStatuses);
         const statusRouteTemplate = @json(route('bank.exchange-orders.status', ['order' => '__ORDER__']));
+        const fiatCryptoUpdateRouteTemplate = @json(route('bank.exchange.crypto.update', ['order' => '__ORDER__']));
         const serverExchangeTab = @json($activeExchangeTab);
         const exchangeTabStorageKey = 'bank.exchange.activeTab';
         const exchangeTabButtons = document.querySelectorAll('[data-bank-exchange-tab]');
@@ -1094,60 +1035,6 @@
             });
         });
 
-        function setFiatCryptoModalText(field, value) {
-            const element = fiatCryptoOperationModal?.querySelector(`[data-fiat-crypto-modal-field="${field}"]`);
-            if (element) {
-                element.textContent = valueOrDash(value);
-            }
-        }
-
-        fiatCryptoOperationModal?.addEventListener('show.bs.modal', (event) => {
-            const trigger = event.relatedTarget;
-            if (!(trigger instanceof HTMLElement)) {
-                return;
-            }
-
-            let order = {};
-            try {
-                order = JSON.parse(trigger.dataset.fiatCryptoOrder || '{}');
-            } catch (error) {
-                order = {};
-            }
-
-            setFiatCryptoModalText('status_label', order.status_label);
-            setFiatCryptoModalText('fiat', `${valueOrDash(order.fiat_amount)} ${valueOrDash(order.fiat_currency)}`);
-            setFiatCryptoModalText('crypto', `${valueOrDash(order.crypto_amount)} ${valueOrDash(order.crypto_currency)}`);
-            setFiatCryptoModalText('rate', order.rate);
-            setFiatCryptoModalText('operated_at', order.operated_at);
-            setFiatCryptoModalText('side_label', order.side_label);
-            setFiatCryptoModalText('fiat_account_label', order.fiat_account_label);
-            setFiatCryptoModalText('crypto_account_label', order.crypto_account_label);
-            setFiatCryptoModalText('ledger', order.reversal_ledger_transaction_id > 0
-                ? `Сторно TX #${order.reversal_ledger_transaction_id}`
-                : (order.ledger_transaction_id > 0 ? `TX #${order.ledger_transaction_id}` : 'Ledger pending'));
-            setFiatCryptoModalText('note', order.note);
-            const operationTitle = fiatCryptoOperationModal.querySelector('#fiatCryptoOperationModalLabel');
-            if (operationTitle) {
-                operationTitle.textContent = `Операция #${valueOrDash(order.id)}`;
-            }
-
-            const reverseForm = fiatCryptoOperationModal.querySelector('[data-fiat-crypto-reverse-form]');
-            const reverseButton = fiatCryptoOperationModal.querySelector('[data-fiat-crypto-reverse-button]');
-            const reverseHelp = fiatCryptoOperationModal.querySelector('[data-fiat-crypto-reverse-help]');
-            if (reverseForm instanceof HTMLFormElement) {
-                reverseForm.action = String(order.reverse_url || '');
-            }
-            if (reverseButton instanceof HTMLButtonElement) {
-                reverseButton.disabled = !order.can_reverse;
-                reverseButton.hidden = !order.can_reverse;
-            }
-            if (reverseHelp) {
-                reverseHelp.textContent = order.can_reverse
-                    ? 'Можно отменить проводку: остатки счетов позволяют выполнить обратное движение.'
-                    : valueOrDash(order.reverse_block_reason);
-            }
-        });
-
         document.querySelectorAll('.bank-fiat-crypto-row').forEach((row) => {
             row.addEventListener('keydown', (event) => {
                 if (event.key !== 'Enter' && event.key !== ' ') {
@@ -1176,6 +1063,11 @@
         const fiatCryptoFiatAccountMeta = document.querySelector('[data-fiat-crypto-fiat-account-meta]');
         const fiatCryptoCryptoAccountMeta = document.querySelector('[data-fiat-crypto-crypto-account-meta]');
         const fiatCryptoDate = document.querySelector('[data-fiat-crypto-date]');
+        const fiatCryptoNote = document.querySelector('[data-fiat-crypto-note]');
+        const fiatCryptoPostLedger = document.querySelector('[data-fiat-crypto-post-ledger]');
+        const fiatCryptoPostLedgerMeta = document.querySelector('[data-fiat-crypto-post-ledger-meta]');
+        const fiatCryptoFormTitle = document.querySelector('[data-fiat-crypto-form-title]');
+        const fiatCryptoSubmit = document.querySelector('[data-fiat-crypto-submit]');
         const fiatCryptoBuyOutput = document.querySelector('[data-fiat-crypto-buy-output]');
         const fiatCryptoSellOutput = document.querySelector('[data-fiat-crypto-sell-output]');
         const fiatCryptoFilterStorageKey = 'bank.exchange.fiatCryptoDateFilter';
@@ -1491,6 +1383,105 @@
             calculateFiatCrypto();
         }
 
+        function setFiatCryptoFormDisabled(disabled) {
+            [
+                fiatCryptoFiatCurrency,
+                fiatCryptoCryptoCurrency,
+                fiatCryptoDate,
+                fiatCryptoFiatAccount,
+                fiatCryptoCryptoAccount,
+                fiatCryptoFiat,
+                fiatCryptoCrypto,
+                fiatCryptoRate,
+                fiatCryptoNote,
+                fiatCryptoPostLedger,
+            ].forEach((field) => {
+                if (field) {
+                    field.disabled = disabled;
+                }
+            });
+            fiatCryptoTabs.forEach((tab) => {
+                tab.disabled = disabled;
+            });
+            if (fiatCryptoSubmit) {
+                fiatCryptoSubmit.disabled = disabled;
+            }
+        }
+
+        function resetFiatCryptoFormForCreate() {
+            if (fiatCryptoForm instanceof HTMLFormElement) {
+                fiatCryptoForm.action = fiatCryptoForm.dataset.defaultAction || fiatCryptoForm.action;
+                fiatCryptoForm.reset();
+            }
+            if (fiatCryptoFormTitle) {
+                fiatCryptoFormTitle.textContent = 'Фиат/Крипта';
+            }
+            setFiatCryptoFormDisabled(false);
+            if (fiatCryptoPostLedger) {
+                fiatCryptoPostLedger.checked = true;
+            }
+            if (fiatCryptoPostLedgerMeta) {
+                fiatCryptoPostLedgerMeta.textContent = 'При сохранении будут обновлены остатки счетов и создана ledger-проводка.';
+            }
+            setFiatCryptoSide('buy');
+            filterFiatCryptoAccounts();
+            if (fiatCryptoDate) {
+                fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
+            }
+        }
+
+        function populateFiatCryptoForm(order) {
+            if (fiatCryptoForm instanceof HTMLFormElement) {
+                fiatCryptoForm.action = fiatCryptoUpdateRouteTemplate.replace('__ORDER__', encodeURIComponent(String(order.id || '')));
+            }
+            if (fiatCryptoFormTitle) {
+                fiatCryptoFormTitle.textContent = `Операция #${valueOrDash(order.id)}`;
+            }
+
+            setFiatCryptoFormDisabled(false);
+            setFiatCryptoSide(order.side || 'buy');
+            if (fiatCryptoFiatCurrency) {
+                fiatCryptoFiatCurrency.value = order.fiat_currency || '';
+            }
+            if (fiatCryptoCryptoCurrency) {
+                fiatCryptoCryptoCurrency.value = order.crypto_currency || '';
+            }
+            filterFiatCryptoAccounts();
+            if (fiatCryptoFiatAccount) {
+                fiatCryptoFiatAccount.value = String(order.fiat_account_id || '');
+            }
+            if (fiatCryptoCryptoAccount) {
+                fiatCryptoCryptoAccount.value = String(order.crypto_account_id || '');
+            }
+            if (fiatCryptoDate) {
+                fiatCryptoDate.value = order.operated_at || '';
+            }
+            if (fiatCryptoFiat) {
+                fiatCryptoFiat.value = order.fiat_amount || '';
+            }
+            if (fiatCryptoCrypto) {
+                fiatCryptoCrypto.value = order.crypto_amount || '';
+            }
+            if (fiatCryptoRate) {
+                fiatCryptoRate.value = order.rate || '';
+            }
+            if (fiatCryptoNote) {
+                fiatCryptoNote.value = order.note || '';
+            }
+            if (fiatCryptoPostLedger) {
+                fiatCryptoPostLedger.checked = Number(order.ledger_transaction_id || 0) > 0;
+            }
+            if (fiatCryptoPostLedgerMeta) {
+                fiatCryptoPostLedgerMeta.textContent = Number(order.ledger_transaction_id || 0) > 0
+                    ? `Проводка уже создана: TX #${order.ledger_transaction_id}.`
+                    : 'Включите чекбокс, чтобы при сохранении обновить остатки счетов и создать ledger-проводку.';
+            }
+            if (!order.can_edit) {
+                setFiatCryptoFormDisabled(true);
+            }
+            calculateFiatCrypto();
+        }
+
         fiatCryptoTabs.forEach((tab) => {
             tab.addEventListener('click', () => {
                 setFiatCryptoSide(tab.dataset.fiatCryptoTab || 'buy');
@@ -1534,14 +1525,27 @@
             }, 0);
         });
 
-        document.getElementById('fiatCryptoExchangeModal')?.addEventListener('show.bs.modal', () => {
-            if (fiatCryptoDate && fiatCryptoDate.value === '') {
-                fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
+        document.getElementById('fiatCryptoExchangeModal')?.addEventListener('show.bs.modal', (event) => {
+            const trigger = event.relatedTarget;
+            if (trigger instanceof HTMLElement && trigger.dataset.fiatCryptoOrder) {
+                let order = {};
+                try {
+                    order = JSON.parse(trigger.dataset.fiatCryptoOrder || '{}');
+                } catch (error) {
+                    order = {};
+                }
+                populateFiatCryptoForm(order);
+                return;
             }
+
+            resetFiatCryptoFormForCreate();
         });
 
         fiatCryptoForm?.addEventListener('submit', (event) => {
             window.localStorage?.setItem(exchangeTabStorageKey, 'crypto');
+            if (!fiatCryptoPostLedger?.checked) {
+                return;
+            }
             const side = fiatCryptoSide?.value || 'buy';
             const fiat = Number(fiatCryptoFiat?.value || 0);
             const crypto = Number(fiatCryptoCrypto?.value || 0);

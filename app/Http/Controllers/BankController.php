@@ -1473,8 +1473,36 @@ class BankController extends Controller
 
     public function storeFiatCryptoExchange(Request $request): RedirectResponse
     {
+        return $this->persistFiatCryptoExchange($request);
+    }
+
+    public function updateFiatCryptoExchange(Request $request, int $order): RedirectResponse
+    {
+        return $this->persistFiatCryptoExchange($request, $order);
+    }
+
+    private function persistFiatCryptoExchange(Request $request, ?int $orderId = null): RedirectResponse
+    {
         $project = $this->bankProject();
         abort_unless(Schema::hasTable('av8_swap_orders'), 404);
+
+        $currentMeta = [];
+        if ($orderId !== null) {
+            $current = DB::table('av8_swap_orders')
+                ->where('id', $orderId)
+                ->where('fid', (int) $project->id)
+                ->where('source', 'bank.exchange.crypto')
+                ->first();
+            abort_unless($current, 404);
+            $currentMeta = json_decode((string) ($current->meta ?? '{}'), true);
+            $currentMeta = is_array($currentMeta) ? $currentMeta : [];
+            if (! empty($currentMeta['ledger_transaction_id']) || ! empty($currentMeta['reversed_at']) || (string) ($current->status ?? '') === 'cancelled') {
+                return redirect()
+                    ->route('bank.exchange')
+                    ->with('error', 'Проведенная операция не редактируется. Сначала отмените проводку.')
+                    ->with('bank_exchange_tab', 'crypto');
+            }
+        }
 
         $payload = $request->validate([
             'side' => ['required', Rule::in(['buy', 'sell'])],
@@ -1487,10 +1515,12 @@ class BankController extends Controller
             'rate' => ['required', 'numeric', 'min:0.00000001'],
             'operated_at' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:2000'],
+            'post_ledger' => ['nullable', 'boolean'],
         ]);
 
         $side = (string) $payload['side'];
         $rate = (float) $payload['rate'];
+        $postLedger = $request->boolean('post_ledger');
         $fiatAmount = $request->filled('fiat_amount') ? (float) $payload['fiat_amount'] : 0.0;
         $cryptoAmount = $request->filled('crypto_amount') ? (float) $payload['crypto_amount'] : 0.0;
 
@@ -1517,21 +1547,21 @@ class BankController extends Controller
         abort_unless($this->normalizeCurrencyCode((string) $fiatAccount->currency) === $fiatCurrency, 422, "Валюта фиатного счета должна быть {$fiatCurrency}.");
         abort_unless($this->normalizeCurrencyCode((string) $cryptoAccount->currency) === $cryptoCurrency, 422, "Валюта крипто-счета должна быть {$cryptoCurrency}.");
 
-        if ($side === 'buy') {
+        if ($postLedger && $side === 'buy') {
             abort_unless((float) $fiatAccount->balance + 0.000001 >= $fiatAmount, 422, 'Недостаточно средств на фиатном операционном счете.');
-        } else {
+        } elseif ($postLedger) {
             abort_unless((float) $cryptoAccount->balance + 0.00000001 >= $cryptoAmount, 422, 'Недостаточно средств на крипто операционном счете.');
         }
 
-        DB::transaction(function () use ($project, $payload, $side, $fiatCurrency, $cryptoCurrency, $fiatAmount, $cryptoAmount, $rate, $fiatAccount, $cryptoAccount, $now, $operatedAt): void {
-            if ($side === 'buy') {
+        $savedOrderId = DB::transaction(function () use ($project, $payload, $side, $fiatCurrency, $cryptoCurrency, $fiatAmount, $cryptoAmount, $rate, $fiatAccount, $cryptoAccount, $now, $operatedAt, $postLedger, $orderId, $currentMeta): int {
+            if ($postLedger && $side === 'buy') {
                 DB::table('conf')->where('id', (int) $fiatAccount->id)->where('type', 'oplata')->update([
                     'value' => DB::raw('COALESCE(value, 0) - ' . abs($fiatAmount)),
                 ]);
                 DB::table('conf')->where('id', (int) $cryptoAccount->id)->where('type', 'oplata')->update([
                     'value' => DB::raw('COALESCE(value, 0) + ' . abs($cryptoAmount)),
                 ]);
-            } else {
+            } elseif ($postLedger) {
                 DB::table('conf')->where('id', (int) $cryptoAccount->id)->where('type', 'oplata')->update([
                     'value' => DB::raw('COALESCE(value, 0) - ' . abs($cryptoAmount)),
                 ]);
@@ -1540,7 +1570,23 @@ class BankController extends Controller
                 ]);
             }
 
-            $orderId = (int) DB::table('av8_swap_orders')->insertGetId([
+            $meta = array_merge($currentMeta, [
+                'side' => $side,
+                'fiat_currency' => $fiatCurrency,
+                'fiat_amount' => $fiatAmount,
+                'fiat_account_id' => (int) $fiatAccount->id,
+                'fiat_account_label' => (string) $fiatAccount->label,
+                'crypto_currency' => $cryptoCurrency,
+                'crypto_amount' => $cryptoAmount,
+                'crypto_account_id' => (int) $cryptoAccount->id,
+                'crypto_account_label' => (string) $cryptoAccount->label,
+                'rate_fiat_per_crypto' => $rate,
+                'operated_at' => $operatedAt,
+                'note' => trim((string) ($payload['note'] ?? '')),
+            ]);
+            unset($meta['reversed_at'], $meta['reversal_ledger_transaction_id']);
+
+            $values = [
                 'fid' => (int) $project->id,
                 'mode' => $side,
                 'pay_currency' => $fiatCurrency,
@@ -1555,52 +1601,54 @@ class BankController extends Controller
                 'client_phone' => null,
                 'status' => 'new',
                 'source' => 'bank.exchange.crypto',
-                'meta' => json_encode([
-                    'side' => $side,
-                    'fiat_currency' => $fiatCurrency,
-                    'fiat_amount' => $fiatAmount,
-                    'fiat_account_id' => (int) $fiatAccount->id,
-                    'fiat_account_label' => (string) $fiatAccount->label,
-                    'crypto_currency' => $cryptoCurrency,
-                    'crypto_amount' => $cryptoAmount,
-                    'crypto_account_id' => (int) $cryptoAccount->id,
-                    'crypto_account_label' => (string) $cryptoAccount->label,
-                    'rate_fiat_per_crypto' => $rate,
-                    'operated_at' => $operatedAt,
-                    'note' => trim((string) ($payload['note'] ?? '')),
-                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                'created_at' => Carbon::parse($operatedAt)->startOfDay(),
+                'meta' => json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 'updated_at' => $now,
-            ]);
+            ];
 
-            $ledger = $this->createFiatCryptoExchangeLedger(
-                $orderId,
-                (int) $project->id,
-                $side,
-                $fiatAccount,
-                $cryptoAccount,
-                $fiatAmount,
-                $cryptoAmount,
-                $fiatCurrency,
-                $cryptoCurrency,
-                $operatedAt
-            );
-
-            if ($ledger) {
-                $row = DB::table('av8_swap_orders')->where('id', $orderId)->first();
-                $meta = json_decode((string) ($row->meta ?? '{}'), true);
-                $meta = is_array($meta) ? $meta : [];
-                $meta['ledger_transaction_id'] = (int) $ledger->id;
-                DB::table('av8_swap_orders')->where('id', $orderId)->update([
-                    'meta' => json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                    'updated_at' => now(),
-                ]);
+            if ($orderId === null) {
+                $values['created_at'] = Carbon::parse($operatedAt)->startOfDay();
+                $savedOrderId = (int) DB::table('av8_swap_orders')->insertGetId($values);
+            } else {
+                DB::table('av8_swap_orders')->where('id', $orderId)->update($values);
+                $savedOrderId = $orderId;
             }
+
+            if ($postLedger) {
+                $ledger = $this->createFiatCryptoExchangeLedger(
+                    $savedOrderId,
+                    (int) $project->id,
+                    $side,
+                    $fiatAccount,
+                    $cryptoAccount,
+                    $fiatAmount,
+                    $cryptoAmount,
+                    $fiatCurrency,
+                    $cryptoCurrency,
+                    $operatedAt
+                );
+
+                if ($ledger) {
+                    $row = DB::table('av8_swap_orders')->where('id', $savedOrderId)->first();
+                    $meta = json_decode((string) ($row->meta ?? '{}'), true);
+                    $meta = is_array($meta) ? $meta : [];
+                    $meta['ledger_transaction_id'] = (int) $ledger->id;
+                    DB::table('av8_swap_orders')->where('id', $savedOrderId)->update([
+                        'meta' => json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            return $savedOrderId;
         });
+
+        $message = $postLedger
+            ? 'Операция Фиат/Крипта сохранена с проводкой.'
+            : 'Операция Фиат/Крипта сохранена без проводки.';
 
         return redirect()
             ->route('bank.exchange')
-            ->with('success', 'Операция Фиат/Крипта сохранена.')
+            ->with('success', $message . " #{$savedOrderId}")
             ->with('bank_exchange_tab', 'crypto');
     }
 
