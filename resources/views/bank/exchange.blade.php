@@ -12,6 +12,25 @@
     $av8Total = (float) $fiatAv8Orders->sum('expected_av8');
     $fiatCryptoTotal = (float) $fiatCryptoOrders->sum('pay_amount');
     $activeExchangeTab = session('bank_exchange_tab');
+    $fiatCryptoAccountIds = collect();
+    $fiatCryptoLastOperatedAt = null;
+    foreach ($fiatCryptoOrders as $order) {
+        $decodedMeta = ! empty($order->meta) ? json_decode((string) $order->meta, true) : [];
+        $decodedMeta = is_array($decodedMeta) ? $decodedMeta : [];
+        foreach (['fiat_account_id', 'crypto_account_id'] as $accountKey) {
+            if (! empty($decodedMeta[$accountKey])) {
+                $fiatCryptoAccountIds->push((int) $decodedMeta[$accountKey]);
+            }
+        }
+        $orderOperatedAt = (string) ($decodedMeta['operated_at'] ?? $order->created_at ?? '');
+        if ($orderOperatedAt !== '' && ($fiatCryptoLastOperatedAt === null || $orderOperatedAt > $fiatCryptoLastOperatedAt)) {
+            $fiatCryptoLastOperatedAt = $orderOperatedAt;
+        }
+    }
+    $fiatCryptoAccountIds = $fiatCryptoAccountIds->unique()->values();
+    $fiatCryptoAccountsInUse = $fiatCryptoAccountIds->isNotEmpty()
+        ? $operationalAccounts->filter(fn ($account) => $fiatCryptoAccountIds->contains((int) $account->id))->values()
+        : collect();
 @endphp
 <div class="bank-page">
     @include('bank.partials.nav')
@@ -361,6 +380,59 @@
                     </div>
                 </div>
 
+                <div class="bank-exchange-performance">
+                    <div class="bank-exchange-performance__header">
+                        <div>
+                            <div class="bank-label">Эффективность обменки</div>
+                            <div class="bank-meta">KPI считаются по операциям выбранного периода. Прибыльность = средний курс продажи против среднего курса покупки.</div>
+                        </div>
+                        <div class="bank-meta">
+                            Последняя операция: {{ $fiatCryptoLastOperatedAt ? $fiatCryptoLastOperatedAt : '—' }}
+                        </div>
+                    </div>
+                    <div class="bank-exchange-performance__grid">
+                        <div>
+                            <span>Фиатный оборот</span>
+                            <strong data-fiat-crypto-performance-turnover>—</strong>
+                        </div>
+                        <div>
+                            <span>Крипто оборот</span>
+                            <strong data-fiat-crypto-performance-crypto>—</strong>
+                        </div>
+                        <div>
+                            <span>Средний курс покупки</span>
+                            <strong data-fiat-crypto-performance-buy-rate>—</strong>
+                        </div>
+                        <div>
+                            <span>Средний курс продажи</span>
+                            <strong data-fiat-crypto-performance-sell-rate>—</strong>
+                        </div>
+                        <div>
+                            <span>Спред / прибыльность</span>
+                            <strong data-fiat-crypto-performance-margin>—</strong>
+                        </div>
+                        <div>
+                            <span>Расчетная прибыль</span>
+                            <strong data-fiat-crypto-performance-profit>—</strong>
+                        </div>
+                    </div>
+                    <div class="bank-exchange-accounts">
+                        <div class="bank-meta">Балансы счетов, задействованных в обмене</div>
+                        @if($fiatCryptoAccountsInUse->isNotEmpty())
+                            <div class="bank-exchange-accounts__list">
+                                @foreach($fiatCryptoAccountsInUse as $account)
+                                    <div class="bank-exchange-account">
+                                        <span title="{{ $account->label }}">{{ $account->label }}</span>
+                                        <strong>{{ number_format((float) $account->balance, in_array(strtoupper((string) $account->currency), ['USDC', 'USDT', 'SUI', 'BTC', 'ETH'], true) ? 8 : 2, '.', ' ') }} {{ $account->currency }}</strong>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="bank-meta">Пока нет операций со счетами обменки.</div>
+                        @endif
+                    </div>
+                </div>
+
                 <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
                     <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--exchange-crypto">
                         <thead>
@@ -397,6 +469,9 @@
                                     data-operation-side="{{ $side }}"
                                     data-fiat-amount="{{ number_format((float) $order->pay_amount, 8, '.', '') }}"
                                     data-fiat-currency="{{ $order->pay_currency }}"
+                                    data-crypto-amount="{{ number_format($cryptoAmount, 8, '.', '') }}"
+                                    data-crypto-currency="{{ $cryptoCurrency }}"
+                                    data-rate="{{ number_format((float) $order->rate_usdc, 8, '.', '') }}"
                                 >
                                     <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                     <td class="bank-table__date">{{ $operatedAt }}</td>
@@ -653,6 +728,72 @@
         white-space: nowrap;
     }
 
+    .bank-page .bank-exchange-performance {
+        display: grid;
+        gap: 0.65rem;
+        margin-bottom: 0.75rem;
+        padding: 0.75rem;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 8px;
+        background: rgba(2, 6, 23, 0.22);
+    }
+
+    .bank-page .bank-exchange-performance__header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .bank-page .bank-exchange-performance__grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(130px, 1fr));
+        gap: 0.45rem;
+    }
+
+    .bank-page .bank-exchange-performance__grid > div,
+    .bank-page .bank-exchange-account {
+        min-width: 0;
+        padding: 0.5rem 0.55rem;
+        border-radius: 7px;
+        background: rgba(15, 23, 42, 0.46);
+    }
+
+    .bank-page .bank-exchange-performance__grid span,
+    .bank-page .bank-exchange-account span {
+        display: block;
+        overflow: hidden;
+        color: #94a3b8;
+        font-size: 0.7rem;
+        line-height: 1.15;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bank-page .bank-exchange-performance__grid strong,
+    .bank-page .bank-exchange-account strong {
+        display: block;
+        overflow: hidden;
+        margin-top: 0.15rem;
+        color: #f8fafc;
+        font-size: 0.82rem;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bank-page .bank-exchange-accounts {
+        display: grid;
+        gap: 0.4rem;
+    }
+
+    .bank-page .bank-exchange-accounts__list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.45rem;
+    }
+
     .bank-page .bank-table--exchange-orders th:nth-child(1),
     .bank-page .bank-table--exchange-orders td:nth-child(1),
     .bank-page .bank-table--exchange-events th:nth-child(1),
@@ -720,6 +861,19 @@
     .bank-page .bank-table--exchange-crypto th:nth-child(7),
     .bank-page .bank-table--exchange-crypto td:nth-child(7) {
         width: 128px;
+    }
+
+    @media (max-width: 1199px) {
+        .bank-page .bank-exchange-performance__grid {
+            grid-template-columns: repeat(3, minmax(130px, 1fr));
+        }
+    }
+
+    @media (max-width: 767px) {
+        .bank-page .bank-yield-summary,
+        .bank-page .bank-exchange-performance__grid {
+            grid-template-columns: repeat(2, minmax(120px, 1fr));
+        }
     }
 </style>
 @endsection
@@ -850,6 +1004,12 @@
         const fiatCryptoSummaryBuy = document.querySelector('[data-fiat-crypto-summary-buy]');
         const fiatCryptoSummarySell = document.querySelector('[data-fiat-crypto-summary-sell]');
         const fiatCryptoSummaryNet = document.querySelector('[data-fiat-crypto-summary-net]');
+        const fiatCryptoPerformanceTurnover = document.querySelector('[data-fiat-crypto-performance-turnover]');
+        const fiatCryptoPerformanceCrypto = document.querySelector('[data-fiat-crypto-performance-crypto]');
+        const fiatCryptoPerformanceBuyRate = document.querySelector('[data-fiat-crypto-performance-buy-rate]');
+        const fiatCryptoPerformanceSellRate = document.querySelector('[data-fiat-crypto-performance-sell-rate]');
+        const fiatCryptoPerformanceMargin = document.querySelector('[data-fiat-crypto-performance-margin]');
+        const fiatCryptoPerformanceProfit = document.querySelector('[data-fiat-crypto-performance-profit]');
 
         function selectedOption(select) {
             return select?.selectedOptions?.[0] || null;
@@ -909,12 +1069,46 @@
                 .join(' · ');
         }
 
+        function formatCryptoAmount(value, currency) {
+            return `${value.toLocaleString('ru-RU', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 8,
+            })} ${currency}`;
+        }
+
+        function formatCryptoGroups(groups) {
+            const entries = Object.entries(groups).filter(([, value]) => Math.abs(value) > 0.00000001);
+            if (entries.length === 0) {
+                return '0.00';
+            }
+
+            return entries
+                .map(([currency, value]) => formatCryptoAmount(value, currency))
+                .join(' · ');
+        }
+
+        function formatRate(value, fiatCurrency, cryptoCurrency) {
+            return `${value.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 8,
+            })} ${fiatCurrency}/${cryptoCurrency}`;
+        }
+
+        function setPerformanceText(element, value) {
+            if (element) {
+                element.textContent = value;
+            }
+        }
+
         function applyFiatCryptoDateFilter(preset = 'today') {
             const range = fiatCryptoDateRange(preset);
             const totals = {
                 buy: {},
                 sell: {},
                 net: {},
+                turnover: {},
+                crypto: {},
+                pairs: {},
             };
             let visibleCount = 0;
 
@@ -938,16 +1132,35 @@
                 const side = row.dataset.operationSide || 'buy';
                 const currency = row.dataset.fiatCurrency || 'FIAT';
                 const amount = Number(row.dataset.fiatAmount || 0);
+                const cryptoCurrency = row.dataset.cryptoCurrency || 'CRYPTO';
+                const cryptoAmount = Number(row.dataset.cryptoAmount || 0);
+                const pairKey = `${currency}/${cryptoCurrency}`;
                 totals.buy[currency] = totals.buy[currency] || 0;
                 totals.sell[currency] = totals.sell[currency] || 0;
                 totals.net[currency] = totals.net[currency] || 0;
+                totals.turnover[currency] = totals.turnover[currency] || 0;
+                totals.crypto[cryptoCurrency] = totals.crypto[cryptoCurrency] || 0;
+                totals.pairs[pairKey] = totals.pairs[pairKey] || {
+                    fiatCurrency: currency,
+                    cryptoCurrency,
+                    buyFiat: 0,
+                    buyCrypto: 0,
+                    sellFiat: 0,
+                    sellCrypto: 0,
+                };
+                totals.turnover[currency] += amount;
+                totals.crypto[cryptoCurrency] += cryptoAmount;
 
                 if (side === 'sell') {
                     totals.sell[currency] += amount;
                     totals.net[currency] += amount;
+                    totals.pairs[pairKey].sellFiat += amount;
+                    totals.pairs[pairKey].sellCrypto += cryptoAmount;
                 } else {
                     totals.buy[currency] += amount;
                     totals.net[currency] -= amount;
+                    totals.pairs[pairKey].buyFiat += amount;
+                    totals.pairs[pairKey].buyCrypto += cryptoAmount;
                 }
             });
 
@@ -963,6 +1176,38 @@
             if (fiatCryptoSummaryNet) {
                 fiatCryptoSummaryNet.textContent = formatFiatGroups(totals.net, true);
             }
+
+            const buyRates = [];
+            const sellRates = [];
+            const margins = [];
+            const profitByCurrency = {};
+            Object.values(totals.pairs).forEach((pair) => {
+                const avgBuy = pair.buyCrypto > 0 ? pair.buyFiat / pair.buyCrypto : 0;
+                const avgSell = pair.sellCrypto > 0 ? pair.sellFiat / pair.sellCrypto : 0;
+                if (avgBuy > 0) {
+                    buyRates.push(formatRate(avgBuy, pair.fiatCurrency, pair.cryptoCurrency));
+                }
+                if (avgSell > 0) {
+                    sellRates.push(formatRate(avgSell, pair.fiatCurrency, pair.cryptoCurrency));
+                }
+                if (avgBuy > 0 && avgSell > 0) {
+                    const soldCost = pair.sellCrypto * avgBuy;
+                    const profit = pair.sellFiat - soldCost;
+                    const margin = soldCost > 0 ? (profit / soldCost) * 100 : 0;
+                    profitByCurrency[pair.fiatCurrency] = (profitByCurrency[pair.fiatCurrency] || 0) + profit;
+                    margins.push(`${margin > 0 ? '+' : ''}${margin.toLocaleString('ru-RU', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                    })}% ${pair.fiatCurrency}/${pair.cryptoCurrency}`);
+                }
+            });
+
+            setPerformanceText(fiatCryptoPerformanceTurnover, formatFiatGroups(totals.turnover));
+            setPerformanceText(fiatCryptoPerformanceCrypto, formatCryptoGroups(totals.crypto));
+            setPerformanceText(fiatCryptoPerformanceBuyRate, buyRates.length > 0 ? buyRates.join(' · ') : '—');
+            setPerformanceText(fiatCryptoPerformanceSellRate, sellRates.length > 0 ? sellRates.join(' · ') : '—');
+            setPerformanceText(fiatCryptoPerformanceMargin, margins.length > 0 ? margins.join(' · ') : '—');
+            setPerformanceText(fiatCryptoPerformanceProfit, Object.keys(profitByCurrency).length > 0 ? formatFiatGroups(profitByCurrency, true) : '—');
         }
 
         function calculateFiatCrypto() {
