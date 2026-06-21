@@ -17,6 +17,8 @@ use Illuminate\View\View;
 
 class BankController extends Controller
 {
+    private const DEPOSIT_TRANSFER_ACCOUNT_FID = '12';
+
     private const EXCHANGE_ORDER_STATUSES = [
         'new' => 'Новая',
         'awaiting_payment' => 'Ожидает оплату',
@@ -325,7 +327,7 @@ class BankController extends Controller
         $deposits = $this->bankDeposits($projectIds);
         $operations = $this->bankDepositOperations($projectIds);
         $depositTransfers = $this->bankDepositTransfers($projectIds);
-        $operationalAccounts = $this->bankOperationalAccountsForProjects($projectIds);
+        $operationalAccounts = $this->bankOperationalAccounts(self::DEPOSIT_TRANSFER_ACCOUNT_FID);
         $depositPools = $this->bankDepositPoolRows($deposits, (int) $project->id);
 
         return view('bank.deposit', [
@@ -3322,7 +3324,7 @@ class BankController extends Controller
         $account = DB::table('conf')
             ->where('id', $accountId)
             ->where('type', 'oplata')
-            ->whereIn('firma', array_map('intval', $projectIds))
+            ->where('firma', self::DEPOSIT_TRANSFER_ACCOUNT_FID)
             ->lockForUpdate()
             ->first();
 
