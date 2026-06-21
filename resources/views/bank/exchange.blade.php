@@ -502,7 +502,8 @@
                                         'reversal_ledger_transaction_id' => $reversalLedgerTransactionId,
                                         'status' => (string) $order->status,
                                         'status_label' => $isReversed ? 'Проводка отменена' : 'Сохранено',
-                                        'can_edit' => ! $isReversed && $ledgerTransactionId <= 0,
+                                        'can_edit' => $isReversed || $ledgerTransactionId <= 0,
+                                        'is_reversed' => $isReversed,
                                         'can_reverse' => $canReverse,
                                         'reverse_block_reason' => $canReverse ? '' : $reverseBlockReason,
                                         'reverse_url' => route('bank.exchange.crypto.reverse', ['order' => (int) $order->id]),
@@ -1469,12 +1470,14 @@
                 fiatCryptoNote.value = order.note || '';
             }
             if (fiatCryptoPostLedger) {
-                fiatCryptoPostLedger.checked = Number(order.ledger_transaction_id || 0) > 0;
+                fiatCryptoPostLedger.checked = Boolean(order.is_reversed) || Number(order.ledger_transaction_id || 0) > 0;
             }
             if (fiatCryptoPostLedgerMeta) {
-                fiatCryptoPostLedgerMeta.textContent = Number(order.ledger_transaction_id || 0) > 0
+                fiatCryptoPostLedgerMeta.textContent = Boolean(order.is_reversed)
+                    ? 'Операция отменена. При сохранении с активным чекбоксом будет создана новая проводка, старое сторно не изменится.'
+                    : (Number(order.ledger_transaction_id || 0) > 0
                     ? `Проводка уже создана: TX #${order.ledger_transaction_id}.`
-                    : 'Включите чекбокс, чтобы при сохранении обновить остатки счетов и создать ledger-проводку.';
+                    : 'Включите чекбокс, чтобы при сохранении обновить остатки счетов и создать ledger-проводку.');
             }
             if (!order.can_edit) {
                 setFiatCryptoFormDisabled(true);

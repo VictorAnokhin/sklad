@@ -1496,7 +1496,8 @@ class BankController extends Controller
             abort_unless($current, 404);
             $currentMeta = json_decode((string) ($current->meta ?? '{}'), true);
             $currentMeta = is_array($currentMeta) ? $currentMeta : [];
-            if (! empty($currentMeta['ledger_transaction_id']) || ! empty($currentMeta['reversed_at']) || (string) ($current->status ?? '') === 'cancelled') {
+            $isReversed = ! empty($currentMeta['reversed_at']) || (string) ($current->status ?? '') === 'cancelled';
+            if (! $isReversed && ! empty($currentMeta['ledger_transaction_id'])) {
                 return redirect()
                     ->route('bank.exchange')
                     ->with('error', 'Проведенная операция не редактируется. Сначала отмените проводку.')
@@ -1584,7 +1585,7 @@ class BankController extends Controller
                 'operated_at' => $operatedAt,
                 'note' => trim((string) ($payload['note'] ?? '')),
             ]);
-            unset($meta['reversed_at'], $meta['reversal_ledger_transaction_id']);
+            unset($meta['ledger_transaction_id'], $meta['reversed_at'], $meta['reversal_ledger_transaction_id']);
 
             $values = [
                 'fid' => (int) $project->id,
@@ -1796,15 +1797,6 @@ class BankController extends Controller
             return null;
         }
 
-        $existingReversal = DB::table('transactions')
-            ->where('company_id', $projectId)
-            ->where('reference_type', 'bank_exchange_crypto:reversal')
-            ->where('reference_id', (string) $orderId)
-            ->first();
-        if ($existingReversal) {
-            return null;
-        }
-
         $originalQuery = DB::table('transactions')
             ->where('company_id', $projectId)
             ->where('reference_type', 'bank_exchange_crypto')
@@ -1821,6 +1813,16 @@ class BankController extends Controller
                 ->first();
         }
         if (! $original) {
+            return null;
+        }
+
+        $existingReversal = DB::table('transactions')
+            ->where('company_id', $projectId)
+            ->where('reference_type', 'bank_exchange_crypto:reversal')
+            ->where('reference_id', (string) $orderId)
+            ->where('id', '>', (int) $original->id)
+            ->first();
+        if ($existingReversal) {
             return null;
         }
 
