@@ -1673,6 +1673,12 @@ class BankController extends Controller
                 ->with('error', 'Проводка уже отменена.')
                 ->with('bank_exchange_tab', 'crypto');
         }
+        if (! $this->isLatestFiatCryptoLedger((int) $project->id, (int) ($meta['ledger_transaction_id'] ?? 0))) {
+            return redirect()
+                ->route('bank.exchange')
+                ->with('error', 'Отменить можно только последнюю активную проводку обменки.')
+                ->with('bank_exchange_tab', 'crypto');
+        }
 
         $side = (string) ($meta['side'] ?? $row->mode ?? 'buy');
         $fiatAmount = (float) ($meta['fiat_amount'] ?? $row->pay_amount ?? 0);
@@ -1712,12 +1718,13 @@ class BankController extends Controller
                 }
 
                 $reversalLedger = $this->reverseFiatCryptoExchangeLedger((int) $project->id, $order, (int) ($meta['ledger_transaction_id'] ?? 0));
+                if (! $reversalLedger) {
+                    throw new \RuntimeException('Не удалось создать сторно-проводку. Остатки счетов не изменены.');
+                }
 
                 $meta['original_status'] = (string) ($row->status ?? '');
                 $meta['reversed_at'] = now()->toDateTimeString();
-                if ($reversalLedger) {
-                    $meta['reversal_ledger_transaction_id'] = (int) $reversalLedger->id;
-                }
+                $meta['reversal_ledger_transaction_id'] = (int) $reversalLedger->id;
 
                 DB::table('av8_swap_orders')->where('id', $order)->update([
                     'status' => 'cancelled',
@@ -1736,6 +1743,28 @@ class BankController extends Controller
             ->route('bank.exchange')
             ->with('success', 'Проводка Фиат/Крипта отменена.')
             ->with('bank_exchange_tab', 'crypto');
+    }
+
+    private function isLatestFiatCryptoLedger(int $projectId, int $ledgerTransactionId): bool
+    {
+        if ($ledgerTransactionId <= 0 || ! Schema::hasTable('av8_swap_orders')) {
+            return false;
+        }
+
+        $latestLedgerTransactionId = DB::table('av8_swap_orders')
+            ->where('fid', $projectId)
+            ->where('source', 'bank.exchange.crypto')
+            ->where('status', '!=', 'cancelled')
+            ->get(['meta'])
+            ->map(function ($order): int {
+                $meta = json_decode((string) ($order->meta ?? '{}'), true);
+                $meta = is_array($meta) ? $meta : [];
+
+                return ! empty($meta['reversed_at']) ? 0 : (int) ($meta['ledger_transaction_id'] ?? 0);
+            })
+            ->max();
+
+        return (int) $latestLedgerTransactionId === $ledgerTransactionId;
     }
 
     private function createFiatCryptoExchangeLedger(

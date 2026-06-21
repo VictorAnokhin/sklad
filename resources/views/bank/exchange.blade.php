@@ -32,6 +32,16 @@
         ? $operationalAccounts->filter(fn ($account) => $fiatCryptoAccountIds->contains((int) $account->id))->values()
         : collect();
     $operationalAccountsById = $operationalAccounts->keyBy(fn ($account) => (int) $account->id);
+    $latestFiatCryptoLedgerId = (int) $fiatCryptoOrders
+        ->map(function ($order): int {
+            $meta = ! empty($order->meta) ? json_decode((string) $order->meta, true) : [];
+            $meta = is_array($meta) ? $meta : [];
+
+            return ! empty($meta['reversed_at']) || (string) $order->status === 'cancelled'
+                ? 0
+                : (int) ($meta['ledger_transaction_id'] ?? 0);
+        })
+        ->max();
 @endphp
 <div class="bank-page">
     @include('bank.partials.nav')
@@ -479,6 +489,7 @@
                                         ($side === 'buy' && $cryptoAccountBalance + 0.00000001 >= $cryptoAmount)
                                         || ($side === 'sell' && $fiatAccountBalance + 0.000001 >= (float) $order->pay_amount)
                                     );
+                                    $canCancelSave = ! $isReversed && $ledgerTransactionId > 0 && $ledgerTransactionId === $latestFiatCryptoLedgerId && $canReverse;
                                     $reverseBlockReason = $isReversed
                                         ? 'Проводка уже отменена.'
                                         : ($side === 'buy'
@@ -504,6 +515,7 @@
                                         'status_label' => $isReversed ? 'Проводка отменена' : 'Сохранено',
                                         'can_edit' => $isReversed || $ledgerTransactionId <= 0,
                                         'is_reversed' => $isReversed,
+                                        'can_cancel_save' => $canCancelSave,
                                         'can_reverse' => $canReverse,
                                         'reverse_block_reason' => $canReverse ? '' : $reverseBlockReason,
                                         'reverse_url' => route('bank.exchange.crypto.reverse', ['order' => (int) $order->id]),
@@ -1412,6 +1424,7 @@
         function resetFiatCryptoFormForCreate() {
             if (fiatCryptoForm instanceof HTMLFormElement) {
                 fiatCryptoForm.action = fiatCryptoForm.dataset.defaultAction || fiatCryptoForm.action;
+                fiatCryptoForm.dataset.mode = 'save';
                 fiatCryptoForm.reset();
             }
             if (fiatCryptoFormTitle) {
@@ -1424,6 +1437,11 @@
             if (fiatCryptoPostLedgerMeta) {
                 fiatCryptoPostLedgerMeta.textContent = 'При сохранении будут обновлены остатки счетов и создана ledger-проводка.';
             }
+            if (fiatCryptoSubmit) {
+                fiatCryptoSubmit.textContent = 'Сохранить';
+                fiatCryptoSubmit.classList.remove('btn-danger');
+                fiatCryptoSubmit.classList.add('btn-primary');
+            }
             setFiatCryptoSide('buy');
             filterFiatCryptoAccounts();
             if (fiatCryptoDate) {
@@ -1432,8 +1450,12 @@
         }
 
         function populateFiatCryptoForm(order) {
+            const isPosted = Number(order.ledger_transaction_id || 0) > 0 && !order.is_reversed;
             if (fiatCryptoForm instanceof HTMLFormElement) {
-                fiatCryptoForm.action = fiatCryptoUpdateRouteTemplate.replace('__ORDER__', encodeURIComponent(String(order.id || '')));
+                fiatCryptoForm.dataset.mode = isPosted ? 'reverse' : 'save';
+                fiatCryptoForm.action = isPosted
+                    ? String(order.reverse_url || '')
+                    : fiatCryptoUpdateRouteTemplate.replace('__ORDER__', encodeURIComponent(String(order.id || '')));
             }
             if (fiatCryptoFormTitle) {
                 fiatCryptoFormTitle.textContent = `Операция #${valueOrDash(order.id)}`;
@@ -1481,6 +1503,24 @@
             }
             if (!order.can_edit) {
                 setFiatCryptoFormDisabled(true);
+            }
+            if (isPosted) {
+                setFiatCryptoFormDisabled(true);
+                if (fiatCryptoSubmit) {
+                    fiatCryptoSubmit.textContent = 'Отменить сохранение';
+                    fiatCryptoSubmit.classList.remove('btn-primary');
+                    fiatCryptoSubmit.classList.add('btn-danger');
+                    fiatCryptoSubmit.disabled = !order.can_cancel_save;
+                }
+                if (fiatCryptoPostLedgerMeta) {
+                    fiatCryptoPostLedgerMeta.textContent = order.can_cancel_save
+                        ? 'Это последняя активная проводка. Можно отменить сохранение и создать сторно.'
+                        : 'Отменить можно только последнюю активную проводку обменки.';
+                }
+            } else if (fiatCryptoSubmit) {
+                fiatCryptoSubmit.textContent = 'Сохранить';
+                fiatCryptoSubmit.classList.remove('btn-danger');
+                fiatCryptoSubmit.classList.add('btn-primary');
             }
             calculateFiatCrypto();
         }
@@ -1546,6 +1586,12 @@
 
         fiatCryptoForm?.addEventListener('submit', (event) => {
             window.localStorage?.setItem(exchangeTabStorageKey, 'crypto');
+            if (fiatCryptoForm.dataset.mode === 'reverse') {
+                if (!confirm('Отменить сохранение и создать сторно проводки?')) {
+                    event.preventDefault();
+                }
+                return;
+            }
             if (!fiatCryptoPostLedger?.checked) {
                 return;
             }
