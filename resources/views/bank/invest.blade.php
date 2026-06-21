@@ -739,9 +739,18 @@
                     <span>Комментарий</span>
                     <textarea name="note" rows="3" data-invest-operation-note></textarea>
                 </label>
+                <label class="bank-operation-post-ledger">
+                    <input type="checkbox" name="post_ledger" value="1" checked data-invest-operation-post-ledger>
+                    <span>
+                        <strong>Проводка</strong>
+                        <small>Создать двойную запись и изменить остаток операционного счета для покупки/продажи.</small>
+                    </span>
+                </label>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-invest-operation-close>Отмена</button>
-                    <button type="submit" class="btn btn-primary" data-invest-operation-submit>Выполнить</button>
+                    <button type="submit" class="btn btn-outline-danger me-auto" data-invest-operation-delete hidden>Удалить</button>
+                    <button type="submit" class="btn btn-warning" data-invest-operation-reverse hidden>Отменить проводку</button>
+                    <button type="submit" class="btn btn-primary" data-invest-operation-submit>Сохранить</button>
                 </div>
             </form>
         </div>
@@ -1131,6 +1140,32 @@
     .bank-operation-revaluation-note__examples span {
         color: #fde68a;
         font-weight: 900;
+    }
+
+    .bank-operation-post-ledger {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        margin-top: 12px;
+        padding: 12px 14px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.48);
+    }
+
+    .bank-operation-post-ledger input {
+        margin-top: 3px;
+    }
+
+    .bank-operation-post-ledger strong,
+    .bank-operation-post-ledger small {
+        display: block;
+    }
+
+    .bank-operation-post-ledger small {
+        margin-top: 2px;
+        color: rgba(148, 163, 184, 0.9);
+        line-height: 1.4;
     }
 
     .bank-invest-asset-filter {
@@ -1802,9 +1837,12 @@
         const investOperationTitle = root.querySelector('[data-invest-operation-title]');
         const investOperationSubtitle = root.querySelector('[data-invest-operation-subtitle]');
         const investOperationSubmit = root.querySelector('[data-invest-operation-submit]');
+        const investOperationDelete = root.querySelector('[data-invest-operation-delete]');
+        const investOperationReverse = root.querySelector('[data-invest-operation-reverse]');
         const investOperationDirection = root.querySelector('[data-invest-operation-direction]');
         const investOperationDirectionTabs = root.querySelectorAll('[data-invest-operation-direction-tab]');
         const investOperationUpdateBalance = root.querySelector('[data-invest-operation-update-balance]');
+        const investOperationPostLedger = root.querySelector('[data-invest-operation-post-ledger]');
         const investOperationAccount = root.querySelector('[data-invest-operation-account]');
         const investOperationAsset = root.querySelector('[data-invest-operation-asset]');
         const investOperationCurrency = root.querySelector('[data-invest-operation-currency]');
@@ -1922,7 +1960,17 @@
             if (investOperationMethod) {
                 investOperationMethod.disabled = true;
             }
+            if (investOperationForm) {
+                investOperationForm.dataset.mode = 'save';
+                investOperationForm.dataset.saveAction = investOperationStoreAction;
+                investOperationForm.dataset.deleteAction = '';
+                investOperationForm.dataset.reverseAction = '';
+            }
             setInvestOperationDirection('account_to_asset');
+            if (investOperationPostLedger) {
+                investOperationPostLedger.checked = true;
+                investOperationPostLedger.disabled = false;
+            }
             if (investOperationTitle) {
                 investOperationTitle.textContent = 'Создать Счет ↔ Актив';
             }
@@ -1930,7 +1978,13 @@
                 investOperationSubtitle.textContent = 'Фиксирует распределение операционного счета в инвестиционный актив с двойной записью учета.';
             }
             if (investOperationSubmit) {
-                investOperationSubmit.textContent = 'Выполнить';
+                investOperationSubmit.textContent = 'Сохранить';
+            }
+            if (investOperationDelete) {
+                investOperationDelete.hidden = true;
+            }
+            if (investOperationReverse) {
+                investOperationReverse.hidden = true;
             }
         }
 
@@ -1939,10 +1993,19 @@
                 return;
             }
             investOperationForm.action = movement.update_action || investOperationStoreAction;
+            investOperationForm.dataset.mode = 'save';
+            investOperationForm.dataset.saveAction = movement.update_action || investOperationStoreAction;
+            investOperationForm.dataset.deleteAction = movement.destroy_action || '';
+            investOperationForm.dataset.reverseAction = movement.reverse_action || '';
             if (investOperationMethod) {
                 investOperationMethod.disabled = false;
+                investOperationMethod.value = 'PUT';
             }
             setInvestOperationDirection(movement.direction || 'account_to_asset');
+            if (investOperationPostLedger) {
+                investOperationPostLedger.checked = Boolean(movement.is_posted);
+                investOperationPostLedger.disabled = false;
+            }
             if (investOperationAccount) {
                 investOperationAccount.value = String(movement.account_id || '');
             }
@@ -1971,11 +2034,60 @@
                 investOperationTitle.textContent = `Редактировать движение #${movement.id}`;
             }
             if (investOperationSubtitle) {
-                investOperationSubtitle.textContent = 'Редактирование доступно только до создания двойной записи учета.';
+                investOperationSubtitle.textContent = movement.is_posted
+                    ? 'Документ проведен. Можно отменить проводку или сохранить изменения с автоматическим сторно и новой проводкой.'
+                    : 'Документ сохранен без проводки. Включите чекбокс, чтобы создать двойную запись.';
             }
             if (investOperationSubmit) {
                 investOperationSubmit.textContent = 'Сохранить';
             }
+            if (investOperationDelete) {
+                investOperationDelete.hidden = !movement.can_edit;
+            }
+            if (investOperationReverse) {
+                investOperationReverse.hidden = !(movement.can_reverse && movement.is_posted);
+            }
+        }
+
+        if (investOperationSubmit) {
+            investOperationSubmit.addEventListener('click', () => {
+                if (!investOperationForm) {
+                    return;
+                }
+                investOperationForm.dataset.mode = 'save';
+                investOperationForm.action = investOperationForm.dataset.saveAction || investOperationStoreAction;
+                if (investOperationMethod) {
+                    investOperationMethod.disabled = investOperationForm.action === investOperationStoreAction;
+                    investOperationMethod.value = 'PUT';
+                }
+            });
+        }
+
+        if (investOperationDelete) {
+            investOperationDelete.addEventListener('click', () => {
+                if (!investOperationForm) {
+                    return;
+                }
+                investOperationForm.dataset.mode = 'delete';
+                investOperationForm.action = investOperationForm.dataset.deleteAction || investOperationForm.action;
+                if (investOperationMethod) {
+                    investOperationMethod.disabled = false;
+                    investOperationMethod.value = 'DELETE';
+                }
+            });
+        }
+
+        if (investOperationReverse) {
+            investOperationReverse.addEventListener('click', () => {
+                if (!investOperationForm) {
+                    return;
+                }
+                investOperationForm.dataset.mode = 'reverse';
+                investOperationForm.action = investOperationForm.dataset.reverseAction || investOperationForm.action;
+                if (investOperationMethod) {
+                    investOperationMethod.disabled = true;
+                }
+            });
         }
 
         function openInvestMovementEdit(index, movements) {

@@ -127,6 +127,12 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/invest/operations/{operation}', [BankController::class, 'updateInvestOperation'])
             ->whereNumber('operation')
             ->name('invest-operations.update');
+        Route::delete('/invest/operations/{operation}', [BankController::class, 'destroyInvestOperation'])
+            ->whereNumber('operation')
+            ->name('invest-operations.destroy');
+        Route::post('/invest/operations/{operation}/reverse', [BankController::class, 'reverseInvestOperation'])
+            ->whereNumber('operation')
+            ->name('invest-operations.reverse');
         Route::post('/invest/tracked-assets', [BankController::class, 'storeTrackedAsset'])
             ->name('tracked-assets.store');
         Route::post('/invest/tracked-assets/refresh', [BankController::class, 'refreshTrackedAssets'])

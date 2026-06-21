@@ -682,7 +682,7 @@ class BankController extends Controller
             $now = now();
             $values = [
                 'project_id' => (int) $project->id,
-                'account_id' => (int) $payload['account_id'],
+                'account_id' => (int) ($payload['account_id'] ?? 0),
                 'direction' => (string) $payload['direction'],
                 'asset_type' => (string) $asset->asset_type,
                 'asset_key' => (string) $asset->asset_key,
@@ -703,16 +703,19 @@ class BankController extends Controller
             }
 
             $operationId = (int) DB::table('bank_invest_operations')->insertGetId($values);
-            $ledger = $this->createInvestOperationLedger(
-                $operationId,
-                (int) $project->id,
-                $account,
-                $asset,
-                (string) $payload['direction'],
-                $valueUsd,
-                $currency,
-                (string) $operatedAt
-            );
+            $ledger = null;
+            if ((bool) ($payload['post_ledger'] ?? false)) {
+                $ledger = $this->createInvestOperationLedger(
+                    $operationId,
+                    (int) $project->id,
+                    $account,
+                    $asset,
+                    (string) $payload['direction'],
+                    $valueUsd,
+                    $currency,
+                    (string) $operatedAt
+                );
+            }
 
             $updates = ['updated_at' => $now];
             if (Schema::hasColumn('bank_invest_operations', 'ledger_transaction_id')) {
@@ -723,7 +726,7 @@ class BankController extends Controller
             }
             DB::table('bank_invest_operations')->where('id', $operationId)->update($updates);
 
-            if ((bool) ($payload['update_account_balance'] ?? false)) {
+            if ((bool) ($payload['post_ledger'] ?? false) && (bool) ($payload['update_account_balance'] ?? false)) {
                 $this->applyInvestOperationAccountBalance($account, (string) $payload['direction'], $amount, $currency);
             }
 
@@ -772,28 +775,11 @@ class BankController extends Controller
         DB::transaction(function () use ($operation, $project, $current, $currentAccount, $currentAsset, $payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt): void {
             $now = now();
             if ((int) ($current->ledger_transaction_id ?? 0) > 0 || (string) ($current->status ?? 'pending') === 'posted') {
-                $reversalDirection = match ((string) $current->direction) {
-                    'account_to_asset' => 'asset_to_account',
-                    'asset_to_account' => 'account_to_asset',
-                    default => 'revaluation',
-                };
-                $reversalValue = (string) $current->direction === 'revaluation'
-                    ? -1 * (float) $current->value_usd
-                    : (float) $current->value_usd;
-                $this->createInvestOperationLedger(
-                    $operation,
-                    (int) $project->id,
-                    $currentAccount,
-                    $currentAsset,
-                    $reversalDirection,
-                    $reversalValue,
-                    $this->normalizeCurrencyCode((string) $current->currency),
-                    $now->toDateString()
-                );
+                $this->reverseInvestOperationLedgers((int) $project->id, $operation);
                 if (in_array((string) $current->direction, ['account_to_asset', 'asset_to_account'], true)) {
                     $this->applyInvestOperationAccountBalance(
                         $currentAccount,
-                        $reversalDirection,
+                        (string) $current->direction === 'account_to_asset' ? 'asset_to_account' : 'account_to_asset',
                         (float) $current->amount,
                         $this->normalizeCurrencyCode((string) $current->currency)
                     );
@@ -816,16 +802,19 @@ class BankController extends Controller
                 'updated_at' => $now,
             ]);
 
-            $ledger = $this->createInvestOperationLedger(
-                $operation,
-                (int) $project->id,
-                $account,
-                $asset,
-                (string) $payload['direction'],
-                $valueUsd,
-                $currency,
-                (string) $operatedAt
-            );
+            $ledger = null;
+            if ((bool) ($payload['post_ledger'] ?? false)) {
+                $ledger = $this->createInvestOperationLedger(
+                    $operation,
+                    (int) $project->id,
+                    $account,
+                    $asset,
+                    (string) $payload['direction'],
+                    $valueUsd,
+                    $currency,
+                    (string) $operatedAt
+                );
+            }
 
             $updates = ['updated_at' => $now];
             if (Schema::hasColumn('bank_invest_operations', 'ledger_transaction_id')) {
@@ -836,12 +825,96 @@ class BankController extends Controller
             }
             DB::table('bank_invest_operations')->where('id', $operation)->update($updates);
 
-            if ((bool) ($payload['update_account_balance'] ?? false)) {
+            if ((bool) ($payload['post_ledger'] ?? false) && (bool) ($payload['update_account_balance'] ?? false)) {
                 $this->applyInvestOperationAccountBalance($account, (string) $payload['direction'], $amount, $currency);
             }
         });
 
         return redirect()->route('bank.invest')->with('success', "Операция Счет ↔ Актив #{$operation} обновлена.");
+    }
+
+    public function destroyInvestOperation(int $operation): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_invest_operations'), 404);
+
+        $current = DB::table('bank_invest_operations')
+            ->where('id', $operation)
+            ->where('project_id', (int) $project->id)
+            ->first();
+        abort_unless($current, 404);
+
+        if ($this->hasNewerInvestOperationForAsset((int) $project->id, (string) $current->asset_key, (string) $current->operated_at, (int) $current->id)) {
+            return redirect()->route('bank.invest')->with('error', 'Операция не удаляется: по этому активу уже есть более новый документ.');
+        }
+
+        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $account = $operationalAccounts->firstWhere('id', (string) $current->account_id)
+            ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
+
+        DB::transaction(function () use ($operation, $project, $current, $account): void {
+            if ((int) ($current->ledger_transaction_id ?? 0) > 0 || (string) ($current->status ?? 'pending') === 'posted') {
+                $this->reverseInvestOperationLedgers((int) $project->id, $operation);
+                if (in_array((string) $current->direction, ['account_to_asset', 'asset_to_account'], true)) {
+                    $this->applyInvestOperationAccountBalance(
+                        $account,
+                        (string) $current->direction === 'account_to_asset' ? 'asset_to_account' : 'account_to_asset',
+                        (float) $current->amount,
+                        $this->normalizeCurrencyCode((string) $current->currency)
+                    );
+                }
+            }
+
+            DB::table('bank_invest_operations')->where('id', $operation)->delete();
+        });
+
+        return redirect()->route('bank.invest')->with('success', "Операция Счет ↔ Актив #{$operation} удалена.");
+    }
+
+    public function reverseInvestOperation(int $operation): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_invest_operations'), 404);
+
+        $current = DB::table('bank_invest_operations')
+            ->where('id', $operation)
+            ->where('project_id', (int) $project->id)
+            ->first();
+        abort_unless($current, 404);
+
+        if ($this->hasNewerInvestOperationForAsset((int) $project->id, (string) $current->asset_key, (string) $current->operated_at, (int) $current->id)) {
+            return redirect()->route('bank.invest')->with('error', 'Проводка не отменяется: по этому активу уже есть более новый документ.');
+        }
+        if ((int) ($current->ledger_transaction_id ?? 0) <= 0 && (string) ($current->status ?? 'pending') !== 'posted') {
+            return redirect()->route('bank.invest')->with('error', 'У операции нет активной проводки для отмены.');
+        }
+
+        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $account = $operationalAccounts->firstWhere('id', (string) $current->account_id)
+            ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
+
+        DB::transaction(function () use ($operation, $project, $current, $account): void {
+            $this->reverseInvestOperationLedgers((int) $project->id, $operation);
+            if (in_array((string) $current->direction, ['account_to_asset', 'asset_to_account'], true)) {
+                $this->applyInvestOperationAccountBalance(
+                    $account,
+                    (string) $current->direction === 'account_to_asset' ? 'asset_to_account' : 'account_to_asset',
+                    (float) $current->amount,
+                    $this->normalizeCurrencyCode((string) $current->currency)
+                );
+            }
+
+            $updates = ['updated_at' => now()];
+            if (Schema::hasColumn('bank_invest_operations', 'ledger_transaction_id')) {
+                $updates['ledger_transaction_id'] = null;
+            }
+            if (Schema::hasColumn('bank_invest_operations', 'status')) {
+                $updates['status'] = 'pending';
+            }
+            DB::table('bank_invest_operations')->where('id', $operation)->update($updates);
+        });
+
+        return redirect()->route('bank.invest')->with('success', "Проводка операции #{$operation} отменена.");
     }
 
     private function hasNewerInvestOperationForAsset(int $projectId, string $assetKey, string $operatedAt, int $operationId): bool
@@ -857,6 +930,64 @@ class BankController extends Controller
                     });
             })
             ->exists();
+    }
+
+    private function reverseInvestOperationLedgers(int $projectId, int $operationId): array
+    {
+        if (! Schema::hasTable('transactions') || ! Schema::hasTable('entries')) {
+            return [];
+        }
+
+        $reversalReferenceType = 'bank_invest_operation:reversal';
+        $originals = DB::table('transactions')
+            ->where('company_id', $projectId)
+            ->where('reference_type', 'bank_invest_operation')
+            ->where('reference_id', (string) $operationId)
+            ->whereNotExists(function ($query) use ($reversalReferenceType): void {
+                $query->selectRaw('1')
+                    ->from('transactions as reversal')
+                    ->whereColumn('reversal.company_id', 'transactions.company_id')
+                    ->whereColumn('reversal.reference_id', 'transactions.reference_id')
+                    ->where('reversal.reference_type', $reversalReferenceType)
+                    ->whereColumn('reversal.id', '>', 'transactions.id');
+            })
+            ->orderBy('id')
+            ->get();
+
+        $reversals = [];
+        foreach ($originals as $original) {
+            $entries = DB::table('entries')
+                ->where('transaction_id', (int) $original->id)
+                ->get(['account_id', 'debit', 'credit'])
+                ->map(fn ($entry): array => [
+                    'account_id' => (int) $entry->account_id,
+                    'debit' => (float) $entry->credit,
+                    'credit' => (float) $entry->debit,
+                ])
+                ->all();
+            if ($entries === []) {
+                continue;
+            }
+
+            $reversal = app(AccountingService::class)->createTransaction(
+                $entries,
+                'Сторно ' . trim((string) ($original->description ?? "Инвестиционная операция #{$operationId}")),
+                [
+                    'date' => now()->toDateString(),
+                    'company_id' => $projectId,
+                    'reference_type' => $reversalReferenceType,
+                    'reference_id' => (string) $operationId,
+                    'currency' => (string) ($original->currency ?? 'UAH'),
+                    'amount' => (float) ($original->amount ?? 0),
+                    'amount_base' => (float) ($original->amount_base ?? 0),
+                ]
+            );
+            if ($reversal) {
+                $reversals[] = $reversal;
+            }
+        }
+
+        return $reversals;
     }
 
     private function investOperationPayload(Request $request, int $projectId): array
@@ -877,6 +1008,7 @@ class BankController extends Controller
             'operated_at' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:2000'],
             'update_account_balance' => ['nullable', 'boolean'],
+            'post_ledger' => ['nullable', 'boolean'],
         ]);
 
         $asset = $assetOptions->firstWhere('asset_key', (string) $payload['asset_key']);
@@ -2834,10 +2966,16 @@ class BankController extends Controller
                     'status' => (string) $operation->status,
                     'ledger_transaction_id' => (int) $operation->ledger_transaction_id,
                     'can_edit' => (int) $operation->id === (int) ($latestOperationIdByAsset[(string) $operation->asset_key] ?? 0),
+                    'is_posted' => (int) $operation->ledger_transaction_id > 0 && (string) $operation->status === 'posted',
+                    'can_reverse' => (int) $operation->id === (int) ($latestOperationIdByAsset[(string) $operation->asset_key] ?? 0)
+                        && (int) $operation->ledger_transaction_id > 0
+                        && (string) $operation->status === 'posted',
                     'edit_hint' => (int) $operation->id === (int) ($latestOperationIdByAsset[(string) $operation->asset_key] ?? 0)
                         ? 'Можно изменить: это последний документ по активу.'
                         : 'Закрыто: по активу есть более новый документ.',
                     'update_action' => route('bank.invest-operations.update', ['operation' => (int) $operation->id]),
+                    'destroy_action' => route('bank.invest-operations.destroy', ['operation' => (int) $operation->id]),
+                    'reverse_action' => route('bank.invest-operations.reverse', ['operation' => (int) $operation->id]),
                     'note' => (string) $operation->note,
                 ])->values();
 
