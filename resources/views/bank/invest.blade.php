@@ -662,6 +662,7 @@
             <form method="POST" action="{{ route('bank.invest-operations.store') }}" class="bank-requisites-form" data-invest-operation-form>
                 @csrf
                 <input type="hidden" name="_method" value="PUT" data-invest-operation-method disabled>
+                <input type="hidden" name="update_account_balance" value="1" data-invest-operation-update-balance>
                 <div class="bank-form-grid">
                     <div class="bank-form-full bank-operation-mode" role="tablist" aria-label="Тип операции">
                         <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Купить</button>
@@ -669,46 +670,78 @@
                         <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="revaluation">Переоценка</button>
                         <input type="hidden" name="direction" value="account_to_asset" data-invest-operation-direction>
                     </div>
-                    <label>
-                        <span>Операционный счет</span>
-                        <select name="account_id" required data-invest-operation-account>
-                            @forelse($operationalAccounts as $account)
-                                <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
-                            @empty
-                                <option value="">Операционные счета не найдены</option>
-                            @endforelse
-                        </select>
-                    </label>
-                    <label>
-                        <span>Актив</span>
-                        <select name="asset_key" required data-invest-operation-asset>
-                            @forelse($fixedAssetRows as $asset)
-                                <option value="{{ $asset->asset_key }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }} · {{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
-                            @empty
-                                <option value="">Активы не найдены</option>
-                            @endforelse
-                        </select>
-                    </label>
-                    <label>
-                        <span>Валюта</span>
-                        <input type="text" name="currency" value="USD" maxlength="20" required data-invest-operation-currency>
-                    </label>
-                    <label>
-                        <span data-invest-operation-amount-label>Сумма</span>
-                        <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
-                    </label>
-                    <label data-invest-operation-trade-field>
-                        <span>Количество</span>
-                        <input type="number" name="quantity" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-quantity>
-                    </label>
-                    <label data-invest-operation-trade-field>
-                        <span>Цена USD</span>
-                        <input type="number" name="price_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-price>
-                    </label>
-                    <label>
-                        <span>Дата</span>
-                        <input type="date" name="operated_at" data-invest-operation-date>
-                    </label>
+
+                    <div class="bank-form-full bank-operation-ledger-note" data-invest-operation-ledger-note>
+                        <div class="bank-operation-ledger-note__title">Операция будет проведена двойной записью</div>
+                        <div class="bank-operation-ledger-note__body" data-invest-operation-ledger-copy>
+                            Дт Инвестиционный актив · Кт Операционный счет. Остаток операционного счета уменьшится на сумму операции.
+                        </div>
+                    </div>
+
+                    <div class="bank-form-section bank-form-full" data-invest-operation-account-section>
+                        <div class="bank-form-section__title">1. Источник средств</div>
+                        <label>
+                            <span>Операционный счет</span>
+                            <select name="account_id" required data-invest-operation-account>
+                                @forelse($operationalAccounts as $account)
+                                    <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
+                                @empty
+                                    <option value="">Операционные счета не найдены</option>
+                                @endforelse
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="bank-form-section bank-form-full">
+                        <div class="bank-form-section__title">2. Актив</div>
+                        <label>
+                            <span>Инвестиционный актив</span>
+                            <select name="asset_key" required data-invest-operation-asset>
+                                @forelse($fixedAssetRows as $asset)
+                                    <option value="{{ $asset->asset_key }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }} · {{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
+                                @empty
+                                    <option value="">Активы не найдены</option>
+                                @endforelse
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="bank-form-section bank-form-full">
+                        <div class="bank-form-section__title" data-invest-operation-value-section-title>3. Сумма и параметры сделки</div>
+                        <div class="bank-form-grid bank-form-grid--compact">
+                            <label>
+                                <span>Валюта</span>
+                                <input type="text" name="currency" value="USD" maxlength="20" required data-invest-operation-currency>
+                            </label>
+                            <label>
+                                <span data-invest-operation-amount-label>Сумма</span>
+                                <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
+                                <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на активе.</small>
+                            </label>
+                            <label data-invest-operation-trade-field>
+                                <span>Количество</span>
+                                <input type="number" name="quantity" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-quantity>
+                            </label>
+                            <label data-invest-operation-trade-field>
+                                <span>Цена USD</span>
+                                <input type="number" name="price_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-price>
+                            </label>
+                            <label>
+                                <span>Дата</span>
+                                <input type="date" name="operated_at" data-invest-operation-date>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="bank-form-full bank-operation-revaluation-note" data-invest-operation-revaluation-note hidden>
+                        <div class="bank-operation-revaluation-note__title">Как работает переоценка</div>
+                        <div class="bank-operation-revaluation-note__body">
+                            Укажите только изменение стоимости: положительная сумма увеличивает актив и признает доход переоценки, отрицательная уменьшает актив и признает расход. Операционный счет не меняется.
+                        </div>
+                        <div class="bank-operation-revaluation-note__examples">
+                            Пример: <span>+250</span> = Дт Инвестиционный актив / Кт Доход 746. <span>-120</span> = Дт Расход 975 / Кт Инвестиционный актив.
+                        </div>
+                    </div>
                 </div>
                 <label class="bank-form-field">
                     <span>Комментарий</span>
@@ -1044,6 +1077,68 @@
         background: rgba(56, 189, 248, 0.18);
         color: #fff;
         box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.36);
+    }
+
+    .bank-form-section {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 10px;
+        background: rgba(2, 6, 23, 0.22);
+    }
+
+    .bank-form-section__title {
+        color: rgba(226, 232, 240, 0.88);
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
+    .bank-form-grid--compact {
+        gap: 10px;
+    }
+
+    .bank-field-hint {
+        display: block;
+        margin-top: 5px;
+        color: rgba(148, 163, 184, 0.9);
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    .bank-operation-ledger-note,
+    .bank-operation-revaluation-note {
+        padding: 12px 14px;
+        border: 1px solid rgba(56, 189, 248, 0.22);
+        border-radius: 10px;
+        background: rgba(8, 47, 73, 0.28);
+    }
+
+    .bank-operation-revaluation-note {
+        border-color: rgba(251, 191, 36, 0.28);
+        background: rgba(120, 53, 15, 0.24);
+    }
+
+    .bank-operation-ledger-note__title,
+    .bank-operation-revaluation-note__title {
+        color: #fff;
+        font-weight: 900;
+    }
+
+    .bank-operation-ledger-note__body,
+    .bank-operation-revaluation-note__body,
+    .bank-operation-revaluation-note__examples {
+        margin-top: 4px;
+        color: rgba(226, 232, 240, 0.82);
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .bank-operation-revaluation-note__examples span {
+        color: #fde68a;
+        font-weight: 900;
     }
 
     .bank-invest-asset-filter {
@@ -1717,14 +1812,20 @@
         const investOperationSubmit = root.querySelector('[data-invest-operation-submit]');
         const investOperationDirection = root.querySelector('[data-invest-operation-direction]');
         const investOperationDirectionTabs = root.querySelectorAll('[data-invest-operation-direction-tab]');
+        const investOperationUpdateBalance = root.querySelector('[data-invest-operation-update-balance]');
         const investOperationAccount = root.querySelector('[data-invest-operation-account]');
         const investOperationAsset = root.querySelector('[data-invest-operation-asset]');
         const investOperationCurrency = root.querySelector('[data-invest-operation-currency]');
         const investOperationAmount = root.querySelector('[data-invest-operation-amount]');
         const investOperationAmountLabel = root.querySelector('[data-invest-operation-amount-label]');
+        const investOperationAmountHint = root.querySelector('[data-invest-operation-amount-hint]');
+        const investOperationValueSectionTitle = root.querySelector('[data-invest-operation-value-section-title]');
         const investOperationQuantity = root.querySelector('[data-invest-operation-quantity]');
         const investOperationPrice = root.querySelector('[data-invest-operation-price]');
         const investOperationTradeFields = root.querySelectorAll('[data-invest-operation-trade-field]');
+        const investOperationAccountSection = root.querySelector('[data-invest-operation-account-section]');
+        const investOperationLedgerCopy = root.querySelector('[data-invest-operation-ledger-copy]');
+        const investOperationRevaluationNote = root.querySelector('[data-invest-operation-revaluation-note]');
         const investOperationDate = root.querySelector('[data-invest-operation-date]');
         const investOperationNote = root.querySelector('[data-invest-operation-note]');
         const investOperationStoreAction = investOperationForm ? investOperationForm.action : '';
@@ -1743,8 +1844,39 @@
             investOperationTradeFields.forEach((field) => {
                 field.hidden = direction === 'revaluation';
             });
+            if (investOperationUpdateBalance) {
+                investOperationUpdateBalance.disabled = direction === 'revaluation';
+            }
+            if (investOperationAccountSection) {
+                investOperationAccountSection.hidden = direction === 'revaluation';
+            }
+            if (investOperationAccount) {
+                investOperationAccount.required = direction !== 'revaluation';
+            }
+            if (investOperationRevaluationNote) {
+                investOperationRevaluationNote.hidden = direction !== 'revaluation';
+            }
             if (investOperationAmountLabel) {
                 investOperationAmountLabel.textContent = direction === 'revaluation' ? 'Дельта стоимости' : 'Сумма';
+            }
+            if (investOperationValueSectionTitle) {
+                investOperationValueSectionTitle.textContent = direction === 'revaluation'
+                    ? '2. Дельта стоимости актива'
+                    : '3. Сумма и параметры сделки';
+            }
+            if (investOperationAmountHint) {
+                investOperationAmountHint.textContent = direction === 'revaluation'
+                    ? 'Введите изменение стоимости: + увеличивает актив, - уменьшает актив. Остаток счета не меняется.'
+                    : direction === 'asset_to_account'
+                        ? 'Сумма будет возвращена из актива на операционный счет.'
+                        : 'Сумма будет списана со счета и отражена на активе.';
+            }
+            if (investOperationLedgerCopy) {
+                investOperationLedgerCopy.textContent = direction === 'revaluation'
+                    ? 'Положительная дельта: Дт Инвестиционный актив · Кт Доход 746. Отрицательная дельта: Дт Расход 975 · Кт Инвестиционный актив.'
+                    : direction === 'asset_to_account'
+                        ? 'Дт Операционный счет · Кт Инвестиционный актив. Остаток операционного счета увеличится на сумму операции.'
+                        : 'Дт Инвестиционный актив · Кт Операционный счет. Остаток операционного счета уменьшится на сумму операции.';
             }
             if (investOperationAmount) {
                 if (direction === 'revaluation') {

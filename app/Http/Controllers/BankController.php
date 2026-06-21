@@ -803,7 +803,7 @@ class BankController extends Controller
         $assetKeys = $assetOptions->pluck('asset_key')->all();
 
         $payload = $request->validate([
-            'account_id' => ['required', Rule::in($accountIds)],
+            'account_id' => ['nullable', Rule::in($accountIds)],
             'direction' => ['required', Rule::in(['account_to_asset', 'asset_to_account', 'revaluation'])],
             'asset_key' => ['required', Rule::in($assetKeys)],
             'currency' => ['required', 'string', 'max:20'],
@@ -817,8 +817,16 @@ class BankController extends Controller
 
         $asset = $assetOptions->firstWhere('asset_key', (string) $payload['asset_key']);
         abort_unless($asset, 422, 'Актив для операции не найден.');
-        $account = $operationalAccounts->firstWhere('id', (string) $payload['account_id'])
-            ?? $operationalAccounts->firstWhere('id', (int) $payload['account_id']);
+        abort_unless(
+            (string) $payload['direction'] === 'revaluation' || filled($payload['account_id'] ?? null),
+            422,
+            'Операционный счет обязателен для покупки или продажи актива.'
+        );
+        $accountId = $payload['account_id'] ?? null;
+        $account = $accountId !== null
+            ? ($operationalAccounts->firstWhere('id', (string) $accountId)
+                ?? $operationalAccounts->firstWhere('id', (int) $accountId))
+            : null;
 
         $amount = (float) $payload['amount'];
         if ((string) $payload['direction'] !== 'revaluation' && $amount <= 0) {
