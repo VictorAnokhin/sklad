@@ -799,6 +799,19 @@
             return;
         }
 
+        const initialDepositTab = new URLSearchParams(window.location.search).get('tab');
+        const initialDepositTabId = {
+            portfolio: 'bankDepositsPortfolioTab',
+            transfer: 'bankDepositsTransferTab',
+            pools: 'bankDepositsPoolsTab',
+        }[initialDepositTab || ''];
+        if (initialDepositTabId) {
+            const initialDepositTabButton = document.getElementById(initialDepositTabId);
+            if (initialDepositTabButton && window.bootstrap?.Tab) {
+                bootstrap.Tab.getOrCreateInstance(initialDepositTabButton).show();
+            }
+        }
+
         const operations = @json($operations->values());
         const movementsBody = modal.querySelector('[data-deposit-movements]');
         const emptyState = modal.querySelector('[data-deposit-movements-empty]');

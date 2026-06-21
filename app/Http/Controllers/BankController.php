@@ -505,10 +505,10 @@ class BankController extends Controller
                 }
             });
         } catch (\RuntimeException $exception) {
-            return redirect()->route('bank.deposit')->with('error', $exception->getMessage());
+            return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('bank.deposit')->with('success', 'Трансфер выполнен.');
+        return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('success', 'Трансфер выполнен.');
     }
 
     public function updateDepositTransfer(Request $request, int $transfer): RedirectResponse
@@ -558,10 +558,10 @@ class BankController extends Controller
                 }
             });
         } catch (\RuntimeException $exception) {
-            return redirect()->route('bank.deposit')->with('error', $exception->getMessage());
+            return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('bank.deposit')->with('success', 'Трансфер обновлен.');
+        return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('success', 'Трансфер обновлен.');
     }
 
     public function destroyDepositTransfer(int $transfer): RedirectResponse
@@ -592,10 +592,10 @@ class BankController extends Controller
                 ]);
             });
         } catch (\RuntimeException $exception) {
-            return redirect()->route('bank.deposit')->with('error', $exception->getMessage());
+            return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('bank.deposit')->with('success', 'Трансфер удален.');
+        return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('success', 'Трансфер удален.');
     }
 
     public function reverseDepositTransfer(int $transfer): RedirectResponse
@@ -621,10 +621,10 @@ class BankController extends Controller
                 ]);
             });
         } catch (\RuntimeException $exception) {
-            return redirect()->route('bank.deposit')->with('error', $exception->getMessage());
+            return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('bank.deposit')->with('success', 'Проводка трансфера отменена.');
+        return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('success', 'Проводка трансфера отменена.');
     }
 
     public function exchange(): View
@@ -772,7 +772,11 @@ class BankController extends Controller
         $redirectRoute = $this->bankRedirectRoute((string) $request->input('redirect_to', 'bank.invest'));
 
         return redirect()
-            ->route($redirectRoute, $redirectRoute === 'bank.invest' ? ['tab' => 'operations'] : [])
+            ->route($redirectRoute, match ($redirectRoute) {
+                'bank.invest' => ['tab' => 'operations'],
+                'bank.deposit' => ['tab' => 'transfer'],
+                default => [],
+            })
             ->with('success', "Операция Счет ↔ Актив #{$operationId} выполнена.");
     }
 
