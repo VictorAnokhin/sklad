@@ -775,7 +775,7 @@ class BankController extends Controller
         DB::transaction(function () use ($operation, $project, $current, $currentAccount, $currentAsset, $payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt): void {
             $now = now();
             if ((int) ($current->ledger_transaction_id ?? 0) > 0 || (string) ($current->status ?? 'pending') === 'posted') {
-                $this->reverseInvestOperationLedgers((int) $project->id, $operation);
+                $this->reverseInvestOperationLedgers((int) $project->id, $operation, (int) ($current->ledger_transaction_id ?? 0));
                 if (in_array((string) $current->direction, ['account_to_asset', 'asset_to_account'], true)) {
                     $this->applyInvestOperationAccountBalance(
                         $currentAccount,
@@ -854,7 +854,7 @@ class BankController extends Controller
 
         DB::transaction(function () use ($operation, $project, $current, $account): void {
             if ((int) ($current->ledger_transaction_id ?? 0) > 0 || (string) ($current->status ?? 'pending') === 'posted') {
-                $this->reverseInvestOperationLedgers((int) $project->id, $operation);
+                $this->reverseInvestOperationLedgers((int) $project->id, $operation, (int) ($current->ledger_transaction_id ?? 0));
                 if (in_array((string) $current->direction, ['account_to_asset', 'asset_to_account'], true)) {
                     $this->applyInvestOperationAccountBalance(
                         $account,
@@ -901,7 +901,7 @@ class BankController extends Controller
             ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
 
         DB::transaction(function () use ($operation, $project, $current, $account): void {
-            $this->reverseInvestOperationLedgers((int) $project->id, $operation);
+            $this->reverseInvestOperationLedgers((int) $project->id, $operation, (int) ($current->ledger_transaction_id ?? 0));
             if (in_array((string) $current->direction, ['account_to_asset', 'asset_to_account'], true)) {
                 $this->applyInvestOperationAccountBalance(
                     $account,
@@ -939,17 +939,22 @@ class BankController extends Controller
             ->exists();
     }
 
-    private function reverseInvestOperationLedgers(int $projectId, int $operationId): array
+    private function reverseInvestOperationLedgers(int $projectId, int $operationId, int $ledgerTransactionId = 0): array
     {
         if (! Schema::hasTable('transactions') || ! Schema::hasTable('entries')) {
             return [];
         }
 
         $reversalReferenceType = 'bank_invest_operation:reversal';
-        $originals = DB::table('transactions')
+        $originalQuery = DB::table('transactions')
             ->where('company_id', $projectId)
             ->where('reference_type', 'bank_invest_operation')
-            ->where('reference_id', (string) $operationId)
+            ->where('reference_id', (string) $operationId);
+        if ($ledgerTransactionId > 0) {
+            $originalQuery->where('id', $ledgerTransactionId);
+        }
+
+        $original = $originalQuery
             ->whereNotExists(function ($query) use ($reversalReferenceType): void {
                 $query->selectRaw('1')
                     ->from('transactions as reversal')
@@ -958,43 +963,56 @@ class BankController extends Controller
                     ->where('reversal.reference_type', $reversalReferenceType)
                     ->whereColumn('reversal.id', '>', 'transactions.id');
             })
-            ->orderBy('id')
-            ->get();
-
-        $reversals = [];
-        foreach ($originals as $original) {
-            $entries = DB::table('entries')
-                ->where('transaction_id', (int) $original->id)
-                ->get(['account_id', 'debit', 'credit'])
-                ->map(fn ($entry): array => [
-                    'account_id' => (int) $entry->account_id,
-                    'debit' => (float) $entry->credit,
-                    'credit' => (float) $entry->debit,
-                ])
-                ->all();
-            if ($entries === []) {
-                continue;
-            }
-
-            $reversal = app(AccountingService::class)->createTransaction(
-                $entries,
-                'Сторно ' . trim((string) ($original->description ?? "Инвестиционная операция #{$operationId}")),
-                [
-                    'date' => now()->toDateString(),
-                    'company_id' => $projectId,
-                    'reference_type' => $reversalReferenceType,
-                    'reference_id' => (string) $operationId,
-                    'currency' => (string) ($original->currency ?? 'UAH'),
-                    'amount' => (float) ($original->amount ?? 0),
-                    'amount_base' => (float) ($original->amount_base ?? 0),
-                ]
-            );
-            if ($reversal) {
-                $reversals[] = $reversal;
-            }
+            ->latest('id')
+            ->first();
+        if (! $original && $ledgerTransactionId > 0) {
+            $original = DB::table('transactions')
+                ->where('id', $ledgerTransactionId)
+                ->where('company_id', $projectId)
+                ->first();
+        }
+        if (! $original) {
+            return [];
         }
 
-        return $reversals;
+        $existingReversal = DB::table('transactions')
+            ->where('company_id', $projectId)
+            ->where('reference_type', $reversalReferenceType)
+            ->where('reference_id', (string) $operationId)
+            ->where('id', '>', (int) $original->id)
+            ->first();
+        if ($existingReversal) {
+            return [];
+        }
+
+        $entries = DB::table('entries')
+            ->where('transaction_id', (int) $original->id)
+            ->get(['account_id', 'debit', 'credit'])
+            ->map(fn ($entry): array => [
+                'account_id' => (int) $entry->account_id,
+                'debit' => (float) $entry->credit,
+                'credit' => (float) $entry->debit,
+            ])
+            ->all();
+        if ($entries === []) {
+            return [];
+        }
+
+        $reversal = app(AccountingService::class)->createTransaction(
+            $entries,
+            'Сторно ' . trim((string) ($original->description ?? "Инвестиционная операция #{$operationId}")),
+            [
+                'date' => now()->toDateString(),
+                'company_id' => $projectId,
+                'reference_type' => $reversalReferenceType,
+                'reference_id' => (string) $operationId,
+                'currency' => (string) ($original->currency ?? 'UAH'),
+                'amount' => (float) ($original->amount ?? 0),
+                'amount_base' => (float) ($original->amount_base ?? 0),
+            ]
+        );
+
+        return $reversal ? [$reversal] : [];
     }
 
     private function investOperationPayload(Request $request, int $projectId): array
@@ -1072,7 +1090,7 @@ class BankController extends Controller
 
         $accountCurrency = $this->normalizeCurrencyCode((string) ($account->currency ?? ''));
         if ($accountCurrency !== $currency) {
-            throw new \RuntimeException("Валюта счета {$accountCurrency} не совпадает с валютой операции {$currency}.");
+            return;
         }
 
         $operator = $direction === 'asset_to_account' ? '+' : '-';
