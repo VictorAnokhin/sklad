@@ -406,6 +406,7 @@ class BankController extends Controller
             'operational_account_id' => ['required', 'integer'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'direction' => ['required', Rule::in(['account_to_deposit', 'deposit_to_account'])],
+            'post_ledger' => ['nullable', 'boolean'],
         ]);
 
         $amount = round((float) $payload['amount'], 2);
@@ -478,6 +479,7 @@ class BankController extends Controller
                     ]);
                 }
 
+                $postLedger = (bool) ($payload['post_ledger'] ?? false);
                 $documentId = $this->createDepositTransferDocument(
                     (string) $project->id,
                     $depositId,
@@ -486,11 +488,12 @@ class BankController extends Controller
                     $accountCurrency,
                     trim((string) ($account->name ?? '')),
                     trim((string) ($deposit->name ?? '')),
-                    $direction
+                    $direction,
+                    $postLedger
                 );
 
                 $document = DB::table('z_document')->where('id', $documentId)->first();
-                if ($document) {
+                if ($postLedger && $document) {
                     app(AccountingService::class)->createDocumentTransaction(
                         'z_document:deposit_operation',
                         $documentId,
@@ -537,6 +540,7 @@ class BankController extends Controller
                 [$deposit, $account, $currency] = $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
 
                 $this->reverseDepositTransferLedger((int) $project->id, (int) $document->id);
+                $postLedger = (bool) ($payload['post_ledger'] ?? false);
                 $this->updateDepositTransferDocument(
                     (int) $document->id,
                     (string) $project->id,
@@ -546,9 +550,12 @@ class BankController extends Controller
                     $currency,
                     trim((string) ($account->name ?? '')),
                     trim((string) ($deposit->name ?? '')),
-                    $direction
+                    $direction,
+                    $postLedger
                 );
-                $this->postDepositTransferLedger((int) $project->id, (int) $document->id);
+                if ($postLedger) {
+                    $this->postDepositTransferLedger((int) $project->id, (int) $document->id);
+                }
             });
         } catch (\RuntimeException $exception) {
             return redirect()->route('bank.deposit')->with('error', $exception->getMessage());
@@ -589,6 +596,35 @@ class BankController extends Controller
         }
 
         return redirect()->route('bank.deposit')->with('success', 'Трансфер удален.');
+    }
+
+    public function reverseDepositTransfer(int $transfer): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $projectIds = HoldingScope::projectIdsFor((string) $project->id);
+        abort_unless(Schema::hasTable('z_document'), 404);
+
+        try {
+            DB::transaction(function () use ($project, $projectIds, $transfer): void {
+                $document = $this->depositTransferDocument($transfer, $projectIds, true);
+                if (! $document) {
+                    throw new \RuntimeException('Трансфер не найден.');
+                }
+                if ((int) ($document->provodka ?? 0) !== 1) {
+                    throw new \RuntimeException('У трансфера нет активной проводки для отмены.');
+                }
+
+                $this->reverseDepositTransferLedger((int) $project->id, (int) $document->id);
+
+                DB::table('z_document')->where('id', (int) $document->id)->update([
+                    'provodka' => 0,
+                ]);
+            });
+        } catch (\RuntimeException $exception) {
+            return redirect()->route('bank.deposit')->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('bank.deposit')->with('success', 'Проводка трансфера отменена.');
     }
 
     public function exchange(): View
@@ -3248,7 +3284,8 @@ class BankController extends Controller
         string $currency,
         string $accountName,
         string $depositName,
-        string $direction
+        string $direction,
+        bool $postLedger = true
     ): int {
         $columns = Schema::getColumnListing('z_document');
         $maxNum = DB::table('z_document')
@@ -3279,7 +3316,7 @@ class BankController extends Controller
             $payload['currency_from'] = $currency;
         }
         if (in_array('provodka', $columns, true)) {
-            $payload['provodka'] = 1;
+            $payload['provodka'] = $postLedger ? 1 : 0;
         }
 
         return (int) DB::table('z_document')->insertGetId(
@@ -3374,7 +3411,8 @@ class BankController extends Controller
         string $currency,
         string $accountName,
         string $depositName,
-        string $direction
+        string $direction,
+        bool $postLedger = true
     ): void {
         $columns = Schema::getColumnListing('z_document');
         $isDepositToAccount = $direction === 'deposit_to_account';
@@ -3391,7 +3429,7 @@ class BankController extends Controller
             'money' => (string) $depositId,
             'status' => '0',
             'close' => 0,
-            'provodka' => 1,
+            'provodka' => $postLedger ? 1 : 0,
         ];
         if (in_array('currency_from', $columns, true)) {
             $payload['currency_from'] = $currency;
@@ -3496,6 +3534,7 @@ class BankController extends Controller
                     'description' => trim((string) $document->content),
                     'posted' => (int) ($document->provodka ?? 0) === 1,
                     'update_url' => route('bank.deposit.transfer.update', ['transfer' => (int) $document->id]),
+                    'reverse_url' => route('bank.deposit.transfer.reverse', ['transfer' => (int) $document->id]),
                     'delete_url' => route('bank.deposit.transfer.destroy', ['transfer' => (int) $document->id]),
                 ];
             });

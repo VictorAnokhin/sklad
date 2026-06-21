@@ -226,7 +226,9 @@
                                     data-transfer-deposit="{{ $transfer->deposit_id }}"
                                     data-transfer-account="{{ $transfer->account_id }}"
                                     data-transfer-amount="{{ number_format((float) $transfer->amount, 2, '.', '') }}"
+                                    data-transfer-posted="{{ $transfer->posted ? '1' : '0' }}"
                                     data-transfer-update-url="{{ $transfer->update_url }}"
+                                    data-transfer-reverse-url="{{ $transfer->reverse_url }}"
                                     data-transfer-delete-url="{{ $transfer->delete_url }}">
                                     <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                                     <td>
@@ -597,7 +599,12 @@
                     </div>
                     <div class="modal-footer">
                         <button type="submit" class="btn btn-outline-danger me-auto" form="depositTransferDeleteForm" data-deposit-transfer-delete hidden>Удалить</button>
+                        <label class="bank-transfer-post-ledger" data-deposit-transfer-post-ledger-field>
+                            <input type="checkbox" name="post_ledger" value="1" checked data-deposit-transfer-post-ledger>
+                            <span>Проводка</span>
+                        </label>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-warning" formnovalidate data-deposit-transfer-reverse hidden>Отменить проводку</button>
                         <button type="submit" class="btn btn-primary" data-deposit-transfer-submit>Выполнить</button>
                     </div>
                 </form>
@@ -766,6 +773,21 @@
         background: transparent;
         text-align: left;
     }
+
+    .bank-transfer-post-ledger {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 8px 0 auto;
+        color: rgba(226, 232, 240, 0.9);
+        font-size: 0.86rem;
+        font-weight: 700;
+    }
+
+    .bank-transfer-post-ledger input {
+        width: 16px;
+        height: 16px;
+    }
 </style>
 @endsection
 
@@ -801,6 +823,9 @@
         const transferSubmit = document.querySelector('[data-deposit-transfer-submit]');
         const transferAccountMeta = document.querySelector('[data-deposit-transfer-account-meta]');
         const transferDelete = document.querySelector('[data-deposit-transfer-delete]');
+        const transferReverse = document.querySelector('[data-deposit-transfer-reverse]');
+        const transferPostLedger = document.querySelector('[data-deposit-transfer-post-ledger]');
+        const transferPostLedgerField = document.querySelector('[data-deposit-transfer-post-ledger-field]');
         const transferDeleteForm = document.querySelector('[data-deposit-transfer-delete-form]');
         const transferStoreAction = transferForm ? transferForm.action : '';
         const poolTransferModal = document.getElementById('poolTransferModal');
@@ -997,14 +1022,32 @@
             validateTransferForm();
         }
 
+        function setTransferReadOnly(readOnly) {
+            [transferDeposit, transferAccount, transferAmount].forEach((field) => {
+                if (field) {
+                    field.disabled = readOnly;
+                }
+            });
+            if (transferToggleRoute) {
+                transferToggleRoute.disabled = readOnly;
+            }
+            if (transferPostLedger) {
+                transferPostLedger.disabled = readOnly;
+            }
+        }
+
         function resetTransferForm(trigger = null) {
             if (transferForm) {
                 transferForm.reset();
                 transferForm.action = trigger?.dataset.storeUrl || transferStoreAction;
+                transferForm.dataset.mode = 'save';
+                transferForm.dataset.saveAction = transferForm.action;
+                transferForm.dataset.reverseAction = '';
             }
             if (transferMethod) {
                 transferMethod.disabled = true;
             }
+            setTransferReadOnly(false);
             if (transferDirection) {
                 transferDirection.value = 'account_to_deposit';
             }
@@ -1013,9 +1056,21 @@
             }
             if (transferSubmit) {
                 transferSubmit.textContent = 'Выполнить';
+                transferSubmit.hidden = false;
             }
             if (transferDelete) {
                 transferDelete.hidden = true;
+            }
+            if (transferReverse) {
+                transferReverse.hidden = true;
+                transferReverse.disabled = false;
+            }
+            if (transferPostLedger) {
+                transferPostLedger.checked = true;
+                transferPostLedger.disabled = false;
+            }
+            if (transferPostLedgerField) {
+                transferPostLedgerField.hidden = false;
             }
             if (transferDeleteForm) {
                 transferDeleteForm.action = '';
@@ -1027,9 +1082,14 @@
             if (!transferForm || !(trigger instanceof HTMLElement)) {
                 return;
             }
+            const posted = trigger.dataset.transferPosted === '1';
             transferForm.action = trigger.dataset.transferUpdateUrl || transferStoreAction;
+            transferForm.dataset.mode = 'save';
+            transferForm.dataset.saveAction = trigger.dataset.transferUpdateUrl || transferStoreAction;
+            transferForm.dataset.reverseAction = trigger.dataset.transferReverseUrl || '';
             if (transferMethod) {
                 transferMethod.disabled = false;
+                transferMethod.value = 'PUT';
             }
             if (transferDirection) {
                 transferDirection.value = trigger.dataset.transferDirection || 'account_to_deposit';
@@ -1048,13 +1108,26 @@
             }
             if (transferSubmit) {
                 transferSubmit.textContent = 'Сохранить';
+                transferSubmit.hidden = posted;
             }
             if (transferDelete) {
-                transferDelete.hidden = false;
+                transferDelete.hidden = posted;
+            }
+            if (transferReverse) {
+                transferReverse.hidden = !posted;
+                transferReverse.disabled = !posted;
+            }
+            if (transferPostLedger) {
+                transferPostLedger.checked = posted;
+                transferPostLedger.disabled = posted;
+            }
+            if (transferPostLedgerField) {
+                transferPostLedgerField.hidden = posted;
             }
             if (transferDeleteForm) {
                 transferDeleteForm.action = trigger.dataset.transferDeleteUrl || '';
             }
+            setTransferReadOnly(posted);
             syncTransferRouteLabel();
         }
 
@@ -1074,8 +1147,34 @@
         });
 
         transferForm?.addEventListener('submit', (event) => {
+            if (transferForm.dataset.mode === 'reverse') {
+                return;
+            }
             if (!validateTransferForm()) {
                 event.preventDefault();
+            }
+        });
+
+        transferSubmit?.addEventListener('click', () => {
+            if (!transferForm) {
+                return;
+            }
+            transferForm.dataset.mode = 'save';
+            transferForm.action = transferForm.dataset.saveAction || transferStoreAction;
+            if (transferMethod) {
+                transferMethod.disabled = transferForm.action === transferStoreAction;
+                transferMethod.value = 'PUT';
+            }
+        });
+
+        transferReverse?.addEventListener('click', () => {
+            if (!transferForm) {
+                return;
+            }
+            transferForm.dataset.mode = 'reverse';
+            transferForm.action = transferForm.dataset.reverseAction || transferForm.action;
+            if (transferMethod) {
+                transferMethod.disabled = true;
             }
         });
 

@@ -110,6 +110,9 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/deposit/transfer/{transfer}', [BankController::class, 'updateDepositTransfer'])
             ->whereNumber('transfer')
             ->name('deposit.transfer.update');
+        Route::post('/deposit/transfer/{transfer}/reverse', [BankController::class, 'reverseDepositTransfer'])
+            ->whereNumber('transfer')
+            ->name('deposit.transfer.reverse');
         Route::delete('/deposit/transfer/{transfer}', [BankController::class, 'destroyDepositTransfer'])
             ->whereNumber('transfer')
             ->name('deposit.transfer.destroy');
