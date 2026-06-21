@@ -748,8 +748,8 @@
                 </label>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-invest-operation-close>Отмена</button>
-                    <button type="submit" class="btn btn-outline-danger me-auto" data-invest-operation-delete hidden>Удалить</button>
-                    <button type="submit" class="btn btn-warning" data-invest-operation-reverse hidden>Отменить проводку</button>
+                    <button type="submit" class="btn btn-outline-danger me-auto" formnovalidate data-invest-operation-delete hidden>Удалить</button>
+                    <button type="submit" class="btn btn-warning" formnovalidate data-invest-operation-reverse hidden>Отменить проводку</button>
                     <button type="submit" class="btn btn-primary" data-invest-operation-submit>Сохранить</button>
                 </div>
             </form>

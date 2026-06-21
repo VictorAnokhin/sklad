@@ -871,6 +871,13 @@ class BankController extends Controller
         return redirect()->route('bank.invest')->with('success', "Операция Счет ↔ Актив #{$operation} удалена.");
     }
 
+    public function showReverseInvestOperation(int $operation): RedirectResponse
+    {
+        return redirect()
+            ->route('bank.invest')
+            ->with('error', "Проводка операции #{$operation} отменяется кнопкой «Отменить проводку» в форме операции.");
+    }
+
     public function reverseInvestOperation(int $operation): RedirectResponse
     {
         $project = $this->bankProject();
