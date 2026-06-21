@@ -31,6 +31,7 @@
     $fiatCryptoAccountsInUse = $fiatCryptoAccountIds->isNotEmpty()
         ? $operationalAccounts->filter(fn ($account) => $fiatCryptoAccountIds->contains((int) $account->id))->values()
         : collect();
+    $operationalAccountsById = $operationalAccounts->keyBy(fn ($account) => (int) $account->id);
 @endphp
 <div class="bank-page">
     @include('bank.partials.nav')
@@ -322,6 +323,12 @@
 
         <div class="tab-pane fade {{ $activeExchangeTab === 'crypto' ? 'show active' : '' }}" id="bankExchangeCryptoPane" role="tabpanel" aria-labelledby="bankExchangeCryptoTab">
             <section class="bank-panel bank-table-panel">
+                @if(session('success'))
+                    <div class="alert alert-success mx-3 mt-3 mb-0">{{ session('success') }}</div>
+                @endif
+                @if(session('error'))
+                    <div class="alert alert-danger mx-3 mt-3 mb-0">{{ session('error') }}</div>
+                @endif
                 <div class="bank-table-header">
                     <div>
                         <div class="bank-label">Фиат/Крипта</div>
@@ -460,11 +467,53 @@
                                     $fiatAccountLabel = (string) ($meta['fiat_account_label'] ?? '');
                                     $cryptoAccountLabel = (string) ($meta['crypto_account_label'] ?? '');
                                     $ledgerTransactionId = (int) ($meta['ledger_transaction_id'] ?? 0);
+                                    $reversalLedgerTransactionId = (int) ($meta['reversal_ledger_transaction_id'] ?? 0);
+                                    $isReversed = ! empty($meta['reversed_at']) || (string) $order->status === 'cancelled';
                                     $operatedAt = (string) ($meta['operated_at'] ?? $order->created_at);
                                     $operationDate = substr($operatedAt, 0, 10);
+                                    $fiatAccountId = (int) ($meta['fiat_account_id'] ?? 0);
+                                    $cryptoAccountId = (int) ($meta['crypto_account_id'] ?? 0);
+                                    $fiatAccountBalance = (float) ($operationalAccountsById->get($fiatAccountId)->balance ?? 0);
+                                    $cryptoAccountBalance = (float) ($operationalAccountsById->get($cryptoAccountId)->balance ?? 0);
+                                    $canReverse = ! $isReversed && (
+                                        ($side === 'buy' && $cryptoAccountBalance + 0.00000001 >= $cryptoAmount)
+                                        || ($side === 'sell' && $fiatAccountBalance + 0.000001 >= (float) $order->pay_amount)
+                                    );
+                                    $reverseBlockReason = $isReversed
+                                        ? 'Проводка уже отменена.'
+                                        : ($side === 'buy'
+                                            ? 'Недостаточно средств на крипто-счете для отмены.'
+                                            : 'Недостаточно средств на фиатном счете для отмены.');
+                                    $fiatCryptoPayload = [
+                                        'id' => (int) $order->id,
+                                        'operated_at' => $operatedAt,
+                                        'side' => $side,
+                                        'side_label' => $side === 'sell' ? 'Продажа крипты' : 'Покупка крипты',
+                                        'fiat_amount' => number_format((float) $order->pay_amount, 2, '.', ' '),
+                                        'fiat_currency' => (string) $order->pay_currency,
+                                        'crypto_amount' => number_format($cryptoAmount, 8, '.', ' '),
+                                        'crypto_currency' => $cryptoCurrency,
+                                        'rate' => number_format((float) $order->rate_usdc, 8, '.', ' '),
+                                        'fiat_account_label' => $fiatAccountLabel,
+                                        'crypto_account_label' => $cryptoAccountLabel,
+                                        'ledger_transaction_id' => $ledgerTransactionId,
+                                        'reversal_ledger_transaction_id' => $reversalLedgerTransactionId,
+                                        'status' => (string) $order->status,
+                                        'status_label' => $isReversed ? 'Проводка отменена' : 'Сохранено',
+                                        'can_reverse' => $canReverse,
+                                        'reverse_block_reason' => $canReverse ? '' : $reverseBlockReason,
+                                        'reverse_url' => route('bank.exchange.crypto.reverse', ['order' => (int) $order->id]),
+                                        'note' => (string) ($meta['note'] ?? ''),
+                                    ];
                                 @endphp
                                 <tr
+                                    class="bank-fiat-crypto-row"
+                                    role="button"
+                                    tabindex="0"
                                     data-fiat-crypto-row
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#fiatCryptoOperationModal"
+                                    data-fiat-crypto-order="{{ json_encode($fiatCryptoPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
                                     data-operation-date="{{ $operationDate }}"
                                     data-operation-side="{{ $side }}"
                                     data-fiat-amount="{{ number_format((float) $order->pay_amount, 8, '.', '') }}"
@@ -483,8 +532,8 @@
                                     <td class="text-end fw-semibold">{{ number_format($cryptoAmount, 8, '.', ' ') }} {{ $cryptoCurrency }}</td>
                                     <td class="text-end">{{ number_format((float) $order->rate_usdc, 8, '.', ' ') }}</td>
                                     <td>
-                                        <span class="bank-status">{{ $order->status }}</span>
-                                        <div class="bank-meta">{{ $ledgerTransactionId > 0 ? 'TX #' . $ledgerTransactionId : 'Ledger pending' }}</div>
+                                        <span class="bank-status {{ $isReversed ? 'bank-status--reversed' : '' }}">{{ $isReversed ? 'Отменено' : 'Сохранено' }}</span>
+                                        <div class="bank-meta">{{ $reversalLedgerTransactionId > 0 ? 'Сторно TX #' . $reversalLedgerTransactionId : ($ledgerTransactionId > 0 ? 'TX #' . $ledgerTransactionId : 'Ledger pending') }}</div>
                                     </td>
                                 </tr>
                             @empty
@@ -496,6 +545,75 @@
                     </table>
                 </div>
             </section>
+        </div>
+    </div>
+
+    <div class="modal fade bank-order-modal" id="fiatCryptoOperationModal" tabindex="-1" aria-labelledby="fiatCryptoOperationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <div class="bank-label">Операция обменки</div>
+                        <h5 class="modal-title" id="fiatCryptoOperationModalLabel">Фиат/Крипта</h5>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="bank-order-modal__summary">
+                        <div>
+                            <span>Статус</span>
+                            <strong data-fiat-crypto-modal-field="status_label"></strong>
+                        </div>
+                        <div>
+                            <span>Фиат</span>
+                            <strong data-fiat-crypto-modal-field="fiat"></strong>
+                        </div>
+                        <div>
+                            <span>Крипта</span>
+                            <strong data-fiat-crypto-modal-field="crypto"></strong>
+                        </div>
+                        <div>
+                            <span>Курс</span>
+                            <strong data-fiat-crypto-modal-field="rate"></strong>
+                        </div>
+                    </div>
+
+                    <div class="bank-order-modal__grid">
+                        <div>
+                            <span>Дата</span>
+                            <strong data-fiat-crypto-modal-field="operated_at"></strong>
+                        </div>
+                        <div>
+                            <span>Операция</span>
+                            <strong data-fiat-crypto-modal-field="side_label"></strong>
+                        </div>
+                        <div>
+                            <span>Фиатный счет</span>
+                            <strong data-fiat-crypto-modal-field="fiat_account_label"></strong>
+                        </div>
+                        <div>
+                            <span>Крипто-счет</span>
+                            <strong data-fiat-crypto-modal-field="crypto_account_label"></strong>
+                        </div>
+                        <div>
+                            <span>Ledger</span>
+                            <strong data-fiat-crypto-modal-field="ledger"></strong>
+                        </div>
+                        <div>
+                            <span>Комментарий</span>
+                            <strong data-fiat-crypto-modal-field="note"></strong>
+                        </div>
+                    </div>
+
+                    <form method="POST" class="bank-order-modal__status-form" data-fiat-crypto-reverse-form onsubmit="return confirm('Отменить проводку и вернуть движения по счетам?');">
+                        @csrf
+                        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                            <div class="bank-meta" data-fiat-crypto-reverse-help></div>
+                            <button type="submit" class="btn btn-danger" data-fiat-crypto-reverse-button>Отменить проводку</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -882,6 +1000,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('swapOrderModal');
+        const fiatCryptoOperationModal = document.getElementById('fiatCryptoOperationModal');
         const statusLabels = @json($exchangeOrderStatuses);
         const statusRouteTemplate = @json(route('bank.exchange-orders.status', ['order' => '__ORDER__']));
         const serverExchangeTab = @json($activeExchangeTab);
@@ -965,6 +1084,71 @@
         });
 
         document.querySelectorAll('.bank-order-row').forEach((row) => {
+            row.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                }
+
+                event.preventDefault();
+                row.click();
+            });
+        });
+
+        function setFiatCryptoModalText(field, value) {
+            const element = fiatCryptoOperationModal?.querySelector(`[data-fiat-crypto-modal-field="${field}"]`);
+            if (element) {
+                element.textContent = valueOrDash(value);
+            }
+        }
+
+        fiatCryptoOperationModal?.addEventListener('show.bs.modal', (event) => {
+            const trigger = event.relatedTarget;
+            if (!(trigger instanceof HTMLElement)) {
+                return;
+            }
+
+            let order = {};
+            try {
+                order = JSON.parse(trigger.dataset.fiatCryptoOrder || '{}');
+            } catch (error) {
+                order = {};
+            }
+
+            setFiatCryptoModalText('status_label', order.status_label);
+            setFiatCryptoModalText('fiat', `${valueOrDash(order.fiat_amount)} ${valueOrDash(order.fiat_currency)}`);
+            setFiatCryptoModalText('crypto', `${valueOrDash(order.crypto_amount)} ${valueOrDash(order.crypto_currency)}`);
+            setFiatCryptoModalText('rate', order.rate);
+            setFiatCryptoModalText('operated_at', order.operated_at);
+            setFiatCryptoModalText('side_label', order.side_label);
+            setFiatCryptoModalText('fiat_account_label', order.fiat_account_label);
+            setFiatCryptoModalText('crypto_account_label', order.crypto_account_label);
+            setFiatCryptoModalText('ledger', order.reversal_ledger_transaction_id > 0
+                ? `Сторно TX #${order.reversal_ledger_transaction_id}`
+                : (order.ledger_transaction_id > 0 ? `TX #${order.ledger_transaction_id}` : 'Ledger pending'));
+            setFiatCryptoModalText('note', order.note);
+            const operationTitle = fiatCryptoOperationModal.querySelector('#fiatCryptoOperationModalLabel');
+            if (operationTitle) {
+                operationTitle.textContent = `Операция #${valueOrDash(order.id)}`;
+            }
+
+            const reverseForm = fiatCryptoOperationModal.querySelector('[data-fiat-crypto-reverse-form]');
+            const reverseButton = fiatCryptoOperationModal.querySelector('[data-fiat-crypto-reverse-button]');
+            const reverseHelp = fiatCryptoOperationModal.querySelector('[data-fiat-crypto-reverse-help]');
+            if (reverseForm instanceof HTMLFormElement) {
+                reverseForm.action = String(order.reverse_url || '');
+            }
+            if (reverseButton instanceof HTMLButtonElement) {
+                reverseButton.disabled = !order.can_reverse;
+                reverseButton.hidden = !order.can_reverse;
+            }
+            if (reverseHelp) {
+                reverseHelp.textContent = order.can_reverse
+                    ? 'Можно отменить проводку: остатки счетов позволяют выполнить обратное движение.'
+                    : valueOrDash(order.reverse_block_reason);
+            }
+        });
+
+        document.querySelectorAll('.bank-fiat-crypto-row').forEach((row) => {
             row.addEventListener('keydown', (event) => {
                 if (event.key !== 'Enter' && event.key !== ' ') {
                     return;

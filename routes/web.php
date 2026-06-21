@@ -150,6 +150,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/exchange', [BankController::class, 'exchange'])->name('exchange');
         Route::post('/exchange/crypto', [BankController::class, 'storeFiatCryptoExchange'])
             ->name('exchange.crypto.store');
+        Route::post('/exchange/crypto/{order}/reverse', [BankController::class, 'reverseFiatCryptoExchange'])
+            ->whereNumber('order')
+            ->name('exchange.crypto.reverse');
         Route::post('/exchange/orders/{order}/status', [BankController::class, 'updateExchangeOrderStatus'])
             ->whereNumber('order')
             ->name('exchange-orders.status');

@@ -1604,6 +1604,91 @@ class BankController extends Controller
             ->with('bank_exchange_tab', 'crypto');
     }
 
+    public function reverseFiatCryptoExchange(int $order): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('av8_swap_orders') && Schema::hasTable('conf'), 404);
+
+        $row = DB::table('av8_swap_orders')
+            ->where('id', $order)
+            ->where('fid', (int) $project->id)
+            ->where('source', 'bank.exchange.crypto')
+            ->first();
+        abort_unless($row, 404);
+
+        $meta = json_decode((string) ($row->meta ?? '{}'), true);
+        $meta = is_array($meta) ? $meta : [];
+        if (! empty($meta['reversed_at']) || (string) ($row->status ?? '') === 'cancelled') {
+            return redirect()
+                ->route('bank.exchange')
+                ->with('error', 'Проводка уже отменена.')
+                ->with('bank_exchange_tab', 'crypto');
+        }
+
+        $side = (string) ($meta['side'] ?? $row->mode ?? 'buy');
+        $fiatAmount = (float) ($meta['fiat_amount'] ?? $row->pay_amount ?? 0);
+        $cryptoAmount = (float) ($meta['crypto_amount'] ?? $row->expected_av8 ?? 0);
+        $fiatAccountId = (int) ($meta['fiat_account_id'] ?? 0);
+        $cryptoAccountId = (int) ($meta['crypto_account_id'] ?? 0);
+        abort_unless(in_array($side, ['buy', 'sell'], true) && $fiatAmount > 0 && $cryptoAmount > 0 && $fiatAccountId > 0 && $cryptoAccountId > 0, 422);
+
+        try {
+            DB::transaction(function () use ($project, $order, $row, $meta, $side, $fiatAmount, $cryptoAmount, $fiatAccountId, $cryptoAccountId): void {
+                $fiatAccount = DB::table('conf')->where('id', $fiatAccountId)->where('type', 'oplata')->lockForUpdate()->first();
+                $cryptoAccount = DB::table('conf')->where('id', $cryptoAccountId)->where('type', 'oplata')->lockForUpdate()->first();
+                if (! $fiatAccount || ! $cryptoAccount) {
+                    throw new \RuntimeException('Счет операции не найден.');
+                }
+
+                if ($side === 'buy') {
+                    if ((float) $cryptoAccount->value + 0.00000001 < $cryptoAmount) {
+                        throw new \RuntimeException('Недостаточно средств на крипто-счете для отмены операции.');
+                    }
+                    DB::table('conf')->where('id', $fiatAccountId)->where('type', 'oplata')->update([
+                        'value' => DB::raw('COALESCE(value, 0) + ' . abs($fiatAmount)),
+                    ]);
+                    DB::table('conf')->where('id', $cryptoAccountId)->where('type', 'oplata')->update([
+                        'value' => DB::raw('COALESCE(value, 0) - ' . abs($cryptoAmount)),
+                    ]);
+                } else {
+                    if ((float) $fiatAccount->value + 0.000001 < $fiatAmount) {
+                        throw new \RuntimeException('Недостаточно средств на фиатном счете для отмены операции.');
+                    }
+                    DB::table('conf')->where('id', $cryptoAccountId)->where('type', 'oplata')->update([
+                        'value' => DB::raw('COALESCE(value, 0) + ' . abs($cryptoAmount)),
+                    ]);
+                    DB::table('conf')->where('id', $fiatAccountId)->where('type', 'oplata')->update([
+                        'value' => DB::raw('COALESCE(value, 0) - ' . abs($fiatAmount)),
+                    ]);
+                }
+
+                $reversalLedger = $this->reverseFiatCryptoExchangeLedger((int) $project->id, $order, (int) ($meta['ledger_transaction_id'] ?? 0));
+
+                $meta['original_status'] = (string) ($row->status ?? '');
+                $meta['reversed_at'] = now()->toDateTimeString();
+                if ($reversalLedger) {
+                    $meta['reversal_ledger_transaction_id'] = (int) $reversalLedger->id;
+                }
+
+                DB::table('av8_swap_orders')->where('id', $order)->update([
+                    'status' => 'cancelled',
+                    'meta' => json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'updated_at' => now(),
+                ]);
+            });
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->route('bank.exchange')
+                ->with('error', $exception->getMessage())
+                ->with('bank_exchange_tab', 'crypto');
+        }
+
+        return redirect()
+            ->route('bank.exchange')
+            ->with('success', 'Проводка Фиат/Крипта отменена.')
+            ->with('bank_exchange_tab', 'crypto');
+    }
+
     private function createFiatCryptoExchangeLedger(
         int $orderId,
         int $projectId,
@@ -1653,6 +1738,68 @@ class BankController extends Controller
                 'currency' => $fiatCurrency,
                 'amount' => $fiatAmount,
                 'amount_base' => $fiatAmount,
+            ]
+        );
+    }
+
+    private function reverseFiatCryptoExchangeLedger(int $projectId, int $orderId, int $ledgerTransactionId = 0)
+    {
+        if (! Schema::hasTable('transactions') || ! Schema::hasTable('entries')) {
+            return null;
+        }
+
+        $existingReversal = DB::table('transactions')
+            ->where('company_id', $projectId)
+            ->where('reference_type', 'bank_exchange_crypto:reversal')
+            ->where('reference_id', (string) $orderId)
+            ->first();
+        if ($existingReversal) {
+            return null;
+        }
+
+        $originalQuery = DB::table('transactions')
+            ->where('company_id', $projectId)
+            ->where('reference_type', 'bank_exchange_crypto')
+            ->where('reference_id', (string) $orderId);
+        if ($ledgerTransactionId > 0) {
+            $originalQuery->where('id', $ledgerTransactionId);
+        }
+
+        $original = $originalQuery->latest('id')->first();
+        if (! $original && $ledgerTransactionId > 0) {
+            $original = DB::table('transactions')
+                ->where('id', $ledgerTransactionId)
+                ->where('company_id', $projectId)
+                ->first();
+        }
+        if (! $original) {
+            return null;
+        }
+
+        $entries = DB::table('entries')
+            ->where('transaction_id', (int) $original->id)
+            ->get(['account_id', 'debit', 'credit'])
+            ->map(fn ($entry): array => [
+                'account_id' => (int) $entry->account_id,
+                'debit' => (float) $entry->credit,
+                'credit' => (float) $entry->debit,
+            ])
+            ->all();
+        if ($entries === []) {
+            return null;
+        }
+
+        return app(AccountingService::class)->createTransaction(
+            $entries,
+            'Сторно ' . trim((string) ($original->description ?? "Фиат/Крипта #{$orderId}")),
+            [
+                'date' => now()->toDateString(),
+                'company_id' => $projectId,
+                'reference_type' => 'bank_exchange_crypto:reversal',
+                'reference_id' => (string) $orderId,
+                'currency' => (string) ($original->currency ?? 'UAH'),
+                'amount' => (float) ($original->amount ?? 0),
+                'amount_base' => (float) ($original->amount_base ?? 0),
             ]
         );
     }
