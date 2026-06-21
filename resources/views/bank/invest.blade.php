@@ -1263,7 +1263,82 @@
     }
 
     .bank-operation-table {
-        min-width: 1120px;
+        min-width: 900px;
+        table-layout: fixed;
+    }
+
+    .bank-operation-table th,
+    .bank-operation-table td {
+        padding: 3px 6px !important;
+        height: 30px;
+        line-height: 1.15;
+        vertical-align: middle;
+    }
+
+    .bank-operation-table .bank-table__num {
+        width: 42px;
+        min-width: 42px;
+    }
+
+    .bank-operation-table th:nth-child(2),
+    .bank-operation-table td:nth-child(2) {
+        width: 92px;
+    }
+
+    .bank-operation-table th:nth-child(3),
+    .bank-operation-table td:nth-child(3) {
+        width: 116px;
+    }
+
+    .bank-operation-table th:nth-child(4),
+    .bank-operation-table td:nth-child(4) {
+        width: 150px;
+    }
+
+    .bank-operation-table th:nth-child(5),
+    .bank-operation-table td:nth-child(5) {
+        width: 140px;
+    }
+
+    .bank-operation-table th:nth-child(6),
+    .bank-operation-table td:nth-child(6) {
+        width: 108px;
+    }
+
+    .bank-operation-table th:nth-child(7),
+    .bank-operation-table td:nth-child(7) {
+        width: 104px;
+    }
+
+    .bank-operation-table th:nth-child(8),
+    .bank-operation-table td:nth-child(8) {
+        width: 98px;
+    }
+
+    .bank-operation-table th:nth-child(9),
+    .bank-operation-table td:nth-child(9) {
+        width: 150px;
+    }
+
+    .bank-operation-table td,
+    .bank-operation-table td strong,
+    .bank-operation-table td .bank-meta {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bank-operation-table td .bank-meta {
+        margin-top: 1px;
+        font-size: 0.64rem;
+        line-height: 1.05;
+    }
+
+    .bank-operation-table .bank-pill,
+    .bank-operation-table .bank-status {
+        min-height: 16px !important;
+        padding: 0 5px !important;
+        font-size: 0.66rem !important;
     }
 
     .bank-accounts-table {
