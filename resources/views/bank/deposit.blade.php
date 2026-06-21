@@ -220,8 +220,6 @@
                                 <tr class="bank-deposit-transfer-row"
                                     role="button"
                                     tabindex="0"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#depositTransferModal"
                                     data-transfer-direction="{{ $transfer->direction }}"
                                     data-transfer-deposit="{{ $transfer->deposit_id }}"
                                     data-transfer-account="{{ $transfer->account_id }}"
@@ -1341,6 +1339,27 @@
 
                 event.preventDefault();
                 row.click();
+            });
+        });
+
+        const depositTransferModalElement = document.getElementById('depositTransferModal');
+        document.querySelectorAll('.bank-deposit-transfer-row').forEach((row) => {
+            const openTransferModal = () => {
+                if (!depositTransferModalElement) {
+                    return;
+                }
+
+                bootstrap.Modal.getOrCreateInstance(depositTransferModalElement).show(row);
+            };
+
+            row.addEventListener('click', openTransferModal);
+            row.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                }
+
+                event.preventDefault();
+                openTransferModal();
             });
         });
     });
