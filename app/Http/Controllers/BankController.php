@@ -401,13 +401,7 @@ class BankController extends Controller
         $projectIds = HoldingScope::projectIdsFor((string) $project->id);
         abort_unless(Schema::hasTable('conf') && Schema::hasTable('z_document'), 404);
 
-        $payload = $request->validate([
-            'deposit_id' => ['required', 'integer'],
-            'operational_account_id' => ['required', 'integer'],
-            'amount' => ['required', 'numeric', 'min:0.01'],
-            'direction' => ['required', Rule::in(['account_to_deposit', 'deposit_to_account'])],
-            'post_ledger' => ['nullable', 'boolean'],
-        ]);
+        $payload = $this->validateDepositTransferPayload($request);
 
         $amount = round((float) $payload['amount'], 2);
         $depositId = (int) $payload['deposit_id'];
@@ -415,73 +409,12 @@ class BankController extends Controller
         $direction = (string) $payload['direction'];
 
         try {
-            DB::transaction(function () use ($project, $projectIds, $depositId, $accountId, $amount, $direction): void {
-                $deposit = DB::table('conf')
-                    ->where('id', $depositId)
-                    ->where('type', 'deposit')
-                    ->whereIn('firma', array_map('intval', $projectIds))
-                    ->lockForUpdate()
-                    ->first();
-
-                $account = DB::table('conf')
-                    ->where('id', $accountId)
-                    ->where('type', 'oplata')
-                    ->where('firma', (string) $project->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $deposit || ! $account) {
-                    throw new \RuntimeException('Депозит или операционный счёт не найден.');
-                }
-
-                $depositCurrency = $this->normalizeCurrencyCode($deposit->currency ?? 'UAH');
-                $accountCurrency = $this->normalizeCurrencyCode($account->currency ?? 'UAH');
-                if ($depositCurrency !== $accountCurrency) {
-                    throw new \RuntimeException("Валюта депозита {$depositCurrency} не совпадает с валютой счета {$accountCurrency}.");
-                }
-
-                $accountBalance = round((float) ($account->value ?? 0), 2);
-                $depositBalance = round((float) ($deposit->value ?? 0), 2);
-
-                if ($direction === 'account_to_deposit' && $accountBalance + 0.000001 < $amount) {
-                    throw new \RuntimeException(
-                        'Недостаточно средств на операционном счете. Доступно '
-                        . number_format($accountBalance, 2, '.', ' ')
-                        . ", нужно "
-                        . number_format($amount, 2, '.', ' ')
-                        . " {$accountCurrency}."
-                    );
-                }
-
-                if ($direction === 'deposit_to_account' && $depositBalance + 0.000001 < $amount) {
-                    throw new \RuntimeException(
-                        'Недостаточно средств на депозите. Доступно '
-                        . number_format($depositBalance, 2, '.', ' ')
-                        . ", нужно "
-                        . number_format($amount, 2, '.', ' ')
-                        . " {$depositCurrency}."
-                    );
-                }
-
-                if ($direction === 'account_to_deposit') {
-                    DB::table('conf')->where('id', $accountId)->update([
-                        'value' => DB::raw('COALESCE(value, 0) - ' . $amount),
-                    ]);
-                    DB::table('conf')->where('id', $depositId)->update([
-                        'value' => DB::raw('COALESCE(value, 0) + ' . $amount),
-                    ]);
-                } else {
-                    DB::table('conf')->where('id', $depositId)->update([
-                        'value' => DB::raw('COALESCE(value, 0) - ' . $amount),
-                    ]);
-                    DB::table('conf')->where('id', $accountId)->update([
-                        'value' => DB::raw('COALESCE(value, 0) + ' . $amount),
-                    ]);
-                }
-
+            DB::transaction(function () use ($project, $projectIds, $depositId, $accountId, $amount, $direction, $payload): void {
+                [$deposit, $account, $accountCurrency] = $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+                $documentProjectId = (int) ($deposit->firma ?? $project->id);
                 $postLedger = (bool) ($payload['post_ledger'] ?? false);
                 $documentId = $this->createDepositTransferDocument(
-                    (string) $project->id,
+                    (string) $documentProjectId,
                     $depositId,
                     $accountId,
                     $amount,
@@ -492,16 +425,8 @@ class BankController extends Controller
                     $postLedger
                 );
 
-                $document = DB::table('z_document')->where('id', $documentId)->first();
-                if ($postLedger && $document) {
-                    app(AccountingService::class)->createDocumentTransaction(
-                        'z_document:deposit_operation',
-                        $documentId,
-                        'PP',
-                        $document,
-                        collect(),
-                        (string) $project->id
-                    );
+                if ($postLedger) {
+                    $this->postDepositTransferLedger($documentProjectId, $documentId);
                 }
             });
         } catch (\RuntimeException $exception) {
@@ -3496,7 +3421,7 @@ class BankController extends Controller
     {
         $document = DB::table('z_document')->where('id', $documentId)->first();
         if ($document) {
-            app(AccountingService::class)->createDocumentTransaction(
+            $transaction = app(AccountingService::class)->createDocumentTransaction(
                 'z_document:deposit_operation',
                 $documentId,
                 'PP',
@@ -3504,6 +3429,9 @@ class BankController extends Controller
                 collect(),
                 (string) $projectId
             );
+            if (! $transaction) {
+                throw new \RuntimeException('Проводка трансфера не создана.');
+            }
         }
     }
 

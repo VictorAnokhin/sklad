@@ -308,22 +308,46 @@ class AccountingService
         }
 
         $mode = (string) ($document->docum ?? 'topup');
-        $cashFrom = $this->cashAccount($fid, (string) ($document->oplata ?? ''));
-        $cashTo = $this->cashAccount($fid, (string) ($document->oplata2 ?? ''));
         $deposit = $this->depositAccount($fid, (string) ($document->money ?? ''));
 
         return match ($mode) {
             'topup' => [
                 ['account_id' => $deposit->id, 'debit' => $summa, 'credit' => 0],
-                ['account_id' => $cashFrom->id, 'debit' => 0, 'credit' => $summa],
+                [
+                    'account_id' => $this->cashAccount(
+                        $fid,
+                        $this->depositOperationCashAccountId($document, 'topup')
+                    )->id,
+                    'debit' => 0,
+                    'credit' => $summa,
+                ],
             ],
             'withdraw' => [
-                ['account_id' => $cashTo->id, 'debit' => $summa, 'credit' => 0],
+                [
+                    'account_id' => $this->cashAccount(
+                        $fid,
+                        $this->depositOperationCashAccountId($document, 'withdraw')
+                    )->id,
+                    'debit' => $summa,
+                    'credit' => 0,
+                ],
                 ['account_id' => $deposit->id, 'debit' => 0, 'credit' => $summa],
             ],
             'exchange' => $this->entriesForCashExchange($document, $fid),
             default => [],
         };
+    }
+
+    private function depositOperationCashAccountId(object $document, string $mode): string
+    {
+        $primary = $mode === 'withdraw'
+            ? trim((string) ($document->oplata2 ?? ''))
+            : trim((string) ($document->oplata ?? ''));
+        $fallback = $mode === 'withdraw'
+            ? trim((string) ($document->oplata ?? ''))
+            : trim((string) ($document->oplata2 ?? ''));
+
+        return $primary !== '' && $primary !== '0' ? $primary : $fallback;
     }
 
     private function entriesForCashExchange(object $document, string $fid): array
