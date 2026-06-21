@@ -325,7 +325,7 @@ class BankController extends Controller
         $deposits = $this->bankDeposits($projectIds);
         $operations = $this->bankDepositOperations($projectIds);
         $depositTransfers = $this->bankDepositTransfers($projectIds);
-        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $operationalAccounts = $this->bankOperationalAccountsForProjects($projectIds);
         $depositPools = $this->bankDepositPoolRows($deposits, (int) $project->id);
 
         return view('bank.deposit', [
@@ -526,8 +526,9 @@ class BankController extends Controller
                     throw new \RuntimeException('Трансфер не найден.');
                 }
 
+                $documentProjectId = (int) $document->firma;
                 $oldDirection = (string) $document->docum === 'withdraw' ? 'deposit_to_account' : 'account_to_deposit';
-                $oldAccountId = $oldDirection === 'deposit_to_account' ? (int) $document->oplata2 : (int) $document->oplata;
+                $oldAccountId = (int) $this->depositTransferAccountId($document, $oldDirection);
                 $oldDepositId = (int) $document->money;
                 $oldAmount = round((float) $document->summa, 2);
 
@@ -539,11 +540,11 @@ class BankController extends Controller
                 $direction = (string) $payload['direction'];
                 [$deposit, $account, $currency] = $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
 
-                $this->reverseDepositTransferLedger((int) $project->id, (int) $document->id);
+                $this->reverseDepositTransferLedger($documentProjectId, (int) $document->id);
                 $postLedger = (bool) ($payload['post_ledger'] ?? false);
                 $this->updateDepositTransferDocument(
                     (int) $document->id,
-                    (string) $project->id,
+                    (string) $documentProjectId,
                     $depositId,
                     $accountId,
                     $amount,
@@ -554,7 +555,7 @@ class BankController extends Controller
                     $postLedger
                 );
                 if ($postLedger) {
-                    $this->postDepositTransferLedger((int) $project->id, (int) $document->id);
+                    $this->postDepositTransferLedger($documentProjectId, (int) $document->id);
                 }
             });
         } catch (\RuntimeException $exception) {
@@ -578,12 +579,12 @@ class BankController extends Controller
                 }
 
                 $direction = (string) $document->docum === 'withdraw' ? 'deposit_to_account' : 'account_to_deposit';
-                $accountId = $direction === 'deposit_to_account' ? (int) $document->oplata2 : (int) $document->oplata;
+                $accountId = (int) $this->depositTransferAccountId($document, $direction);
                 $depositId = (int) $document->money;
                 $amount = round((float) $document->summa, 2);
 
                 $this->reverseDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
-                $this->reverseDepositTransferLedger((int) $project->id, (int) $document->id);
+                $this->reverseDepositTransferLedger((int) $document->firma, (int) $document->id);
 
                 DB::table('z_document')->where('id', (int) $document->id)->update([
                     'status' => '-1',
@@ -614,7 +615,7 @@ class BankController extends Controller
                     throw new \RuntimeException('У трансфера нет активной проводки для отмены.');
                 }
 
-                $this->reverseDepositTransferLedger((int) $project->id, (int) $document->id);
+                $this->reverseDepositTransferLedger((int) $document->firma, (int) $document->id);
 
                 DB::table('z_document')->where('id', (int) $document->id)->update([
                     'provodka' => 0,
@@ -3268,16 +3269,45 @@ class BankController extends Controller
 
     private function bankOperationalAccounts(string $projectId)
     {
+        return $this->bankOperationalAccountsForProjects([$projectId]);
+    }
+
+    private function bankOperationalAccountsForProjects(array $projectIds)
+    {
         if (! Schema::hasTable('conf')) {
             return collect();
         }
 
         return DB::table('conf')
             ->where('type', 'oplata')
-            ->where('firma', $projectId)
+            ->whereIn('firma', array_map('intval', $projectIds))
             ->orderBy('name')
             ->get()
             ->map(fn ($account) => $this->normalizeCashAccount($account));
+    }
+
+    private function depositTransferAccountId(object $document, string $direction): string
+    {
+        $primary = $direction === 'deposit_to_account'
+            ? trim((string) ($document->oplata2 ?? ''))
+            : trim((string) ($document->oplata ?? ''));
+        $fallback = $direction === 'deposit_to_account'
+            ? trim((string) ($document->oplata ?? ''))
+            : trim((string) ($document->oplata2 ?? ''));
+
+        return $primary !== '' && $primary !== '0' ? $primary : $fallback;
+    }
+
+    private function depositTransferAccountName(object $document, string $direction): string
+    {
+        $primary = $direction === 'deposit_to_account'
+            ? trim((string) ($document->account_to_name ?? ''))
+            : trim((string) ($document->account_from_name ?? ''));
+        $fallback = $direction === 'deposit_to_account'
+            ? trim((string) ($document->account_from_name ?? ''))
+            : trim((string) ($document->account_to_name ?? ''));
+
+        return $primary !== '' ? $primary : $fallback;
     }
 
     private function createDepositTransferDocument(
@@ -3335,6 +3365,7 @@ class BankController extends Controller
             'operational_account_id' => ['required', 'integer'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'direction' => ['required', Rule::in(['account_to_deposit', 'deposit_to_account'])],
+            'post_ledger' => ['sometimes', 'accepted'],
         ]);
     }
 
@@ -3520,14 +3551,15 @@ class BankController extends Controller
             ])
             ->map(function ($document) {
                 $isWithdraw = (string) $document->docum === 'withdraw';
-                $accountId = $isWithdraw ? (string) $document->oplata2 : (string) $document->oplata;
-                $accountName = $isWithdraw ? (string) $document->account_to_name : (string) $document->account_from_name;
+                $direction = $isWithdraw ? 'deposit_to_account' : 'account_to_deposit';
+                $accountId = $this->depositTransferAccountId($document, $direction);
+                $accountName = $this->depositTransferAccountName($document, $direction);
 
                 return (object) [
                     'id' => (int) $document->id,
                     'number' => trim((string) $document->num) ?: (string) $document->id,
                     'date' => trim((string) $document->data) ?: (string) $document->dt,
-                    'direction' => $isWithdraw ? 'deposit_to_account' : 'account_to_deposit',
+                    'direction' => $direction,
                     'direction_label' => $isWithdraw ? 'Депозит → счет' : 'Счет → депозит',
                     'deposit_id' => (string) $document->money,
                     'deposit_name' => trim((string) $document->deposit_name) ?: 'Депозит #' . $document->money,
@@ -3604,8 +3636,9 @@ class BankController extends Controller
             $ledger = $ledgerByDocument->get((string) $document->id);
             $status = $this->paymentStatus($document, $ledger);
             $isWithdraw = $mode === 'withdraw';
-            $accountId = $isWithdraw ? (string) $document->oplata2 : (string) $document->oplata;
-            $accountName = $isWithdraw ? (string) $document->account_to_name : (string) $document->account_from_name;
+            $direction = $isWithdraw ? 'deposit_to_account' : 'account_to_deposit';
+            $accountId = $this->depositTransferAccountId($document, $direction);
+            $accountName = $this->depositTransferAccountName($document, $direction);
 
             return (object) [
                 'id' => (int) $document->id,
@@ -3629,7 +3662,7 @@ class BankController extends Controller
                 'status' => $status,
                 'status_label' => $this->paymentStatusLabel($status),
                 'ledger_id' => (int) ($ledger->id ?? 0),
-                'transfer_direction' => $isWithdraw ? 'deposit_to_account' : 'account_to_deposit',
+                'transfer_direction' => $direction,
                 'transfer_deposit_id' => (string) $document->money,
                 'transfer_account_id' => $accountId,
                 'transfer_account_name' => trim($accountName) ?: 'Счет #' . $accountId,
