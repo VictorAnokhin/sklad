@@ -154,7 +154,23 @@
                             <td class="text-end">{{ $deposit->limit > 0 ? number_format((float) $deposit->limit, 2, '.', ' ') : '—' }}</td>
                             <td class="text-end">{{ $usage !== null ? number_format($usage, 1, '.', ' ') . '%' : '—' }}</td>
                             <td>
-                                <span class="bank-status {{ $deposit->is_active ? '' : 'bank-status--reversed' }}">{{ $deposit->status_label }}</span>
+                                <div class="bank-deposit-status-cell">
+                                    <span class="bank-status {{ $deposit->is_active ? '' : 'bank-status--reversed' }}">{{ $deposit->status_label }}</span>
+                                    <button type="button"
+                                        class="bank-icon-button bank-deposit-settings-button"
+                                        title="Редактировать депозит"
+                                        aria-label="Редактировать депозит"
+                                        data-deposit-settings-open="1"
+                                        data-deposit-id="{{ $deposit->id }}"
+                                        data-deposit-name="{{ $deposit->name }}"
+                                        data-deposit-currency="{{ $deposit->currency }}"
+                                        data-deposit-balance="{{ number_format((float) $deposit->balance, 2, '.', ' ') }}"
+                                        data-deposit-type="{{ $deposit->deposit_type }}"
+                                        data-deposit-type-label="{{ $deposit->deposit_type_label }}"
+                                        data-update-url="{{ route('bank.deposit.update', ['deposit' => $deposit->id]) }}">
+                                        &#9881;
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     @empty
@@ -786,6 +802,36 @@
         width: 16px;
         height: 16px;
     }
+
+    .bank-deposit-status-cell {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .bank-icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 6px;
+        background: rgba(15, 23, 42, 0.55);
+        color: rgba(226, 232, 240, 0.92);
+        font-size: 15px;
+        line-height: 1;
+        transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .bank-icon-button:hover,
+    .bank-icon-button:focus {
+        border-color: rgba(96, 165, 250, 0.75);
+        background: rgba(30, 64, 175, 0.38);
+        color: #fff;
+        outline: none;
+    }
 </style>
 @endsection
 
@@ -1322,7 +1368,9 @@
                 settingsCurrency.value = currency;
                 settingsSubmit.textContent = 'Сохранить';
             }
-            bootstrap.Tab.getOrCreateInstance(operationsTab).show();
+            bootstrap.Tab.getOrCreateInstance(
+                trigger.dataset.depositSettingsOpen === '1' ? settingsTab : operationsTab
+            ).show();
 
             movementsBody.replaceChildren();
             emptyState.hidden = movements.length > 0;
@@ -1380,6 +1428,13 @@
 
                 event.preventDefault();
                 row.click();
+            });
+        });
+
+        document.querySelectorAll('.bank-deposit-settings-button').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                bootstrap.Modal.getOrCreateInstance(modal).show(button);
             });
         });
 
