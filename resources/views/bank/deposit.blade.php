@@ -839,6 +839,7 @@
         const transferPostLedgerField = document.querySelector('[data-deposit-transfer-post-ledger-field]');
         const transferDeleteForm = document.querySelector('[data-deposit-transfer-delete-form]');
         const transferStoreAction = transferForm ? transferForm.action : '';
+        const depositTransferModalElement = document.getElementById('depositTransferModal');
         const poolTransferModal = document.getElementById('poolTransferModal');
         const poolTransferForm = document.querySelector('[data-pool-transfer-form]');
         const poolTransferTitle = document.querySelector('[data-pool-transfer-title]');
@@ -1142,6 +1143,25 @@
             syncTransferRouteLabel();
         }
 
+        function openDepositTransferModal(trigger) {
+            if (!depositTransferModalElement) {
+                return;
+            }
+
+            bootstrap.Modal.getOrCreateInstance(depositTransferModalElement).show(trigger);
+        }
+
+        function openDepositTransferModalFromMovement(trigger) {
+            const movementModal = bootstrap.Modal.getInstance(modal);
+            if (movementModal && modal.classList.contains('show')) {
+                modal.addEventListener('hidden.bs.modal', () => openDepositTransferModal(trigger), { once: true });
+                movementModal.hide();
+                return;
+            }
+
+            openDepositTransferModal(trigger);
+        }
+
         transferToggleRoute?.addEventListener('click', () => {
             if (!transferDirection) {
                 return;
@@ -1311,6 +1331,17 @@
                 const row = document.createElement('tr');
                 const isWithdraw = movement.mode === 'withdraw';
                 const statusClass = `bank-status--${movement.status}`;
+                row.className = 'bank-deposit-movement-row';
+                row.tabIndex = 0;
+                row.setAttribute('role', 'button');
+                row.dataset.transferDirection = movement.transfer_direction || (isWithdraw ? 'deposit_to_account' : 'account_to_deposit');
+                row.dataset.transferDeposit = movement.transfer_deposit_id || movement.deposit_id || '';
+                row.dataset.transferAccount = movement.transfer_account_id || '';
+                row.dataset.transferAmount = String(Number(movement.amount || 0).toFixed(2));
+                row.dataset.transferPosted = movement.transfer_posted ? '1' : '0';
+                row.dataset.transferUpdateUrl = movement.transfer_update_url || '';
+                row.dataset.transferReverseUrl = movement.transfer_reverse_url || '';
+                row.dataset.transferDeleteUrl = movement.transfer_delete_url || '';
                 row.innerHTML = `
                     <td class="bank-table__num bank-mono">${index + 1}</td>
                     <td>
@@ -1327,6 +1358,16 @@
                         <div class="bank-meta">${movement.ledger_id > 0 ? `TX #${escapeHtml(movement.ledger_id)}` : 'Ledger TX отсутствует'}</div>
                     </td>
                 `;
+                const openMovementTransfer = () => openDepositTransferModalFromMovement(row);
+                row.addEventListener('click', openMovementTransfer);
+                row.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    openMovementTransfer();
+                });
                 movementsBody.appendChild(row);
             });
         });
@@ -1342,15 +1383,8 @@
             });
         });
 
-        const depositTransferModalElement = document.getElementById('depositTransferModal');
         document.querySelectorAll('.bank-deposit-transfer-row').forEach((row) => {
-            const openTransferModal = () => {
-                if (!depositTransferModalElement) {
-                    return;
-                }
-
-                bootstrap.Modal.getOrCreateInstance(depositTransferModalElement).show(row);
-            };
+            const openTransferModal = () => openDepositTransferModal(row);
 
             row.addEventListener('click', openTransferModal);
             row.addEventListener('keydown', (event) => {

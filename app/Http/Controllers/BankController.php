@@ -3557,6 +3557,12 @@ class BankController extends Controller
             })
             ->leftJoin('project as p', 'p.id', '=', 'd.firma')
             ->leftJoin('users as u', 'u.id', '=', 'd.client2')
+            ->leftJoin('conf as acc_from', function ($join): void {
+                $join->on('acc_from.id', '=', 'd.oplata')->where('acc_from.type', '=', 'oplata');
+            })
+            ->leftJoin('conf as acc_to', function ($join): void {
+                $join->on('acc_to.id', '=', 'd.oplata2')->where('acc_to.type', '=', 'oplata');
+            })
             ->whereIn('d.firma', array_map('intval', $projectIds))
             ->where('d.type', 'PP')
             ->whereIn('d.docum', ['topup', 'withdraw'])
@@ -3574,10 +3580,14 @@ class BankController extends Controller
                 'd.currency_from',
                 'd.docum',
                 'd.money',
+                'd.oplata',
+                'd.oplata2',
                 'd.provodka',
                 'd.content',
                 'dep.name as deposit_name',
                 'dep.currency as deposit_currency',
+                'acc_from.name as account_from_name',
+                'acc_to.name as account_to_name',
                 'p.name as project_name',
                 'u.orgname',
                 'u.name',
@@ -3593,6 +3603,9 @@ class BankController extends Controller
             $mode = (string) ($document->docum ?: 'topup');
             $ledger = $ledgerByDocument->get((string) $document->id);
             $status = $this->paymentStatus($document, $ledger);
+            $isWithdraw = $mode === 'withdraw';
+            $accountId = $isWithdraw ? (string) $document->oplata2 : (string) $document->oplata;
+            $accountName = $isWithdraw ? (string) $document->account_to_name : (string) $document->account_from_name;
 
             return (object) [
                 'id' => (int) $document->id,
@@ -3616,6 +3629,14 @@ class BankController extends Controller
                 'status' => $status,
                 'status_label' => $this->paymentStatusLabel($status),
                 'ledger_id' => (int) ($ledger->id ?? 0),
+                'transfer_direction' => $isWithdraw ? 'deposit_to_account' : 'account_to_deposit',
+                'transfer_deposit_id' => (string) $document->money,
+                'transfer_account_id' => $accountId,
+                'transfer_account_name' => trim($accountName) ?: 'Счет #' . $accountId,
+                'transfer_posted' => (int) ($document->provodka ?? 0) === 1,
+                'transfer_update_url' => route('bank.deposit.transfer.update', ['transfer' => (int) $document->id]),
+                'transfer_reverse_url' => route('bank.deposit.transfer.reverse', ['transfer' => (int) $document->id]),
+                'transfer_delete_url' => route('bank.deposit.transfer.destroy', ['transfer' => (int) $document->id]),
             ];
         });
     }
