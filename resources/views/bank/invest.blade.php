@@ -1828,6 +1828,7 @@
         const investOperationDirectionTabs = root.querySelectorAll('[data-invest-operation-direction-tab]');
         const investOperationUpdateBalance = root.querySelector('[data-invest-operation-update-balance]');
         const investOperationPostLedger = root.querySelector('[data-invest-operation-post-ledger]');
+        const investOperationPostLedgerField = investOperationPostLedger ? investOperationPostLedger.closest('.bank-operation-post-ledger') : null;
         const investOperationAccount = root.querySelector('[data-invest-operation-account]');
         const investOperationAsset = root.querySelector('[data-invest-operation-asset]');
         const investOperationCurrency = root.querySelector('[data-invest-operation-currency]');
@@ -1954,6 +1955,9 @@
                 investOperationPostLedger.checked = true;
                 investOperationPostLedger.disabled = false;
             }
+            if (investOperationPostLedgerField) {
+                investOperationPostLedgerField.hidden = false;
+            }
             if (investOperationTitle) {
                 investOperationTitle.textContent = 'Создать Счет ↔ Актив';
             }
@@ -1969,6 +1973,8 @@
             }
             if (investOperationReverse) {
                 investOperationReverse.hidden = true;
+                investOperationReverse.disabled = false;
+                investOperationReverse.textContent = 'Отменить проводку';
             }
         }
 
@@ -1988,7 +1994,10 @@
             setInvestOperationDirection(movement.direction || 'account_to_asset');
             if (investOperationPostLedger) {
                 investOperationPostLedger.checked = Boolean(movement.is_posted);
-                investOperationPostLedger.disabled = false;
+                investOperationPostLedger.disabled = Boolean(movement.is_posted) || !movement.can_edit;
+            }
+            if (investOperationPostLedgerField) {
+                investOperationPostLedgerField.hidden = Boolean(movement.is_posted);
             }
             if (investOperationAccount) {
                 investOperationAccount.value = String(movement.account_id || '');
@@ -2021,20 +2030,28 @@
                 investOperationSubtitle.textContent = !movement.can_edit
                     ? (movement.edit_hint || 'Редактирование закрыто.')
                     : movement.is_posted
-                    ? 'Документ проведен. Можно отменить проводку или сохранить изменения с автоматическим сторно и новой проводкой.'
+                    ? 'Документ проведен. Доступна только отмена операции, если сторно разрешено.'
                     : 'Документ сохранен без проводки. Включите чекбокс, чтобы создать двойную запись.';
             }
             if (investOperationSubmit) {
                 investOperationSubmit.textContent = 'Сохранить';
-                investOperationSubmit.hidden = !movement.can_edit;
+                investOperationSubmit.hidden = Boolean(movement.is_posted) || !movement.can_edit;
             }
             if (investOperationDelete) {
-                investOperationDelete.hidden = !movement.can_edit;
+                investOperationDelete.hidden = Boolean(movement.is_posted) || !movement.can_edit;
             }
             if (investOperationReverse) {
-                investOperationReverse.hidden = !(movement.can_reverse && movement.is_posted);
+                investOperationReverse.textContent = 'Отменить операцию';
+                investOperationReverse.hidden = !movement.is_posted;
+                investOperationReverse.disabled = !movement.can_reverse;
             }
-            setInvestOperationReadOnly(!movement.can_edit);
+            setInvestOperationReadOnly(Boolean(movement.is_posted) || !movement.can_edit);
+            if (investOperationPostLedgerField) {
+                investOperationPostLedgerField.hidden = Boolean(movement.is_posted);
+            }
+            if (investOperationReverse && !movement.is_posted) {
+                investOperationReverse.disabled = false;
+            }
         }
 
         if (investOperationSubmit) {
