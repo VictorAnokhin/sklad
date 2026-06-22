@@ -192,11 +192,9 @@ class DepositController extends Controller
             ->orderBy('name')
             ->get()
             ->map(function ($pool) {
-                $symbol = strtoupper((string) ($pool->symbol ?? ''));
-                if ($symbol === '') {
-                    $coinTypeParts = explode('::', (string) ($pool->coin_type ?? ''));
-                    $symbol = strtoupper((string) end($coinTypeParts));
-                }
+                $symbol = $this->normalizeCurrencyCode($pool->symbol ?? $this->symbolFromCoinType((string) ($pool->coin_type ?? '')));
+                $targetApy = (int) ($pool->target_apy_bps ?? 0);
+                $realizedApy = (int) ($pool->realized_apy_bps ?? 0);
 
                 return (object) [
                     'id' => (int) $pool->id,
@@ -205,7 +203,25 @@ class DepositController extends Controller
                     'currency' => $symbol !== '' ? $symbol : 'USDC',
                     'active' => (bool) ($pool->active ?? true),
                     'is_default_deposit' => (bool) ($pool->is_default_deposit ?? false),
+                    'balance' => Schema::hasColumn('fund_pools', 'balance') ? (float) ($pool->balance ?? 0) : 0.0,
+                    'apy_bps' => $realizedApy > 0 ? $realizedApy : $targetApy,
+                    'description' => (string) ($pool->description ?? ''),
                 ];
             });
     }
+
+    private function normalizeCurrencyCode(mixed $value): string
+    {
+        $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
+
+        return $currency !== '' ? substr($currency, 0, 10) : 'USDC';
+    }
+
+    private function symbolFromCoinType(string $coinType): string
+    {
+        $parts = explode('::', trim($coinType));
+
+        return strtoupper((string) end($parts));
+    }
+
 }

@@ -90,7 +90,12 @@
                 @if(($depositPools ?? collect())->isNotEmpty())
                 <optgroup label="Пулы">
                 @foreach($depositPools as $pool)
-                <option value="{{ $pool->asset_key }}" data-currency="{{ $pool->currency }}" {{ (string) old('money', $document->money ?? '') === (string) $pool->asset_key ? 'selected' : '' }}>
+                <option value="{{ $pool->asset_key }}"
+                    data-currency="{{ $pool->currency }}"
+                    data-balance="{{ number_format((float) ($pool->balance ?? 0), 2, '.', '') }}"
+                    data-apy-bps="{{ (int) ($pool->apy_bps ?? 0) }}"
+                    data-description="{{ $pool->description ?? '' }}"
+                    {{ (string) old('money', $document->money ?? '') === (string) $pool->asset_key ? 'selected' : '' }}>
                     {{ $pool->name }} | {{ $pool->currency }} @if($pool->is_default_deposit) · default @endif @if(!$pool->active) · inactive @endif
                 </option>
                 @endforeach

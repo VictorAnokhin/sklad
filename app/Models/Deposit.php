@@ -281,6 +281,10 @@ class Deposit extends Model
                 }
 
                 if ($mode === 'withdraw' && $depositId !== '' && $ownerUserId !== '' && $ownerUserId !== '0') {
+                    if (!$wasPosted) {
+                        self::assertDepositValueAvailable($fid, $depositId, $summa);
+                    }
+
                     self::shiftDepositValue($fid, $depositId, -1 * $summa * $direction);
                     Money::shiftUserBalance($fid, $ownerUserId, $summa * $direction, $currency);
                 }
@@ -354,6 +358,12 @@ class Deposit extends Model
 
     private static function shiftDepositValue(string $fid, string $depositId, float $delta): void
     {
+        if (str_starts_with($depositId, 'pool:')) {
+            self::shiftPoolBalance($depositId, $delta);
+
+            return;
+        }
+
         $deposit = self::depositQuery($fid, $depositId)
             ->lockForUpdate()
             ->first(['id', 'firma', 'value']);
@@ -367,6 +377,57 @@ class Deposit extends Model
             ->where('type', 'deposit')
             ->where('firma', $deposit->firma)
             ->update(['value' => (float) ($deposit->value ?? 0) + $delta]);
+    }
+
+    private static function assertDepositValueAvailable(string $fid, string $depositId, float $amount): void
+    {
+        $available = str_starts_with($depositId, 'pool:')
+            ? self::poolBalance($depositId, true)
+            : (float) (self::depositQuery($fid, $depositId)->value('value') ?? 0);
+
+        if ($available + 0.00000001 < $amount) {
+            throw new RuntimeException('Недостатньо коштів на депозиті.');
+        }
+    }
+
+    private static function shiftPoolBalance(string $assetKey, float $delta): void
+    {
+        $poolId = self::poolIdFromAssetKey($assetKey);
+        if ($poolId <= 0 || !Schema::hasTable('fund_pools') || !Schema::hasColumn('fund_pools', 'balance')) {
+            return;
+        }
+
+        $pool = DB::table('fund_pools')
+            ->where('id', $poolId)
+            ->lockForUpdate()
+            ->first(['id', 'balance']);
+        if (!$pool) {
+            return;
+        }
+
+        DB::table('fund_pools')
+            ->where('id', (int) $pool->id)
+            ->update(['balance' => (float) ($pool->balance ?? 0) + $delta]);
+    }
+
+    private static function poolBalance(string $assetKey, bool $lock = false): float
+    {
+        $poolId = self::poolIdFromAssetKey($assetKey);
+        if ($poolId <= 0 || !Schema::hasTable('fund_pools') || !Schema::hasColumn('fund_pools', 'balance')) {
+            return 0.0;
+        }
+
+        $query = DB::table('fund_pools')->where('id', $poolId);
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return (float) ($query->value('balance') ?? 0);
+    }
+
+    private static function poolIdFromAssetKey(string $assetKey): int
+    {
+        return str_starts_with($assetKey, 'pool:') ? (int) substr($assetKey, strlen('pool:')) : 0;
     }
 
     public static function depositCurrency(string $fid, string $depositId): string
