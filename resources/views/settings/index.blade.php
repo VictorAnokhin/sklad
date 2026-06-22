@@ -404,6 +404,10 @@
     #modalAccounts #payment-bindings-tab-pane .form-select {
         min-width: 260px;
     }
+
+    .pool-deposit-row {
+        cursor: pointer;
+    }
 </style>
 
 <div class="modal fade" id="modalCatalog" tabindex="-1" aria-labelledby="modalCatalogLabel" aria-hidden="true">
@@ -946,6 +950,41 @@
                     <tbody id="crud-tbody"></tbody>
                 </table>
                 <p class="text-center text-muted" id="empty-msg" style="display:none">Немає записів</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPoolDepositInfo" tabindex="-1" aria-labelledby="modalPoolDepositInfoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPoolDepositInfoLabel">Пул</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <div class="text-muted small">Balance</div>
+                        <div class="fw-semibold" id="pool-info-balance">—</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted small">balance_usdc</div>
+                        <div class="fw-semibold" id="pool-info-balance-usdc">—</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted small">Доходность</div>
+                        <div class="fw-semibold" id="pool-info-apy">—</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="text-muted small">Описание</div>
+                    <div id="pool-info-description">—</div>
+                </div>
+                <div>
+                    <div class="text-muted small">Object</div>
+                    <div class="font-monospace small" id="pool-info-object">—</div>
+                </div>
             </div>
         </div>
     </div>
@@ -3236,6 +3275,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initConfCrud(csrfToken) {
         const modal = document.getElementById('modalCrud');
+        const poolInfoModal = document.getElementById('modalPoolDepositInfo');
+        const poolInfoBootstrapModal = poolInfoModal ? new bootstrap.Modal(poolInfoModal) : null;
         const tbody = document.getElementById('crud-tbody');
         const formArea = document.getElementById('conf-form-area');
         const listArea = document.getElementById('conf-list-area');
@@ -3284,6 +3325,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let currentType = '';
         let currencyOptions = @json(($currencies ?? collect())->pluck('name')->values());
+        let poolDepositItems = new Map();
 
         fotoFileInput?.addEventListener('change', () => {
             updateImagePreview(fotoFileInput, 'form-foto-preview', 'form-foto-preview-wrap');
@@ -3346,11 +3388,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         tbody.addEventListener('click', (e) => {
+            const poolRow = e.target.closest('tr[data-action="pool-info"]');
+            if (poolRow && isPoolDepositMode()) {
+                showPoolDepositInfo(poolRow.dataset.id);
+                return;
+            }
+
             const btn = e.target.closest('.action-btn');
             if (!btn) return;
             const id = btn.dataset.id;
             if (btn.dataset.action === 'edit') {
                 editItem(id);
+            }
+            if (btn.dataset.action === 'pool-info') {
+                showPoolDepositInfo(id);
             }
             if (btn.dataset.action === 'delete') {
                 if (isPoolDepositMode()) {
@@ -3425,6 +3476,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function renderTable(items) {
             tbody.innerHTML = '';
+            poolDepositItems = new Map();
             if (!items.length) {
                 emptyMsg.style.display = 'block';
                 return;
@@ -3500,32 +3552,47 @@ document.addEventListener('DOMContentLoaded', () => {
         function renderPoolDepositRow(item) {
             const tr = document.createElement('tr');
             const symbol = item.currency || 'USDC';
-            const balance = formatNumber(item.balance || 0, 2);
-            const balanceUsdc = formatNumber(item.balance_usdc || 0, 2);
             const apy = `${formatNumber((item.apy_bps || 0) / 100, 2)}%`;
-            const description = item.description || item.notes || 'Описание не заполнено.';
             const statusLabel = String(item.status) === '1'
                 ? `<span class="badge bg-success">${_ts('crud.active')}</span>`
                 : `<span class="badge bg-secondary">${_ts('crud.inactive')}</span>`;
+            poolDepositItems.set(String(item.id), item);
+            tr.classList.add('pool-deposit-row');
+            tr.dataset.action = 'pool-info';
+            tr.dataset.id = item.id;
 
             tr.innerHTML = `
                 <td class="conf-id-col">${item.id}</td>
                 <td class="conf-name-col" colspan="2">
                     <div class="fw-semibold">${escapeHtml(item.name || '')}</div>
-                    <div class="text-muted small">${escapeHtml(description)}</div>
                 </td>
                 <td class="conf-currency-col">
                     <span class="badge bg-info text-dark">${escapeHtml(symbol)}</span>
-                    <div class="text-muted small">balance: ${escapeHtml(balance)} ${escapeHtml(symbol)}</div>
                 </td>
                 <td class="conf-status-col">
                     ${statusLabel}
-                    <div class="text-muted small">on-chain: ${escapeHtml(balanceUsdc)} USDC</div>
                     <div class="text-muted small">доходность: ${escapeHtml(apy)}</div>
                 </td>
                 <td class="text-end conf-actions-col"></td>
             `;
             tbody.appendChild(tr);
+        }
+
+        function showPoolDepositInfo(id) {
+            const item = poolDepositItems.get(String(id));
+            if (!item || !poolInfoBootstrapModal) {
+                return;
+            }
+
+            const symbol = item.currency || 'USDC';
+            const description = item.description || item.notes || 'Описание не заполнено.';
+            document.getElementById('modalPoolDepositInfoLabel').textContent = item.name || 'Пул';
+            document.getElementById('pool-info-balance').textContent = `${formatNumber(item.balance || 0, 2)} ${symbol}`;
+            document.getElementById('pool-info-balance-usdc').textContent = `${formatNumber(item.balance_usdc || 0, 2)} USDC`;
+            document.getElementById('pool-info-apy').textContent = `${formatNumber((item.apy_bps || 0) / 100, 2)}%`;
+            document.getElementById('pool-info-description').textContent = description;
+            document.getElementById('pool-info-object').textContent = item.pool_object_id || '—';
+            poolInfoBootstrapModal.show();
         }
 
         function editItem(id) {
