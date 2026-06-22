@@ -77,9 +77,9 @@
         </div>
 
         <div class="mb-3">
-            <label>Выбери депозит</label>
+            <label>Выбери пул</label>
             <select name="money" id="depositMoneySelect" class="form-control" required>
-                <option value="" data-currency="">{{ __('deposit.select_deposit') }}</option>
+                <option value="" data-currency="">-- выберите пул --</option>
                 @if(($deposits ?? collect())->isNotEmpty())
                 <optgroup label="Депозиты">
                 @foreach($deposits as $deposit)
@@ -90,7 +90,7 @@
                 </optgroup>
                 @endif
                 @if(($depositPools ?? collect())->isNotEmpty())
-                <optgroup label="{{ !empty($usesPoolDeposits) ? 'Выбери пул' : 'Пулы' }}">
+                <optgroup label="Пулы">
                 @foreach($depositPools as $pool)
                 <option value="{{ $pool->asset_key }}"
                     data-currency="{{ $pool->currency }}"
@@ -282,7 +282,7 @@
 
                 if (hint) {
                     hint.textContent = selectedCurrency
-                        ? `Показаны депозиты в валюте ${selectedCurrency}`
+                        ? `Показаны пулы в валюте ${selectedCurrency}`
                         : '';
                 }
             };
