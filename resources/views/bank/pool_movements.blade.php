@@ -112,79 +112,54 @@
                 <input type="hidden" name="_method" value="PUT" data-invest-operation-method disabled>
                 <input type="hidden" name="update_account_balance" value="1" data-invest-operation-update-balance>
                 <input type="hidden" name="redirect_to" value="bank.pool-movements">
-                <div class="bank-form-grid">
+                <div class="bank-form-grid bank-pool-movement-form">
                     <div class="bank-form-full bank-operation-mode" role="tablist" aria-label="Тип операции">
-                        <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Счет → Пул</button>
-                        <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="asset_to_account">Пул → Счет</button>
+                        <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Счет -> Пул</button>
+                        <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="asset_to_account">Пул -> Счет</button>
                         <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="revaluation">Переоценка</button>
                         <input type="hidden" name="direction" value="account_to_asset" data-invest-operation-direction>
                     </div>
 
-                    <div class="bank-form-full bank-operation-ledger-note">
-                        <div class="bank-operation-ledger-note__title">Операция может быть проведена двойной записью</div>
-                        <div class="bank-operation-ledger-note__body" data-invest-operation-ledger-copy>
-                            Дт Пул · Кт Операционный счет. Остаток операционного счета уменьшится на сумму операции.
-                        </div>
-                    </div>
+                    <input type="hidden" name="currency" value="USD" data-invest-operation-currency>
 
-                    <div class="bank-form-section bank-form-full" data-invest-operation-account-section>
-                        <div class="bank-form-section__title">1. Операционный счет</div>
-                        <label>
-                            <span>Счет</span>
-                            <select name="account_id" required data-invest-operation-account>
-                                @forelse($operationalAccounts as $account)
-                                    <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
-                                @empty
-                                    <option value="">Операционные счета не найдены</option>
-                                @endforelse
-                            </select>
-                        </label>
-                    </div>
+                    <label class="bank-form-field bank-pool-movement-field" data-pool-movement-field="date">
+                        <span>Дата</span>
+                        <input type="date" name="operated_at" data-invest-operation-date>
+                    </label>
 
-                    <div class="bank-form-section bank-form-full">
-                        <div class="bank-form-section__title">2. Пул</div>
-                        <label>
-                            <span>Пул</span>
-                            <select name="asset_key" required data-invest-operation-asset>
-                                @forelse($fixedAssetRows as $asset)
-                                    <option value="{{ $asset->asset_key }}">{{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
-                                @empty
-                                    <option value="">Пулы не найдены</option>
-                                @endforelse
-                            </select>
-                        </label>
-                    </div>
+                    <label class="bank-form-field bank-pool-movement-field" data-pool-movement-field="account" data-invest-operation-account-section>
+                        <span>Счет</span>
+                        <select name="account_id" required data-invest-operation-account>
+                            @forelse($operationalAccounts as $account)
+                                <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
+                            @empty
+                                <option value="">Операционные счета не найдены</option>
+                            @endforelse
+                        </select>
+                    </label>
 
-                    <div class="bank-form-section bank-form-full">
-                        <div class="bank-form-section__title" data-invest-operation-value-section-title>3. Сумма и дата</div>
-                        <div class="bank-form-grid bank-form-grid--compact">
-                            <label>
-                                <span>Валюта</span>
-                                <input type="text" name="currency" value="USD" maxlength="20" required data-invest-operation-currency>
-                            </label>
-                            <label>
-                                <span data-invest-operation-amount-label>Сумма</span>
-                                <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
-                                <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на пуле.</small>
-                            </label>
-                            <label>
-                                <span>Дата</span>
-                                <input type="date" name="operated_at" data-invest-operation-date>
-                            </label>
-                        </div>
-                    </div>
+                    <label class="bank-form-field bank-pool-movement-field" data-pool-movement-field="pool">
+                        <span>Пул</span>
+                        <select name="asset_key" required data-invest-operation-asset>
+                            @forelse($fixedAssetRows as $asset)
+                                <option value="{{ $asset->asset_key }}">{{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
+                            @empty
+                                <option value="">Пулы не найдены</option>
+                            @endforelse
+                        </select>
+                    </label>
 
-                    <div class="bank-form-full bank-operation-revaluation-note" data-invest-operation-revaluation-note hidden>
-                        <div class="bank-operation-revaluation-note__title">Переоценка пула</div>
-                        <div class="bank-operation-revaluation-note__body">
-                            Укажите дельту стоимости: положительная сумма увеличивает пул, отрицательная уменьшает.
-                        </div>
-                    </div>
+                    <label class="bank-form-field bank-pool-movement-field" data-pool-movement-field="amount">
+                        <span data-invest-operation-amount-label>Сумма</span>
+                        <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
+                        <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на пуле.</small>
+                    </label>
+
+                    <label class="bank-form-field bank-pool-movement-field" data-pool-movement-field="comment">
+                        <span>Комментарий</span>
+                        <textarea name="note" rows="3" data-invest-operation-note></textarea>
+                    </label>
                 </div>
-                <label class="bank-form-field">
-                    <span>Комментарий</span>
-                    <textarea name="note" rows="3" data-invest-operation-note></textarea>
-                </label>
                 <label class="bank-operation-post-ledger">
                     <input type="checkbox" name="post_ledger" value="1" checked data-invest-operation-post-ledger>
                     <span>
@@ -270,6 +245,14 @@
         gap: 10px;
         align-items: flex-start;
         margin-top: 12px;
+    }
+
+    .bank-pool-movement-form {
+        grid-template-columns: 1fr;
+    }
+
+    .bank-pool-movement-field {
+        grid-column: 1 / -1;
     }
 
     .bank-invest-page .bank-table > :not(caption) > * > * {
@@ -364,6 +347,13 @@
         const operatedAt = root.querySelector('[data-invest-operation-date]');
         const note = root.querySelector('[data-invest-operation-note]');
         const storeAction = form ? form.action : '';
+        const movementFields = {
+            date: root.querySelector('[data-pool-movement-field="date"]'),
+            account: root.querySelector('[data-pool-movement-field="account"]'),
+            pool: root.querySelector('[data-pool-movement-field="pool"]'),
+            amount: root.querySelector('[data-pool-movement-field="amount"]'),
+            comment: root.querySelector('[data-pool-movement-field="comment"]'),
+        };
 
         function setDirection(nextDirection) {
             if (direction) direction.value = nextDirection;
@@ -389,6 +379,21 @@
                     : nextDirection === 'asset_to_account'
                         ? 'Дт Операционный счет · Кт Пул. Остаток операционного счета увеличится.'
                         : 'Дт Пул · Кт Операционный счет. Остаток операционного счета уменьшится.';
+            }
+
+            const order = nextDirection === 'asset_to_account'
+                ? ['date', 'pool', 'account', 'amount', 'comment']
+                : ['date', 'account', 'pool', 'amount', 'comment'];
+            if (nextDirection === 'revaluation') {
+                order.splice(1, 2, 'pool');
+            }
+            order.forEach((key, index) => {
+                if (movementFields[key]) {
+                    movementFields[key].style.order = String(index + 1);
+                }
+            });
+            if (movementFields.account) {
+                movementFields.account.hidden = nextDirection === 'revaluation';
             }
         }
 
