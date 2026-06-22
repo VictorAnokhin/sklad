@@ -160,18 +160,17 @@
                         <textarea name="note" rows="3" data-invest-operation-note></textarea>
                     </label>
                 </div>
-                <label class="bank-operation-post-ledger">
-                    <input type="checkbox" name="post_ledger" value="1" checked data-invest-operation-post-ledger>
-                    <span>
-                        <strong>Проводка</strong>
-                        <small>Создать двойную запись и изменить остаток операционного счета.</small>
-                    </span>
-                </label>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-invest-operation-close>Отмена</button>
-                    <button type="submit" class="btn btn-outline-danger me-auto" formnovalidate data-invest-operation-delete hidden>Удалить</button>
                     <button type="submit" class="btn btn-warning" formnovalidate data-invest-operation-reverse hidden>Отменить проводку</button>
+                    <label class="bank-operation-post-ledger">
+                        <input type="checkbox" name="post_ledger" value="1" checked data-invest-operation-post-ledger>
+                        <span>
+                            <strong>Проводка</strong>
+                        </span>
+                    </label>
                     <button type="submit" class="btn btn-primary" data-invest-operation-submit>Сохранить</button>
+                    <button type="submit" class="btn btn-outline-danger" formnovalidate data-invest-operation-delete hidden>Удалить</button>
                 </div>
             </form>
         </div>
@@ -243,8 +242,10 @@
     .bank-operation-post-ledger {
         display: flex;
         gap: 10px;
-        align-items: flex-start;
-        margin-top: 12px;
+        align-items: center;
+        margin: 0 0 0 auto;
+        min-height: 38px;
+        padding: 0 12px;
     }
 
     .bank-pool-movement-form {
