@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class BankController extends Controller
@@ -913,12 +914,6 @@ class BankController extends Controller
             return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Операция не редактируется: по этому активу уже есть более новый документ.');
         }
 
-        [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id);
-        if ((string) $asset->asset_key !== (string) $current->asset_key
-            && $this->hasNewerInvestOperationForAsset((int) $project->id, (string) $asset->asset_key, (string) $current->operated_at, (int) $current->id)) {
-            return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Операция не редактируется: по выбранному активу уже есть более новый документ.');
-        }
-
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
         $assetOptions = $this->investOperationAssetOptions((int) $project->id);
         $currentAccount = $operationalAccounts->firstWhere('id', (string) $current->account_id)
@@ -929,6 +924,13 @@ class BankController extends Controller
                 'asset_type' => (string) $current->asset_type,
                 'name' => (string) $current->asset_label,
             ];
+        $this->assertInvestOperationReversalDebitAvailable($currentAccount, $current);
+
+        [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id, $current);
+        if ((string) $asset->asset_key !== (string) $current->asset_key
+            && $this->hasNewerInvestOperationForAsset((int) $project->id, (string) $asset->asset_key, (string) $current->operated_at, (int) $current->id)) {
+            return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Операция не редактируется: по выбранному активу уже есть более новый документ.');
+        }
 
         DB::transaction(function () use ($operation, $project, $current, $currentAccount, $currentAsset, $payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt): void {
             $now = now();
@@ -1010,6 +1012,7 @@ class BankController extends Controller
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
         $account = $operationalAccounts->firstWhere('id', (string) $current->account_id)
             ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
+        $this->assertInvestOperationReversalDebitAvailable($account, $current);
 
         DB::transaction(function () use ($operation, $project, $current, $account): void {
             if ((int) ($current->ledger_transaction_id ?? 0) > 0 || (string) ($current->status ?? 'pending') === 'posted') {
@@ -1059,6 +1062,7 @@ class BankController extends Controller
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
         $account = $operationalAccounts->firstWhere('id', (string) $current->account_id)
             ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
+        $this->assertInvestOperationReversalDebitAvailable($account, $current);
 
         DB::transaction(function () use ($operation, $project, $current, $account): void {
             $this->reverseInvestOperationLedgers((int) $project->id, $operation, (int) ($current->ledger_transaction_id ?? 0));
@@ -1175,7 +1179,7 @@ class BankController extends Controller
         return $reversal ? [$reversal] : [];
     }
 
-    private function investOperationPayload(Request $request, int $projectId): array
+    private function investOperationPayload(Request $request, int $projectId, ?object $currentOperation = null): array
     {
         $operationalAccounts = $this->bankOperationalAccounts((string) $projectId);
         $accountIds = $operationalAccounts->pluck('id')->map(fn ($id) => (string) $id)->all();
@@ -1234,8 +1238,8 @@ class BankController extends Controller
             );
             $accountCurrency = $this->normalizeCurrencyCode((string) ($account->currency ?? ''));
             abort_unless($accountCurrency === $currency, 422, "Валюта счета {$accountCurrency} не совпадает с валютой операции {$currency}.");
-            if ((string) $payload['direction'] === 'account_to_asset' && (float) ($account->balance ?? 0) + 0.00000001 < $amount) {
-                abort(422, 'Недостаточно средств на операционном счете.');
+            if ((string) $payload['direction'] === 'account_to_asset') {
+                $this->assertInvestAccountDebitAvailable($account, $amount, $currency, $currentOperation);
             }
         }
         $operatedAt = $request->filled('operated_at')
@@ -1243,6 +1247,75 @@ class BankController extends Controller
             : now()->toDateTimeString();
 
         return [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt];
+    }
+
+    private function assertInvestAccountDebitAvailable(?object $account, float $amount, string $currency, ?object $currentOperation = null): void
+    {
+        if (! $account) {
+            throw ValidationException::withMessages([
+                'account_id' => 'Операционный счет для списания не найден.',
+            ]);
+        }
+
+        $accountCurrency = $this->normalizeCurrencyCode((string) ($account->currency ?? ''));
+        $currency = $this->normalizeCurrencyCode($currency);
+        if ($accountCurrency !== $currency) {
+            throw ValidationException::withMessages([
+                'currency' => "Валюта счета {$accountCurrency} не совпадает с валютой операции {$currency}.",
+            ]);
+        }
+
+        $available = $this->investAccountAvailableBalanceAfterReversal($account, $currentOperation);
+        if ($available + 0.00000001 < $amount) {
+            throw ValidationException::withMessages([
+                'amount' => 'Недостаточно средств на операционном счете. Доступно: '
+                    . number_format(max(0, $available), 2, '.', ' ')
+                    . " {$accountCurrency}.",
+            ]);
+        }
+    }
+
+    private function assertInvestOperationReversalDebitAvailable(?object $account, ?object $operation): void
+    {
+        if (! $operation || ! $this->isPostedInvestOperation($operation) || (string) ($operation->direction ?? '') !== 'asset_to_account') {
+            return;
+        }
+
+        $this->assertInvestAccountDebitAvailable(
+            $account,
+            (float) ($operation->amount ?? 0),
+            $this->normalizeCurrencyCode((string) ($operation->currency ?? '')),
+            null
+        );
+    }
+
+    private function investAccountAvailableBalanceAfterReversal(?object $account, ?object $operation): float
+    {
+        $available = (float) ($account->balance ?? 0);
+        if (! $account || ! $operation || ! $this->isPostedInvestOperation($operation)) {
+            return $available;
+        }
+
+        if ((string) ($account->id ?? '') !== (string) ($operation->account_id ?? '')) {
+            return $available;
+        }
+
+        $accountCurrency = $this->normalizeCurrencyCode((string) ($account->currency ?? ''));
+        $operationCurrency = $this->normalizeCurrencyCode((string) ($operation->currency ?? ''));
+        if ($accountCurrency !== $operationCurrency) {
+            return $available;
+        }
+
+        return match ((string) ($operation->direction ?? '')) {
+            'account_to_asset' => $available + (float) ($operation->amount ?? 0),
+            'asset_to_account' => $available - (float) ($operation->amount ?? 0),
+            default => $available,
+        };
+    }
+
+    private function isPostedInvestOperation(object $operation): bool
+    {
+        return (int) ($operation->ledger_transaction_id ?? 0) > 0 || (string) ($operation->status ?? 'pending') === 'posted';
     }
 
     private function applyInvestOperationAccountBalance(?object $account, string $direction, float $amount, string $currency): void
