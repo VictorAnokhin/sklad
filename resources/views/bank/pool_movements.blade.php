@@ -122,7 +122,7 @@
 
                     <label class="bank-form-field bank-pool-movement-field" data-pool-movement-field="date">
                         <span>Дата</span>
-                        <input type="date" name="operated_at" data-invest-operation-date>
+                        <input type="datetime-local" name="operated_at" data-invest-operation-date>
                     </label>
 
                     <label class="bank-form-field bank-pool-movement-field" data-pool-movement-field="account" data-invest-operation-account-section>
@@ -330,6 +330,30 @@
             }
         }
 
+        function formatDateTimeLocal(value = new Date()) {
+            if (typeof value === 'string') {
+                const raw = value.trim();
+                if (!raw) {
+                    return '';
+                }
+                if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+                    return `${raw}T00:00`;
+                }
+                return raw.replace(' ', 'T').slice(0, 16);
+            }
+
+            const date = value instanceof Date ? value : new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+            const pad = (number) => String(number).padStart(2, '0');
+            return [
+                date.getFullYear(),
+                pad(date.getMonth() + 1),
+                pad(date.getDate()),
+            ].join('-') + 'T' + [pad(date.getHours()), pad(date.getMinutes())].join(':');
+        }
+
         const modal = root.querySelector('[data-invest-operation-modal]');
         const form = root.querySelector('[data-invest-operation-form]');
         const method = root.querySelector('[data-invest-operation-method]');
@@ -432,6 +456,9 @@
                 postLedger.disabled = false;
             }
             if (postLedgerField) postLedgerField.hidden = false;
+            if (operatedAt) {
+                operatedAt.value = formatDateTimeLocal();
+            }
             if (title) title.textContent = 'Создать операцию';
             if (subtitle) subtitle.textContent = 'Фиксирует движение средств между операционным счетом и пулом.';
             if (submit) {
@@ -466,7 +493,7 @@
             if (asset) asset.value = movement.asset_key || '';
             if (currency) currency.value = movement.currency || 'USD';
             if (amount) amount.value = movement.amount || movement.value_usd || '';
-            if (operatedAt) operatedAt.value = String(movement.date || '').slice(0, 10);
+            if (operatedAt) operatedAt.value = formatDateTimeLocal(movement.date || '');
             if (note) note.value = movement.note || '';
             if (title) title.textContent = `Редактировать операцию #${movement.id}`;
             if (subtitle) {

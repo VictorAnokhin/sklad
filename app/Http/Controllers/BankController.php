@@ -1236,8 +1236,8 @@ class BankController extends Controller
             }
         }
         $operatedAt = $request->filled('operated_at')
-            ? Carbon::parse((string) $payload['operated_at'])->toDateString()
-            : now()->toDateString();
+            ? Carbon::parse((string) $payload['operated_at'])->toDateTimeString()
+            : now()->toDateTimeString();
 
         return [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt];
     }
