@@ -303,6 +303,22 @@
         font-size: 13px;
         line-height: 1.45;
     }
+
+    .bank-invest-page .bank-operation-table > :not(caption) > * > * {
+        padding-top: 0.28rem;
+        padding-bottom: 0.28rem;
+        line-height: 1.15;
+    }
+
+    .bank-invest-page .bank-operation-table .bank-meta {
+        margin-top: 1px;
+        line-height: 1.12;
+    }
+
+    .bank-invest-page .bank-operation-table .bank-pill,
+    .bank-invest-page .bank-operation-table .bank-status {
+        line-height: 1;
+    }
 </style>
 @endsection
 
