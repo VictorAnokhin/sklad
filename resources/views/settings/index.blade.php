@@ -3280,6 +3280,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('form-doc-zp'),
             document.getElementById('form-doc-pro'),
         ];
+        const settingsDepositsUsePools = @json((bool) ($settingsDepositsUsePools ?? false));
 
         let currentType = '';
         let currencyOptions = @json(($currencies ?? collect())->pluck('name')->values());
@@ -3292,6 +3293,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = e.relatedTarget;
             currentType = btn.dataset.type;
             document.getElementById('modalCrudLabel').textContent = btn.dataset.title;
+            addBtn.style.display = isPoolDepositMode() ? 'none' : '';
             configureStatusField();
             hideForm();
             loadData();
@@ -3300,10 +3302,14 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.addEventListener('hidden.bs.modal', () => {
             hideForm();
             currentType = '';
+            addBtn.style.display = '';
             configureStatusField();
         });
 
         addBtn.addEventListener('click', () => {
+            if (isPoolDepositMode()) {
+                return;
+            }
             document.getElementById('form-id').value = '';
             document.getElementById('form-name').value = '';
             colorInput.value = '';
@@ -3347,6 +3353,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 editItem(id);
             }
             if (btn.dataset.action === 'delete') {
+                if (isPoolDepositMode()) {
+                    return;
+                }
                 deleteItem(id, btn);
             }
         });
@@ -3423,6 +3432,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             emptyMsg.style.display = 'none';
             items.forEach((item) => {
+                if (isPoolDepositMode()) {
+                    renderPoolDepositRow(item);
+                    return;
+                }
+
                 const tr = document.createElement('tr');
                 const colorHtml = item.color
                     ? `<span style="display:inline-block;width:16px;height:16px;background:${item.color};border-radius:3px;vertical-align:middle"></span> ${escapeHtml(item.color)}`
@@ -3442,6 +3456,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isCompactConfTable = currentType === 'sklads' || currentType === 'oplata';
                 const editLabel = isCompactConfTable ? '✏' : _ts('crud.edit');
                 const deleteLabel = isCompactConfTable ? '🗑' : _ts('crud.delete');
+                const deleteButtonHtml = isPoolDepositMode()
+                    ? ''
+                    : `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}" title="${escapeHtml(_ts('crud.delete'))}">${deleteLabel}</button>`;
                 let statusLabel = `<span class="badge bg-secondary">${_ts('crud.inactive')}</span>`;
                 if (currentType === 'tgroup') {
                     statusLabel = String(item.status) === '1'
@@ -3473,11 +3490,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${currentType === 'reestr' ? `<td class="conf-doc-col">${docHtml}</td>` : ''}
                     <td class="text-end conf-actions-col">
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}" title="${escapeHtml(_ts('crud.edit'))}">${editLabel}</button>
-                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}" title="${escapeHtml(_ts('crud.delete'))}">${deleteLabel}</button>
+                        ${deleteButtonHtml}
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
+        }
+
+        function renderPoolDepositRow(item) {
+            const tr = document.createElement('tr');
+            const symbol = item.currency || 'USDC';
+            const balance = formatNumber(item.balance || 0, 2);
+            const balanceUsdc = formatNumber(item.balance_usdc || 0, 2);
+            const apy = `${formatNumber((item.apy_bps || 0) / 100, 2)}%`;
+            const description = item.description || item.notes || 'Описание не заполнено.';
+            const statusLabel = String(item.status) === '1'
+                ? `<span class="badge bg-success">${_ts('crud.active')}</span>`
+                : `<span class="badge bg-secondary">${_ts('crud.inactive')}</span>`;
+
+            tr.innerHTML = `
+                <td class="conf-id-col">${item.id}</td>
+                <td class="conf-name-col" colspan="2">
+                    <div class="fw-semibold">${escapeHtml(item.name || '')}</div>
+                    <div class="text-muted small">${escapeHtml(description)}</div>
+                </td>
+                <td class="conf-currency-col">
+                    <span class="badge bg-info text-dark">${escapeHtml(symbol)}</span>
+                    <div class="text-muted small">balance: ${escapeHtml(balance)} ${escapeHtml(symbol)}</div>
+                </td>
+                <td class="conf-status-col">
+                    ${statusLabel}
+                    <div class="text-muted small">on-chain: ${escapeHtml(balanceUsdc)} USDC</div>
+                    <div class="text-muted small">доходность: ${escapeHtml(apy)}</div>
+                </td>
+                <td class="text-end conf-actions-col"></td>
+            `;
+            tbody.appendChild(tr);
         }
 
         function editItem(id) {
@@ -3555,7 +3603,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function showForm() {
             formArea.style.display = 'block';
             listArea.style.display = 'none';
-            deleteBtn.style.display = document.getElementById('form-id').value ? '' : 'none';
+            deleteBtn.style.display = document.getElementById('form-id').value && !isPoolDepositMode() ? '' : 'none';
         }
 
         function hideForm() {
@@ -3716,6 +3764,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function getTableColumnCount() {
             let count = 5;
+            if (isPoolDepositMode()) {
+                return 6;
+            }
             if (currentType === 'sklads') {
                 return 6;
             }
@@ -3732,6 +3783,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 count -= 1;
             }
             return count;
+        }
+
+        function isPoolDepositMode() {
+            return settingsDepositsUsePools && currentType === 'deposit';
+        }
+
+        function formatNumber(value, digits = 2) {
+            const number = Number(value || 0);
+            return Number.isFinite(number)
+                ? number.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+                : '0';
         }
 
         function setDocFlags(value) {

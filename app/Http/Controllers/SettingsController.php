@@ -72,8 +72,11 @@ class SettingsController extends Controller
         // Офисы — conf where type='sklads'
         $sklads = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
 
-        // Депозиты — conf where type='deposit'
-        $deposits = DB::table('conf')->where('type', 'deposit')->where('firma', $fid)->orderBy('name')->get();
+        // Депозиты: для торговли используем пулы fund_pools, для остальных проектов старый conf type='deposit'.
+        $settingsDepositsUsePools = $this->settingsUsesPoolDeposits($fid);
+        $deposits = $settingsDepositsUsePools
+            ? $this->settingsPoolDepositRows()
+            : DB::table('conf')->where('type', 'deposit')->where('firma', $fid)->orderBy('name')->get();
 
         $myCompanies = collect();
         if ($user) {
@@ -167,7 +170,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'sklads', 'deposits', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -320,6 +323,10 @@ class SettingsController extends Controller
     public function apiIndex($type)
     {
         $fid = session('fid', '');
+        if ($type === 'deposit' && $this->settingsUsesPoolDeposits($fid)) {
+            return response()->json($this->settingsPoolDepositRows());
+        }
+
         $items = DB::table('conf')->where('type', $type)->where('firma', $fid)->orderBy('name')->get()
             ->map(fn ($item) => $this->decorateConfItem($item, $type));
         return response()->json($items);
@@ -332,6 +339,15 @@ class SettingsController extends Controller
     public function apiShow($type, $id)
     {
         $fid = session('fid', '');
+        if ($type === 'deposit' && $this->settingsUsesPoolDeposits($fid)) {
+            $item = $this->settingsPoolDepositRows()->firstWhere('id', (int) $id);
+            if (! $item) {
+                return response()->json(['message' => 'Не знайдено'], 404);
+            }
+
+            return response()->json($item);
+        }
+
         $item = DB::table('conf')->where('id', $id)->where('type', $type)->where('firma', $fid)->first();
         if (!$item) return response()->json(['message' => 'Не знайдено'], 404);
         return response()->json($this->decorateConfItem($item, $type));
@@ -344,6 +360,10 @@ class SettingsController extends Controller
     public function apiStore(Request $request)
     {
         $fid = session('fid', '');
+        if ((string) $request->input('type') === 'deposit' && $this->settingsUsesPoolDeposits($fid)) {
+            return response()->json(['success' => false, 'message' => 'Депозиты-пулы доступны только для просмотра.'], 403);
+        }
+
         $data = $this->validateConfRecord($request);
         $data['hide'] = '0';
         $data['firma'] = $fid;
@@ -361,6 +381,10 @@ class SettingsController extends Controller
     public function apiUpdate(Request $request, $id)
     {
         $fid = session('fid', '');
+        if ((string) $request->input('type') === 'deposit' && $this->settingsUsesPoolDeposits($fid)) {
+            return response()->json(['success' => false, 'message' => 'Депозиты-пулы доступны только для просмотра.'], 403);
+        }
+
         $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
         $update = $this->validateConfRecord($request, $exists);
@@ -399,6 +423,153 @@ class SettingsController extends Controller
                 10
             )
         );
+    }
+
+    private function settingsUsesPoolDeposits(mixed $fid): bool
+    {
+        if (! Schema::hasTable('project') || $fid === '' || $fid === null) {
+            return false;
+        }
+
+        $project = DB::table('project')->where('id', (int) $fid)->first();
+        if (! $project) {
+            return false;
+        }
+
+        $type = strtolower(trim((string) ($project->project_type ?? '')));
+        $label = mb_strtolower(trim((string) ($project->type ?? $project->name ?? '')));
+
+        return $type === 'trade' || $label === 'торговля';
+    }
+
+    private function settingsPoolDepositRows()
+    {
+        if (! Schema::hasTable('fund_pools')) {
+            return collect();
+        }
+
+        $eventsByPool = Schema::hasTable('fund_pool_events')
+            ? DB::table('fund_pool_events')
+                ->orderByDesc('event_at')
+                ->orderByDesc('id')
+                ->get()
+                ->groupBy(fn ($event) => strtolower((string) ($event->pool_object_id ?? '')))
+            : collect();
+
+        return DB::table('fund_pools')
+            ->orderByDesc(Schema::hasColumn('fund_pools', 'active') ? 'active' : 'id')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($pool) use ($eventsByPool) {
+                $symbol = $this->normalizeCurrencyCode($pool->symbol ?? 'USDC');
+                $active = (bool) ($pool->active ?? true);
+                $latestEvent = $eventsByPool->get(strtolower((string) ($pool->pool_object_id ?? '')), collect())->first();
+                $targetApy = (int) ($latestEvent->target_apy_bps ?? $pool->target_apy_bps ?? 0);
+                $realizedApy = (int) ($latestEvent->realized_apy_bps ?? $pool->realized_apy_bps ?? 0);
+
+                return (object) [
+                    'id' => (int) $pool->id,
+                    'type' => 'deposit',
+                    'name' => (string) ($pool->name ?? 'Pool #' . $pool->id),
+                    'color' => '',
+                    'status' => $active ? '1' : '0',
+                    'vision' => '1',
+                    'constanta' => Schema::hasColumn('fund_pools', 'balance') ? (string) ($pool->balance ?? '0') : '0',
+                    'currency' => $symbol,
+                    'is_default' => (int) ($pool->is_default_deposit ?? 0),
+                    'pool_object_id' => (string) ($pool->pool_object_id ?? ''),
+                    'balance' => Schema::hasColumn('fund_pools', 'balance') ? (float) ($pool->balance ?? 0) : 0.0,
+                    'balance_usdc' => $latestEvent
+                        ? $this->settingsUsdcAtomicToFloat((string) ($latestEvent->balance_usdc ?? '0'))
+                        : 0.0,
+                    'apy_bps' => $realizedApy > 0 ? $realizedApy : $targetApy,
+                    'target_apy_bps' => $targetApy,
+                    'realized_apy_bps' => $realizedApy,
+                    'description' => (string) ($pool->description ?? ''),
+                    'notes' => (string) ($pool->notes ?? ''),
+                ];
+            });
+    }
+
+    private function settingsUsdcAtomicToFloat(string $value): float
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0.0;
+        }
+        if (str_contains($value, '.')) {
+            return (float) $value;
+        }
+
+        return (float) $value / 1_000_000;
+    }
+
+    private function storeSettingsPoolDeposit(Request $request): int
+    {
+        abort_unless(Schema::hasTable('fund_pools'), 404);
+
+        $payload = $this->settingsPoolDepositPayload($request, true);
+        $payload += [
+            'pool_registry_id' => '',
+            'pool_admin_cap_id' => '',
+            'pool_object_id' => 'internal-' . bin2hex(random_bytes(8)),
+            'created_by' => Auth::id(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
+        return (int) DB::table('fund_pools')->insertGetId($payload);
+    }
+
+    private function updateSettingsPoolDeposit(Request $request, int $poolId): bool
+    {
+        abort_unless(Schema::hasTable('fund_pools'), 404);
+
+        $payload = $this->settingsPoolDepositPayload($request, false);
+        $payload['updated_at'] = now();
+
+        return DB::table('fund_pools')->where('id', $poolId)->update($payload) > 0;
+    }
+
+    private function settingsPoolDepositPayload(Request $request, bool $forCreate): array
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'currency' => ['nullable', 'string', 'max:10'],
+            'status' => ['nullable', 'string'],
+        ]);
+
+        $symbol = $this->normalizeCurrencyCode($validated['currency'] ?? 'USDC');
+        $payload = [
+            'coin_type' => "internal::pool::{$symbol}",
+            'symbol' => $symbol,
+            'name' => trim((string) $validated['name']),
+            'active' => (string) ($validated['status'] ?? '1') === '1',
+        ];
+
+        if ($forCreate) {
+            $payload += [
+                'network' => 'internal',
+                'package_id' => '',
+                'risk_level' => 1,
+                'target_apy_bps' => 0,
+                'realized_apy_bps' => 0,
+                'min_deposit_usdc' => '0',
+                'min_av8_balance' => '0',
+                'max_weight_bps' => 10000,
+                'logo_url' => '',
+                'notes' => null,
+            ];
+        }
+
+        if ($forCreate && Schema::hasColumn('fund_pools', 'balance')) {
+            $payload['balance'] = 0;
+        }
+        if ($forCreate && Schema::hasColumn('fund_pools', 'is_default_deposit')) {
+            $payload['is_default_deposit'] = false;
+        }
+
+        return $payload;
     }
 
     public function accountsIndex()
