@@ -478,13 +478,13 @@
       right: 1rem;
       left: 1rem;
       min-width: 0;
-      padding: 0.75rem;
+      padding: 0.45rem;
       background: linear-gradient(180deg, rgba(19, 24, 33, 0.96), rgba(10, 13, 18, 0.98));
       backdrop-filter: blur(15px);
       border: 1px solid rgba(251, 191, 36, 0.25);
-      border-radius: 20px;
-      box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7);
-      margin-top: 0.5rem;
+      border-radius: 14px;
+      box-shadow: 0 18px 42px -14px rgba(0, 0, 0, 0.72);
+      margin-top: 0.35rem;
       display: none; /* Скрыто по умолчанию, показывается через .is-open */
       z-index: 1000;
     }
@@ -503,16 +503,18 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 0.85rem 0.5rem;
-      font-size: 0.9rem;
+      min-height: 34px;
+      padding: 0.45rem 0.45rem;
+      font-size: 0.78rem;
       font-weight: 600;
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
+      border-radius: 8px;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       color: rgba(255, 255, 255, 0.9);
       text-decoration: none;
       text-align: center;
+      line-height: 1.15;
     }
 
     .header-nav-menu__link:hover {
@@ -546,16 +548,16 @@
   }
 
   .header-nav-menu__section-label {
-    padding: 1.25rem 0.85rem 0.5rem;
+    padding: 0.65rem 0.45rem 0.25rem;
     color: #fbbf24;
-    font-size: 0.7rem;
+    font-size: 0.62rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.12em;
     opacity: 0.9;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.45rem;
   }
 
   .header-nav-menu__section-label::after {
@@ -567,9 +569,9 @@
 
   .header-nav-menu__grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.6rem;
-    padding: 0.4rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+    padding: 0.2rem;
   }
 
   /* Project selector in mobile menu */
@@ -614,6 +616,18 @@
 
   .header-nav-menu__project-select option {
     color: #111827;
+  }
+
+  @media (max-width: 520px) {
+    .header-nav-menu__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .header-nav-menu__link {
+      font-size: 0.76rem;
+      min-height: 32px;
+      padding: 0.4rem 0.35rem;
+    }
   }
 
   /* Общий стиль для таблиц в отчетах */
