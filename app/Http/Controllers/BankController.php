@@ -59,9 +59,6 @@ class BankController extends Controller
         $totalByCurrency = $clientAccounts
             ->groupBy('currency')
             ->map(fn ($items) => (float) $items->sum('balance'));
-        $operationalTotalByCurrency = $cashAccounts
-            ->groupBy('currency')
-            ->map(fn ($items) => (float) $items->sum('balance'));
         $ownerTypeTotals = $clientAccounts
             ->groupBy('owner_type')
             ->map(fn ($items) => [
@@ -75,10 +72,23 @@ class BankController extends Controller
             'clientAccounts' => $clientAccounts,
             'projectAccounts' => $projectAccounts,
             'personOwners' => $this->personOwners((string) $project->id, $clientAccounts),
-            'emailWalletBindings' => $this->emailWalletBindings((string) $project->id),
             'totalByCurrency' => $totalByCurrency,
-            'operationalTotalByCurrency' => $operationalTotalByCurrency,
             'ownerTypeTotals' => $ownerTypeTotals,
+        ]);
+    }
+
+    public function operationalAccounts(): View
+    {
+        $project = $this->bankProject();
+        $cashAccounts = $this->bankOperationalAccountsByAccountType((string) $project->id, 'bank');
+        $operationalTotalByCurrency = $cashAccounts
+            ->groupBy('currency')
+            ->map(fn ($items) => (float) $items->sum('balance'));
+
+        return view('bank.operational_accounts', [
+            'project' => $project,
+            'cashAccounts' => $cashAccounts,
+            'operationalTotalByCurrency' => $operationalTotalByCurrency,
         ]);
     }
 
@@ -140,7 +150,9 @@ class BankController extends Controller
 
         DB::table('conf')->insert($values);
 
-        return redirect()->route('bank.cash-accounts')->with('success', 'Операционный счёт создан.');
+        return redirect()
+            ->route($this->operationalAccountReturnRoute($request))
+            ->with('success', 'Операционный счёт создан.');
     }
 
     public function updateOperationalAccount(Request $request, int $account): RedirectResponse
@@ -176,15 +188,19 @@ class BankController extends Controller
             ->where('firma', (string) $project->id);
 
         if (! $query->exists()) {
-            return redirect()->route('bank.cash-accounts')->with('error', 'Операционный счёт не найден.');
+            return redirect()
+                ->route($this->operationalAccountReturnRoute($request))
+                ->with('error', 'Операционный счёт не найден.');
         }
 
         $query->update($values);
 
-        return redirect()->route('bank.cash-accounts')->with('success', 'Операционный счёт сохранён.');
+        return redirect()
+            ->route($this->operationalAccountReturnRoute($request))
+            ->with('success', 'Операционный счёт сохранён.');
     }
 
-    public function destroyOperationalAccount(int $account): RedirectResponse
+    public function destroyOperationalAccount(Request $request, int $account): RedirectResponse
     {
         $project = $this->bankProject();
         abort_unless(Schema::hasTable('conf'), 404);
@@ -196,10 +212,14 @@ class BankController extends Controller
             ->delete();
 
         if ($deleted === 0) {
-            return redirect()->route('bank.cash-accounts')->with('error', 'Операционный счёт не найден.');
+            return redirect()
+                ->route($this->operationalAccountReturnRoute($request))
+                ->with('error', 'Операционный счёт не найден.');
         }
 
-        return redirect()->route('bank.cash-accounts')->with('success', 'Операционный счёт удалён.');
+        return redirect()
+            ->route($this->operationalAccountReturnRoute($request))
+            ->with('success', 'Операционный счёт удалён.');
     }
 
     public function destroyProjectAccount(int $project, int $account): RedirectResponse
@@ -3199,6 +3219,33 @@ class BankController extends Controller
         return $this->bankOperationalAccountsForProjects([$projectId]);
     }
 
+    private function bankOperationalAccountsByAccountType(string $projectId, string $accountType)
+    {
+        if (! Schema::hasTable('conf')) {
+            return collect();
+        }
+
+        $query = DB::table('conf')
+            ->where('type', 'oplata')
+            ->where('firma', $projectId);
+
+        if (Schema::hasColumn('conf', 'doc')) {
+            $query->where(function ($nested) use ($accountType): void {
+                $nested->where('doc', $accountType);
+                if ($accountType === 'bank') {
+                    $nested->orWhereNull('doc')->orWhere('doc', '');
+                }
+            });
+        }
+
+        return $query
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($account) => $this->normalizeCashAccount($account))
+            ->where('account_type', $accountType)
+            ->values();
+    }
+
     private function bankOperationalAccountsForProjects(array $projectIds)
     {
         if (! Schema::hasTable('conf')) {
@@ -3211,6 +3258,13 @@ class BankController extends Controller
             ->orderBy('name')
             ->get()
             ->map(fn ($account) => $this->normalizeCashAccount($account));
+    }
+
+    private function operationalAccountReturnRoute(Request $request): string
+    {
+        return $request->input('redirect_to') === 'bank.operational-accounts'
+            ? 'bank.operational-accounts'
+            : 'bank.cash-accounts';
     }
 
     private function depositTransferAccountId(object $document, string $direction): string

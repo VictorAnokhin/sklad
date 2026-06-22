@@ -174,6 +174,7 @@
       <div class="header-nav-menu__section-label">Банк</div>
       <div class="header-nav-menu__grid">
         <a class="header-nav-menu__link" href="{{ route('bank.cash-accounts') }}">Кассы/Счета</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.operational-accounts') }}">Операционные счета</a>
         <a class="header-nav-menu__link" href="{{ route('bank.deposit') }}">Депозиты</a>
         <a class="header-nav-menu__link" href="{{ route('bank.invest') }}">Инвестиции</a>
         <a class="header-nav-menu__link" href="{{ route('bank.exchange') }}">Обмен фиат/крипта</a>
