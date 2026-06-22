@@ -272,21 +272,55 @@
         margin-top: 12px;
     }
 
-    .bank-invest-page .bank-operation-table > :not(caption) > * > * {
-        padding-top: 0.28rem;
-        padding-bottom: 0.28rem;
-        line-height: 1.15;
+    .bank-invest-page .bank-table > :not(caption) > * > * {
+        height: auto !important;
+        min-height: 0 !important;
+        padding-top: 0.22rem !important;
+        padding-bottom: 0.22rem !important;
+        line-height: 1.1 !important;
+        vertical-align: middle !important;
     }
 
-    .bank-invest-page .bank-operation-table .bank-meta {
-        margin-top: 1px;
-        line-height: 1.12;
+    .bank-invest-page .bank-table .bank-meta {
+        margin-top: 0 !important;
+        line-height: 1.08 !important;
     }
 
-    .bank-invest-page .bank-operation-table .bank-pill,
-    .bank-invest-page .bank-operation-table .bank-status {
-        line-height: 1;
+    .bank-invest-page .bank-table .bank-pill,
+    .bank-invest-page .bank-table .bank-status {
+        min-height: 0 !important;
+        padding-top: 0.12rem !important;
+        padding-bottom: 0.12rem !important;
+        line-height: 1 !important;
     }
+
+    .bank-invest-page .bank-operation-table {
+        table-layout: fixed;
+        min-width: 900px;
+    }
+
+    .bank-invest-page .bank-operation-table th,
+    .bank-invest-page .bank-operation-table td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .bank-invest-page .bank-operation-table th:nth-child(1),
+    .bank-invest-page .bank-operation-table td:nth-child(1) { width: 46px; }
+    .bank-invest-page .bank-operation-table th:nth-child(2),
+    .bank-invest-page .bank-operation-table td:nth-child(2) { width: 92px; }
+    .bank-invest-page .bank-operation-table th:nth-child(3),
+    .bank-invest-page .bank-operation-table td:nth-child(3) { width: 118px; }
+    .bank-invest-page .bank-operation-table th:nth-child(4),
+    .bank-invest-page .bank-operation-table td:nth-child(4) { width: 210px; }
+    .bank-invest-page .bank-operation-table th:nth-child(5),
+    .bank-invest-page .bank-operation-table td:nth-child(5) { width: 165px; }
+    .bank-invest-page .bank-operation-table th:nth-child(6),
+    .bank-invest-page .bank-operation-table td:nth-child(6) { width: 118px; }
+    .bank-invest-page .bank-operation-table th:nth-child(7),
+    .bank-invest-page .bank-operation-table td:nth-child(7) { width: 110px; }
+    .bank-invest-page .bank-operation-table th:nth-child(8),
+    .bank-invest-page .bank-operation-table td:nth-child(8) { width: 140px; }
 </style>
 @endsection
 
