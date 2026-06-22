@@ -119,7 +119,7 @@
                 @csrf
                 <input type="hidden" name="_method" value="PUT" data-invest-operation-method disabled>
                 <input type="hidden" name="update_account_balance" value="1" data-invest-operation-update-balance>
-                <div class="bank-form-grid">
+                <div class="bank-form-grid bank-invest-operation-form">
                     <div class="bank-form-full bank-operation-mode" role="tablist" aria-label="Тип операции">
                         <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Купить</button>
                         <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="asset_to_account">Продать</button>
@@ -127,71 +127,46 @@
                         <input type="hidden" name="direction" value="account_to_asset" data-invest-operation-direction>
                     </div>
 
-                    <div class="bank-form-full bank-operation-ledger-note">
-                        <div class="bank-operation-ledger-note__title">Операция будет проведена двойной записью</div>
-                        <div class="bank-operation-ledger-note__body" data-invest-operation-ledger-copy>
-                            Дт Инвестиционный актив · Кт Операционный счет. Остаток операционного счета уменьшится на сумму операции.
-                        </div>
-                    </div>
+                    <input type="hidden" name="currency" value="USD" data-invest-operation-currency>
 
-                    <div class="bank-form-section bank-form-full" data-invest-operation-account-section>
-                        <div class="bank-form-section__title">1. Источник средств</div>
-                        <label>
-                            <span>Операционный счет</span>
-                            <select name="account_id" required data-invest-operation-account>
-                                @forelse($operationalAccounts as $account)
-                                    <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
-                                @empty
-                                    <option value="">Операционные счета не найдены</option>
-                                @endforelse
-                            </select>
-                        </label>
-                    </div>
+                    <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="date">
+                        <span>Дата</span>
+                        <input type="date" name="operated_at" data-invest-operation-date>
+                    </label>
 
-                    <div class="bank-form-section bank-form-full">
-                        <div class="bank-form-section__title">2. Актив</div>
-                        <label>
-                            <span>Инвестиционный актив</span>
-                            <select name="asset_key" required data-invest-operation-asset>
-                                @forelse($fixedAssetRows as $asset)
-                                    <option value="{{ $asset->asset_key }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }} · {{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
-                                @empty
-                                    <option value="">Активы не найдены</option>
-                                @endforelse
-                            </select>
-                        </label>
-                    </div>
+                    <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="account" data-invest-operation-account-section>
+                        <span>Счет</span>
+                        <select name="account_id" required data-invest-operation-account>
+                            @forelse($operationalAccounts as $account)
+                                <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
+                            @empty
+                                <option value="">Операционные счета не найдены</option>
+                            @endforelse
+                        </select>
+                    </label>
 
-                    <div class="bank-form-section bank-form-full">
-                        <div class="bank-form-section__title" data-invest-operation-value-section-title>3. Сумма и параметры сделки</div>
-                        <div class="bank-form-grid bank-form-grid--compact">
-                            <label>
-                                <span>Валюта</span>
-                                <input type="text" name="currency" value="USD" maxlength="20" required data-invest-operation-currency>
-                            </label>
-                            <label>
-                                <span data-invest-operation-amount-label>Сумма</span>
-                                <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
-                                <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на активе.</small>
-                            </label>
-                            <label>
-                                <span>Дата</span>
-                                <input type="date" name="operated_at" data-invest-operation-date>
-                            </label>
-                        </div>
-                    </div>
+                    <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="asset">
+                        <span>Актив</span>
+                        <select name="asset_key" required data-invest-operation-asset>
+                            @forelse($fixedAssetRows as $asset)
+                                <option value="{{ $asset->asset_key }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }} · {{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
+                            @empty
+                                <option value="">Активы не найдены</option>
+                            @endforelse
+                        </select>
+                    </label>
 
-                    <div class="bank-form-full bank-operation-revaluation-note" data-invest-operation-revaluation-note hidden>
-                        <div class="bank-operation-revaluation-note__title">Как работает переоценка</div>
-                        <div class="bank-operation-revaluation-note__body">
-                            Укажите только изменение стоимости: положительная сумма увеличивает актив и признает доход переоценки, отрицательная уменьшает актив и признает расход.
-                        </div>
-                    </div>
+                    <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="amount">
+                        <span data-invest-operation-amount-label>Сумма</span>
+                        <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
+                        <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на активе.</small>
+                    </label>
+
+                    <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="comment">
+                        <span>Комментарий</span>
+                        <textarea name="note" rows="3" data-invest-operation-note></textarea>
+                    </label>
                 </div>
-                <label class="bank-form-field">
-                    <span>Комментарий</span>
-                    <textarea name="note" rows="3" data-invest-operation-note></textarea>
-                </label>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-invest-operation-close>Отмена</button>
                     <button type="submit" class="btn btn-warning" formnovalidate data-invest-operation-reverse hidden>Отменить проводку</button>
@@ -305,6 +280,14 @@
         line-height: 1.45;
     }
 
+    .bank-invest-operation-form {
+        grid-template-columns: 1fr;
+    }
+
+    .bank-invest-operation-field {
+        grid-column: 1 / -1;
+    }
+
     .bank-invest-page .bank-table > :not(caption) > * > * {
         height: auto !important;
         min-height: 0 !important;
@@ -401,6 +384,13 @@
         const operatedAt = root.querySelector('[data-invest-operation-date]');
         const note = root.querySelector('[data-invest-operation-note]');
         const storeAction = form ? form.action : '';
+        const operationFields = {
+            date: root.querySelector('[data-invest-operation-field="date"]'),
+            account: root.querySelector('[data-invest-operation-field="account"]'),
+            asset: root.querySelector('[data-invest-operation-field="asset"]'),
+            amount: root.querySelector('[data-invest-operation-field="amount"]'),
+            comment: root.querySelector('[data-invest-operation-field="comment"]'),
+        };
 
         function setDirection(nextDirection) {
             if (direction) {
@@ -440,6 +430,26 @@
                     : nextDirection === 'asset_to_account'
                         ? 'Дт Операционный счет · Кт Инвестиционный актив. Остаток операционного счета увеличится.'
                         : 'Дт Инвестиционный актив · Кт Операционный счет. Остаток операционного счета уменьшится.';
+            }
+
+            const fieldOrder = nextDirection === 'asset_to_account'
+                ? ['date', 'asset', 'account', 'amount', 'comment']
+                : nextDirection === 'revaluation'
+                    ? ['date', 'asset', 'amount', 'comment']
+                    : ['date', 'account', 'asset', 'amount', 'comment'];
+
+            Object.values(operationFields).forEach((field) => {
+                if (field) {
+                    field.style.order = '';
+                }
+            });
+            fieldOrder.forEach((fieldName, index) => {
+                if (operationFields[fieldName]) {
+                    operationFields[fieldName].style.order = String(index + 1);
+                }
+            });
+            if (operationFields.account) {
+                operationFields.account.hidden = nextDirection === 'revaluation';
             }
         }
 
