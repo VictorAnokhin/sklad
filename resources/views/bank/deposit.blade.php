@@ -83,11 +83,6 @@
                 Трансфер
             </button>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="bankDepositsPoolsTab" data-bs-toggle="tab" data-bs-target="#bankDepositsPoolsPane" type="button" role="tab">
-                Пулы
-            </button>
-        </li>
     </ul>
 
     <div class="tab-content">

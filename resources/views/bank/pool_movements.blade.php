@@ -1,18 +1,12 @@
 @extends('home')
 
 @section('title')
-Операции
+Движение средств
 @endsection
 
 @section('content')
 @php
     $formatMoney = static fn ($value): string => number_format((float) $value, 2, '.', ' ');
-    $assetTypeLabels = [
-        'token' => 'Токен',
-        'nft' => 'NFT',
-        'pool' => 'Пул',
-        'defi' => 'DeFi',
-    ];
 @endphp
 
 <div class="bank-page bank-invest-page" data-bank-invest-page>
@@ -20,18 +14,18 @@
 
     <section class="bank-hero bank-invest-hero">
         <div>
-            <div class="bank-label">Invest operations</div>
-            <h1>Операции</h1>
-            <p>Движения между операционными счетами и инвестиционными активами.</p>
+            <div class="bank-label">Account to pool</div>
+            <h1>Движение средств</h1>
+            <p>Операции Счет - Пул: пополнение пула, вывод средств из пула и переоценка.</p>
         </div>
         <div class="bank-hero__metrics">
             <div>
                 <span>Операций</span>
-                <strong>{{ $investOperations->count() }}</strong>
+                <strong>{{ $summary['operations'] }}</strong>
             </div>
             <div>
                 <span>Проведено</span>
-                <strong>{{ $investOperations->where('status', 'posted')->count() }}</strong>
+                <strong>{{ $summary['posted'] }}</strong>
             </div>
         </div>
     </section>
@@ -39,8 +33,8 @@
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
             <div>
-                <div class="bank-label">Операции</div>
-                <div class="bank-meta">Список операций без группировки по активам.</div>
+                <div class="bank-label">Операции Счет - Пул</div>
+                <div class="bank-meta">Список движений между операционными счетами и пулами.</div>
             </div>
             <div class="bank-table-header__actions">
                 <div class="bank-meta">{{ $investOperations->count() }} операций</div>
@@ -54,9 +48,8 @@
                         <th class="bank-table__num">№</th>
                         <th>Дата</th>
                         <th>Операция</th>
-                        <th>Актив</th>
+                        <th>Пул</th>
                         <th>Счет</th>
-                        <th class="text-end">Количество</th>
                         <th class="text-end">Сумма</th>
                         <th>Проводка</th>
                         <th>Комментарий</th>
@@ -83,10 +76,9 @@
                             </td>
                             <td>
                                 <strong>{{ $movement['asset_label'] }}</strong>
-                                <div class="bank-meta">{{ $assetTypeLabels[$movement['asset_type']] ?? $movement['asset_type'] }}</div>
+                                <div class="bank-meta">{{ $movement['asset_key'] }}</div>
                             </td>
                             <td>{{ $movement['account_label'] }}</td>
-                            <td class="text-end bank-mono">{{ number_format((float) $movement['quantity'], 8, '.', ' ') }}</td>
                             <td class="text-end fw-semibold">{{ $formatMoney($movement['value_usd']) }} USD</td>
                             <td>
                                 <span class="bank-status {{ $movement['status'] === 'posted' ? '' : 'bank-status--pending' }}">{{ $movement['status'] }}</span>
@@ -96,7 +88,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center text-muted py-4">Операции пока не созданы.</td>
+                            <td colspan="8" class="text-center text-muted py-4">Операции Счет - Пул пока не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -109,9 +101,9 @@
         <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="investOperationModalTitle">
             <div class="bank-modal__header">
                 <div>
-                    <div class="bank-label">Операция</div>
-                    <h2 id="investOperationModalTitle" data-invest-operation-title>Создать Счет ↔ Актив</h2>
-                    <div class="bank-meta" data-invest-operation-subtitle>Фиксирует распределение операционного счета в инвестиционный актив с двойной записью учета.</div>
+                    <div class="bank-label">Счет - Пул</div>
+                    <h2 id="investOperationModalTitle" data-invest-operation-title>Создать операцию</h2>
+                    <div class="bank-meta" data-invest-operation-subtitle>Фиксирует движение средств между операционным счетом и пулом.</div>
                 </div>
                 <button type="button" class="bank-modal__close" data-invest-operation-close aria-label="Закрыть">×</button>
             </div>
@@ -119,25 +111,26 @@
                 @csrf
                 <input type="hidden" name="_method" value="PUT" data-invest-operation-method disabled>
                 <input type="hidden" name="update_account_balance" value="1" data-invest-operation-update-balance>
+                <input type="hidden" name="redirect_to" value="bank.pool-movements">
                 <div class="bank-form-grid">
                     <div class="bank-form-full bank-operation-mode" role="tablist" aria-label="Тип операции">
-                        <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Купить</button>
-                        <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="asset_to_account">Продать</button>
+                        <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Счет → Пул</button>
+                        <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="asset_to_account">Пул → Счет</button>
                         <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="revaluation">Переоценка</button>
                         <input type="hidden" name="direction" value="account_to_asset" data-invest-operation-direction>
                     </div>
 
                     <div class="bank-form-full bank-operation-ledger-note">
-                        <div class="bank-operation-ledger-note__title">Операция будет проведена двойной записью</div>
+                        <div class="bank-operation-ledger-note__title">Операция может быть проведена двойной записью</div>
                         <div class="bank-operation-ledger-note__body" data-invest-operation-ledger-copy>
-                            Дт Инвестиционный актив · Кт Операционный счет. Остаток операционного счета уменьшится на сумму операции.
+                            Дт Пул · Кт Операционный счет. Остаток операционного счета уменьшится на сумму операции.
                         </div>
                     </div>
 
                     <div class="bank-form-section bank-form-full" data-invest-operation-account-section>
-                        <div class="bank-form-section__title">1. Источник средств</div>
+                        <div class="bank-form-section__title">1. Операционный счет</div>
                         <label>
-                            <span>Операционный счет</span>
+                            <span>Счет</span>
                             <select name="account_id" required data-invest-operation-account>
                                 @forelse($operationalAccounts as $account)
                                     <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
@@ -149,21 +142,21 @@
                     </div>
 
                     <div class="bank-form-section bank-form-full">
-                        <div class="bank-form-section__title">2. Актив</div>
+                        <div class="bank-form-section__title">2. Пул</div>
                         <label>
-                            <span>Инвестиционный актив</span>
+                            <span>Пул</span>
                             <select name="asset_key" required data-invest-operation-asset>
                                 @forelse($fixedAssetRows as $asset)
-                                    <option value="{{ $asset->asset_key }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }} · {{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
+                                    <option value="{{ $asset->asset_key }}">{{ $asset->name }} · {{ $formatMoney($asset->value_usd) }} USD</option>
                                 @empty
-                                    <option value="">Активы не найдены</option>
+                                    <option value="">Пулы не найдены</option>
                                 @endforelse
                             </select>
                         </label>
                     </div>
 
                     <div class="bank-form-section bank-form-full">
-                        <div class="bank-form-section__title" data-invest-operation-value-section-title>3. Сумма и параметры сделки</div>
+                        <div class="bank-form-section__title" data-invest-operation-value-section-title>3. Сумма и дата</div>
                         <div class="bank-form-grid bank-form-grid--compact">
                             <label>
                                 <span>Валюта</span>
@@ -172,7 +165,7 @@
                             <label>
                                 <span data-invest-operation-amount-label>Сумма</span>
                                 <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
-                                <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на активе.</small>
+                                <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на пуле.</small>
                             </label>
                             <label>
                                 <span>Дата</span>
@@ -182,9 +175,9 @@
                     </div>
 
                     <div class="bank-form-full bank-operation-revaluation-note" data-invest-operation-revaluation-note hidden>
-                        <div class="bank-operation-revaluation-note__title">Как работает переоценка</div>
+                        <div class="bank-operation-revaluation-note__title">Переоценка пула</div>
                         <div class="bank-operation-revaluation-note__body">
-                            Укажите только изменение стоимости: положительная сумма увеличивает актив и признает доход переоценки, отрицательная уменьшает актив и признает расход.
+                            Укажите дельту стоимости: положительная сумма увеличивает пул, отрицательная уменьшает.
                         </div>
                     </div>
                 </div>
@@ -196,7 +189,7 @@
                     <input type="checkbox" name="post_ledger" value="1" checked data-invest-operation-post-ledger>
                     <span>
                         <strong>Проводка</strong>
-                        <small>Создать двойную запись и изменить остаток операционного счета для покупки/продажи.</small>
+                        <small>Создать двойную запись и изменить остаток операционного счета.</small>
                     </span>
                 </label>
                 <div class="bank-modal__actions">
@@ -218,7 +211,6 @@
         display: grid !important;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 6px;
-        align-items: stretch;
         padding: 4px;
         border: 1px solid rgba(148, 163, 184, 0.22);
         border-radius: 8px;
@@ -240,60 +232,29 @@
         box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.36);
     }
 
-    .bank-form-section {
-        display: grid;
-        gap: 10px;
-        padding: 12px;
+    .bank-form-section,
+    .bank-operation-ledger-note,
+    .bank-operation-revaluation-note,
+    .bank-operation-post-ledger {
+        padding: 12px 14px;
         border: 1px solid rgba(148, 163, 184, 0.16);
         border-radius: 10px;
         background: rgba(2, 6, 23, 0.22);
     }
 
-    .bank-form-section__title {
-        color: rgba(226, 232, 240, 0.88);
-        font-size: 12px;
-        font-weight: 900;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-    }
-
-    .bank-field-hint {
-        display: block;
-        margin-top: 5px;
-        color: rgba(148, 163, 184, 0.9);
-        font-size: 12px;
-        line-height: 1.4;
-    }
-
-    .bank-operation-ledger-note,
-    .bank-operation-revaluation-note,
-    .bank-operation-post-ledger {
-        padding: 12px 14px;
-        border: 1px solid rgba(56, 189, 248, 0.22);
-        border-radius: 10px;
-        background: rgba(8, 47, 73, 0.28);
-    }
-
-    .bank-operation-revaluation-note {
-        border-color: rgba(251, 191, 36, 0.28);
-        background: rgba(120, 53, 15, 0.24);
-    }
-
-    .bank-operation-post-ledger {
-        display: flex;
+    .bank-form-section {
+        display: grid;
         gap: 10px;
-        align-items: flex-start;
-        margin-top: 12px;
-        border-color: rgba(148, 163, 184, 0.18);
-        background: rgba(15, 23, 42, 0.48);
     }
 
+    .bank-form-section__title,
     .bank-operation-ledger-note__title,
     .bank-operation-revaluation-note__title {
         color: #fff;
         font-weight: 900;
     }
 
+    .bank-field-hint,
     .bank-operation-ledger-note__body,
     .bank-operation-revaluation-note__body,
     .bank-operation-post-ledger small {
@@ -303,6 +264,13 @@
         font-size: 13px;
         line-height: 1.45;
     }
+
+    .bank-operation-post-ledger {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        margin-top: 12px;
+    }
 </style>
 @endsection
 
@@ -310,9 +278,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const root = document.querySelector('[data-bank-invest-page]');
-        if (!root) {
-            return;
-        }
+        if (!root) return;
 
         function parseJsonAttribute(value, fallback) {
             try {
@@ -350,51 +316,35 @@
         const storeAction = form ? form.action : '';
 
         function setDirection(nextDirection) {
-            if (direction) {
-                direction.value = nextDirection;
-            }
+            if (direction) direction.value = nextDirection;
             directionTabs.forEach((tab) => {
                 tab.classList.toggle('is-active', tab.dataset.investOperationDirectionTab === nextDirection);
             });
-            if (updateBalance) {
-                updateBalance.disabled = nextDirection === 'revaluation';
-            }
-            if (accountSection) {
-                accountSection.hidden = nextDirection === 'revaluation';
-            }
-            if (account) {
-                account.required = nextDirection !== 'revaluation';
-            }
-            if (revaluationNote) {
-                revaluationNote.hidden = nextDirection !== 'revaluation';
-            }
-            if (amountLabel) {
-                amountLabel.textContent = nextDirection === 'revaluation' ? 'Дельта стоимости' : 'Сумма';
-            }
-            if (valueSectionTitle) {
-                valueSectionTitle.textContent = nextDirection === 'revaluation' ? '2. Дельта стоимости актива' : '3. Сумма и параметры сделки';
-            }
+            if (updateBalance) updateBalance.disabled = nextDirection === 'revaluation';
+            if (accountSection) accountSection.hidden = nextDirection === 'revaluation';
+            if (account) account.required = nextDirection !== 'revaluation';
+            if (revaluationNote) revaluationNote.hidden = nextDirection !== 'revaluation';
+            if (amountLabel) amountLabel.textContent = nextDirection === 'revaluation' ? 'Дельта стоимости' : 'Сумма';
+            if (valueSectionTitle) valueSectionTitle.textContent = nextDirection === 'revaluation' ? '2. Дельта стоимости пула' : '3. Сумма и дата';
             if (amountHint) {
                 amountHint.textContent = nextDirection === 'revaluation'
-                    ? 'Введите изменение стоимости: + увеличивает актив, - уменьшает актив.'
+                    ? 'Введите изменение стоимости: + увеличивает пул, - уменьшает пул.'
                     : nextDirection === 'asset_to_account'
-                        ? 'Сумма будет возвращена из актива на операционный счет.'
-                        : 'Сумма будет списана со счета и отражена на активе.';
+                        ? 'Сумма будет возвращена из пула на операционный счет.'
+                        : 'Сумма будет списана со счета и отражена на пуле.';
             }
             if (ledgerCopy) {
                 ledgerCopy.textContent = nextDirection === 'revaluation'
-                    ? 'Положительная дельта: Дт Инвестиционный актив · Кт Доход 746. Отрицательная дельта: Дт Расход 975 · Кт Инвестиционный актив.'
+                    ? 'Положительная дельта: Дт Пул · Кт Доход. Отрицательная дельта: Дт Расход · Кт Пул.'
                     : nextDirection === 'asset_to_account'
-                        ? 'Дт Операционный счет · Кт Инвестиционный актив. Остаток операционного счета увеличится.'
-                        : 'Дт Инвестиционный актив · Кт Операционный счет. Остаток операционного счета уменьшится.';
+                        ? 'Дт Операционный счет · Кт Пул. Остаток операционного счета увеличится.'
+                        : 'Дт Пул · Кт Операционный счет. Остаток операционного счета уменьшится.';
             }
         }
 
         function setReadOnly(readOnly) {
             [account, asset, currency, amount, operatedAt, note, postLedger].forEach((field) => {
-                if (field) {
-                    field.disabled = readOnly;
-                }
+                if (field) field.disabled = readOnly;
             });
             directionTabs.forEach((tab) => {
                 tab.disabled = readOnly;
@@ -410,20 +360,16 @@
                 form.dataset.deleteAction = '';
                 form.dataset.reverseAction = '';
             }
-            if (method) {
-                method.disabled = true;
-            }
+            if (method) method.disabled = true;
             setReadOnly(false);
             setDirection('account_to_asset');
             if (postLedger) {
                 postLedger.checked = true;
                 postLedger.disabled = false;
             }
-            if (postLedgerField) {
-                postLedgerField.hidden = false;
-            }
-            if (title) title.textContent = 'Создать Счет ↔ Актив';
-            if (subtitle) subtitle.textContent = 'Фиксирует распределение операционного счета в инвестиционный актив с двойной записью учета.';
+            if (postLedgerField) postLedgerField.hidden = false;
+            if (title) title.textContent = 'Создать операцию';
+            if (subtitle) subtitle.textContent = 'Фиксирует движение средств между операционным счетом и пулом.';
             if (submit) {
                 submit.textContent = 'Сохранить';
                 submit.hidden = false;
@@ -436,9 +382,7 @@
         }
 
         function fillForm(movement) {
-            if (!form || !movement) {
-                return;
-            }
+            if (!form || !movement) return;
             form.action = movement.update_action || storeAction;
             form.dataset.mode = 'save';
             form.dataset.saveAction = movement.update_action || storeAction;
@@ -453,31 +397,25 @@
                 postLedger.checked = Boolean(movement.is_posted);
                 postLedger.disabled = Boolean(movement.is_posted) || !movement.can_edit;
             }
-            if (postLedgerField) {
-                postLedgerField.hidden = Boolean(movement.is_posted);
-            }
+            if (postLedgerField) postLedgerField.hidden = Boolean(movement.is_posted);
             if (account) account.value = String(movement.account_id || '');
             if (asset) asset.value = movement.asset_key || '';
             if (currency) currency.value = movement.currency || 'USD';
             if (amount) amount.value = movement.amount || movement.value_usd || '';
             if (operatedAt) operatedAt.value = String(movement.date || '').slice(0, 10);
             if (note) note.value = movement.note || '';
-            if (title) title.textContent = `Редактировать движение #${movement.id}`;
+            if (title) title.textContent = `Редактировать операцию #${movement.id}`;
             if (subtitle) {
                 subtitle.textContent = !movement.can_edit
                     ? (movement.edit_hint || 'Редактирование закрыто.')
                     : movement.is_posted
-                        ? 'Документ проведен. Доступна только отмена операции, если сторно разрешено.'
-                        : 'Документ сохранен без проводки. Включите чекбокс, чтобы создать двойную запись.';
+                        ? 'Операция проведена. Доступна отмена проводки, если сторно разрешено.'
+                        : 'Операция сохранена без проводки. Можно провести, сохранить или удалить.';
             }
-            if (submit) {
-                submit.hidden = Boolean(movement.is_posted) || !movement.can_edit;
-            }
-            if (deleteButton) {
-                deleteButton.hidden = Boolean(movement.is_posted) || !movement.can_edit;
-            }
+            if (submit) submit.hidden = Boolean(movement.is_posted) || !movement.can_edit;
+            if (deleteButton) deleteButton.hidden = Boolean(movement.is_posted) || !movement.can_edit;
             if (reverseButton) {
-                reverseButton.textContent = 'Отменить операцию';
+                reverseButton.textContent = 'Отменить проводку';
                 reverseButton.hidden = !movement.is_posted;
                 reverseButton.disabled = !movement.can_reverse;
             }
@@ -512,17 +450,13 @@
             if (!form) return;
             form.dataset.mode = 'reverse';
             form.action = form.dataset.reverseAction || form.action;
-            if (method) {
-                method.disabled = true;
-            }
+            if (method) method.disabled = true;
         });
 
         root.querySelectorAll('[data-invest-operation-open]').forEach((button) => {
             button.addEventListener('click', () => {
                 resetForm();
-                if (modal) {
-                    modal.hidden = false;
-                }
+                if (modal) modal.hidden = false;
                 account?.focus();
             });
         });
@@ -530,18 +464,14 @@
         root.querySelectorAll('[data-invest-operation-edit]').forEach((row) => {
             row.addEventListener('click', () => {
                 fillForm(parseJsonAttribute(row.dataset.operationMovement, null));
-                if (modal) {
-                    modal.hidden = false;
-                }
+                if (modal) modal.hidden = false;
                 amount?.focus();
             });
         });
 
         root.querySelectorAll('[data-invest-operation-close]').forEach((button) => {
             button.addEventListener('click', () => {
-                if (modal) {
-                    modal.hidden = true;
-                }
+                if (modal) modal.hidden = true;
             });
         });
     });

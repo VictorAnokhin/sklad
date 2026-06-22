@@ -106,6 +106,11 @@ Route::middleware(['auth'])->group(function () {
             ->name('person-accounts.destroy');
         Route::get('/loans', fn () => redirect()->route('bank.deposit'))->name('loans.redirect');
         Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
+        Route::get('/pools', [BankController::class, 'pools'])->name('pools');
+        Route::post('/pools', [BankController::class, 'storePool'])->name('pools.store');
+        Route::put('/pools/{pool}', [BankController::class, 'updatePool'])
+            ->whereNumber('pool')
+            ->name('pools.update');
         Route::post('/deposit', [BankController::class, 'storeDeposit'])->name('deposit.store');
         Route::post('/deposit/transfer', [BankController::class, 'storeDepositTransfer'])->name('deposit.transfer.store');
         Route::put('/deposit/transfer/{transfer}', [BankController::class, 'updateDepositTransfer'])
@@ -121,6 +126,8 @@ Route::middleware(['auth'])->group(function () {
             ->whereNumber('deposit')
             ->name('deposit.update');
         Route::get('/invest', [BankController::class, 'invest'])->name('invest');
+        Route::get('/pool-movements', [BankController::class, 'poolMovements'])->name('pool-movements');
+        Route::get('/assets', [BankController::class, 'assets'])->name('assets');
         Route::post('/invest/assets', [BankController::class, 'storeInvestAsset'])
             ->name('invest-assets.store');
         Route::put('/invest/assets/{asset}', [BankController::class, 'updateInvestAsset'])

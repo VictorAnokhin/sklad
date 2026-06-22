@@ -372,6 +372,134 @@ class BankController extends Controller
         ]);
     }
 
+    public function pools(): View
+    {
+        $project = $this->bankProject();
+        $pools = $this->investmentPools()
+            ->map(function ($pool) {
+                $pool->update_action = route('bank.pools.update', ['pool' => (int) $pool->id]);
+
+                return $pool;
+            });
+
+        return view('bank.pools', [
+            'project' => $project,
+            'pools' => $pools,
+            'summary' => [
+                'pools' => $pools->count(),
+                'active' => $pools->where('active', true)->count(),
+                'onchain_balance' => (float) $pools->sum('balance_usdc'),
+                'avg_apy_bps' => $pools->count() > 0 ? (int) round($pools->avg('apy_bps')) : 0,
+            ],
+        ]);
+    }
+
+    public function storePool(Request $request): RedirectResponse
+    {
+        abort_unless(Schema::hasTable('fund_pools'), 404);
+
+        DB::table('fund_pools')->insert($this->bankPoolPayload($request) + [
+            'created_by' => Auth::id(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->route('bank.pools')->with('success', 'Пул создан.');
+    }
+
+    public function updatePool(Request $request, int $pool): RedirectResponse
+    {
+        abort_unless(Schema::hasTable('fund_pools'), 404);
+
+        $updated = DB::table('fund_pools')
+            ->where('id', $pool)
+            ->update($this->bankPoolPayload($request, $pool) + [
+                'updated_at' => now(),
+            ]);
+
+        if ($updated === 0) {
+            return redirect()->route('bank.pools')->with('error', 'Пул не найден.');
+        }
+
+        return redirect()->route('bank.pools')->with('success', 'Пул сохранен.');
+    }
+
+    private function bankPoolPayload(Request $request, ?int $poolId = null): array
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'network' => ['nullable', 'string', 'max:40'],
+            'package_id' => ['nullable', 'string', 'max:80'],
+            'pool_object_id' => [
+                'nullable',
+                'string',
+                'max:80',
+                Rule::unique('fund_pools', 'pool_object_id')
+                    ->where(fn ($query) => $query->where('network', trim((string) $request->input('network', 'testnet')) ?: 'testnet'))
+                    ->ignore($poolId),
+            ],
+            'coin_type' => ['nullable', 'string', 'max:500'],
+            'symbol' => ['required', 'string', 'max:32'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'risk_level' => ['nullable', 'integer', 'min:1', 'max:10'],
+            'target_apy_bps' => ['nullable', 'integer', 'min:0', 'max:65535'],
+            'realized_apy_bps' => ['nullable', 'integer', 'min:0', 'max:65535'],
+            'min_deposit_usdc' => ['nullable', 'string', 'max:80'],
+            'min_av8_balance' => ['nullable', 'string', 'max:80'],
+            'max_weight_bps' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'logo_url' => ['nullable', 'string', 'max:500'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $network = trim((string) ($validated['network'] ?? 'testnet')) ?: 'testnet';
+        $symbol = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $validated['symbol']) ?: 'USDC');
+        $poolObjectId = strtolower(trim((string) ($validated['pool_object_id'] ?? '')));
+        if ($poolObjectId === '') {
+            $poolObjectId = $poolId
+                ? (string) DB::table('fund_pools')->where('id', $poolId)->value('pool_object_id')
+                : 'internal-' . bin2hex(random_bytes(8));
+        }
+
+        $payload = [
+            'network' => $network,
+            'package_id' => strtolower(trim((string) ($validated['package_id'] ?? ''))),
+            'pool_object_id' => $poolObjectId,
+            'coin_type' => trim((string) ($validated['coin_type'] ?? '')) ?: "internal::pool::{$symbol}",
+            'symbol' => $symbol,
+            'name' => trim((string) $validated['name']),
+            'description' => trim((string) ($validated['description'] ?? '')) ?: null,
+            'risk_level' => (int) ($validated['risk_level'] ?? 1),
+            'target_apy_bps' => (int) ($validated['target_apy_bps'] ?? 0),
+            'realized_apy_bps' => (int) ($validated['realized_apy_bps'] ?? 0),
+            'min_deposit_usdc' => trim((string) ($validated['min_deposit_usdc'] ?? '0')) ?: '0',
+            'min_av8_balance' => trim((string) ($validated['min_av8_balance'] ?? '0')) ?: '0',
+            'max_weight_bps' => (int) ($validated['max_weight_bps'] ?? 10000),
+            'active' => $request->boolean('active'),
+            'logo_url' => trim((string) ($validated['logo_url'] ?? '')),
+            'notes' => trim((string) ($validated['notes'] ?? '')) ?: null,
+        ];
+
+        if ($poolId === null) {
+            $payload['pool_registry_id'] = '';
+            $payload['pool_admin_cap_id'] = '';
+        }
+
+        foreach ([
+            'pool_accounting_id',
+            'basket_vault_id',
+            'liquidity_wallet_address',
+        ] as $column) {
+            if (Schema::hasColumn('fund_pools', $column)) {
+                $payload[$column] = '';
+            }
+        }
+        if (Schema::hasColumn('fund_pools', 'is_default_deposit')) {
+            $payload['is_default_deposit'] = $request->boolean('is_default_deposit');
+        }
+
+        return $payload;
+    }
+
     public function storeDeposit(Request $request): RedirectResponse
     {
         $project = $this->bankProject();
@@ -656,6 +784,47 @@ class BankController extends Controller
         ]);
     }
 
+    public function assets(): View
+    {
+        $project = $this->bankProject();
+        $fixedAssetRows = $this->manualInvestmentAssetRows((int) $project->id);
+
+        return view('bank.assets', [
+            'project' => $project,
+            'fixedAssetRows' => $fixedAssetRows,
+            'summary' => [
+                'assets' => $fixedAssetRows->count(),
+                'tokens' => $fixedAssetRows->where('asset_type', 'token')->count(),
+                'pools' => $fixedAssetRows->where('asset_type', 'pool')->count(),
+                'value_usd' => (float) $fixedAssetRows->sum('value_usd'),
+            ],
+        ]);
+    }
+
+    public function poolMovements(): View
+    {
+        $project = $this->bankProject();
+        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $poolAssetRows = $this->investmentPoolAssetRows();
+        $investOperations = $this->bankInvestOperations((int) $project->id, $operationalAccounts, $poolAssetRows)
+            ->filter(fn ($operation) => (string) ($operation->asset_type ?? '') === 'pool')
+            ->values();
+
+        return view('bank.pool_movements', [
+            'project' => $project,
+            'operationalAccounts' => $operationalAccounts,
+            'fixedAssetRows' => $poolAssetRows,
+            'investOperations' => $investOperations,
+            'investOperationRows' => $this->investOperationRows($investOperations),
+            'summary' => [
+                'operations' => $investOperations->count(),
+                'posted' => $investOperations->where('status', 'posted')->count(),
+                'pending' => $investOperations->where('status', 'pending')->count(),
+                'value_usd' => (float) $investOperations->sum('value_usd'),
+            ],
+        ]);
+    }
+
     public function storeInvestOperation(Request $request): RedirectResponse
     {
         $project = $this->bankProject();
@@ -731,6 +900,7 @@ class BankController extends Controller
     public function updateInvestOperation(Request $request, int $operation): RedirectResponse
     {
         $project = $this->bankProject();
+        $redirectRoute = $this->bankRedirectRoute((string) $request->input('redirect_to', 'bank.invest'));
         abort_unless(Schema::hasTable('bank_invest_operations'), 404);
 
         $current = DB::table('bank_invest_operations')
@@ -740,13 +910,13 @@ class BankController extends Controller
         abort_unless($current, 404);
 
         if ($this->hasNewerInvestOperationForAsset((int) $project->id, (string) $current->asset_key, (string) $current->operated_at, (int) $current->id)) {
-            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'Операция не редактируется: по этому активу уже есть более новый документ.');
+            return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Операция не редактируется: по этому активу уже есть более новый документ.');
         }
 
         [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id);
         if ((string) $asset->asset_key !== (string) $current->asset_key
             && $this->hasNewerInvestOperationForAsset((int) $project->id, (string) $asset->asset_key, (string) $current->operated_at, (int) $current->id)) {
-            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'Операция не редактируется: по выбранному активу уже есть более новый документ.');
+            return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Операция не редактируется: по выбранному активу уже есть более новый документ.');
         }
 
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
@@ -818,12 +988,13 @@ class BankController extends Controller
             }
         });
 
-        return redirect()->route('bank.invest', ['tab' => 'operations'])->with('success', "Операция Счет ↔ Актив #{$operation} обновлена.");
+        return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('success', "Операция Счет ↔ Актив #{$operation} обновлена.");
     }
 
-    public function destroyInvestOperation(int $operation): RedirectResponse
+    public function destroyInvestOperation(Request $request, int $operation): RedirectResponse
     {
         $project = $this->bankProject();
+        $redirectRoute = $this->bankRedirectRoute((string) $request->input('redirect_to', 'bank.invest'));
         abort_unless(Schema::hasTable('bank_invest_operations'), 404);
 
         $current = DB::table('bank_invest_operations')
@@ -833,7 +1004,7 @@ class BankController extends Controller
         abort_unless($current, 404);
 
         if ($this->hasNewerInvestOperationForAsset((int) $project->id, (string) $current->asset_key, (string) $current->operated_at, (int) $current->id)) {
-            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'Операция не удаляется: по этому активу уже есть более новый документ.');
+            return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Операция не удаляется: по этому активу уже есть более новый документ.');
         }
 
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
@@ -856,7 +1027,7 @@ class BankController extends Controller
             DB::table('bank_invest_operations')->where('id', $operation)->delete();
         });
 
-        return redirect()->route('bank.invest', ['tab' => 'operations'])->with('success', "Операция Счет ↔ Актив #{$operation} удалена.");
+        return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('success', "Операция Счет ↔ Актив #{$operation} удалена.");
     }
 
     public function showReverseInvestOperation(int $operation): RedirectResponse
@@ -866,9 +1037,10 @@ class BankController extends Controller
             ->with('error', "Отмена проводки операции #{$operation} выполняется из формы редактирования операции.");
     }
 
-    public function reverseInvestOperation(int $operation): RedirectResponse
+    public function reverseInvestOperation(Request $request, int $operation): RedirectResponse
     {
         $project = $this->bankProject();
+        $redirectRoute = $this->bankRedirectRoute((string) $request->input('redirect_to', 'bank.invest'));
         abort_unless(Schema::hasTable('bank_invest_operations'), 404);
 
         $current = DB::table('bank_invest_operations')
@@ -878,10 +1050,10 @@ class BankController extends Controller
         abort_unless($current, 404);
 
         if ($this->hasNewerInvestOperationForAsset((int) $project->id, (string) $current->asset_key, (string) $current->operated_at, (int) $current->id)) {
-            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'Проводка не отменяется: по этому активу уже есть более новый документ.');
+            return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Проводка не отменяется: по этому активу уже есть более новый документ.');
         }
         if ((int) ($current->ledger_transaction_id ?? 0) <= 0 && (string) ($current->status ?? 'pending') !== 'posted') {
-            return redirect()->route('bank.invest', ['tab' => 'operations'])->with('error', 'У операции нет активной проводки для отмены.');
+            return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'У операции нет активной проводки для отмены.');
         }
 
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
@@ -909,7 +1081,7 @@ class BankController extends Controller
             DB::table('bank_invest_operations')->where('id', $operation)->update($updates);
         });
 
-        return redirect()->route('bank.invest', ['tab' => 'operations'])->with('success', "Проводка операции #{$operation} отменена.");
+        return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('success', "Проводка операции #{$operation} отменена.");
     }
 
     private function hasNewerInvestOperationForAsset(int $projectId, string $assetKey, string $operatedAt, int $operationId): bool
@@ -1090,7 +1262,16 @@ class BankController extends Controller
 
     private function bankRedirectRoute(string $route): string
     {
-        return in_array($route, ['bank.invest', 'bank.deposit'], true) ? $route : 'bank.invest';
+        return in_array($route, ['bank.invest', 'bank.deposit', 'bank.assets', 'bank.pools', 'bank.pool-movements'], true) ? $route : 'bank.invest';
+    }
+
+    private function bankRedirectRouteParams(string $route): array
+    {
+        return match ($route) {
+            'bank.invest' => ['tab' => 'operations'],
+            'bank.deposit' => ['tab' => 'transfer'],
+            default => [],
+        };
     }
 
     public function storeInvestAsset(Request $request): RedirectResponse
@@ -1106,7 +1287,7 @@ class BankController extends Controller
             DB::table('bank_tracked_assets')->insert($key + $values + ['created_at' => now()]);
         }
 
-        return redirect()->route('bank.invest', ['tab' => 'assets'])->with('success', 'Инвестиционный актив добавлен.');
+        return redirect()->route('bank.assets')->with('success', 'Инвестиционный актив добавлен.');
     }
 
     public function updateInvestAsset(Request $request, int $asset): RedirectResponse
@@ -1132,7 +1313,7 @@ class BankController extends Controller
         [$key, $values] = $this->investAssetPayload($request, (int) $project->id);
         DB::table('bank_tracked_assets')->where('id', $asset)->update($key + $values);
 
-        return redirect()->route('bank.invest', ['tab' => 'assets'])->with('success', 'Инвестиционный актив обновлен.');
+        return redirect()->route('bank.assets')->with('success', 'Инвестиционный актив обновлен.');
     }
 
     private function investAssetPayload(Request $request, int $projectId): array
@@ -2664,6 +2845,7 @@ class BankController extends Controller
                     'name' => (string) ($pool->name ?? 'Pool #' . $pool->id),
                     'description' => (string) ($pool->description ?? ''),
                     'network' => (string) ($pool->network ?? ''),
+                    'package_id' => (string) ($pool->package_id ?? ''),
                     'symbol' => (string) ($pool->symbol ?? $this->symbolFromCoinType((string) ($pool->coin_type ?? ''))),
                     'coin_type' => (string) ($pool->coin_type ?? ''),
                     'pool_object_id' => $poolObjectId,
@@ -2680,6 +2862,7 @@ class BankController extends Controller
                     'active' => (bool) ($pool->active ?? true),
                     'is_default_deposit' => (bool) ($pool->is_default_deposit ?? false),
                     'logo_url' => (string) ($pool->logo_url ?? ''),
+                    'notes' => (string) ($pool->notes ?? ''),
                     'source_type' => (string) ($pool->source_type ?? ''),
                     'credit_request_status' => (string) ($pool->credit_request_status ?? ''),
                     'collateral_label' => (string) ($pool->collateral_label ?? ''),
