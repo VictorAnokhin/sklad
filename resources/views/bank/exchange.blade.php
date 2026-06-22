@@ -49,12 +49,12 @@
     <ul class="nav nav-tabs bank-modal-tabs mb-3" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link {{ $activeExchangeTab === 'crypto' ? '' : 'active' }}" id="bankExchangeAv8Tab" data-bs-toggle="tab" data-bs-target="#bankExchangeAv8Pane" type="button" role="tab" data-bank-exchange-tab="av8">
-                Фиат/AV8
+                Заявки
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link {{ $activeExchangeTab === 'crypto' ? 'active' : '' }}" id="bankExchangeCryptoTab" data-bs-toggle="tab" data-bs-target="#bankExchangeCryptoPane" type="button" role="tab" data-bank-exchange-tab="crypto">
-                Фиат/Крипта
+                Операции
             </button>
         </li>
     </ul>
@@ -63,7 +63,7 @@
         <div class="tab-pane fade {{ $activeExchangeTab === 'crypto' ? '' : 'show active' }}" id="bankExchangeAv8Pane" role="tabpanel" aria-labelledby="bankExchangeAv8Tab">
     <section class="bank-hero">
         <div>
-            <div class="bank-label">Fiat / Crypto → AV8</div>
+            <div class="bank-label">Заявки</div>
             <h1>Обмен фиат/крипта на AV8</h1>
             <p>Заявки формы av8fund-react `/swap`, параметры расчета и история on-chain исполнения.</p>
         </div>
@@ -127,6 +127,7 @@
                         <th class="text-end">AV8</th>
                         <th>Кошелек</th>
                         <th>Статус</th>
+                        <th class="text-end">Действие</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -180,10 +181,18 @@
                             <td class="text-end fw-semibold">{{ number_format((float) $order->expected_av8, 6, '.', ' ') }}</td>
                             <td class="bank-mono bank-table__wallet" title="{{ $walletAddress }}">{{ $walletAddressShort !== '' ? $walletAddressShort : '—' }}</td>
                             <td><span class="bank-status">{{ $order->status }}</span></td>
+                            <td class="text-end">
+                                <button type="button"
+                                    class="btn btn-sm btn-primary"
+                                    data-order-exchange-open
+                                    data-order="{{ json_encode($orderPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}">
+                                    Оформить
+                                </button>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-4">Заявок обмена пока нет.</td>
+                            <td colspan="7" class="text-center text-muted py-4">Заявок обмена пока нет.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -275,6 +284,10 @@
                         <pre class="bank-order-modal__meta" data-order-field="meta"></pre>
                     </div>
                 </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" data-order-exchange-submit>Оформить</button>
+                </div>
             </div>
         </div>
     </div>
@@ -341,7 +354,7 @@
                 @endif
                 <div class="bank-table-header">
                     <div>
-                        <div class="bank-label">Фиат/Крипта</div>
+                        <div class="bank-label">Операции</div>
                         <div class="bank-meta">Ручные операции обменки: покупка и продажа криптовалюты за фиат.</div>
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -554,7 +567,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">Операции Фиат/Крипта пока не созданы.</td>
+                                    <td colspan="7" class="text-center text-muted py-4">Операции пока не созданы.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -572,8 +585,8 @@
                     <input type="hidden" name="side" value="buy" data-fiat-crypto-side>
                     <div class="modal-header">
                         <div>
-                            <div class="bank-label">Обменка</div>
-                            <h5 class="modal-title" id="fiatCryptoExchangeModalLabel" data-fiat-crypto-form-title>Фиат/Крипта</h5>
+                            <div class="bank-label">Операции</div>
+                            <h5 class="modal-title" id="fiatCryptoExchangeModalLabel" data-fiat-crypto-form-title>Операция обмена</h5>
                         </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                     </div>
@@ -599,7 +612,7 @@
                             <div class="col-md-6">
                                 <label class="form-label">Крипта</label>
                                 <select name="crypto_currency" class="form-select" data-fiat-crypto-crypto-currency required>
-                                    @foreach(['USDC', 'USDT', 'SUI', 'BTC', 'ETH'] as $currency)
+                                    @foreach(['AV8', 'USDC', 'USDT', 'SUI', 'BTC', 'ETH'] as $currency)
                                         <option value="{{ $currency }}">{{ $currency }}</option>
                                     @endforeach
                                 </select>
@@ -641,7 +654,7 @@
                                 <input type="number" name="crypto_amount" class="form-control" min="0.00000001" step="0.00000001" inputmode="decimal" data-fiat-crypto-crypto>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Курс Фиат/Крипта</label>
+                                <label class="form-label">Курс</label>
                                 <input type="number" name="rate" class="form-control" min="0.00000001" step="0.00000001" inputmode="decimal" required data-fiat-crypto-rate>
                             </div>
                             <div class="col-12" data-fiat-crypto-buy-result>
@@ -960,6 +973,8 @@
         const serverExchangeTab = @json($activeExchangeTab);
         const exchangeTabStorageKey = 'bank.exchange.activeTab';
         const exchangeTabButtons = document.querySelectorAll('[data-bank-exchange-tab]');
+        const fiatCryptoModalElement = document.getElementById('fiatCryptoExchangeModal');
+        let currentSwapOrder = null;
         if (!modal) {
             return;
         }
@@ -982,6 +997,10 @@
         function valueOrDash(value) {
             const normalized = String(value ?? '').trim();
             return normalized !== '' ? normalized : '—';
+        }
+
+        function parseOrderNumber(value) {
+            return Number(String(value ?? '').replace(/\s/g, '').replace(',', '.')) || 0;
         }
 
         function setText(selector, value) {
@@ -1017,6 +1036,7 @@
             setText('[data-order-field="client_email"]', order.client_email);
             setText('[data-order-field="client_phone"]', order.client_phone);
             setText('[data-order-field="wallet_address"]', order.wallet_address);
+            currentSwapOrder = order;
 
             const statusForm = modal.querySelector('[data-order-status-form]');
             const statusSelect = modal.querySelector('[data-order-status-select]');
@@ -1035,6 +1055,45 @@
                 const hasMeta = order.meta && Object.keys(order.meta).length > 0;
                 meta.textContent = hasMeta ? JSON.stringify(order.meta, null, 2) : '—';
             }
+        });
+
+        function openFiatCryptoFromSwapOrder(order) {
+            if (!fiatCryptoModalElement) {
+                return;
+            }
+
+            const showExchangeModal = () => {
+                const trigger = document.createElement('button');
+                trigger.type = 'button';
+                trigger.dataset.swapOrderExchange = JSON.stringify(order || {});
+                bootstrap.Modal.getOrCreateInstance(fiatCryptoModalElement).show(trigger);
+            };
+
+            const swapModal = bootstrap.Modal.getInstance(modal);
+            if (swapModal && modal.classList.contains('show')) {
+                modal.addEventListener('hidden.bs.modal', showExchangeModal, { once: true });
+                swapModal.hide();
+                return;
+            }
+
+            showExchangeModal();
+        }
+
+        modal.querySelector('[data-order-exchange-submit]')?.addEventListener('click', () => {
+            openFiatCryptoFromSwapOrder(currentSwapOrder || {});
+        });
+
+        document.querySelectorAll('[data-order-exchange-open]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                let order = {};
+                try {
+                    order = JSON.parse(button.dataset.order || '{}');
+                } catch (error) {
+                    order = {};
+                }
+                openFiatCryptoFromSwapOrder(order);
+            });
         });
 
         document.querySelectorAll('.bank-order-row').forEach((row) => {
@@ -1428,7 +1487,7 @@
                 fiatCryptoForm.reset();
             }
             if (fiatCryptoFormTitle) {
-                fiatCryptoFormTitle.textContent = 'Фиат/Крипта';
+                fiatCryptoFormTitle.textContent = 'Операция обмена';
             }
             setFiatCryptoFormDisabled(false);
             if (fiatCryptoPostLedger) {
@@ -1525,6 +1584,57 @@
             calculateFiatCrypto();
         }
 
+        function populateFiatCryptoFormFromSwapOrder(order) {
+            if (fiatCryptoForm instanceof HTMLFormElement) {
+                fiatCryptoForm.action = fiatCryptoForm.dataset.defaultAction || fiatCryptoForm.action;
+                fiatCryptoForm.dataset.mode = 'swap-order';
+                fiatCryptoForm.reset();
+            }
+            setFiatCryptoFormDisabled(false);
+            setFiatCryptoSide('buy');
+            if (fiatCryptoFormTitle) {
+                fiatCryptoFormTitle.textContent = `Обмен по заявке #${valueOrDash(order.id)}`;
+            }
+            if (fiatCryptoFiatCurrency) {
+                fiatCryptoFiatCurrency.value = 'UAH';
+            }
+            if (fiatCryptoCryptoCurrency) {
+                fiatCryptoCryptoCurrency.value = 'AV8';
+            }
+            filterFiatCryptoAccounts();
+            if (fiatCryptoDate) {
+                fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
+            }
+            if (fiatCryptoFiat) {
+                fiatCryptoFiat.value = parseOrderNumber(order.pay_amount).toFixed(2);
+            }
+            if (fiatCryptoRate) {
+                fiatCryptoRate.value = parseOrderNumber(order.rate_usdc).toFixed(8);
+            }
+            if (fiatCryptoBuyOutput) {
+                fiatCryptoBuyOutput.value = parseOrderNumber(order.expected_av8).toFixed(8);
+            }
+            if (fiatCryptoNote) {
+                fiatCryptoNote.value = `Заявка #${valueOrDash(order.id)}: ${valueOrDash(order.client_email)} -> ${valueOrDash(order.wallet_address)}`;
+            }
+            if (fiatCryptoPostLedger) {
+                fiatCryptoPostLedger.checked = true;
+            }
+            if (fiatCryptoPostLedgerMeta) {
+                fiatCryptoPostLedgerMeta.textContent = 'Выберите операционные счета банка для проведения обычного обмена.';
+            }
+            if (fiatCryptoSubmit) {
+                fiatCryptoSubmit.textContent = 'Оформить';
+                fiatCryptoSubmit.classList.remove('btn-danger');
+                fiatCryptoSubmit.classList.add('btn-primary');
+                fiatCryptoSubmit.disabled = false;
+            }
+            calculateFiatCrypto();
+            if (fiatCryptoBuyOutput) {
+                fiatCryptoBuyOutput.value = parseOrderNumber(order.expected_av8).toFixed(8);
+            }
+        }
+
         fiatCryptoTabs.forEach((tab) => {
             tab.addEventListener('click', () => {
                 setFiatCryptoSide(tab.dataset.fiatCryptoTab || 'buy');
@@ -1570,6 +1680,16 @@
 
         document.getElementById('fiatCryptoExchangeModal')?.addEventListener('show.bs.modal', (event) => {
             const trigger = event.relatedTarget;
+            if (trigger instanceof HTMLElement && trigger.dataset.swapOrderExchange) {
+                let order = {};
+                try {
+                    order = JSON.parse(trigger.dataset.swapOrderExchange || '{}');
+                } catch (error) {
+                    order = {};
+                }
+                populateFiatCryptoFormFromSwapOrder(order);
+                return;
+            }
             if (trigger instanceof HTMLElement && trigger.dataset.fiatCryptoOrder) {
                 let order = {};
                 try {
