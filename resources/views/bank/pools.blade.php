@@ -90,6 +90,7 @@
                             data-pool-object-id="{{ $pool->pool_object_id }}"
                             data-coin-type="{{ $pool->coin_type }}"
                             data-symbol="{{ $pool->symbol }}"
+                            data-balance="{{ number_format((float) $pool->balance, 8, '.', '') }}"
                             data-description="{{ $pool->description }}"
                             data-risk-level="{{ $pool->risk_level }}"
                             data-target-apy-bps="{{ $pool->target_apy_bps }}"
@@ -108,7 +109,10 @@
                             </td>
                             <td><span class="bank-pill bank-pill--currency">{{ $pool->network ?: '—' }}</span></td>
                             <td class="bank-mono" title="{{ $pool->pool_object_id }}">{{ $pool->pool_object_short ?: '—' }}</td>
-                            <td class="text-end fw-semibold">{{ $formatMoney($pool->balance_usdc) }} USDC</td>
+                            <td class="text-end fw-semibold">
+                                {{ $formatMoney($pool->balance) }} {{ $pool->symbol ?: 'USDC' }}
+                                <div class="bank-meta">on-chain {{ $formatMoney($pool->balance_usdc) }} USDC</div>
+                            </td>
                             <td class="text-end">{{ $formatBps($pool->apy_bps) }}</td>
                             <td class="text-end bank-mono">{{ $pool->risk_level }}</td>
                             <td>
@@ -150,6 +154,10 @@
                     <label>
                         <span>Symbol</span>
                         <input type="text" name="symbol" maxlength="32" required value="USDC" data-pool-symbol>
+                    </label>
+                    <label>
+                        <span>Balance</span>
+                        <input type="text" name="balance" value="0" inputmode="decimal" required data-pool-balance>
                     </label>
                     <label>
                         <span>Network</span>
@@ -273,6 +281,7 @@
         const fields = {
             name: root.querySelector('[data-pool-name]'),
             symbol: root.querySelector('[data-pool-symbol]'),
+            balance: root.querySelector('[data-pool-balance]'),
             network: root.querySelector('[data-pool-network]'),
             packageId: root.querySelector('[data-pool-package-id]'),
             poolObjectId: root.querySelector('[data-pool-object-id]'),
@@ -314,6 +323,7 @@
                 }
                 if (fields.network) fields.network.value = 'testnet';
                 if (fields.symbol) fields.symbol.value = 'USDC';
+                if (fields.balance) fields.balance.value = '0';
                 if (fields.riskLevel) fields.riskLevel.value = '1';
                 if (fields.targetApyBps) fields.targetApyBps.value = '0';
                 if (fields.realizedApyBps) fields.realizedApyBps.value = '0';
@@ -343,6 +353,7 @@
                 }
                 if (fields.name) fields.name.value = row.dataset.name || '';
                 if (fields.symbol) fields.symbol.value = row.dataset.symbol || 'USDC';
+                if (fields.balance) fields.balance.value = row.dataset.balance || '0';
                 if (fields.network) fields.network.value = row.dataset.network || 'testnet';
                 if (fields.packageId) fields.packageId.value = row.dataset.packageId || '';
                 if (fields.poolObjectId) fields.poolObjectId.value = row.dataset.poolObjectId || '';
