@@ -53,8 +53,9 @@ class DepositController extends Controller
             $document->owner_orgname = (string) (Auth::user()->orgname ?? '');
         }
 
-        $deposits = Deposit::deposits($fid);
         $depositPools = $this->depositPoolOptions();
+        $usesPoolDeposits = $this->usesPoolDeposits($fid);
+        $deposits = $usesPoolDeposits ? collect() : Deposit::deposits($fid);
         $ownerUserId = (string) (($document->client2 ?? '') ?: (Auth::id() ?: session('userid', '0')));
         $ownerBalances = Money::cachedUserBalances($ownerUserId, $fid, $document->owner_balance ?? '');
         if ($ownerBalances === []) {
@@ -65,7 +66,7 @@ class DepositController extends Controller
             ]];
         }
 
-        return view('deposit.show', compact('document', 'deposits', 'depositPools', 'ownerBalances'));
+        return view('deposit.show', compact('document', 'deposits', 'depositPools', 'ownerBalances', 'usesPoolDeposits'));
     }
 
     public function save(Request $request)
@@ -208,6 +209,23 @@ class DepositController extends Controller
                     'description' => (string) ($pool->description ?? ''),
                 ];
             });
+    }
+
+    private function usesPoolDeposits(mixed $fid): bool
+    {
+        if (!Schema::hasTable('project') || $fid === '' || $fid === null) {
+            return false;
+        }
+
+        $project = DB::table('project')->where('id', (int) $fid)->first();
+        if (!$project) {
+            return false;
+        }
+
+        $projectType = strtolower(trim((string) ($project->project_type ?? '')));
+        $typeLabel = mb_strtolower(trim((string) ($project->type ?? $project->name ?? '')));
+
+        return $projectType === 'trade' || $typeLabel === 'торговля';
     }
 
     private function normalizeCurrencyCode(mixed $value): string

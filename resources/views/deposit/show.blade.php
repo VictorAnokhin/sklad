@@ -80,6 +80,7 @@
             <label>Выбери депозит</label>
             <select name="money" id="depositMoneySelect" class="form-control" required>
                 <option value="" data-currency="">{{ __('deposit.select_deposit') }}</option>
+                @if(($deposits ?? collect())->isNotEmpty())
                 <optgroup label="Депозиты">
                 @foreach($deposits as $deposit)
                 <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency ?? 'UAH' }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
@@ -87,8 +88,9 @@
                 </option>
                 @endforeach
                 </optgroup>
+                @endif
                 @if(($depositPools ?? collect())->isNotEmpty())
-                <optgroup label="Пулы">
+                <optgroup label="{{ !empty($usesPoolDeposits) ? 'Выбери пул' : 'Пулы' }}">
                 @foreach($depositPools as $pool)
                 <option value="{{ $pool->asset_key }}"
                     data-currency="{{ $pool->currency }}"
