@@ -1591,7 +1591,7 @@
                 fiatCryptoForm.reset();
             }
             setFiatCryptoFormDisabled(false);
-            setFiatCryptoSide('buy');
+            setFiatCryptoSide('sell');
             if (fiatCryptoFormTitle) {
                 fiatCryptoFormTitle.textContent = `Обмен по заявке #${valueOrDash(order.id)}`;
             }
@@ -1607,6 +1607,9 @@
             }
             if (fiatCryptoFiat) {
                 fiatCryptoFiat.value = parseOrderNumber(order.pay_amount).toFixed(2);
+            }
+            if (fiatCryptoCrypto) {
+                fiatCryptoCrypto.value = parseOrderNumber(order.expected_av8).toFixed(8);
             }
             if (fiatCryptoRate) {
                 fiatCryptoRate.value = parseOrderNumber(order.rate_usdc).toFixed(8);
@@ -1630,8 +1633,8 @@
                 fiatCryptoSubmit.disabled = false;
             }
             calculateFiatCrypto();
-            if (fiatCryptoBuyOutput) {
-                fiatCryptoBuyOutput.value = parseOrderNumber(order.expected_av8).toFixed(8);
+            if (fiatCryptoSellOutput) {
+                fiatCryptoSellOutput.value = parseOrderNumber(order.pay_amount).toFixed(2);
             }
         }
 
