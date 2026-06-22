@@ -127,8 +127,6 @@
                         <input type="hidden" name="direction" value="account_to_asset" data-invest-operation-direction>
                     </div>
 
-                    <input type="hidden" name="currency" value="USD" data-invest-operation-currency>
-
                     <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="date">
                         <span>Дата</span>
                         <input type="date" name="operated_at" data-invest-operation-date>
@@ -158,7 +156,10 @@
 
                     <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="amount">
                         <span data-invest-operation-amount-label>Сумма</span>
-                        <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
+                        <span class="bank-amount-currency-row">
+                            <input type="text" name="amount" inputmode="numeric" required data-terminal-amount data-terminal-negative="1" data-invest-operation-amount>
+                            <input type="text" name="currency" value="USD" maxlength="20" required data-invest-operation-currency aria-label="Валюта">
+                        </span>
                         <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на активе.</small>
                     </label>
 
@@ -286,6 +287,13 @@
 
     .bank-invest-operation-field {
         grid-column: 1 / -1;
+    }
+
+    .bank-amount-currency-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 92px;
+        gap: 8px;
+        align-items: center;
     }
 
     .bank-invest-page .bank-table > :not(caption) > * > * {
