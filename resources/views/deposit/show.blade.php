@@ -80,11 +80,22 @@
             <label>Выбери депозит</label>
             <select name="money" id="depositMoneySelect" class="form-control" required>
                 <option value="" data-currency="">{{ __('deposit.select_deposit') }}</option>
+                <optgroup label="Депозиты">
                 @foreach($deposits as $deposit)
                 <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency ?? 'UAH' }}" {{ (string) old('money', $document->money ?? '') === (string) $deposit->id ? 'selected' : '' }}>
                     {{ $deposit->name }} @if(($deposit->deposit_type ?? '') === 'bank') · банк @endif @if(isset($deposit->value)) | {{ number_format((float) $deposit->value, 2, '.', ' ') }} {{ $deposit->currency ?? 'UAH' }} @endif
                 </option>
                 @endforeach
+                </optgroup>
+                @if(($depositPools ?? collect())->isNotEmpty())
+                <optgroup label="Пулы">
+                @foreach($depositPools as $pool)
+                <option value="{{ $pool->asset_key }}" data-currency="{{ $pool->currency }}" {{ (string) old('money', $document->money ?? '') === (string) $pool->asset_key ? 'selected' : '' }}>
+                    {{ $pool->name }} | {{ $pool->currency }} @if($pool->is_default_deposit) · default @endif @if(!$pool->active) · inactive @endif
+                </option>
+                @endforeach
+                </optgroup>
+                @endif
             </select>
             <small class="text-muted" id="depositCurrencyHint"></small>
         </div>

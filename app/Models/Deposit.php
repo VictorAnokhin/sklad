@@ -295,7 +295,7 @@ class Deposit extends Model
                     }
                 }
 
-                app(AccountingService::class)->createDocumentTransaction(
+                $ledger = app(AccountingService::class)->createDocumentTransaction(
                     'z_document:deposit_operation',
                     $id,
                     'PP',
@@ -304,6 +304,7 @@ class Deposit extends Model
                     $fid,
                     $wasPosted
                 );
+                FundPoolOperation::recordDepositDocument((int) $fid, $doc, $ledger?->id, $wasPosted);
 
                 DB::table('z_document')
                     ->where('id', $id)
@@ -370,7 +371,15 @@ class Deposit extends Model
 
     public static function depositCurrency(string $fid, string $depositId): string
     {
-        if ($depositId === '' || !Schema::hasColumn('conf', 'currency')) {
+        if ($depositId === '') {
+            return 'UAH';
+        }
+
+        if (str_starts_with($depositId, 'pool:')) {
+            return self::poolCurrency($depositId);
+        }
+
+        if (!Schema::hasColumn('conf', 'currency')) {
             return 'UAH';
         }
 
@@ -379,6 +388,33 @@ class Deposit extends Model
             ->value('currency');
 
         return self::normalizeCurrency($currency ?? 'UAH');
+    }
+
+    private static function poolCurrency(string $assetKey): string
+    {
+        if (!Schema::hasTable('fund_pools')) {
+            return 'USDC';
+        }
+
+        $poolId = (int) substr($assetKey, strlen('pool:'));
+        if ($poolId <= 0) {
+            return 'USDC';
+        }
+
+        $pool = DB::table('fund_pools')
+            ->where('id', $poolId)
+            ->first();
+        if (!$pool) {
+            return 'USDC';
+        }
+
+        $symbol = (string) ($pool->symbol ?? '');
+        if ($symbol === '') {
+            $coinTypeParts = explode('::', (string) ($pool->coin_type ?? ''));
+            $symbol = (string) end($coinTypeParts);
+        }
+
+        return self::normalizeCurrency($symbol !== '' ? $symbol : 'USDC');
     }
 
     private static function depositQuery(string $fid, string $depositId)

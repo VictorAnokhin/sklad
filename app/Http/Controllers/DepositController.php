@@ -6,6 +6,8 @@ use App\Models\Deposit;
 use App\Models\Money;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DepositController extends Controller
 {
@@ -52,6 +54,7 @@ class DepositController extends Controller
         }
 
         $deposits = Deposit::deposits($fid);
+        $depositPools = $this->depositPoolOptions();
         $ownerUserId = (string) (($document->client2 ?? '') ?: (Auth::id() ?: session('userid', '0')));
         $ownerBalances = Money::cachedUserBalances($ownerUserId, $fid, $document->owner_balance ?? '');
         if ($ownerBalances === []) {
@@ -62,7 +65,7 @@ class DepositController extends Controller
             ]];
         }
 
-        return view('deposit.show', compact('document', 'deposits', 'ownerBalances'));
+        return view('deposit.show', compact('document', 'deposits', 'depositPools', 'ownerBalances'));
     }
 
     public function save(Request $request)
@@ -168,5 +171,41 @@ class DepositController extends Controller
         return redirect()
             ->route('deposit.show', ['id' => $document->id])
             ->with('success', ($result['isPosted'] ?? false) ? 'Проводку виконано' : 'Проводку скасовано');
+    }
+
+    private function depositPoolOptions()
+    {
+        if (!Schema::hasTable('fund_pools')) {
+            return collect();
+        }
+
+        $query = DB::table('fund_pools');
+
+        if (Schema::hasColumn('fund_pools', 'active')) {
+            $query->orderByDesc('active');
+        }
+        if (Schema::hasColumn('fund_pools', 'risk_level')) {
+            $query->orderBy('risk_level');
+        }
+
+        return $query
+            ->orderBy('name')
+            ->get()
+            ->map(function ($pool) {
+                $symbol = strtoupper((string) ($pool->symbol ?? ''));
+                if ($symbol === '') {
+                    $coinTypeParts = explode('::', (string) ($pool->coin_type ?? ''));
+                    $symbol = strtoupper((string) end($coinTypeParts));
+                }
+
+                return (object) [
+                    'id' => (int) $pool->id,
+                    'asset_key' => 'pool:' . (int) $pool->id,
+                    'name' => (string) ($pool->name ?? 'Pool #' . $pool->id),
+                    'currency' => $symbol !== '' ? $symbol : 'USDC',
+                    'active' => (bool) ($pool->active ?? true),
+                    'is_default_deposit' => (bool) ($pool->is_default_deposit ?? false),
+                ];
+            });
     }
 }
