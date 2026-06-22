@@ -1223,6 +1223,9 @@ class BankController extends Controller
             ? (float) $payload['quantity'] * $priceUsd
             : $amount);
         $currency = $this->normalizeCurrencyCode((string) $payload['currency']);
+        if ((string) $payload['direction'] !== 'revaluation' && $account) {
+            $currency = $this->normalizeCurrencyCode((string) ($account->currency ?? $currency));
+        }
         if ((bool) ($payload['update_account_balance'] ?? false)) {
             abort_unless(
                 in_array((string) $payload['direction'], ['account_to_asset', 'asset_to_account'], true),

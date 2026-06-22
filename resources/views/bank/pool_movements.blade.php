@@ -129,7 +129,7 @@
                         <span>Счет</span>
                         <select name="account_id" required data-invest-operation-account>
                             @forelse($operationalAccounts as $account)
-                                <option value="{{ $account->id }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
+                                <option value="{{ $account->id }}" data-currency="{{ $account->currency }}">{{ $account->label }} · {{ $account->currency }} · {{ $formatMoney($account->balance) }}</option>
                             @empty
                                 <option value="">Операционные счета не найдены</option>
                             @endforelse
@@ -388,6 +388,19 @@
             comment: root.querySelector('[data-pool-movement-field="comment"]'),
         };
 
+        function syncCurrencyFromAccount() {
+            if (!account || !currency || direction?.value === 'revaluation') {
+                return;
+            }
+            const selectedOption = account.selectedOptions && account.selectedOptions.length > 0
+                ? account.selectedOptions[0]
+                : null;
+            const accountCurrency = selectedOption?.dataset.currency || '';
+            if (accountCurrency) {
+                currency.value = accountCurrency;
+            }
+        }
+
         function setDirection(nextDirection) {
             if (direction) direction.value = nextDirection;
             directionTabs.forEach((tab) => {
@@ -398,6 +411,12 @@
             if (account) account.required = nextDirection !== 'revaluation';
             if (revaluationNote) revaluationNote.hidden = nextDirection !== 'revaluation';
             if (amountLabel) amountLabel.textContent = nextDirection === 'revaluation' ? 'Дельта стоимости' : 'Сумма';
+            if (currency) {
+                currency.readOnly = nextDirection !== 'revaluation';
+                if (nextDirection !== 'revaluation') {
+                    syncCurrencyFromAccount();
+                }
+            }
             if (valueSectionTitle) valueSectionTitle.textContent = nextDirection === 'revaluation' ? '2. Дельта стоимости пула' : '3. Сумма и дата';
             if (amountHint) {
                 amountHint.textContent = nextDirection === 'revaluation'
@@ -492,6 +511,9 @@
             if (account) account.value = String(movement.account_id || '');
             if (asset) asset.value = movement.asset_key || '';
             if (currency) currency.value = movement.currency || 'USD';
+            if ((movement.direction || 'account_to_asset') !== 'revaluation') {
+                syncCurrencyFromAccount();
+            }
             if (amount) amount.value = movement.amount || movement.value_usd || '';
             if (operatedAt) operatedAt.value = formatDateTimeLocal(movement.date || '');
             if (note) note.value = movement.note || '';
@@ -516,6 +538,8 @@
         directionTabs.forEach((tab) => {
             tab.addEventListener('click', () => setDirection(tab.dataset.investOperationDirectionTab || 'account_to_asset'));
         });
+
+        account?.addEventListener('change', syncCurrencyFromAccount);
 
         submit?.addEventListener('click', () => {
             if (!form) return;
