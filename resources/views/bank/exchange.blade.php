@@ -1673,7 +1673,7 @@
 
         fiatCryptoForm?.addEventListener('reset', () => {
             window.setTimeout(() => {
-                setFiatCryptoSide('buy');
+                setFiatCryptoSide(fiatCryptoForm.dataset.mode === 'swap-order' ? 'sell' : 'buy');
                 filterFiatCryptoAccounts();
                 if (fiatCryptoDate) {
                     fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
