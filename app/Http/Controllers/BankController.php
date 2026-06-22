@@ -807,9 +807,13 @@ class BankController extends Controller
         $project = $this->bankProject();
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
         $poolAssetRows = $this->investmentPoolAssetRows();
-        $investOperations = $this->bankInvestOperations((int) $project->id, $operationalAccounts, $poolAssetRows)
-            ->filter(fn ($operation) => (string) ($operation->asset_type ?? '') === 'pool')
-            ->values();
+        $poolAssetKeys = $poolAssetRows->pluck('asset_key')->all();
+        $investOperations = $poolAssetKeys === []
+            ? collect()
+            : $this->bankInvestOperations((int) $project->id, $operationalAccounts, $poolAssetRows, [
+                'asset_type' => 'pool',
+                'asset_keys' => $poolAssetKeys,
+            ]);
 
         return view('bank.pool_movements', [
             'project' => $project,
@@ -3154,7 +3158,7 @@ class BankController extends Controller
             ]);
     }
 
-    private function bankInvestOperations(int $projectId, $operationalAccounts, $fixedAssetRows)
+    private function bankInvestOperations(int $projectId, $operationalAccounts, $fixedAssetRows, array $filters = [])
     {
         if (! Schema::hasTable('bank_invest_operations')) {
             return collect();
@@ -3162,9 +3166,22 @@ class BankController extends Controller
 
         $accountsById = $operationalAccounts->keyBy(fn ($account) => (int) $account->id);
         $assetsByKey = $fixedAssetRows->keyBy('asset_key');
+        $assetKeys = collect($filters['asset_keys'] ?? [])
+            ->map(fn ($key) => (string) $key)
+            ->filter()
+            ->values()
+            ->all();
 
         return DB::table('bank_invest_operations')
             ->where('project_id', $projectId)
+            ->when(
+                isset($filters['asset_type']),
+                fn ($query) => $query->where('asset_type', (string) $filters['asset_type'])
+            )
+            ->when(
+                $assetKeys !== [],
+                fn ($query) => $query->whereIn('asset_key', $assetKeys)
+            )
             ->orderByDesc('operated_at')
             ->orderByDesc('id')
             ->get()
