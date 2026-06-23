@@ -20,24 +20,6 @@
 <div class="bank-page bank-invest-page" data-bank-assets-page>
     @include('bank.partials.nav')
 
-    <section class="bank-hero bank-invest-hero">
-        <div>
-            <div class="bank-label">Bank assets</div>
-            <h1>Активы</h1>
-            <p>Реестр ручных инвестиционных активов банка для распределения средств со счетов.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Активов</span>
-                <strong>{{ $summary['assets'] }}</strong>
-            </div>
-            <div>
-                <span>Стоимость</span>
-                <strong>{{ $formatMoney($summary['value_usd']) }} USD</strong>
-            </div>
-        </div>
-    </section>
-
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel bank-panel--accent">
             <div class="bank-label">Активы</div>

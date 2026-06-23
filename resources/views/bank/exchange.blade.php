@@ -61,24 +61,6 @@
 
     <div class="tab-content">
         <div class="tab-pane fade {{ $activeExchangeTab === 'crypto' ? '' : 'show active' }}" id="bankExchangeAv8Pane" role="tabpanel" aria-labelledby="bankExchangeAv8Tab">
-    <section class="bank-hero">
-        <div>
-            <div class="bank-label">Заявки</div>
-            <h1>Обмен фиат/крипта на AV8</h1>
-            <p>Заявки формы av8fund-react `/swap`, параметры расчета и история on-chain исполнения.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Заявок</span>
-                <strong>{{ $fiatAv8Orders->count() }}</strong>
-            </div>
-            <div>
-                <span>К выдаче AV8</span>
-                <strong>{{ number_format($av8Total, 2, '.', ' ') }}</strong>
-            </div>
-        </div>
-    </section>
-
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel">
             <div class="bank-label">Курс AV8</div>

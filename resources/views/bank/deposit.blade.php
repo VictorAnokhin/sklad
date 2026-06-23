@@ -8,24 +8,6 @@
 <div class="bank-page">
     @include('bank.partials.nav')
 
-    <section class="bank-hero">
-        <div>
-            <div class="bank-label">Bank Deposits</div>
-            <h1>Депозиты</h1>
-            <p>Депозитные счета проектов, текущие остатки, лимиты и история пополнений и выводов.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Активных депозитов</span>
-                <strong>{{ number_format((int) $summary['active'], 0, '.', ' ') }}</strong>
-            </div>
-            <div>
-                <span>Ожидают проводку</span>
-                <strong>{{ number_format((int) $summary['pending'], 0, '.', ' ') }}</strong>
-            </div>
-        </div>
-    </section>
-
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif

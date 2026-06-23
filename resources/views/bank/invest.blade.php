@@ -18,24 +18,6 @@
 <div class="bank-page bank-invest-page" data-bank-invest-page>
     @include('bank.partials.nav')
 
-    <section class="bank-hero bank-invest-hero">
-        <div>
-            <div class="bank-label">Invest operations</div>
-            <h1>Операции</h1>
-            <p>Движения между операционными счетами и инвестиционными активами.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Операций</span>
-                <strong>{{ $investOperations->count() }}</strong>
-            </div>
-            <div>
-                <span>Проведено</span>
-                <strong>{{ $investOperations->where('status', 'posted')->count() }}</strong>
-            </div>
-        </div>
-    </section>
-
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
             <div>

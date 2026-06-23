@@ -13,24 +13,6 @@
 <div class="bank-page bank-pools-page" data-bank-pools-page>
     @include('bank.partials.nav')
 
-    <section class="bank-hero bank-invest-hero">
-        <div>
-            <div class="bank-label">Fund pools</div>
-            <h1>Пулы</h1>
-            <p>Справочник пулов AV8 Capital: параметры, статус, доходность и on-chain идентификаторы.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Пулов</span>
-                <strong>{{ $summary['pools'] }}</strong>
-            </div>
-            <div>
-                <span>Средняя APY</span>
-                <strong>{{ $formatBps($summary['avg_apy_bps']) }}</strong>
-            </div>
-        </div>
-    </section>
-
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel bank-panel--accent">
             <div class="bank-label">Пулы</div>

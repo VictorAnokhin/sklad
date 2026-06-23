@@ -8,24 +8,6 @@
 <div class="bank-page">
     @include('bank.partials.nav')
 
-    <section class="bank-hero">
-        <div>
-            <div class="bank-label">Bank Payment Operations</div>
-            <h1>Платежи</h1>
-            <p>Исходящие и входящие платежи через кассы-кошельки банка, статусы обработки и связанные бухгалтерские проводки.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Проведено</span>
-                <strong>{{ number_format((int) $summary['posted'], 0, '.', ' ') }}</strong>
-            </div>
-            <div>
-                <span>Требуют внимания</span>
-                <strong>{{ number_format((int) $summary['attention'], 0, '.', ' ') }}</strong>
-            </div>
-        </div>
-    </section>
-
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel bank-panel--accent">
             <div class="bank-label">Входящие</div>

@@ -18,24 +18,6 @@
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
 
-    <section class="bank-hero">
-        <div>
-            <div class="bank-label">Финансовая организация</div>
-            <h1>Операционные счета {{ $project->name ?? ('#' . $project->id) }}</h1>
-            <p>Банковские операционные счета с типом bank. Используются для переводов, депозитов и инвестиционных операций.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Счетов</span>
-                <strong>{{ $cashAccounts->count() }}</strong>
-            </div>
-            <div>
-                <span>Валют</span>
-                <strong>{{ $operationalTotalByCurrency->count() }}</strong>
-            </div>
-        </div>
-    </section>
-
     <section class="bank-panel bank-currency-strip">
         <div class="bank-table-header">
             <div>

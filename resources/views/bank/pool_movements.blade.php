@@ -12,24 +12,6 @@
 <div class="bank-page bank-invest-page" data-bank-invest-page>
     @include('bank.partials.nav')
 
-    <section class="bank-hero bank-invest-hero">
-        <div>
-            <div class="bank-label">Account to pool</div>
-            <h1>Движение средств</h1>
-            <p>Операции Счет - Пул и Счет - Депозит: пулы из bank/pools, депозиты и счета проекта f={{ $accountProjectId ?? 12 }}.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Операций</span>
-                <strong>{{ $summary['operations'] }}</strong>
-            </div>
-            <div>
-                <span>Проведено</span>
-                <strong>{{ $summary['posted'] }}</strong>
-            </div>
-        </div>
-    </section>
-
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif

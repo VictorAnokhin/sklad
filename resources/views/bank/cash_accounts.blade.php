@@ -23,24 +23,6 @@
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
 
-    <section class="bank-hero">
-        <div>
-            <div class="bank-label">Финансовая организация</div>
-            <h1>Счета клиентов {{ $project->name ?? ('#' . $project->id) }}</h1>
-            <p>Реестр счетов, открытых для проектов и физических лиц. В проектах раскрываются кассы, у физлиц раскрываются клиентские счета.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Проектов</span>
-                <strong>{{ $projectAccounts->count() }}</strong>
-            </div>
-            <div>
-                <span>Физлиц</span>
-                <strong>{{ $personOwners->count() }}</strong>
-            </div>
-        </div>
-    </section>
-
     <section class="bank-grid bank-grid--summary">
         <button type="button" class="bank-panel bank-panel--button bank-panel--accent is-active" data-bank-section-trigger="projects">
             <span class="bank-label">Проекты</span>

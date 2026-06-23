@@ -15,24 +15,6 @@
 <div class="bank-page">
     @include('bank.partials.nav')
 
-    <section class="bank-hero">
-        <div>
-            <div class="bank-label">Intercompany Settlement Service</div>
-            <h1>Межкомпанейский клиринг холдинга</h1>
-            <p>Внутренний сервис зеркалирует успешные blockchain-транзакции в двойные intercompany-проводки и ведет виртуальные долги между проектами холдинга.</p>
-        </div>
-        <div class="bank-hero__metrics">
-            <div>
-                <span>Статус listener</span>
-                <strong>{{ $statusLabel }}</strong>
-            </div>
-            <div>
-                <span>Событий в потоке</span>
-                <strong>{{ number_format((int) $serviceStatus['events_total'], 0, '.', ' ') }}</strong>
-            </div>
-        </div>
-    </section>
-
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel">
             <div class="bank-label">Проекты холдинга</div>
