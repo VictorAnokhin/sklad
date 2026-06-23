@@ -578,6 +578,7 @@ class BankController extends Controller
                     trim((string) ($account->name ?? '')),
                     trim((string) ($deposit->name ?? '')),
                     $direction,
+                    trim((string) ($payload['note'] ?? '')),
                     $postLedger
                 );
 
@@ -645,6 +646,7 @@ class BankController extends Controller
                     trim((string) ($account->name ?? '')),
                     trim((string) ($deposit->name ?? '')),
                     $direction,
+                    trim((string) ($payload['note'] ?? '')),
                     $postLedger
                 );
                 if ($postLedger) {
@@ -3878,6 +3880,7 @@ class BankController extends Controller
         string $accountName,
         string $depositName,
         string $direction,
+        string $note = '',
         bool $postLedger = true
     ): int {
         $columns = Schema::getColumnListing('z_document');
@@ -3892,9 +3895,11 @@ class BankController extends Controller
             'firma' => $projectId,
             'num' => $maxNum ? (int) $maxNum + 1 : 1,
             'summa' => $amount,
-            'content' => $isDepositToAccount
-                ? trim("Трансфер с депозита {$depositName} на операционный счет {$accountName}")
-                : trim("Трансфер с операционного счета {$accountName} на депозит {$depositName}"),
+            'content' => $note !== ''
+                ? $note
+                : ($isDepositToAccount
+                    ? trim("Трансфер с депозита {$depositName} на операционный счет {$accountName}")
+                    : trim("Трансфер с операционного счета {$accountName} на депозит {$depositName}")),
             'data' => date('d-m-Y'),
             'time' => date('H:i:s'),
             'docum' => $isDepositToAccount ? 'withdraw' : 'topup',
@@ -3924,6 +3929,7 @@ class BankController extends Controller
             'operational_account_id' => ['required', 'integer'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'direction' => ['required', Rule::in(['account_to_deposit', 'deposit_to_account'])],
+            'note' => ['nullable', 'string', 'max:2000'],
             'post_ledger' => ['sometimes', 'accepted'],
         ]);
     }
@@ -4111,15 +4117,18 @@ class BankController extends Controller
         string $accountName,
         string $depositName,
         string $direction,
+        string $note = '',
         bool $postLedger = true
     ): void {
         $columns = Schema::getColumnListing('z_document');
         $isDepositToAccount = $direction === 'deposit_to_account';
         $payload = [
             'summa' => $amount,
-            'content' => $isDepositToAccount
-                ? trim("Трансфер с депозита {$depositName} на операционный счет {$accountName}")
-                : trim("Трансфер с операционного счета {$accountName} на депозит {$depositName}"),
+            'content' => $note !== ''
+                ? $note
+                : ($isDepositToAccount
+                    ? trim("Трансфер с депозита {$depositName} на операционный счет {$accountName}")
+                    : trim("Трансфер с операционного счета {$accountName} на депозит {$depositName}")),
             'data' => date('d-m-Y'),
             'time' => date('H:i:s'),
             'docum' => $isDepositToAccount ? 'withdraw' : 'topup',
