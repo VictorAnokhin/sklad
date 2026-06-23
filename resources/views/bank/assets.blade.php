@@ -204,7 +204,7 @@
     .bank-assets-table__type { width: 92px; }
     .bank-assets-table__date { width: 112px; }
     .bank-assets-table__address { width: 180px; }
-    .bank-assets-table__name { width: 220px; }
+    .bank-assets-table__name { width: 440px; }
     .bank-assets-table__number { width: 130px; }
     .bank-assets-table__money { width: 120px; }
     .bank-assets-table__percent { width: 70px; }
