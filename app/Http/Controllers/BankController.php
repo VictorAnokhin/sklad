@@ -57,39 +57,12 @@ class BankController extends Controller
             $projectAccounts = $this->projectAccounts($project);
         }
 
-        $totalByCurrency = $clientAccounts
-            ->groupBy('currency')
-            ->map(fn ($items) => (float) $items->sum('balance'));
-        $ownerTypeTotals = $clientAccounts
-            ->groupBy('owner_type')
-            ->map(fn ($items) => [
-                'count' => $items->count(),
-                'balance' => (float) $items->sum('balance'),
-            ]);
-
         return view('bank.cash_accounts', [
             'project' => $project,
             'cashAccounts' => $cashAccounts,
             'clientAccounts' => $clientAccounts,
             'projectAccounts' => $projectAccounts,
             'personOwners' => $this->personOwners((string) $project->id, $clientAccounts),
-            'totalByCurrency' => $totalByCurrency,
-            'ownerTypeTotals' => $ownerTypeTotals,
-        ]);
-    }
-
-    public function operationalAccounts(): View
-    {
-        $project = $this->bankProject();
-        $cashAccounts = $this->bankOperationalAccountsByAccountType((string) $project->id, 'bank');
-        $operationalTotalByCurrency = $cashAccounts
-            ->groupBy('currency')
-            ->map(fn ($items) => (float) $items->sum('balance'));
-
-        return view('bank.operational_accounts', [
-            'project' => $project,
-            'cashAccounts' => $cashAccounts,
-            'operationalTotalByCurrency' => $operationalTotalByCurrency,
         ]);
     }
 
@@ -3855,9 +3828,7 @@ class BankController extends Controller
 
     private function operationalAccountReturnRoute(Request $request): string
     {
-        return $request->input('redirect_to') === 'bank.operational-accounts'
-            ? 'bank.operational-accounts'
-            : 'bank.cash-accounts';
+        return 'bank.cash-accounts';
     }
 
     private function depositTransferAccountId(object $document, string $direction): string

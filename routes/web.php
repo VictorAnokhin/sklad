@@ -81,7 +81,6 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/blockchain-monitor/api/sync', [BlockchainMonitorController::class, 'sync'])->name('blockchain-monitor.sync');
     Route::prefix('bank')->name('bank.')->group(function () {
         Route::get('/cash-accounts', [BankController::class, 'cashAccounts'])->name('cash-accounts');
-        Route::get('/operational-accounts', [BankController::class, 'operationalAccounts'])->name('operational-accounts');
         Route::post('/cash-accounts/operational-accounts', [BankController::class, 'storeOperationalAccount'])
             ->name('operational-accounts.store');
         Route::put('/cash-accounts/operational-accounts/{account}', [BankController::class, 'updateOperationalAccount'])

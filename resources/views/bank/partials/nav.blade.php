@@ -1,6 +1,5 @@
 <nav class="bank-nav" aria-label="Bank navigation">
-    <a href="{{ route('bank.cash-accounts') }}" class="{{ request()->routeIs('bank.cash-accounts') ? 'is-active' : '' }}">Клиентские счета</a>
-    <a href="{{ route('bank.operational-accounts') }}" class="{{ request()->routeIs('bank.operational-accounts') ? 'is-active' : '' }}">Операционные счета</a>
+    <a href="{{ route('bank.cash-accounts') }}" class="{{ request()->routeIs('bank.cash-accounts') ? 'is-active' : '' }}">Счета</a>
     <a href="{{ route('bank.deposit') }}" class="{{ request()->routeIs('bank.deposit') ? 'is-active' : '' }}">Депозиты</a>
     <a href="{{ route('bank.pools') }}" class="{{ request()->routeIs('bank.pools') ? 'is-active' : '' }}">Пулы</a>
     <a href="{{ route('bank.pool-movements') }}" class="{{ request()->routeIs('bank.pool-movements') ? 'is-active' : '' }}">Движение средств</a>

@@ -123,6 +123,32 @@
         display: block;
     }
 
+    .bank-tabs {
+        display: inline-flex;
+        gap: 4px;
+        margin: 0 0 14px;
+        padding: 4px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.72);
+    }
+
+    .bank-tab {
+        min-width: 112px;
+        min-height: 36px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: rgba(226, 232, 240, 0.82);
+        font-weight: 800;
+    }
+
+    .bank-tab.is-active {
+        background: rgba(56, 189, 248, 0.18);
+        color: #fff;
+        box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.36);
+    }
+
     .bank-table-panel {
         padding: 0;
         overflow: hidden;

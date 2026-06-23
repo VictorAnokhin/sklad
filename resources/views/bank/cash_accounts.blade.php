@@ -1,15 +1,10 @@
 @extends('home')
 
 @section('title')
-Клиентские счета
+Счета
 @endsection
 
 @section('content')
-@php
-    $personStats = $ownerTypeTotals['person'] ?? ['count' => 0, 'balance' => 0];
-    $primaryCurrency = $totalByCurrency->keys()->first() ?? 'UAH';
-    $primaryTotal = (float) ($totalByCurrency[$primaryCurrency] ?? 0);
-@endphp
 <div class="bank-page" data-bank-accounts-page>
     @include('bank.partials.nav')
 
@@ -23,42 +18,10 @@
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
 
-    <section class="bank-grid bank-grid--summary">
-        <button type="button" class="bank-panel bank-panel--button bank-panel--accent is-active" data-bank-section-trigger="projects">
-            <span class="bank-label">Проекты</span>
-            <span class="bank-value">{{ $projectAccounts->count() }}</span>
-            <span class="bank-meta">Проекты с кассами и счетами обслуживания</span>
-        </button>
-        <button type="button" class="bank-panel bank-panel--button" data-bank-section-trigger="persons">
-            <span class="bank-label">Физические лица</span>
-            <span class="bank-value">{{ $personOwners->count() }}</span>
-            <span class="bank-meta">Персональные клиенты и открытые счета</span>
-        </button>
-        <div class="bank-panel">
-            <div class="bank-label">Основной остаток</div>
-            <div class="bank-value">{{ number_format($primaryTotal, 2, '.', ' ') }}</div>
-            <div class="bank-meta">{{ $primaryCurrency }} на клиентских счетах физлиц</div>
-        </div>
-    </section>
-
-    <section class="bank-panel bank-currency-strip">
-        <div class="bank-table-header">
-            <div>
-                <div class="bank-label">Остатки физических лиц</div>
-                <div class="bank-meta">Сводка по валютам клиентских счетов</div>
-            </div>
-        </div>
-        <div class="bank-currency-list">
-            @forelse($totalByCurrency as $currency => $total)
-                <div class="bank-currency-item">
-                    <span>{{ $currency }}</span>
-                    <strong>{{ number_format((float) $total, 2, '.', ' ') }}</strong>
-                </div>
-            @empty
-                <div class="bank-empty">Клиентские счета еще не открыты.</div>
-            @endforelse
-        </div>
-    </section>
+    <div class="bank-tabs" role="tablist" aria-label="Счета">
+        <button type="button" class="bank-tab is-active" data-bank-section-trigger="projects" role="tab" aria-selected="true">Проекты</button>
+        <button type="button" class="bank-tab" data-bank-section-trigger="persons" role="tab" aria-selected="false">Клиенты</button>
+    </div>
 
     <section class="bank-panel bank-table-panel" data-bank-section-panel="projects">
         <div class="bank-table-header">
@@ -408,7 +371,11 @@ document.addEventListener('DOMContentLoaded', () => {
     sectionTriggers.forEach((trigger) => {
         trigger.addEventListener('click', () => {
             const target = trigger.dataset.bankSectionTrigger;
-            sectionTriggers.forEach((item) => item.classList.toggle('is-active', item === trigger));
+            sectionTriggers.forEach((item) => {
+                const isActive = item === trigger;
+                item.classList.toggle('is-active', isActive);
+                item.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
             sectionPanels.forEach((panel) => {
                 panel.hidden = panel.dataset.bankSectionPanel !== target;
             });
