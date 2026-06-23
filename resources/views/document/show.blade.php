@@ -490,6 +490,12 @@
             </div>
         @endif
 
+        @if(session('warning'))
+            <div class="alert alert-warning py-2">
+                {{ session('warning') }}
+            </div>
+        @endif
+
         {{-- Related icons strip (client_info) --}}
         @if(!empty($relatedIcons))
             <div class="alert alert-secondary py-2 related-icons-bar">
@@ -552,6 +558,12 @@
                             <div class="col-f">
                                 <label>ТТН Нова Пошта</label>
                                 <input type="text" name="ttn" class="form-control text-white" value="{{ $document->ttn ?? '' }}">
+                                @if($doc === 'ZOUT')
+                                    <div class="form-check d-flex align-items-center mt-2">
+                                        <input type="checkbox" class="form-check-input" id="send_order_sms" name="send_order_sms" value="1">
+                                        <label class="form-check-label ms-2" for="send_order_sms">SMS</label>
+                                    </div>
+                                @endif
                             </div>
                             <div class="col-f">
                                 <label>Статус</label>

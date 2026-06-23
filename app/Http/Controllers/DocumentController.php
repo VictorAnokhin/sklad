@@ -11,10 +11,12 @@ use App\Models\Docs;
 use App\Models\Conf as ConfModel;
 use App\Services\FilterService;
 use App\Services\DocumentService;
+use App\Services\SmsClubService;
 use App\Support\HoldingScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -29,7 +31,8 @@ class DocumentController extends Controller
 {
     public function __construct(
         private FilterService $filter,
-        private DocumentService $docService
+        private DocumentService $docService,
+        private SmsClubService $smsClub
         )
     {
     }
@@ -959,6 +962,18 @@ class DocumentController extends Controller
 
                 $message = 'Збережено';
 
+                $smsWarning = null;
+                if ($doc === 'ZOUT' && $request->boolean('send_order_sms')) {
+                    $savedDocument = DB::table(Document::tableForType($doc))
+                        ->where('id', $docId)
+                        ->where('firma', $fid)
+                        ->first();
+
+                    $smsWarning = $savedDocument
+                        ? $this->sendOrderTtnSms($savedDocument, $fid)
+                        : 'SMS не відправлено: замовлення не знайдено після збереження.';
+                }
+
                 if (in_array($doc, $conductableDocs, true)) {
                     \Illuminate\Support\Facades\Log::info('Checking provodka state', [
                         'doc' => $doc,
@@ -986,7 +1001,11 @@ class DocumentController extends Controller
                     'docId' => $docId,
                     'message' => $message,
                 ]);
-                return redirect()->back()->with('success', $message);
+                $redirect = redirect()->back()->with('success', $message);
+
+                return $smsWarning === null
+                    ? $redirect
+                    : $redirect->with('warning', $smsWarning);
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::error('Document save failed', [
                     'doc' => $doc,
@@ -1030,6 +1049,98 @@ class DocumentController extends Controller
             'num' => $document->num,
             'year' => $year,
         ])->with('success', $isPosted ? 'Проводку виконано' : 'Проводку скасовано');
+    }
+
+    private function sendOrderTtnSms(object $document, string $fid): ?string
+    {
+        $clientId = (int) ($document->client1 ?? 0);
+        if ($clientId <= 0) {
+            return 'SMS не відправлено: у замовленні не вибраний клієнт.';
+        }
+
+        $ttn = trim((string) ($document->ttn ?? ''));
+        if ($ttn === '') {
+            return 'SMS не відправлено: у замовленні не вказаний номер ТТН.';
+        }
+
+        $client = DB::table('users')
+            ->where('id', $clientId)
+            ->where('firma', $fid)
+            ->first(['id', 'phone', 'name', 'secondname', 'fathername', 'orgname']);
+
+        if (!$client) {
+            return 'SMS не відправлено: клієнта не знайдено.';
+        }
+
+        $phone = $this->normalizeSmsPhone((string) ($client->phone ?? ''));
+        if ($phone === null) {
+            return 'SMS не відправлено: у клієнта некоректний телефон.';
+        }
+
+        $message = $this->makeOrderTtnSmsMessage($document, $client);
+
+        try {
+            $this->smsClub->sendOtp($phone, $message);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to send order TTN SMS.', [
+                'document_id' => $document->id ?? null,
+                'document_type' => $document->type ?? 'ZOUT',
+                'client_id' => $clientId,
+                'phone' => $phone,
+                'error' => $e->getMessage(),
+            ]);
+
+            return 'Замовлення збережено, але SMS не відправлено: '.$e->getMessage();
+        }
+
+        Log::info('Order TTN SMS sent.', [
+            'document_id' => $document->id ?? null,
+            'client_id' => $clientId,
+            'phone' => $phone,
+        ]);
+
+        return null;
+    }
+
+    private function normalizeSmsPhone(string $phone): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '0')) {
+            $digits = '38'.$digits;
+        }
+
+        if (!str_starts_with($digits, '38') && strlen($digits) === 10) {
+            $digits = '38'.$digits;
+        }
+
+        if (!preg_match('/^380\d{9}$/', $digits)) {
+            return null;
+        }
+
+        return $digits;
+    }
+
+    private function makeOrderTtnSmsMessage(object $document, object $client): string
+    {
+        $clientName = trim((string) ($client->orgname ?? ''));
+        if ($clientName === '') {
+            $clientName = trim(implode(' ', array_filter([
+                (string) ($client->secondname ?? ''),
+                (string) ($client->name ?? ''),
+                (string) ($client->fathername ?? ''),
+            ])));
+        }
+
+        $ttn = trim((string) ($document->ttn ?? ''));
+        $content = trim((string) ($document->content ?? ''));
+        $prefix = $clientName !== '' ? $clientName.', ' : '';
+        $message = $content !== '' ? $content : 'Ваш заказ отправлен.';
+
+        return "{$prefix}{$message} ТТН: {$ttn}";
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
