@@ -1248,6 +1248,19 @@ class BankController extends Controller
         $operationalAccounts = $this->bankOperationalAccounts((string) ($accountProjectId ?? $projectId));
         $accountIds = $operationalAccounts->pluck('id')->map(fn ($id) => (string) $id)->all();
         $assetOptions = $this->investOperationAssetOptions($projectId);
+        if ($currentOperation && ! $assetOptions->contains('asset_key', (string) $currentOperation->asset_key)) {
+            $assetOptions = $assetOptions->push((object) [
+                'asset_type' => (string) $currentOperation->asset_type,
+                'asset_key' => (string) $currentOperation->asset_key,
+                'source_id' => 0,
+                'name' => trim((string) $currentOperation->asset_label) ?: (string) $currentOperation->asset_key,
+                'description' => '',
+                'currency' => (string) ($currentOperation->currency ?? 'USD'),
+                'value_usd' => (float) ($currentOperation->value_usd ?? 0),
+                'source' => 'bank_invest_operations',
+                'status' => 'historical',
+            ]);
+        }
         $assetKeys = $assetOptions->pluck('asset_key')->all();
 
         $payload = $request->validate([

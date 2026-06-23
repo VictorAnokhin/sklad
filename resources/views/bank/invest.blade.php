@@ -511,6 +511,26 @@
             });
         }
 
+        function ensureAssetOption(movement) {
+            if (!asset || !movement?.asset_key) {
+                return;
+            }
+            const movementAssetKey = String(movement.asset_key);
+            const exists = Array.from(asset.options).some((option) => option.value === movementAssetKey);
+            if (exists) {
+                return;
+            }
+
+            const option = document.createElement('option');
+            option.value = movementAssetKey;
+            option.textContent = [
+                movement.asset_type || 'Актив',
+                movement.asset_label || movementAssetKey,
+                movement.currency || 'USD',
+            ].filter(Boolean).join(' · ');
+            asset.appendChild(option);
+        }
+
         function resetForm() {
             form?.reset();
             if (form) {
@@ -570,7 +590,8 @@
                 postLedgerField.hidden = Boolean(movement.is_posted);
             }
             if (account) account.value = String(movement.account_id || '');
-            if (asset) asset.value = movement.asset_key || '';
+            ensureAssetOption(movement);
+            if (asset) asset.value = String(movement.asset_key || '');
             if (currency) currency.value = movement.currency || 'USD';
             if ((movement.direction || 'account_to_asset') !== 'revaluation') {
                 syncCurrencyFromAccount();
