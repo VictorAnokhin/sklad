@@ -586,10 +586,10 @@ class BankController extends Controller
                 }
             });
         } catch (\RuntimeException $exception) {
-            return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('error', $exception->getMessage());
+            return redirect()->route('bank.pool-movements', ['tab' => 'deposits'])->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('success', 'Трансфер выполнен.');
+        return redirect()->route('bank.pool-movements', ['tab' => 'deposits'])->with('success', 'Трансфер выполнен.');
     }
 
     public function updateDepositTransfer(Request $request, int $transfer): RedirectResponse
@@ -640,10 +640,10 @@ class BankController extends Controller
                 }
             });
         } catch (\RuntimeException $exception) {
-            return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('error', $exception->getMessage());
+            return redirect()->route('bank.pool-movements', ['tab' => 'deposits'])->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('success', 'Трансфер обновлен.');
+        return redirect()->route('bank.pool-movements', ['tab' => 'deposits'])->with('success', 'Трансфер обновлен.');
     }
 
     public function destroyDepositTransfer(int $transfer): RedirectResponse
@@ -674,10 +674,10 @@ class BankController extends Controller
                 ]);
             });
         } catch (\RuntimeException $exception) {
-            return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('error', $exception->getMessage());
+            return redirect()->route('bank.pool-movements', ['tab' => 'deposits'])->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('success', 'Трансфер удален.');
+        return redirect()->route('bank.pool-movements', ['tab' => 'deposits'])->with('success', 'Трансфер удален.');
     }
 
     public function reverseDepositTransfer(int $transfer): RedirectResponse
@@ -703,10 +703,10 @@ class BankController extends Controller
                 ]);
             });
         } catch (\RuntimeException $exception) {
-            return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('error', $exception->getMessage());
+            return redirect()->route('bank.pool-movements', ['tab' => 'deposits'])->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('bank.deposit', ['tab' => 'transfer'])->with('success', 'Проводка трансфера отменена.');
+        return redirect()->route('bank.pool-movements', ['tab' => 'deposits'])->with('success', 'Проводка трансфера отменена.');
     }
 
     public function exchange(): View
@@ -813,6 +813,7 @@ class BankController extends Controller
         $projectIds = HoldingScope::projectIdsFor((string) $project->id);
         $accountProjectId = self::DEPOSIT_TRANSFER_ACCOUNT_FID;
         $operationalAccounts = $this->bankOperationalAccounts($accountProjectId);
+        $deposits = $this->bankDeposits($projectIds);
         $poolAssetRows = $this->investmentPoolAssetRows();
         $poolAssetKeys = $poolAssetRows->pluck('asset_key')->all();
         $accountIds = $operationalAccounts->pluck('id')->map(fn ($id) => (int) $id)->filter()->values()->all();
@@ -837,6 +838,7 @@ class BankController extends Controller
             'project' => $project,
             'accountProjectId' => $accountProjectId,
             'operationalAccounts' => $operationalAccounts,
+            'deposits' => $deposits,
             'fixedAssetRows' => $poolAssetRows,
             'investOperations' => $investOperations,
             'depositTransfers' => $depositTransfers,
@@ -3507,13 +3509,18 @@ class BankController extends Controller
                     'status' => $isPosted ? 'posted' : 'pending',
                     'ledger_transaction_id' => 0,
                     'ledger_note' => $isPosted ? 'PP проведен' : 'проводки нет',
-                    'can_edit' => false,
+                    'can_edit' => ! $isPosted,
                     'is_posted' => $isPosted,
-                    'can_reverse' => false,
-                    'edit_hint' => 'Редактируется на странице депозитов.',
-                    'update_action' => '',
-                    'destroy_action' => '',
-                    'reverse_action' => '',
+                    'can_reverse' => $isPosted,
+                    'edit_hint' => $isPosted
+                        ? 'Операция проведена. Можно отменить проводку.'
+                        : 'Можно изменить или удалить трансфер.',
+                    'update_action' => (string) $transfer->update_url,
+                    'destroy_action' => (string) $transfer->delete_url,
+                    'reverse_action' => (string) $transfer->reverse_url,
+                    'transfer_deposit_id' => (string) $transfer->deposit_id,
+                    'transfer_account_id' => (string) $transfer->account_id,
+                    'transfer_posted' => $isPosted,
                     'note' => (string) $transfer->description,
                 ];
             })

@@ -78,11 +78,6 @@
                 Депозиты
             </button>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="bankDepositsTransferTab" data-bs-toggle="tab" data-bs-target="#bankDepositsTransferPane" type="button" role="tab">
-                Трансфер
-            </button>
-        </li>
     </ul>
 
     <div class="tab-content">
@@ -177,88 +172,6 @@
             </table>
         </div>
     </section>
-        </div>
-
-        <div class="tab-pane fade" id="bankDepositsTransferPane" role="tabpanel" aria-labelledby="bankDepositsTransferTab">
-            <section class="bank-panel bank-table-panel">
-                <div class="bank-table-header">
-                    <div>
-                        <div class="bank-label">Трансфер</div>
-                        <div class="bank-meta">Перевод с операционного счета банка на депозит. Валюта депозита и счета должна совпадать.</div>
-                    </div>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <button type="button"
-                            class="btn btn-sm btn-outline-light"
-                            data-bs-toggle="modal"
-                            data-bs-target="#poolTransferModal"
-                            data-pool-transfer-create="1">
-                            Создать трансфер пула
-                        </button>
-                        <button type="button"
-                            class="btn btn-sm btn-primary"
-                            data-bs-toggle="modal"
-                            data-bs-target="#depositTransferModal"
-                            data-deposit-transfer-create="1"
-                            data-store-url="{{ route('bank.deposit.transfer.store') }}">
-                            Создать
-                        </button>
-                    </div>
-                </div>
-            </section>
-            <section class="bank-panel bank-table-panel mt-3">
-                <div class="bank-table-header">
-                    <div>
-                        <div class="bank-label">Список трансферов</div>
-                        <div class="bank-meta">Все трансферы между депозитами и операционными счетами.</div>
-                    </div>
-                    <div class="bank-meta">{{ $depositTransfers->count() }} записей</div>
-                </div>
-                <div class="table-responsive bank-table-scroll bank-table-scroll--compact">
-                    <table class="table table-dark table-hover table-sm align-middle bank-table bank-table--deposit-transfers">
-                        <thead>
-                            <tr>
-                                <th class="bank-table__num">№</th>
-                                <th>Дата / документ</th>
-                                <th>Маршрут</th>
-                                <th>Депозит</th>
-                                <th>Операционный счет</th>
-                                <th class="text-end">Сумма</th>
-                                <th>Статус</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($depositTransfers as $transfer)
-                                <tr class="bank-deposit-transfer-row"
-                                    role="button"
-                                    tabindex="0"
-                                    data-transfer-direction="{{ $transfer->direction }}"
-                                    data-transfer-deposit="{{ $transfer->deposit_id }}"
-                                    data-transfer-account="{{ $transfer->account_id }}"
-                                    data-transfer-amount="{{ number_format((float) $transfer->amount, 2, '.', '') }}"
-                                    data-transfer-posted="{{ $transfer->posted ? '1' : '0' }}"
-                                    data-transfer-update-url="{{ $transfer->update_url }}"
-                                    data-transfer-reverse-url="{{ $transfer->reverse_url }}"
-                                    data-transfer-delete-url="{{ $transfer->delete_url }}">
-                                    <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
-                                    <td>
-                                        <strong>#{{ $transfer->number }}</strong>
-                                        <div class="bank-meta">{{ $transfer->date }}</div>
-                                    </td>
-                                    <td><span class="bank-pill {{ $transfer->direction === 'deposit_to_account' ? 'bank-pill--currency' : 'bank-pill--company' }}">{{ $transfer->direction_label }}</span></td>
-                                    <td>{{ $transfer->deposit_name }}</td>
-                                    <td>{{ $transfer->account_name }}</td>
-                                    <td class="text-end fw-semibold">{{ number_format((float) $transfer->amount, 2, '.', ' ') }} {{ $transfer->currency }}</td>
-                                    <td><span class="bank-status {{ $transfer->posted ? '' : 'bank-status--pending' }}">{{ $transfer->posted ? 'posted' : 'draft' }}</span></td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">Трансферы пока не созданы.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </section>
         </div>
 
         <div class="tab-pane fade" id="bankDepositsPoolsPane" role="tabpanel" aria-labelledby="bankDepositsPoolsTab">
@@ -551,80 +464,6 @@
         </div>
     </div>
 
-    <div class="modal fade bank-order-modal" id="depositTransferModal" tabindex="-1" aria-labelledby="depositTransferModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <form method="POST" action="{{ route('bank.deposit.transfer.store') }}" data-deposit-transfer-form>
-                    @csrf
-                    <input type="hidden" name="_method" value="PUT" data-deposit-transfer-method disabled>
-                    <input type="hidden" name="direction" value="account_to_deposit" data-deposit-transfer-direction>
-                    <div class="modal-header">
-                        <div>
-                            <div class="bank-label">Трансфер</div>
-                            <h5 class="modal-title" id="depositTransferModalLabel" data-deposit-transfer-title>Создать трансфер</h5>
-                        </div>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">Маршрут</label>
-                                <div class="d-flex align-items-center gap-2 flex-wrap">
-                                    <span class="bank-pill bank-pill--currency" data-deposit-transfer-route-label>Счет → депозит</span>
-                                    <button type="button" class="btn btn-sm btn-outline-light" data-deposit-transfer-toggle-route>
-                                        Изменить маршрут
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Депозит</label>
-                                <select name="deposit_id" class="form-select" required data-deposit-transfer-deposit>
-                                    <option value="">Выберите депозит</option>
-                                    @foreach($deposits as $deposit)
-                                        <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency }}" data-balance="{{ number_format((float) $deposit->balance, 2, '.', '') }}">
-                                            {{ $deposit->name }} · {{ $deposit->currency }} · {{ number_format((float) $deposit->balance, 2, '.', ' ') }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Операционный счет</label>
-                                <select name="operational_account_id" class="form-select" required data-deposit-transfer-account>
-                                    <option value="">Выберите счет</option>
-                                    @foreach($operationalAccounts as $account)
-                                        <option value="{{ $account->id }}" data-currency="{{ $account->currency }}" data-balance="{{ number_format((float) $account->balance, 2, '.', '') }}">
-                                            {{ $account->label }} · {{ $account->currency }} · {{ number_format((float) $account->balance, 2, '.', ' ') }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                <div class="bank-meta" data-deposit-transfer-account-meta></div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Сумма</label>
-                                <input type="text" name="amount" class="form-control" required inputmode="numeric" data-terminal-amount data-deposit-transfer-amount>
-                            </div>
-                        </div>
-                        <div class="alert alert-danger mt-3 mb-0" data-deposit-transfer-error hidden></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn btn-outline-danger me-auto" form="depositTransferDeleteForm" data-deposit-transfer-delete hidden>Удалить</button>
-                        <label class="bank-transfer-post-ledger" data-deposit-transfer-post-ledger-field>
-                            <input type="checkbox" name="post_ledger" value="1" checked data-deposit-transfer-post-ledger>
-                            <span>Проводка</span>
-                        </label>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                        <button type="submit" class="btn btn-warning" formnovalidate data-deposit-transfer-reverse hidden>Отменить проводку</button>
-                        <button type="submit" class="btn btn-primary" data-deposit-transfer-submit>Выполнить</button>
-                    </div>
-                </form>
-                <form method="POST" id="depositTransferDeleteForm" data-deposit-transfer-delete-form>
-                    @csrf
-                    <input type="hidden" name="_method" value="DELETE">
-                </form>
-            </div>
-        </div>
-    </div>
-
 </div>
 
 @include('bank.partials.styles')
@@ -841,7 +680,6 @@
         const initialDepositTab = new URLSearchParams(window.location.search).get('tab');
         const initialDepositTabId = {
             portfolio: 'bankDepositsPortfolioTab',
-            transfer: 'bankDepositsTransferTab',
             pools: 'bankDepositsPoolsTab',
         }[initialDepositTab || ''];
         if (initialDepositTabId) {
@@ -881,6 +719,7 @@
         const transferDeleteForm = document.querySelector('[data-deposit-transfer-delete-form]');
         const transferStoreAction = transferForm ? transferForm.action : '';
         const depositTransferModalElement = document.getElementById('depositTransferModal');
+        const depositMovementsUrl = @json(route('bank.pool-movements', ['tab' => 'deposits']));
         const poolTransferModal = document.getElementById('poolTransferModal');
         const poolTransferForm = document.querySelector('[data-pool-transfer-form]');
         const poolTransferTitle = document.querySelector('[data-pool-transfer-title]');
@@ -1186,6 +1025,7 @@
 
         function openDepositTransferModal(trigger) {
             if (!depositTransferModalElement) {
+                window.location.href = depositMovementsUrl;
                 return;
             }
 

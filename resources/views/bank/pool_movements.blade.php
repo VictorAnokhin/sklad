@@ -30,6 +30,13 @@
         </div>
     </section>
 
+    @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
+
     <div class="bank-tabs" role="tablist" aria-label="Движение средств">
         <button type="button" class="bank-tab is-active" data-bank-movement-tab="pools" role="tab" aria-selected="true">Пулы</button>
         <button type="button" class="bank-tab" data-bank-movement-tab="deposits" role="tab" aria-selected="false">Депозиты</button>
@@ -107,7 +114,14 @@
             </div>
             <div class="bank-table-header__actions">
                 <div class="bank-meta">{{ $depositTransferRows->count() }} операций</div>
-                <a class="btn btn-sm btn-primary" href="{{ route('bank.deposit', ['tab' => 'transfer']) }}">Создать</a>
+                <button type="button"
+                    class="btn btn-sm btn-primary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#depositTransferModal"
+                    data-deposit-transfer-create="1"
+                    data-store-url="{{ route('bank.deposit.transfer.store') }}">
+                    Создать
+                </button>
             </div>
         </div>
         <div class="table-responsive bank-table-scroll">
@@ -126,7 +140,19 @@
                 </thead>
                 <tbody>
                     @forelse($depositTransferRows as $movement)
-                        <tr>
+                        <tr class="bank-table-row--clickable bank-deposit-transfer-row"
+                            role="button"
+                            tabindex="0"
+                            data-bs-toggle="modal"
+                            data-bs-target="#depositTransferModal"
+                            data-transfer-direction="{{ $movement['direction'] }}"
+                            data-transfer-deposit="{{ $movement['transfer_deposit_id'] }}"
+                            data-transfer-account="{{ $movement['transfer_account_id'] }}"
+                            data-transfer-amount="{{ number_format((float) $movement['amount'], 2, '.', '') }}"
+                            data-transfer-posted="{{ $movement['transfer_posted'] ? '1' : '0' }}"
+                            data-transfer-update-url="{{ $movement['update_action'] }}"
+                            data-transfer-reverse-url="{{ $movement['reverse_action'] }}"
+                            data-transfer-delete-url="{{ $movement['destroy_action'] }}">
                             <td class="bank-table__num bank-mono">{{ $movement['id'] }}</td>
                             <td>{{ $movement['date'] !== '' ? $movement['date'] : '—' }}</td>
                             <td>
@@ -235,6 +261,80 @@
             </form>
         </div>
     </div>
+
+    <div class="modal fade bank-order-modal" id="depositTransferModal" tabindex="-1" aria-labelledby="depositTransferModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" action="{{ route('bank.deposit.transfer.store') }}" data-deposit-transfer-form>
+                    @csrf
+                    <input type="hidden" name="_method" value="PUT" data-deposit-transfer-method disabled>
+                    <input type="hidden" name="direction" value="account_to_deposit" data-deposit-transfer-direction>
+                    <div class="modal-header">
+                        <div>
+                            <div class="bank-label">Счет - Депозит</div>
+                            <h5 class="modal-title" id="depositTransferModalLabel" data-deposit-transfer-title>Создать трансфер</h5>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Маршрут</label>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <span class="bank-pill bank-pill--currency" data-deposit-transfer-route-label>Счет → депозит</span>
+                                    <button type="button" class="btn btn-sm btn-outline-light" data-deposit-transfer-toggle-route>
+                                        Изменить маршрут
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Депозит</label>
+                                <select name="deposit_id" class="form-select" required data-deposit-transfer-deposit>
+                                    <option value="">Выберите депозит</option>
+                                    @foreach($deposits as $deposit)
+                                        <option value="{{ $deposit->id }}" data-currency="{{ $deposit->currency }}" data-balance="{{ number_format((float) $deposit->balance, 2, '.', '') }}">
+                                            {{ $deposit->name }} · {{ $deposit->currency }} · {{ number_format((float) $deposit->balance, 2, '.', ' ') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Операционный счет</label>
+                                <select name="operational_account_id" class="form-select" required data-deposit-transfer-account>
+                                    <option value="">Выберите счет</option>
+                                    @foreach($operationalAccounts as $account)
+                                        <option value="{{ $account->id }}" data-currency="{{ $account->currency }}" data-balance="{{ number_format((float) $account->balance, 2, '.', '') }}">
+                                            {{ $account->label }} · {{ $account->currency }} · {{ number_format((float) $account->balance, 2, '.', ' ') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="bank-meta" data-deposit-transfer-account-meta></div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Сумма</label>
+                                <input type="text" name="amount" class="form-control" required inputmode="numeric" data-terminal-amount data-deposit-transfer-amount>
+                            </div>
+                        </div>
+                        <div class="alert alert-danger mt-3 mb-0" data-deposit-transfer-error hidden></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-outline-danger me-auto" form="depositTransferDeleteForm" data-deposit-transfer-delete hidden>Удалить</button>
+                        <label class="bank-transfer-post-ledger" data-deposit-transfer-post-ledger-field>
+                            <input type="checkbox" name="post_ledger" value="1" checked data-deposit-transfer-post-ledger>
+                            <span>Проводка</span>
+                        </label>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-warning" formnovalidate data-deposit-transfer-reverse hidden>Отменить проводку</button>
+                        <button type="submit" class="btn btn-primary" data-deposit-transfer-submit>Выполнить</button>
+                    </div>
+                </form>
+                <form method="POST" id="depositTransferDeleteForm" data-deposit-transfer-delete-form>
+                    @csrf
+                    <input type="hidden" name="_method" value="DELETE">
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 @include('bank.partials.styles')
@@ -306,6 +406,21 @@
         margin: 0 0 0 auto;
         min-height: 38px;
         padding: 0 12px;
+    }
+
+    .bank-transfer-post-ledger {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 8px 0 auto;
+        color: rgba(226, 232, 240, 0.9);
+        font-size: 0.86rem;
+        font-weight: 700;
+    }
+
+    .bank-transfer-post-ledger input {
+        width: 16px;
+        height: 16px;
     }
 
     .bank-pool-movement-form {
@@ -423,6 +538,297 @@
 
         movementTabs.forEach((tab) => {
             tab.addEventListener('click', () => setMovementTab(tab.dataset.bankMovementTab || 'pools'));
+        });
+
+        const initialMovementTab = new URLSearchParams(window.location.search).get('tab');
+        if (initialMovementTab === 'deposits') {
+            setMovementTab('deposits');
+        }
+
+        const depositTransferForm = root.querySelector('[data-deposit-transfer-form]');
+        const depositTransferMethod = root.querySelector('[data-deposit-transfer-method]');
+        const depositTransferTitle = root.querySelector('[data-deposit-transfer-title]');
+        const depositTransferDirection = root.querySelector('[data-deposit-transfer-direction]');
+        const depositTransferRouteLabel = root.querySelector('[data-deposit-transfer-route-label]');
+        const depositTransferToggleRoute = root.querySelector('[data-deposit-transfer-toggle-route]');
+        const depositTransferDeposit = root.querySelector('[data-deposit-transfer-deposit]');
+        const depositTransferAccount = root.querySelector('[data-deposit-transfer-account]');
+        const depositTransferAmount = root.querySelector('[data-deposit-transfer-amount]');
+        const depositTransferError = root.querySelector('[data-deposit-transfer-error]');
+        const depositTransferSubmit = root.querySelector('[data-deposit-transfer-submit]');
+        const depositTransferAccountMeta = root.querySelector('[data-deposit-transfer-account-meta]');
+        const depositTransferDelete = root.querySelector('[data-deposit-transfer-delete]');
+        const depositTransferReverse = root.querySelector('[data-deposit-transfer-reverse]');
+        const depositTransferPostLedger = root.querySelector('[data-deposit-transfer-post-ledger]');
+        const depositTransferPostLedgerField = root.querySelector('[data-deposit-transfer-post-ledger-field]');
+        const depositTransferDeleteForm = root.querySelector('[data-deposit-transfer-delete-form]');
+        const depositTransferStoreAction = depositTransferForm ? depositTransferForm.action : '';
+
+        function selectedOption(select) {
+            return select?.selectedOptions?.[0] || null;
+        }
+
+        function formatAmount(value) {
+            return Number(value || 0).toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
+        }
+
+        function validateDepositTransferForm() {
+            if (!depositTransferForm || !depositTransferDeposit || !depositTransferAccount || !depositTransferAmount || !depositTransferError || !depositTransferSubmit) {
+                return true;
+            }
+
+            const depositOption = selectedOption(depositTransferDeposit);
+            const accountOption = selectedOption(depositTransferAccount);
+            const depositCurrency = depositOption?.dataset.currency || '';
+            const directionValue = depositTransferDirection?.value || 'account_to_deposit';
+            const amountValue = Number(depositTransferAmount.value || 0);
+            const isEdit = Boolean(depositTransferMethod && !depositTransferMethod.disabled);
+            let message = '';
+
+            Array.from(depositTransferAccount.options).forEach((option) => {
+                if (!option.value) {
+                    option.hidden = false;
+                    return;
+                }
+                option.hidden = depositCurrency !== '' && option.dataset.currency !== depositCurrency;
+            });
+
+            if (accountOption && accountOption.value && depositCurrency !== '' && accountOption.dataset.currency !== depositCurrency) {
+                depositTransferAccount.value = '';
+            }
+
+            const refreshedAccountOption = selectedOption(depositTransferAccount);
+            if (depositCurrency === '') {
+                message = 'Выберите депозит.';
+            } else if (!refreshedAccountOption?.value) {
+                message = 'Выберите операционный счет в валюте ' + depositCurrency + '.';
+            } else if (amountValue <= 0) {
+                message = 'Введите сумму трансфера.';
+            } else if (!isEdit) {
+                const sourceBalance = directionValue === 'deposit_to_account'
+                    ? Number(depositOption?.dataset.balance || 0)
+                    : Number(refreshedAccountOption.dataset.balance || 0);
+                if (sourceBalance + 0.000001 < amountValue) {
+                    message = directionValue === 'deposit_to_account'
+                        ? 'Недостаточно средств на депозите.'
+                        : 'Недостаточно средств на операционном счете.';
+                }
+            }
+
+            if (depositTransferAccountMeta) {
+                const currentAccount = selectedOption(depositTransferAccount);
+                const accountBalance = Number(currentAccount?.dataset.balance || 0);
+                const depositBalance = Number(depositOption?.dataset.balance || 0);
+                depositTransferAccountMeta.textContent = currentAccount?.value
+                    ? (
+                        directionValue === 'deposit_to_account'
+                            ? `Источник: депозит, доступно ${formatAmount(depositBalance)} ${depositCurrency}`
+                            : `Источник: счет, доступно ${formatAmount(accountBalance)} ${currentAccount.dataset.currency || ''}`
+                    )
+                    : '';
+            }
+
+            depositTransferError.textContent = message;
+            depositTransferError.hidden = message === '';
+            depositTransferSubmit.disabled = message !== '';
+
+            return message === '';
+        }
+
+        function syncDepositTransferRouteLabel() {
+            if (!depositTransferDirection || !depositTransferRouteLabel) {
+                return;
+            }
+            depositTransferRouteLabel.textContent = depositTransferDirection.value === 'deposit_to_account'
+                ? 'Депозит → счет'
+                : 'Счет → депозит';
+            validateDepositTransferForm();
+        }
+
+        function setDepositTransferReadOnly(readOnly) {
+            [depositTransferDeposit, depositTransferAccount, depositTransferAmount].forEach((field) => {
+                if (field) {
+                    field.disabled = readOnly;
+                }
+            });
+            if (depositTransferToggleRoute) {
+                depositTransferToggleRoute.disabled = readOnly;
+            }
+            if (depositTransferPostLedger) {
+                depositTransferPostLedger.disabled = readOnly;
+            }
+        }
+
+        function resetDepositTransferForm(trigger = null) {
+            if (depositTransferForm) {
+                depositTransferForm.reset();
+                depositTransferForm.action = trigger?.dataset.storeUrl || depositTransferStoreAction;
+                depositTransferForm.dataset.mode = 'save';
+                depositTransferForm.dataset.saveAction = depositTransferForm.action;
+                depositTransferForm.dataset.reverseAction = '';
+            }
+            if (depositTransferMethod) {
+                depositTransferMethod.disabled = true;
+            }
+            setDepositTransferReadOnly(false);
+            if (depositTransferDirection) {
+                depositTransferDirection.value = 'account_to_deposit';
+            }
+            if (depositTransferTitle) {
+                depositTransferTitle.textContent = 'Создать трансфер';
+            }
+            if (depositTransferSubmit) {
+                depositTransferSubmit.textContent = 'Выполнить';
+                depositTransferSubmit.hidden = false;
+            }
+            if (depositTransferDelete) {
+                depositTransferDelete.hidden = true;
+            }
+            if (depositTransferReverse) {
+                depositTransferReverse.hidden = true;
+                depositTransferReverse.disabled = false;
+            }
+            if (depositTransferPostLedger) {
+                depositTransferPostLedger.checked = true;
+                depositTransferPostLedger.disabled = false;
+            }
+            if (depositTransferPostLedgerField) {
+                depositTransferPostLedgerField.hidden = false;
+            }
+            if (depositTransferDeleteForm) {
+                depositTransferDeleteForm.action = '';
+            }
+            syncDepositTransferRouteLabel();
+        }
+
+        function fillDepositTransferForm(trigger) {
+            if (!depositTransferForm || !(trigger instanceof HTMLElement)) {
+                return;
+            }
+            const posted = trigger.dataset.transferPosted === '1';
+            depositTransferForm.action = trigger.dataset.transferUpdateUrl || depositTransferStoreAction;
+            depositTransferForm.dataset.mode = 'save';
+            depositTransferForm.dataset.saveAction = trigger.dataset.transferUpdateUrl || depositTransferStoreAction;
+            depositTransferForm.dataset.reverseAction = trigger.dataset.transferReverseUrl || '';
+            if (depositTransferMethod) {
+                depositTransferMethod.disabled = false;
+                depositTransferMethod.value = 'PUT';
+            }
+            if (depositTransferDirection) {
+                depositTransferDirection.value = trigger.dataset.transferDirection || 'account_to_deposit';
+            }
+            if (depositTransferDeposit) {
+                depositTransferDeposit.value = trigger.dataset.transferDeposit || '';
+            }
+            if (depositTransferAccount) {
+                depositTransferAccount.value = trigger.dataset.transferAccount || '';
+            }
+            if (depositTransferAmount) {
+                depositTransferAmount.value = trigger.dataset.transferAmount || '';
+            }
+            if (depositTransferTitle) {
+                depositTransferTitle.textContent = 'Изменить трансфер';
+            }
+            if (depositTransferSubmit) {
+                depositTransferSubmit.textContent = 'Сохранить';
+                depositTransferSubmit.hidden = posted;
+            }
+            if (depositTransferDelete) {
+                depositTransferDelete.hidden = posted;
+            }
+            if (depositTransferReverse) {
+                depositTransferReverse.hidden = !posted;
+                depositTransferReverse.disabled = !posted;
+            }
+            if (depositTransferPostLedger) {
+                depositTransferPostLedger.checked = posted;
+                depositTransferPostLedger.disabled = posted;
+            }
+            if (depositTransferPostLedgerField) {
+                depositTransferPostLedgerField.hidden = posted;
+            }
+            if (depositTransferDeleteForm) {
+                depositTransferDeleteForm.action = trigger.dataset.transferDeleteUrl || '';
+            }
+            setDepositTransferReadOnly(posted);
+            syncDepositTransferRouteLabel();
+        }
+
+        depositTransferToggleRoute?.addEventListener('click', () => {
+            if (!depositTransferDirection) {
+                return;
+            }
+            depositTransferDirection.value = depositTransferDirection.value === 'deposit_to_account'
+                ? 'account_to_deposit'
+                : 'deposit_to_account';
+            syncDepositTransferRouteLabel();
+        });
+
+        [depositTransferDeposit, depositTransferAccount, depositTransferAmount].forEach((element) => {
+            element?.addEventListener('input', validateDepositTransferForm);
+            element?.addEventListener('change', validateDepositTransferForm);
+        });
+
+        depositTransferForm?.addEventListener('submit', (event) => {
+            if (depositTransferForm.dataset.mode === 'reverse') {
+                return;
+            }
+            if (!validateDepositTransferForm()) {
+                event.preventDefault();
+            }
+        });
+
+        root.querySelectorAll('[data-deposit-transfer-create]').forEach((trigger) => {
+            trigger.addEventListener('click', () => resetDepositTransferForm(trigger));
+        });
+
+        root.querySelectorAll('.bank-deposit-transfer-row').forEach((row) => {
+            row.addEventListener('click', () => fillDepositTransferForm(row));
+            row.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    row.click();
+                }
+            });
+        });
+
+        document.getElementById('depositTransferModal')?.addEventListener('show.bs.modal', (event) => {
+            const trigger = event.relatedTarget;
+            if (trigger instanceof HTMLElement && trigger.dataset.depositTransferCreate === '1') {
+                resetDepositTransferForm(trigger);
+            } else if (trigger instanceof HTMLElement && trigger.dataset.transferUpdateUrl) {
+                fillDepositTransferForm(trigger);
+            } else {
+                syncDepositTransferRouteLabel();
+            }
+        });
+
+        depositTransferSubmit?.addEventListener('click', () => {
+            if (!depositTransferForm) return;
+            depositTransferForm.dataset.mode = 'save';
+            depositTransferForm.action = depositTransferForm.dataset.saveAction || depositTransferStoreAction;
+            if (depositTransferMethod) {
+                depositTransferMethod.disabled = depositTransferForm.action === depositTransferStoreAction;
+                depositTransferMethod.value = 'PUT';
+            }
+        });
+
+        depositTransferReverse?.addEventListener('click', () => {
+            if (!depositTransferForm) return;
+            depositTransferForm.dataset.mode = 'reverse';
+            depositTransferForm.action = depositTransferForm.dataset.reverseAction || depositTransferForm.action;
+            if (depositTransferMethod) {
+                depositTransferMethod.disabled = true;
+            }
+        });
+
+        depositTransferDelete?.addEventListener('click', (event) => {
+            if (!confirm('Удалить трансфер и выполнить обратное движение остатков?')) {
+                event.preventDefault();
+            }
         });
 
         function parseJsonAttribute(value, fallback) {
