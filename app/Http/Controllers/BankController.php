@@ -4060,7 +4060,7 @@ class BankController extends Controller
         }
 
         return DB::table('z_document as d')
-            ->leftJoin('conf as dep', function ($join): void {
+            ->join('conf as dep', function ($join): void {
                 $join->on('dep.id', '=', 'd.money')->where('dep.type', '=', 'deposit');
             })
             ->leftJoin('conf as acc_from', function ($join): void {
@@ -4129,7 +4129,7 @@ class BankController extends Controller
         }
 
         $documents = DB::table('z_document as d')
-            ->leftJoin('conf as dep', function ($join): void {
+            ->join('conf as dep', function ($join): void {
                 $join->on('dep.id', '=', 'd.money')
                     ->where('dep.type', '=', 'deposit');
             })
