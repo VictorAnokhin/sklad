@@ -3,8 +3,6 @@
 @section('title', $document->id ? (__('deposit.deposit_no') . $document->num) : __('deposit.deposit_operation'))
 
 @section('content')
-@include('deposit.partials.top-actions')
-
 <div class="ttable deposit-show-page" style="padding: 20px; max-width: 760px; margin: 0 auto; border-radius: 8px;">
     @php
     $isNew = empty($document->id);
@@ -28,6 +26,7 @@
     $currentUserId = (string) (\Illuminate\Support\Facades\Auth::id() ?: session('userid', '0'));
     $isDocumentOwner = (string) ($document->client2 ?? '') !== '' && (string) ($document->client2 ?? '') === $currentUserId;
     $isPosted = (int) ($document->provodka ?? 0) === 1;
+    $returnTab = $target === 'pool' ? 'pools' : 'deposits';
     @endphp
 
     <h3 style="color:#b45309;">🏦 {{ $heading }} @if(!$isNew) № {{ $document->num }} @endif</h3>
@@ -122,7 +121,7 @@
         </div>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-            <a href="{{ route('deposit.index') }}" class="btn btn-outline-secondary">{{ __('deposit.btn_back') }}</a>
+            <a href="{{ route('deposit.index', ['tab' => $returnTab]) }}" class="btn btn-outline-secondary">{{ __('deposit.btn_back') }}</a>
             @if(!$isPosted)
             <label class="form-check" style="display:inline-flex; align-items:center; gap:6px; margin:0;">
                 <input type="checkbox" class="form-check-input" id="post_after_save" name="post_after_save" value="1" checked style="margin:0;">
@@ -295,6 +294,7 @@
     <form id="deleteDepositForm" action="{{ route('deposit.destroy') }}" method="post" style="display:none;">
         @csrf
         <input type="hidden" name="id" value="{{ $document->id }}">
+        <input type="hidden" name="target" value="{{ $target }}">
     </form>
     @endif
 </div>

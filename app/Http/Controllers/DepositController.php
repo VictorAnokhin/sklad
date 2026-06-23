@@ -22,11 +22,19 @@ class DepositController extends Controller
             'mode' => trim((string) $request->input('mode', '')),
             'date_from' => trim((string) $request->input('date_from', $defaultDateFrom)),
             'date_to' => trim((string) $request->input('date_to', $defaultDateTo)),
+            'tab' => in_array((string) $request->input('tab', ''), ['deposits', 'pools'], true)
+                ? (string) $request->input('tab')
+                : '',
         ];
         $datesAreDefault = $filters['date_from'] === $defaultDateFrom
             && $filters['date_to'] === $defaultDateTo;
-        $data = Deposit::init($fid, $pos, $filters);
         $usesPoolDeposits = $this->usesPoolDeposits($fid);
+        if (! $usesPoolDeposits) {
+            $filters['tab'] = '';
+        } elseif ($filters['tab'] === '') {
+            $filters['tab'] = 'deposits';
+        }
+        $data = Deposit::init($fid, $pos, $filters);
         $depositPools = $this->depositPoolOptions();
         $poolMap = $depositPools->pluck('name', 'asset_key');
 
@@ -88,6 +96,8 @@ class DepositController extends Controller
         $mode = (string) $request->input('mode', 'topup');
         $summa = (float) $request->input('summa', 0);
         $money = (string) $request->input('money', '');
+        $target = $this->depositTarget((string) $request->input('target', ''), $money);
+        $tab = $this->depositTargetTab($target);
         $balanceCurrency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('balance_currency', 'UAH')) ?: 'UAH');
 
         if (!in_array($mode, ['topup', 'withdraw'], true)) {
@@ -133,14 +143,14 @@ class DepositController extends Controller
             $postingResult = Deposit::provodka($savedId, $fid);
             if (($postingResult['error'] ?? '') !== '') {
                 return redirect()
-                    ->route('deposit.show', ['id' => $savedId])
+                    ->route('deposit.show', ['id' => $savedId, 'target' => $target])
                     ->withInput()
                     ->with('error', $postingResult['error']);
             }
         }
 
         return redirect()
-            ->route('deposit.show', ['id' => $savedId])
+            ->route('deposit.index', ['tab' => $tab])
             ->with('success', $shouldPost ? 'Збережено та проведено' : 'Збережено');
     }
 
@@ -148,41 +158,61 @@ class DepositController extends Controller
     {
         $fid = session('fid', '');
         $id = (int) $request->input('id', 0);
+        $document = $id > 0 ? Deposit::find($id, $fid) : null;
+        $target = $this->depositTarget((string) $request->input('target', ''), (string) ($document->money ?? ''));
+        $tab = $this->depositTargetTab($target);
 
         if ($id > 0) {
             Deposit::deleteDocument($id, $fid);
 
-            return redirect()->route('deposit.index')->with('success', 'Документ видалено');
+            return redirect()->route('deposit.index', ['tab' => $tab])->with('success', 'Документ видалено');
         }
 
-        return redirect()->route('deposit.index')->with('error', 'Помилка видалення');
+        return redirect()->route('deposit.index', ['tab' => $tab])->with('error', 'Помилка видалення');
     }
 
     public function provodka(Request $request)
     {
         $fid = session('fid', '');
         $id = (int) $request->input('id', 0);
+        $target = (string) $request->input('target', '');
 
         if ($id <= 0) {
-            return redirect()->route('deposit.index')->with('error', 'Документ не знайдено');
+            return redirect()->route('deposit.index', ['tab' => $this->depositTargetTab($this->depositTarget($target, ''))])->with('error', 'Документ не знайдено');
         }
 
         $result = Deposit::provodka($id, $fid);
         $document = $result['document'] ?? null;
+        $target = $this->depositTarget($target, (string) ($document->money ?? ''));
+        $tab = $this->depositTargetTab($target);
 
         if (!$document) {
-            return redirect()->route('deposit.index')->with('error', 'Документ не знайдено');
+            return redirect()->route('deposit.index', ['tab' => $tab])->with('error', 'Документ не знайдено');
         }
 
         if (($result['error'] ?? '') !== '') {
             return redirect()
-                ->route('deposit.show', ['id' => $document->id])
+                ->route('deposit.show', ['id' => $document->id, 'target' => $target])
                 ->with('error', $result['error']);
         }
 
         return redirect()
-            ->route('deposit.show', ['id' => $document->id])
+            ->route('deposit.index', ['tab' => $tab])
             ->with('success', ($result['isPosted'] ?? false) ? 'Проводку виконано' : 'Проводку скасовано');
+    }
+
+    private function depositTarget(string $target, string $money): string
+    {
+        if (in_array($target, ['deposit', 'pool'], true)) {
+            return $target;
+        }
+
+        return str_starts_with($money, 'pool:') ? 'pool' : 'deposit';
+    }
+
+    private function depositTargetTab(string $target): string
+    {
+        return $target === 'pool' ? 'pools' : 'deposits';
     }
 
     private function depositPoolOptions()

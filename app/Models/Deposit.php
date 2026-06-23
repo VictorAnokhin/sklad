@@ -34,6 +34,16 @@ class Deposit extends Model
             $baseQuery->where('d.docum', $filters['mode']);
         }
 
+        if (($filters['tab'] ?? '') === 'pools') {
+            $baseQuery->where('d.money', 'like', 'pool:%');
+        } elseif (($filters['tab'] ?? '') === 'deposits') {
+            $baseQuery->where(function ($query): void {
+                $query->whereNull('d.money')
+                    ->orWhere('d.money', '')
+                    ->orWhere('d.money', 'not like', 'pool:%');
+            });
+        }
+
         if (($filters['date_from'] ?? '') !== '') {
             $from = date('d-m-Y', strtotime($filters['date_from']));
             $baseQuery->whereRaw("STR_TO_DATE(d.data, '%d-%m-%Y') >= STR_TO_DATE(?, '%d-%m-%Y')", [$from]);

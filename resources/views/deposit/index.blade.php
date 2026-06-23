@@ -10,22 +10,19 @@
             return false;
         }
 
-        if ($datesAreDefault && in_array($key, ['date_from', 'date_to'], true)) {
+        if ($key === 'tab' || ($datesAreDefault && in_array($key, ['date_from', 'date_to'], true))) {
             return false;
         }
 
         return true;
     }, ARRAY_FILTER_USE_BOTH);
     $hasDateFilter = (($filters['date_from'] ?? '') !== '' || ($filters['date_to'] ?? '') !== '');
+    $usesPoolDeposits = $usesPoolDeposits ?? false;
+    $activeTab = $usesPoolDeposits ? (($filters['tab'] ?? 'deposits') === 'pools' ? 'pools' : 'deposits') : '';
+    $resetFilterUrl = $usesPoolDeposits ? route('deposit.index', ['tab' => $activeTab]) : route('deposit.index');
     $depositDocuments = collect($documents ?? [])->reject(fn ($doc) => str_starts_with((string) ($doc->money ?? ''), 'pool:'))->values();
     $poolDocuments = collect($documents ?? [])->filter(fn ($doc) => str_starts_with((string) ($doc->money ?? ''), 'pool:'))->values();
 @endphp
-
-@include('deposit.partials.top-actions', [
-    'showDepositFilter' => true,
-    'showDepositCreate' => !($usesPoolDeposits ?? false),
-    'activeFilters' => $activeFilters,
-])
 
 <div class="ttable document-compact-wrap" style="padding: 16px;">
     @if(session('success'))
@@ -38,7 +35,7 @@
     @if(!empty($activeFilters))
     <div class="alert alert-warning money-filter-active-notice">
         {{ __('deposit.filter_active') }}
-        <a href="{{ route('deposit.index') }}" style="margin-left: 8px;">{{ __('deposit.reset') }}</a>
+        <a href="{{ $resetFilterUrl }}" style="margin-left: 8px;">{{ __('deposit.reset') }}</a>
     </div>
     @endif
 
@@ -73,17 +70,18 @@
 
     @if($usesPoolDeposits ?? false)
     <div class="deposit-tabs" data-deposit-tabs>
-        <button type="button" class="deposit-tab is-active" data-deposit-tab="deposits">Депозиты</button>
-        <button type="button" class="deposit-tab" data-deposit-tab="pools">Пулы</button>
+        <button type="button" class="deposit-tab {{ $activeTab === 'deposits' ? 'is-active' : '' }}" data-deposit-tab="deposits">Депозиты</button>
+        <button type="button" class="deposit-tab {{ $activeTab === 'pools' ? 'is-active' : '' }}" data-deposit-tab="pools">Пулы</button>
     </div>
 
-    <section data-deposit-pane="deposits">
+    <section data-deposit-pane="deposits" {{ $activeTab === 'deposits' ? '' : 'hidden' }}>
         <div class="deposit-pane-header glass-card">
             <div>
                 <div class="deposit-pane-title">Операции депозитов</div>
                 <div class="deposit-pane-meta">{{ $depositDocuments->count() }} операций текущего проекта</div>
             </div>
             <div class="deposit-pane-actions">
+                <button type="button" class="{{ !empty($activeFilters ?? []) && $activeTab === 'deposits' ? 'btn btn-sm btn-warning' : 'btn btn-sm btn-outline-secondary' }}" data-deposit-filter-open data-filter-tab="deposits">Фильтр</button>
                 <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'topup', 'target' => 'deposit']) }}" class="btn btn-sm btn-warning">Пополнить</a>
                 <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'withdraw', 'target' => 'deposit']) }}" class="btn btn-sm btn-outline-secondary">Вынуть</a>
             </div>
@@ -96,13 +94,14 @@
         ])
     </section>
 
-    <section data-deposit-pane="pools" hidden>
+    <section data-deposit-pane="pools" {{ $activeTab === 'pools' ? '' : 'hidden' }}>
         <div class="deposit-pane-header glass-card">
             <div>
                 <div class="deposit-pane-title">Операции пулов</div>
                 <div class="deposit-pane-meta">{{ $poolDocuments->count() }} операций по пулам текущего проекта</div>
             </div>
             <div class="deposit-pane-actions">
+                <button type="button" class="{{ !empty($activeFilters ?? []) && $activeTab === 'pools' ? 'btn btn-sm btn-warning' : 'btn btn-sm btn-outline-secondary' }}" data-deposit-filter-open data-filter-tab="pools">Фильтр</button>
                 <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'topup', 'target' => 'pool']) }}" class="btn btn-sm btn-warning">Пополнить</a>
                 <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'withdraw', 'target' => 'pool']) }}" class="btn btn-sm btn-outline-secondary">Вынуть</a>
             </div>
@@ -115,6 +114,17 @@
         ])
     </section>
     @else
+    <div class="deposit-pane-header glass-card">
+        <div>
+            <div class="deposit-pane-title">{{ __('deposit.deposit_operations') }}</div>
+            <div class="deposit-pane-meta">{{ $total ?? 0 }} документов</div>
+        </div>
+        <div class="deposit-pane-actions">
+            <button type="button" class="{{ !empty($activeFilters ?? []) ? 'btn btn-sm btn-warning' : 'btn btn-sm btn-outline-secondary' }}" data-deposit-filter-open>Фильтр</button>
+            <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'topup']) }}" class="btn btn-sm btn-warning">{{ __('deposit.add_deposit') }}</a>
+            <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'withdraw']) }}" class="btn btn-sm btn-outline-secondary">{{ __('deposit.add_withdraw') }}</a>
+        </div>
+    </div>
     @include('deposit.partials.document-list', [
         'documents' => collect($documents ?? []),
         'depositMap' => $depositMap,
@@ -191,6 +201,7 @@
         @endif
 
         <form action="{{ route('deposit.index') }}" method="get">
+            <input type="hidden" name="tab" value="{{ $activeTab }}" data-deposit-filter-tab>
             <div class="money-filter-modal__grid">
                 <div class="money-filter-modal__field">
                     <label>{{ __('money.filter_search') }}</label>
@@ -219,7 +230,7 @@
 
             <div class="money-filter-modal__actions">
                 <button type="submit" class="btn btn-warning">{{ __('money.filter_apply') }}</button>
-                <a href="{{ route('deposit.index') }}" class="btn btn-outline-secondary">{{ __('money.filter_reset') }}</a>
+                <a href="{{ $resetFilterUrl }}" class="btn btn-outline-secondary">{{ __('money.filter_reset') }}</a>
             </div>
         </form>
     </div>
@@ -235,6 +246,14 @@ function depositFilterToggle() {
         modal.style.display = 'none';
         document.body.style.overflow = '';
     }
+}
+
+function depositFilterOpen(tabName) {
+    const tabInput = document.querySelector('[data-deposit-filter-tab]');
+    if (tabInput) {
+        tabInput.value = tabName || '';
+    }
+    depositFilterToggle();
 }
 
 document.addEventListener('keydown', function (e) {
@@ -253,6 +272,12 @@ document.addEventListener('click', function (e) {
     }
 });
 
+document.querySelectorAll('[data-deposit-filter-open]').forEach(function (button) {
+    button.addEventListener('click', function () {
+        depositFilterOpen(button.dataset.filterTab || '');
+    });
+});
+
 document.querySelectorAll('[data-deposit-tab]').forEach(function (tab) {
     tab.addEventListener('click', function () {
         const tabName = tab.dataset.depositTab || 'deposits';
@@ -263,6 +288,11 @@ document.querySelectorAll('[data-deposit-tab]').forEach(function (tab) {
         document.querySelectorAll('[data-deposit-pane]').forEach(function (pane) {
             pane.hidden = pane.dataset.depositPane !== tabName;
         });
+
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tabName);
+        url.searchParams.delete('pos');
+        window.location.href = url.toString();
     });
 });
 </script>
