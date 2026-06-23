@@ -71,6 +71,16 @@ return [
         'endpoint' => env('SMSCLUB_ENDPOINT', 'https://im.smsclub.mobi/sms/send'),
     ],
 
+    'telegram_orders' => [
+        'bot_token' => env('TELEGRAM_ORDER_BOT_TOKEN') ?: env('TELEGRAM_BOT_TOKEN', ''),
+        'chat_id' => env('TELEGRAM_ORDER_CHAT_ID')
+            ?: (env('TELEGRAM_OPERATOR_CHAT_ID')
+                ?: (env('TELEGRAM_WEBCHAT_AUTOAGENT_CHAT_ID')
+                    ?: env('TELEGRAM_WEBCHAT_DEFAULT_CHAT_ID', ''))),
+        'thread_id' => env('TELEGRAM_ORDER_THREAD_ID', ''),
+        'timeout' => (int) env('TELEGRAM_ORDER_TIMEOUT', 10),
+    ],
+
     'nova_poshta' => [
         'api_key' => env('NOVA_POSHTA_API_KEY', ''),
         'endpoint' => env('NOVA_POSHTA_ENDPOINT', 'https://api.novaposhta.ua/v2.0/json/'),

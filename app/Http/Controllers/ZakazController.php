@@ -10,6 +10,8 @@ use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -225,6 +227,7 @@ class ZakazController extends Controller
 
         // ── SMS notification (через SMSClub) ────────────────────────────
         $this->sendSmsNotification($data['mobile'], $docNum);
+        $this->sendTelegramOrderNotification($data, $docId, $docNum, $totalSum, $fullDescription, $fid);
 
         return response()->json([
             'success' => true,
@@ -327,6 +330,7 @@ class ZakazController extends Controller
         });
 
         $this->sendSmsNotification($data['mobile'], $docNum);
+        $this->sendTelegramOrderNotification($data, $docId, $docNum, 0, $content, $fid);
 
         return response()->json([
             'success' => true,
@@ -441,6 +445,120 @@ class ZakazController extends Controller
         } finally {
             curl_close($ch);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function sendTelegramOrderNotification(
+        array $data,
+        int $docId,
+        int $docNum,
+        float $totalSum,
+        string $description,
+        string $fid
+    ): void {
+        $botToken = trim((string) config('services.telegram_orders.bot_token', ''));
+        $chatId = trim((string) config('services.telegram_orders.chat_id', ''));
+
+        if ($botToken === '' || $chatId === '') {
+            Log::warning('Telegram order notification skipped: bot token or chat id is not configured.', [
+                'doc_id' => $docId,
+                'doc_num' => $docNum,
+                'bot_token_present' => $botToken !== '',
+                'chat_id_present' => $chatId !== '',
+            ]);
+
+            return;
+        }
+
+        $payload = [
+            'chat_id' => $chatId,
+            'text' => $this->formatTelegramOrderMessage($data, $docId, $docNum, $totalSum, $description, $fid),
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
+
+        $threadId = trim((string) config('services.telegram_orders.thread_id', ''));
+        if ($threadId !== '') {
+            $payload['message_thread_id'] = $threadId;
+        }
+
+        try {
+            $response = Http::timeout((int) config('services.telegram_orders.timeout', 10))
+                ->asForm()
+                ->post('https://api.telegram.org/bot'.$botToken.'/sendMessage', $payload);
+
+            if (! $response->successful()) {
+                Log::warning('Telegram order notification failed.', [
+                    'doc_id' => $docId,
+                    'doc_num' => $docNum,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Telegram order notification exception.', [
+                'doc_id' => $docId,
+                'doc_num' => $docNum,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function formatTelegramOrderMessage(
+        array $data,
+        int $docId,
+        int $docNum,
+        float $totalSum,
+        string $description,
+        string $fid
+    ): string {
+        $customerName = trim(implode(' ', array_filter([
+            (string) ($data['secondname'] ?? ''),
+            (string) ($data['firstname'] ?? ''),
+        ])));
+        $mobile = (string) ($data['mobile'] ?? '');
+        $city = (string) ($data['city'] ?? '');
+        $delivery = $this->telegramDeliveryLine($data);
+
+        $lines = [
+            '<b>Новый заказ AutoAgent</b>',
+            '№: <b>'.$this->escapeTelegramHtml((string) $docNum).'</b>',
+            'ID: <code>'.$this->escapeTelegramHtml((string) $docId).'</code>',
+            'FID: <code>'.$this->escapeTelegramHtml($fid).'</code>',
+            'Сумма: <b>'.$this->escapeTelegramHtml(number_format($totalSum, 2, '.', ' ')).' грн</b>',
+            'Клиент: '.$this->escapeTelegramHtml($customerName !== '' ? $customerName : '-'),
+            'Телефон: <code>'.$this->escapeTelegramHtml($mobile).'</code>',
+            'Город: '.$this->escapeTelegramHtml($city !== '' ? $city : '-'),
+            'Доставка: '.$this->escapeTelegramHtml($delivery),
+            '',
+            '<b>Состав/комментарий:</b>',
+            $this->escapeTelegramHtml($description),
+        ];
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function telegramDeliveryLine(array $data): string
+    {
+        return match ((string) ($data['dostavka'] ?? '')) {
+            'office' => 'Самовывоз: '.(string) ($data['office'] ?? 'не выбрано'),
+            'poshta' => 'Новая почта: '.(string) ($data['poshta'] ?? 'не указано'),
+            'address' => 'Адресная доставка: '.(string) ($data['address'] ?? 'не указано'),
+            default => '-',
+        };
+    }
+
+    private function escapeTelegramHtml(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     // ── Получить список заказов клиента ───────────────────────────────────
