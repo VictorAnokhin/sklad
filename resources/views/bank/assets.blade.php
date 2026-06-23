@@ -95,7 +95,6 @@
                         <th class="text-end bank-assets-table__number">Количество</th>
                         <th class="text-end bank-assets-table__money">Стоимость</th>
                         <th class="text-end bank-assets-table__percent">%</th>
-                        <th class="bank-assets-table__status">Статус</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -129,7 +128,6 @@
                                 <div class="bank-meta">Цена: {{ $assetQuantity > 0 ? $formatMoney($assetReferencePrice) : '—' }}</div>
                             </td>
                             <td class="text-end bank-mono bank-assets-table__percent">{{ $formatPercent($assetPortfolioShare) }}%</td>
-                            <td class="bank-assets-table__status"><span class="bank-status {{ $asset->status === 'manual' ? '' : 'bank-status--pending' }}">{{ $asset->status }}</span></td>
                         </tr>
                     @empty
                         <tr>
@@ -218,7 +216,7 @@
     .bank-assets-table__col-date,
     .bank-assets-table__date { width: 98px; }
     .bank-assets-table__col-address,
-    .bank-assets-table__address { width: 160px; }
+    .bank-assets-table__address { width: 100px; }
     .bank-assets-table__col-name,
     .bank-assets-table__name { width: 240px; }
     .bank-assets-table__col-number,
@@ -228,7 +226,6 @@
     .bank-assets-table__col-percent,
     .bank-assets-table__percent { width: 70px; }
     .bank-assets-table__col-status,
-    .bank-assets-table__status { width: 100px; }
     .bank-assets-table__name .bank-meta { overflow: hidden; text-overflow: ellipsis; }
 
     .bank-assets-table__money .bank-meta {
