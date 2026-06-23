@@ -524,6 +524,35 @@
         min-width: 980px;
     }
 
+    .bank-table--project-accounts-modal {
+        min-width: 1040px;
+    }
+
+    .bank-table--project-accounts-modal th:nth-child(2),
+    .bank-table--project-accounts-modal td:nth-child(2) {
+        min-width: 90px;
+    }
+
+    .bank-table--project-accounts-modal th:nth-child(3),
+    .bank-table--project-accounts-modal td:nth-child(3) {
+        min-width: 300px;
+    }
+
+    .bank-table--project-accounts-modal th:nth-child(4),
+    .bank-table--project-accounts-modal td:nth-child(4) {
+        min-width: 150px;
+    }
+
+    .bank-table--project-accounts-modal th:nth-child(5),
+    .bank-table--project-accounts-modal td:nth-child(5) {
+        min-width: 160px;
+    }
+
+    .bank-table--project-accounts-modal th:nth-child(6),
+    .bank-table--project-accounts-modal td:nth-child(6) {
+        min-width: 340px;
+    }
+
     .bank-table--person-accounts-modal th:nth-child(2),
     .bank-table--person-accounts-modal td:nth-child(2) {
         min-width: 260px;

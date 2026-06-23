@@ -27,7 +27,7 @@
         <div class="bank-table-header">
             <div>
                 <div class="bank-label">Проекты</div>
-                <div class="bank-meta">Нажмите на проект, чтобы раскрыть кассы, баланс, валюту учета и реквизиты.</div>
+                <div class="bank-meta">Нажмите на проект, чтобы открыть счета, баланс, валюту учета и реквизиты.</div>
             </div>
             <div class="bank-meta">{{ $projectAccounts->count() }} проектов</div>
         </div>
@@ -46,7 +46,7 @@
                 </thead>
                 <tbody>
                     @forelse($projectAccounts as $projectRow)
-                        <tr class="bank-accordion-row" data-bank-accordion-trigger="project-{{ $projectRow->id }}">
+                        <tr class="bank-accordion-row" data-bank-project-modal-open="project-{{ $projectRow->id }}">
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td>
                                 <button type="button" class="bank-row-button">
@@ -69,75 +69,6 @@
                                 @empty
                                     <span class="bank-meta">Нет касс</span>
                                 @endforelse
-                            </td>
-                        </tr>
-                        <tr class="bank-accordion-detail" data-bank-accordion-detail="project-{{ $projectRow->id }}" hidden>
-                            <td colspan="6">
-                                <div class="bank-detail-block">
-                                    <table class="table table-dark table-sm align-middle bank-table bank-table--nested">
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>Касса / счет</th>
-                                                <th>Валюта учета</th>
-                                                <th class="text-end">Баланс</th>
-                                                <th>Реквизит / адрес</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr class="bank-account-action-row">
-                                                <td colspan="5">
-                                                    <form method="POST" action="{{ route('bank.project-accounts.store', ['project' => $projectRow->id]) }}" class="bank-inline-account-form">
-                                                        @csrf
-                                                        <strong>Добавить счёт</strong>
-                                                        <input type="text" name="name" class="form-control" placeholder="Название счёта" required>
-                                                        <select name="currency" class="form-select" required>
-                                                            @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
-                                                                <option value="{{ $currency }}">{{ $currency }}</option>
-                                                            @endforeach
-                                                        </select>
-                                                        <button type="submit" class="btn btn-sm btn-primary">+ Добавить счёт</button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                            @forelse($projectRow->cash_accounts as $account)
-                                                <tr>
-                                                    <td class="bank-mono">{{ $account->id }}</td>
-                                                    <td>
-                                                        <button type="button"
-                                                            class="bank-account-link"
-                                                            data-bank-requisites-open
-                                                            data-project-name="{{ $projectRow->name }}"
-                                                            data-account-id="{{ $account->id }}"
-                                                            data-account-name="{{ $account->label }}"
-                                                            data-account-currency="{{ $account->currency }}"
-                                                            data-account-balance="{{ number_format((float) $account->balance, 2, '.', ' ') }}"
-                                                            data-account-doc="{{ $account->doc }}"
-                                                            data-account-address="{{ $account->color }}">
-                                                            {{ $account->label }}
-                                                        </button>
-                                                    </td>
-                                                    <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
-                                                    <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
-                                                    <td>
-                                                        <div class="bank-account-cell-actions">
-                                                            <span class="bank-mono">{{ $account->color !== '' ? $account->color : '—' }}</span>
-                                                            <form method="POST" action="{{ route('bank.project-accounts.destroy', ['project' => $projectRow->id, 'account' => $account->id]) }}" onsubmit="return confirm('Удалить счёт проекта?');">
-                                                                @csrf
-                                                                @method('DELETE')
-                                                                <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                                                            </form>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            @empty
-                                                <tr>
-                                                    <td colspan="5" class="text-center text-muted py-3">Кассы проекта не настроены.</td>
-                                                </tr>
-                                            @endforelse
-                                        </tbody>
-                                    </table>
-                                </div>
                             </td>
                         </tr>
                     @empty
@@ -213,6 +144,89 @@
             </table>
         </div>
     </section>
+
+    @foreach($projectAccounts as $projectRow)
+        <div class="bank-modal" data-bank-project-modal="project-{{ $projectRow->id }}" hidden>
+            <div class="bank-modal__backdrop" data-bank-project-modal-close></div>
+            <div class="bank-modal__dialog bank-modal__dialog--accounts" role="dialog" aria-modal="true" aria-labelledby="bankProjectAccountsTitle{{ $projectRow->id }}">
+                <div class="bank-modal__header">
+                    <div>
+                        <div class="bank-label">Счета проекта</div>
+                        <h2 id="bankProjectAccountsTitle{{ $projectRow->id }}">{{ $projectRow->name }}</h2>
+                        <div class="bank-meta">ID {{ $projectRow->id }}{{ $projectRow->holding_name !== '' ? ' · ' . $projectRow->holding_name : '' }}</div>
+                    </div>
+                    <button type="button" class="bank-modal__close" data-bank-project-modal-close aria-label="Закрыть">×</button>
+                </div>
+                <div class="bank-modal__body">
+                    <table class="table table-dark table-sm align-middle bank-table bank-table--project-accounts-modal">
+                        <thead>
+                            <tr>
+                                <th class="bank-table__num">№</th>
+                                <th>ID</th>
+                                <th>Касса / счет</th>
+                                <th>Валюта учета</th>
+                                <th class="text-end">Баланс</th>
+                                <th>Реквизит / адрес</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="bank-account-action-row">
+                                <td colspan="6">
+                                    <form method="POST" action="{{ route('bank.project-accounts.store', ['project' => $projectRow->id]) }}" class="bank-inline-account-form">
+                                        @csrf
+                                        <strong>Добавить счёт</strong>
+                                        <input type="text" name="name" class="form-control" placeholder="Название счёта" required>
+                                        <select name="currency" class="form-select" required>
+                                            @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
+                                                <option value="{{ $currency }}">{{ $currency }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-primary">+ Добавить счёт</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            @forelse($projectRow->cash_accounts as $account)
+                                <tr>
+                                    <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                    <td class="bank-mono">{{ $account->id }}</td>
+                                    <td>
+                                        <button type="button"
+                                            class="bank-account-link"
+                                            data-bank-requisites-open
+                                            data-project-name="{{ $projectRow->name }}"
+                                            data-account-id="{{ $account->id }}"
+                                            data-account-name="{{ $account->label }}"
+                                            data-account-currency="{{ $account->currency }}"
+                                            data-account-balance="{{ number_format((float) $account->balance, 2, '.', ' ') }}"
+                                            data-account-doc="{{ $account->doc }}"
+                                            data-account-address="{{ $account->color }}">
+                                            {{ $account->label }}
+                                        </button>
+                                    </td>
+                                    <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
+                                    <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
+                                    <td>
+                                        <div class="bank-account-cell-actions">
+                                            <span class="bank-mono">{{ $account->color !== '' ? $account->color : '—' }}</span>
+                                            <form method="POST" action="{{ route('bank.project-accounts.destroy', ['project' => $projectRow->id, 'account' => $account->id]) }}" onsubmit="return confirm('Удалить счёт проекта?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-3">Кассы проекта не настроены.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endforeach
 
     @foreach($personOwners as $person)
         <div class="bank-modal" data-bank-person-modal="person-{{ $person->owner_id }}" hidden>
@@ -369,15 +383,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    root.querySelectorAll('[data-bank-accordion-trigger]').forEach((row) => {
+    root.querySelectorAll('[data-bank-project-modal-open]').forEach((row) => {
         row.addEventListener('click', () => {
-            const key = row.dataset.bankAccordionTrigger;
-            const detail = root.querySelector(`[data-bank-accordion-detail="${key}"]`);
-            if (!detail) return;
+            const modal = root.querySelector(`[data-bank-project-modal="${row.dataset.bankProjectModalOpen}"]`);
+            if (!modal) return;
 
-            const isOpen = !detail.hidden;
-            detail.hidden = isOpen;
-            row.classList.toggle('is-open', !isOpen);
+            modal.hidden = false;
+            modal.querySelector('[data-bank-project-modal-close]')?.focus();
+        });
+    });
+
+    root.querySelectorAll('[data-bank-project-modal-close]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const modal = button.closest('[data-bank-project-modal]');
+            if (modal) {
+                modal.hidden = true;
+            }
         });
     });
 
