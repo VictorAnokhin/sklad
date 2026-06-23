@@ -521,7 +521,7 @@
     }
 
     .bank-table--person-accounts-modal {
-        min-width: 980px;
+        min-width: 1360px;
     }
 
     .bank-table--project-accounts-modal {
@@ -570,7 +570,12 @@
 
     .bank-table--person-accounts-modal th:nth-child(5),
     .bank-table--person-accounts-modal td:nth-child(5) {
-        min-width: 340px;
+        min-width: 360px;
+    }
+
+    .bank-table--person-accounts-modal th:nth-child(6),
+    .bank-table--person-accounts-modal td:nth-child(6) {
+        min-width: 320px;
     }
 
     .bank-table__wallet {

@@ -229,6 +229,11 @@
     @endforeach
 
     @foreach($personOwners as $person)
+        @php
+            $zkLoginWallets = $person->google_wallets
+                ->filter(fn ($wallet) => $wallet->source === 'Google zkLogin')
+                ->values();
+        @endphp
         <div class="bank-modal" data-bank-person-modal="person-{{ $person->owner_id }}" hidden>
             <div class="bank-modal__backdrop" data-bank-person-modal-close></div>
             <div class="bank-modal__dialog bank-modal__dialog--accounts" role="dialog" aria-modal="true" aria-labelledby="bankPersonAccountsTitle{{ $person->owner_id }}">
@@ -248,12 +253,13 @@
                                 <th>Счет</th>
                                 <th>Валюта</th>
                                 <th class="text-end">Остаток</th>
+                                <th>zk-login кошелек</th>
                                 <th>Счет обслуживания</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr class="bank-account-action-row">
-                                <td colspan="5">
+                                <td colspan="6">
                                     <form method="POST" action="{{ route('bank.person-accounts.store', ['person' => $person->owner_id]) }}" class="bank-inline-account-form">
                                         @csrf
                                         <strong>Добавить счёт</strong>
@@ -276,6 +282,14 @@
                                     <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
                                     <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
                                     <td>
+                                        @forelse($zkLoginWallets as $wallet)
+                                            <div class="bank-mono">{{ $wallet->address }}</div>
+                                            <div class="bank-meta">{{ $wallet->network !== '' ? strtoupper($wallet->network) : 'SUI' }}</div>
+                                        @empty
+                                            <span class="bank-meta">—</span>
+                                        @endforelse
+                                    </td>
+                                    <td>
                                         <div class="bank-account-cell-actions">
                                             <span>{{ $account->service_account }}</span>
                                             <form method="POST" action="{{ route('bank.person-accounts.destroy', ['person' => $person->owner_id, 'account' => $account->account_id]) }}" onsubmit="return confirm('Удалить счёт физлица?');">
@@ -288,7 +302,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-3">У физлица пока нет открытых счетов в users_cashe.</td>
+                                    <td colspan="6" class="text-center text-muted py-3">У физлица пока нет открытых счетов в users_cashe.</td>
                                 </tr>
                             @endforelse
                         </tbody>
