@@ -74,6 +74,17 @@
         </div>
         <div class="table-responsive bank-table-scroll">
             <table class="table table-dark table-hover table-sm align-middle bank-table bank-assets-table">
+                <colgroup>
+                    <col class="bank-assets-table__col-num">
+                    <col class="bank-assets-table__col-type">
+                    <col class="bank-assets-table__col-date">
+                    <col class="bank-assets-table__col-address">
+                    <col class="bank-assets-table__col-name">
+                    <col class="bank-assets-table__col-number">
+                    <col class="bank-assets-table__col-money">
+                    <col class="bank-assets-table__col-percent">
+                    <col class="bank-assets-table__col-status">
+                </colgroup>
                 <thead>
                     <tr>
                         <th class="bank-table__num">№</th>
@@ -189,7 +200,7 @@
 <style>
     .bank-assets-table {
         table-layout: fixed;
-        min-width: 930px;
+        min-width: 1326px;
     }
 
     .bank-assets-table th,
@@ -200,14 +211,23 @@
         text-overflow: ellipsis;
     }
 
+    .bank-assets-table__col-num,
     .bank-assets-table .bank-table__num { width: 48px; }
-    .bank-assets-table__type { width: 72px; }
-    .bank-assets-table__date { width: 88px; }
-    .bank-assets-table__address { width: 180px; }
-    .bank-assets-table__name { width: 484px; }
+    .bank-assets-table__col-type,
+    .bank-assets-table__type { width: 60px; }
+    .bank-assets-table__col-date,
+    .bank-assets-table__date { width: 78px; }
+    .bank-assets-table__col-address,
+    .bank-assets-table__address { width: 160px; }
+    .bank-assets-table__col-name,
+    .bank-assets-table__name { width: 560px; }
+    .bank-assets-table__col-number,
     .bank-assets-table__number { width: 130px; }
+    .bank-assets-table__col-money,
     .bank-assets-table__money { width: 120px; }
+    .bank-assets-table__col-percent,
     .bank-assets-table__percent { width: 70px; }
+    .bank-assets-table__col-status,
     .bank-assets-table__status { width: 100px; }
     .bank-assets-table__name .bank-meta { overflow: hidden; text-overflow: ellipsis; }
 
