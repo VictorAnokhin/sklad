@@ -154,7 +154,7 @@
         <div class="bank-table-header bank-table-header--search">
             <div>
                 <div class="bank-label">Физические лица</div>
-                <div class="bank-meta">Нажмите на клиента, чтобы раскрыть открытые счета и остатки.</div>
+                <div class="bank-meta">Нажмите на клиента, чтобы открыть счета и остатки.</div>
             </div>
             <label class="bank-search">
                 <span>Поиск</span>
@@ -177,7 +177,7 @@
                 </thead>
                 <tbody>
                     @forelse($personOwners as $person)
-                        <tr class="bank-accordion-row" data-bank-person-row data-bank-person-search-text="{{ $person->search_text }}" data-bank-accordion-trigger="person-{{ $person->owner_id }}">
+                        <tr class="bank-accordion-row" data-bank-person-row data-bank-person-search-text="{{ $person->search_text }}" data-bank-person-modal-open="person-{{ $person->owner_id }}">
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td>
                                 <button type="button" class="bank-row-button">
@@ -201,89 +201,6 @@
                             </td>
                             <td><span class="bank-status">{{ $person->status }}</span></td>
                         </tr>
-                        <tr class="bank-accordion-detail" data-bank-person-detail data-bank-accordion-detail="person-{{ $person->owner_id }}" hidden>
-                            <td colspan="7">
-                                <div class="bank-detail-block">
-                                    <table class="table table-dark table-sm align-middle bank-table bank-table--nested">
-                                        <thead>
-                                            <tr>
-                                                <th class="bank-table__account">Счет</th>
-                                                <th>Валюта</th>
-                                                <th class="text-end">Остаток</th>
-                                                <th>Счет обслуживания</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr class="bank-account-action-row">
-                                                <td colspan="4">
-                                                    <form method="POST" action="{{ route('bank.person-accounts.store', ['person' => $person->owner_id]) }}" class="bank-inline-account-form">
-                                                        @csrf
-                                                        <strong>Добавить счёт</strong>
-                                                        <select name="currency" class="form-select" required>
-                                                            @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
-                                                                <option value="{{ $currency }}">{{ $currency }}</option>
-                                                            @endforeach
-                                                        </select>
-                                                        <button type="submit" class="btn btn-sm btn-primary">+ Добавить счёт</button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                            @forelse($person->accounts as $account)
-                                                <tr>
-                                                    <td>
-                                                        <div class="bank-mono">{{ $account->account_number }}</div>
-                                                        <div class="bank-meta">client id {{ $account->owner_id }}</div>
-                                                    </td>
-                                                    <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
-                                                    <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
-                                                    <td>
-                                                        <div class="bank-account-cell-actions">
-                                                            <span>{{ $account->service_account }}</span>
-                                                            <form method="POST" action="{{ route('bank.person-accounts.destroy', ['person' => $person->owner_id, 'account' => $account->account_id]) }}" onsubmit="return confirm('Удалить счёт физлица?');">
-                                                                @csrf
-                                                                @method('DELETE')
-                                                                <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                                                            </form>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            @empty
-                                                <tr>
-                                                    <td colspan="4" class="text-center text-muted py-3">У физлица пока нет открытых счетов в users_cashe.</td>
-                                                </tr>
-                                            @endforelse
-                                        </tbody>
-                                    </table>
-                                    <div class="bank-wallets-block">
-                                        <div class="bank-label">Google-кошельки аккаунта</div>
-                                        <table class="table table-dark table-sm align-middle bank-table bank-table--nested">
-                                            <thead>
-                                                <tr>
-                                                    <th>Адрес кошелька</th>
-                                                    <th>Сеть</th>
-                                                    <th>Источник</th>
-                                                    <th>Создан / обновлен</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @forelse($person->google_wallets as $wallet)
-                                                    <tr>
-                                                        <td class="bank-mono">{{ $wallet->address }}</td>
-                                                        <td><span class="bank-pill bank-pill--currency">{{ $wallet->network !== '' ? strtoupper($wallet->network) : '—' }}</span></td>
-                                                        <td>{{ $wallet->source }}</td>
-                                                        <td>{{ $wallet->connected_at ?: '—' }}</td>
-                                                    </tr>
-                                                @empty
-                                                    <tr>
-                                                        <td colspan="4" class="text-center text-muted py-3">Для Google-аккаунта кошельки не найдены.</td>
-                                                    </tr>
-                                                @endforelse
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
                     @empty
                         <tr>
                             <td colspan="7" class="text-center text-muted py-4">Физические лица со счетами не найдены.</td>
@@ -296,6 +213,76 @@
             </table>
         </div>
     </section>
+
+    @foreach($personOwners as $person)
+        <div class="bank-modal" data-bank-person-modal="person-{{ $person->owner_id }}" hidden>
+            <div class="bank-modal__backdrop" data-bank-person-modal-close></div>
+            <div class="bank-modal__dialog bank-modal__dialog--accounts" role="dialog" aria-modal="true" aria-labelledby="bankPersonAccountsTitle{{ $person->owner_id }}">
+                <div class="bank-modal__header">
+                    <div>
+                        <div class="bank-label">Счета клиента</div>
+                        <h2 id="bankPersonAccountsTitle{{ $person->owner_id }}">{{ $person->owner_name }}</h2>
+                        <div class="bank-meta">client id {{ $person->owner_id }}{{ $person->contact !== '' ? ' · ' . $person->contact : '' }}</div>
+                    </div>
+                    <button type="button" class="bank-modal__close" data-bank-person-modal-close aria-label="Закрыть">×</button>
+                </div>
+                <div class="bank-modal__body">
+                    <table class="table table-dark table-sm align-middle bank-table bank-table--person-accounts-modal">
+                        <thead>
+                            <tr>
+                                <th class="bank-table__num">№</th>
+                                <th>Счет</th>
+                                <th>Валюта</th>
+                                <th class="text-end">Остаток</th>
+                                <th>Счет обслуживания</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="bank-account-action-row">
+                                <td colspan="5">
+                                    <form method="POST" action="{{ route('bank.person-accounts.store', ['person' => $person->owner_id]) }}" class="bank-inline-account-form">
+                                        @csrf
+                                        <strong>Добавить счёт</strong>
+                                        <select name="currency" class="form-select" required>
+                                            @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
+                                                <option value="{{ $currency }}">{{ $currency }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-primary">+ Добавить счёт</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            @forelse($person->accounts as $account)
+                                <tr>
+                                    <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                                    <td>
+                                        <div class="bank-mono">{{ $account->account_number }}</div>
+                                        <div class="bank-meta">client id {{ $account->owner_id }}</div>
+                                    </td>
+                                    <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
+                                    <td class="text-end fw-semibold">{{ number_format((float) $account->balance, 2, '.', ' ') }}</td>
+                                    <td>
+                                        <div class="bank-account-cell-actions">
+                                            <span>{{ $account->service_account }}</span>
+                                            <form method="POST" action="{{ route('bank.person-accounts.destroy', ['person' => $person->owner_id, 'account' => $account->account_id]) }}" onsubmit="return confirm('Удалить счёт физлица?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-3">У физлица пока нет открытых счетов в users_cashe.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endforeach
 
     <div class="bank-modal" data-bank-requisites-modal hidden>
         <div class="bank-modal__backdrop" data-bank-requisites-close></div>
@@ -428,6 +415,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    root.querySelectorAll('[data-bank-person-modal-open]').forEach((row) => {
+        row.addEventListener('click', () => {
+            const modal = root.querySelector(`[data-bank-person-modal="${row.dataset.bankPersonModalOpen}"]`);
+            if (!modal) return;
+
+            modal.hidden = false;
+            modal.querySelector('[data-bank-person-modal-close]')?.focus();
+        });
+    });
+
+    root.querySelectorAll('[data-bank-person-modal-close]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const modal = button.closest('[data-bank-person-modal]');
+            if (modal) {
+                modal.hidden = true;
+            }
+        });
+    });
+
     const search = root.querySelector('[data-bank-person-search]');
     if (search) {
         search.addEventListener('input', () => {
@@ -436,11 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             root.querySelectorAll('[data-bank-person-row]').forEach((row) => {
                 const matched = value === '' || (row.dataset.bankPersonSearchText || '').includes(value);
-                const detail = root.querySelector(`[data-bank-accordion-detail="${row.dataset.bankAccordionTrigger}"]`);
                 row.hidden = !matched;
-                if (detail) {
-                    detail.hidden = true;
-                }
                 row.classList.remove('is-open');
                 if (matched) visibleCount += 1;
             });

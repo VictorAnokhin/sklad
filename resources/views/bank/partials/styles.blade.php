@@ -520,6 +520,30 @@
         min-width: 1120px;
     }
 
+    .bank-table--person-accounts-modal {
+        min-width: 980px;
+    }
+
+    .bank-table--person-accounts-modal th:nth-child(2),
+    .bank-table--person-accounts-modal td:nth-child(2) {
+        min-width: 260px;
+    }
+
+    .bank-table--person-accounts-modal th:nth-child(3),
+    .bank-table--person-accounts-modal td:nth-child(3) {
+        min-width: 130px;
+    }
+
+    .bank-table--person-accounts-modal th:nth-child(4),
+    .bank-table--person-accounts-modal td:nth-child(4) {
+        min-width: 160px;
+    }
+
+    .bank-table--person-accounts-modal th:nth-child(5),
+    .bank-table--person-accounts-modal td:nth-child(5) {
+        min-width: 340px;
+    }
+
     .bank-table__wallet {
         width: 360px;
         min-width: 360px;
@@ -934,6 +958,15 @@
         border: 1px solid rgba(148, 163, 184, 0.22);
         background: #0f172a;
         box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
+    }
+
+    .bank-modal__dialog--accounts {
+        width: min(1120px, 100%);
+    }
+
+    .bank-modal__body {
+        padding: 16px 20px 20px;
+        overflow-x: auto;
     }
 
     .bank-modal__header {
