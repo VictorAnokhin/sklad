@@ -211,7 +211,7 @@
                 <input type="hidden" name="update_account_balance" value="1" data-invest-operation-update-balance>
                 <input type="hidden" name="redirect_to" value="bank.pool-movements">
                 <div class="bank-form-grid bank-pool-movement-form">
-                    <div class="bank-form-full bank-operation-mode bank-operation-mode--compact" role="tablist" aria-label="Тип операции">
+                    <div class="bank-form-full bank-operation-mode" role="tablist" aria-label="Тип операции">
                         <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Счет -> Пул</button>
                         <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="asset_to_account">Пул -> Счет</button>
                         <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="revaluation">Переоценка</button>
@@ -260,14 +260,14 @@
                     </label>
                 </div>
                 <div class="bank-modal__actions">
-                    <button type="button" class="btn btn-secondary" data-invest-operation-close>Отмена</button>
-                    <button type="submit" class="btn btn-warning" formnovalidate data-invest-operation-reverse hidden>Отменить проводку</button>
                     <label class="bank-operation-post-ledger">
                         <input type="checkbox" name="post_ledger" value="1" checked data-invest-operation-post-ledger>
                         <span>
                             <strong>Проводка</strong>
                         </span>
                     </label>
+                    <button type="button" class="btn btn-secondary" data-invest-operation-close>Отмена</button>
+                    <button type="submit" class="btn btn-warning" formnovalidate data-invest-operation-reverse hidden>Отменить проводку</button>
                     <button type="submit" class="btn btn-primary" data-invest-operation-submit>Сохранить</button>
                     <button type="submit" class="btn btn-outline-danger" formnovalidate data-invest-operation-delete hidden>Удалить</button>
                 </div>
@@ -452,27 +452,16 @@
         display: flex;
         gap: 10px;
         align-items: center;
-        margin: 0 0 0 auto;
+        margin: 0 auto 0 0;
         min-height: 38px;
-        padding: 0 12px;
+        min-width: 150px;
+        padding: 0 14px 0 0;
+        border: 0;
+        background: transparent;
     }
 
     .bank-modal__dialog--xl {
         width: min(600px, 100%);
-    }
-
-    .bank-operation-mode--compact {
-        display: inline-flex !important;
-        width: auto;
-        max-width: 100%;
-        grid-template-columns: none;
-    }
-
-    .bank-operation-mode--compact .bank-operation-mode__button {
-        min-width: 96px;
-        min-height: 30px;
-        padding: 0 10px;
-        font-size: 12px;
     }
 
     .bank-transfer-post-ledger {
