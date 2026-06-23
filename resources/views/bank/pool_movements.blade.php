@@ -16,7 +16,7 @@
         <div>
             <div class="bank-label">Account to pool</div>
             <h1>Движение средств</h1>
-            <p>Операции Счет - Пул: пополнение пула, вывод средств из пула и переоценка.</p>
+            <p>Операции Счет - Пул: пулы из bank/pools и счета проекта f={{ $accountProjectId ?? 12 }}.</p>
         </div>
         <div class="bank-hero__metrics">
             <div>
@@ -34,7 +34,7 @@
         <div class="bank-table-header">
             <div>
                 <div class="bank-label">Операции Счет - Пул</div>
-                <div class="bank-meta">Список движений между операционными счетами и пулами.</div>
+                <div class="bank-meta">Список движений между пулами из bank/pools и операционными счетами проекта f={{ $accountProjectId ?? 12 }}.</div>
             </div>
             <div class="bank-table-header__actions">
                 <div class="bank-meta">{{ $investOperations->count() }} операций</div>

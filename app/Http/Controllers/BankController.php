@@ -810,18 +810,23 @@ class BankController extends Controller
     public function poolMovements(): View
     {
         $project = $this->bankProject();
-        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $accountProjectId = self::DEPOSIT_TRANSFER_ACCOUNT_FID;
+        $operationalAccounts = $this->bankOperationalAccounts($accountProjectId);
         $poolAssetRows = $this->investmentPoolAssetRows();
         $poolAssetKeys = $poolAssetRows->pluck('asset_key')->all();
-        $investOperations = $poolAssetKeys === []
+        $accountIds = $operationalAccounts->pluck('id')->map(fn ($id) => (int) $id)->filter()->values()->all();
+        $investOperations = $poolAssetKeys === [] || $accountIds === []
             ? collect()
             : $this->bankInvestOperations((int) $project->id, $operationalAccounts, $poolAssetRows, [
                 'asset_type' => 'pool',
                 'asset_keys' => $poolAssetKeys,
+                'account_ids' => $accountIds,
+                'ignore_project_id' => true,
             ]);
 
         return view('bank.pool_movements', [
             'project' => $project,
+            'accountProjectId' => $accountProjectId,
             'operationalAccounts' => $operationalAccounts,
             'fixedAssetRows' => $poolAssetRows,
             'investOperations' => $investOperations,
@@ -840,7 +845,8 @@ class BankController extends Controller
         $project = $this->bankProject();
         abort_unless(Schema::hasTable('bank_invest_operations'), 404);
 
-        [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id);
+        $accountProjectId = $this->investOperationAccountProjectId($request, (int) $project->id);
+        [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id, null, $accountProjectId);
         $operationId = DB::transaction(function () use ($project, $payload, $asset, $account, $amount, $priceUsd, $valueUsd, $currency, $operatedAt): int {
             $now = now();
             $values = [
@@ -914,6 +920,7 @@ class BankController extends Controller
     {
         $project = $this->bankProject();
         $redirectRoute = $this->bankRedirectRoute((string) $request->input('redirect_to', 'bank.invest'));
+        $accountProjectId = $this->investOperationAccountProjectId($request, (int) $project->id);
         abort_unless(Schema::hasTable('bank_invest_operations'), 404);
 
         $current = DB::table('bank_invest_operations')
@@ -926,7 +933,7 @@ class BankController extends Controller
             return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Операция не редактируется: по этому активу уже есть более новый документ.');
         }
 
-        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $operationalAccounts = $this->bankOperationalAccounts((string) $accountProjectId);
         $assetOptions = $this->investOperationAssetOptions((int) $project->id);
         $currentAccount = $operationalAccounts->firstWhere('id', (string) $current->account_id)
             ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
@@ -939,7 +946,7 @@ class BankController extends Controller
         $this->assertInvestOperationReversalDebitAvailable($currentAccount, $current);
         $this->assertInvestOperationPoolReversalAvailable($currentAsset, $current);
 
-        [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id, $current);
+        [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id, $current, $accountProjectId);
         if ((string) $asset->asset_key !== (string) $current->asset_key
             && $this->hasNewerInvestOperationForAsset((int) $project->id, (string) $asset->asset_key, (string) $current->operated_at, (int) $current->id)) {
             return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Операция не редактируется: по выбранному активу уже есть более новый документ.');
@@ -1014,6 +1021,7 @@ class BankController extends Controller
     {
         $project = $this->bankProject();
         $redirectRoute = $this->bankRedirectRoute((string) $request->input('redirect_to', 'bank.invest'));
+        $accountProjectId = $this->investOperationAccountProjectId($request, (int) $project->id);
         abort_unless(Schema::hasTable('bank_invest_operations'), 404);
 
         $current = DB::table('bank_invest_operations')
@@ -1026,7 +1034,7 @@ class BankController extends Controller
             return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'Операция не удаляется: по этому активу уже есть более новый документ.');
         }
 
-        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $operationalAccounts = $this->bankOperationalAccounts((string) $accountProjectId);
         $account = $operationalAccounts->firstWhere('id', (string) $current->account_id)
             ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
         $this->assertInvestOperationReversalDebitAvailable($account, $current);
@@ -1063,6 +1071,7 @@ class BankController extends Controller
     {
         $project = $this->bankProject();
         $redirectRoute = $this->bankRedirectRoute((string) $request->input('redirect_to', 'bank.invest'));
+        $accountProjectId = $this->investOperationAccountProjectId($request, (int) $project->id);
         abort_unless(Schema::hasTable('bank_invest_operations'), 404);
 
         $current = DB::table('bank_invest_operations')
@@ -1078,7 +1087,7 @@ class BankController extends Controller
             return redirect()->route($redirectRoute, $this->bankRedirectRouteParams($redirectRoute))->with('error', 'У операции нет активной проводки для отмены.');
         }
 
-        $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
+        $operationalAccounts = $this->bankOperationalAccounts((string) $accountProjectId);
         $account = $operationalAccounts->firstWhere('id', (string) $current->account_id)
             ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
         $this->assertInvestOperationReversalDebitAvailable($account, $current);
@@ -1200,9 +1209,9 @@ class BankController extends Controller
         return $reversal ? [$reversal] : [];
     }
 
-    private function investOperationPayload(Request $request, int $projectId, ?object $currentOperation = null): array
+    private function investOperationPayload(Request $request, int $projectId, ?object $currentOperation = null, ?int $accountProjectId = null): array
     {
-        $operationalAccounts = $this->bankOperationalAccounts((string) $projectId);
+        $operationalAccounts = $this->bankOperationalAccounts((string) ($accountProjectId ?? $projectId));
         $accountIds = $operationalAccounts->pluck('id')->map(fn ($id) => (string) $id)->all();
         $assetOptions = $this->investOperationAssetOptions($projectId);
         $assetKeys = $assetOptions->pluck('asset_key')->all();
@@ -1498,6 +1507,13 @@ class BankController extends Controller
             'bank.deposit' => ['tab' => 'transfer'],
             default => [],
         };
+    }
+
+    private function investOperationAccountProjectId(Request $request, int $defaultProjectId): int
+    {
+        return $request->input('redirect_to') === 'bank.pool-movements'
+            ? (int) self::DEPOSIT_TRANSFER_ACCOUNT_FID
+            : $defaultProjectId;
     }
 
     public function storeInvestAsset(Request $request): RedirectResponse
@@ -3345,9 +3361,17 @@ class BankController extends Controller
             ->filter()
             ->values()
             ->all();
+        $accountIds = collect($filters['account_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values()
+            ->all();
 
         return DB::table('bank_invest_operations')
-            ->where('project_id', $projectId)
+            ->when(
+                ! (bool) ($filters['ignore_project_id'] ?? false),
+                fn ($query) => $query->where('project_id', $projectId)
+            )
             ->when(
                 isset($filters['asset_type']),
                 fn ($query) => $query->where('asset_type', (string) $filters['asset_type'])
@@ -3355,6 +3379,10 @@ class BankController extends Controller
             ->when(
                 $assetKeys !== [],
                 fn ($query) => $query->whereIn('asset_key', $assetKeys)
+            )
+            ->when(
+                $accountIds !== [],
+                fn ($query) => $query->whereIn('account_id', $accountIds)
             )
             ->orderByDesc('operated_at')
             ->orderByDesc('id')
