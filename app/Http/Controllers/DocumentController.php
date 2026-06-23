@@ -930,6 +930,14 @@ class DocumentController extends Controller
                 $conductableDocs = ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'];
                 $currentPosted = false;
                 $desiredPosted = $request->boolean('post_after_save');
+                $wasSmsFlagEnabled = false;
+
+                if ($doc === 'ZOUT') {
+                    $wasSmsFlagEnabled = (string) DB::table(Document::tableForType($doc))
+                        ->where('id', $docId)
+                        ->where('firma', $fid)
+                        ->value('sms_flag') === '1';
+                }
 
                 if (in_array($doc, $conductableDocs, true)) {
                     $table = Document::tableForType($doc);
@@ -963,7 +971,7 @@ class DocumentController extends Controller
                 $message = 'Збережено';
 
                 $smsWarning = null;
-                if ($doc === 'ZOUT' && $request->boolean('sms_flag')) {
+                if ($doc === 'ZOUT' && $request->boolean('sms_flag') && ! $wasSmsFlagEnabled) {
                     $savedDocument = DB::table(Document::tableForType($doc))
                         ->where('id', $docId)
                         ->where('firma', $fid)
