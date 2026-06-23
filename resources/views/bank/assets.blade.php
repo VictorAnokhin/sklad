@@ -214,15 +214,15 @@
     .bank-assets-table__col-type,
     .bank-assets-table__type { width: 60px; }
     .bank-assets-table__col-date,
-    .bank-assets-table__date { width: 98px; }
+    .bank-assets-table__date { width: 120px; }
     .bank-assets-table__col-address,
-    .bank-assets-table__address { width: 100px; }
+    .bank-assets-table__address { width: 160px; }
     .bank-assets-table__col-name,
-    .bank-assets-table__name { width: 240px; }
+    .bank-assets-table__name { width: 340px; }
     .bank-assets-table__col-number,
-    .bank-assets-table__number { width: 100px; }
+    .bank-assets-table__number { width: 130px; }
     .bank-assets-table__col-money,
-    .bank-assets-table__money { width: 100px; }
+    .bank-assets-table__money { width: 130px; }
     .bank-assets-table__col-percent,
     .bank-assets-table__percent { width: 70px; }
     .bank-assets-table__col-status,
