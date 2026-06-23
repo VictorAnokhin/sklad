@@ -613,13 +613,25 @@ class BankController extends Controller
                 $oldDepositId = (int) $document->money;
                 $oldAmount = round((float) $document->summa, 2);
 
-                $this->reverseDepositTransferBalances($project, $projectIds, $oldDepositId, $oldAccountId, $oldAmount, $oldDirection);
-
                 $depositId = (int) $payload['deposit_id'];
                 $accountId = (int) $payload['operational_account_id'];
                 $amount = round((float) $payload['amount'], 2);
                 $direction = (string) $payload['direction'];
-                [$deposit, $account, $currency] = $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+                if ($oldAccountId > 0) {
+                    $this->reverseDepositTransferBalances($project, $projectIds, $oldDepositId, $oldAccountId, $oldAmount, $oldDirection);
+                    [$deposit, $account, $currency] = $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+                } else {
+                    [$deposit, $account, $currency] = $this->applyLegacyDepositTransferUpdate(
+                        $projectIds,
+                        $oldDepositId,
+                        $oldAmount,
+                        $oldDirection,
+                        $depositId,
+                        $accountId,
+                        $amount,
+                        $direction
+                    );
+                }
 
                 $this->reverseDepositTransferLedger($documentProjectId, (int) $document->id);
                 $postLedger = (bool) ($payload['post_ledger'] ?? false);
@@ -664,7 +676,11 @@ class BankController extends Controller
                 $depositId = (int) $document->money;
                 $amount = round((float) $document->summa, 2);
 
-                $this->reverseDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+                if ($accountId > 0) {
+                    $this->reverseDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+                } else {
+                    $this->reverseLegacyDepositTransferBalance($projectIds, $depositId, $amount, $direction);
+                }
                 $this->reverseDepositTransferLedger((int) $document->firma, (int) $document->id);
 
                 DB::table('z_document')->where('id', (int) $document->id)->update([
@@ -3972,6 +3988,111 @@ class BankController extends Controller
         }
 
         return [$deposit, $account, $accountCurrency];
+    }
+
+    private function applyLegacyDepositTransferUpdate(
+        array $projectIds,
+        int $oldDepositId,
+        float $oldAmount,
+        string $oldDirection,
+        int $depositId,
+        int $accountId,
+        float $amount,
+        string $direction
+    ): array {
+        $oldDeposit = DB::table('conf')
+            ->where('id', $oldDepositId)
+            ->where('type', 'deposit')
+            ->whereIn('firma', array_map('intval', $projectIds))
+            ->lockForUpdate()
+            ->first();
+
+        $deposit = $depositId === $oldDepositId
+            ? $oldDeposit
+            : DB::table('conf')
+                ->where('id', $depositId)
+                ->where('type', 'deposit')
+                ->whereIn('firma', array_map('intval', $projectIds))
+                ->lockForUpdate()
+                ->first();
+
+        $account = DB::table('conf')
+            ->where('id', $accountId)
+            ->where('type', 'oplata')
+            ->where('firma', self::DEPOSIT_TRANSFER_ACCOUNT_FID)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $oldDeposit || ! $deposit || ! $account) {
+            throw new \RuntimeException('Депозит или операционный счёт не найден.');
+        }
+
+        $depositCurrency = $this->normalizeCurrencyCode($deposit->currency ?? 'UAH');
+        $accountCurrency = $this->normalizeCurrencyCode($account->currency ?? 'UAH');
+        if ($depositCurrency !== $accountCurrency) {
+            throw new \RuntimeException("Валюта депозита {$depositCurrency} не совпадает с валютой счета {$accountCurrency}.");
+        }
+
+        $oldDepositBalance = round((float) ($oldDeposit->value ?? 0), 2);
+        $depositBalance = $depositId === $oldDepositId
+            ? $oldDepositBalance
+            : round((float) ($deposit->value ?? 0), 2);
+        $accountBalance = round((float) ($account->value ?? 0), 2);
+
+        $oldDepositDelta = $oldDirection === 'account_to_deposit' ? -$oldAmount : $oldAmount;
+        $depositBalanceAfterOldReverse = $depositId === $oldDepositId
+            ? $depositBalance + $oldDepositDelta
+            : $depositBalance;
+
+        if ($oldDepositDelta < 0 && $oldDepositBalance + 0.000001 < abs($oldDepositDelta)) {
+            throw new \RuntimeException('Недостаточно средств на депозите для изменения старой операции.');
+        }
+        if ($direction === 'account_to_deposit' && $accountBalance + 0.000001 < $amount) {
+            throw new \RuntimeException('Недостаточно средств на операционном счете.');
+        }
+        if ($direction === 'deposit_to_account' && $depositBalanceAfterOldReverse + 0.000001 < $amount) {
+            throw new \RuntimeException('Недостаточно средств на депозите.');
+        }
+
+        DB::table('conf')
+            ->where('id', $oldDepositId)
+            ->update(['value' => DB::raw('COALESCE(value, 0) + ' . $oldDepositDelta)]);
+
+        $newDepositDelta = $direction === 'account_to_deposit' ? $amount : -$amount;
+        DB::table('conf')
+            ->where('id', $depositId)
+            ->update(['value' => DB::raw('COALESCE(value, 0) + ' . $newDepositDelta)]);
+
+        $accountDelta = $direction === 'account_to_deposit' ? -$amount : $amount;
+        DB::table('conf')
+            ->where('id', $accountId)
+            ->update(['value' => DB::raw('COALESCE(value, 0) + ' . $accountDelta)]);
+
+        return [$deposit, $account, $accountCurrency];
+    }
+
+    private function reverseLegacyDepositTransferBalance(array $projectIds, int $depositId, float $amount, string $direction): void
+    {
+        $deposit = DB::table('conf')
+            ->where('id', $depositId)
+            ->where('type', 'deposit')
+            ->whereIn('firma', array_map('intval', $projectIds))
+            ->lockForUpdate()
+            ->first();
+
+        if (! $deposit) {
+            throw new \RuntimeException('Депозит не найден.');
+        }
+
+        $depositBalance = round((float) ($deposit->value ?? 0), 2);
+        $depositDelta = $direction === 'account_to_deposit' ? -$amount : $amount;
+        if ($depositDelta < 0 && $depositBalance + 0.000001 < abs($depositDelta)) {
+            throw new \RuntimeException('Недостаточно средств на депозите.');
+        }
+
+        DB::table('conf')
+            ->where('id', $depositId)
+            ->update(['value' => DB::raw('COALESCE(value, 0) + ' . $depositDelta)]);
     }
 
     private function reverseDepositTransferBalances(object $project, array $projectIds, int $depositId, int $accountId, float $amount, string $direction): void
