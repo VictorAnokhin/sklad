@@ -172,7 +172,6 @@
                             </td>
                             <td>
                                 <span class="bank-pill {{ $isWithdraw ? 'bank-pill--currency' : 'bank-pill--company' }}">{{ $operation->mode_label }}</span>
-                                <div class="bank-meta">{{ $operation->transfer_posted ? 'Операция проведена' : 'Можно изменить или удалить' }}</div>
                             </td>
                             <td>
                                 <strong>{{ $operation->deposit_name }}</strong>

@@ -4315,7 +4315,7 @@ class BankController extends Controller
                 'number' => trim((string) $document->num) ?: (string) $document->id,
                 'date' => trim((string) $document->data) ?: (string) $document->dt,
                 'mode' => $mode,
-                'mode_label' => $mode === 'withdraw' ? 'Вывод' : 'Пополнение',
+                'mode_label' => $mode === 'withdraw' ? 'Д -> Сч' : 'Сч -> Д',
                 'amount' => (float) $document->summa,
                 'currency' => $this->normalizeCurrencyCode(
                     $document->deposit_currency ?: $document->currency_from ?: 'UAH'
