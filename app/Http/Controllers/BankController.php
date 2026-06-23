@@ -1542,6 +1542,30 @@ class BankController extends Controller
         return redirect()->route('bank.assets')->with('success', 'Инвестиционный актив обновлен.');
     }
 
+    public function destroyInvestAsset(int $asset): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_tracked_assets'), 404);
+
+        $query = DB::table('bank_tracked_assets')
+            ->where('id', $asset)
+            ->where('project_id', (int) $project->id)
+            ->whereIn('asset_type', ['token', 'pool'])
+            ->when(
+                Schema::hasColumn('bank_tracked_assets', 'adapter'),
+                fn ($query) => $query->where(function ($subQuery) {
+                    $subQuery->where('adapter', 'manual')
+                        ->orWhere('blockchain', 'manual');
+                }),
+                fn ($query) => $query->where('blockchain', 'manual')
+            );
+
+        abort_unless($query->exists(), 404);
+        $query->delete();
+
+        return redirect()->route('bank.assets')->with('success', 'Инвестиционный актив удален.');
+    }
+
     private function investAssetPayload(Request $request, int $projectId): array
     {
         $payload = $request->validate([
@@ -2844,6 +2868,7 @@ class BankController extends Controller
                     'asset_key' => 'manual:' . (int) $asset->id,
                     'source_id' => (int) $asset->id,
                     'update_action' => route('bank.invest-assets.update', ['asset' => (int) $asset->id]),
+                    'destroy_action' => route('bank.invest-assets.destroy', ['asset' => (int) $asset->id]),
                     'name' => trim((string) ($asset->name ?? '')) ?: ($type === 'pool' ? 'Пул' : 'Токен'),
                     'description' => $address,
                     'object_address' => $address,

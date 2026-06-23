@@ -133,6 +133,9 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/invest/assets/{asset}', [BankController::class, 'updateInvestAsset'])
             ->whereNumber('asset')
             ->name('invest-assets.update');
+        Route::delete('/invest/assets/{asset}', [BankController::class, 'destroyInvestAsset'])
+            ->whereNumber('asset')
+            ->name('invest-assets.destroy');
         Route::post('/invest/operations', [BankController::class, 'storeInvestOperation'])
             ->name('invest-operations.store');
         Route::put('/invest/operations/{operation}', [BankController::class, 'updateInvestOperation'])

@@ -83,7 +83,7 @@
                     <col class="bank-assets-table__col-number">
                     <col class="bank-assets-table__col-money">
                     <col class="bank-assets-table__col-percent">
-                    <col class="bank-assets-table__col-status">
+                    <col class="bank-assets-table__col-actions">
                 </colgroup>
                 <thead>
                     <tr>
@@ -95,6 +95,7 @@
                         <th class="text-end bank-assets-table__number">Количество</th>
                         <th class="text-end bank-assets-table__money">Стоимость</th>
                         <th class="text-end bank-assets-table__percent">%</th>
+                        <th class="bank-assets-table__actions"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -128,6 +129,17 @@
                                 <div class="bank-meta">Цена: {{ $assetQuantity > 0 ? $formatMoney($assetReferencePrice) : '—' }}</div>
                             </td>
                             <td class="text-end bank-mono bank-assets-table__percent">{{ $formatPercent($assetPortfolioShare) }}%</td>
+                            <td class="text-end bank-assets-table__actions">
+                                <form method="POST"
+                                      action="{{ $asset->destroy_action }}"
+                                      class="bank-assets-delete-form"
+                                      onsubmit="event.stopPropagation(); return confirm('Удалить актив?');"
+                                      onclick="event.stopPropagation();">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="bank-assets-delete-button" aria-label="Удалить актив">&times;</button>
+                                </form>
+                            </td>
                         </tr>
                     @empty
                         <tr>
@@ -225,12 +237,38 @@
     .bank-assets-table__money { width: 130px; }
     .bank-assets-table__col-percent,
     .bank-assets-table__percent { width: 70px; }
-    .bank-assets-table__col-status,
+    .bank-assets-table__col-actions,
+    .bank-assets-table__actions { width: 44px; }
     .bank-assets-table__name .bank-meta { overflow: hidden; text-overflow: ellipsis; }
 
     .bank-assets-table__money .bank-meta {
         margin-top: 2px;
         line-height: 1.15;
+    }
+
+    .bank-assets-delete-form {
+        display: inline-flex;
+        margin: 0;
+    }
+
+    .bank-assets-delete-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: 0;
+        border-radius: 6px;
+        background: rgba(239, 68, 68, 0.14);
+        color: #fca5a5;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .bank-assets-delete-button:hover {
+        background: rgba(239, 68, 68, 0.26);
+        color: #fff;
     }
 </style>
 @endsection
