@@ -17,10 +17,13 @@
         return true;
     }, ARRAY_FILTER_USE_BOTH);
     $hasDateFilter = (($filters['date_from'] ?? '') !== '' || ($filters['date_to'] ?? '') !== '');
+    $depositDocuments = collect($documents ?? [])->reject(fn ($doc) => str_starts_with((string) ($doc->money ?? ''), 'pool:'))->values();
+    $poolDocuments = collect($documents ?? [])->filter(fn ($doc) => str_starts_with((string) ($doc->money ?? ''), 'pool:'))->values();
 @endphp
 
 @include('deposit.partials.top-actions', [
     'showDepositFilter' => true,
+    'showDepositCreate' => !($usesPoolDeposits ?? false),
     'activeFilters' => $activeFilters,
 ])
 
@@ -68,72 +71,112 @@
         </div>
     </div>
 
-    @if(($documents ?? collect())->isEmpty())
-    <div style="text-align:center;padding:20px;color:#CC0000;font-size:1.2em">
-        {{ __('deposit.no_documents') }}
+    @if($usesPoolDeposits ?? false)
+    <div class="deposit-tabs" data-deposit-tabs>
+        <button type="button" class="deposit-tab is-active" data-deposit-tab="deposits">Депозиты</button>
+        <button type="button" class="deposit-tab" data-deposit-tab="pools">Пулы</button>
     </div>
-    @else
-    <div class="document-compact-list">
-        @foreach($documents as $doc)
-        @php
-            $mode = $doc->docum ?? 'topup';
-            $modeLabel = match ($mode) {
-                'withdraw' => __('deposit.op_withdraw'),
-                default => __('deposit.op_topup'),
-            };
-            $modeIcon = match ($mode) {
-                'withdraw' => '📤',
-                default => '📥',
-            };
-            $modeBg = match ($mode) {
-                'withdraw' => '#dc3545',
-                default => '#28a745',
-            };
-            $fromLabel = match ($mode) {
-                'withdraw' => $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—'),
-                default => $oplataMap[$doc->oplata ?? ''] ?? ($doc->oplata ?: '—'),
-            };
-            $toLabel = match ($mode) {
-                'withdraw' => $oplataMap[$doc->oplata2 ?? ''] ?? ($doc->oplata2 ?: '—'),
-                default => $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—'),
-            };
-            $depositLabel = $depositMap[$doc->money ?? ''] ?? ($doc->money ?: '—');
-            $linkUrl = route('deposit.show', ['id' => $doc->id]);
-        @endphp
-        <div class="txtbox-price-docs">
-            <div class="order-card__header">
-                <div class="numdoc-docs">
-                    <a href="{{ $linkUrl }}" title="{{ __('document.open') }}">#{{ $doc->num }}</a>
-                </div>
-                <div class="status-docs-icons--mobile">
-                    {{ $modeIcon }}
-                </div>
-                <div class="status-docs4 compact-date">
-                    <span class="compact-date-line">{{ $doc->data ?? '—' }}</span>
-                    <span class="compact-date-line">{{ $doc->time ?? '' }}</span>
-                </div>
+
+    <section data-deposit-pane="deposits">
+        <div class="deposit-pane-header glass-card">
+            <div>
+                <div class="deposit-pane-title">Операции депозитов</div>
+                <div class="deposit-pane-meta">{{ $depositDocuments->count() }} операций текущего проекта</div>
             </div>
-            <div class="captionbox-docs">
-                <a href="{{ $linkUrl }}" class="title">
-                    <span class="compact-client-line compact-main">{{ $depositLabel }}</span>
-                </a>
-            </div>
-            <div class="status-docs3" style="background:{{ $modeBg }}; color:#fff;">
-                {{ $modeIcon }} {{ $modeLabel }}
-            </div>
-            <div class="pricebox-docs1">
-                <span class="money">{{ number_format($doc->summa ?? 0, 2, '.', ' ') }}</span>
-            </div>
-            <div class="captionbox-docs2">{{ $doc->content ?? '' }}</div>
-            <div class="status-docs-icons">
-                {!! $doc->provodka ? '✅' : '<span style="color:#999">⏳</span>' !!}
+            <div class="deposit-pane-actions">
+                <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'topup', 'target' => 'deposit']) }}" class="btn btn-sm btn-warning">Пополнить</a>
+                <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'withdraw', 'target' => 'deposit']) }}" class="btn btn-sm btn-outline-secondary">Вынуть</a>
             </div>
         </div>
-        @endforeach
-    </div>
+        @include('deposit.partials.document-list', [
+            'documents' => $depositDocuments,
+            'depositMap' => $depositMap,
+            'poolMap' => $poolMap ?? collect(),
+            'emptyMessage' => 'Операции депозитов пока не созданы.',
+        ])
+    </section>
+
+    <section data-deposit-pane="pools" hidden>
+        <div class="deposit-pane-header glass-card">
+            <div>
+                <div class="deposit-pane-title">Операции пулов</div>
+                <div class="deposit-pane-meta">{{ $poolDocuments->count() }} операций по пулам текущего проекта</div>
+            </div>
+            <div class="deposit-pane-actions">
+                <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'topup', 'target' => 'pool']) }}" class="btn btn-sm btn-warning">Пополнить</a>
+                <a href="{{ route('deposit.show', ['id' => 0, 'mode' => 'withdraw', 'target' => 'pool']) }}" class="btn btn-sm btn-outline-secondary">Вынуть</a>
+            </div>
+        </div>
+        @include('deposit.partials.document-list', [
+            'documents' => $poolDocuments,
+            'depositMap' => $depositMap,
+            'poolMap' => $poolMap ?? collect(),
+            'emptyMessage' => 'Операции пулов пока не созданы.',
+        ])
+    </section>
+    @else
+    @include('deposit.partials.document-list', [
+        'documents' => collect($documents ?? []),
+        'depositMap' => $depositMap,
+        'poolMap' => $poolMap ?? collect(),
+        'emptyMessage' => __('deposit.no_documents'),
+    ])
     @endif
 
 </div>
+
+<style>
+    .deposit-tabs {
+        display: inline-flex;
+        gap: 4px;
+        margin: 0 0 14px;
+        padding: 4px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .deposit-tab {
+        min-width: 112px;
+        min-height: 36px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted-foreground);
+        font-weight: 700;
+    }
+
+    .deposit-tab.is-active {
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        color: #111827;
+    }
+
+    .deposit-pane-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+        padding: 12px 14px;
+    }
+
+    .deposit-pane-title {
+        color: var(--foreground);
+        font-weight: 800;
+    }
+
+    .deposit-pane-meta {
+        color: var(--muted-foreground);
+        font-size: 0.86rem;
+    }
+
+    .deposit-pane-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+</style>
 
 <div id="depositFilterModal" class="money-filter-modal">
     <div class="glass-card money-filter-modal__content">
@@ -208,6 +251,19 @@ document.addEventListener('click', function (e) {
     if (modal && e.target === modal) {
         depositFilterToggle();
     }
+});
+
+document.querySelectorAll('[data-deposit-tab]').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+        const tabName = tab.dataset.depositTab || 'deposits';
+
+        document.querySelectorAll('[data-deposit-tab]').forEach(function (button) {
+            button.classList.toggle('is-active', button.dataset.depositTab === tabName);
+        });
+        document.querySelectorAll('[data-deposit-pane]').forEach(function (pane) {
+            pane.hidden = pane.dataset.depositPane !== tabName;
+        });
+    });
 });
 </script>
 @endsection

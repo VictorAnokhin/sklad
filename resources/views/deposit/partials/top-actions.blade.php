@@ -9,6 +9,7 @@
         </div>
     </div>
     @endif
+    @if($showDepositCreate ?? true)
     <div class="top-action-create money-top-action-create">
         <form action="{{ route('deposit.show') }}" method="get" class="money-top-action-form">
             <input type="hidden" name="id" value="0">
@@ -25,4 +26,5 @@
             </button>
         </form>
     </div>
+    @endif
 </div>

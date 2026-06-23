@@ -810,6 +810,7 @@ class BankController extends Controller
     public function poolMovements(): View
     {
         $project = $this->bankProject();
+        $projectIds = HoldingScope::projectIdsFor((string) $project->id);
         $accountProjectId = self::DEPOSIT_TRANSFER_ACCOUNT_FID;
         $operationalAccounts = $this->bankOperationalAccounts($accountProjectId);
         $poolAssetRows = $this->investmentPoolAssetRows();
@@ -823,6 +824,14 @@ class BankController extends Controller
                 'account_ids' => $accountIds,
                 'ignore_project_id' => true,
             ]);
+        $depositTransfers = $accountIds === []
+            ? collect()
+            : $this->bankDepositTransfers($projectIds)
+                ->filter(fn ($transfer) => in_array((int) $transfer->account_id, $accountIds, true))
+                ->values();
+        $poolOperationRows = $this->investOperationRows($investOperations);
+        $depositTransferRows = $this->depositTransferMovementRows($depositTransfers);
+        $movementRows = $poolOperationRows->concat($depositTransferRows);
 
         return view('bank.pool_movements', [
             'project' => $project,
@@ -830,12 +839,15 @@ class BankController extends Controller
             'operationalAccounts' => $operationalAccounts,
             'fixedAssetRows' => $poolAssetRows,
             'investOperations' => $investOperations,
-            'investOperationRows' => $this->investOperationRows($investOperations),
+            'depositTransfers' => $depositTransfers,
+            'poolOperationRows' => $poolOperationRows,
+            'depositTransferRows' => $depositTransferRows,
+            'investOperationRows' => $poolOperationRows,
             'summary' => [
-                'operations' => $investOperations->count(),
-                'posted' => $investOperations->where('status', 'posted')->count(),
-                'pending' => $investOperations->where('status', 'pending')->count(),
-                'value_usd' => (float) $investOperations->sum('value_usd'),
+                'operations' => $movementRows->count(),
+                'posted' => $movementRows->where('status', 'posted')->count(),
+                'pending' => $movementRows->where('status', 'pending')->count(),
+                'value_usd' => (float) $movementRows->sum('value_usd'),
             ],
         ]);
     }
@@ -3434,6 +3446,9 @@ class BankController extends Controller
         $isPosted = (int) $operation->ledger_transaction_id > 0 && (string) $operation->status === 'posted';
 
         return [
+            'source' => 'invest_operation',
+            'source_label' => 'Пул',
+            'sort_date' => (string) $operation->operated_at,
             'id' => (int) $operation->id,
             'date' => (string) $operation->operated_at,
             'direction' => (string) $operation->direction,
@@ -3450,6 +3465,7 @@ class BankController extends Controller
             'value_usd' => (float) $operation->value_usd,
             'status' => (string) $operation->status,
             'ledger_transaction_id' => (int) $operation->ledger_transaction_id,
+            'ledger_note' => (int) $operation->ledger_transaction_id > 0 ? 'TX #' . (int) $operation->ledger_transaction_id : 'проводки нет',
             'can_edit' => $canEdit,
             'is_posted' => $isPosted,
             'can_reverse' => $canEdit && $isPosted,
@@ -3461,6 +3477,65 @@ class BankController extends Controller
             'reverse_action' => route('bank.invest-operations.reverse', ['operation' => (int) $operation->id]),
             'note' => (string) $operation->note,
         ];
+    }
+
+    private function depositTransferMovementRows($depositTransfers)
+    {
+        return $depositTransfers
+            ->map(function ($transfer): array {
+                $isPosted = (bool) $transfer->posted;
+                $sortDate = $this->movementSortDate((string) $transfer->date);
+
+                return [
+                    'source' => 'deposit_transfer',
+                    'source_label' => 'Депозит',
+                    'sort_date' => $sortDate,
+                    'id' => (int) $transfer->id,
+                    'date' => (string) $transfer->date,
+                    'direction' => (string) $transfer->direction,
+                    'direction_label' => (string) $transfer->direction_label,
+                    'account_id' => (int) $transfer->account_id,
+                    'account_label' => (string) $transfer->account_name,
+                    'asset_key' => 'deposit:' . (string) $transfer->deposit_id,
+                    'asset_label' => (string) $transfer->deposit_name,
+                    'asset_type' => 'deposit',
+                    'currency' => (string) $transfer->currency,
+                    'quantity' => 0.0,
+                    'amount' => (float) $transfer->amount,
+                    'price_usd' => null,
+                    'value_usd' => (float) $transfer->amount,
+                    'status' => $isPosted ? 'posted' : 'pending',
+                    'ledger_transaction_id' => 0,
+                    'ledger_note' => $isPosted ? 'PP проведен' : 'проводки нет',
+                    'can_edit' => false,
+                    'is_posted' => $isPosted,
+                    'can_reverse' => false,
+                    'edit_hint' => 'Редактируется на странице депозитов.',
+                    'update_action' => '',
+                    'destroy_action' => '',
+                    'reverse_action' => '',
+                    'note' => (string) $transfer->description,
+                ];
+            })
+            ->values();
+    }
+
+    private function movementSortDate(string $date): string
+    {
+        $date = trim($date);
+        if ($date === '') {
+            return '';
+        }
+
+        try {
+            if (preg_match('/^\d{2}-\d{2}-\d{4}$/', $date)) {
+                return Carbon::createFromFormat('d-m-Y', $date)->startOfDay()->toDateTimeString();
+            }
+
+            return Carbon::parse($date)->toDateTimeString();
+        } catch (\Throwable) {
+            return $date;
+        }
     }
 
     private function accountAssetAllocations($operationalAccounts, $investOperations)

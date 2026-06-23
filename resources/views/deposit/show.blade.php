@@ -10,6 +10,7 @@
     $isNew = empty($document->id);
     $mode = $document->docum ?? request('mode', 'topup');
     $mode = in_array($mode, ['topup', 'withdraw'], true) ? $mode : 'topup';
+    $target = $target ?? request('target', 'deposit');
     $heading = match ($mode) {
         'withdraw' => __('deposit.op_withdraw'),
         default => __('deposit.op_topup'),
@@ -52,6 +53,7 @@
         @endphp
         <input type="hidden" name="id" value="{{ $document->id ?? 0 }}">
         <input type="hidden" name="mode" value="{{ $mode }}">
+        <input type="hidden" name="target" value="{{ $target }}">
 
         <div class="row">
             <div class="col-md-4 mb-3">
@@ -77,9 +79,9 @@
         </div>
 
         <div class="mb-3">
-            <label>Выбери пул</label>
+            <label>{{ $target === 'pool' ? 'Выбери пул' : 'Выбери депозит' }}</label>
             <select name="money" id="depositMoneySelect" class="form-control" required>
-                <option value="" data-currency="">-- выберите пул --</option>
+                <option value="" data-currency="">-- выберите {{ $target === 'pool' ? 'пул' : 'депозит' }} --</option>
                 @if(($deposits ?? collect())->isNotEmpty())
                 <optgroup label="Депозиты">
                 @foreach($deposits as $deposit)

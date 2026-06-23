@@ -16,7 +16,7 @@
         <div>
             <div class="bank-label">Account to pool</div>
             <h1>Движение средств</h1>
-            <p>Операции Счет - Пул: пулы из bank/pools и счета проекта f={{ $accountProjectId ?? 12 }}.</p>
+            <p>Операции Счет - Пул и Счет - Депозит: пулы из bank/pools, депозиты и счета проекта f={{ $accountProjectId ?? 12 }}.</p>
         </div>
         <div class="bank-hero__metrics">
             <div>
@@ -30,14 +30,19 @@
         </div>
     </section>
 
-    <section class="bank-panel bank-table-panel">
+    <div class="bank-tabs" role="tablist" aria-label="Движение средств">
+        <button type="button" class="bank-tab is-active" data-bank-movement-tab="pools" role="tab" aria-selected="true">Пулы</button>
+        <button type="button" class="bank-tab" data-bank-movement-tab="deposits" role="tab" aria-selected="false">Депозиты</button>
+    </div>
+
+    <section class="bank-panel bank-table-panel" data-bank-movement-pane="pools">
         <div class="bank-table-header">
             <div>
                 <div class="bank-label">Операции Счет - Пул</div>
-                <div class="bank-meta">Список движений между пулами из bank/pools и операционными счетами проекта f={{ $accountProjectId ?? 12 }}.</div>
+                <div class="bank-meta">Движения между пулами из bank/pools и операционными счетами проекта f={{ $accountProjectId ?? 12 }}.</div>
             </div>
             <div class="bank-table-header__actions">
-                <div class="bank-meta">{{ $investOperations->count() }} операций</div>
+                <div class="bank-meta">{{ $poolOperationRows->count() }} операций</div>
                 <button type="button" class="btn btn-sm btn-primary" data-invest-operation-open>Создать</button>
             </div>
         </div>
@@ -56,16 +61,14 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($investOperationRows as $movement)
+                    @forelse($poolOperationRows as $movement)
                         @php
                             $directionClass = $movement['direction'] === 'revaluation'
                                 ? 'bank-pill--warning'
                                 : ($movement['direction'] === 'asset_to_account' ? 'bank-pill--currency' : 'bank-pill--company');
                             $movementJson = json_encode($movement, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
                         @endphp
-                        <tr class="bank-table-row--clickable"
-                            data-invest-operation-edit
-                            data-operation-movement="{{ $movementJson }}">
+                        <tr class="bank-table-row--clickable" data-invest-operation-edit data-operation-movement="{{ $movementJson }}">
                             <td class="bank-table__num bank-mono">{{ $movement['id'] }}</td>
                             <td>{{ $movement['date'] !== '' ? $movement['date'] : '—' }}</td>
                             <td>
@@ -79,16 +82,72 @@
                                 <div class="bank-meta">{{ $movement['asset_key'] }}</div>
                             </td>
                             <td>{{ $movement['account_label'] }}</td>
-                            <td class="text-end fw-semibold">{{ $formatMoney($movement['value_usd']) }} USD</td>
+                            <td class="text-end fw-semibold">{{ $formatMoney($movement['amount']) }} {{ $movement['currency'] }}</td>
                             <td>
                                 <span class="bank-status {{ $movement['status'] === 'posted' ? '' : 'bank-status--pending' }}">{{ $movement['status'] }}</span>
-                                <div class="bank-meta">{{ $movement['ledger_transaction_id'] > 0 ? 'TX #' . $movement['ledger_transaction_id'] : 'проводки нет' }}</div>
+                                <div class="bank-meta">{{ $movement['ledger_note'] ?? ($movement['ledger_transaction_id'] > 0 ? 'TX #' . $movement['ledger_transaction_id'] : 'проводки нет') }}</div>
                             </td>
                             <td class="bank-meta">{{ $movement['note'] !== '' ? $movement['note'] : '—' }}</td>
                         </tr>
                     @empty
                         <tr>
                             <td colspan="8" class="text-center text-muted py-4">Операции Счет - Пул пока не созданы.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="bank-panel bank-table-panel" data-bank-movement-pane="deposits" hidden>
+        <div class="bank-table-header">
+            <div>
+                <div class="bank-label">Операции Счет - Депозит</div>
+                <div class="bank-meta">Депозитные трансферы с участием операционных счетов проекта f={{ $accountProjectId ?? 12 }}.</div>
+            </div>
+            <div class="bank-table-header__actions">
+                <div class="bank-meta">{{ $depositTransferRows->count() }} операций</div>
+                <a class="btn btn-sm btn-primary" href="{{ route('bank.deposit', ['tab' => 'transfer']) }}">Создать</a>
+            </div>
+        </div>
+        <div class="table-responsive bank-table-scroll">
+            <table class="table table-dark table-hover table-sm align-middle bank-table bank-operation-table">
+                <thead>
+                    <tr>
+                        <th class="bank-table__num">№</th>
+                        <th>Дата</th>
+                        <th>Операция</th>
+                        <th>Депозит</th>
+                        <th>Счет</th>
+                        <th class="text-end">Сумма</th>
+                        <th>Проводка</th>
+                        <th>Комментарий</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($depositTransferRows as $movement)
+                        <tr>
+                            <td class="bank-table__num bank-mono">{{ $movement['id'] }}</td>
+                            <td>{{ $movement['date'] !== '' ? $movement['date'] : '—' }}</td>
+                            <td>
+                                <span class="bank-pill {{ $movement['direction'] === 'deposit_to_account' ? 'bank-pill--currency' : 'bank-pill--company' }}">{{ $movement['direction_label'] }}</span>
+                                <div class="bank-meta">{{ $movement['edit_hint'] }}</div>
+                            </td>
+                            <td>
+                                <strong>{{ $movement['asset_label'] }}</strong>
+                                <div class="bank-meta">{{ $movement['asset_key'] }}</div>
+                            </td>
+                            <td>{{ $movement['account_label'] }}</td>
+                            <td class="text-end fw-semibold">{{ $formatMoney($movement['amount']) }} {{ $movement['currency'] }}</td>
+                            <td>
+                                <span class="bank-status {{ $movement['status'] === 'posted' ? '' : 'bank-status--pending' }}">{{ $movement['status'] }}</span>
+                                <div class="bank-meta">{{ $movement['ledger_note'] }}</div>
+                            </td>
+                            <td class="bank-meta">{{ $movement['note'] !== '' ? $movement['note'] : '—' }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">Операции Счет - Депозит пока не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -264,6 +323,32 @@
         align-items: center;
     }
 
+    .bank-tabs {
+        display: inline-flex;
+        gap: 4px;
+        margin: 0 0 14px;
+        padding: 4px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.72);
+    }
+
+    .bank-tab {
+        min-width: 112px;
+        min-height: 36px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: rgba(226, 232, 240, 0.82);
+        font-weight: 800;
+    }
+
+    .bank-tab.is-active {
+        background: rgba(56, 189, 248, 0.18);
+        color: #fff;
+        box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.36);
+    }
+
     .bank-invest-page .bank-table > :not(caption) > * > * {
         height: auto !important;
         min-height: 0 !important;
@@ -321,6 +406,24 @@
     document.addEventListener('DOMContentLoaded', () => {
         const root = document.querySelector('[data-bank-invest-page]');
         if (!root) return;
+
+        const movementTabs = root.querySelectorAll('[data-bank-movement-tab]');
+        const movementPanes = root.querySelectorAll('[data-bank-movement-pane]');
+
+        function setMovementTab(tabName) {
+            movementTabs.forEach((tab) => {
+                const active = tab.dataset.bankMovementTab === tabName;
+                tab.classList.toggle('is-active', active);
+                tab.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            movementPanes.forEach((pane) => {
+                pane.hidden = pane.dataset.bankMovementPane !== tabName;
+            });
+        }
+
+        movementTabs.forEach((tab) => {
+            tab.addEventListener('click', () => setMovementTab(tab.dataset.bankMovementTab || 'pools'));
+        });
 
         function parseJsonAttribute(value, fallback) {
             try {

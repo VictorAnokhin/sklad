@@ -26,8 +26,11 @@ class DepositController extends Controller
         $datesAreDefault = $filters['date_from'] === $defaultDateFrom
             && $filters['date_to'] === $defaultDateTo;
         $data = Deposit::init($fid, $pos, $filters);
+        $usesPoolDeposits = $this->usesPoolDeposits($fid);
+        $depositPools = $this->depositPoolOptions();
+        $poolMap = $depositPools->pluck('name', 'asset_key');
 
-        return view('deposit.index', array_merge($data, compact('pos', 'filters', 'datesAreDefault')));
+        return view('deposit.index', array_merge($data, compact('pos', 'filters', 'datesAreDefault', 'usesPoolDeposits', 'depositPools', 'poolMap')));
     }
 
     public function show(Request $request)
@@ -35,6 +38,7 @@ class DepositController extends Controller
         $fid = session('fid', '');
         $id = (int) $request->input('id', 0);
         $requestedMode = (string) $request->input('mode', 'topup');
+        $requestedTarget = (string) $request->input('target', '');
 
         $document = $id > 0 ? Deposit::find($id, $fid) : Deposit::emptyDocument();
         if (!$document) {
@@ -55,7 +59,11 @@ class DepositController extends Controller
 
         $depositPools = $this->depositPoolOptions();
         $usesPoolDeposits = $this->usesPoolDeposits($fid);
-        $deposits = $usesPoolDeposits ? collect() : Deposit::deposits($fid);
+        $target = in_array($requestedTarget, ['deposit', 'pool'], true)
+            ? $requestedTarget
+            : (str_starts_with((string) ($document->money ?? ''), 'pool:') ? 'pool' : ($usesPoolDeposits ? 'pool' : 'deposit'));
+        $deposits = $target === 'pool' ? collect() : Deposit::deposits($fid);
+        $depositPools = $target === 'pool' ? $depositPools : collect();
         $ownerUserId = (string) (($document->client2 ?? '') ?: (Auth::id() ?: session('userid', '0')));
         $ownerBalances = Money::cachedUserBalances($ownerUserId, $fid, $document->owner_balance ?? '');
         if ($ownerBalances === []) {
@@ -66,7 +74,7 @@ class DepositController extends Controller
             ]];
         }
 
-        return view('deposit.show', compact('document', 'deposits', 'depositPools', 'ownerBalances', 'usesPoolDeposits'));
+        return view('deposit.show', compact('document', 'deposits', 'depositPools', 'ownerBalances', 'usesPoolDeposits', 'target'));
     }
 
     public function save(Request $request)
