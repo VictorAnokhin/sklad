@@ -59,9 +59,12 @@ class DepositController extends Controller
 
         $depositPools = $this->depositPoolOptions();
         $usesPoolDeposits = $this->usesPoolDeposits($fid);
+        $documentMoney = (string) ($document->money ?? '');
         $target = in_array($requestedTarget, ['deposit', 'pool'], true)
             ? $requestedTarget
-            : (str_starts_with((string) ($document->money ?? ''), 'pool:') ? 'pool' : ($usesPoolDeposits ? 'pool' : 'deposit'));
+            : ($documentMoney !== ''
+                ? (str_starts_with($documentMoney, 'pool:') ? 'pool' : 'deposit')
+                : ($usesPoolDeposits ? 'pool' : 'deposit'));
         $deposits = $target === 'pool' ? collect() : Deposit::deposits($fid);
         $depositPools = $target === 'pool' ? $depositPools : collect();
         $ownerUserId = (string) (($document->client2 ?? '') ?: (Auth::id() ?: session('userid', '0')));
