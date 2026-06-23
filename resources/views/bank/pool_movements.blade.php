@@ -201,13 +201,8 @@
 
     <div class="bank-modal" data-invest-operation-modal hidden>
         <div class="bank-modal__backdrop" data-invest-operation-close></div>
-        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="investOperationModalTitle">
+        <div class="bank-modal__dialog bank-modal__dialog--xl" role="dialog" aria-modal="true" aria-label="Операция пула">
             <div class="bank-modal__header">
-                <div>
-                    <div class="bank-label">Счет - Пул</div>
-                    <h2 id="investOperationModalTitle" data-invest-operation-title>Создать операцию</h2>
-                    <div class="bank-meta" data-invest-operation-subtitle>Фиксирует движение средств между операционным счетом и пулом.</div>
-                </div>
                 <button type="button" class="bank-modal__close" data-invest-operation-close aria-label="Закрыть">×</button>
             </div>
             <form method="POST" action="{{ route('bank.invest-operations.store') }}" class="bank-requisites-form" data-invest-operation-form>
@@ -216,7 +211,7 @@
                 <input type="hidden" name="update_account_balance" value="1" data-invest-operation-update-balance>
                 <input type="hidden" name="redirect_to" value="bank.pool-movements">
                 <div class="bank-form-grid bank-pool-movement-form">
-                    <div class="bank-form-full bank-operation-mode" role="tablist" aria-label="Тип операции">
+                    <div class="bank-form-full bank-operation-mode bank-operation-mode--compact" role="tablist" aria-label="Тип операции">
                         <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Счет -> Пул</button>
                         <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="asset_to_account">Пул -> Счет</button>
                         <button type="button" class="bank-operation-mode__button" data-invest-operation-direction-tab="revaluation">Переоценка</button>
@@ -460,6 +455,24 @@
         margin: 0 0 0 auto;
         min-height: 38px;
         padding: 0 12px;
+    }
+
+    .bank-modal__dialog--xl {
+        width: min(600px, 100%);
+    }
+
+    .bank-operation-mode--compact {
+        display: inline-flex !important;
+        width: auto;
+        max-width: 100%;
+        grid-template-columns: none;
+    }
+
+    .bank-operation-mode--compact .bank-operation-mode__button {
+        min-width: 96px;
+        min-height: 30px;
+        padding: 0 10px;
+        font-size: 12px;
     }
 
     .bank-transfer-post-ledger {
@@ -959,8 +972,6 @@
         const modal = root.querySelector('[data-invest-operation-modal]');
         const form = root.querySelector('[data-invest-operation-form]');
         const method = root.querySelector('[data-invest-operation-method]');
-        const title = root.querySelector('[data-invest-operation-title]');
-        const subtitle = root.querySelector('[data-invest-operation-subtitle]');
         const submit = root.querySelector('[data-invest-operation-submit]');
         const deleteButton = root.querySelector('[data-invest-operation-delete]');
         const reverseButton = root.querySelector('[data-invest-operation-reverse]');
@@ -1080,8 +1091,6 @@
             if (operatedAt) {
                 operatedAt.value = formatDateTimeLocal();
             }
-            if (title) title.textContent = 'Создать операцию';
-            if (subtitle) subtitle.textContent = 'Фиксирует движение средств между операционным счетом и пулом.';
             if (submit) {
                 submit.textContent = 'Сохранить';
                 submit.hidden = false;
@@ -1119,14 +1128,6 @@
             if (amount) amount.value = movement.amount || movement.value_usd || '';
             if (operatedAt) operatedAt.value = formatDateTimeLocal(movement.date || '');
             if (note) note.value = movement.note || '';
-            if (title) title.textContent = `Редактировать операцию #${movement.id}`;
-            if (subtitle) {
-                subtitle.textContent = !movement.can_edit
-                    ? (movement.edit_hint || 'Редактирование закрыто.')
-                    : movement.is_posted
-                        ? 'Операция проведена. Доступна отмена проводки, если сторно разрешено.'
-                        : 'Операция сохранена без проводки. Можно провести, сохранить или удалить.';
-            }
             if (submit) submit.hidden = Boolean(movement.is_posted) || !movement.can_edit;
             if (deleteButton) deleteButton.hidden = Boolean(movement.is_posted) || !movement.can_edit;
             if (reverseButton) {
