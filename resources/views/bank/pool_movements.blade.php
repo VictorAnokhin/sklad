@@ -327,10 +327,6 @@
                     <input type="hidden" name="_method" value="PUT" data-deposit-transfer-method disabled>
                     <input type="hidden" name="direction" value="account_to_deposit" data-deposit-transfer-direction>
                     <div class="modal-header">
-                        <div>
-                            <div class="bank-label">Счет - Депозит</div>
-                            <h5 class="modal-title" id="depositTransferModalLabel" data-deposit-transfer-title>Создать трансфер</h5>
-                        </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                     </div>
                     <div class="modal-body">
@@ -363,7 +359,6 @@
                                         </option>
                                     @endforeach
                                 </select>
-                                <div class="bank-meta" data-deposit-transfer-account-meta></div>
                             </div>
                             <div class="col-12" data-deposit-transfer-field="amount">
                                 <label class="form-label">Сумма</label>
@@ -606,7 +601,6 @@
 
         const depositTransferForm = root.querySelector('[data-deposit-transfer-form]');
         const depositTransferMethod = root.querySelector('[data-deposit-transfer-method]');
-        const depositTransferTitle = root.querySelector('[data-deposit-transfer-title]');
         const depositTransferDirection = root.querySelector('[data-deposit-transfer-direction]');
         const depositTransferDirectionTabs = root.querySelectorAll('[data-deposit-transfer-direction-tab]');
         const depositTransferDeposit = root.querySelector('[data-deposit-transfer-deposit]');
@@ -615,7 +609,6 @@
         const depositTransferNote = root.querySelector('[data-deposit-transfer-note]');
         const depositTransferError = root.querySelector('[data-deposit-transfer-error]');
         const depositTransferSubmit = root.querySelector('[data-deposit-transfer-submit]');
-        const depositTransferAccountMeta = root.querySelector('[data-deposit-transfer-account-meta]');
         const depositTransferDelete = root.querySelector('[data-deposit-transfer-delete]');
         const depositTransferReverse = root.querySelector('[data-deposit-transfer-reverse]');
         const depositTransferPostLedger = root.querySelector('[data-deposit-transfer-post-ledger]');
@@ -704,19 +697,6 @@
                 }
             }
 
-            if (depositTransferAccountMeta) {
-                const currentAccount = selectedOption(depositTransferAccount);
-                const accountBalance = Number(currentAccount?.dataset.balance || 0);
-                const depositBalance = Number(depositOption?.dataset.balance || 0);
-                depositTransferAccountMeta.textContent = currentAccount?.value
-                    ? (
-                        directionValue === 'deposit_to_account'
-                            ? `Источник: депозит, доступно ${formatAmount(depositBalance)} ${depositCurrency}`
-                            : `Источник: счет, доступно ${formatAmount(accountBalance)} ${currentAccount.dataset.currency || ''}`
-                    )
-                    : '';
-            }
-
             depositTransferError.textContent = message;
             depositTransferError.hidden = message === '';
             depositTransferSubmit.disabled = message !== '';
@@ -778,9 +758,6 @@
             }
             setDepositTransferReadOnly(false);
             setDepositTransferDirection('account_to_deposit');
-            if (depositTransferTitle) {
-                depositTransferTitle.textContent = 'Создать трансфер';
-            }
             if (depositTransferSubmit) {
                 depositTransferSubmit.textContent = 'Выполнить';
                 depositTransferSubmit.hidden = false;
@@ -829,9 +806,6 @@
             }
             if (depositTransferNote) {
                 depositTransferNote.value = trigger.dataset.transferNote || '';
-            }
-            if (depositTransferTitle) {
-                depositTransferTitle.textContent = 'Изменить трансфер';
             }
             if (depositTransferSubmit) {
                 depositTransferSubmit.textContent = 'Сохранить';
