@@ -814,6 +814,7 @@ class BankController extends Controller
         $accountProjectId = self::DEPOSIT_TRANSFER_ACCOUNT_FID;
         $operationalAccounts = $this->bankOperationalAccounts($accountProjectId);
         $deposits = $this->bankDeposits($projectIds);
+        $depositOperations = $this->bankDepositOperations($projectIds);
         $poolAssetRows = $this->investmentPoolAssetRows();
         $poolAssetKeys = $poolAssetRows->pluck('asset_key')->all();
         $accountIds = $operationalAccounts->pluck('id')->map(fn ($id) => (int) $id)->filter()->values()->all();
@@ -839,6 +840,7 @@ class BankController extends Controller
             'accountProjectId' => $accountProjectId,
             'operationalAccounts' => $operationalAccounts,
             'deposits' => $deposits,
+            'depositOperations' => $depositOperations,
             'fixedAssetRows' => $poolAssetRows,
             'investOperations' => $investOperations,
             'depositTransfers' => $depositTransfers,

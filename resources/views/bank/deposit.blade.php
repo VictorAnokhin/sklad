@@ -376,59 +376,14 @@
                 <div class="modal-body">
                     <ul class="nav nav-tabs bank-modal-tabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="depositOperationsTab" data-bs-toggle="tab" data-bs-target="#depositOperationsPane" type="button" role="tab">
-                                Операции
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="depositSettingsTab" data-bs-toggle="tab" data-bs-target="#depositSettingsPane" type="button" role="tab">
+                            <button class="nav-link active" id="depositSettingsTab" data-bs-toggle="tab" data-bs-target="#depositSettingsPane" type="button" role="tab">
                                 Настройки
                             </button>
                         </li>
                     </ul>
 
                     <div class="tab-content pt-3">
-                        <div class="tab-pane fade show active" id="depositOperationsPane" role="tabpanel" aria-labelledby="depositOperationsTab">
-                            <div class="bank-order-modal__summary">
-                                <div>
-                                    <span>Текущий остаток</span>
-                                    <strong data-deposit-summary="balance"></strong>
-                                </div>
-                                <div>
-                                    <span>Пополнения</span>
-                                    <strong class="text-success" data-deposit-summary="topups"></strong>
-                                </div>
-                                <div>
-                                    <span>Выводы</span>
-                                    <strong class="text-danger" data-deposit-summary="withdrawals"></strong>
-                                </div>
-                                <div>
-                                    <span>Чистое движение</span>
-                                    <strong data-deposit-summary="net"></strong>
-                                </div>
-                            </div>
-
-                            <div class="table-responsive bank-deposit-movement-table">
-                                <table class="table table-dark table-hover table-sm align-middle bank-table">
-                                    <thead>
-                                        <tr>
-                                            <th class="bank-table__num">№</th>
-                                            <th>Дата / документ</th>
-                                            <th>Операция</th>
-                                            <th>Владелец</th>
-                                            <th class="text-end">Сумма</th>
-                                            <th>Статус</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody data-deposit-movements></tbody>
-                                </table>
-                            </div>
-                            <div class="bank-empty bank-deposit-movement-empty" data-deposit-movements-empty hidden>
-                                По этому депозиту движения средств не найдены.
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="depositSettingsPane" role="tabpanel" aria-labelledby="depositSettingsTab">
+                        <div class="tab-pane fade show active" id="depositSettingsPane" role="tabpanel" aria-labelledby="depositSettingsTab">
                             <form method="post" data-deposit-settings-form>
                                 @csrf
                                 <input type="hidden" name="_method" value="POST" data-deposit-settings-method>
@@ -698,7 +653,6 @@
         const settingsType = modal.querySelector('[data-deposit-settings-type]');
         const settingsCurrency = modal.querySelector('[data-deposit-settings-currency]');
         const settingsSubmit = modal.querySelector('[data-deposit-settings-submit]');
-        const operationsTab = modal.querySelector('#depositOperationsTab');
         const settingsTab = modal.querySelector('#depositSettingsTab');
         const transferForm = document.querySelector('[data-deposit-transfer-form]');
         const transferMethod = document.querySelector('[data-deposit-transfer-method]');
@@ -1154,7 +1108,7 @@
 
         modal.addEventListener('show.bs.modal', (event) => {
             const trigger = event.relatedTarget;
-            if (!(trigger instanceof HTMLElement) || !movementsBody || !emptyState) {
+            if (!(trigger instanceof HTMLElement)) {
                 return;
             }
 
@@ -1165,8 +1119,10 @@
                 setSummary('topups', '+0.00 UAH');
                 setSummary('withdrawals', '−0.00 UAH');
                 setSummary('net', '+0.00 UAH');
-                movementsBody.replaceChildren();
-                emptyState.hidden = false;
+                if (movementsBody && emptyState) {
+                    movementsBody.replaceChildren();
+                    emptyState.hidden = false;
+                }
 
                 if (settingsForm && settingsMethod && settingsName && settingsType && settingsCurrency && settingsSubmit) {
                     settingsForm.action = trigger.dataset.storeUrl || '';
@@ -1203,9 +1159,11 @@
                 settingsCurrency.value = currency;
                 settingsSubmit.textContent = 'Сохранить';
             }
-            bootstrap.Tab.getOrCreateInstance(
-                trigger.dataset.depositSettingsOpen === '1' ? settingsTab : operationsTab
-            ).show();
+            bootstrap.Tab.getOrCreateInstance(settingsTab).show();
+
+            if (!movementsBody || !emptyState) {
+                return;
+            }
 
             movementsBody.replaceChildren();
             emptyState.hidden = movements.length > 0;

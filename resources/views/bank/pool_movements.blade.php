@@ -109,11 +109,17 @@
     <section class="bank-panel bank-table-panel" data-bank-movement-pane="deposits" hidden>
         <div class="bank-table-header">
             <div>
-                <div class="bank-label">Операции Счет - Депозит</div>
-                <div class="bank-meta">Депозитные трансферы с участием операционных счетов проекта f={{ $accountProjectId ?? 12 }}.</div>
+                <div class="bank-label">Операции по депозитам</div>
+                <div class="bank-meta">PP-операции пополнения и вывода по депозитам холдинга.</div>
             </div>
             <div class="bank-table-header__actions">
-                <div class="bank-meta">{{ $depositTransferRows->count() }} операций</div>
+                <div class="bank-meta" data-deposit-operations-counter>{{ $depositOperations->count() }} операций</div>
+                <button type="button"
+                    class="btn btn-sm btn-outline-light"
+                    data-bs-toggle="modal"
+                    data-bs-target="#depositFilterModal">
+                    Фильтр
+                </button>
                 <button type="button"
                     class="btn btn-sm btn-primary"
                     data-bs-toggle="modal"
@@ -129,56 +135,69 @@
                 <thead>
                     <tr>
                         <th class="bank-table__num">№</th>
-                        <th>Дата</th>
+                        <th>Дата / документ</th>
                         <th>Операция</th>
                         <th>Депозит</th>
+                        <th>Владелец</th>
                         <th>Счет</th>
                         <th class="text-end">Сумма</th>
-                        <th>Проводка</th>
+                        <th>Статус</th>
                         <th>Комментарий</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($depositTransferRows as $movement)
+                    @forelse($depositOperations as $operation)
+                        @php
+                            $isWithdraw = $operation->mode === 'withdraw';
+                        @endphp
                         <tr class="bank-table-row--clickable bank-deposit-transfer-row"
                             role="button"
                             tabindex="0"
                             data-bs-toggle="modal"
                             data-bs-target="#depositTransferModal"
-                            data-transfer-direction="{{ $movement['direction'] }}"
-                            data-transfer-deposit="{{ $movement['transfer_deposit_id'] }}"
-                            data-transfer-account="{{ $movement['transfer_account_id'] }}"
-                            data-transfer-amount="{{ number_format((float) $movement['amount'], 2, '.', '') }}"
-                            data-transfer-posted="{{ $movement['transfer_posted'] ? '1' : '0' }}"
-                            data-transfer-update-url="{{ $movement['update_action'] }}"
-                            data-transfer-reverse-url="{{ $movement['reverse_action'] }}"
-                            data-transfer-delete-url="{{ $movement['destroy_action'] }}">
-                            <td class="bank-table__num bank-mono">{{ $movement['id'] }}</td>
-                            <td>{{ $movement['date'] !== '' ? $movement['date'] : '—' }}</td>
+                            data-deposit-operation-row
+                            data-deposit-id="{{ $operation->deposit_id }}"
+                            data-transfer-direction="{{ $operation->transfer_direction }}"
+                            data-transfer-deposit="{{ $operation->transfer_deposit_id }}"
+                            data-transfer-account="{{ $operation->transfer_account_id }}"
+                            data-transfer-amount="{{ number_format((float) $operation->amount, 2, '.', '') }}"
+                            data-transfer-posted="{{ $operation->transfer_posted ? '1' : '0' }}"
+                            data-transfer-update-url="{{ $operation->transfer_update_url }}"
+                            data-transfer-reverse-url="{{ $operation->transfer_reverse_url }}"
+                            data-transfer-delete-url="{{ $operation->transfer_delete_url }}">
+                            <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td>
-                                <span class="bank-pill {{ $movement['direction'] === 'deposit_to_account' ? 'bank-pill--currency' : 'bank-pill--company' }}">{{ $movement['direction_label'] }}</span>
-                                <div class="bank-meta">{{ $movement['edit_hint'] }}</div>
+                                <strong>#{{ $operation->number }}</strong>
+                                <div class="bank-meta">{{ $operation->date !== '' ? $operation->date : '—' }} · ID {{ $operation->id }}</div>
                             </td>
                             <td>
-                                <strong>{{ $movement['asset_label'] }}</strong>
-                                <div class="bank-meta">{{ $movement['asset_key'] }}</div>
+                                <span class="bank-pill {{ $isWithdraw ? 'bank-pill--currency' : 'bank-pill--company' }}">{{ $operation->mode_label }}</span>
+                                <div class="bank-meta">{{ $operation->transfer_posted ? 'Операция проведена' : 'Можно изменить или удалить' }}</div>
                             </td>
-                            <td>{{ $movement['account_label'] }}</td>
-                            <td class="text-end fw-semibold">{{ $formatMoney($movement['amount']) }} {{ $movement['currency'] }}</td>
                             <td>
-                                <span class="bank-status {{ $movement['status'] === 'posted' ? '' : 'bank-status--pending' }}">{{ $movement['status'] }}</span>
-                                <div class="bank-meta">{{ $movement['ledger_note'] }}</div>
+                                <strong>{{ $operation->deposit_name }}</strong>
+                                <div class="bank-meta">ID {{ $operation->deposit_id }}</div>
                             </td>
-                            <td class="bank-meta">{{ $movement['note'] !== '' ? $movement['note'] : '—' }}</td>
+                            <td>{{ $operation->owner_name }}</td>
+                            <td>{{ $operation->transfer_account_name }}</td>
+                            <td class="text-end fw-semibold {{ $isWithdraw ? 'text-danger' : 'text-success' }}">
+                                {{ $isWithdraw ? '−' : '+' }}{{ $formatMoney($operation->amount) }} {{ $operation->currency }}
+                            </td>
+                            <td>
+                                <span class="bank-status {{ $operation->status === 'posted' ? '' : 'bank-status--pending' }}">{{ $operation->status_label }}</span>
+                                <div class="bank-meta">{{ $operation->ledger_id > 0 ? 'TX #' . $operation->ledger_id : 'Ledger TX отсутствует' }}</div>
+                            </td>
+                            <td class="bank-meta">{{ $operation->description !== '' ? $operation->description : '—' }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">Операции Счет - Депозит пока не созданы.</td>
+                            <td colspan="8" class="text-center text-muted py-4">Операции по депозитам пока не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+        <div class="bank-empty mt-3" data-deposit-operations-empty hidden>Операции по выбранному депозиту не найдены.</div>
     </section>
 
     <div class="bank-modal" data-invest-operation-modal hidden>
@@ -259,6 +278,33 @@
                     <button type="submit" class="btn btn-outline-danger" formnovalidate data-invest-operation-delete hidden>Удалить</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div class="modal fade bank-order-modal" id="depositFilterModal" tabindex="-1" aria-labelledby="depositFilterModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <div class="bank-label">Фильтр</div>
+                        <h5 class="modal-title" id="depositFilterModalLabel">Операции по депозиту</h5>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Депозит</label>
+                    <select class="form-select" data-deposit-filter-select>
+                        <option value="">Все депозиты</option>
+                        @foreach($deposits as $deposit)
+                            <option value="{{ $deposit->id }}">{{ $deposit->name }} · {{ $deposit->currency }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-deposit-filter-reset>Сбросить</button>
+                    <button type="button" class="btn btn-primary" data-deposit-filter-apply>Применить</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -563,6 +609,12 @@
         const depositTransferPostLedgerField = root.querySelector('[data-deposit-transfer-post-ledger-field]');
         const depositTransferDeleteForm = root.querySelector('[data-deposit-transfer-delete-form]');
         const depositTransferStoreAction = depositTransferForm ? depositTransferForm.action : '';
+        const depositFilterSelect = root.querySelector('[data-deposit-filter-select]');
+        const depositFilterApply = root.querySelector('[data-deposit-filter-apply]');
+        const depositFilterReset = root.querySelector('[data-deposit-filter-reset]');
+        const depositOperationRows = root.querySelectorAll('[data-deposit-operation-row]');
+        const depositOperationsCounter = root.querySelector('[data-deposit-operations-counter]');
+        const depositOperationsEmpty = root.querySelector('[data-deposit-operations-empty]');
 
         function selectedOption(select) {
             return select?.selectedOptions?.[0] || null;
@@ -573,6 +625,24 @@
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
             });
+        }
+
+        function applyDepositFilter(depositId = '') {
+            let visibleCount = 0;
+            depositOperationRows.forEach((row) => {
+                const visible = depositId === '' || row.dataset.depositId === depositId;
+                row.hidden = !visible;
+                if (visible) {
+                    visibleCount += 1;
+                }
+            });
+
+            if (depositOperationsCounter) {
+                depositOperationsCounter.textContent = visibleCount + ' операций';
+            }
+            if (depositOperationsEmpty) {
+                depositOperationsEmpty.hidden = visibleCount > 0;
+            }
         }
 
         function validateDepositTransferForm() {
@@ -828,6 +898,25 @@
         depositTransferDelete?.addEventListener('click', (event) => {
             if (!confirm('Удалить трансфер и выполнить обратное движение остатков?')) {
                 event.preventDefault();
+            }
+        });
+
+        depositFilterApply?.addEventListener('click', () => {
+            applyDepositFilter(depositFilterSelect?.value || '');
+            const filterModal = document.getElementById('depositFilterModal');
+            if (filterModal && window.bootstrap?.Modal) {
+                bootstrap.Modal.getInstance(filterModal)?.hide();
+            }
+        });
+
+        depositFilterReset?.addEventListener('click', () => {
+            if (depositFilterSelect) {
+                depositFilterSelect.value = '';
+            }
+            applyDepositFilter('');
+            const filterModal = document.getElementById('depositFilterModal');
+            if (filterModal && window.bootstrap?.Modal) {
+                bootstrap.Modal.getInstance(filterModal)?.hide();
             }
         });
 
