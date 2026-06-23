@@ -27,6 +27,7 @@
     ])));
     $currentUserId = (string) (\Illuminate\Support\Facades\Auth::id() ?: session('userid', '0'));
     $isDocumentOwner = (string) ($document->client2 ?? '') !== '' && (string) ($document->client2 ?? '') === $currentUserId;
+    $isPosted = (int) ($document->provodka ?? 0) === 1;
     @endphp
 
     <h3 style="color:#b45309;">🏦 {{ $heading }} @if(!$isNew) № {{ $document->num }} @endif</h3>
@@ -120,24 +121,20 @@
             <input type="text" name="content" class="form-control" value="{{ old('content', $document->content ?? '') }}">
         </div>
 
-        @if((int)($document->provodka ?? 0) === 0)
-        <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" id="post_after_save" name="post_after_save" value="1" checked>
-            <label class="form-check-label" for="post_after_save">{{ __('deposit.post_after_save') }}</label>
-        </div>
-        @endif
-
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
             <a href="{{ route('deposit.index') }}" class="btn btn-outline-secondary">{{ __('deposit.btn_back') }}</a>
-            @if((int)($document->provodka ?? 0) === 0)
+            @if(!$isPosted)
+            <label class="form-check" style="display:inline-flex; align-items:center; gap:6px; margin:0;">
+                <input type="checkbox" class="form-check-input" id="post_after_save" name="post_after_save" value="1" checked style="margin:0;">
+                <span class="form-check-label">Проводка</span>
+            </label>
             <button type="submit" class="btn">{{ __('deposit.btn_save') }}</button>
-            @endif
-            @if(!$isNew && (int)($document->provodka ?? 0) === 1)
+            @elseif(!$isNew)
             <button type="submit" formaction="{{ route('deposit.provodka') }}" formmethod="post" class="btn btn-success">
-                {{ __('deposit.btn_cancel_posting') }}
+                Отменить сохранение
             </button>
             @endif
-            @if(!$isNew && (int)($document->provodka ?? 0) === 0)
+            @if(!$isNew && !$isPosted)
             <button type="button" class="btn btn-danger" onclick="if(confirm('{{ __('deposit.confirm_delete') }}')) { document.getElementById('deleteDepositForm').submit(); }">
                 {{ __('deposit.btn_delete') }}
             </button>
