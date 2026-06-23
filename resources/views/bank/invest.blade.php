@@ -56,7 +56,6 @@
                         <th>Операция</th>
                         <th>Актив</th>
                         <th>Счет</th>
-                        <th class="text-end">Количество</th>
                         <th class="text-end">Сумма</th>
                         <th>Проводка</th>
                         <th>Комментарий</th>
@@ -86,7 +85,6 @@
                                 <div class="bank-meta">{{ $assetTypeLabels[$movement['asset_type']] ?? $movement['asset_type'] }}</div>
                             </td>
                             <td>{{ $movement['account_label'] }}</td>
-                            <td class="text-end bank-mono">{{ number_format((float) $movement['quantity'], 8, '.', ' ') }}</td>
                             <td class="text-end fw-semibold">{{ $formatMoney($movement['value_usd']) }} USD</td>
                             <td>
                                 <span class="bank-status {{ $movement['status'] === 'posted' ? '' : 'bank-status--pending' }}">{{ $movement['status'] }}</span>
@@ -96,7 +94,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center text-muted py-4">Операции пока не созданы.</td>
+                            <td colspan="8" class="text-center text-muted py-4">Операции пока не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -320,7 +318,7 @@
 
     .bank-invest-page .bank-operation-table {
         table-layout: fixed;
-        min-width: 980px;
+        min-width: 870px;
     }
 
     .bank-invest-page .bank-operation-table th,
@@ -340,13 +338,11 @@
     .bank-invest-page .bank-operation-table th:nth-child(5),
     .bank-invest-page .bank-operation-table td:nth-child(5) { width: 160px; }
     .bank-invest-page .bank-operation-table th:nth-child(6),
-    .bank-invest-page .bank-operation-table td:nth-child(6) { width: 110px; }
+    .bank-invest-page .bank-operation-table td:nth-child(6) { width: 118px; }
     .bank-invest-page .bank-operation-table th:nth-child(7),
-    .bank-invest-page .bank-operation-table td:nth-child(7) { width: 118px; }
+    .bank-invest-page .bank-operation-table td:nth-child(7) { width: 110px; }
     .bank-invest-page .bank-operation-table th:nth-child(8),
-    .bank-invest-page .bank-operation-table td:nth-child(8) { width: 110px; }
-    .bank-invest-page .bank-operation-table th:nth-child(9),
-    .bank-invest-page .bank-operation-table td:nth-child(9) { width: 136px; }
+    .bank-invest-page .bank-operation-table td:nth-child(8) { width: 136px; }
 </style>
 @endsection
 

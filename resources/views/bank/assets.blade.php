@@ -7,12 +7,14 @@
 @section('content')
 @php
     $formatMoney = static fn ($value): string => number_format((float) $value, 2, '.', ' ');
+    $formatPercent = static fn ($value): string => number_format((float) $value, 2, '.', ' ');
     $assetTypeLabels = [
         'token' => 'Токен',
         'nft' => 'NFT',
         'pool' => 'Пул',
         'defi' => 'DeFi',
     ];
+    $portfolioValueUsd = (float) ($summary['value_usd'] ?? 0);
 @endphp
 
 <div class="bank-page bank-invest-page" data-bank-assets-page>
@@ -80,13 +82,19 @@
                         <th class="bank-assets-table__address">Адрес объекта</th>
                         <th class="bank-assets-table__name">Наименование</th>
                         <th class="text-end bank-assets-table__number">Количество</th>
-                        <th class="text-end bank-assets-table__money">Цена</th>
                         <th class="text-end bank-assets-table__money">Стоимость</th>
+                        <th class="text-end bank-assets-table__percent">%</th>
                         <th class="bank-assets-table__status">Статус</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($fixedAssetRows as $asset)
+                        @php
+                            $assetQuantity = (float) $asset->quantity;
+                            $assetValue = (float) $asset->value_usd;
+                            $assetReferencePrice = $assetQuantity > 0 ? $assetValue / $assetQuantity : 0.0;
+                            $assetPortfolioShare = $portfolioValueUsd > 0 ? $assetValue / $portfolioValueUsd * 100 : 0.0;
+                        @endphp
                         <tr class="bank-table-row--clickable"
                             data-invest-asset-edit
                             data-action="{{ $asset->update_action }}"
@@ -94,7 +102,6 @@
                             data-asset-address="{{ $asset->object_address }}"
                             data-asset-name="{{ $asset->name }}"
                             data-asset-quantity="{{ number_format((float) $asset->quantity, 8, '.', '') }}"
-                            data-asset-price="{{ number_format((float) $asset->price_usd, 8, '.', '') }}"
                             data-asset-value="{{ number_format((float) $asset->value_usd, 8, '.', '') }}"
                             data-asset-created-on="{{ $asset->created_on }}">
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
@@ -106,8 +113,11 @@
                                 <div class="bank-meta">{{ $asset->currency }}</div>
                             </td>
                             <td class="text-end bank-mono bank-assets-table__number">{{ number_format((float) $asset->quantity, 8, '.', ' ') }}</td>
-                            <td class="text-end bank-assets-table__money">{{ $formatMoney($asset->price_usd) }}</td>
-                            <td class="text-end fw-semibold bank-assets-table__money">{{ $formatMoney($asset->value_usd) }}</td>
+                            <td class="text-end bank-assets-table__money">
+                                <div class="fw-semibold">{{ $formatMoney($assetValue) }}</div>
+                                <div class="bank-meta">Цена: {{ $assetQuantity > 0 ? $formatMoney($assetReferencePrice) : '—' }}</div>
+                            </td>
+                            <td class="text-end bank-mono bank-assets-table__percent">{{ $formatPercent($assetPortfolioShare) }}%</td>
                             <td class="bank-assets-table__status"><span class="bank-status {{ $asset->status === 'manual' ? '' : 'bank-status--pending' }}">{{ $asset->status }}</span></td>
                         </tr>
                     @empty
@@ -159,12 +169,9 @@
                         <input type="number" name="quantity" min="0" step="0.00000001" inputmode="decimal" data-invest-asset-quantity>
                     </label>
                     <label>
-                        <span>Цена</span>
-                        <input type="number" name="price_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-asset-price>
-                    </label>
-                    <label>
                         <span>Стоимость</span>
                         <input type="text" name="value_usd" inputmode="numeric" data-terminal-amount data-invest-asset-value>
+                        <small class="bank-field-hint" data-invest-asset-price-reference>Цена: —</small>
                     </label>
                 </div>
                 <div class="bank-modal__actions">
@@ -182,7 +189,7 @@
 <style>
     .bank-assets-table {
         table-layout: fixed;
-        min-width: 980px;
+        min-width: 930px;
     }
 
     .bank-assets-table th,
@@ -200,8 +207,14 @@
     .bank-assets-table__name { width: 220px; }
     .bank-assets-table__number { width: 130px; }
     .bank-assets-table__money { width: 120px; }
+    .bank-assets-table__percent { width: 70px; }
     .bank-assets-table__status { width: 100px; }
     .bank-assets-table__name .bank-meta { overflow: hidden; text-overflow: ellipsis; }
+
+    .bank-assets-table__money .bank-meta {
+        margin-top: 2px;
+        line-height: 1.15;
+    }
 </style>
 @endsection
 
@@ -224,19 +237,35 @@
         const name = root.querySelector('[data-invest-asset-name]');
         const createdOn = root.querySelector('[data-invest-asset-created-on]');
         const quantity = root.querySelector('[data-invest-asset-quantity]');
-        const price = root.querySelector('[data-invest-asset-price]');
         const value = root.querySelector('[data-invest-asset-value]');
+        const priceReference = root.querySelector('[data-invest-asset-price-reference]');
         const storeAction = form ? form.action : '';
 
-        function syncValue() {
-            const q = Number.parseFloat(quantity?.value || '0');
-            const p = Number.parseFloat(price?.value || '0');
-            if (value && q > 0 && p >= 0) {
-                value.value = (q * p).toFixed(8);
-            }
+        function parseDecimal(input) {
+            const normalized = String(input || '').replace(/\s/g, '').replace(',', '.');
+            const number = Number.parseFloat(normalized);
+            return Number.isFinite(number) ? number : 0;
         }
 
-        [quantity, price].forEach((field) => field?.addEventListener('input', syncValue));
+        function formatReferencePrice(price) {
+            return price.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 8,
+            });
+        }
+
+        function syncReferencePrice() {
+            if (!priceReference) {
+                return;
+            }
+            const quantityValue = parseDecimal(quantity?.value);
+            const valueUsd = parseDecimal(value?.value);
+            priceReference.textContent = quantityValue > 0
+                ? `Цена: ${formatReferencePrice(valueUsd / quantityValue)}`
+                : 'Цена: —';
+        }
+
+        [quantity, value].forEach((field) => field?.addEventListener('input', syncReferencePrice));
 
         root.querySelectorAll('[data-invest-asset-open]').forEach((button) => {
             button.addEventListener('click', () => {
@@ -259,6 +288,7 @@
                 if (createdOn) {
                     createdOn.value = new Date().toISOString().slice(0, 10);
                 }
+                syncReferencePrice();
                 if (modal) {
                     modal.hidden = false;
                 }
@@ -290,12 +320,10 @@
                 if (quantity) {
                     quantity.value = row.dataset.assetQuantity || '';
                 }
-                if (price) {
-                    price.value = row.dataset.assetPrice || '';
-                }
                 if (value) {
                     value.value = row.dataset.assetValue || '';
                 }
+                syncReferencePrice();
                 if (title) {
                     title.textContent = 'Редактировать актив';
                 }

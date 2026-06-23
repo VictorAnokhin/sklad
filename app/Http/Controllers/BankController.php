@@ -1555,8 +1555,10 @@ class BankController extends Controller
         ]);
 
         $quantity = $request->filled('quantity') ? (float) $payload['quantity'] : 0.0;
-        $priceUsd = $request->filled('price_usd') ? (float) $payload['price_usd'] : 0.0;
-        $valueUsd = $request->filled('value_usd') ? (float) $payload['value_usd'] : $quantity * $priceUsd;
+        $valueUsd = $request->filled('value_usd') ? (float) $payload['value_usd'] : 0.0;
+        $priceUsd = $quantity > 0
+            ? $valueUsd / $quantity
+            : ($request->filled('price_usd') ? (float) $payload['price_usd'] : 0.0);
         $assetType = (string) $payload['asset_type'];
         $now = now();
         $key = [
