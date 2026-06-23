@@ -560,7 +560,8 @@
                                 <input type="text" name="ttn" class="form-control text-white" value="{{ $document->ttn ?? '' }}">
                                 @if($doc === 'ZOUT')
                                     <div class="form-check d-flex align-items-center mt-2">
-                                        <input type="checkbox" class="form-check-input" id="send_order_sms" name="send_order_sms" value="1">
+                                        <input type="hidden" name="sms_flag" value="0">
+                                        <input type="checkbox" class="form-check-input" id="send_order_sms" name="sms_flag" value="1" {{ (string) ($document->sms_flag ?? '0') === '1' ? 'checked' : '' }}>
                                         <label class="form-check-label ms-2" for="send_order_sms">SMS</label>
                                     </div>
                                 @endif

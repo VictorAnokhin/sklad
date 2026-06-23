@@ -963,7 +963,7 @@ class DocumentController extends Controller
                 $message = 'Збережено';
 
                 $smsWarning = null;
-                if ($doc === 'ZOUT' && $request->boolean('send_order_sms')) {
+                if ($doc === 'ZOUT' && $request->boolean('sms_flag')) {
                     $savedDocument = DB::table(Document::tableForType($doc))
                         ->where('id', $docId)
                         ->where('firma', $fid)
