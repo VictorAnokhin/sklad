@@ -4100,6 +4100,7 @@ class BankController extends Controller
                 $direction = $isWithdraw ? 'deposit_to_account' : 'account_to_deposit';
                 $accountId = $this->depositTransferAccountId($document, $direction);
                 $accountName = $this->depositTransferAccountName($document, $direction);
+                $accountLabel = trim($accountName) ?: ($accountId !== '' ? 'Счет #' . $accountId : '—');
 
                 return (object) [
                     'id' => (int) $document->id,
@@ -4110,7 +4111,7 @@ class BankController extends Controller
                     'deposit_id' => (string) $document->money,
                     'deposit_name' => trim((string) $document->deposit_name) ?: 'Депозит #' . $document->money,
                     'account_id' => $accountId,
-                    'account_name' => trim($accountName) ?: 'Счет #' . $accountId,
+                    'account_name' => $accountLabel,
                     'amount' => (float) $document->summa,
                     'currency' => $this->normalizeCurrencyCode($document->deposit_currency ?: $document->currency_from ?: 'UAH'),
                     'description' => trim((string) $document->content),
@@ -4185,6 +4186,7 @@ class BankController extends Controller
             $direction = $isWithdraw ? 'deposit_to_account' : 'account_to_deposit';
             $accountId = $this->depositTransferAccountId($document, $direction);
             $accountName = $this->depositTransferAccountName($document, $direction);
+            $accountLabel = trim($accountName) ?: ($accountId !== '' ? 'Счет #' . $accountId : '—');
 
             return (object) [
                 'id' => (int) $document->id,
@@ -4211,7 +4213,7 @@ class BankController extends Controller
                 'transfer_direction' => $direction,
                 'transfer_deposit_id' => (string) $document->money,
                 'transfer_account_id' => $accountId,
-                'transfer_account_name' => trim($accountName) ?: 'Счет #' . $accountId,
+                'transfer_account_name' => $accountLabel,
                 'transfer_posted' => (int) ($document->provodka ?? 0) === 1,
                 'transfer_update_url' => route('bank.deposit.transfer.update', ['transfer' => (int) $document->id]),
                 'transfer_reverse_url' => route('bank.deposit.transfer.reverse', ['transfer' => (int) $document->id]),
