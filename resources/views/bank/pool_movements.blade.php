@@ -138,7 +138,6 @@
                         <th>Дата / документ</th>
                         <th>Операция</th>
                         <th>Депозит</th>
-                        <th>Владелец</th>
                         <th>Счет</th>
                         <th class="text-end">Сумма</th>
                         <th>Статус</th>
@@ -157,6 +156,7 @@
                             data-bs-target="#depositTransferModal"
                             data-deposit-operation-row
                             data-deposit-id="{{ $operation->deposit_id }}"
+                            data-operation-mode="{{ $operation->mode }}"
                             data-transfer-direction="{{ $operation->transfer_direction }}"
                             data-transfer-deposit="{{ $operation->transfer_deposit_id }}"
                             data-transfer-account="{{ $operation->transfer_account_id }}"
@@ -178,7 +178,6 @@
                                 <strong>{{ $operation->deposit_name }}</strong>
                                 <div class="bank-meta">ID {{ $operation->deposit_id }}</div>
                             </td>
-                            <td>{{ $operation->owner_name }}</td>
                             <td>{{ $operation->transfer_account_name }}</td>
                             <td class="text-end fw-semibold {{ $isWithdraw ? 'text-danger' : 'text-success' }}">
                                 {{ $isWithdraw ? '−' : '+' }}{{ $formatMoney($operation->amount) }} {{ $operation->currency }}
@@ -191,7 +190,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">Операции по депозитам пока не созданы.</td>
+                            <td colspan="7" class="text-center text-muted py-4">Операции по депозитам пока не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -292,13 +291,25 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
                 <div class="modal-body">
-                    <label class="form-label">Депозит</label>
-                    <select class="form-select" data-deposit-filter-select>
-                        <option value="">Все депозиты</option>
-                        @foreach($deposits as $deposit)
-                            <option value="{{ $deposit->id }}">{{ $deposit->name }} · {{ $deposit->currency }}</option>
-                        @endforeach
-                    </select>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Депозит</label>
+                            <select class="form-select" data-deposit-filter-select>
+                                <option value="">Все депозиты</option>
+                                @foreach($deposits as $deposit)
+                                    <option value="{{ $deposit->id }}">{{ $deposit->name }} · {{ $deposit->currency }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Операция</label>
+                            <select class="form-select" data-operation-filter-select>
+                                <option value="">Все операции</option>
+                                <option value="topup">Пополнение</option>
+                                <option value="withdraw">Вывод</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-light" data-deposit-filter-reset>Сбросить</button>
@@ -610,6 +621,7 @@
         const depositTransferDeleteForm = root.querySelector('[data-deposit-transfer-delete-form]');
         const depositTransferStoreAction = depositTransferForm ? depositTransferForm.action : '';
         const depositFilterSelect = root.querySelector('[data-deposit-filter-select]');
+        const operationFilterSelect = root.querySelector('[data-operation-filter-select]');
         const depositFilterApply = root.querySelector('[data-deposit-filter-apply]');
         const depositFilterReset = root.querySelector('[data-deposit-filter-reset]');
         const depositOperationRows = root.querySelectorAll('[data-deposit-operation-row]');
@@ -627,10 +639,12 @@
             });
         }
 
-        function applyDepositFilter(depositId = '') {
+        function applyDepositFilter(depositId = '', operationMode = '') {
             let visibleCount = 0;
             depositOperationRows.forEach((row) => {
-                const visible = depositId === '' || row.dataset.depositId === depositId;
+                const depositMatches = depositId === '' || row.dataset.depositId === depositId;
+                const operationMatches = operationMode === '' || row.dataset.operationMode === operationMode;
+                const visible = depositMatches && operationMatches;
                 row.hidden = !visible;
                 if (visible) {
                     visibleCount += 1;
@@ -902,7 +916,7 @@
         });
 
         depositFilterApply?.addEventListener('click', () => {
-            applyDepositFilter(depositFilterSelect?.value || '');
+            applyDepositFilter(depositFilterSelect?.value || '', operationFilterSelect?.value || '');
             const filterModal = document.getElementById('depositFilterModal');
             if (filterModal && window.bootstrap?.Modal) {
                 bootstrap.Modal.getInstance(filterModal)?.hide();
@@ -913,7 +927,10 @@
             if (depositFilterSelect) {
                 depositFilterSelect.value = '';
             }
-            applyDepositFilter('');
+            if (operationFilterSelect) {
+                operationFilterSelect.value = '';
+            }
+            applyDepositFilter('', '');
             const filterModal = document.getElementById('depositFilterModal');
             if (filterModal && window.bootstrap?.Modal) {
                 bootstrap.Modal.getInstance(filterModal)?.hide();
