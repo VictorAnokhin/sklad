@@ -72,11 +72,9 @@ class SettingsController extends Controller
         // Офисы — conf where type='sklads'
         $sklads = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
 
-        // Депозиты: для торговли используем пулы fund_pools, для остальных проектов старый conf type='deposit'.
-        $settingsDepositsUsePools = $this->settingsUsesPoolDeposits($fid);
-        $deposits = $settingsDepositsUsePools
-            ? $this->settingsPoolDepositRows()
-            : DB::table('conf')->where('type', 'deposit')->where('firma', $fid)->orderBy('name')->get();
+        // Депозиты в настройках редактируются как старый справочник conf type='deposit'.
+        $settingsDepositsUsePools = false;
+        $deposits = DB::table('conf')->where('type', 'deposit')->where('firma', $fid)->orderBy('name')->get();
 
         $myCompanies = collect();
         if ($user) {
@@ -427,19 +425,7 @@ class SettingsController extends Controller
 
     private function settingsUsesPoolDeposits(mixed $fid): bool
     {
-        if (! Schema::hasTable('project') || $fid === '' || $fid === null) {
-            return false;
-        }
-
-        $project = DB::table('project')->where('id', (int) $fid)->first();
-        if (! $project) {
-            return false;
-        }
-
-        $type = strtolower(trim((string) ($project->project_type ?? '')));
-        $label = mb_strtolower(trim((string) ($project->type ?? $project->name ?? '')));
-
-        return $type === 'trade' || $label === 'торговля';
+        return false;
     }
 
     private function settingsPoolDepositRows()
