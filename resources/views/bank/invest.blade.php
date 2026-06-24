@@ -98,7 +98,6 @@
             <form method="POST" action="{{ route('bank.invest-operations.store') }}" class="bank-requisites-form" data-invest-operation-form>
                 @csrf
                 <input type="hidden" name="_method" value="PUT" data-invest-operation-method disabled>
-                <input type="hidden" name="update_account_balance" value="1" data-invest-operation-update-balance>
                 <div class="bank-form-grid bank-invest-operation-form">
                     <div class="bank-form-full bank-operation-mode" role="tablist" aria-label="Тип операции">
                         <button type="button" class="bank-operation-mode__button is-active" data-invest-operation-direction-tab="account_to_asset">Купить</button>
@@ -378,7 +377,6 @@
         const reverseButton = root.querySelector('[data-invest-operation-reverse]');
         const direction = root.querySelector('[data-invest-operation-direction]');
         const directionTabs = root.querySelectorAll('[data-invest-operation-direction-tab]');
-        const updateBalance = root.querySelector('[data-invest-operation-update-balance]');
         const postLedger = root.querySelector('[data-invest-operation-post-ledger]');
         const postLedgerField = postLedger ? postLedger.closest('.bank-operation-post-ledger') : null;
         const account = root.querySelector('[data-invest-operation-account]');
@@ -422,9 +420,6 @@
             directionTabs.forEach((tab) => {
                 tab.classList.toggle('is-active', tab.dataset.investOperationDirectionTab === nextDirection);
             });
-            if (updateBalance) {
-                updateBalance.disabled = nextDirection === 'revaluation';
-            }
             if (accountSection) {
                 accountSection.hidden = nextDirection === 'revaluation';
             }

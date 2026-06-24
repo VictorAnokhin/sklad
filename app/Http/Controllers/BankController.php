@@ -891,6 +891,11 @@ class BankController extends Controller
                     $currency,
                     (string) $operatedAt
                 );
+                if (! $ledger) {
+                    throw ValidationException::withMessages([
+                        'post_ledger' => 'Проводка инвестиционной операции не создана.',
+                    ]);
+                }
             }
 
             $updates = ['updated_at' => $now];
@@ -902,11 +907,17 @@ class BankController extends Controller
             }
             DB::table('bank_invest_operations')->where('id', $operationId)->update($updates);
 
-            if ((bool) ($payload['post_ledger'] ?? false) && (bool) ($payload['update_account_balance'] ?? false)) {
+            if ($ledger && in_array((string) $payload['direction'], ['account_to_asset', 'asset_to_account'], true)) {
                 $this->applyInvestOperationAccountBalance($account, (string) $payload['direction'], $amount, $currency);
             }
-            if ((bool) ($payload['post_ledger'] ?? false)) {
-                $this->applyInvestOperationPoolBalance($asset, (string) $payload['direction'], $valueUsd);
+            if ($ledger) {
+                $this->applyInvestOperationAssetBalance(
+                    $asset,
+                    (string) $payload['direction'],
+                    $valueUsd,
+                    (float) ($payload['quantity'] ?? 0),
+                    $priceUsd
+                );
             }
 
             return $operationId;
@@ -951,7 +962,7 @@ class BankController extends Controller
                 'name' => (string) $current->asset_label,
             ];
         $this->assertInvestOperationReversalDebitAvailable($currentAccount, $current);
-        $this->assertInvestOperationPoolReversalAvailable($currentAsset, $current);
+        $this->assertInvestOperationAssetReversalAvailable($currentAsset, $current);
 
         [$payload, $account, $asset, $amount, $priceUsd, $valueUsd, $currency, $operatedAt] = $this->investOperationPayload($request, (int) $project->id, $current, $accountProjectId);
         if ((string) $asset->asset_key !== (string) $current->asset_key
@@ -971,7 +982,14 @@ class BankController extends Controller
                         $this->normalizeCurrencyCode((string) $current->currency)
                     );
                 }
-                $this->applyInvestOperationPoolBalance($currentAsset, (string) $current->direction, (float) $current->value_usd, true);
+                $this->applyInvestOperationAssetBalance(
+                    $currentAsset,
+                    (string) $current->direction,
+                    (float) $current->value_usd,
+                    (float) ($current->quantity ?? 0),
+                    $current->price_usd !== null ? (float) $current->price_usd : null,
+                    true
+                );
             }
 
             DB::table('bank_invest_operations')->where('id', $operation)->update([
@@ -1002,6 +1020,11 @@ class BankController extends Controller
                     $currency,
                     (string) $operatedAt
                 );
+                if (! $ledger) {
+                    throw ValidationException::withMessages([
+                        'post_ledger' => 'Проводка инвестиционной операции не создана.',
+                    ]);
+                }
             }
 
             $updates = ['updated_at' => $now];
@@ -1013,11 +1036,17 @@ class BankController extends Controller
             }
             DB::table('bank_invest_operations')->where('id', $operation)->update($updates);
 
-            if ((bool) ($payload['post_ledger'] ?? false) && (bool) ($payload['update_account_balance'] ?? false)) {
+            if ($ledger && in_array((string) $payload['direction'], ['account_to_asset', 'asset_to_account'], true)) {
                 $this->applyInvestOperationAccountBalance($account, (string) $payload['direction'], $amount, $currency);
             }
-            if ((bool) ($payload['post_ledger'] ?? false)) {
-                $this->applyInvestOperationPoolBalance($asset, (string) $payload['direction'], $valueUsd);
+            if ($ledger) {
+                $this->applyInvestOperationAssetBalance(
+                    $asset,
+                    (string) $payload['direction'],
+                    $valueUsd,
+                    (float) ($payload['quantity'] ?? 0),
+                    $priceUsd
+                );
             }
         });
 
@@ -1045,7 +1074,7 @@ class BankController extends Controller
         $account = $operationalAccounts->firstWhere('id', (string) $current->account_id)
             ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
         $this->assertInvestOperationReversalDebitAvailable($account, $current);
-        $this->assertInvestOperationPoolReversalAvailable($current, $current);
+        $this->assertInvestOperationAssetReversalAvailable($current, $current);
 
         DB::transaction(function () use ($operation, $project, $current, $account): void {
             if ((int) ($current->ledger_transaction_id ?? 0) > 0 || (string) ($current->status ?? 'pending') === 'posted') {
@@ -1058,7 +1087,14 @@ class BankController extends Controller
                         $this->normalizeCurrencyCode((string) $current->currency)
                     );
                 }
-                $this->applyInvestOperationPoolBalance($current, (string) $current->direction, (float) $current->value_usd, true);
+                $this->applyInvestOperationAssetBalance(
+                    $current,
+                    (string) $current->direction,
+                    (float) $current->value_usd,
+                    (float) ($current->quantity ?? 0),
+                    $current->price_usd !== null ? (float) $current->price_usd : null,
+                    true
+                );
             }
 
             DB::table('bank_invest_operations')->where('id', $operation)->delete();
@@ -1098,7 +1134,7 @@ class BankController extends Controller
         $account = $operationalAccounts->firstWhere('id', (string) $current->account_id)
             ?? $operationalAccounts->firstWhere('id', (int) $current->account_id);
         $this->assertInvestOperationReversalDebitAvailable($account, $current);
-        $this->assertInvestOperationPoolReversalAvailable($current, $current);
+        $this->assertInvestOperationAssetReversalAvailable($current, $current);
 
         DB::transaction(function () use ($operation, $project, $current, $account): void {
             $this->reverseInvestOperationLedgers((int) $project->id, $operation, (int) ($current->ledger_transaction_id ?? 0));
@@ -1110,7 +1146,14 @@ class BankController extends Controller
                     $this->normalizeCurrencyCode((string) $current->currency)
                 );
             }
-            $this->applyInvestOperationPoolBalance($current, (string) $current->direction, (float) $current->value_usd, true);
+            $this->applyInvestOperationAssetBalance(
+                $current,
+                (string) $current->direction,
+                (float) $current->value_usd,
+                (float) ($current->quantity ?? 0),
+                $current->price_usd !== null ? (float) $current->price_usd : null,
+                true
+            );
 
             $updates = ['updated_at' => now()];
             if (Schema::hasColumn('bank_invest_operations', 'ledger_transaction_id')) {
@@ -1246,7 +1289,6 @@ class BankController extends Controller
             'price_usd' => ['nullable', 'numeric', 'min:0'],
             'operated_at' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:2000'],
-            'update_account_balance' => ['nullable', 'boolean'],
             'post_ledger' => ['nullable', 'boolean'],
         ]);
 
@@ -1280,12 +1322,7 @@ class BankController extends Controller
         if ((string) $payload['direction'] !== 'revaluation' && $account) {
             $currency = $this->normalizeCurrencyCode((string) ($account->currency ?? $currency));
         }
-        if ((bool) ($payload['update_account_balance'] ?? false)) {
-            abort_unless(
-                in_array((string) $payload['direction'], ['account_to_asset', 'asset_to_account'], true),
-                422,
-                'Изменение остатка счета разрешено только для трансфера счет ↔ актив.'
-            );
+        if ((bool) ($payload['post_ledger'] ?? false) && in_array((string) $payload['direction'], ['account_to_asset', 'asset_to_account'], true)) {
             $accountCurrency = $this->normalizeCurrencyCode((string) ($account->currency ?? ''));
             abort_unless($accountCurrency === $currency, 422, "Валюта счета {$accountCurrency} не совпадает с валютой операции {$currency}.");
             if ((string) $payload['direction'] === 'account_to_asset') {
@@ -1293,7 +1330,13 @@ class BankController extends Controller
             }
         }
         if ((bool) ($payload['post_ledger'] ?? false)) {
-            $this->assertInvestPoolBalanceAvailable($asset, (string) $payload['direction'], $valueUsd, $currentOperation);
+            $this->assertInvestAssetBalanceAvailable(
+                $asset,
+                (string) $payload['direction'],
+                $valueUsd,
+                (float) ($payload['quantity'] ?? 0),
+                $currentOperation
+            );
         }
         $operatedAt = $request->filled('operated_at')
             ? Carbon::parse((string) $payload['operated_at'])->toDateTimeString()
@@ -1363,24 +1406,61 @@ class BankController extends Controller
         }
     }
 
-    private function assertInvestOperationPoolReversalAvailable(?object $asset, ?object $operation): void
+    private function assertInvestAssetBalanceAvailable(?object $asset, string $direction, float $valueUsd, float $quantity = 0.0, ?object $currentOperation = null): void
     {
-        if (! $asset || ! $operation || ! $this->isPostedInvestOperation($operation) || ! $this->isPoolInvestAsset($operation)) {
+        $valueDelta = $this->investOperationAssetValueDelta($direction, $valueUsd);
+        if ($valueDelta < 0) {
+            $availableValue = $this->investAssetValueAfterReversal($asset, $currentOperation);
+            if ($availableValue + $valueDelta < -0.00000001) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Недостаточно стоимости на активе. Доступно: '
+                        . number_format(max(0, $availableValue), 2, '.', ' ')
+                        . ' USD.',
+                ]);
+            }
+        }
+
+        $quantityDelta = $this->investOperationAssetQuantityDelta($direction, $quantity);
+        if ($quantityDelta < 0) {
+            $availableQuantity = $this->investAssetQuantityAfterReversal($asset, $currentOperation);
+            if ($availableQuantity + $quantityDelta < -0.00000001) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Недостаточно количества актива. Доступно: '
+                        . number_format(max(0, $availableQuantity), 8, '.', ' ')
+                        . '.',
+                ]);
+            }
+        }
+    }
+
+    private function assertInvestOperationAssetReversalAvailable(?object $asset, ?object $operation): void
+    {
+        if (! $asset || ! $operation || ! $this->isPostedInvestOperation($operation)) {
             return;
         }
 
-        $reverseDelta = -1 * $this->investOperationPoolDelta((string) ($operation->direction ?? ''), (float) ($operation->value_usd ?? 0));
-        if ($reverseDelta >= 0) {
-            return;
+        $reverseValueDelta = -1 * $this->investOperationAssetValueDelta((string) ($operation->direction ?? ''), (float) ($operation->value_usd ?? 0));
+        if ($reverseValueDelta < 0) {
+            $availableValue = $this->investAssetValue($asset);
+            if ($availableValue + $reverseValueDelta < -0.00000001) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Недостаточно средств на активе для отмены операции. Доступно: '
+                        . number_format(max(0, $availableValue), 2, '.', ' ')
+                        . ' USD.',
+                ]);
+            }
         }
 
-        $available = $this->investPoolBalance($asset);
-        if ($available + $reverseDelta < -0.00000001) {
-            throw ValidationException::withMessages([
-                'amount' => 'Недостаточно средств в пуле для отмены операции. Доступно: '
-                    . number_format(max(0, $available), 2, '.', ' ')
-                    . ' USDC.',
-            ]);
+        $reverseQuantityDelta = -1 * $this->investOperationAssetQuantityDelta((string) ($operation->direction ?? ''), (float) ($operation->quantity ?? 0));
+        if ($reverseQuantityDelta < 0) {
+            $availableQuantity = $this->investAssetQuantity($asset);
+            if ($availableQuantity + $reverseQuantityDelta < -0.00000001) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Недостаточно количества актива для отмены операции. Доступно: '
+                        . number_format(max(0, $availableQuantity), 8, '.', ' ')
+                        . '.',
+                ]);
+            }
         }
     }
 
@@ -1422,6 +1502,83 @@ class BankController extends Controller
         return $available - $this->investOperationPoolDelta((string) ($operation->direction ?? ''), (float) ($operation->value_usd ?? 0));
     }
 
+    private function investAssetValueAfterReversal(?object $asset, ?object $operation): float
+    {
+        $available = $this->investAssetValue($asset);
+        if (! $operation || ! $this->isPostedInvestOperation($operation)) {
+            return $available;
+        }
+
+        if ((string) ($asset->asset_key ?? '') !== (string) ($operation->asset_key ?? '')) {
+            return $available;
+        }
+
+        return $available - $this->investOperationAssetValueDelta((string) ($operation->direction ?? ''), (float) ($operation->value_usd ?? 0));
+    }
+
+    private function investAssetQuantityAfterReversal(?object $asset, ?object $operation): float
+    {
+        $available = $this->investAssetQuantity($asset);
+        if (! $operation || ! $this->isPostedInvestOperation($operation)) {
+            return $available;
+        }
+
+        if ((string) ($asset->asset_key ?? '') !== (string) ($operation->asset_key ?? '')) {
+            return $available;
+        }
+
+        return $available - $this->investOperationAssetQuantityDelta((string) ($operation->direction ?? ''), (float) ($operation->quantity ?? 0));
+    }
+
+    private function applyInvestOperationAssetBalance(?object $asset, string $direction, float $valueUsd, float $quantity = 0.0, ?float $priceUsd = null, bool $reverse = false): void
+    {
+        if (! $asset) {
+            return;
+        }
+
+        if ($this->isPoolInvestAsset($asset)) {
+            $this->applyInvestOperationPoolBalance($asset, $direction, $valueUsd, $reverse);
+            return;
+        }
+
+        $trackedAssetId = $this->investTrackedAssetId($asset);
+        if ($trackedAssetId <= 0 || ! Schema::hasTable('bank_tracked_assets')) {
+            return;
+        }
+
+        $valueDelta = $this->investOperationAssetValueDelta($direction, $valueUsd);
+        $quantityDelta = $this->investOperationAssetQuantityDelta($direction, $quantity);
+        if ($reverse) {
+            $valueDelta *= -1;
+            $quantityDelta *= -1;
+        }
+
+        if (abs($valueDelta) <= 0.00000001 && abs($quantityDelta) <= 0.00000001 && $priceUsd === null) {
+            return;
+        }
+
+        $updates = [
+            'updated_at' => now(),
+            'last_synced_at' => now(),
+        ];
+        if (Schema::hasColumn('bank_tracked_assets', 'sync_status')) {
+            $updates['sync_status'] = 'manual';
+        }
+        if (Schema::hasColumn('bank_tracked_assets', 'last_value_usd')) {
+            $updates['last_value_usd'] = DB::raw('GREATEST(0, COALESCE(last_value_usd, 0) + ' . sprintf('%.8F', $valueDelta) . ')');
+        }
+        if (Schema::hasColumn('bank_tracked_assets', 'last_balance') && abs($quantityDelta) > 0.00000001) {
+            $updates['last_balance'] = DB::raw('GREATEST(0, COALESCE(last_balance, 0) + ' . sprintf('%.8F', $quantityDelta) . ')');
+        }
+        if (Schema::hasColumn('bank_tracked_assets', 'last_price_usd') && $priceUsd !== null) {
+            $updates['last_price_usd'] = max(0, $priceUsd);
+        }
+
+        DB::table('bank_tracked_assets')
+            ->where('id', $trackedAssetId)
+            ->update($updates);
+    }
+
     private function applyInvestOperationPoolBalance(?object $asset, string $direction, float $valueUsd, bool $reverse = false): void
     {
         if (! $this->isPoolInvestAsset($asset) || ! Schema::hasTable('fund_pools') || ! Schema::hasColumn('fund_pools', 'balance')) {
@@ -1458,6 +1615,44 @@ class BankController extends Controller
         };
     }
 
+    private function investOperationAssetValueDelta(string $direction, float $valueUsd): float
+    {
+        return $this->investOperationPoolDelta($direction, $valueUsd);
+    }
+
+    private function investOperationAssetQuantityDelta(string $direction, float $quantity): float
+    {
+        return match ($direction) {
+            'asset_to_account' => -abs($quantity),
+            'account_to_asset' => abs($quantity),
+            default => 0.0,
+        };
+    }
+
+    private function investAssetValue(?object $asset): float
+    {
+        if ($this->isPoolInvestAsset($asset)) {
+            return $this->investPoolBalance($asset);
+        }
+
+        $trackedAssetId = $this->investTrackedAssetId($asset);
+        if ($trackedAssetId <= 0 || ! Schema::hasTable('bank_tracked_assets') || ! Schema::hasColumn('bank_tracked_assets', 'last_value_usd')) {
+            return (float) ($asset->value_usd ?? 0);
+        }
+
+        return (float) DB::table('bank_tracked_assets')->where('id', $trackedAssetId)->value('last_value_usd');
+    }
+
+    private function investAssetQuantity(?object $asset): float
+    {
+        $trackedAssetId = $this->investTrackedAssetId($asset);
+        if ($trackedAssetId <= 0 || ! Schema::hasTable('bank_tracked_assets') || ! Schema::hasColumn('bank_tracked_assets', 'last_balance')) {
+            return (float) ($asset->quantity ?? 0);
+        }
+
+        return (float) DB::table('bank_tracked_assets')->where('id', $trackedAssetId)->value('last_balance');
+    }
+
     private function investPoolBalance(?object $asset): float
     {
         $poolId = $this->investPoolId($asset);
@@ -1490,6 +1685,23 @@ class BankController extends Controller
         return $asset !== null
             && (string) ($asset->asset_type ?? '') === 'pool'
             && str_starts_with((string) ($asset->asset_key ?? ''), 'pool:');
+    }
+
+    private function investTrackedAssetId(?object $asset): int
+    {
+        if (! $asset) {
+            return 0;
+        }
+
+        if ((string) ($asset->source ?? '') === 'bank_tracked_assets' && (int) ($asset->source_id ?? 0) > 0) {
+            return (int) $asset->source_id;
+        }
+
+        if (preg_match('/^(manual|tracked):(\d+)$/', (string) ($asset->asset_key ?? ''), $matches)) {
+            return (int) $matches[2];
+        }
+
+        return 0;
     }
 
     private function isPostedInvestOperation(object $operation): bool
