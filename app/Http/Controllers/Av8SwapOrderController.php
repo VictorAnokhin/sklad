@@ -22,9 +22,15 @@ class Av8SwapOrderController extends Controller
 
         $limit = max(5, min(100, (int) $request->query('limit', 30)));
         $fid = (int) $request->query('fid', 0);
+        $clientEmail = mb_strtolower(trim((string) $request->query('client_email', '')));
+        $clientPhone = trim((string) $request->query('client_phone', ''));
+        $walletAddress = trim((string) $request->query('wallet_address', ''));
 
         $rows = DB::table('av8_swap_orders')
             ->when($fid > 0, fn ($query) => $query->where('fid', $fid))
+            ->when($clientEmail !== '', fn ($query) => $query->whereRaw('LOWER(client_email) = ?', [$clientEmail]))
+            ->when($clientPhone !== '', fn ($query) => $query->where('client_phone', $clientPhone))
+            ->when($walletAddress !== '', fn ($query) => $query->where('wallet_address', $walletAddress))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->limit($limit)
@@ -139,6 +145,12 @@ class Av8SwapOrderController extends Controller
             return [];
         }
 
+        $meta = [];
+        if (! empty($row->meta)) {
+            $decodedMeta = json_decode((string) $row->meta, true);
+            $meta = is_array($decodedMeta) ? $decodedMeta : [];
+        }
+
         return [
             'id' => (int) $row->id,
             'fid' => (int) $row->fid,
@@ -155,6 +167,7 @@ class Av8SwapOrderController extends Controller
             'client_phone' => (string) ($row->client_phone ?? ''),
             'status' => (string) $row->status,
             'source' => (string) $row->source,
+            'meta' => $meta,
             'created_at' => (string) $row->created_at,
         ];
     }
