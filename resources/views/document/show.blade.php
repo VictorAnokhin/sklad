@@ -2,7 +2,10 @@
 
 @section('content')
     @include('partials.panel')
-    @php($documentRoutes = $documentRoutePrefix ?? 'document')
+    @php
+        $documentRoutes = $documentRoutePrefix ?? 'document';
+        $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
+    @endphp
 
     <style>
 
