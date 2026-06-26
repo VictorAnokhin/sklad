@@ -3094,10 +3094,32 @@ class BankController extends Controller
         abort_unless(Schema::hasTable('project'), 404);
 
         $project = Project::query()->find((int) session('fid', 0));
-        abort_unless($project instanceof Project, 404);
-        abort_unless(strtolower(trim((string) ($project->project_type ?? ''))) === 'bank', 403);
+        if ($project instanceof Project && strtolower(trim((string) ($project->project_type ?? ''))) === 'bank') {
+            return $project;
+        }
 
-        return $project;
+        $scope = $project instanceof Project
+            ? HoldingScope::projectIdsFor((string) $project->id)
+            : [];
+
+        $bankProject = Project::query()
+            ->when($scope !== [], fn ($query) => $query->whereIn('id', $scope))
+            ->where('project_type', 'bank')
+            ->orderBy('id')
+            ->first();
+
+        if (! $bankProject instanceof Project && $scope !== []) {
+            $bankProject = Project::query()
+                ->where('project_type', 'bank')
+                ->orderBy('id')
+                ->first();
+        }
+
+        abort_unless($bankProject instanceof Project, 403);
+
+        session(['fid' => $bankProject->id]);
+
+        return $bankProject;
     }
 
     private function validateDepositSettings(Request $request): array
