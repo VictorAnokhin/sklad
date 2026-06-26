@@ -13,6 +13,7 @@ use App\Services\FilterService;
 use App\Services\DocumentService;
 use App\Services\SmsClubService;
 use App\Support\HoldingScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -563,8 +564,10 @@ class DocumentController extends Controller
 
         $documentRoutePrefix = $this->documentRoutePrefix();
         $isLoanRequestDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'ZOUT';
+        $isLoanIssueDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'RN';
         $loanMeta = [];
         $loanCollateralOptions = collect(['Автомобиль', 'Спецтехника', 'Госномер']);
+        $loanRepaymentSchedule = null;
         if ($isLoanRequestDocument) {
             $loanMeta = $this->parseLoanRequestContent((string) ($document->content ?? ''));
             $loanMeta['loan_amount'] = $loanMeta['loan_amount'] !== '' ? $loanMeta['loan_amount'] : (string) ($document->summa ?? '');
@@ -585,6 +588,10 @@ class DocumentController extends Controller
                 )
                 ->unique()
                 ->values();
+        }
+        if ($isLoanIssueDocument && $parentDocument && ($parentDocument->type ?? '') === 'ZOUT') {
+            $loanMeta = $this->parseLoanRequestContent((string) ($parentDocument->content ?? ''));
+            $loanRepaymentSchedule = $this->loanRepaymentSchedule($parentDocument, $loanMeta);
         }
 
         // Related documents (legacy client_info / client_info1)
@@ -648,7 +655,7 @@ class DocumentController extends Controller
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
-            'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions'
+            'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions', 'loanRepaymentSchedule'
         ));
     }
 
@@ -1722,6 +1729,76 @@ class DocumentController extends Controller
             36 => '3 года',
             default => $months . ' мес.',
         };
+    }
+
+    private function loanRepaymentSchedule(object $loan, array $loanMeta): array
+    {
+        $principal = round((float) ($loan->summa ?? 0), 2);
+        $termMonths = max(1, (int) ($loanMeta['loan_term_months'] ?? 12));
+        $annualRate = max(0, (float) ($loanMeta['interest_rate'] ?? 0));
+        $totalDue = round($principal * (1 + ($annualRate / 100) * ($termMonths / 12)), 2);
+        $installment = $termMonths > 0 ? round($totalDue / $termMonths, 2) : $totalDue;
+        $paidTotal = round($this->loanPaymentTotal((int) ($loan->id ?? 0), (string) ($loan->firma ?? '')), 2);
+        $remainingPaid = $paidTotal;
+        $startDate = $this->loanScheduleStartDate((string) ($loan->data ?? ''));
+        $rows = [];
+
+        for ($month = 1; $month <= $termMonths; $month++) {
+            $dueAmount = $month === $termMonths
+                ? round($totalDue - ($installment * ($termMonths - 1)), 2)
+                : $installment;
+            $paidAmount = min($dueAmount, max(0, $remainingPaid));
+            $remainingPaid = max(0, $remainingPaid - $dueAmount);
+
+            $rows[] = [
+                'number' => $month,
+                'due_date' => $startDate->copy()->addMonthsNoOverflow($month)->format('d-m-Y'),
+                'amount' => $dueAmount,
+                'paid' => round($paidAmount, 2),
+                'remaining' => round(max(0, $dueAmount - $paidAmount), 2),
+                'status' => $paidAmount >= $dueAmount ? 'paid' : ($paidAmount > 0 ? 'partial' : 'pending'),
+            ];
+        }
+
+        $remainingTotal = round(max(0, $totalDue - $paidTotal), 2);
+
+        return [
+            'principal' => $principal,
+            'annual_rate' => $annualRate,
+            'term_months' => $termMonths,
+            'total_due' => $totalDue,
+            'paid_total' => min($paidTotal, $totalDue),
+            'overpaid' => round(max(0, $paidTotal - $totalDue), 2),
+            'remaining_total' => $remainingTotal,
+            'rows' => $rows,
+        ];
+    }
+
+    private function loanPaymentTotal(int $loanId, string $projectId): float
+    {
+        if ($loanId <= 0 || ! Schema::hasTable('z_document')) {
+            return 0.0;
+        }
+
+        return (float) DB::table('z_document')
+            ->where('docid', (string) $loanId)
+            ->where('firma', $projectId)
+            ->where('type', 'PO')
+            ->where(function ($query) {
+                $query->where('typeproduct', 'credit_payment')
+                    ->orWhere('numorder', 'AV8-LOAN-PAYMENT')
+                    ->orWhere('content', 'like', '%[AV8_LOAN_PAYMENT]%');
+            })
+            ->sum('summa');
+    }
+
+    private function loanScheduleStartDate(string $date): Carbon
+    {
+        try {
+            return Carbon::createFromFormat('d-m-Y', $date)->startOfDay();
+        } catch (\Throwable) {
+            return now()->startOfDay();
+        }
     }
 
     private function documentRoutePrefix(): string

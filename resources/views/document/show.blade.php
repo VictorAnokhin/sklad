@@ -6,7 +6,8 @@
         $documentRoutes = $documentRoutePrefix ?? 'document';
         $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
         $isLoanDocument = in_array($documentRoutes, ['loan', 'bank.loanDocs'], true);
-        $hideGoodsSection = $isLoanDocument && $doc === 'ZOUT';
+        $showLoanRepaymentSchedule = $isLoanDocument && $doc === 'RN';
+        $hideGoodsSection = $isLoanDocument && in_array($doc, ['ZOUT', 'RN'], true);
     @endphp
 
     <style>
@@ -791,6 +792,83 @@
                                     <div class="text-danger small mt-1 text-red">{{ $message }}</div>
                                 @enderror
                             </div>
+                        </div>
+                    @endif
+
+                    @if($showLoanRepaymentSchedule)
+                        @php
+                            $schedule = $loanRepaymentSchedule ?? null;
+                        @endphp
+                        <div class="loan-repayment-panel">
+                            <div class="doc-form-row doc-form-row-three-cols">
+                                <div class="col-f">
+                                    <label>Тело кредита</label>
+                                    <div class="form-control text-dark bg-light">{{ number_format((float) ($schedule['principal'] ?? 0), 2, '.', ' ') }}</div>
+                                </div>
+                                <div class="col-f">
+                                    <label>Оплачено</label>
+                                    <div class="form-control text-dark bg-light">{{ number_format((float) ($schedule['paid_total'] ?? 0), 2, '.', ' ') }}</div>
+                                </div>
+                                <div class="col-f">
+                                    <label>Остаток по займу</label>
+                                    <div class="form-control text-dark bg-light">{{ number_format((float) ($schedule['remaining_total'] ?? 0), 2, '.', ' ') }}</div>
+                                </div>
+                            </div>
+
+                            <h5 class="goods-title">График выплат</h5>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-sm align-middle">
+                                    <thead class="goods-table-header">
+                                        <tr>
+                                            <th style="width: 80px;">№</th>
+                                            <th>Дата</th>
+                                            <th class="text-end">К оплате</th>
+                                            <th class="text-end">Оплачено</th>
+                                            <th class="text-end">Остаток</th>
+                                            <th>Статус</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse(($schedule['rows'] ?? []) as $paymentRow)
+                                            @php
+                                                $paymentStatus = $paymentRow['status'] ?? 'pending';
+                                                $paymentStatusLabel = match($paymentStatus) {
+                                                    'paid' => 'Оплачено',
+                                                    'partial' => 'Частично',
+                                                    default => 'Ожидает',
+                                                };
+                                                $paymentStatusClass = match($paymentStatus) {
+                                                    'paid' => 'bg-success',
+                                                    'partial' => 'bg-warning text-dark',
+                                                    default => 'bg-secondary',
+                                                };
+                                            @endphp
+                                            <tr>
+                                                <td class="bank-mono">#{{ $paymentRow['number'] ?? '' }}</td>
+                                                <td>{{ $paymentRow['due_date'] ?? '' }}</td>
+                                                <td class="text-end">{{ number_format((float) ($paymentRow['amount'] ?? 0), 2, '.', ' ') }}</td>
+                                                <td class="text-end">{{ number_format((float) ($paymentRow['paid'] ?? 0), 2, '.', ' ') }}</td>
+                                                <td class="text-end">{{ number_format((float) ($paymentRow['remaining'] ?? 0), 2, '.', ' ') }}</td>
+                                                <td>
+                                                    <span class="badge {{ $paymentStatusClass }}">
+                                                        {{ $paymentStatusLabel }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="6" class="text-center text-white">График выплат не сформирован</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            @if(!empty($schedule['overpaid']))
+                                <div class="alert alert-warning py-2">
+                                    Переплата: {{ number_format((float) $schedule['overpaid'], 2, '.', ' ') }}
+                                </div>
+                            @endif
                         </div>
                     @endif
 
