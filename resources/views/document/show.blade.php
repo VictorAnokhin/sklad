@@ -2,6 +2,7 @@
 
 @section('content')
     @include('partials.panel')
+    @php($documentRoutes = $documentRoutePrefix ?? 'document')
 
     <style>
 
@@ -503,7 +504,7 @@
             </div>
         @endif
 
-        <form action="{{ route('document.save') }}" method="post" class="compact-form" enctype="multipart/form-data">
+        <form action="{{ route($documentRoutes . '.save') }}" method="post" class="compact-form" enctype="multipart/form-data">
             @csrf
             @php
                 $documentDateValue = (string) ($document->data ?? '');
@@ -865,8 +866,8 @@
                         @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'], true))
                             @if((int) ($document->provodka ?? 0) === 1)
                                 <button type="button" 
-                                    onclick="forceSubmitAction(this, '', '', '{{ route('document.provodka') }}')"
-                                    ontouchstart="forceSubmitAction(this, '', '', '{{ route('document.provodka') }}'); event.preventDefault();"
+                                    onclick="forceSubmitAction(this, '', '', '{{ route($documentRoutes . '.provodka') }}')"
+                                    ontouchstart="forceSubmitAction(this, '', '', '{{ route($documentRoutes . '.provodka') }}'); event.preventDefault();"
                                     class="btn btn-success">
                                     ↺ Скасувати проводку
                                 </button>
@@ -896,7 +897,7 @@
                                 class="btn btn-primary">💾 Зберегти</button>
                         @endif
                         @if(in_array($doc, ['CH', 'RN'], true))
-                            <a href="{{ route('document.print', ['doc' => $doc, 'doc_id' => $document->id, 'num' => $document->num, 'year' => $year]) }}"
+                            <a href="{{ route($documentRoutes . '.print', ['doc' => $doc, 'doc_id' => $document->id, 'num' => $document->num, 'year' => $year]) }}"
                                 class="btn btn-outline-secondary" target="_blank" rel="noopener noreferrer">
                                 Печать
                             </a>
@@ -923,7 +924,7 @@
         </form>
 
         {{-- Hidden form for document deletion --}}
-        <form id="deleteDocForm" action="{{ route('document.destroy') }}" method="post" class="delete-form">
+        <form id="deleteDocForm" action="{{ route($documentRoutes . '.destroy') }}" method="post" class="delete-form">
             @csrf
             <input type="hidden" name="doc_id" value="{{ $document->id }}">
             <input type="hidden" name="doc" value="{{ $doc }}">
@@ -1708,7 +1709,7 @@
                 productMappingResults.innerHTML = '<tr><td colspan="4" class="text-muted">Завантаження...</td></tr>';
                 hideProductMappingError();
 
-                fetch("{{ route('document.productMapping.search') }}?" + params.toString(), {
+                fetch("{{ route($documentRoutes . '.productMapping.search') }}?" + params.toString(), {
                     headers: { 'Accept': 'application/json' },
                 })
                     .then(async (res) => {
@@ -1731,7 +1732,7 @@
                 const sourceProductId = activeProductMappingButton.dataset.sourceProductId || '';
                 hideProductMappingError();
 
-                fetch("{{ route('document.productMapping.save') }}", {
+                fetch("{{ route($documentRoutes . '.productMapping.save') }}", {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1879,7 +1880,7 @@
                     return;
                 }
 
-                forceSubmitAction(btn, 'bid', btn.value, "{{ route('document.body.delete') }}");
+                forceSubmitAction(btn, 'bid', btn.value, "{{ route($documentRoutes . '.body.delete') }}");
             };
 
             const bindGoodsRowInputs = (countInput, priceInput, sumInput) => {

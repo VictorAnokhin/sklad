@@ -277,7 +277,7 @@ class DocumentController extends Controller
                         'docid' => $existingDraft->id
                     ]);
                     
-                    return redirect()->route('document.show', [
+                    return redirect()->route($this->documentRoutePrefix() . '.show', [
                         'doc' => $doc,
                         'doc_id' => $existingDraft->id,
                         'parent_doc_id' => $existingDraft->id,
@@ -386,7 +386,7 @@ class DocumentController extends Controller
             }
 
             // Redirect with new params so reload works correctly
-            return redirect()->route('document.show', [
+            return redirect()->route($this->documentRoutePrefix() . '.show', [
                 'doc' => $doc,
                 'doc_id' => $newId,
                 'parent_doc_id' => in_array($doc, ['ZIN', 'ZOUT'], true) ? $newId : $parentDocid,
@@ -401,7 +401,7 @@ class DocumentController extends Controller
         if (!$document) {
             // Document not found — check if we should auto-create one
             // Only auto-create when num=0; otherwise show error
-            return redirect()->route('document.index')->with('error',
+            return redirect()->route($this->documentRoutePrefix() . '.index')->with('error',
                 "Документ {$doc} (id={$docId}, num={$num}) не знайдено в таблиці {$table}");
         }
 
@@ -603,9 +603,10 @@ class DocumentController extends Controller
             );
         }
 
-        $documentIndexUrl = route('document.index', ['doc' => $doc]);
+        $documentRoutePrefix = $this->documentRoutePrefix();
+        $documentIndexUrl = route($documentRoutePrefix . '.index', ['doc' => $doc]);
         $parentDocumentUrl = $parentDocument
-            ? route('document.show', [
+            ? route($documentRoutePrefix . '.show', [
                 'doc' => $parentDocument->type,
                 'doc_id' => $parentDocument->id,
                 'num' => $parentDocument->num,
@@ -619,7 +620,7 @@ class DocumentController extends Controller
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
-            'mappingTargetProjectId'
+            'mappingTargetProjectId', 'documentRoutePrefix'
         ));
     }
 
@@ -631,7 +632,7 @@ class DocumentController extends Controller
         $locale = $this->resolveBackendLocale($request);
 
         if (!in_array($doc, ['CH', 'RN'], true)) {
-            return redirect()->route('document.show', [
+            return redirect()->route($this->documentRoutePrefix() . '.show', [
                 'doc' => $doc,
                 'doc_id' => $docId,
                 'num' => $request->input('num', session('num', '0')),
@@ -646,7 +647,7 @@ class DocumentController extends Controller
             ->first();
 
         if (!$document) {
-            return redirect()->route('document.index', ['doc' => $doc])
+            return redirect()->route($this->documentRoutePrefix() . '.index', ['doc' => $doc])
                 ->with('error', 'Документ для друку не знайдено');
         }
 
@@ -786,7 +787,7 @@ class DocumentController extends Controller
                         'docid' => $existingDraft->id
                     ]);
                     
-                    return redirect()->route('document.show', [
+                    return redirect()->route($this->documentRoutePrefix() . '.show', [
                         'doc' => $docType, 
                         'doc_id' => $existingDraft->id, 
                         'num' => $existingDraft->num, 
@@ -852,10 +853,10 @@ class DocumentController extends Controller
 
             /* For ZIN/ZOUT just redirect to list; others go to edit form
              if (in_array($docType, ['ZIN', 'ZOUT'], true)) {
-             return redirect()->route('document.index', ['doc' => $docType]);
+             return redirect()->route($this->documentRoutePrefix() . '.index', ['doc' => $docType]);
              }
              */
-            return redirect()->route('document.show', [
+            return redirect()->route($this->documentRoutePrefix() . '.show', [
                 'doc' => $docType, 'doc_id' => $id, 'num' => $num, 'year' => $year,
             ]);
         }
@@ -1043,7 +1044,7 @@ class DocumentController extends Controller
         $document = $result['document'] ?? null;
         $isPosted = (bool) ($result['isPosted'] ?? false);
         if (!$document) {
-            return redirect()->route('document.index', ['doc' => $doc])
+            return redirect()->route($this->documentRoutePrefix() . '.index', ['doc' => $doc])
                 ->with('success', $isPosted ? 'Проводку виконано' : 'Проводку скасовано');
         }
 
@@ -1051,7 +1052,7 @@ class DocumentController extends Controller
             ? substr((string) $document->data, 6, 4)
             : date('Y');
 
-        return redirect()->route('document.show', [
+        return redirect()->route($this->documentRoutePrefix() . '.show', [
             'doc' => $doc,
             'doc_id' => $docId,
             'num' => $document->num,
@@ -1173,7 +1174,7 @@ class DocumentController extends Controller
         DB::table($table)->where('id', $docId)->where('firma', $fid)->delete();
         session(['num' => '0', 'doc_id' => '0']);
 
-        return redirect()->route('document.index', ['doc' => $doc]);
+        return redirect()->route($this->documentRoutePrefix() . '.index', ['doc' => $doc]);
     }
 
     // ── Bulk status ───────────────────────────────────────────────────────────
@@ -1504,6 +1505,11 @@ class DocumentController extends Controller
             ->groupBy(fn ($row) => (string) $row->source_product_id)
             ->map(fn ($rows) => (string) $rows->first()->target_product_id)
             ->all();
+    }
+
+    private function documentRoutePrefix(): string
+    {
+        return str_starts_with((string) request()->route()?->getName(), 'loan.') ? 'loan' : 'document';
     }
 
     // ── Set client on doc ─────────────────────────────────────────────────────

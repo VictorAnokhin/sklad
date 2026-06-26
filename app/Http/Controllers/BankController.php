@@ -3213,28 +3213,28 @@ class BankController extends Controller
                 $row->borrower_name = trim((string) ($row->orgname ?? '')) ?: $personName ?: ('Client #' . $row->client1);
                 $row->loan_meta = $loanMeta;
                 $row->repayment_schedule = $schedule;
-                $row->show_url = route('document.show', [
+                $row->show_url = route('loan.show', [
                     'doc' => 'ZOUT',
                     'doc_id' => (int) $row->id,
                     'parent_doc_id' => (int) $row->id,
                     'num' => $row->num,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
-                $row->rn_url = route('document.show', [
+                $row->rn_url = route('loan.show', [
                     'doc' => 'RN',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
                     'num' => 0,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
-                $row->ra_url = route('document.show', [
+                $row->ra_url = route('loan.show', [
                     'doc' => 'RA',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
                     'num' => 0,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
-                $row->po_url = route('document.show', [
+                $row->po_url = route('loan.show', [
                     'doc' => 'PO',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
@@ -3243,7 +3243,7 @@ class BankController extends Controller
                     'sumPO' => (float) $row->summa,
                 ]);
                 $row->po_store_url = route('bank.loans.payments.store');
-                $row->ro_url = route('document.show', [
+                $row->ro_url = route('loan.show', [
                     'doc' => 'RO',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,

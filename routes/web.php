@@ -217,6 +217,23 @@ Route::middleware(['auth'])->group(function () {
         }
         );
 
+    Route::prefix('loan')->name('loan.')->group(function () {
+            Route::get('/', [DocumentController::class , 'index'])->name('index');
+            Route::get('/show', [DocumentController::class , 'show'])->name('show');
+            Route::get('/print', [DocumentController::class , 'print'])->name('print');
+            Route::post('/save', [DocumentController::class , 'save'])->name('save');
+            Route::post('/delete', [DocumentController::class , 'destroy'])->name('destroy');
+            Route::post('/provodka', [DocumentController::class , 'provodka'])->name('provodka');
+            Route::post('/status', [DocumentController::class , 'bulkStatus'])->name('bulkStatus');
+            Route::post('/set-client', [DocumentController::class , 'setClient'])->name('setClient');
+            Route::post('/body/add', [DocumentController::class , 'bodyAdd'])->name('body.add');
+            Route::post('/body/delete', [DocumentController::class , 'bodyDelete'])->name('body.delete');
+            Route::post('/body/update', [DocumentController::class , 'bodyUpdate'])->name('body.update');
+            Route::get('/product-mapping/search', [DocumentController::class , 'productMappingSearch'])->name('productMapping.search');
+            Route::post('/product-mapping/save', [DocumentController::class , 'productMappingSave'])->name('productMapping.save');
+        }
+        );
+
         // ── Clients ───────────────────────────────────────────────────────────────
         Route::prefix('client')->name('client.')->group(function () {
             Route::get('/', [ClientController::class , 'index'])->name('index');
