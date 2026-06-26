@@ -6,6 +6,7 @@
         $documentRoutes = $documentRoutePrefix ?? 'document';
         $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
         $isLoanDocument = in_array($documentRoutes, ['loan', 'bank.loanDocs'], true);
+        $hideGoodsSection = $isLoanDocument && $doc === 'ZOUT';
     @endphp
 
     <style>
@@ -765,7 +766,7 @@
                     @endif
 
                     <!-- Goods add — hidden for PO/RO (payment types) and RA (file documents) -->
-                    @if(!in_array($doc, ['PO', 'RO', 'ZP', 'RA'], true))
+                    @if(!$hideGoodsSection && !in_array($doc, ['PO', 'RO', 'ZP', 'RA'], true))
                         <div class="goods-search-container">
                             <div class="goods-search-row">
                                 <input type="text" id="goodsSearchInput" class="form-control text-white" placeholder="Поиск товара..."
@@ -1020,45 +1021,47 @@
         </div>
     @endif
 
-    <div class="modal fade" id="productMappingModal" tabindex="-1" aria-labelledby="productMappingModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="productMappingModalLabel">Маппінг товару</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-2 small text-muted" id="productMappingSourceInfo"></div>
-                    <div class="input-group input-group-sm mb-3">
-                        <input type="text" class="form-control text-white" id="productMappingSearchInput"
-                            placeholder="Пошук товару в проекті {{ $mappingTargetProjectId ?: 'контрагента' }}...">
-                        <button type="button" class="btn btn-outline-secondary" id="productMappingSearchBtn">Шукати</button>
+    @if(!$hideGoodsSection)
+        <div class="modal fade" id="productMappingModal" tabindex="-1" aria-labelledby="productMappingModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="productMappingModalLabel">Маппінг товару</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
                     </div>
-                    <div id="productMappingError" class="alert alert-danger py-2" style="display:none;"></div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th style="width: 90px;">ID</th>
-                                    <th>Товар</th>
-                                    <th style="width: 120px;">Залишок</th>
-                                    <th style="width: 120px;">Ціна</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productMappingResults">
-                                <tr>
-                                    <td colspan="4" class="text-muted">Введіть назву або код товару.</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="modal-body">
+                        <div class="mb-2 small text-muted" id="productMappingSourceInfo"></div>
+                        <div class="input-group input-group-sm mb-3">
+                            <input type="text" class="form-control text-white" id="productMappingSearchInput"
+                                placeholder="Пошук товару в проекті {{ $mappingTargetProjectId ?: 'контрагента' }}...">
+                            <button type="button" class="btn btn-outline-secondary" id="productMappingSearchBtn">Шукати</button>
+                        </div>
+                        <div id="productMappingError" class="alert alert-danger py-2" style="display:none;"></div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 90px;">ID</th>
+                                        <th>Товар</th>
+                                        <th style="width: 120px;">Залишок</th>
+                                        <th style="width: 120px;">Ціна</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="productMappingResults">
+                                    <tr>
+                                        <td colspan="4" class="text-muted">Введіть назву або код товару.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрити</button>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрити</button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    @endif
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -1979,118 +1982,120 @@
 
             updateDocumentSum();
 
-            function performGoodsSearch() {
-                const q = goodsSearchInput.value.trim();
-                if (q.length < 2) { goodsResultsContainer.style.display = 'none'; return; }
-                const docType = '{{ $doc }}';
-                const goodsSearchParams = new URLSearchParams({
-                    q,
-                    doc: docType,
-                    counterparty_user_id: client1Id?.value || '',
-                });
-                fetch("{{ route('goods.search') }}?" + goodsSearchParams.toString())
-                    .then(res => res.json())
-                    .then(data => {
-                        goodsResultsContainer.innerHTML = '';
-                        if (data.length === 0) {
-                            goodsResultsContainer.innerHTML = '<div class="list-group-item text-dark bg-white">Нічого не знайдено</div>';
-                        } else {
-	                            data.forEach(good => {
-	                                const a = document.createElement('a');
-	                                const imageUrl = good.image_thumb || good.image || '';
-	                                const imageHtml = imageUrl
-	                                    ? `<img src="${imageUrl}" alt="" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f1f5f9;flex:0 0 48px;">`
-	                                    : `<div style="width:48px;height:48px;border-radius:6px;background:#e5e7eb;flex:0 0 48px;"></div>`;
-	                                a.href = '#'; a.className = 'list-group-item list-group-item-action py-2 bg-white text-dark';
-	                                a.innerHTML = `<div style="display:flex;gap:10px;align-items:center;">${imageHtml}<div><strong>${good.pnum}</strong> - ${good.name || ''} <br><small class="text-dark">Ціна (pay): ${good.priceCompPay} грн</small></div></div>`;
-	                                a.addEventListener('click', function (e) {
-                                    e.preventDefault();
-                                    const emptyRow = document.getElementById('emptyGoodsRow');
-                                    if (emptyRow) emptyRow.remove();
-                                    const quantity = 1;
-                                    const wholesaleFrom = parseInt(good.wholesaleFrom || 0, 10);
-                                    const pay = parseFloat(good.priceCompPay || 0);
-                                    const pay1 = parseFloat(good.priceCompPay1 || 0);
-                                    const priceBase = parseFloat(good.priceBase || 0) || pay;
-                                    const priceWholesale = parseFloat(good.priceWholesale || 0) || parseFloat(good.pay1 || 0);
-                                    let initialPrice = (docType === 'ZIN' || docType === 'PN') ? pay1 : priceBase;
-                                    if ((docType === 'ZOUT' || docType === 'RN') && wholesaleFrom > 0 && quantity >= wholesaleFrom && priceWholesale > 0) {
-                                        initialPrice = priceWholesale;
-                                    } else if ((docType === 'ZOUT' || docType === 'RN') && priceBase > 0) {
-                                        initialPrice = priceBase;
-                                    } else if ((docType === 'ZIN' || docType === 'PN') && pay1 <= 0) {
-                                        initialPrice = 0;
-                                    } else if (initialPrice <= 0) {
-                                        initialPrice = pay1;
-                                    }
-                                    const mappedProductId = String(good.mappedProductId || '');
-                                    const mapButtonClass = mappedProductId ? 'btn btn-sm btn-outline-secondary product-map-btn is-mapped' : 'btn btn-sm btn-outline-secondary product-map-btn';
-                                    const mapButtonText = mappedProductId || '...';
-
-                                    const tr = document.createElement('tr');
-                                    tr.innerHTML = `
-                                        <td class="goods-table-col-code" data-label="Код"><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.pnum}" readonly></td>
-                                        <td class="goods-table-col-name" data-label="Найменування">
-                                            <input type="hidden" name="name[]" value="${escapeHtml(good.name || '')}">
-                                            <div class="goods-name-map-wrap">
-                                                <input type="text" class="form-control form-control-sm text-dark text-white" value="${escapeHtml(good.name || '')}" readonly>
-                                                <button type="button" class="${mapButtonClass}" data-source-product-id="${escapeHtml(good.pnum)}" data-source-product-name="${escapeHtml(good.name || '')}" data-target-product-id="${escapeHtml(mappedProductId)}" title="Маппінг товару проекту ${escapeHtml(mappingTargetProjectId || 'не визначено')}">${escapeHtml(mapButtonText)}</button>
-                                            </div>
-                                        </td>
-                                        <td class="goods-table-col-qty" data-label="К-ть">
-                                            <div class="input-group input-group-sm">
-                                                <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
-                                                <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count text-dark text-white" value="1">
-                                                <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
-                                            </div>
-                                        </td>
-                                        <td class="goods-table-col-price" data-label="Ціна"><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
-                                        <td class="goods-table-col-sum" data-label="Сума"><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
-                                        <td class="goods-table-col-actions text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row remove-btn">❌</button></td>`;
-                                    tr.dataset.priceCompPay = good.priceCompPay || 0;
-                                    tr.dataset.priceCompPay1 = good.priceCompPay1 || 0;
-                                    tr.dataset.priceBase = good.priceBase || 0;
-                                    tr.dataset.priceWholesale = good.priceWholesale || 0;
-                                    tr.dataset.wholesaleFrom = good.wholesaleFrom || 0;
-                                    tr.dataset.docType = '{{ $doc }}';
-                                    tableBody.appendChild(tr);
-                                    const pcount = tr.querySelector('.goods-count');
-                                    const pprice = tr.querySelector('.goods-price');
-                                    const psum = tr.querySelector('.goods-sum');
-                                    bindGoodsRowInputs(pcount, pprice, psum);
-                                    updateZeroSumHighlight(tr);
-                                    tr.querySelector('.remove-new-row').addEventListener('click', () => {
-                                        tr.remove();
-                                        if (tableBody.querySelectorAll('tr').length === 0) {
-                                            tableBody.innerHTML = '<tr id="emptyGoodsRow"><td colspan="6" class="text-center text-dark">Немає товарів</td></tr>';
+            if (goodsSearchInput && searchGoodsBtn && goodsResultsContainer && tableBody) {
+                function performGoodsSearch() {
+                    const q = goodsSearchInput.value.trim();
+                    if (q.length < 2) { goodsResultsContainer.style.display = 'none'; return; }
+                    const docType = '{{ $doc }}';
+                    const goodsSearchParams = new URLSearchParams({
+                        q,
+                        doc: docType,
+                        counterparty_user_id: client1Id?.value || '',
+                    });
+                    fetch("{{ route('goods.search') }}?" + goodsSearchParams.toString())
+                        .then(res => res.json())
+                        .then(data => {
+                            goodsResultsContainer.innerHTML = '';
+                            if (data.length === 0) {
+                                goodsResultsContainer.innerHTML = '<div class="list-group-item text-dark bg-white">Нічого не знайдено</div>';
+                            } else {
+    	                            data.forEach(good => {
+    	                                const a = document.createElement('a');
+    	                                const imageUrl = good.image_thumb || good.image || '';
+    	                                const imageHtml = imageUrl
+    	                                    ? `<img src="${imageUrl}" alt="" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f1f5f9;flex:0 0 48px;">`
+    	                                    : `<div style="width:48px;height:48px;border-radius:6px;background:#e5e7eb;flex:0 0 48px;"></div>`;
+    	                                a.href = '#'; a.className = 'list-group-item list-group-item-action py-2 bg-white text-dark';
+    	                                a.innerHTML = `<div style="display:flex;gap:10px;align-items:center;">${imageHtml}<div><strong>${good.pnum}</strong> - ${good.name || ''} <br><small class="text-dark">Ціна (pay): ${good.priceCompPay} грн</small></div></div>`;
+    	                                a.addEventListener('click', function (e) {
+                                        e.preventDefault();
+                                        const emptyRow = document.getElementById('emptyGoodsRow');
+                                        if (emptyRow) emptyRow.remove();
+                                        const quantity = 1;
+                                        const wholesaleFrom = parseInt(good.wholesaleFrom || 0, 10);
+                                        const pay = parseFloat(good.priceCompPay || 0);
+                                        const pay1 = parseFloat(good.priceCompPay1 || 0);
+                                        const priceBase = parseFloat(good.priceBase || 0) || pay;
+                                        const priceWholesale = parseFloat(good.priceWholesale || 0) || parseFloat(good.pay1 || 0);
+                                        let initialPrice = (docType === 'ZIN' || docType === 'PN') ? pay1 : priceBase;
+                                        if ((docType === 'ZOUT' || docType === 'RN') && wholesaleFrom > 0 && quantity >= wholesaleFrom && priceWholesale > 0) {
+                                            initialPrice = priceWholesale;
+                                        } else if ((docType === 'ZOUT' || docType === 'RN') && priceBase > 0) {
+                                            initialPrice = priceBase;
+                                        } else if ((docType === 'ZIN' || docType === 'PN') && pay1 <= 0) {
+                                            initialPrice = 0;
+                                        } else if (initialPrice <= 0) {
+                                            initialPrice = pay1;
                                         }
+                                        const mappedProductId = String(good.mappedProductId || '');
+                                        const mapButtonClass = mappedProductId ? 'btn btn-sm btn-outline-secondary product-map-btn is-mapped' : 'btn btn-sm btn-outline-secondary product-map-btn';
+                                        const mapButtonText = mappedProductId || '...';
+
+                                        const tr = document.createElement('tr');
+                                        tr.innerHTML = `
+                                            <td class="goods-table-col-code" data-label="Код"><input type="hidden" name="id[]" value="0"><input type="hidden" name="pid[]" value="${good.id}"><input type="hidden" name="pnum[]" value="${good.pnum}"><input type="text" class="form-control form-control-sm text-dark text-white" value="${good.pnum}" readonly></td>
+                                            <td class="goods-table-col-name" data-label="Найменування">
+                                                <input type="hidden" name="name[]" value="${escapeHtml(good.name || '')}">
+                                                <div class="goods-name-map-wrap">
+                                                    <input type="text" class="form-control form-control-sm text-dark text-white" value="${escapeHtml(good.name || '')}" readonly>
+                                                    <button type="button" class="${mapButtonClass}" data-source-product-id="${escapeHtml(good.pnum)}" data-source-product-name="${escapeHtml(good.name || '')}" data-target-product-id="${escapeHtml(mappedProductId)}" title="Маппінг товару проекту ${escapeHtml(mappingTargetProjectId || 'не визначено')}">${escapeHtml(mapButtonText)}</button>
+                                                </div>
+                                            </td>
+                                            <td class="goods-table-col-qty" data-label="К-ть">
+                                                <div class="input-group input-group-sm">
+                                                    <button type="button" class="btn btn-outline-secondary btn-qty-decrease">−</button>
+                                                    <input type="number" step="1" name="pcount[]" class="form-control form-control-sm goods-count text-dark text-white" value="1">
+                                                    <button type="button" class="btn btn-outline-secondary btn-qty-increase">+</button>
+                                                </div>
+                                            </td>
+                                            <td class="goods-table-col-price" data-label="Ціна"><input type="text" name="pprice[]" class="form-control form-control-sm goods-price text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
+                                            <td class="goods-table-col-sum" data-label="Сума"><input type="text" name="psumma[]" class="form-control form-control-sm goods-sum text-dark text-white" value="${initialPrice.toFixed(2)}"></td>
+                                            <td class="goods-table-col-actions text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-new-row remove-btn">❌</button></td>`;
+                                        tr.dataset.priceCompPay = good.priceCompPay || 0;
+                                        tr.dataset.priceCompPay1 = good.priceCompPay1 || 0;
+                                        tr.dataset.priceBase = good.priceBase || 0;
+                                        tr.dataset.priceWholesale = good.priceWholesale || 0;
+                                        tr.dataset.wholesaleFrom = good.wholesaleFrom || 0;
+                                        tr.dataset.docType = '{{ $doc }}';
+                                        tableBody.appendChild(tr);
+                                        const pcount = tr.querySelector('.goods-count');
+                                        const pprice = tr.querySelector('.goods-price');
+                                        const psum = tr.querySelector('.goods-sum');
+                                        bindGoodsRowInputs(pcount, pprice, psum);
+                                        updateZeroSumHighlight(tr);
+                                        tr.querySelector('.remove-new-row').addEventListener('click', () => {
+                                            tr.remove();
+                                            if (tableBody.querySelectorAll('tr').length === 0) {
+                                                tableBody.innerHTML = '<tr id="emptyGoodsRow"><td colspan="6" class="text-center text-dark">Немає товарів</td></tr>';
+                                            }
+                                            updateDocumentSum();
+                                        });
                                         updateDocumentSum();
+                                        goodsResultsContainer.style.display = 'none';
+                                        goodsSearchInput.value = '';
                                     });
-                                    updateDocumentSum();
-                                    goodsResultsContainer.style.display = 'none';
-                                    goodsSearchInput.value = '';
+                                    goodsResultsContainer.appendChild(a);
                                 });
-                                goodsResultsContainer.appendChild(a);
-                            });
-                        }
-                        goodsResultsContainer.style.display = 'block';
-                    })
-                    .catch(err => console.error('Goods search failed:', err));
-            }
-            searchGoodsBtn.addEventListener('click', performGoodsSearch);
-            let goodsSearchTimeout = null;
-            goodsSearchInput.addEventListener('input', function (e) {
-                clearTimeout(goodsSearchTimeout);
-                goodsSearchTimeout = setTimeout(performGoodsSearch, 400);
-            });
-            goodsSearchInput.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') { e.preventDefault(); performGoodsSearch(); }
-            });
-            document.addEventListener('click', function (e) {
-                if (!goodsSearchInput.contains(e.target) && !goodsResultsContainer.contains(e.target) && !searchGoodsBtn.contains(e.target)) {
-                    goodsResultsContainer.style.display = 'none';
+                            }
+                            goodsResultsContainer.style.display = 'block';
+                        })
+                        .catch(err => console.error('Goods search failed:', err));
                 }
-            });
+                searchGoodsBtn.addEventListener('click', performGoodsSearch);
+                let goodsSearchTimeout = null;
+                goodsSearchInput.addEventListener('input', function (e) {
+                    clearTimeout(goodsSearchTimeout);
+                    goodsSearchTimeout = setTimeout(performGoodsSearch, 400);
+                });
+                goodsSearchInput.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') { e.preventDefault(); performGoodsSearch(); }
+                });
+                document.addEventListener('click', function (e) {
+                    if (!goodsSearchInput.contains(e.target) && !goodsResultsContainer.contains(e.target) && !searchGoodsBtn.contains(e.target)) {
+                        goodsResultsContainer.style.display = 'none';
+                    }
+                });
+            }
 
             // ================= QUANTITY +/- BUTTONS =================
             document.addEventListener('click', function (e) {
