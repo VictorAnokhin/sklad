@@ -2873,7 +2873,44 @@ class BankController extends Controller
         $project = $this->bankProject();
         abort_unless(Schema::hasTable('document'), 404);
 
+        $loanId = (int) $request->input('loan_id', 0);
+        if ($request->input('loan_action') === 'delete') {
+            if ($loanId <= 0) {
+                return redirect()->route('bank.loans')->with('error', 'Заявка для удаления не выбрана.');
+            }
+
+            $loan = DB::table('document')
+                ->where('id', $loanId)
+                ->where('firma', (string) $project->id)
+                ->where('type', 'ZOUT')
+                ->where(function ($query) {
+                    $query->where('typeproduct', 'credit_request')
+                        ->orWhere('numorder', 'AV8-LOAN')
+                        ->orWhere('content', 'like', '%[AV8_LOAN_REQUEST]%');
+                })
+                ->first();
+
+            if (! $loan) {
+                return redirect()->route('bank.loans')->with('error', 'Кредитная заявка не найдена.');
+            }
+
+            $hasChildren = Schema::hasTable('z_document')
+                && DB::table('z_document')
+                    ->where('docid', (string) $loanId)
+                    ->where('firma', (string) $project->id)
+                    ->exists();
+
+            if ($hasChildren) {
+                return redirect()->route('bank.loans')->with('error', 'Нельзя удалить заявку со связанными RN/PO документами.');
+            }
+
+            DB::table('document')->where('id', $loanId)->delete();
+
+            return redirect()->route('bank.loans')->with('success', 'Кредитная заявка удалена.');
+        }
+
         $payload = $request->validate([
+            'loan_id' => ['nullable', 'integer', 'min:0'],
             'borrower_id' => ['required', 'integer', 'min:1'],
             'collateral_type' => ['required', Rule::in(['auto', 'special_equipment', 'license_plate', 'other'])],
             'market_value' => ['required', 'numeric', 'gt:0', 'max:999999999'],
@@ -2904,7 +2941,24 @@ class BankController extends Controller
         $termMonths = (int) $payload['loan_term_months'];
         $now = now();
         $year = $now->format('Y');
-        $num = Document::assignNextNum('ZOUT', (string) $project->id, $year);
+        $existing = null;
+        if ($loanId > 0) {
+            $existing = DB::table('document')
+                ->where('id', $loanId)
+                ->where('firma', (string) $project->id)
+                ->where('type', 'ZOUT')
+                ->where(function ($query) {
+                    $query->where('typeproduct', 'credit_request')
+                        ->orWhere('numorder', 'AV8-LOAN')
+                        ->orWhere('content', 'like', '%[AV8_LOAN_REQUEST]%');
+                })
+                ->first();
+
+            if (! $existing) {
+                return redirect()->route('bank.loans')->with('error', 'Кредитная заявка не найдена.');
+            }
+        }
+        $num = $existing ? (string) ($existing->num ?? '') : Document::assignNextNum('ZOUT', (string) $project->id, $year);
         $collateralLabels = [
             'auto' => 'Автомобиль',
             'special_equipment' => 'Спецтехника',
@@ -2925,7 +2979,7 @@ class BankController extends Controller
             trim((string) ($payload['comment'] ?? '')) !== '' ? 'Комментарий: ' . trim((string) $payload['comment']) : '',
         ]));
 
-        $id = DB::table('document')->insertGetId([
+        $values = [
             'num' => $num,
             'client1' => (string) $payload['borrower_id'],
             'client2' => '0',
@@ -2954,22 +3008,27 @@ class BankController extends Controller
             'work' => session('work', '1'),
             'numorder' => 'AV8-LOAN',
             'typeproduct' => 'credit_request',
-        ]);
+        ];
 
-        DB::table('document')->where('id', $id)->update([
-            'docid' => $id,
-            'numz' => $num,
-        ]);
+        if ($loanId > 0) {
+            unset($values['num'], $values['type'], $values['firma'], $values['dt'], $values['docid'], $values['numz']);
+            DB::table('document')->where('id', $loanId)->update($values);
+            $id = $loanId;
+        } else {
+            $id = DB::table('document')->insertGetId($values);
 
-        return redirect()
-            ->route('document.show', [
-                'doc' => 'ZOUT',
-                'doc_id' => $id,
-                'parent_doc_id' => $id,
-                'num' => $num,
-                'year' => $year,
-            ])
-            ->with('success', 'Заявка на кредит создана. Дальше оформите выдачу кредита через RN, а платежи заемщика через PO.');
+            DB::table('document')->where('id', $id)->update([
+                'docid' => $id,
+                'numz' => $num,
+            ]);
+        }
+
+        return redirect()->route('bank.loans')->with(
+            'success',
+            $loanId > 0
+                ? 'Кредитная заявка сохранена.'
+                : 'Заявка на кредит создана. Дальше оформите выдачу кредита через RN, а платежи заемщика через PO.'
+        );
     }
 
     private function placeholder(string $title, string $description): View
@@ -3045,12 +3104,14 @@ class BankController extends Controller
                 'u.phone',
             ])
             ->map(function ($row) {
+                $loanMeta = $this->parseLoanRequestContent((string) ($row->content ?? ''));
                 $personName = trim(implode(' ', array_filter([
                     (string) ($row->secondname ?? ''),
                     (string) ($row->name ?? ''),
                     (string) ($row->fathername ?? ''),
                 ])));
                 $row->borrower_name = trim((string) ($row->orgname ?? '')) ?: $personName ?: ('Client #' . $row->client1);
+                $row->loan_meta = $loanMeta;
                 $row->show_url = route('document.show', [
                     'doc' => 'ZOUT',
                     'doc_id' => (int) $row->id,
@@ -3076,6 +3137,43 @@ class BankController extends Controller
 
                 return $row;
             });
+    }
+
+    private function parseLoanRequestContent(string $content): array
+    {
+        $read = static function (string $label) use ($content): string {
+            if (preg_match('/^' . preg_quote($label, '/') . ':\s*(.+)$/mu', $content, $matches) === 1) {
+                return trim((string) $matches[1]);
+            }
+
+            return '';
+        };
+        $collateralLabel = $read('Тип залога');
+        $collateralType = match ($collateralLabel) {
+            'Спецтехника' => 'special_equipment',
+            'Госномер' => 'license_plate',
+            'Другое' => 'other',
+            default => 'auto',
+        };
+        $termLabel = $read('Срок кредита');
+        $termMonths = match ($termLabel) {
+            '6 мес.' => '6',
+            '2 года' => '24',
+            '3 года' => '36',
+            default => '12',
+        };
+        $deadlineText = $read('Дедлайн сбора');
+
+        return [
+            'collateral_type' => $collateralType,
+            'market_value' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Рыночная стоимость'))) ?: '',
+            'ltv' => preg_replace('/\D+/', '', $read('LTV сделки')) ?: '70',
+            'interest_rate' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Процентная ставка заемщика'))) ?: '',
+            'loan_term_months' => $termMonths,
+            'investor_yield' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Доходность для инвесторов'))) ?: '',
+            'deadline_days' => preg_match('/^(\d+)/', $deadlineText, $m) === 1 ? $m[1] : '7',
+            'comment' => $read('Комментарий'),
+        ];
     }
 
     private function loanTermLabel(int $months): string

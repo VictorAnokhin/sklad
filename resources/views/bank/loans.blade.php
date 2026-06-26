@@ -57,7 +57,7 @@
     ];
 @endphp
 
-<div class="bank-page bank-loans-page">
+<div class="bank-page bank-loans-page" data-bank-loans-page data-loan-has-errors="{{ isset($errors) && $errors->any() ? '1' : '0' }}">
     @include('bank.partials.nav')
 
     @if(session('success'))
@@ -100,14 +100,29 @@
                 <h2 class="mb-1">Заявка на кредит (ZOUT)</h2>
                 <div class="bank-meta">Создает обычный документ-заявку. Выдача кредита оформляется связанным RN, платежи заемщика — связанными PO.</div>
             </div>
-            <a href="{{ route('document.index', ['doc' => 'ZOUT']) }}" class="btn btn-sm btn-outline-light">Все ZOUT</a>
+            <div class="bank-loan-toolbar">
+                <a href="{{ route('document.index', ['doc' => 'ZOUT']) }}" class="btn btn-sm btn-outline-light">Все ZOUT</a>
+                <button type="button" class="btn btn-sm btn-primary" data-loan-open>Новая заявка</button>
+            </div>
         </div>
+    </section>
 
-        <form method="POST" action="{{ route('bank.loans.store') }}" class="bank-loan-form" data-loan-request-form>
+    <div class="bank-modal" data-loan-modal hidden>
+        <div class="bank-modal__backdrop" data-loan-close></div>
+        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="loanModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Кредитная заявка</div>
+                    <h2 id="loanModalTitle" data-loan-modal-title>Новая заявка</h2>
+                </div>
+                <button type="button" class="bank-modal__close" data-loan-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="POST" action="{{ route('bank.loans.store') }}" class="bank-loan-form" data-loan-request-form>
             @csrf
+            <input type="hidden" name="loan_id" value="{{ old('loan_id') }}" data-loan-field="loan_id">
             <label class="bank-field bank-field--wide">
                 <span>Заемщик</span>
-                <select name="borrower_id" class="form-select" required>
+                <select name="borrower_id" class="form-select" data-loan-field="borrower_id" required>
                     <option value="">— выберите клиента —</option>
                     @foreach($borrowers as $borrower)
                         <option value="{{ $borrower->id }}" {{ (string) old('borrower_id') === (string) $borrower->id ? 'selected' : '' }}>
@@ -119,7 +134,7 @@
 
             <label class="bank-field">
                 <span>Тип залога</span>
-                <select name="collateral_type" class="form-select" required>
+                <select name="collateral_type" class="form-select" data-loan-field="collateral_type" required>
                     <option value="auto" {{ old('collateral_type', 'auto') === 'auto' ? 'selected' : '' }}>Автомобиль</option>
                     <option value="special_equipment" {{ old('collateral_type') === 'special_equipment' ? 'selected' : '' }}>Спецтехника</option>
                     <option value="license_plate" {{ old('collateral_type') === 'license_plate' ? 'selected' : '' }}>Госномер</option>
@@ -129,12 +144,12 @@
 
             <label class="bank-field">
                 <span>Рыночная стоимость</span>
-                <input type="number" step="0.01" min="0" name="market_value" value="{{ old('market_value') }}" class="form-control" data-loan-market-value required>
+                <input type="number" step="0.01" min="0" name="market_value" value="{{ old('market_value') }}" class="form-control" data-loan-field="market_value" data-loan-market-value required>
             </label>
 
             <label class="bank-field">
                 <span>LTV сделки</span>
-                <select name="ltv" class="form-select" data-loan-ltv required>
+                <select name="ltv" class="form-select" data-loan-field="ltv" data-loan-ltv required>
                     @foreach([40, 50, 60, 70, 80, 90] as $ltv)
                         <option value="{{ $ltv }}" {{ (string) old('ltv', '70') === (string) $ltv ? 'selected' : '' }}>{{ $ltv }}%</option>
                     @endforeach
@@ -143,12 +158,12 @@
 
             <label class="bank-field">
                 <span>Процентная ставка</span>
-                <input type="number" step="0.01" min="0" max="100" name="interest_rate" value="{{ old('interest_rate') }}" class="form-control" required>
+                <input type="number" step="0.01" min="0" max="100" name="interest_rate" value="{{ old('interest_rate') }}" class="form-control" data-loan-field="interest_rate" required>
             </label>
 
             <label class="bank-field">
                 <span>Срок кредита</span>
-                <select name="loan_term_months" class="form-select" required>
+                <select name="loan_term_months" class="form-select" data-loan-field="loan_term_months" required>
                     <option value="6" {{ old('loan_term_months') === '6' ? 'selected' : '' }}>6 мес</option>
                     <option value="12" {{ old('loan_term_months', '12') === '12' ? 'selected' : '' }}>1 год</option>
                     <option value="24" {{ old('loan_term_months') === '24' ? 'selected' : '' }}>2 года</option>
@@ -158,12 +173,12 @@
 
             <label class="bank-field">
                 <span>Доходность для инвесторов</span>
-                <input type="number" step="0.01" min="0" max="100" name="investor_yield" value="{{ old('investor_yield') }}" class="form-control" required>
+                <input type="number" step="0.01" min="0" max="100" name="investor_yield" value="{{ old('investor_yield') }}" class="form-control" data-loan-field="investor_yield" required>
             </label>
 
             <label class="bank-field">
                 <span>Дедлайн</span>
-                <select name="deadline_days" class="form-select" required>
+                <select name="deadline_days" class="form-select" data-loan-field="deadline_days" required>
                     @foreach([3, 7, 14, 21] as $days)
                         <option value="{{ $days }}" {{ (string) old('deadline_days', '7') === (string) $days ? 'selected' : '' }}>{{ $days }} {{ $days === 21 ? 'день' : 'дней' }}</option>
                     @endforeach
@@ -172,7 +187,7 @@
 
             <label class="bank-field bank-field--wide">
                 <span>Комментарий риск-менеджера</span>
-                <textarea name="comment" class="form-control" rows="3" placeholder="Описание залога, VIN/госномер, условия удержания, примечания скоринга">{{ old('comment') }}</textarea>
+                <textarea name="comment" class="form-control" rows="3" placeholder="Описание залога, VIN/госномер, условия удержания, примечания скоринга" data-loan-field="comment">{{ old('comment') }}</textarea>
             </label>
 
             <div class="bank-loan-result">
@@ -181,10 +196,15 @@
                     <div class="bank-value" data-loan-amount>0.00</div>
                     <div class="bank-meta">Рыночная стоимость × LTV. Эта сумма попадет в ZOUT.</div>
                 </div>
-                <button type="submit" class="btn btn-primary">Создать заявку ZOUT</button>
+                <div class="bank-modal__actions bank-loan-modal-actions">
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="submit" name="loan_action" value="delete" class="btn btn-outline-danger" formnovalidate data-loan-delete hidden>Удалить</button>
+                    <button type="button" class="btn btn-secondary" data-loan-close>Отменить</button>
+                </div>
             </div>
-        </form>
-    </section>
+            </form>
+        </div>
+    </div>
 
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
@@ -209,10 +229,23 @@
                 </thead>
                 <tbody>
                     @forelse($loanRequests as $requestRow)
-                        <tr>
+                        @php($loanMeta = $requestRow->loan_meta ?? [])
+                        @php($loanComment = str_replace(["\r", "\n"], ' ', (string) ($loanMeta['comment'] ?? '')))
+                        <tr data-loan-edit
+                            data-loan-id="{{ $requestRow->id }}"
+                            data-loan-num="{{ $requestRow->num }}"
+                            data-borrower-id="{{ $requestRow->client1 }}"
+                            data-collateral-type="{{ $loanMeta['collateral_type'] ?? 'auto' }}"
+                            data-market-value="{{ $loanMeta['market_value'] ?? '' }}"
+                            data-ltv="{{ $loanMeta['ltv'] ?? '70' }}"
+                            data-interest-rate="{{ $loanMeta['interest_rate'] ?? '' }}"
+                            data-loan-term-months="{{ $loanMeta['loan_term_months'] ?? '12' }}"
+                            data-investor-yield="{{ $loanMeta['investor_yield'] ?? '' }}"
+                            data-deadline-days="{{ $loanMeta['deadline_days'] ?? '7' }}"
+                            data-comment="{{ $loanComment }}">
                             <td class="bank-table__num bank-mono">#{{ $requestRow->num }}</td>
                             <td>
-                                <a href="{{ $requestRow->show_url }}" class="text-white fw-semibold">{{ $requestRow->borrower_name }}</a>
+                                <a href="{{ $requestRow->show_url }}" class="text-white fw-semibold" data-loan-action-link>{{ $requestRow->borrower_name }}</a>
                                 <div class="bank-meta">{{ \Illuminate\Support\Str::of((string) $requestRow->content)->replace('[AV8_LOAN_REQUEST]', '')->limit(140) }}</div>
                             </td>
                             <td class="text-end fw-semibold">{{ number_format((float) $requestRow->summa, 2, '.', ' ') }}</td>
@@ -222,9 +255,9 @@
                             </td>
                             <td>
                                 <div class="bank-loan-actions">
-                                    <a href="{{ $requestRow->show_url }}" class="btn btn-sm btn-outline-light">ZOUT</a>
-                                    <a href="{{ $requestRow->rn_url }}" class="btn btn-sm btn-outline-info">RN выдача</a>
-                                    <a href="{{ $requestRow->po_url }}" class="btn btn-sm btn-outline-success">PO платеж</a>
+                                    <a href="{{ $requestRow->show_url }}" class="btn btn-sm btn-outline-light" data-loan-action-link>ZOUT</a>
+                                    <a href="{{ $requestRow->rn_url }}" class="btn btn-sm btn-outline-info" data-loan-action-link>RN выдача</a>
+                                    <a href="{{ $requestRow->po_url }}" class="btn btn-sm btn-outline-success" data-loan-action-link>PO платеж</a>
                                 </div>
                             </td>
                         </tr>
@@ -299,7 +332,14 @@
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 14px;
-        margin-top: 20px;
+        padding: 18px 20px 20px;
+    }
+
+    .bank-loans-page .bank-loan-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
     }
 
     .bank-loans-page .bank-field {
@@ -347,6 +387,18 @@
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
+    }
+
+    .bank-loans-page [data-loan-edit] {
+        cursor: pointer;
+    }
+
+    .bank-loans-page [data-loan-edit]:hover td {
+        background-color: rgba(45, 212, 191, 0.08);
+    }
+
+    .bank-loans-page .bank-loan-modal-actions {
+        margin-top: 0;
     }
 
     .bank-loans-page .bank-loans-accounting {
@@ -481,12 +533,23 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const form = document.querySelector('[data-loan-request-form]');
+        const root = document.querySelector('[data-bank-loans-page]');
+        if (!root) return;
+
+        const modal = root.querySelector('[data-loan-modal]');
+        const form = root.querySelector('[data-loan-request-form]');
         if (!form) return;
 
+        const titleNode = root.querySelector('[data-loan-modal-title]');
+        const deleteButton = form.querySelector('[data-loan-delete]');
         const marketInput = form.querySelector('[data-loan-market-value]');
         const ltvSelect = form.querySelector('[data-loan-ltv]');
         const amountNode = form.querySelector('[data-loan-amount]');
+        const fields = {};
+
+        form.querySelectorAll('[data-loan-field]').forEach((field) => {
+            fields[field.dataset.loanField] = field;
+        });
 
         const formatAmount = (value) => new Intl.NumberFormat('ru-RU', {
             minimumFractionDigits: 2,
@@ -499,9 +562,94 @@
             if (amountNode) amountNode.textContent = formatAmount(market * ltv / 100);
         };
 
+        const setField = (name, value) => {
+            if (fields[name]) fields[name].value = value ?? '';
+        };
+
+        const openModal = () => {
+            if (!modal) return;
+            modal.hidden = false;
+            recalc();
+            setTimeout(() => fields.borrower_id?.focus(), 30);
+        };
+
+        const closeModal = () => {
+            if (modal) modal.hidden = true;
+        };
+
+        const openNewLoan = () => {
+            form.reset();
+            setField('loan_id', '');
+            setField('borrower_id', '');
+            setField('collateral_type', 'auto');
+            setField('market_value', '');
+            setField('ltv', '70');
+            setField('interest_rate', '');
+            setField('loan_term_months', '12');
+            setField('investor_yield', '');
+            setField('deadline_days', '7');
+            setField('comment', '');
+            if (titleNode) titleNode.textContent = 'Новая заявка';
+            if (deleteButton) deleteButton.hidden = true;
+            openModal();
+        };
+
+        const openExistingLoan = (row) => {
+            setField('loan_id', row.dataset.loanId || '');
+            setField('borrower_id', row.dataset.borrowerId || '');
+            setField('collateral_type', row.dataset.collateralType || 'auto');
+            setField('market_value', row.dataset.marketValue || '');
+            setField('ltv', row.dataset.ltv || '70');
+            setField('interest_rate', row.dataset.interestRate || '');
+            setField('loan_term_months', row.dataset.loanTermMonths || '12');
+            setField('investor_yield', row.dataset.investorYield || '');
+            setField('deadline_days', row.dataset.deadlineDays || '7');
+            setField('comment', row.dataset.comment || '');
+            if (titleNode) titleNode.textContent = `Заявка #${row.dataset.loanNum || row.dataset.loanId || ''}`;
+            if (deleteButton) deleteButton.hidden = false;
+            openModal();
+        };
+
         marketInput?.addEventListener('input', recalc);
         ltvSelect?.addEventListener('change', recalc);
+
+        root.querySelectorAll('[data-loan-open]').forEach((button) => {
+            button.addEventListener('click', openNewLoan);
+        });
+
+        root.querySelectorAll('[data-loan-edit]').forEach((row) => {
+            row.addEventListener('click', () => openExistingLoan(row));
+        });
+
+        root.querySelectorAll('[data-loan-action-link]').forEach((link) => {
+            link.addEventListener('click', (event) => event.stopPropagation());
+        });
+
+        root.querySelectorAll('[data-loan-close]').forEach((button) => {
+            button.addEventListener('click', closeModal);
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && modal && !modal.hidden) closeModal();
+        });
+
+        deleteButton?.addEventListener('click', (event) => {
+            if (!window.confirm('Удалить кредитную заявку?')) {
+                event.preventDefault();
+            }
+        });
+
         recalc();
+
+        if (root.dataset.loanHasErrors === '1') {
+            if (fields.loan_id?.value) {
+                if (titleNode) titleNode.textContent = `Заявка #${fields.loan_id.value}`;
+                if (deleteButton) deleteButton.hidden = false;
+            } else if (deleteButton) {
+                deleteButton.hidden = true;
+            }
+            openModal();
+        }
     });
 </script>
 @endsection
