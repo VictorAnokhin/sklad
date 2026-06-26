@@ -93,20 +93,6 @@
         </div>
     </section>
 
-    <section class="bank-panel bank-loan-request-panel">
-        <div class="bank-table-header">
-            <div>
-                <div class="bank-label">Оформление заявки</div>
-                <h2 class="mb-1">Заявка на кредит (ZOUT)</h2>
-                <div class="bank-meta">Создает обычный документ-заявку. Выдача кредита оформляется связанным RN, платежи заемщика — связанными PO.</div>
-            </div>
-            <div class="bank-loan-toolbar">
-                <a href="{{ route('document.index', ['doc' => 'ZOUT']) }}" class="btn btn-sm btn-outline-light">Все ZOUT</a>
-                <button type="button" class="btn btn-sm btn-primary" data-loan-open>Новая заявка</button>
-            </div>
-        </div>
-    </section>
-
     <div class="bank-modal" data-loan-modal hidden>
         <div class="bank-modal__backdrop" data-loan-close></div>
         <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="loanModalTitle">
@@ -206,14 +192,69 @@
         </div>
     </div>
 
+    <div class="bank-modal" data-loan-payment-modal hidden>
+        <div class="bank-modal__backdrop" data-loan-payment-close></div>
+        <div class="bank-modal__dialog bank-modal__dialog--accounts" role="dialog" aria-modal="true" aria-labelledby="loanPaymentModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">График погашения</div>
+                    <h2 id="loanPaymentModalTitle" data-loan-payment-title>PO платеж</h2>
+                </div>
+                <button type="button" class="bank-modal__close" data-loan-payment-close aria-label="Закрыть">×</button>
+            </div>
+            <div class="bank-modal__body">
+                <div class="bank-loan-payment-summary">
+                    <div><span>К оплате всего</span><strong data-payment-total>0.00</strong></div>
+                    <div><span>Оплачено</span><strong data-payment-paid>0.00</strong></div>
+                    <div><span>Остаток</span><strong data-payment-remaining>0.00</strong></div>
+                </div>
+
+                <div class="table-responsive bank-loan-payment-table-wrap">
+                    <table class="table table-dark table-sm align-middle bank-table bank-loan-payment-table">
+                        <thead>
+                            <tr>
+                                <th>Пункт</th>
+                                <th>Дата</th>
+                                <th class="text-end">К оплате</th>
+                                <th class="text-end">Оплачено</th>
+                                <th class="text-end">Остаток</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody data-payment-schedule></tbody>
+                    </table>
+                </div>
+
+                <form method="POST" action="{{ route('bank.loans.payments.store') }}" class="bank-loan-payment-form" data-loan-payment-form>
+                    @csrf
+                    <input type="hidden" name="loan_id" value="" data-payment-loan-id>
+                    <label class="bank-field">
+                        <span>Сумма</span>
+                        <input type="number" step="0.01" min="0.01" name="amount" value="" class="form-control" data-payment-amount required>
+                    </label>
+                    <div class="bank-modal__actions">
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                        <button type="button" class="btn btn-secondary" data-loan-payment-close>Отменить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
             <div>
                 <div class="bank-label">Документооборот</div>
-                <h2 class="mb-1">Кредитные заявки</h2>
-                <div class="bank-meta">ZOUT — заявка, RN — выдача кредита, PO — поступающие платежи заемщика.</div>
+                <div class="bank-loan-title-row">
+                    <h2 class="mb-1">Кредитные заявки</h2>
+                    <button type="button" class="bank-icon-add" data-loan-open aria-label="Новая заявка" title="Новая заявка">+</button>
+                </div>
+                <div class="bank-meta">ZOUT — заявка, RN — выдача кредита, RA — документы залога, PO/RO — платежи заемщика и выдача средств.</div>
             </div>
-            <div class="bank-meta">{{ $loanRequests->count() }} заявок</div>
+            <div class="bank-loan-toolbar">
+                <a href="{{ route('document.index', ['doc' => 'ZOUT']) }}" class="btn btn-sm btn-outline-light">Все ZOUT</a>
+                <div class="bank-meta">{{ $loanRequests->count() }} заявок</div>
+            </div>
         </div>
 
         <div class="table-responsive bank-table-scroll">
@@ -230,10 +271,13 @@
                 <tbody>
                     @forelse($loanRequests as $requestRow)
                         @php($loanMeta = $requestRow->loan_meta ?? [])
+                        @php($repaymentSchedule = $requestRow->repayment_schedule ?? [])
                         @php($loanComment = str_replace(["\r", "\n"], ' ', (string) ($loanMeta['comment'] ?? '')))
                         <tr data-loan-edit
                             data-loan-id="{{ $requestRow->id }}"
                             data-loan-num="{{ $requestRow->num }}"
+                            data-borrower-name="{{ $requestRow->borrower_name }}"
+                            data-payment-schedule='@json($repaymentSchedule)'
                             data-borrower-id="{{ $requestRow->client1 }}"
                             data-collateral-type="{{ $loanMeta['collateral_type'] ?? 'auto' }}"
                             data-market-value="{{ $loanMeta['market_value'] ?? '' }}"
@@ -257,7 +301,9 @@
                                 <div class="bank-loan-actions">
                                     <a href="{{ $requestRow->show_url }}" class="btn btn-sm btn-outline-light" data-loan-action-link>ZOUT</a>
                                     <a href="{{ $requestRow->rn_url }}" class="btn btn-sm btn-outline-info" data-loan-action-link>RN выдача</a>
-                                    <a href="{{ $requestRow->po_url }}" class="btn btn-sm btn-outline-success" data-loan-action-link>PO платеж</a>
+                                    <a href="{{ $requestRow->ra_url }}" class="btn btn-sm btn-outline-warning" data-loan-action-link>RA залог</a>
+                                    <button type="button" class="btn btn-sm btn-outline-success" data-loan-payment-open>PO платеж</button>
+                                    <a href="{{ $requestRow->ro_url }}" class="btn btn-sm btn-outline-primary" data-loan-action-link>RO выдача</a>
                                 </div>
                             </td>
                         </tr>
@@ -337,9 +383,36 @@
 
     .bank-loans-page .bank-loan-toolbar {
         display: flex;
+        align-items: center;
         flex-wrap: wrap;
         justify-content: flex-end;
         gap: 8px;
+    }
+
+    .bank-loans-page .bank-loan-title-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .bank-loans-page .bank-icon-add {
+        display: inline-flex;
+        width: 30px;
+        height: 30px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(45, 212, 191, 0.34);
+        border-radius: 8px;
+        background: rgba(20, 184, 166, 0.16);
+        color: #ccfbf1;
+        font-size: 1.35rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .bank-loans-page .bank-icon-add:hover {
+        background: rgba(20, 184, 166, 0.26);
+        border-color: rgba(45, 212, 191, 0.54);
     }
 
     .bank-loans-page .bank-field {
@@ -399,6 +472,72 @@
 
     .bank-loans-page .bank-loan-modal-actions {
         margin-top: 0;
+    }
+
+    .bank-loans-page .bank-loan-payment-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .bank-loans-page .bank-loan-payment-summary div {
+        display: grid;
+        gap: 5px;
+        padding: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 8px;
+        background: rgba(2, 6, 23, 0.42);
+    }
+
+    .bank-loans-page .bank-loan-payment-summary span {
+        color: rgba(148, 163, 184, 0.92);
+        font-size: 0.76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .bank-loans-page .bank-loan-payment-summary strong {
+        color: #f8fafc;
+        font-size: 1.05rem;
+    }
+
+    .bank-loans-page .bank-loan-payment-table-wrap {
+        max-height: 340px;
+        margin-bottom: 14px;
+        overflow: auto;
+    }
+
+    .bank-loans-page .bank-loan-payment-form {
+        display: grid;
+        grid-template-columns: minmax(180px, 280px) 1fr;
+        gap: 14px;
+        align-items: end;
+    }
+
+    .bank-loans-page .bank-payment-status {
+        display: inline-flex;
+        min-width: 86px;
+        justify-content: center;
+        padding: 4px 8px;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+
+    .bank-loans-page .bank-payment-status--paid {
+        background: rgba(34, 197, 94, 0.16);
+        color: #bbf7d0;
+    }
+
+    .bank-loans-page .bank-payment-status--partial {
+        background: rgba(250, 204, 21, 0.15);
+        color: #fef08a;
+    }
+
+    .bank-loans-page .bank-payment-status--pending {
+        background: rgba(148, 163, 184, 0.14);
+        color: #cbd5e1;
     }
 
     .bank-loans-page .bank-loans-accounting {
@@ -521,7 +660,9 @@
 
     @media (max-width: 720px) {
         .bank-loans-page .bank-loan-form,
-        .bank-loans-page .bank-loans-accounting__grid {
+        .bank-loans-page .bank-loans-accounting__grid,
+        .bank-loans-page .bank-loan-payment-summary,
+        .bank-loans-page .bank-loan-payment-form {
             grid-template-columns: 1fr;
         }
 
@@ -537,11 +678,20 @@
         if (!root) return;
 
         const modal = root.querySelector('[data-loan-modal]');
+        const paymentModal = root.querySelector('[data-loan-payment-modal]');
         const form = root.querySelector('[data-loan-request-form]');
         if (!form) return;
 
         const titleNode = root.querySelector('[data-loan-modal-title]');
         const deleteButton = form.querySelector('[data-loan-delete]');
+        const paymentTitle = root.querySelector('[data-loan-payment-title]');
+        const paymentForm = root.querySelector('[data-loan-payment-form]');
+        const paymentLoanId = root.querySelector('[data-payment-loan-id]');
+        const paymentAmount = root.querySelector('[data-payment-amount]');
+        const paymentRows = root.querySelector('[data-payment-schedule]');
+        const paymentTotal = root.querySelector('[data-payment-total]');
+        const paymentPaid = root.querySelector('[data-payment-paid]');
+        const paymentRemaining = root.querySelector('[data-payment-remaining]');
         const marketInput = form.querySelector('[data-loan-market-value]');
         const ltvSelect = form.querySelector('[data-loan-ltv]');
         const amountNode = form.querySelector('[data-loan-amount]');
@@ -577,6 +727,10 @@
             if (modal) modal.hidden = true;
         };
 
+        const closePaymentModal = () => {
+            if (paymentModal) paymentModal.hidden = true;
+        };
+
         const openNewLoan = () => {
             form.reset();
             setField('loan_id', '');
@@ -610,6 +764,47 @@
             openModal();
         };
 
+        const statusLabel = (status) => ({
+            paid: 'Оплачено',
+            partial: 'Частично',
+            pending: 'Ожидает',
+        })[status] || 'Ожидает';
+
+        const openPaymentModal = (row) => {
+            let schedule = {};
+            try {
+                schedule = JSON.parse(row.dataset.paymentSchedule || '{}');
+            } catch (error) {
+                schedule = {};
+            }
+
+            if (paymentTitle) paymentTitle.textContent = `PO платеж по заявке #${row.dataset.loanNum || row.dataset.loanId || ''}`;
+            if (paymentLoanId) paymentLoanId.value = row.dataset.loanId || '';
+            if (paymentAmount) paymentAmount.value = Number(schedule.next_amount || schedule.remaining_total || 0).toFixed(2);
+            if (paymentTotal) paymentTotal.textContent = formatAmount(Number(schedule.total_due || 0));
+            if (paymentPaid) paymentPaid.textContent = formatAmount(Number(schedule.paid_total || 0));
+            if (paymentRemaining) paymentRemaining.textContent = formatAmount(Number(schedule.remaining_total || 0));
+
+            if (paymentRows) {
+                paymentRows.innerHTML = '';
+                (schedule.rows || []).forEach((item) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="bank-mono">#${item.number}</td>
+                        <td>${item.due_date || ''}</td>
+                        <td class="text-end">${formatAmount(Number(item.amount || 0))}</td>
+                        <td class="text-end">${formatAmount(Number(item.paid || 0))}</td>
+                        <td class="text-end">${formatAmount(Number(item.remaining || 0))}</td>
+                        <td><span class="bank-payment-status bank-payment-status--${item.status || 'pending'}">${statusLabel(item.status)}</span></td>
+                    `;
+                    paymentRows.appendChild(tr);
+                });
+            }
+
+            if (paymentModal) paymentModal.hidden = false;
+            setTimeout(() => paymentAmount?.focus(), 30);
+        };
+
         marketInput?.addEventListener('input', recalc);
         ltvSelect?.addEventListener('change', recalc);
 
@@ -625,12 +820,25 @@
             link.addEventListener('click', (event) => event.stopPropagation());
         });
 
+        root.querySelectorAll('[data-loan-payment-open]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const row = button.closest('[data-loan-edit]');
+                if (row) openPaymentModal(row);
+            });
+        });
+
         root.querySelectorAll('[data-loan-close]').forEach((button) => {
             button.addEventListener('click', closeModal);
         });
 
+        root.querySelectorAll('[data-loan-payment-close]').forEach((button) => {
+            button.addEventListener('click', closePaymentModal);
+        });
+
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && modal && !modal.hidden) closeModal();
+            if (event.key === 'Escape' && paymentModal && !paymentModal.hidden) closePaymentModal();
         });
 
         deleteButton?.addEventListener('click', (event) => {

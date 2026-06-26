@@ -3031,6 +3031,76 @@ class BankController extends Controller
         );
     }
 
+    public function storeLoanPayment(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('document') && Schema::hasTable('z_document'), 404);
+
+        $payload = $request->validate([
+            'loan_id' => ['required', 'integer', 'min:1'],
+            'amount' => ['required', 'numeric', 'gt:0', 'max:999999999'],
+        ]);
+
+        $loan = DB::table('document')
+            ->where('id', (int) $payload['loan_id'])
+            ->where('firma', (string) $project->id)
+            ->where('type', 'ZOUT')
+            ->where(function ($query) {
+                $query->where('typeproduct', 'credit_request')
+                    ->orWhere('numorder', 'AV8-LOAN')
+                    ->orWhere('content', 'like', '%[AV8_LOAN_REQUEST]%');
+            })
+            ->first();
+
+        if (! $loan) {
+            return redirect()->route('bank.loans')->with('error', 'Кредитная заявка не найдена.');
+        }
+
+        $amount = round((float) $payload['amount'], 2);
+        $year = strlen((string) ($loan->data ?? '')) >= 10 ? substr((string) $loan->data, 6, 4) : now()->format('Y');
+        $num = Document::assignNextNum('PO', (string) $project->id, $year);
+        $now = now();
+        $content = implode("\n", [
+            '[AV8_LOAN_PAYMENT]',
+            'Платеж по кредитной заявке ZOUT #' . (string) ($loan->num ?? $loan->id),
+            'Сумма платежа: ' . number_format($amount, 2, '.', ' '),
+        ]);
+
+        DB::table('z_document')->insertGetId([
+            'id' => 0,
+            'num' => $num,
+            'client1' => (string) ($loan->client1 ?? '0'),
+            'client2' => (string) ($loan->client2 ?? '0'),
+            'type' => 'PO',
+            'summa' => $amount,
+            'status' => 0,
+            'data' => $now->format('d-m-Y'),
+            'data2' => $now->format('d-m-Y'),
+            'time' => $now->format('H:i:s'),
+            'firma' => (string) $project->id,
+            'dt' => $now->timestamp,
+            'numz' => (string) ($loan->num ?? $loan->numz ?? '0'),
+            'typez' => 'ZOUT',
+            'docid' => (string) $loan->id,
+            'manager' => session('login', ''),
+            'user' => session('login', ''),
+            'content' => $content,
+            'ttn' => '',
+            'oplata' => (string) ($loan->oplata ?? ''),
+            'reteil' => (string) ($loan->reteil ?? ''),
+            'reestr' => (string) ($loan->reestr ?? ''),
+            'sklads' => (string) ($loan->sklads ?? ''),
+            'money' => (string) ($loan->money ?? ''),
+            'docum' => '',
+            'dostup' => 1,
+            'work' => session('work', '1'),
+            'numorder' => 'AV8-LOAN-PAYMENT',
+            'typeproduct' => 'credit_payment',
+        ]);
+
+        return redirect()->route('bank.loans')->with('success', 'Платеж по графику сохранен.');
+    }
+
     private function placeholder(string $title, string $description): View
     {
         return view('bank.placeholder', [
@@ -3105,6 +3175,7 @@ class BankController extends Controller
             ])
             ->map(function ($row) {
                 $loanMeta = $this->parseLoanRequestContent((string) ($row->content ?? ''));
+                $schedule = $this->loanRepaymentSchedule($row, $loanMeta);
                 $personName = trim(implode(' ', array_filter([
                     (string) ($row->secondname ?? ''),
                     (string) ($row->name ?? ''),
@@ -3112,6 +3183,7 @@ class BankController extends Controller
                 ])));
                 $row->borrower_name = trim((string) ($row->orgname ?? '')) ?: $personName ?: ('Client #' . $row->client1);
                 $row->loan_meta = $loanMeta;
+                $row->repayment_schedule = $schedule;
                 $row->show_url = route('document.show', [
                     'doc' => 'ZOUT',
                     'doc_id' => (int) $row->id,
@@ -3126,6 +3198,13 @@ class BankController extends Controller
                     'num' => 0,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
+                $row->ra_url = route('document.show', [
+                    'doc' => 'RA',
+                    'doc_id' => 0,
+                    'parent_doc_id' => (int) $row->id,
+                    'num' => 0,
+                    'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
+                ]);
                 $row->po_url = route('document.show', [
                     'doc' => 'PO',
                     'doc_id' => 0,
@@ -3134,9 +3213,100 @@ class BankController extends Controller
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                     'sumPO' => (float) $row->summa,
                 ]);
+                $row->po_store_url = route('bank.loans.payments.store');
+                $row->ro_url = route('document.show', [
+                    'doc' => 'RO',
+                    'doc_id' => 0,
+                    'parent_doc_id' => (int) $row->id,
+                    'num' => 0,
+                    'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
+                    'sumRO' => (float) $row->summa,
+                ]);
 
                 return $row;
             });
+    }
+
+    private function loanRepaymentSchedule(object $loan, array $loanMeta): array
+    {
+        $principal = round((float) ($loan->summa ?? 0), 2);
+        $termMonths = max(1, (int) ($loanMeta['loan_term_months'] ?? 12));
+        $annualRate = max(0, (float) ($loanMeta['interest_rate'] ?? 0));
+        $totalDue = round($principal * (1 + ($annualRate / 100) * ($termMonths / 12)), 2);
+        $installment = $termMonths > 0 ? round($totalDue / $termMonths, 2) : $totalDue;
+        $paidTotal = round($this->loanPaymentTotal((int) ($loan->id ?? 0), (string) ($loan->firma ?? '')), 2);
+        $remainingPaid = $paidTotal;
+        $startDate = $this->loanScheduleStartDate((string) ($loan->data ?? ''));
+        $rows = [];
+
+        for ($month = 1; $month <= $termMonths; $month++) {
+            $dueAmount = $month === $termMonths
+                ? round($totalDue - ($installment * ($termMonths - 1)), 2)
+                : $installment;
+            $paidAmount = min($dueAmount, max(0, $remainingPaid));
+            $remainingPaid = max(0, $remainingPaid - $dueAmount);
+
+            $rows[] = [
+                'number' => $month,
+                'due_date' => $startDate->copy()->addMonthsNoOverflow($month)->format('d-m-Y'),
+                'amount' => $dueAmount,
+                'paid' => round($paidAmount, 2),
+                'remaining' => round(max(0, $dueAmount - $paidAmount), 2),
+                'status' => $paidAmount >= $dueAmount ? 'paid' : ($paidAmount > 0 ? 'partial' : 'pending'),
+            ];
+        }
+
+        $remainingTotal = round(max(0, $totalDue - $paidTotal), 2);
+
+        return [
+            'principal' => $principal,
+            'annual_rate' => $annualRate,
+            'term_months' => $termMonths,
+            'total_due' => $totalDue,
+            'paid_total' => min($paidTotal, $totalDue),
+            'overpaid' => round(max(0, $paidTotal - $totalDue), 2),
+            'remaining_total' => $remainingTotal,
+            'next_amount' => $this->nextLoanPaymentAmount($rows, $remainingTotal),
+            'rows' => $rows,
+        ];
+    }
+
+    private function loanPaymentTotal(int $loanId, string $projectId): float
+    {
+        if ($loanId <= 0 || ! Schema::hasTable('z_document')) {
+            return 0.0;
+        }
+
+        return (float) DB::table('z_document')
+            ->where('docid', (string) $loanId)
+            ->where('firma', $projectId)
+            ->where('type', 'PO')
+            ->where(function ($query) {
+                $query->where('typeproduct', 'credit_payment')
+                    ->orWhere('numorder', 'AV8-LOAN-PAYMENT')
+                    ->orWhere('content', 'like', '%[AV8_LOAN_PAYMENT]%');
+            })
+            ->sum('summa');
+    }
+
+    private function loanScheduleStartDate(string $date): Carbon
+    {
+        try {
+            return Carbon::createFromFormat('d-m-Y', $date)->startOfDay();
+        } catch (\Throwable) {
+            return now()->startOfDay();
+        }
+    }
+
+    private function nextLoanPaymentAmount(array $rows, float $remainingTotal): float
+    {
+        foreach ($rows as $row) {
+            if ((float) $row['remaining'] > 0) {
+                return (float) $row['remaining'];
+            }
+        }
+
+        return $remainingTotal;
     }
 
     private function parseLoanRequestContent(string $content): array
