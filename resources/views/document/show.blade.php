@@ -5,6 +5,7 @@
     @php
         $documentRoutes = $documentRoutePrefix ?? 'document';
         $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
+        $isLoanDocument = $documentRoutes === 'loan';
     @endphp
 
     <style>
@@ -457,16 +458,26 @@
 
         {{-- Header --}}
         <div class="doc-header">
-            <h2>{{ \App\Models\Document::typeName($doc) }} № {{ $document->num }}</h2>
+            <h2>
+                @if($isLoanDocument)
+                    Кредитный документ {{ $doc }} № {{ $document->num }}
+                @else
+                    {{ \App\Models\Document::typeName($doc) }} № {{ $document->num }}
+                @endif
+            </h2>
         </div>
 
         <div class="mb-2 d-flex flex-wrap gap-2">
             <a href="{{ $documentIndexUrl }}" class="btn btn-outline-secondary btn-sm">
-                ← До списку {{ \App\Models\Document::typeName($doc) }}
+                {{ $isLoanDocument ? '← К списку кредитных документов ' . $doc : '← До списку ' . \App\Models\Document::typeName($doc) }}
             </a>
             @if(!empty($parentDocumentUrl) && !empty($parentDocument))
                 <a href="{{ $parentDocumentUrl }}" class="btn btn-outline-primary btn-sm">
-                    ← До {{ \App\Models\Document::typeName($parentDocument->type) }} № {{ $parentDocument->num }}
+                    @if($isLoanDocument)
+                        ← К кредитной заявке {{ $parentDocument->type }} № {{ $parentDocument->num }}
+                    @else
+                        ← До {{ \App\Models\Document::typeName($parentDocument->type) }} № {{ $parentDocument->num }}
+                    @endif
                 </a>
             @endif
         </div>
@@ -503,7 +514,7 @@
         {{-- Related icons strip (client_info) --}}
         @if(!empty($relatedIcons))
             <div class="alert alert-secondary py-2 related-icons-bar">
-                <strong>Зв'язані:</strong> {!! $relatedIcons !!}
+                <strong>{{ $isLoanDocument ? 'Связанные кредитные документы:' : "Зв'язані:" }}</strong> {!! $relatedIcons !!}
             </div>
         @endif
 
@@ -918,7 +929,7 @@
                 @if(!empty($relatedDocs))
                     <div class="doc-related-col">
                         <div class="related-panel">
-                            <h5>📋 Зв'язані документи</h5>
+                            <h5>{{ $isLoanDocument ? '📋 Документы кредита' : "📋 Зв'язані документи" }}</h5>
                             {!! $relatedDocs['html'] !!}
                         </div>
                     </div>

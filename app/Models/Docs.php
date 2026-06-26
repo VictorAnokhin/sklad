@@ -35,7 +35,7 @@ class Docs extends Model
      * @param bool   $orderPosted whether the related order/purchase is posted
      * @return array{html: string, sums: array}
      */
-    public static function clientInfo1($client, $numz, $typez, $doc, $idstatus, $year, $docid, $summaZ, bool $orderPosted = false)
+    public static function clientInfo1($client, $numz, $typez, $doc, $idstatus, $year, $docid, $summaZ, bool $orderPosted = false, string $routePrefix = 'document')
     {
         // Balance
         $balance = DB::table('users')->where('id', $client)->value('balance') ?? 0;
@@ -81,7 +81,7 @@ class Docs extends Model
                 $typeName = Document::typeName($type);
                 $icon = $typeIcons[$type] ?? '📋';
                 $isCurrentDoc = ($doc === $type);
-                $showUrl = route('document.show', [
+                $showUrl = route($routePrefix . '.show', [
                     'doc'           => $type,
                     'doc_id'        => $id,
                     'parent_doc_id' => $docid,
@@ -120,7 +120,7 @@ class Docs extends Model
             $icon     = $typeIcons[$type] ?? '📋';
             $isCurrentDoc = ($doc === $type);
             $postedClass  = $provodka == 1 ? ' rel-doc-link--posted' : '';
-            $showUrl = route('document.show', [
+            $showUrl = route($routePrefix . '.show', [
                 'doc'           => $type,
                 'doc_id'        => $id,
                 'parent_doc_id' => $docid,
@@ -158,19 +158,20 @@ class Docs extends Model
                     $strRO .= "<div class='tstr'>$link</div>";
                     break;
                 case 'RA':
-                    $strRA .= "<div class='tstr'><a class='rel-doc-link rel-doc-link--RA' href='../document/show?doc={$type}&doc_id={$id}&num={$num}&year={$year}'>📎 Файл №{$num} від {$data} : {$content}</a></div>";
+                    $raUrl = route($routePrefix . '.show', ['doc' => $type, 'doc_id' => $id, 'num' => $num, 'year' => $year_]);
+                    $strRA .= "<div class='tstr'><a class='rel-doc-link rel-doc-link--RA' href='{$raUrl}'>📎 Файл №{$num} від {$data} : {$content}</a></div>";
                     break;
             }
         }
 
         $remainingPayment = max(0, (float)$sum);
-        $createWO1Url = route('document.show', ['doc' => 'WO1', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createRNUrl  = route('document.show', ['doc' => 'RN',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createCHUrl  = route('document.show', ['doc' => 'CH',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createPOUrl  = route('document.show', ['doc' => 'PO',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
-        $createPNUrl  = route('document.show', ['doc' => 'PN',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createROUrl  = route('document.show', ['doc' => 'RO',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
-        $createRAUrl  = route('document.show', ['doc' => 'RA',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createWO1Url = route($routePrefix . '.show', ['doc' => 'WO1', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createRNUrl  = route($routePrefix . '.show', ['doc' => 'RN',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createCHUrl  = route($routePrefix . '.show', ['doc' => 'CH',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createPOUrl  = route($routePrefix . '.show', ['doc' => 'PO',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
+        $createPNUrl  = route($routePrefix . '.show', ['doc' => 'PN',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createROUrl  = route($routePrefix . '.show', ['doc' => 'RO',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
+        $createRAUrl  = route($routePrefix . '.show', ['doc' => 'RA',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
         $canCreateRN  = $summaZ <= 0 || $sumRN < $summaZ;
         $canCreatePO  = $summaZ <= 0 || $sumPO < $summaZ;
         $canCreatePN  = $summaZ <= 0 || $sumPN < $summaZ;
@@ -190,7 +191,7 @@ class Docs extends Model
         $parentOrderNum  = (string) ($parentOrder->num  ?? $numz);
         $orderLabel      = $parentOrderType === 'ZIN' ? '📦 Закупка' : '🛒 Заказ';
         $parentOrderUrl  = $docid
-            ? route('document.show', ['doc' => $parentOrderType, 'doc_id' => $docid, 'num' => $parentOrderNum, 'year' => $year])
+            ? route($routePrefix . '.show', ['doc' => $parentOrderType, 'doc_id' => $docid, 'num' => $parentOrderNum, 'year' => $year])
             : null;
 
         if (!in_array($doc, ['ZIN', 'ZOUT'], true) && $parentOrderUrl) {

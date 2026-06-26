@@ -558,6 +558,8 @@ class DocumentController extends Controller
             }
         }
 
+        $documentRoutePrefix = $this->documentRoutePrefix();
+
         // Related documents (legacy client_info / client_info1)
         $clientId = $document->client1 ?? 0;
         $numz = $parentNumz;
@@ -591,7 +593,7 @@ class DocumentController extends Controller
         if ($isZakazType && $clientId > 0) {
             $relatedDocs = Docs::clientInfo1(
                 $clientId, $numz, $typez, $doc, $idstatus, $year, $docid,
-                $relatedDocTotal, $orderPosted
+                $relatedDocTotal, $orderPosted, $documentRoutePrefix
             );
         }
 
@@ -603,7 +605,6 @@ class DocumentController extends Controller
             );
         }
 
-        $documentRoutePrefix = $this->documentRoutePrefix();
         $documentIndexUrl = route($documentRoutePrefix . '.index', ['doc' => $doc]);
         $parentDocumentUrl = $parentDocument
             ? route($documentRoutePrefix . '.show', [
