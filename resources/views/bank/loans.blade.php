@@ -106,26 +106,29 @@
             <form method="POST" action="{{ route('bank.loans.store') }}" class="bank-loan-form" data-loan-request-form>
             @csrf
             <input type="hidden" name="loan_id" value="{{ old('loan_id') }}" data-loan-field="loan_id">
-            <label class="bank-field bank-field--wide">
+            @php($selectedBorrower = old('borrower_id') ? $borrowers->firstWhere('id', (int) old('borrower_id')) : null)
+            <div class="bank-field bank-field--wide bank-loan-borrower-field">
                 <span>Заемщик</span>
-                <select name="borrower_id" class="form-select" data-loan-field="borrower_id" required>
-                    <option value="">— выберите клиента —</option>
-                    @foreach($borrowers as $borrower)
-                        <option value="{{ $borrower->id }}" {{ (string) old('borrower_id') === (string) $borrower->id ? 'selected' : '' }}>
-                            {{ $borrower->display_name }}{{ $borrower->contact_line !== '' ? ' · ' . $borrower->contact_line : '' }}
-                        </option>
-                    @endforeach
-                </select>
-            </label>
+                <input type="text" class="form-control" placeholder="Поиск по клиентам..." autocomplete="off" value="{{ $selectedBorrower?->display_name ?? '' }}" data-loan-borrower-search>
+                <input type="hidden" name="borrower_id" value="{{ old('borrower_id') }}" data-loan-field="borrower_id" required>
+                <div class="bank-loan-borrower-results" data-loan-borrower-results hidden></div>
+                <div class="bank-loan-borrower-details" data-loan-borrower-details>
+                    @if($selectedBorrower)
+                        <strong>{{ $selectedBorrower->display_name }}</strong>{{ $selectedBorrower->contact_line !== '' ? ' · ' . $selectedBorrower->contact_line : '' }}
+                    @else
+                        Заемщик не выбран
+                    @endif
+                </div>
+            </div>
 
             <label class="bank-field">
                 <span>Тип залога</span>
-                <select name="collateral_type" class="form-select" data-loan-field="collateral_type" required>
-                    <option value="auto" {{ old('collateral_type', 'auto') === 'auto' ? 'selected' : '' }}>Автомобиль</option>
-                    <option value="special_equipment" {{ old('collateral_type') === 'special_equipment' ? 'selected' : '' }}>Спецтехника</option>
-                    <option value="license_plate" {{ old('collateral_type') === 'license_plate' ? 'selected' : '' }}>Госномер</option>
-                    <option value="other" {{ old('collateral_type') === 'other' ? 'selected' : '' }}>Другое</option>
-                </select>
+                <input type="text" name="collateral_type" value="{{ old('collateral_type', 'Автомобиль') }}" class="form-control" list="loanCollateralOptions" data-loan-field="collateral_type" required>
+                <datalist id="loanCollateralOptions">
+                    @foreach($collateralOptions as $collateralOption)
+                        <option value="{{ $collateralOption }}"></option>
+                    @endforeach
+                </datalist>
             </label>
 
             <label class="bank-field">
@@ -136,10 +139,15 @@
             <label class="bank-field">
                 <span>LTV сделки</span>
                 <select name="ltv" class="form-select" data-loan-field="ltv" data-loan-ltv required>
-                    @foreach([40, 50, 60, 70, 80, 90] as $ltv)
+                    @foreach([40, 50, 60, 70, 80, 90, 100] as $ltv)
                         <option value="{{ $ltv }}" {{ (string) old('ltv', '70') === (string) $ltv ? 'selected' : '' }}>{{ $ltv }}%</option>
                     @endforeach
                 </select>
+            </label>
+
+            <label class="bank-field">
+                <span>Сумма кредита</span>
+                <input type="number" step="0.01" min="0" name="loan_amount" value="{{ old('loan_amount') }}" class="form-control" data-loan-field="loan_amount" data-loan-amount-input required>
             </label>
 
             <label class="bank-field">
@@ -180,7 +188,7 @@
                 <div>
                     <div class="bank-label">Расчетная сумма кредита</div>
                     <div class="bank-value" data-loan-amount>0.00</div>
-                    <div class="bank-meta">Рыночная стоимость × LTV. Эта сумма попадет в ZOUT.</div>
+                    <div class="bank-meta">Рыночная стоимость × LTV подставляется в поле суммы, но сумму можно изменить вручную.</div>
                 </div>
                 <div class="bank-modal__actions bank-loan-modal-actions">
                     <button type="submit" class="btn btn-primary">Сохранить</button>
@@ -241,6 +249,36 @@
         </div>
     </div>
 
+    <div class="bank-modal" data-loan-filter-modal hidden>
+        <div class="bank-modal__backdrop" data-loan-filter-close></div>
+        <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="loanFilterModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Фильтр</div>
+                    <h2 id="loanFilterModalTitle">Кредитные заявки</h2>
+                </div>
+                <button type="button" class="bank-modal__close" data-loan-filter-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="GET" action="{{ route('bank.loans') }}" class="bank-loan-filter-form">
+                <label class="bank-field">
+                    <span>Дата от</span>
+                    <input type="date" name="date_from" value="{{ $loanFilters['date_from'] ?? '' }}" class="form-control">
+                </label>
+                <label class="bank-field">
+                    <span>Дата до</span>
+                    <input type="date" name="date_to" value="{{ $loanFilters['date_to'] ?? '' }}" class="form-control">
+                </label>
+                <div class="bank-modal__actions bank-loan-filter-actions">
+                    @if(!empty($loanFilters['active']))
+                        <a href="{{ route('bank.loans') }}" class="btn btn-outline-light">Сбросить</a>
+                    @endif
+                    <button type="submit" class="btn btn-primary">Применить</button>
+                    <button type="button" class="btn btn-secondary" data-loan-filter-close>Отменить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
             <div>
@@ -252,7 +290,7 @@
                 <div class="bank-meta">ZOUT — заявка, RN — выдача кредита, RA — документы залога, PO/RO — платежи заемщика и выдача средств.</div>
             </div>
             <div class="bank-loan-toolbar">
-                <a href="{{ route('document.index', ['doc' => 'ZOUT']) }}" class="btn btn-sm btn-outline-light">Все ZOUT</a>
+                <button type="button" class="btn btn-sm {{ !empty($loanFilters['active']) ? 'btn-info' : 'btn-outline-light' }}" data-loan-filter-open>Фильтр</button>
                 <div class="bank-meta">{{ $loanRequests->count() }} заявок</div>
             </div>
         </div>
@@ -282,6 +320,7 @@
                             data-collateral-type="{{ $loanMeta['collateral_type'] ?? 'auto' }}"
                             data-market-value="{{ $loanMeta['market_value'] ?? '' }}"
                             data-ltv="{{ $loanMeta['ltv'] ?? '70' }}"
+                            data-loan-amount="{{ $loanMeta['loan_amount'] ?? $requestRow->summa }}"
                             data-interest-rate="{{ $loanMeta['interest_rate'] ?? '' }}"
                             data-loan-term-months="{{ $loanMeta['loan_term_months'] ?? '12' }}"
                             data-investor-yield="{{ $loanMeta['investor_yield'] ?? '' }}"
@@ -444,6 +483,49 @@
         min-height: 88px;
     }
 
+    .bank-loans-page .bank-loan-borrower-field {
+        position: relative;
+    }
+
+    .bank-loans-page .bank-loan-borrower-results {
+        position: absolute;
+        top: 68px;
+        right: 0;
+        left: 0;
+        z-index: 4;
+        max-height: 250px;
+        overflow: auto;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: #f8fafc;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .bank-loans-page .bank-loan-borrower-result {
+        display: block;
+        width: 100%;
+        padding: 9px 11px;
+        border: 0;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        background: #fff;
+        color: #0f172a;
+        text-align: left;
+    }
+
+    .bank-loans-page .bank-loan-borrower-result:hover {
+        background: #e0f2fe;
+    }
+
+    .bank-loans-page .bank-loan-borrower-result small,
+    .bank-loans-page .bank-loan-borrower-details {
+        color: rgba(148, 163, 184, 0.94);
+        font-size: 0.82rem;
+    }
+
+    .bank-loans-page .bank-loan-borrower-details {
+        min-height: 20px;
+    }
+
     .bank-loans-page .bank-loan-result {
         grid-column: 1 / -1;
         display: flex;
@@ -513,6 +595,18 @@
         grid-template-columns: minmax(180px, 280px) 1fr;
         gap: 14px;
         align-items: end;
+    }
+
+    .bank-loans-page .bank-loan-filter-form {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        padding: 18px 20px 20px;
+    }
+
+    .bank-loans-page .bank-loan-filter-actions {
+        grid-column: 1 / -1;
+        margin-top: 0;
     }
 
     .bank-loans-page .bank-payment-status {
@@ -662,7 +756,8 @@
         .bank-loans-page .bank-loan-form,
         .bank-loans-page .bank-loans-accounting__grid,
         .bank-loans-page .bank-loan-payment-summary,
-        .bank-loans-page .bank-loan-payment-form {
+        .bank-loans-page .bank-loan-payment-form,
+        .bank-loans-page .bank-loan-filter-form {
             grid-template-columns: 1fr;
         }
 
@@ -679,11 +774,15 @@
 
         const modal = root.querySelector('[data-loan-modal]');
         const paymentModal = root.querySelector('[data-loan-payment-modal]');
+        const filterModal = root.querySelector('[data-loan-filter-modal]');
         const form = root.querySelector('[data-loan-request-form]');
         if (!form) return;
 
         const titleNode = root.querySelector('[data-loan-modal-title]');
         const deleteButton = form.querySelector('[data-loan-delete]');
+        const borrowerSearch = form.querySelector('[data-loan-borrower-search]');
+        const borrowerResults = form.querySelector('[data-loan-borrower-results]');
+        const borrowerDetails = form.querySelector('[data-loan-borrower-details]');
         const paymentTitle = root.querySelector('[data-loan-payment-title]');
         const paymentForm = root.querySelector('[data-loan-payment-form]');
         const paymentLoanId = root.querySelector('[data-payment-loan-id]');
@@ -694,6 +793,7 @@
         const paymentRemaining = root.querySelector('[data-payment-remaining]');
         const marketInput = form.querySelector('[data-loan-market-value]');
         const ltvSelect = form.querySelector('[data-loan-ltv]');
+        const loanAmountInput = form.querySelector('[data-loan-amount-input]');
         const amountNode = form.querySelector('[data-loan-amount]');
         const fields = {};
 
@@ -709,18 +809,52 @@
         const recalc = () => {
             const market = Number(String(marketInput?.value || '').replace(',', '.')) || 0;
             const ltv = Number(ltvSelect?.value || 0) || 0;
-            if (amountNode) amountNode.textContent = formatAmount(market * ltv / 100);
+            const amount = market * ltv / 100;
+            if (amountNode) amountNode.textContent = formatAmount(amount);
+            if (loanAmountInput) loanAmountInput.value = amount > 0 ? amount.toFixed(2) : '';
+        };
+
+        const syncAmountPreview = () => {
+            const amount = Number(String(loanAmountInput?.value || '').replace(',', '.')) || 0;
+            if (amountNode) amountNode.textContent = formatAmount(amount);
         };
 
         const setField = (name, value) => {
             if (fields[name]) fields[name].value = value ?? '';
         };
 
-        const openModal = () => {
+        const escapeHtml = (value) => String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+
+        const formatBorrowerName = (user) => [user.secondname || '', user.name || user.name2 || ''].filter(Boolean).join(' ').trim();
+        const borrowerLabel = (user) => [user.orgname || '', formatBorrowerName(user)].filter(Boolean).join(' ').trim() || `Client #${user.id}`;
+        const borrowerDetailsHtml = (user) => {
+            const label = borrowerLabel(user);
+            const contact = [user.phone || '', user.region || '', user.city || '', user.poshta || ''].filter(Boolean).join(' · ');
+
+            return `<strong>${escapeHtml(label)}</strong>${contact ? ' · ' + escapeHtml(contact) : ''}`;
+        };
+
+        const setBorrower = (id, label, detailsHtml = '') => {
+            setField('borrower_id', id || '');
+            if (borrowerSearch) borrowerSearch.value = label || '';
+            if (borrowerDetails) borrowerDetails.innerHTML = detailsHtml || (label ? `<strong>${escapeHtml(label)}</strong>` : 'Заемщик не выбран');
+            if (borrowerResults) borrowerResults.hidden = true;
+        };
+
+        const openModal = (shouldRecalc = true) => {
             if (!modal) return;
             modal.hidden = false;
-            recalc();
-            setTimeout(() => fields.borrower_id?.focus(), 30);
+            if (shouldRecalc) {
+                recalc();
+            } else {
+                syncAmountPreview();
+            }
+            setTimeout(() => borrowerSearch?.focus(), 30);
         };
 
         const closeModal = () => {
@@ -731,13 +865,22 @@
             if (paymentModal) paymentModal.hidden = true;
         };
 
+        const openFilterModal = () => {
+            if (filterModal) filterModal.hidden = false;
+        };
+
+        const closeFilterModal = () => {
+            if (filterModal) filterModal.hidden = true;
+        };
+
         const openNewLoan = () => {
             form.reset();
             setField('loan_id', '');
-            setField('borrower_id', '');
-            setField('collateral_type', 'auto');
+            setBorrower('', '');
+            setField('collateral_type', 'Автомобиль');
             setField('market_value', '');
             setField('ltv', '70');
+            setField('loan_amount', '');
             setField('interest_rate', '');
             setField('loan_term_months', '12');
             setField('investor_yield', '');
@@ -750,10 +893,11 @@
 
         const openExistingLoan = (row) => {
             setField('loan_id', row.dataset.loanId || '');
-            setField('borrower_id', row.dataset.borrowerId || '');
-            setField('collateral_type', row.dataset.collateralType || 'auto');
+            setBorrower(row.dataset.borrowerId || '', row.dataset.borrowerName || '');
+            setField('collateral_type', row.dataset.collateralType || 'Автомобиль');
             setField('market_value', row.dataset.marketValue || '');
             setField('ltv', row.dataset.ltv || '70');
+            setField('loan_amount', row.dataset.loanAmount || '');
             setField('interest_rate', row.dataset.interestRate || '');
             setField('loan_term_months', row.dataset.loanTermMonths || '12');
             setField('investor_yield', row.dataset.investorYield || '');
@@ -761,7 +905,7 @@
             setField('comment', row.dataset.comment || '');
             if (titleNode) titleNode.textContent = `Заявка #${row.dataset.loanNum || row.dataset.loanId || ''}`;
             if (deleteButton) deleteButton.hidden = false;
-            openModal();
+            openModal(false);
         };
 
         const statusLabel = (status) => ({
@@ -807,6 +951,7 @@
 
         marketInput?.addEventListener('input', recalc);
         ltvSelect?.addEventListener('change', recalc);
+        loanAmountInput?.addEventListener('input', syncAmountPreview);
 
         root.querySelectorAll('[data-loan-open]').forEach((button) => {
             button.addEventListener('click', openNewLoan);
@@ -828,6 +973,10 @@
             });
         });
 
+        root.querySelectorAll('[data-loan-filter-open]').forEach((button) => {
+            button.addEventListener('click', openFilterModal);
+        });
+
         root.querySelectorAll('[data-loan-close]').forEach((button) => {
             button.addEventListener('click', closeModal);
         });
@@ -836,9 +985,68 @@
             button.addEventListener('click', closePaymentModal);
         });
 
+        root.querySelectorAll('[data-loan-filter-close]').forEach((button) => {
+            button.addEventListener('click', closeFilterModal);
+        });
+
+        let borrowerSearchTimeout = null;
+        const runBorrowerSearch = () => {
+            const q = (borrowerSearch?.value || '').trim();
+            if (!borrowerResults) return;
+            if (q.length < 2) {
+                borrowerResults.hidden = true;
+                borrowerResults.innerHTML = '';
+                return;
+            }
+
+            fetch(`{{ route('client.search') }}?${new URLSearchParams({ q }).toString()}`)
+                .then((response) => response.json())
+                .then((users) => {
+                    borrowerResults.innerHTML = '';
+                    if (!Array.isArray(users) || users.length === 0) {
+                        borrowerResults.innerHTML = '<div class="bank-loan-borrower-result">Ничего не найдено</div>';
+                    } else {
+                        users.forEach((user) => {
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className = 'bank-loan-borrower-result';
+                            button.innerHTML = `${borrowerDetailsHtml(user)}${user.usergroup_name ? `<br><small>${escapeHtml(user.usergroup_name)}</small>` : ''}`;
+                            button.addEventListener('click', () => setBorrower(user.id, borrowerLabel(user), borrowerDetailsHtml(user)));
+                            borrowerResults.appendChild(button);
+                        });
+                    }
+                    borrowerResults.hidden = false;
+                })
+                .catch(() => {
+                    borrowerResults.innerHTML = '<div class="bank-loan-borrower-result">Ошибка поиска</div>';
+                    borrowerResults.hidden = false;
+                });
+        };
+
+        borrowerSearch?.addEventListener('input', () => {
+            setField('borrower_id', '');
+            if (borrowerDetails) borrowerDetails.textContent = 'Выберите заемщика из списка';
+            clearTimeout(borrowerSearchTimeout);
+            borrowerSearchTimeout = setTimeout(runBorrowerSearch, 350);
+        });
+
+        borrowerSearch?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                runBorrowerSearch();
+            }
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!borrowerSearch?.contains(event.target) && !borrowerResults?.contains(event.target)) {
+                if (borrowerResults) borrowerResults.hidden = true;
+            }
+        });
+
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && modal && !modal.hidden) closeModal();
             if (event.key === 'Escape' && paymentModal && !paymentModal.hidden) closePaymentModal();
+            if (event.key === 'Escape' && filterModal && !filterModal.hidden) closeFilterModal();
         });
 
         deleteButton?.addEventListener('click', (event) => {
@@ -856,7 +1064,7 @@
             } else if (deleteButton) {
                 deleteButton.hidden = true;
             }
-            openModal();
+            openModal(false);
         }
     });
 </script>

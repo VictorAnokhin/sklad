@@ -2857,14 +2857,17 @@ class BankController extends Controller
         return $this->placeholder('Сверка', 'Сверка остатков касс, ledger-проводок и blockchain-транзакций.');
     }
 
-    public function loans(): View
+    public function loans(Request $request): View
     {
         $project = $this->bankProject();
+        $filters = $this->loanRequestFilters($request);
 
         return view('bank.loans', [
             'project' => $project,
             'borrowers' => $this->loanBorrowerOptions($project),
-            'loanRequests' => $this->loanRequestRows($project),
+            'collateralOptions' => $this->loanCollateralOptions($project),
+            'loanRequests' => $this->loanRequestRows($project, $filters),
+            'loanFilters' => $filters,
         ]);
     }
 
@@ -2912,9 +2915,10 @@ class BankController extends Controller
         $payload = $request->validate([
             'loan_id' => ['nullable', 'integer', 'min:0'],
             'borrower_id' => ['required', 'integer', 'min:1'],
-            'collateral_type' => ['required', Rule::in(['auto', 'special_equipment', 'license_plate', 'other'])],
+            'collateral_type' => ['required', 'string', 'max:120'],
             'market_value' => ['required', 'numeric', 'gt:0', 'max:999999999'],
-            'ltv' => ['required', Rule::in(['40', '50', '60', '70', '80', '90'])],
+            'ltv' => ['required', Rule::in(['40', '50', '60', '70', '80', '90', '100'])],
+            'loan_amount' => ['required', 'numeric', 'gt:0', 'max:999999999'],
             'interest_rate' => ['required', 'numeric', 'min:0', 'max:100'],
             'loan_term_months' => ['required', Rule::in(['6', '12', '24', '36'])],
             'investor_yield' => ['required', 'numeric', 'min:0', 'max:100'],
@@ -2936,7 +2940,8 @@ class BankController extends Controller
 
         $marketValue = round((float) $payload['market_value'], 2);
         $ltv = (int) $payload['ltv'];
-        $loanAmount = round($marketValue * $ltv / 100, 2);
+        $loanAmount = round((float) $payload['loan_amount'], 2);
+        $collateralLabel = trim((string) $payload['collateral_type']);
         $deadlineDays = (int) $payload['deadline_days'];
         $termMonths = (int) $payload['loan_term_months'];
         $now = now();
@@ -2959,16 +2964,10 @@ class BankController extends Controller
             }
         }
         $num = $existing ? (string) ($existing->num ?? '') : Document::assignNextNum('ZOUT', (string) $project->id, $year);
-        $collateralLabels = [
-            'auto' => 'Автомобиль',
-            'special_equipment' => 'Спецтехника',
-            'license_plate' => 'Госномер',
-            'other' => 'Другое',
-        ];
         $deadlineAt = $now->copy()->addDays($deadlineDays);
         $content = implode("\n", array_filter([
             '[AV8_LOAN_REQUEST]',
-            'Тип залога: ' . $collateralLabels[$payload['collateral_type']],
+            'Тип залога: ' . $collateralLabel,
             'Рыночная стоимость: ' . number_format($marketValue, 2, '.', ' '),
             'LTV сделки: ' . $ltv . '%',
             'Сумма кредита: ' . number_format($loanAmount, 2, '.', ' '),
@@ -3141,7 +3140,35 @@ class BankController extends Controller
             });
     }
 
-    private function loanRequestRows(Project $project)
+    private function loanCollateralOptions(Project $project)
+    {
+        if (! Schema::hasTable('document')) {
+            return collect(['Автомобиль', 'Спецтехника', 'Госномер', 'Другое']);
+        }
+
+        $saved = DB::table('document')
+            ->where('firma', (string) $project->id)
+            ->where('type', 'ZOUT')
+            ->where(function ($query) {
+                $query->where('typeproduct', 'credit_request')
+                    ->orWhere('numorder', 'AV8-LOAN')
+                    ->orWhere('content', 'like', '%[AV8_LOAN_REQUEST]%');
+            })
+            ->orderByDesc('dt')
+            ->limit(200)
+            ->pluck('content')
+            ->map(fn ($content) => $this->parseLoanRequestContent((string) $content)['collateral_type'] ?? '')
+            ->filter(fn ($label) => trim((string) $label) !== '');
+
+        return collect(['Автомобиль', 'Спецтехника', 'Госномер', 'Другое'])
+            ->merge($saved)
+            ->map(fn ($label) => trim((string) $label))
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    private function loanRequestRows(Project $project, array $filters = [])
     {
         if (! Schema::hasTable('document')) {
             return collect();
@@ -3156,6 +3183,8 @@ class BankController extends Controller
                     ->orWhere('d.numorder', 'AV8-LOAN')
                     ->orWhere('d.content', 'like', '%[AV8_LOAN_REQUEST]%');
             })
+            ->when($filters['date_from_ts'] ?? null, fn ($query, $timestamp) => $query->where('d.dt', '>=', $timestamp))
+            ->when($filters['date_to_ts'] ?? null, fn ($query, $timestamp) => $query->where('d.dt', '<=', $timestamp))
             ->orderByDesc('d.dt')
             ->limit(20)
             ->get([
@@ -3225,6 +3254,35 @@ class BankController extends Controller
 
                 return $row;
             });
+    }
+
+    private function loanRequestFilters(Request $request): array
+    {
+        $dateFrom = trim((string) $request->query('date_from', ''));
+        $dateTo = trim((string) $request->query('date_to', ''));
+
+        return [
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            'date_from_ts' => $this->loanFilterTimestamp($dateFrom, false),
+            'date_to_ts' => $this->loanFilterTimestamp($dateTo, true),
+            'active' => $dateFrom !== '' || $dateTo !== '',
+        ];
+    }
+
+    private function loanFilterTimestamp(string $date, bool $endOfDay): ?int
+    {
+        if ($date === '') {
+            return null;
+        }
+
+        try {
+            $carbon = Carbon::createFromFormat('Y-m-d', $date);
+
+            return $endOfDay ? $carbon->endOfDay()->timestamp : $carbon->startOfDay()->timestamp;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function loanRepaymentSchedule(object $loan, array $loanMeta): array
@@ -3318,13 +3376,7 @@ class BankController extends Controller
 
             return '';
         };
-        $collateralLabel = $read('Тип залога');
-        $collateralType = match ($collateralLabel) {
-            'Спецтехника' => 'special_equipment',
-            'Госномер' => 'license_plate',
-            'Другое' => 'other',
-            default => 'auto',
-        };
+        $collateralLabel = $read('Тип залога') ?: 'Автомобиль';
         $termLabel = $read('Срок кредита');
         $termMonths = match ($termLabel) {
             '6 мес.' => '6',
@@ -3335,8 +3387,9 @@ class BankController extends Controller
         $deadlineText = $read('Дедлайн сбора');
 
         return [
-            'collateral_type' => $collateralType,
+            'collateral_type' => $collateralLabel,
             'market_value' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Рыночная стоимость'))) ?: '',
+            'loan_amount' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Сумма кредита'))) ?: '',
             'ltv' => preg_replace('/\D+/', '', $read('LTV сделки')) ?: '70',
             'interest_rate' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Процентная ставка заемщика'))) ?: '',
             'loan_term_months' => $termMonths,
