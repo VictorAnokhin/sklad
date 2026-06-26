@@ -1117,7 +1117,7 @@
                 </div>
 
                 {{-- RIGHT: Related documents (client_info1) --}}
-                @if(!$showLoanRepaymentSchedule && !empty($relatedDocs))
+                @if(!empty($relatedDocs))
                     <div class="doc-related-col">
                         <div class="related-panel">
                             <h5>{{ $isLoanDocument ? '📋 Документы кредита' : "📋 Зв'язані документи" }}</h5>
