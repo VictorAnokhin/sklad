@@ -686,6 +686,114 @@
                         @enderror
                     </div>
 
+                    @if($hideGoodsSection)
+                        <div class="loan-request-fields">
+                            <div class="doc-form-row doc-form-row-two-cols">
+                                <div class="col-f">
+                                    <label>Тип залога</label>
+                                    <input type="text" name="collateral_type" value="{{ old('collateral_type', $loanMeta['collateral_type'] ?? 'Автомобиль') }}"
+                                        class="form-control text-white" list="loanCollateralOptions" required>
+                                    <datalist id="loanCollateralOptions">
+                                        @foreach(($loanCollateralOptions ?? collect()) as $collateralOption)
+                                            <option value="{{ $collateralOption }}"></option>
+                                        @endforeach
+                                    </datalist>
+                                    @error('collateral_type')
+                                        <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-f">
+                                    <label>Рыночная стоимость</label>
+                                    <input type="number" step="0.01" min="0" name="market_value"
+                                        value="{{ old('market_value', $loanMeta['market_value'] ?? '') }}"
+                                        class="form-control text-white" data-loan-market-value required>
+                                    @error('market_value')
+                                        <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            <div class="doc-form-row doc-form-row-two-cols">
+                                <div class="col-f">
+                                    <label>LTV сделки</label>
+                                    <select name="ltv" class="form-select text-white" data-loan-ltv required>
+                                        @foreach([40, 50, 60, 70, 80, 90, 100] as $ltv)
+                                            <option value="{{ $ltv }}" {{ (string) old('ltv', $loanMeta['ltv'] ?? '70') === (string) $ltv ? 'selected' : '' }}>{{ $ltv }}%</option>
+                                        @endforeach
+                                    </select>
+                                    @error('ltv')
+                                        <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-f">
+                                    <label>Сумма кредита</label>
+                                    <input type="number" step="0.01" min="0" name="loan_amount" id="loanAmountInput"
+                                        value="{{ old('loan_amount', $loanMeta['loan_amount'] ?? $document->summa ?? '') }}"
+                                        class="form-control text-white" data-loan-amount-input required>
+                                    @error('loan_amount')
+                                        <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            <div class="doc-form-row doc-form-row-two-cols">
+                                <div class="col-f">
+                                    <label>Процентная ставка</label>
+                                    <input type="number" step="0.01" min="0" max="100" name="interest_rate"
+                                        value="{{ old('interest_rate', $loanMeta['interest_rate'] ?? '') }}"
+                                        class="form-control text-white" required>
+                                    @error('interest_rate')
+                                        <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-f">
+                                    <label>Срок кредита</label>
+                                    <select name="loan_term_months" class="form-select text-white" required>
+                                        <option value="6" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '6' ? 'selected' : '' }}>6 мес</option>
+                                        <option value="12" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '12' ? 'selected' : '' }}>1 год</option>
+                                        <option value="24" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '24' ? 'selected' : '' }}>2 года</option>
+                                        <option value="36" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '36' ? 'selected' : '' }}>3 года</option>
+                                    </select>
+                                    @error('loan_term_months')
+                                        <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            <div class="doc-form-row doc-form-row-two-cols">
+                                <div class="col-f">
+                                    <label>Доходность для инвесторов</label>
+                                    <input type="number" step="0.01" min="0" max="100" name="investor_yield"
+                                        value="{{ old('investor_yield', $loanMeta['investor_yield'] ?? '') }}"
+                                        class="form-control text-white" required>
+                                    @error('investor_yield')
+                                        <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-f">
+                                    <label>Дедлайн</label>
+                                    <select name="deadline_days" class="form-select text-white" required>
+                                        @foreach([3, 7, 14, 21] as $days)
+                                            <option value="{{ $days }}" {{ (string) old('deadline_days', $loanMeta['deadline_days'] ?? '7') === (string) $days ? 'selected' : '' }}>{{ $days }} {{ $days === 21 ? 'день' : 'дней' }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('deadline_days')
+                                        <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            <div class="doc-form-row-single">
+                                <label>Комментарий риск-менеджера</label>
+                                <textarea name="comment" class="form-control text-white" rows="3"
+                                    placeholder="Описание залога, VIN/госномер, условия удержания, примечания скоринга">{{ old('comment', $loanMeta['comment'] ?? '') }}</textarea>
+                                @error('comment')
+                                    <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                    @endif
+
                     <!-- Сума field for PO/RO documents -->
                     @if(in_array($doc, ['PO', 'RO', 'ZP'], true))
                         <div class="doc-form-row-single">
@@ -871,10 +979,12 @@
                     @endif
 
                     <!-- Примечание field -->
-                    <div class="doc-form-row-single">
-                        <label>Примечание</label>
-                        <textarea name="content" class="form-control text-white" rows="3" placeholder="Внесіть примітку до документа">{{ $document->content ?? '' }}</textarea>
-                    </div>
+                    @if(!$hideGoodsSection)
+                        <div class="doc-form-row-single">
+                            <label>Примечание</label>
+                            <textarea name="content" class="form-control text-white" rows="3" placeholder="Внесіть примітку до документа">{{ $document->content ?? '' }}</textarea>
+                        </div>
+                    @endif
 
                     {{-- Action buttons (inside form) --}}
                     <div class="doc-actions">
@@ -1073,6 +1183,9 @@
             const client1Id = document.getElementById('client1_id');
             const clientDetails = document.getElementById('selectedClientDetails');
             const documentSummaInput1 = document.getElementById('documentSummaInput');
+            const loanMarketValueInput = document.querySelector('[data-loan-market-value]');
+            const loanLtvSelect = document.querySelector('[data-loan-ltv]');
+            const loanAmountInput = document.querySelector('[data-loan-amount-input]');
             const teamOnlyClientSearch = @json($doc === 'ZP');
             const formatClientName = (user) => [user.secondname || '', user.name || ''].filter(Boolean).join(' ').trim();
             const formatClientDetailsHtml = (user) => {
@@ -1887,6 +2000,18 @@
                     documentForm.submit();
                 }
             };
+
+            if (loanMarketValueInput && loanLtvSelect && loanAmountInput) {
+                const updateLoanAmount = () => {
+                    const marketValue = parseFloat(loanMarketValueInput.value || '0') || 0;
+                    const ltv = parseFloat(loanLtvSelect.value || '0') || 0;
+                    const calculated = marketValue * ltv / 100;
+                    loanAmountInput.value = calculated > 0 ? calculated.toFixed(2) : '';
+                };
+
+                loanMarketValueInput.addEventListener('input', updateLoanAmount);
+                loanLtvSelect.addEventListener('change', updateLoanAmount);
+            }
 
             window.confirmAndSubmitItemDelete = function(btn) {
                 if (!btn || !btn.value) {

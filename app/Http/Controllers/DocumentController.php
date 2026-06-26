@@ -562,6 +562,30 @@ class DocumentController extends Controller
         }
 
         $documentRoutePrefix = $this->documentRoutePrefix();
+        $isLoanRequestDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'ZOUT';
+        $loanMeta = [];
+        $loanCollateralOptions = collect(['Автомобиль', 'Спецтехника', 'Госномер']);
+        if ($isLoanRequestDocument) {
+            $loanMeta = $this->parseLoanRequestContent((string) ($document->content ?? ''));
+            $loanMeta['loan_amount'] = $loanMeta['loan_amount'] !== '' ? $loanMeta['loan_amount'] : (string) ($document->summa ?? '');
+            $loanMeta['ltv'] = $loanMeta['ltv'] !== '' ? $loanMeta['ltv'] : (string) ($document->reteil ?? '70');
+            $loanCollateralOptions = $loanCollateralOptions
+                ->merge(
+                    DB::table('document')
+                        ->where('type', 'ZOUT')
+                        ->where('firma', $fid)
+                        ->where(function ($query) {
+                            $query->where('typeproduct', 'credit_request')
+                                ->orWhere('numorder', 'AV8-LOAN')
+                                ->orWhere('content', 'like', '%[AV8_LOAN_REQUEST]%');
+                        })
+                        ->pluck('content')
+                        ->map(fn ($content) => $this->parseLoanRequestContent((string) $content)['collateral_type'] ?? '')
+                        ->filter()
+                )
+                ->unique()
+                ->values();
+        }
 
         // Related documents (legacy client_info / client_info1)
         $clientId = $document->client1 ?? 0;
@@ -624,7 +648,7 @@ class DocumentController extends Controller
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
-            'mappingTargetProjectId', 'documentRoutePrefix'
+            'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions'
         ));
     }
 
@@ -923,6 +947,10 @@ class DocumentController extends Controller
             }
 
             session(['doc' => $doc, 'doc_id' => $docId]);
+
+            if ($this->documentRoutePrefix() === 'bank.loanDocs' && $doc === 'ZOUT') {
+                return $this->saveLoanRequestDocument($request, $docId, $fid);
+            }
             
             \Illuminate\Support\Facades\Log::info('Document save started', [
                 'doc' => $doc,
@@ -1509,6 +1537,191 @@ class DocumentController extends Controller
             ->groupBy(fn ($row) => (string) $row->source_product_id)
             ->map(fn ($rows) => (string) $rows->first()->target_product_id)
             ->all();
+    }
+
+    private function saveLoanRequestDocument(Request $request, string $docId, string $fid)
+    {
+        $payload = [
+            'client1' => trim((string) $request->input('client1', '')),
+            'collateral_type' => trim((string) $request->input('collateral_type', '')),
+            'market_value' => (float) $request->input('market_value', 0),
+            'ltv' => (string) $request->input('ltv', ''),
+            'loan_amount' => (float) $request->input('loan_amount', 0),
+            'interest_rate' => (float) $request->input('interest_rate', 0),
+            'loan_term_months' => (string) $request->input('loan_term_months', ''),
+            'investor_yield' => (float) $request->input('investor_yield', 0),
+            'deadline_days' => (string) $request->input('deadline_days', ''),
+            'comment' => trim((string) $request->input('comment', '')),
+        ];
+
+        $errors = [];
+        if ($payload['client1'] === '') {
+            $errors['client1'] = 'Выберите заемщика';
+        }
+        if ($payload['collateral_type'] === '') {
+            $errors['collateral_type'] = 'Укажите тип залога';
+        }
+        if ($payload['market_value'] <= 0) {
+            $errors['market_value'] = 'Укажите рыночную стоимость';
+        }
+        if (! in_array($payload['ltv'], ['40', '50', '60', '70', '80', '90', '100'], true)) {
+            $errors['ltv'] = 'Выберите LTV сделки';
+        }
+        if ($payload['loan_amount'] <= 0) {
+            $errors['loan_amount'] = 'Укажите сумму кредита';
+        }
+        if ($payload['interest_rate'] < 0 || $payload['interest_rate'] > 100) {
+            $errors['interest_rate'] = 'Укажите процентную ставку от 0 до 100';
+        }
+        if (! in_array($payload['loan_term_months'], ['6', '12', '24', '36'], true)) {
+            $errors['loan_term_months'] = 'Выберите срок кредита';
+        }
+        if ($payload['investor_yield'] < 0 || $payload['investor_yield'] > 100) {
+            $errors['investor_yield'] = 'Укажите доходность для инвесторов от 0 до 100';
+        }
+        if (! in_array($payload['deadline_days'], ['3', '7', '14', '21'], true)) {
+            $errors['deadline_days'] = 'Выберите дедлайн';
+        }
+
+        $borrowerExists = $payload['client1'] !== ''
+            && DB::table('users')
+                ->where('id', (int) $payload['client1'])
+                ->when(Schema::hasColumn('users', 'firma'), fn ($query) => $query->whereIn('firma', HoldingScope::projectIdsFor($fid)))
+                ->exists();
+
+        if ($payload['client1'] !== '' && ! $borrowerExists) {
+            $errors['client1'] = 'Выберите заемщика из клиентов текущего bank scope.';
+        }
+
+        if ($errors !== []) {
+            return redirect()->back()->withErrors($errors)->withInput();
+        }
+
+        $document = DB::table('document')
+            ->where('id', $docId)
+            ->where('firma', $fid)
+            ->where('type', 'ZOUT')
+            ->first();
+
+        if (! $document) {
+            return redirect()->route($this->documentRoutePrefix() . '.index')->with('error', 'Кредитная заявка не найдена.');
+        }
+
+        $deadlineAt = now()->addDays((int) $payload['deadline_days']);
+        $content = $this->buildLoanRequestContent(
+            $payload['collateral_type'],
+            $payload['market_value'],
+            (int) $payload['ltv'],
+            $payload['loan_amount'],
+            $payload['interest_rate'],
+            (int) $payload['loan_term_months'],
+            $payload['investor_yield'],
+            (int) $payload['deadline_days'],
+            $deadlineAt->format('d-m-Y'),
+            $payload['comment']
+        );
+
+        $documentDate = trim((string) $request->input('data', ''));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $documentDate) === 1) {
+            $documentDate = \DateTimeImmutable::createFromFormat('Y-m-d', $documentDate)?->format('d-m-Y') ?? '';
+        }
+        if ($documentDate === '') {
+            $documentDate = (string) ($document->data ?? date('d-m-Y'));
+        }
+        $num = trim((string) $request->input('num', $document->num ?? ''));
+
+        DB::table('document')->where('id', $docId)->update([
+            'num' => $num,
+            'client1' => $payload['client1'],
+            'summa' => round($payload['loan_amount'], 2),
+            'status' => (string) $request->input('status', $document->status ?? 0),
+            'data' => $documentDate,
+            'data2' => $deadlineAt->format('d-m-Y'),
+            'time' => trim((string) $request->input('time', $document->time ?? '')),
+            'content' => $content,
+            'ttn' => trim((string) $request->input('ttn', $document->ttn ?? '')),
+            'reteil' => (string) $payload['ltv'],
+            'manager' => session('login', ''),
+            'user' => session('login', ''),
+            'numorder' => 'AV8-LOAN',
+            'typeproduct' => 'credit_request',
+        ]);
+
+        return redirect()->route($this->documentRoutePrefix() . '.show', [
+            'doc' => 'ZOUT',
+            'doc_id' => $docId,
+            'num' => $num,
+            'year' => strlen($documentDate) >= 10 ? substr($documentDate, 6, 4) : date('Y'),
+        ])->with('success', 'Кредитная заявка сохранена.');
+    }
+
+    private function parseLoanRequestContent(string $content): array
+    {
+        $read = static function (string $label) use ($content): string {
+            if (preg_match('/^' . preg_quote($label, '/') . ':\s*(.+)$/mu', $content, $matches) === 1) {
+                return trim((string) $matches[1]);
+            }
+
+            return '';
+        };
+
+        $termLabel = $read('Срок кредита');
+        $termMonths = match ($termLabel) {
+            '6 мес.' => '6',
+            '2 года' => '24',
+            '3 года' => '36',
+            default => '12',
+        };
+        $deadlineText = $read('Дедлайн сбора');
+
+        return [
+            'collateral_type' => $read('Тип залога') ?: 'Автомобиль',
+            'market_value' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Рыночная стоимость'))) ?: '',
+            'loan_amount' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Сумма кредита'))) ?: '',
+            'ltv' => preg_replace('/\D+/', '', $read('LTV сделки')) ?: '70',
+            'interest_rate' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Процентная ставка заемщика'))) ?: '',
+            'loan_term_months' => $termMonths,
+            'investor_yield' => preg_replace('/[^\d.]/', '', str_replace(' ', '', $read('Доходность для инвесторов'))) ?: '',
+            'deadline_days' => preg_match('/^(\d+)/', $deadlineText, $m) === 1 ? $m[1] : '7',
+            'comment' => $read('Комментарий'),
+        ];
+    }
+
+    private function buildLoanRequestContent(
+        string $collateralType,
+        float $marketValue,
+        int $ltv,
+        float $loanAmount,
+        float $interestRate,
+        int $termMonths,
+        float $investorYield,
+        int $deadlineDays,
+        string $deadlineDate,
+        string $comment
+    ): string {
+        return implode("\n", array_filter([
+            '[AV8_LOAN_REQUEST]',
+            'Тип залога: ' . $collateralType,
+            'Рыночная стоимость: ' . number_format($marketValue, 2, '.', ' '),
+            'LTV сделки: ' . $ltv . '%',
+            'Сумма кредита: ' . number_format($loanAmount, 2, '.', ' '),
+            'Процентная ставка заемщика: ' . number_format($interestRate, 2, '.', ' ') . '%',
+            'Срок кредита: ' . $this->loanTermLabel($termMonths),
+            'Доходность для инвесторов: ' . number_format($investorYield, 2, '.', ' ') . '%',
+            'Дедлайн сбора: ' . $deadlineDays . ' дн. (' . $deadlineDate . ')',
+            $comment !== '' ? 'Комментарий: ' . $comment : '',
+        ]));
+    }
+
+    private function loanTermLabel(int $months): string
+    {
+        return match ($months) {
+            6 => '6 мес.',
+            12 => '1 год',
+            24 => '2 года',
+            36 => '3 года',
+            default => $months . ' мес.',
+        };
     }
 
     private function documentRoutePrefix(): string
