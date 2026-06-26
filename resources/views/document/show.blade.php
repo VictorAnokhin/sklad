@@ -552,7 +552,7 @@
                     </div>
 
                     <!-- Row 2: Склад (only for RN, PN, WO1) -->
-                    @if(in_array($doc, ['RN', 'PN', 'WO1'], true))
+                    @if(!$showLoanRepaymentSchedule && in_array($doc, ['RN', 'PN', 'WO1'], true))
                         <div class="doc-form-row-single">
                             <label>Склад</label>
                             <select name="sklads" class="form-select text-white">
@@ -648,7 +648,7 @@
                         <div class="client-search-row d-flex gap-1">
                             <input type="text" id="clientSearchInput" class="form-control flex-grow-1 text-white" placeholder="{{ $doc === 'ZP' ? 'Пошук співробітника...' : 'Пошук клієнта...' }}"
                                 autocomplete="off">
-                            @if($doc !== 'ZP')
+                            @if($doc !== 'ZP' && !$showLoanRepaymentSchedule)
                                 <button type="button" id="editClientBtn" class="btn btn-outline-secondary text-white" data-bs-toggle="modal"
                                     data-bs-target="#newClientModal" style="{{ $client ? '' : 'display:none;' }}">Изменить</button>
                                 <button type="button" class="btn btn-outline-primary text-white" id="newClientBtn" data-bs-toggle="modal"
@@ -1065,57 +1065,59 @@
                     @endif
 
                     {{-- Action buttons (inside form) --}}
-                    <div class="doc-actions">
-                        @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'], true))
-                            @if((int) ($document->provodka ?? 0) === 1)
-                                <button type="button" 
-                                    onclick="forceSubmitAction(this, '', '', '{{ route($documentRoutes . '.provodka') }}')"
-                                    ontouchstart="forceSubmitAction(this, '', '', '{{ route($documentRoutes . '.provodka') }}'); event.preventDefault();"
-                                    class="btn btn-success">
-                                    ↺ Скасувати проводку
-                                </button>
-                            @else
-                                <div class="form-check d-flex align-items-center post-checkbox">
-                                    <!-- <input type="hidden" name="post_after_save" value="0"> -->
-                                    <input type="checkbox" class="form-check-input" id="post_after_save" name="post_after_save"
-                                        value="1" checked>
-                                    <label class="form-check-label ms-2 post-checkbox-label" for="post_after_save">
-                                        Провести документ
-                                    </label>
-                                </div>
+                    @if(!$showLoanRepaymentSchedule)
+                        <div class="doc-actions">
+                            @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'], true))
+                                @if((int) ($document->provodka ?? 0) === 1)
+                                    <button type="button" 
+                                        onclick="forceSubmitAction(this, '', '', '{{ route($documentRoutes . '.provodka') }}')"
+                                        ontouchstart="forceSubmitAction(this, '', '', '{{ route($documentRoutes . '.provodka') }}'); event.preventDefault();"
+                                        class="btn btn-success">
+                                        ↺ Скасувати проводку
+                                    </button>
+                                @else
+                                    <div class="form-check d-flex align-items-center post-checkbox">
+                                        <!-- <input type="hidden" name="post_after_save" value="0"> -->
+                                        <input type="checkbox" class="form-check-input" id="post_after_save" name="post_after_save"
+                                            value="1" checked>
+                                        <label class="form-check-label ms-2 post-checkbox-label" for="post_after_save">
+                                            Провести документ
+                                        </label>
+                                    </div>
+                                    <button type="button" 
+                                        onclick="forceSubmitAction(this, 'run', 'Зберегти')"
+                                        ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
+                                        class="btn btn-primary {{ in_array($doc, ['PN', 'RN', 'PO', 'RO'], true) ? '' : 'w-100 mb-2' }}">💾 Зберегти</button>
+                                @endif
+                            @elseif($doc === 'RA')
                                 <button type="button" 
                                     onclick="forceSubmitAction(this, 'run', 'Зберегти')"
                                     ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
-                                    class="btn btn-primary {{ in_array($doc, ['PN', 'RN', 'PO', 'RO'], true) ? '' : 'w-100 mb-2' }}">💾 Зберегти</button>
+                                    class="btn btn-primary">💾 Зберегти файл</button>
+                            @else
+                                <button type="button" 
+                                    onclick="forceSubmitAction(this, 'run', 'Зберегти')"
+                                    ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
+                                    class="btn btn-primary">💾 Зберегти</button>
                             @endif
-                        @elseif($doc === 'RA')
-                            <button type="button" 
-                                onclick="forceSubmitAction(this, 'run', 'Зберегти')"
-                                ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
-                                class="btn btn-primary">💾 Зберегти файл</button>
-                        @else
-                            <button type="button" 
-                                onclick="forceSubmitAction(this, 'run', 'Зберегти')"
-                                ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
-                                class="btn btn-primary">💾 Зберегти</button>
-                        @endif
-                        @if(in_array($doc, ['CH', 'RN'], true))
-                            <a href="{{ route($documentRoutes . '.print', ['doc' => $doc, 'doc_id' => $document->id, 'num' => $document->num, 'year' => $year]) }}"
-                                class="btn btn-outline-secondary" target="_blank" rel="noopener noreferrer">
-                                Печать
-                            </a>
-                        @endif
-                        @if(intval($document->provodka) === 0 && $doc !== 'RA')
-                            <button type="button" class="btn btn-outline-danger"
-                                onclick="if(confirm('Видалити документ{{ $doc === 'RA' ? '' : ' та всі товари' }}?')) { document.getElementById('deleteDocForm').submit(); }">🗑
-                                Видалити
-                            </button>
-                        @endif
-                    </div>
+                            @if(in_array($doc, ['CH', 'RN'], true))
+                                <a href="{{ route($documentRoutes . '.print', ['doc' => $doc, 'doc_id' => $document->id, 'num' => $document->num, 'year' => $year]) }}"
+                                    class="btn btn-outline-secondary" target="_blank" rel="noopener noreferrer">
+                                    Печать
+                                </a>
+                            @endif
+                            @if(intval($document->provodka) === 0 && $doc !== 'RA')
+                                <button type="button" class="btn btn-outline-danger"
+                                    onclick="if(confirm('Видалити документ{{ $doc === 'RA' ? '' : ' та всі товари' }}?')) { document.getElementById('deleteDocForm').submit(); }">🗑
+                                    Видалити
+                                </button>
+                            @endif
+                        </div>
+                    @endif
                 </div>
 
                 {{-- RIGHT: Related documents (client_info1) --}}
-                @if(!empty($relatedDocs))
+                @if(!$showLoanRepaymentSchedule && !empty($relatedDocs))
                     <div class="doc-related-col">
                         <div class="related-panel">
                             <h5>{{ $isLoanDocument ? '📋 Документы кредита' : "📋 Зв'язані документи" }}</h5>
