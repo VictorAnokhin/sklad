@@ -314,6 +314,7 @@
                         <tr data-loan-edit
                             data-loan-id="{{ $requestRow->id }}"
                             data-loan-num="{{ $requestRow->num }}"
+                            data-loan-show-url="{{ $requestRow->show_url }}"
                             data-borrower-name="{{ $requestRow->borrower_name }}"
                             data-payment-schedule='@json($repaymentSchedule)'
                             data-borrower-id="{{ $requestRow->client1 }}"
@@ -958,7 +959,11 @@
         });
 
         root.querySelectorAll('[data-loan-edit]').forEach((row) => {
-            row.addEventListener('click', () => openExistingLoan(row));
+            row.addEventListener('click', () => {
+                if (row.dataset.loanShowUrl) {
+                    window.location.href = row.dataset.loanShowUrl;
+                }
+            });
         });
 
         root.querySelectorAll('[data-loan-action-link]').forEach((link) => {
