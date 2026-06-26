@@ -115,7 +115,7 @@ class Document extends Model
         ];
     }
 
-    public static function showDocumentList($rows, $confMap, $doc)
+    public static function showDocumentList($rows, $confMap, $doc, string $routePrefix = 'document')
     {
         $data = [];
         $total_sum = 0;
@@ -220,7 +220,7 @@ class Document extends Model
             $top = (int)($row->top ?? 0);
             $topImg = $top >= 5 ? "⭐" : "[{$top}]";
 
-            $linkUrl = route('document.show', [
+            $linkUrl = route($routePrefix . '.show', [
                 'doc_id' => $row->id, 'num' => $row->num, 'year' => $year, 'doc' => $doc,
             ]);
 

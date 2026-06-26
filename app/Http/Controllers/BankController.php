@@ -2871,6 +2871,15 @@ class BankController extends Controller
         ]);
     }
 
+    public function loan(Request $request, DocumentController $documents)
+    {
+        if ($request->filled('doc')) {
+            return $documents->index($request);
+        }
+
+        return $this->loans($request);
+    }
+
     public function storeLoanRequest(Request $request): RedirectResponse
     {
         $project = $this->bankProject();
@@ -2879,7 +2888,7 @@ class BankController extends Controller
         $loanId = (int) $request->input('loan_id', 0);
         if ($request->input('loan_action') === 'delete') {
             if ($loanId <= 0) {
-                return redirect()->route('bank.loans')->with('error', 'Заявка для удаления не выбрана.');
+                return redirect()->route('bank.loanDocs.index')->with('error', 'Заявка для удаления не выбрана.');
             }
 
             $loan = DB::table('document')
@@ -2894,7 +2903,7 @@ class BankController extends Controller
                 ->first();
 
             if (! $loan) {
-                return redirect()->route('bank.loans')->with('error', 'Кредитная заявка не найдена.');
+                return redirect()->route('bank.loanDocs.index')->with('error', 'Кредитная заявка не найдена.');
             }
 
             $hasChildren = Schema::hasTable('z_document')
@@ -2904,12 +2913,12 @@ class BankController extends Controller
                     ->exists();
 
             if ($hasChildren) {
-                return redirect()->route('bank.loans')->with('error', 'Нельзя удалить заявку со связанными RN/PO документами.');
+                return redirect()->route('bank.loanDocs.index')->with('error', 'Нельзя удалить заявку со связанными RN/PO документами.');
             }
 
             DB::table('document')->where('id', $loanId)->delete();
 
-            return redirect()->route('bank.loans')->with('success', 'Кредитная заявка удалена.');
+            return redirect()->route('bank.loanDocs.index')->with('success', 'Кредитная заявка удалена.');
         }
 
         $payload = $request->validate([
@@ -2960,7 +2969,7 @@ class BankController extends Controller
                 ->first();
 
             if (! $existing) {
-                return redirect()->route('bank.loans')->with('error', 'Кредитная заявка не найдена.');
+                return redirect()->route('bank.loanDocs.index')->with('error', 'Кредитная заявка не найдена.');
             }
         }
         $num = $existing ? (string) ($existing->num ?? '') : Document::assignNextNum('ZOUT', (string) $project->id, $year);
@@ -3022,7 +3031,7 @@ class BankController extends Controller
             ]);
         }
 
-        return redirect()->route('bank.loans')->with(
+        return redirect()->route('bank.loanDocs.index')->with(
             'success',
             $loanId > 0
                 ? 'Кредитная заявка сохранена.'
@@ -3052,7 +3061,7 @@ class BankController extends Controller
             ->first();
 
         if (! $loan) {
-            return redirect()->route('bank.loans')->with('error', 'Кредитная заявка не найдена.');
+            return redirect()->route('bank.loanDocs.index')->with('error', 'Кредитная заявка не найдена.');
         }
 
         $amount = round((float) $payload['amount'], 2);
@@ -3097,7 +3106,7 @@ class BankController extends Controller
             'typeproduct' => 'credit_payment',
         ]);
 
-        return redirect()->route('bank.loans')->with('success', 'Платеж по графику сохранен.');
+        return redirect()->route('bank.loanDocs.index')->with('success', 'Платеж по графику сохранен.');
     }
 
     private function placeholder(string $title, string $description): View
@@ -3213,28 +3222,28 @@ class BankController extends Controller
                 $row->borrower_name = trim((string) ($row->orgname ?? '')) ?: $personName ?: ('Client #' . $row->client1);
                 $row->loan_meta = $loanMeta;
                 $row->repayment_schedule = $schedule;
-                $row->show_url = route('loan.show', [
+                $row->show_url = route('bank.loanDocs.show', [
                     'doc' => 'ZOUT',
                     'doc_id' => (int) $row->id,
                     'parent_doc_id' => (int) $row->id,
                     'num' => $row->num,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
-                $row->rn_url = route('loan.show', [
+                $row->rn_url = route('bank.loanDocs.show', [
                     'doc' => 'RN',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
                     'num' => 0,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
-                $row->ra_url = route('loan.show', [
+                $row->ra_url = route('bank.loanDocs.show', [
                     'doc' => 'RA',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
                     'num' => 0,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
-                $row->po_url = route('loan.show', [
+                $row->po_url = route('bank.loanDocs.show', [
                     'doc' => 'PO',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
@@ -3242,8 +3251,8 @@ class BankController extends Controller
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                     'sumPO' => (float) $row->summa,
                 ]);
-                $row->po_store_url = route('bank.loans.payments.store');
-                $row->ro_url = route('loan.show', [
+                $row->po_store_url = route('bank.loan.payments.store');
+                $row->ro_url = route('bank.loanDocs.show', [
                     'doc' => 'RO',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,

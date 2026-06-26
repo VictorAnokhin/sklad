@@ -103,9 +103,25 @@ Route::middleware(['auth'])->group(function () {
             ->whereNumber('person')
             ->whereNumber('account')
             ->name('person-accounts.destroy');
-        Route::get('/loans', [BankController::class, 'loans'])->name('loans');
-        Route::post('/loans', [BankController::class, 'storeLoanRequest'])->name('loans.store');
-        Route::post('/loans/payments', [BankController::class, 'storeLoanPayment'])->name('loans.payments.store');
+        Route::get('/loan', [BankController::class, 'loan'])->name('loanDocs.index');
+        Route::get('/loans', fn () => redirect()->route('bank.loanDocs.index', request()->query()))->name('loans');
+        Route::get('/loans/show', fn () => redirect()->route('bank.loanDocs.show', request()->query()))->name('loans.show');
+        Route::post('/loan', [BankController::class, 'storeLoanRequest'])->name('loan.store');
+        Route::post('/loan/payments', [BankController::class, 'storeLoanPayment'])->name('loan.payments.store');
+        Route::prefix('loan')->name('loanDocs.')->group(function () {
+            Route::get('/show', [DocumentController::class , 'show'])->name('show');
+            Route::get('/print', [DocumentController::class , 'print'])->name('print');
+            Route::post('/save', [DocumentController::class , 'save'])->name('save');
+            Route::post('/delete', [DocumentController::class , 'destroy'])->name('destroy');
+            Route::post('/provodka', [DocumentController::class , 'provodka'])->name('provodka');
+            Route::post('/status', [DocumentController::class , 'bulkStatus'])->name('bulkStatus');
+            Route::post('/set-client', [DocumentController::class , 'setClient'])->name('setClient');
+            Route::post('/body/add', [DocumentController::class , 'bodyAdd'])->name('body.add');
+            Route::post('/body/delete', [DocumentController::class , 'bodyDelete'])->name('body.delete');
+            Route::post('/body/update', [DocumentController::class , 'bodyUpdate'])->name('body.update');
+            Route::get('/product-mapping/search', [DocumentController::class , 'productMappingSearch'])->name('productMapping.search');
+            Route::post('/product-mapping/save', [DocumentController::class , 'productMappingSave'])->name('productMapping.save');
+        });
         Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
         Route::get('/pools', [BankController::class, 'pools'])->name('pools');
         Route::post('/pools', [BankController::class, 'storePool'])->name('pools.store');

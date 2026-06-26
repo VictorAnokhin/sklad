@@ -5,7 +5,7 @@
     @php
         $documentRoutes = $documentRoutePrefix ?? 'document';
         $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
-        $isLoanDocument = $documentRoutes === 'loan';
+        $isLoanDocument = in_array($documentRoutes, ['loan', 'bank.loanDocs'], true);
     @endphp
 
     <style>
@@ -468,17 +468,17 @@
         </div>
 
         <div class="mb-2 d-flex flex-wrap gap-2">
-            <a href="{{ $documentIndexUrl }}" class="btn btn-outline-secondary btn-sm">
-                {{ $isLoanDocument ? '← К списку кредитных документов ' . $doc : '← До списку ' . \App\Models\Document::typeName($doc) }}
-            </a>
-            @if(!empty($parentDocumentUrl) && !empty($parentDocument))
-                <a href="{{ $parentDocumentUrl }}" class="btn btn-outline-primary btn-sm">
-                    @if($isLoanDocument)
-                        ← К кредитной заявке {{ $parentDocument->type }} № {{ $parentDocument->num }}
-                    @else
-                        ← До {{ \App\Models\Document::typeName($parentDocument->type) }} № {{ $parentDocument->num }}
-                    @endif
+            @if($isLoanDocument)
+                <a href="{{ route('bank.loanDocs.index') }}" class="btn btn-outline-secondary btn-sm">← Назад в кредиты</a>
+            @else
+                <a href="{{ $documentIndexUrl }}" class="btn btn-outline-secondary btn-sm">
+                    ← До списку {{ \App\Models\Document::typeName($doc) }}
                 </a>
+                @if(!empty($parentDocumentUrl) && !empty($parentDocument))
+                    <a href="{{ $parentDocumentUrl }}" class="btn btn-outline-primary btn-sm">
+                        ← До {{ \App\Models\Document::typeName($parentDocument->type) }} № {{ $parentDocument->num }}
+                    </a>
+                @endif
             @endif
         </div>
 

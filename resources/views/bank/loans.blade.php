@@ -103,7 +103,7 @@
                 </div>
                 <button type="button" class="bank-modal__close" data-loan-close aria-label="Закрыть">×</button>
             </div>
-            <form method="POST" action="{{ route('bank.loans.store') }}" class="bank-loan-form" data-loan-request-form>
+            <form method="POST" action="{{ route('bank.loan.store') }}" class="bank-loan-form" data-loan-request-form>
             @csrf
             <input type="hidden" name="loan_id" value="{{ old('loan_id') }}" data-loan-field="loan_id">
             @php($selectedBorrower = old('borrower_id') ? $borrowers->firstWhere('id', (int) old('borrower_id')) : null)
@@ -233,7 +233,7 @@
                     </table>
                 </div>
 
-                <form method="POST" action="{{ route('bank.loans.payments.store') }}" class="bank-loan-payment-form" data-loan-payment-form>
+                <form method="POST" action="{{ route('bank.loan.payments.store') }}" class="bank-loan-payment-form" data-loan-payment-form>
                     @csrf
                     <input type="hidden" name="loan_id" value="" data-payment-loan-id>
                     <label class="bank-field">
@@ -259,7 +259,7 @@
                 </div>
                 <button type="button" class="bank-modal__close" data-loan-filter-close aria-label="Закрыть">×</button>
             </div>
-            <form method="GET" action="{{ route('bank.loans') }}" class="bank-loan-filter-form">
+            <form method="GET" action="{{ route('bank.loanDocs.index') }}" class="bank-loan-filter-form">
                 <label class="bank-field">
                     <span>Дата от</span>
                     <input type="date" name="date_from" value="{{ $loanFilters['date_from'] ?? '' }}" class="form-control">
@@ -270,7 +270,7 @@
                 </label>
                 <div class="bank-modal__actions bank-loan-filter-actions">
                     @if(!empty($loanFilters['active']))
-                        <a href="{{ route('bank.loans') }}" class="btn btn-outline-light">Сбросить</a>
+                        <a href="{{ route('bank.loanDocs.index') }}" class="btn btn-outline-light">Сбросить</a>
                     @endif
                     <button type="submit" class="btn btn-primary">Применить</button>
                     <button type="button" class="btn btn-secondary" data-loan-filter-close>Отменить</button>

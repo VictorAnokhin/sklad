@@ -4,6 +4,7 @@
 
 @section('content')
 @php
+$documentRoutes = $documentRoutePrefix ?? 'document';
 $btnLabel = match($doc) {
 'PO' => \App\Models\Document::typeName('PO'),
 'RO' => \App\Models\Document::typeName('RO'),
@@ -24,7 +25,7 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
   <div class="top-action-filter">
     @include('partials.filter')
   </div>
-  <form action="{{ route('document.save') }}" method="post" name="dataform" class="top-action-create">
+  <form action="{{ route($documentRoutes . '.save') }}" method="post" name="dataform" class="top-action-create">
     @csrf
     <input type="hidden" name="year_N" value="{{ session('year', date('Y')) }}">
     <input type="hidden" name="create_doc_type" value="{{ $doc }}">
@@ -101,6 +102,7 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
   'pos2' => 30,
   'max' => $total,
   'doc' => $doc,
+  'routeName' => $documentRoutes . '.index',
   ])
 
   @endif

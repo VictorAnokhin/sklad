@@ -162,6 +162,7 @@ class DocumentController extends Controller
 
     public function index(Request $request)
     {
+        $documentRoutePrefix = $this->documentRoutePrefix();
         $fid = session('fid', '');
         $login = session('login', '');
         $status = (int) session('idstatus', session('status', 0));
@@ -186,7 +187,7 @@ class DocumentController extends Controller
         $total = $result['total'];
         $confMap = $result['confMap'];
 
-        $listData = Document::showDocumentList($rows, $confMap, $doc);
+        $listData = Document::showDocumentList($rows, $confMap, $doc, $documentRoutePrefix);
         $items = $listData['items'];
         $total_sum = $listData['total_sum'];
 
@@ -222,7 +223,9 @@ class DocumentController extends Controller
 
         $view = in_array($doc, ['ZIN', 'ZOUT'], true) ? 'document.zakaz' : 'document.index';
 
-        return view($view, compact('items', 'total_sum', 'rows', 'doc', 'pos', 'total', 'fd', 'fid'));
+        return view($view, compact(
+            'items', 'total_sum', 'rows', 'doc', 'pos', 'total', 'fd', 'fid', 'documentRoutePrefix'
+        ));
     }
 
     // ── Show single document ──────────────────────────────────────────────────
@@ -1510,7 +1513,12 @@ class DocumentController extends Controller
 
     private function documentRoutePrefix(): string
     {
-        return str_starts_with((string) request()->route()?->getName(), 'loan.') ? 'loan' : 'document';
+        $routeName = (string) request()->route()?->getName();
+        if (str_starts_with($routeName, 'bank.loanDocs.')) {
+            return 'bank.loanDocs';
+        }
+
+        return str_starts_with($routeName, 'loan.') ? 'loan' : 'document';
     }
 
     // ── Set client on doc ─────────────────────────────────────────────────────

@@ -22,6 +22,7 @@
 @section('content')
 
   @php
+    $documentRoutes = $documentRoutePrefix ?? 'document';
     $docLabel = \App\Models\Document::typeName($doc);
   @endphp
 
@@ -29,7 +30,7 @@
     <div class="top-action-filter">
       @include('partials.filter')
     </div>
-    <form action="{{ route('document.save') }}" method="post" name="dataform" class="top-action-create">
+    <form action="{{ route($documentRoutes . '.save') }}" method="post" name="dataform" class="top-action-create">
       @csrf
       <input type="hidden" name="doc" value="{{ $doc }}">
       <input type="hidden" name="create_doc_type" value="{{ $doc }}">
@@ -45,7 +46,7 @@
 
   {{-- Bulk-status form --}}
   <div class="ttable document-compact-wrap zakaz">
-    <form action="{{ route('document.bulkStatus') }}" method="post" id="bulkForm">
+    <form action="{{ route($documentRoutes . '.bulkStatus') }}" method="post" id="bulkForm">
       @csrf
       <input type="hidden" name="doc" value="{{ $doc }}">
 
@@ -161,7 +162,13 @@
           {{ number_format($total_sum, 2, '.', '') }} {{ __('document.currency') }}
         </div>
 
-        @include('partials.navigator', ['pos' => $pos, 'pos2' => 30, 'max' => $total, 'doc' => $doc])
+        @include('partials.navigator', [
+          'pos' => $pos,
+          'pos2' => 30,
+          'max' => $total,
+          'doc' => $doc,
+          'routeName' => $documentRoutes . '.index',
+        ])
 
       @endif
 
