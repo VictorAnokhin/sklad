@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\Document;
 use App\Services\AccountingService;
 use App\Services\BlockchainAssetAdapterService;
 use App\Support\HoldingScope;
@@ -2858,9 +2859,117 @@ class BankController extends Controller
 
     public function loans(): View
     {
+        $project = $this->bankProject();
+
         return view('bank.loans', [
-            'project' => $this->bankProject(),
+            'project' => $project,
+            'borrowers' => $this->loanBorrowerOptions($project),
+            'loanRequests' => $this->loanRequestRows($project),
         ]);
+    }
+
+    public function storeLoanRequest(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('document'), 404);
+
+        $payload = $request->validate([
+            'borrower_id' => ['required', 'integer', 'min:1'],
+            'collateral_type' => ['required', Rule::in(['auto', 'special_equipment', 'license_plate', 'other'])],
+            'market_value' => ['required', 'numeric', 'gt:0', 'max:999999999'],
+            'ltv' => ['required', Rule::in(['40', '50', '60', '70', '80', '90'])],
+            'interest_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            'loan_term_months' => ['required', Rule::in(['6', '12', '24', '36'])],
+            'investor_yield' => ['required', 'numeric', 'min:0', 'max:100'],
+            'deadline_days' => ['required', Rule::in(['3', '7', '14', '21'])],
+            'comment' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $scope = HoldingScope::projectIdsFor((string) $project->id);
+        $borrowerExists = DB::table('users')
+            ->where('id', (int) $payload['borrower_id'])
+            ->when(Schema::hasColumn('users', 'firma'), fn ($query) => $query->whereIn('firma', $scope))
+            ->exists();
+
+        if (! $borrowerExists) {
+            throw ValidationException::withMessages([
+                'borrower_id' => 'Выберите заемщика из клиентов текущего bank scope.',
+            ]);
+        }
+
+        $marketValue = round((float) $payload['market_value'], 2);
+        $ltv = (int) $payload['ltv'];
+        $loanAmount = round($marketValue * $ltv / 100, 2);
+        $deadlineDays = (int) $payload['deadline_days'];
+        $termMonths = (int) $payload['loan_term_months'];
+        $now = now();
+        $year = $now->format('Y');
+        $num = Document::assignNextNum('ZOUT', (string) $project->id, $year);
+        $collateralLabels = [
+            'auto' => 'Автомобиль',
+            'special_equipment' => 'Спецтехника',
+            'license_plate' => 'Госномер',
+            'other' => 'Другое',
+        ];
+        $deadlineAt = $now->copy()->addDays($deadlineDays);
+        $content = implode("\n", array_filter([
+            '[AV8_LOAN_REQUEST]',
+            'Тип залога: ' . $collateralLabels[$payload['collateral_type']],
+            'Рыночная стоимость: ' . number_format($marketValue, 2, '.', ' '),
+            'LTV сделки: ' . $ltv . '%',
+            'Сумма кредита: ' . number_format($loanAmount, 2, '.', ' '),
+            'Процентная ставка заемщика: ' . number_format((float) $payload['interest_rate'], 2, '.', ' ') . '%',
+            'Срок кредита: ' . $this->loanTermLabel($termMonths),
+            'Доходность для инвесторов: ' . number_format((float) $payload['investor_yield'], 2, '.', ' ') . '%',
+            'Дедлайн сбора: ' . $deadlineDays . ' дн. (' . $deadlineAt->format('d-m-Y') . ')',
+            trim((string) ($payload['comment'] ?? '')) !== '' ? 'Комментарий: ' . trim((string) $payload['comment']) : '',
+        ]));
+
+        $id = DB::table('document')->insertGetId([
+            'num' => $num,
+            'client1' => (string) $payload['borrower_id'],
+            'client2' => '0',
+            'type' => 'ZOUT',
+            'summa' => $loanAmount,
+            'status' => 0,
+            'data' => $now->format('d-m-Y'),
+            'data2' => $deadlineAt->format('d-m-Y'),
+            'time' => $now->format('H:i:s'),
+            'firma' => (string) $project->id,
+            'dt' => $now->timestamp,
+            'numz' => $num,
+            'typez' => 'ZOUT',
+            'docid' => 0,
+            'manager' => session('login', ''),
+            'user' => session('login', ''),
+            'content' => $content,
+            'ttn' => 'LOAN-' . $num,
+            'oplata' => '',
+            'reteil' => (string) $ltv,
+            'reestr' => '',
+            'sklads' => '',
+            'money' => '',
+            'docum' => '',
+            'dostup' => 1,
+            'work' => session('work', '1'),
+            'numorder' => 'AV8-LOAN',
+            'typeproduct' => 'credit_request',
+        ]);
+
+        DB::table('document')->where('id', $id)->update([
+            'docid' => $id,
+            'numz' => $num,
+        ]);
+
+        return redirect()
+            ->route('document.show', [
+                'doc' => 'ZOUT',
+                'doc_id' => $id,
+                'parent_doc_id' => $id,
+                'num' => $num,
+                'year' => $year,
+            ])
+            ->with('success', 'Заявка на кредит создана. Дальше оформите выдачу кредита через RN, а платежи заемщика через PO.');
     }
 
     private function placeholder(string $title, string $description): View
@@ -2870,6 +2979,114 @@ class BankController extends Controller
             'title' => $title,
             'description' => $description,
         ]);
+    }
+
+    private function loanBorrowerOptions(Project $project)
+    {
+        if (! Schema::hasTable('users')) {
+            return collect();
+        }
+
+        $scope = HoldingScope::projectIdsFor((string) $project->id);
+
+        return DB::table('users')
+            ->when(Schema::hasColumn('users', 'firma'), fn ($query) => $query->whereIn('firma', $scope))
+            ->orderByRaw('COALESCE(NULLIF(orgname, ""), NULLIF(secondname, ""), NULLIF(name, ""), login, id)')
+            ->limit(300)
+            ->get(['id', 'orgname', 'secondname', 'name', 'fathername', 'phone', 'email', 'firma'])
+            ->map(function ($user) {
+                $personName = trim(implode(' ', array_filter([
+                    (string) ($user->secondname ?? ''),
+                    (string) ($user->name ?? ''),
+                    (string) ($user->fathername ?? ''),
+                ])));
+                $display = trim((string) ($user->orgname ?? '')) ?: $personName ?: ('Client #' . $user->id);
+                $contact = trim(implode(' · ', array_filter([
+                    (string) ($user->phone ?? ''),
+                    (string) ($user->email ?? ''),
+                ])));
+                $user->display_name = $display;
+                $user->contact_line = $contact;
+
+                return $user;
+            });
+    }
+
+    private function loanRequestRows(Project $project)
+    {
+        if (! Schema::hasTable('document')) {
+            return collect();
+        }
+
+        return DB::table('document as d')
+            ->leftJoin('users as u', 'u.id', '=', 'd.client1')
+            ->where('d.firma', (string) $project->id)
+            ->where('d.type', 'ZOUT')
+            ->where(function ($query) {
+                $query->where('d.typeproduct', 'credit_request')
+                    ->orWhere('d.numorder', 'AV8-LOAN')
+                    ->orWhere('d.content', 'like', '%[AV8_LOAN_REQUEST]%');
+            })
+            ->orderByDesc('d.dt')
+            ->limit(20)
+            ->get([
+                'd.id',
+                'd.num',
+                'd.summa',
+                'd.data',
+                'd.data2',
+                'd.content',
+                'd.client1',
+                'd.provodka',
+                'u.orgname',
+                'u.secondname',
+                'u.name',
+                'u.fathername',
+                'u.phone',
+            ])
+            ->map(function ($row) {
+                $personName = trim(implode(' ', array_filter([
+                    (string) ($row->secondname ?? ''),
+                    (string) ($row->name ?? ''),
+                    (string) ($row->fathername ?? ''),
+                ])));
+                $row->borrower_name = trim((string) ($row->orgname ?? '')) ?: $personName ?: ('Client #' . $row->client1);
+                $row->show_url = route('document.show', [
+                    'doc' => 'ZOUT',
+                    'doc_id' => (int) $row->id,
+                    'parent_doc_id' => (int) $row->id,
+                    'num' => $row->num,
+                    'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
+                ]);
+                $row->rn_url = route('document.show', [
+                    'doc' => 'RN',
+                    'doc_id' => 0,
+                    'parent_doc_id' => (int) $row->id,
+                    'num' => 0,
+                    'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
+                ]);
+                $row->po_url = route('document.show', [
+                    'doc' => 'PO',
+                    'doc_id' => 0,
+                    'parent_doc_id' => (int) $row->id,
+                    'num' => 0,
+                    'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
+                    'sumPO' => (float) $row->summa,
+                ]);
+
+                return $row;
+            });
+    }
+
+    private function loanTermLabel(int $months): string
+    {
+        return match ($months) {
+            6 => '6 мес.',
+            12 => '1 год',
+            24 => '2 года',
+            36 => '3 года',
+            default => $months . ' мес.',
+        };
     }
 
     private function bankProject(): Project
