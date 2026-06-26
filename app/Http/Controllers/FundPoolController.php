@@ -439,8 +439,8 @@ class FundPoolController extends Controller
 
     public function events(Request $request, string $id): JsonResponse
     {
-        if (! Schema::hasTable('fund_pools') || ! Schema::hasTable('fund_pool_events')) {
-            return response()->json(['data' => [], 'chart' => []]);
+        if (! Schema::hasTable('fund_pools')) {
+            return response()->json(['data' => [], 'chart' => [], 'offchain_chart' => []]);
         }
 
         $pool = DB::table('fund_pools')->where('id', $id)->first();
@@ -456,17 +456,20 @@ class FundPoolController extends Controller
         }
 
         $limit = max(1, min(500, (int) $request->query('limit', 200)));
-        $events = DB::table('fund_pool_events')
-            ->whereRaw('LOWER(pool_object_id) = ?', [strtolower((string) $pool->pool_object_id)])
-            ->orderBy('event_at')
-            ->orderBy('id')
-            ->limit($limit)
-            ->get();
+        $events = Schema::hasTable('fund_pool_events')
+            ? DB::table('fund_pool_events')
+                ->whereRaw('LOWER(pool_object_id) = ?', [strtolower((string) $pool->pool_object_id)])
+                ->orderBy('event_at')
+                ->orderBy('id')
+                ->limit($limit)
+                ->get()
+            : collect();
 
         return response()->json([
             'pool' => $this->mapRow($pool),
             'data' => $events->map(fn ($row) => $this->mapEventRow($row))->values(),
             'chart' => $this->chartRows($events),
+            'offchain_chart' => $this->offchainChartRows($pool, $limit),
         ]);
     }
 
@@ -808,5 +811,76 @@ class FundPoolController extends Controller
                 'realized_apy_bps' => $lastRealizedApy,
             ];
         })->values()->all();
+    }
+
+    private function offchainChartRows(object $pool, int $limit = 200): array
+    {
+        if (! Schema::hasTable('bank_invest_operations')) {
+            return [];
+        }
+
+        $requiredColumns = ['asset_key', 'direction', 'value_usd', 'operated_at'];
+        foreach ($requiredColumns as $column) {
+            if (! Schema::hasColumn('bank_invest_operations', $column)) {
+                return [];
+            }
+        }
+
+        $assetKey = 'pool:' . (int) $pool->id;
+        $query = DB::table('bank_invest_operations')
+            ->where('asset_key', $assetKey)
+            ->orderBy('operated_at')
+            ->orderBy('id');
+
+        if (Schema::hasColumn('bank_invest_operations', 'status')) {
+            $query->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')
+                    ->orWhere('status', '')
+                    ->orWhere('status', 'posted');
+            });
+        }
+
+        $balance = 0.0;
+
+        $rows = $query
+            ->limit(max(1, min(500, $limit)))
+            ->get()
+            ->map(function ($operation) use (&$balance) {
+                $value = (float) ($operation->value_usd ?? 0);
+                $direction = (string) ($operation->direction ?? '');
+                $balance += match ($direction) {
+                    'asset_to_account' => -abs($value),
+                    'revaluation' => $value,
+                    default => abs($value),
+                };
+                $balance = max(0.0, $balance);
+                $operatedAt = (string) ($operation->operated_at ?? '');
+
+                return [
+                    'label' => $operatedAt !== '' ? date('M d', strtotime($operatedAt)) : '#'.$operation->id,
+                    'event_at' => $operatedAt !== '' ? $operatedAt : null,
+                    'event_type' => 'offchain_balance',
+                    'tvl_usdc' => (string) max(0, (int) round($balance * 1_000_000)),
+                    'target_apy_bps' => null,
+                    'realized_apy_bps' => null,
+                ];
+            })
+            ->values()
+            ->all();
+
+        $poolBalance = Schema::hasColumn('fund_pools', 'balance') ? (float) ($pool->balance ?? 0) : 0.0;
+        if ($poolBalance > 0 && abs($poolBalance - $balance) > 0.000001) {
+            $eventAt = (string) ($pool->updated_at ?? $pool->created_at ?? now());
+            $rows[] = [
+                'label' => date('M d', strtotime($eventAt)),
+                'event_at' => $eventAt,
+                'event_type' => 'offchain_balance',
+                'tvl_usdc' => (string) max(0, (int) round($poolBalance * 1_000_000)),
+                'target_apy_bps' => null,
+                'realized_apy_bps' => null,
+            ];
+        }
+
+        return $rows;
     }
 }
