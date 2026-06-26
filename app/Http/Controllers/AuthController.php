@@ -145,7 +145,7 @@ class AuthController extends Controller
                 'title' => 'Кредиты',
                 'description' => 'Кредитные продукты и заявки клиентов.',
                 'icon' => '🤝',
-                'url' => route('bank.loans.redirect'),
+                'url' => route('bank.loans'),
             ],
             [
                 'title' => 'Обмен валют',

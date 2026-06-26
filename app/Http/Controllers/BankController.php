@@ -2856,6 +2856,13 @@ class BankController extends Controller
         return $this->placeholder('Сверка', 'Сверка остатков касс, ledger-проводок и blockchain-транзакций.');
     }
 
+    public function loans(): View
+    {
+        return view('bank.loans', [
+            'project' => $this->bankProject(),
+        ]);
+    }
+
     private function placeholder(string $title, string $description): View
     {
         return view('bank.placeholder', [

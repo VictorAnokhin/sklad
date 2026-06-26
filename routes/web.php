@@ -103,7 +103,7 @@ Route::middleware(['auth'])->group(function () {
             ->whereNumber('person')
             ->whereNumber('account')
             ->name('person-accounts.destroy');
-        Route::get('/loans', fn () => redirect()->route('bank.deposit'))->name('loans.redirect');
+        Route::get('/loans', [BankController::class, 'loans'])->name('loans');
         Route::get('/deposit', [BankController::class, 'deposit'])->name('deposit');
         Route::get('/pools', [BankController::class, 'pools'])->name('pools');
         Route::post('/pools', [BankController::class, 'storePool'])->name('pools.store');
