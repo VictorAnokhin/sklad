@@ -301,6 +301,7 @@ class InventoryCostServiceTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        DB::table('conf')->where('id', $stockedWarehouseId)->delete();
 
         $pnId = $this->createDocument('PN', 1, 16, $counterpartyId);
         $result = Document::provodka((string) $pnId, 'PN', (string) $this->companyId);

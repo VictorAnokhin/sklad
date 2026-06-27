@@ -573,7 +573,11 @@ class InventoryCostService
             ->map(fn ($id) => (int) $id));
         $candidateWarehouseIds = $candidateWarehouseIds->merge(DB::table('price_sklad')
             ->where('firma', $targetCompanyId)
-            ->orderBy('sklad')
+            ->when(
+                $outgoingProductId !== null,
+                fn ($query) => $query->where('pnum', $outgoingProductId)->orderByDesc('count'),
+                fn ($query) => $query->orderBy('sklad')
+            )
             ->pluck('sklad')
             ->map(fn ($id) => (int) $id))
             ->filter(fn ($id) => $id > 0)
