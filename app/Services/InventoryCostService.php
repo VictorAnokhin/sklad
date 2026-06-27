@@ -221,7 +221,6 @@ class InventoryCostService
         $targetDocType = $sourceDocType === 'PN' ? 'RN' : 'PN';
         $sourceId = (string) ($document->id ?? '');
         $sourceType = "{$sourceDocType}:project-mirror";
-        $warehouseId = $this->resolveMirrorWarehouse($targetCompanyId, $document);
         $movementDate = $this->normalizeDate((string) ($document->data ?? ''));
         $validatedLines = $this->validatedLines($lineItems);
 
@@ -239,6 +238,12 @@ class InventoryCostService
                 (int) ($document->client1 ?? 0)
             );
             $quantity = round((float) $line->pcount, 3);
+            $warehouseId = $this->resolveMirrorWarehouse(
+                $targetCompanyId,
+                $document,
+                $targetDocType === 'RN' ? $targetProductId : null,
+                $targetDocType === 'RN' ? $quantity : null
+            );
             $balance = $this->lockBalance($targetCompanyId, $warehouseId, $targetProductId);
 
             $latestDate = DB::table('inventory_cost_movements')
@@ -525,8 +530,15 @@ class InventoryCostService
             : null;
     }
 
-    private function resolveMirrorWarehouse(int $targetCompanyId, object $document): int
+    private function resolveMirrorWarehouse(
+        int $targetCompanyId,
+        object $document,
+        ?string $outgoingProductId = null,
+        ?float $outgoingQuantity = null
+    ): int
     {
+        $candidateWarehouseIds = collect();
+
         if (Schema::hasColumn('conf', 'is_default')) {
             $warehouseId = DB::table('conf')
                 ->where('type', 'sklads')
@@ -536,7 +548,7 @@ class InventoryCostService
                 ->value('id');
 
             if ($warehouseId !== null && (int) $warehouseId > 0) {
-                return (int) $warehouseId;
+                $candidateWarehouseIds->push((int) $warehouseId);
             }
         }
 
@@ -549,27 +561,54 @@ class InventoryCostService
                 ->exists();
 
             if ($sameWarehouseExists) {
-                return $sourceWarehouseId;
+                $candidateWarehouseIds->push($sourceWarehouseId);
             }
         }
 
-        $warehouseId = DB::table('conf')
+        $candidateWarehouseIds = $candidateWarehouseIds->merge(DB::table('conf')
             ->where('type', 'sklads')
             ->where('firma', $targetCompanyId)
             ->orderBy('id')
-            ->value('id');
-
-        if ($warehouseId !== null && (int) $warehouseId > 0) {
-            return (int) $warehouseId;
-        }
-
-        $warehouseId = DB::table('price_sklad')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id));
+        $candidateWarehouseIds = $candidateWarehouseIds->merge(DB::table('price_sklad')
             ->where('firma', $targetCompanyId)
             ->orderBy('sklad')
-            ->value('sklad');
+            ->pluck('sklad')
+            ->map(fn ($id) => (int) $id))
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
 
-        if ($warehouseId !== null && (int) $warehouseId > 0) {
-            return (int) $warehouseId;
+        if ($outgoingProductId !== null && $outgoingQuantity !== null) {
+            foreach ($candidateWarehouseIds as $candidateWarehouseId) {
+                $available = DB::table('inventory_cost_balances')
+                    ->where('company_id', $targetCompanyId)
+                    ->where('warehouse_id', $candidateWarehouseId)
+                    ->where('product_id', $outgoingProductId)
+                    ->value('quantity');
+
+                if ($available === null) {
+                    $available = DB::table('price_sklad')
+                        ->where('firma', $targetCompanyId)
+                        ->where('sklad', $candidateWarehouseId)
+                        ->where('pnum', $outgoingProductId)
+                        ->sum('count');
+                }
+
+                if ((float) $available + self::EPSILON >= $outgoingQuantity) {
+                    return $candidateWarehouseId;
+                }
+            }
+
+            throw new RuntimeException(
+                "Недостатньо товару {$outgoingProductId} у проекті {$targetCompanyId}: "
+                ."на жодному складі немає {$outgoingQuantity}."
+            );
+        }
+
+        if ($candidateWarehouseIds->isNotEmpty()) {
+            return (int) $candidateWarehouseIds->first();
         }
 
         throw new RuntimeException("Для проекту {$targetCompanyId} не знайдено склад для дзеркальної проводки.");

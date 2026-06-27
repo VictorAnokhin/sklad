@@ -256,6 +256,59 @@ class InventoryCostServiceTest extends TestCase
         $this->assertMirrorStock($projectId, $targetWarehouseId, $targetProductId, 10, 100, 10);
     }
 
+    public function test_pn_mirror_uses_warehouse_that_has_counterparty_stock(): void
+    {
+        $projectId = DB::table('project')->insertGetId([
+            'name' => 'Mirror stock warehouse project',
+        ]);
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'Mirror stock warehouse counterparty',
+            'email' => "mirror-stock-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+            'project_id' => $projectId,
+        ]);
+        [$targetProductId, $defaultWarehouseId] = $this->createProductProjectMapping($projectId, $counterpartyId);
+        $stockedWarehouseId = (int) DB::table('conf')
+            ->where('firma', $projectId)
+            ->where('type', 'sklads')
+            ->where('is_default', 0)
+            ->value('id');
+
+        DB::table('price_sklad')
+            ->where('firma', $projectId)
+            ->where('sklad', $defaultWarehouseId)
+            ->where('pnum', $targetProductId)
+            ->update(['count' => 0]);
+        DB::table('inventory_cost_balances')
+            ->where('company_id', $projectId)
+            ->where('warehouse_id', $defaultWarehouseId)
+            ->where('product_id', $targetProductId)
+            ->update(['quantity' => 0, 'total_value' => 0, 'average_cost' => 0]);
+        DB::table('price_sklad')->insert([
+            'pnum' => $targetProductId,
+            'firma' => $projectId,
+            'sklad' => $stockedWarehouseId,
+            'count' => 1,
+        ]);
+        DB::table('inventory_cost_balances')->insert([
+            'company_id' => $projectId,
+            'warehouse_id' => $stockedWarehouseId,
+            'product_id' => $targetProductId,
+            'quantity' => 1,
+            'total_value' => 10,
+            'average_cost' => 10,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $pnId = $this->createDocument('PN', 1, 16, $counterpartyId);
+        $result = Document::provodka((string) $pnId, 'PN', (string) $this->companyId);
+
+        $this->assertTrue($result['isPosted']);
+        $this->assertMirrorStock($projectId, $stockedWarehouseId, $targetProductId, 0, 0, 0);
+    }
+
     public function test_project_mirror_is_not_created_for_current_company_project(): void
     {
         DB::table('project')->insert([
