@@ -639,16 +639,33 @@ class InventoryCostService
 
                 if (abs((float) $balance->quantity - $physicalQuantity) > self::EPSILON) {
                     $averageCost = max(0, (float) $balance->average_cost);
+                    if ($physicalQuantity > self::EPSILON && $averageCost <= 0) {
+                        $averageCost = $this->openingUnitCost($companyId, $productId);
+                    }
                     DB::table('inventory_cost_balances')
                         ->where('id', $balance->id)
                         ->update([
                             'quantity' => $physicalQuantity,
                             'total_value' => round($physicalQuantity * $averageCost, 4),
+                            'average_cost' => $averageCost,
                             'updated_at' => now(),
                         ]);
 
                     $balance->quantity = $physicalQuantity;
                     $balance->total_value = round($physicalQuantity * $averageCost, 4);
+                    $balance->average_cost = $averageCost;
+                } elseif ($physicalQuantity > self::EPSILON && (float) $balance->average_cost <= 0) {
+                    $averageCost = $this->openingUnitCost($companyId, $productId);
+                    DB::table('inventory_cost_balances')
+                        ->where('id', $balance->id)
+                        ->update([
+                            'total_value' => round($physicalQuantity * $averageCost, 4),
+                            'average_cost' => $averageCost,
+                            'updated_at' => now(),
+                        ]);
+
+                    $balance->total_value = round($physicalQuantity * $averageCost, 4);
+                    $balance->average_cost = $averageCost;
                 }
             }
 
@@ -660,11 +677,7 @@ class InventoryCostService
             ->where('sklad', $warehouseId)
             ->where('pnum', $productId)
             ->sum('count') ?? 0);
-        $costColumn = Schema::hasColumn('price', 'pay0') ? 'pay0' : 'pay';
-        $openingCost = (float) (DB::table('price')
-            ->where('firma', $companyId)
-            ->where('pnum', $productId)
-            ->value($costColumn) ?? 0);
+        $openingCost = $this->openingUnitCost($companyId, $productId);
 
         DB::table('inventory_cost_balances')->insertOrIgnore([
             'company_id' => $companyId,
@@ -683,6 +696,31 @@ class InventoryCostService
             ->where('product_id', $productId)
             ->lockForUpdate()
             ->first();
+    }
+
+    private function openingUnitCost(int $companyId, string $productId): float
+    {
+        $costColumn = Schema::hasColumn('price', 'pay0') ? 'pay0' : 'pay';
+        $cost = (float) DB::table('price')
+            ->where('firma', $companyId)
+            ->where('pnum', $productId)
+            ->max($costColumn);
+
+        if ($cost <= 0 && $costColumn !== 'pay') {
+            $cost = (float) DB::table('price')
+                ->where('firma', $companyId)
+                ->where('pnum', $productId)
+                ->max('pay');
+        }
+
+        if ($cost <= 0) {
+            $cost = (float) (DB::table('comp')
+                ->where('firma', $companyId)
+                ->where('id', $productId)
+                ->value('pay1') ?? 0);
+        }
+
+        return round(max(0, $cost), 6);
     }
 
     private function setPhysicalStock(int $companyId, int $warehouseId, string $productId, float $quantity): void

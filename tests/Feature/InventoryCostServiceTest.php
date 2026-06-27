@@ -297,7 +297,7 @@ class InventoryCostServiceTest extends TestCase
             'product_id' => $targetProductId,
             'quantity' => 0,
             'total_value' => 0,
-            'average_cost' => 10,
+            'average_cost' => 0,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
