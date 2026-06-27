@@ -244,7 +244,12 @@ class InventoryCostService
                 $targetDocType === 'RN' ? $targetProductId : null,
                 $targetDocType === 'RN' ? $quantity : null
             );
-            $balance = $this->lockBalance($targetCompanyId, $warehouseId, $targetProductId);
+            $balance = $this->lockBalance(
+                $targetCompanyId,
+                $warehouseId,
+                $targetProductId,
+                syncPhysicalQuantity: true
+            );
 
             $latestDate = DB::table('inventory_cost_movements')
                 ->where('company_id', $targetCompanyId)
@@ -586,19 +591,11 @@ class InventoryCostService
 
         if ($outgoingProductId !== null && $outgoingQuantity !== null) {
             foreach ($candidateWarehouseIds as $candidateWarehouseId) {
-                $available = DB::table('inventory_cost_balances')
-                    ->where('company_id', $targetCompanyId)
-                    ->where('warehouse_id', $candidateWarehouseId)
-                    ->where('product_id', $outgoingProductId)
-                    ->value('quantity');
-
-                if ($available === null) {
-                    $available = DB::table('price_sklad')
-                        ->where('firma', $targetCompanyId)
-                        ->where('sklad', $candidateWarehouseId)
-                        ->where('pnum', $outgoingProductId)
-                        ->sum('count');
-                }
+                $available = DB::table('price_sklad')
+                    ->where('firma', $targetCompanyId)
+                    ->where('sklad', $candidateWarehouseId)
+                    ->where('pnum', $outgoingProductId)
+                    ->sum('count');
 
                 if ((float) $available + self::EPSILON >= $outgoingQuantity) {
                     return $candidateWarehouseId;
@@ -618,7 +615,12 @@ class InventoryCostService
         throw new RuntimeException("Для проекту {$targetCompanyId} не знайдено склад для дзеркальної проводки.");
     }
 
-    private function lockBalance(int $companyId, int $warehouseId, string $productId): object
+    private function lockBalance(
+        int $companyId,
+        int $warehouseId,
+        string $productId,
+        bool $syncPhysicalQuantity = false
+    ): object
     {
         $balance = DB::table('inventory_cost_balances')
             ->where('company_id', $companyId)
@@ -628,6 +630,28 @@ class InventoryCostService
             ->first();
 
         if ($balance) {
+            if ($syncPhysicalQuantity) {
+                $physicalQuantity = round((float) DB::table('price_sklad')
+                    ->where('firma', $companyId)
+                    ->where('sklad', $warehouseId)
+                    ->where('pnum', $productId)
+                    ->sum('count'), 3);
+
+                if (abs((float) $balance->quantity - $physicalQuantity) > self::EPSILON) {
+                    $averageCost = max(0, (float) $balance->average_cost);
+                    DB::table('inventory_cost_balances')
+                        ->where('id', $balance->id)
+                        ->update([
+                            'quantity' => $physicalQuantity,
+                            'total_value' => round($physicalQuantity * $averageCost, 4),
+                            'updated_at' => now(),
+                        ]);
+
+                    $balance->quantity = $physicalQuantity;
+                    $balance->total_value = round($physicalQuantity * $averageCost, 4);
+                }
+            }
+
             return $balance;
         }
 
