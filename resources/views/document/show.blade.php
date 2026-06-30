@@ -1,7 +1,6 @@
 @extends('home')
 
 @section('content')
-    @include('partials.panel')
     @php
         $documentRoutes = $documentRoutePrefix ?? 'document';
         $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
@@ -10,6 +9,27 @@
         $showLoanRepaymentSchedule = $isLoanDocument && $doc === 'RN';
         $hideGoodsSection = $isLoanDocument && in_array($doc, ['ZOUT', 'RN'], true);
     @endphp
+
+    @if($isLoanDocument)
+        @if(in_array($doc, ['ZOUT', 'RO', 'PO'], true))
+            <nav class="nav nav-pills gap-2 mb-3" aria-label="Кредитные документы">
+                <a href="{{ route('bank.loanDocs.index') }}"
+                    class="nav-link {{ $doc === 'ZOUT' ? 'active' : '' }}">
+                    Заявки (ZOUT)
+                </a>
+                <a href="{{ route('bank.loanDocs.index', ['doc' => 'RO']) }}"
+                    class="nav-link {{ $doc === 'RO' ? 'active' : '' }}">
+                    Кредиты (RO)
+                </a>
+                <a href="{{ route('bank.loanDocs.index', ['doc' => 'PO']) }}"
+                    class="nav-link {{ $doc === 'PO' ? 'active' : '' }}">
+                    Выплаты (PO)
+                </a>
+            </nav>
+        @endif
+    @else
+        @include('partials.panel')
+    @endif
 
     <style>
 
@@ -458,23 +478,6 @@
     </style>
 
     <div class="ttable doc-page">
-
-        @if($isLoanDocument && in_array($doc, ['ZOUT', 'RO', 'PO'], true))
-            <nav class="nav nav-pills gap-2 mb-3" aria-label="Кредитные документы">
-                <a href="{{ route('bank.loanDocs.index') }}"
-                    class="nav-link {{ $doc === 'ZOUT' ? 'active' : '' }}">
-                    Заявки (ZOUT)
-                </a>
-                <a href="{{ route('bank.loanDocs.index', ['doc' => 'RO']) }}"
-                    class="nav-link {{ $doc === 'RO' ? 'active' : '' }}">
-                    Кредиты (RO)
-                </a>
-                <a href="{{ route('bank.loanDocs.index', ['doc' => 'PO']) }}"
-                    class="nav-link {{ $doc === 'PO' ? 'active' : '' }}">
-                    Выплаты (PO)
-                </a>
-            </nav>
-        @endif
 
         {{-- Header --}}
         <div class="doc-header">
