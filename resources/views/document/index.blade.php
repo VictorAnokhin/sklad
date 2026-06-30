@@ -5,6 +5,7 @@
 @section('content')
 @php
 $documentRoutes = $documentRoutePrefix ?? 'document';
+$isLoanDocuments = $documentRoutes === 'bank.loanDocs';
 $btnLabel = match($doc) {
 'PO' => \App\Models\Document::typeName('PO'),
 'RO' => \App\Models\Document::typeName('RO'),
@@ -23,19 +24,45 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
 
 <div class="ttable top-action-bar">
   <div class="top-action-filter">
-    @include('partials.filter')
+    @include('partials.filter', $isLoanDocuments ? ['filterButtonLabel' => 'Фильтр'] : [])
   </div>
-  <form action="{{ route($documentRoutes . '.save') }}" method="post" name="dataform" class="top-action-create">
-    @csrf
-    <input type="hidden" name="year_N" value="{{ session('year', date('Y')) }}">
-    <input type="hidden" name="create_doc_type" value="{{ $doc }}">
+  @if($isLoanDocuments)
+    <div class="top-action-create">
+      <a href="{{ route('bank.loanDocs.index', ['action' => 'create']) }}" class="button top-action-create-btn">
+        + Создать заявку
+      </a>
+    </div>
+  @else
+    <form action="{{ route($documentRoutes . '.save') }}" method="post" name="dataform" class="top-action-create">
+      @csrf
+      <input type="hidden" name="year_N" value="{{ session('year', date('Y')) }}">
+      <input type="hidden" name="create_doc_type" value="{{ $doc }}">
 
-    <button type="submit" name="run" value="{{ $btnLabel }}" class="button top-action-create-btn">
-      + {{ $btnLabel }}
-    </button>
-  </form>
+      <button type="submit" name="run" value="{{ $btnLabel }}" class="button top-action-create-btn">
+        + {{ $btnLabel }}
+      </button>
+    </form>
+  @endif
   <div class="top-action-panel">
-    @include('partials.panel')
+    @if($isLoanDocuments)
+      <div class="doc-tabs-wrap">
+        <nav class="doc-tabs" aria-label="Меню кредитов">
+          <a href="{{ route('bank.loanDocs.index') }}" class="doc-tab">
+            <span class="doc-tab__label">Заявки (CRDT)</span>
+          </a>
+          <a href="{{ route('bank.loanDocs.index', ['doc' => 'CRO']) }}"
+            class="doc-tab {{ $doc === 'CRO' ? 'is-active' : '' }}">
+            <span class="doc-tab__label">Кредиты (CRO)</span>
+          </a>
+          <a href="{{ route('bank.loanDocs.index', ['doc' => 'CPO']) }}"
+            class="doc-tab {{ $doc === 'CPO' ? 'is-active' : '' }}">
+            <span class="doc-tab__label">Выплаты (CPO)</span>
+          </a>
+        </nav>
+      </div>
+    @else
+      @include('partials.panel')
+    @endif
   </div>
 </div>
 

@@ -966,6 +966,10 @@
             button.addEventListener('click', openFilterModal);
         });
 
+        if (new URLSearchParams(window.location.search).get('action') === 'create') {
+            openNewLoan();
+        }
+
         root.querySelectorAll('[data-loan-close]').forEach((button) => {
             button.addEventListener('click', closeModal);
         });

@@ -11,7 +11,7 @@
   @if($num === '0')
   <div onclick="filterToggle()" class="{{ $btnCls }}" style="width:70px;height:70px;margin-top:-3px;cursor:pointer; background: linear-gradient(135deg, #fbbf24, #f59e0b); border: none; border-radius: 16px; box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); transition: all 0.3s ease; display: flex; flex-direction: column; align-items: center; justify-content: center;">
     <img src="/img/icon-category.png" alt="{{ __('document.filter.icon_alt') }}" style="width:32px;filter: brightness(0);">
-    <span style="font-size: 0.7rem; font-weight: 600; color: #000; margin-top: 4px;">{{ __('document.filter.search') }}</span>
+    <span style="font-size: 0.7rem; font-weight: 600; color: #000; margin-top: 4px;">{{ $filterButtonLabel ?? __('document.filter.search') }}</span>
   </div>
   @endif
   @if(($fd['datesAreDefault'] ?? false) && $num === '0' && !in_array($doc, ['ZOUT', 'ZIN'], true))
@@ -42,7 +42,7 @@
       <input type="hidden" name="doc"    value="{{ $doc }}">
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-        @if(!in_array($doc, ['STAT','ZD','RO','PO','RPO','PP']))
+        @if(!in_array($doc, ['STAT','ZD','RO','CRO','PO','CPO','RPO','PP']))
         <div>
           <label style="display:block; margin-bottom:4px; font-size:0.85rem;">{{ __('document.filter.number_or_note') }}</label>
           <input type="text" name="f_content" autocomplete="off"
