@@ -1253,12 +1253,24 @@ class DocumentController extends Controller
         $doc = $request->input('doc', session('doc', ''));
         $table = Document::tableForType($doc);
         $fid = session('fid', '');
+        $documentRoutePrefix = $this->documentRoutePrefix();
 
         // Delete related z_body rows (goods) first
         $document = DB::table($table)->where('id', $docId)->where('firma', $fid)->first();
+        $loanParentDocument = null;
         if ($document) {
             if ($this->isRootDocumentLocked($doc, (string) $docId, $fid)) {
                 return redirect()->back()->with('error', 'Проведений документ видаляти не можна. Спочатку зніміть проводку з пов’язаних документів.');
+            }
+            if ($documentRoutePrefix === 'bank.loanDocs' && $doc !== 'ZOUT') {
+                $parentDocumentId = (int) ($document->docid ?? 0);
+                if ($parentDocumentId > 0) {
+                    $loanParentDocument = DB::table('document')
+                        ->where('id', $parentDocumentId)
+                        ->where('firma', $fid)
+                        ->where('type', 'ZOUT')
+                        ->first();
+                }
             }
             $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'RN', 'PN'], true) ? $docId : ($document->docid ?? $docId);
             ZBody::where('docid', $docIdToFind)->delete();
@@ -1267,7 +1279,23 @@ class DocumentController extends Controller
         DB::table($table)->where('id', $docId)->where('firma', $fid)->delete();
         session(['num' => '0', 'doc_id' => '0']);
 
-        return redirect()->route($this->documentRoutePrefix() . '.index', ['doc' => $doc]);
+        if ($documentRoutePrefix === 'bank.loanDocs') {
+            if ($doc === 'ZOUT' || ! $loanParentDocument) {
+                return redirect()->route('bank.loanDocs.index');
+            }
+
+            return redirect()->route('bank.loanDocs.show', [
+                'doc' => 'ZOUT',
+                'doc_id' => (int) $loanParentDocument->id,
+                'parent_doc_id' => (int) $loanParentDocument->id,
+                'num' => $loanParentDocument->num,
+                'year' => strlen((string) ($loanParentDocument->data ?? '')) >= 10
+                    ? substr((string) $loanParentDocument->data, 6, 4)
+                    : date('Y'),
+            ]);
+        }
+
+        return redirect()->route($documentRoutePrefix . '.index', ['doc' => $doc]);
     }
 
     // ── Bulk status ───────────────────────────────────────────────────────────
