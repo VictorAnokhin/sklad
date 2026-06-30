@@ -535,9 +535,9 @@
         @endif
 
         {{-- Related icons strip (client_info) --}}
-        @if(!empty($relatedIcons))
+        @if(! $isLoanDocument && !empty($relatedIcons))
             <div class="alert alert-secondary py-2 related-icons-bar">
-                <strong>{{ $isLoanDocument ? 'Связанные кредитные документы:' : "Зв'язані:" }}</strong> {!! $relatedIcons !!}
+                <strong>Зв'язані:</strong> {!! $relatedIcons !!}
             </div>
         @endif
 
