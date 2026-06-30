@@ -234,9 +234,9 @@ class AccountingService
         }
 
         return match ($docType) {
-            'PO' => $this->entriesForMoneyReceipt($document, $fid),
+            'PO', 'CPO' => $this->entriesForMoneyReceipt($document, $fid),
             'PPO' => $this->entriesForMoneyReceipt($document, $fid),
-            'RO' => $this->entriesForMoneyIssue($document, $fid),
+            'RO', 'CRO' => $this->entriesForMoneyIssue($document, $fid),
             'PRO' => $this->entriesForMoneyIssue($document, $fid),
             'ZP' => $this->entriesForMoneyIssue($document, $fid),
             'PP' => $this->entriesForDepositOperation($document, $fid),
@@ -352,7 +352,7 @@ class AccountingService
         return DB::table('document')
             ->where('id', $parentDocumentId)
             ->where('firma', $fid)
-            ->where('type', 'ZOUT')
+            ->where('type', 'CRDT')
             ->where(function ($query) {
                 $query->where('typeproduct', 'credit_request')
                     ->orWhere('numorder', 'AV8-LOAN')

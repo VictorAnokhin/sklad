@@ -147,7 +147,7 @@ class DocumentController extends Controller
 
     private function isRootDocumentLocked(string $docType, string $docId, string $fid): bool
     {
-        if (!in_array($docType, ['ZOUT', 'ZIN'], true) || $docId === '' || $docId === '0') {
+        if (!in_array($docType, ['ZOUT', 'ZIN', 'CRDT'], true) || $docId === '' || $docId === '0') {
             return false;
         }
 
@@ -198,11 +198,11 @@ class DocumentController extends Controller
             $clientId = $row->client1 ?? 0;
             $numz = $row->numz ?? '0';
             $typez = $row->typez ?? '';
-            $rowDocid = in_array($doc, ['ZIN', 'ZOUT'], true) ? ($row->id ?? 0) : ($row->docid ?? 0);
+            $rowDocid = in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) ? ($row->id ?? 0) : ($row->docid ?? 0);
             $summa_ = $row->summa ?? 0;
 
             // For ZIN/ZOUT root docs: if typez is empty, use the doc's own type
-            if (in_array($doc, ['ZIN', 'ZOUT'], true) && ($typez === '' || $typez === '0')) {
+            if (in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) && ($typez === '' || $typez === '0')) {
                 $typez = $doc;
             }
 
@@ -210,9 +210,9 @@ class DocumentController extends Controller
             // For child docs: show only if their parent is ZIN/ZOUT
             $showIcons = false;
             if ($clientId > 0) {
-                if (in_array($doc, ['ZIN', 'ZOUT'], true)) {
+                if (in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)) {
                     $showIcons = true;
-                } elseif (in_array($typez, ['ZIN', 'ZOUT'], true)) {
+                } elseif (in_array($typez, ['ZIN', 'ZOUT', 'CRDT'], true)) {
                     $showIcons = true;
                 }
             }
@@ -222,7 +222,7 @@ class DocumentController extends Controller
                 : '';
         }
 
-        $view = in_array($doc, ['ZIN', 'ZOUT'], true) ? 'document.zakaz' : 'document.index';
+        $view = in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) ? 'document.zakaz' : 'document.index';
 
         return view($view, compact(
             'items', 'total_sum', 'rows', 'doc', 'pos', 'total', 'fd', 'fid', 'documentRoutePrefix'
@@ -263,7 +263,7 @@ class DocumentController extends Controller
         if ($num == '0' || $docId == '0') {
             $table = Document::tableForType($doc);
 
-            if (in_array($doc, ['ZIN', 'ZOUT'], true)) {
+            if (in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)) {
                 $existingDraft = DB::table($table)
                     ->where('firma', $fid)
                     ->where('type', $doc)
@@ -305,7 +305,7 @@ class DocumentController extends Controller
             );
             $parentDocument = null;
 
-            if (!in_array($doc, ['ZIN', 'ZOUT'], true) && $incomingParentDocId !== '0') {
+            if (!in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) && $incomingParentDocId !== '0') {
                 $parentDocid = $incomingParentDocId;
                 $parentDocument = DB::table('document')
                     ->where('id', $parentDocid)
@@ -329,7 +329,7 @@ class DocumentController extends Controller
                 }
             }
 
-            if (!$parentDocument && $parentDocid !== '0' && !in_array($doc, ['ZIN', 'ZOUT'], true)) {
+            if (!$parentDocument && $parentDocid !== '0' && !in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)) {
                 $parentDocument = DB::table('document')
                     ->where('id', $parentDocid)
                     ->where('firma', $fid)
@@ -337,7 +337,7 @@ class DocumentController extends Controller
             }
 
             $newSumma = 0.0;
-            if (in_array($doc, ['PO', 'RO'], true)) {
+            if (in_array($doc, ['PO', 'CPO', 'RO', 'CRO'], true)) {
                 $newSumma = $sumFromRequest;
             } elseif ($parentDocument) {
                 $newSumma = (float) ($parentDocument->summa ?? 0);
@@ -366,7 +366,7 @@ class DocumentController extends Controller
                 'dt' => $dt,
                 'numz' => $parentNumz,
                 'typez' => $parentTypez,
-                'docid' => in_array($doc, ['ZIN', 'ZOUT'], true) ? 0 : $parentDocid,
+                'docid' => in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) ? 0 : $parentDocid,
                 'manager' => session('login', ''),
                 'user' => session('login', ''),
                 'content' => $content,
@@ -381,7 +381,7 @@ class DocumentController extends Controller
                 'work' => session('work', '1'),
             ]);
 
-            if (in_array($doc, ['ZIN', 'ZOUT'], true)) {
+            if (in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)) {
                 DB::table($table)->where('id', $newId)->update(['docid' => $newId, 'numz' => $newNum]);
                 session(['docid' => $newId]);
             }
@@ -396,7 +396,7 @@ class DocumentController extends Controller
             return redirect()->route($this->documentRoutePrefix() . '.show', [
                 'doc' => $doc,
                 'doc_id' => $newId,
-                'parent_doc_id' => in_array($doc, ['ZIN', 'ZOUT'], true) ? $newId : $parentDocid,
+                'parent_doc_id' => in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) ? $newId : $parentDocid,
                 'num' => $newNum,
                 'year' => $year,
             ]);
@@ -413,16 +413,16 @@ class DocumentController extends Controller
         }
 
         // Populate session from doc (mirrors legacy class document constructor)
-        $parentNumz = in_array($doc, ['ZIN', 'ZOUT'], true)
+        $parentNumz = in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)
             ? ($document->num ?: $document->numz)
             : ($document->numz ?: '0');
-        $parentTypez = in_array($doc, ['ZIN', 'ZOUT'], true)
+        $parentTypez = in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)
             ? $doc
             : ($document->typez ?: '');
-        $parentDocid = in_array($doc, ['ZIN', 'ZOUT'], true)
+        $parentDocid = in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)
             ? $docId
             : ($document->docid ?: $docId);
-        $parentDocument = (!in_array($doc, ['ZIN', 'ZOUT'], true) && $parentDocid)
+        $parentDocument = (!in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) && $parentDocid)
             ? DB::table('document')->where('id', $parentDocid)->first()
             : null;
 
@@ -443,7 +443,7 @@ class DocumentController extends Controller
             'reestr' => $document->reestr,
         ]);
 
-        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'RN', 'PN'], true) ? $docId : $parentDocid;
+        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'CRDT', 'RN', 'CPLAN', 'PN'], true) ? $docId : $parentDocid;
         $lineItems = ZBody::from('z_body as zb')
             ->leftJoin('comp as c', function ($join) {
                 $join->on('zb.pnum', '=', 'c.id')
@@ -508,16 +508,16 @@ class DocumentController extends Controller
         }
 
         $documentRoutePrefix = $this->documentRoutePrefix();
-        $isLoanRoDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'RO';
+        $isLoanRoDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'CRO';
 
         // Load all oplata and reestr options for PO/RO dropdowns
         $oplataList = collect();
         $reestrList = collect();
-        if (in_array($doc, ['PO', 'RO', 'ZP'], true)) {
+        if (in_array($doc, ['PO', 'CPO', 'RO', 'CRO', 'ZP'], true)) {
             $oplataList = DB::table('conf')
                 ->where('type', 'oplata')
                 ->where('firma', $fid)
-                ->when(in_array($doc, ['PO', 'RO'], true), function ($query) {
+                ->when(in_array($doc, ['PO', 'CPO', 'RO', 'CRO'], true), function ($query) {
                     $query->where('vision', '1');
                 })
                 ->when($isLoanRoDocument && Schema::hasColumn('conf', 'doc'), function ($query) {
@@ -529,7 +529,12 @@ class DocumentController extends Controller
                 })
                 ->orderBy('name')
                 ->get();
-            $reestrList = ConfModel::paymentTypesForDocument($fid, $doc);
+            $paymentDocType = match ($doc) {
+                'CPO' => 'PO',
+                'CRO' => 'RO',
+                default => $doc,
+            };
+            $reestrList = ConfModel::paymentTypesForDocument($fid, $paymentDocType);
         }
         $statusList = DB::table('conf')
             ->where('type', 'status')
@@ -575,8 +580,8 @@ class DocumentController extends Controller
             }
         }
 
-        $isLoanRequestDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'ZOUT';
-        $isLoanIssueDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'RN';
+        $isLoanRequestDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'CRDT';
+        $isLoanIssueDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'CPLAN';
         $loanRoUrl = null;
         $loanRoIsIssued = false;
         $loanMeta = [];
@@ -584,7 +589,7 @@ class DocumentController extends Controller
         $loanRepaymentSchedule = null;
         $loanRootDocument = $isLoanRequestDocument
             ? $document
-            : (($documentRoutePrefix === 'bank.loanDocs' && ($parentDocument->type ?? '') === 'ZOUT')
+            : (($documentRoutePrefix === 'bank.loanDocs' && ($parentDocument->type ?? '') === 'CRDT')
                 ? $parentDocument
                 : null);
 
@@ -592,14 +597,14 @@ class DocumentController extends Controller
             $postedLoanRo = DB::table('z_document')
                 ->where('docid', (string) $loanRootDocument->id)
                 ->where('firma', $fid)
-                ->where('type', 'RO')
+                ->where('type', 'CRO')
                 ->where('provodka', 1)
                 ->orderByDesc('id')
                 ->first();
             $loanRoIsIssued = $postedLoanRo !== null;
             $loanRoUrl = $postedLoanRo
                 ? route('bank.loanDocs.show', [
-                    'doc' => 'RO',
+                    'doc' => 'CRO',
                     'doc_id' => (int) $postedLoanRo->id,
                     'parent_doc_id' => (int) $loanRootDocument->id,
                     'num' => $postedLoanRo->num,
@@ -608,7 +613,7 @@ class DocumentController extends Controller
                         : $year,
                 ])
                 : ($isLoanRequestDocument ? route('bank.loanDocs.show', [
-                    'doc' => 'RO',
+                    'doc' => 'CRO',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $loanRootDocument->id,
                     'num' => 0,
@@ -626,7 +631,7 @@ class DocumentController extends Controller
             $loanCollateralOptions = $loanCollateralOptions
                 ->merge(
                     DB::table('document')
-                        ->where('type', 'ZOUT')
+                        ->where('type', 'CRDT')
                         ->where('firma', $fid)
                         ->where(function ($query) {
                             $query->where('typeproduct', 'credit_request')
@@ -640,7 +645,7 @@ class DocumentController extends Controller
                 ->unique()
                 ->values();
         }
-        if ($isLoanIssueDocument && $parentDocument && ($parentDocument->type ?? '') === 'ZOUT') {
+        if ($isLoanIssueDocument && $parentDocument && ($parentDocument->type ?? '') === 'CRDT') {
             $loanMeta = $this->parseLoanRequestContent((string) ($parentDocument->content ?? ''));
             $loanRepaymentSchedule = $this->loanRepaymentSchedule($parentDocument, $loanMeta);
         }
@@ -651,7 +656,7 @@ class DocumentController extends Controller
         $typez = $parentTypez;
         $docid = $parentDocid;
         $relatedDocTotal = (float) (
-            in_array($doc, ['ZIN', 'ZOUT'], true)
+            in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)
                 ? ($document->summa ?? 0)
                 : ($parentDocument->summa ?? $document->summa ?? 0)
         );
@@ -665,13 +670,13 @@ class DocumentController extends Controller
 
         $idstatus = (int)session('idstatus', 0);
         $orderPosted = (int) (
-            in_array($doc, ['ZIN', 'ZOUT'], true)
+            in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)
                 ? ($document->provodka ?? 0)
                 : ($parentDocument->provodka ?? 0)
         ) === 1;
 
         // Show related docs for root orders/purchases and their child documents
-        $isZakazType = in_array($typez, ['ZIN', 'ZOUT'], true);
+        $isZakazType = in_array($typez, ['ZIN', 'ZOUT', 'CRDT'], true);
 
         // client_info1 — full block with action buttons
         $relatedDocs = null;
@@ -684,7 +689,7 @@ class DocumentController extends Controller
 
         // client_info — compact icon strip: only for ZIN / ZOUT documents
         $relatedIcons = null;
-        if (in_array($doc, ['ZIN', 'ZOUT'], true) && $clientId > 0) {
+        if (in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) && $clientId > 0) {
             $relatedIcons = Docs::clientInfo(
                 $clientId, $numz, $typez, $year, $docid, $document->summa ?? 0
             );
@@ -962,7 +967,7 @@ class DocumentController extends Controller
             $errors = [];
             
             // Client validation (not required for RA documents)
-            if ($doc !== 'RA' && trim((string) $request->input('client1', '')) === '') {
+            if (!in_array($doc, ['RA', 'CDOC'], true) && trim((string) $request->input('client1', '')) === '') {
                 $errors['client1'] = 'Оберіть клієнта';
             }
 
@@ -980,11 +985,11 @@ class DocumentController extends Controller
                 }
             }
 
-            if (in_array($doc, ['ZOUT', 'ZIN'], true) && trim((string) $request->input('status', '')) === '') {
+            if (in_array($doc, ['ZOUT', 'ZIN', 'CRDT'], true) && trim((string) $request->input('status', '')) === '') {
                 $errors['status'] = 'Оберіть статус';
             }
 
-            if (in_array($doc, ['PO', 'RO', 'ZP'], true)) {
+            if (in_array($doc, ['PO', 'CPO', 'RO', 'CRO', 'ZP'], true)) {
                 if (trim((string) $request->input('oplata', '')) === '') {
                     $errors['oplata'] = 'Оберіть касу';
                 }
@@ -1009,7 +1014,7 @@ class DocumentController extends Controller
 
             session(['doc' => $doc, 'doc_id' => $docId]);
 
-            if ($this->documentRoutePrefix() === 'bank.loanDocs' && $doc === 'ZOUT') {
+            if ($this->documentRoutePrefix() === 'bank.loanDocs' && $doc === 'CRDT') {
                 return $this->saveLoanRequestDocument($request, $docId, $fid);
             }
             
@@ -1021,7 +1026,7 @@ class DocumentController extends Controller
             ]);
             
             try {
-                $conductableDocs = ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'];
+                $conductableDocs = ['RN', 'PN', 'PO', 'CPO', 'RO', 'CRO', 'ZP', 'VN', 'AO', 'WO1'];
                 $currentPosted = false;
                 $desiredPosted = $request->boolean('post_after_save');
                 $wasSmsFlagEnabled = false;
@@ -1262,17 +1267,17 @@ class DocumentController extends Controller
             if ($this->isRootDocumentLocked($doc, (string) $docId, $fid)) {
                 return redirect()->back()->with('error', 'Проведений документ видаляти не можна. Спочатку зніміть проводку з пов’язаних документів.');
             }
-            if ($documentRoutePrefix === 'bank.loanDocs' && $doc !== 'ZOUT') {
+            if ($documentRoutePrefix === 'bank.loanDocs' && $doc !== 'CRDT') {
                 $parentDocumentId = (int) ($document->docid ?? 0);
                 if ($parentDocumentId > 0) {
                     $loanParentDocument = DB::table('document')
                         ->where('id', $parentDocumentId)
                         ->where('firma', $fid)
-                        ->where('type', 'ZOUT')
+                        ->where('type', 'CRDT')
                         ->first();
                 }
             }
-            $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'RN', 'PN'], true) ? $docId : ($document->docid ?? $docId);
+            $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'CRDT', 'RN', 'CPLAN', 'PN'], true) ? $docId : ($document->docid ?? $docId);
             ZBody::where('docid', $docIdToFind)->delete();
         }
 
@@ -1280,12 +1285,12 @@ class DocumentController extends Controller
         session(['num' => '0', 'doc_id' => '0']);
 
         if ($documentRoutePrefix === 'bank.loanDocs') {
-            if ($doc === 'ZOUT' || ! $loanParentDocument) {
+            if ($doc === 'CRDT' || ! $loanParentDocument) {
                 return redirect()->route('bank.loanDocs.index');
             }
 
             return redirect()->route('bank.loanDocs.show', [
-                'doc' => 'ZOUT',
+                'doc' => 'CRDT',
                 'doc_id' => (int) $loanParentDocument->id,
                 'parent_doc_id' => (int) $loanParentDocument->id,
                 'num' => $loanParentDocument->num,
@@ -1689,7 +1694,7 @@ class DocumentController extends Controller
         $document = DB::table('document')
             ->where('id', $docId)
             ->where('firma', $fid)
-            ->where('type', 'ZOUT')
+            ->where('type', 'CRDT')
             ->first();
 
         if (! $document) {
@@ -1737,7 +1742,7 @@ class DocumentController extends Controller
         ]);
 
         return redirect()->route($this->documentRoutePrefix() . '.show', [
-            'doc' => 'ZOUT',
+            'doc' => 'CRDT',
             'doc_id' => $docId,
             'num' => $num,
             'year' => strlen($documentDate) >= 10 ? substr($documentDate, 6, 4) : date('Y'),
@@ -1871,7 +1876,7 @@ class DocumentController extends Controller
         return (float) DB::table('z_document')
             ->where('docid', (string) $loanId)
             ->where('firma', $projectId)
-            ->where('type', 'PO')
+            ->where('type', 'CPO')
             ->where(function ($query) {
                 $query->where('typeproduct', 'credit_payment')
                     ->orWhere('numorder', 'AV8-LOAN-PAYMENT')

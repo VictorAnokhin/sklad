@@ -90,13 +90,13 @@
             <div class="doc-tabs-wrap bank-loan-doc-tabs">
                 <nav class="doc-tabs" aria-label="Меню кредитов">
                     <a href="{{ route('bank.loanDocs.index') }}" class="doc-tab is-active">
-                        <span class="doc-tab__label">Заявки (ZOUT)</span>
+                        <span class="doc-tab__label">Заявки (CRDT)</span>
                     </a>
-                    <a href="{{ route('bank.loanDocs.index', ['doc' => 'RO']) }}" class="doc-tab">
-                        <span class="doc-tab__label">Кредиты (RO)</span>
+                    <a href="{{ route('bank.loanDocs.index', ['doc' => 'CRO']) }}" class="doc-tab">
+                        <span class="doc-tab__label">Кредиты (CRO)</span>
                     </a>
-                    <a href="{{ route('bank.loanDocs.index', ['doc' => 'PO']) }}" class="doc-tab">
-                        <span class="doc-tab__label">Выплаты (PO)</span>
+                    <a href="{{ route('bank.loanDocs.index', ['doc' => 'CPO']) }}" class="doc-tab">
+                        <span class="doc-tab__label">Выплаты (CPO)</span>
                     </a>
                 </nav>
             </div>
@@ -221,7 +221,7 @@
             <div class="bank-modal__header">
                 <div>
                     <div class="bank-label">График погашения</div>
-                    <h2 id="loanPaymentModalTitle" data-loan-payment-title>PO платеж</h2>
+                    <h2 id="loanPaymentModalTitle" data-loan-payment-title>CPO платеж</h2>
                 </div>
                 <button type="button" class="bank-modal__close" data-loan-payment-close aria-label="Закрыть">×</button>
             </div>
@@ -299,7 +299,7 @@
             <div>
                 <div class="bank-label">Документооборот</div>
                 <h2 class="mb-1">Кредитные заявки</h2>
-                <div class="bank-meta">ZOUT — заявка, RN — выдача кредита, RA — документы залога, PO/RO — платежи заемщика и выдача средств.</div>
+                <div class="bank-meta">CRDT — заявка, CPLAN — план выплат, CDOC — документы залога, CPO/CRO — платежи заемщика и выдача средств.</div>
             </div>
             <div class="bank-meta">{{ $loanRequests->count() }} заявок</div>
         </div>
@@ -348,11 +348,11 @@
                             </td>
                             <td>
                                 <div class="bank-loan-actions">
-                                    <a href="{{ $requestRow->show_url }}" class="btn btn-sm btn-outline-light" data-loan-action-link>ZOUT</a>
-                                    <a href="{{ $requestRow->rn_url }}" class="btn btn-sm btn-outline-info" data-loan-action-link>RN выдача</a>
-                                    <a href="{{ $requestRow->ra_url }}" class="btn btn-sm btn-outline-warning" data-loan-action-link>RA залог</a>
-                                    <button type="button" class="btn btn-sm btn-outline-success" data-loan-payment-open>PO платеж</button>
-                                    <a href="{{ $requestRow->ro_url }}" class="btn btn-sm btn-outline-primary" data-loan-action-link>RO выдача</a>
+                                    <a href="{{ $requestRow->show_url }}" class="btn btn-sm btn-outline-light" data-loan-action-link>CRDT</a>
+                                    <a href="{{ $requestRow->rn_url }}" class="btn btn-sm btn-outline-info" data-loan-action-link>CPLAN</a>
+                                    <a href="{{ $requestRow->ra_url }}" class="btn btn-sm btn-outline-warning" data-loan-action-link>CDOC</a>
+                                    <button type="button" class="btn btn-sm btn-outline-success" data-loan-payment-open>CPO платеж</button>
+                                    <a href="{{ $requestRow->ro_url }}" class="btn btn-sm btn-outline-primary" data-loan-action-link>CRO выдача</a>
                                 </div>
                             </td>
                         </tr>
@@ -370,10 +370,10 @@
         <div class="bank-label">Вариант учета</div>
         <h2>Рекомендуемый маршрут</h2>
         <div class="bank-loans-accounting__grid">
-            <div><strong>ZOUT</strong><span>Заявка на кредит и параметры залога.</span></div>
-            <div><strong>RN</strong><span>Выдача кредита по сценарию trade-flow. Можно использовать как акт выдачи кредитного продукта.</span></div>
-            <div><strong>PO</strong><span>Платежи заемщика: проценты, тело кредита, регулярное обслуживание.</span></div>
-            <div><strong>RO</strong><span>Бухгалтерски точнее для фактического исходящего денежного потока при выдаче кредита.</span></div>
+            <div><strong>CRDT</strong><span>Заявка на кредит и параметры залога.</span></div>
+            <div><strong>CPLAN</strong><span>План выплат по кредиту.</span></div>
+            <div><strong>CPO</strong><span>Платежи заемщика: проценты, тело кредита, регулярное обслуживание.</span></div>
+            <div><strong>CRO</strong><span>Фактический исходящий денежный поток при выдаче кредита.</span></div>
         </div>
     </section>
 
@@ -907,7 +907,7 @@
                 schedule = {};
             }
 
-            if (paymentTitle) paymentTitle.textContent = `PO платеж по заявке #${row.dataset.loanNum || row.dataset.loanId || ''}`;
+            if (paymentTitle) paymentTitle.textContent = `CPO платеж по заявке #${row.dataset.loanNum || row.dataset.loanId || ''}`;
             if (paymentLoanId) paymentLoanId.value = row.dataset.loanId || '';
             if (paymentAmount) paymentAmount.value = Number(schedule.next_amount || schedule.remaining_total || 0).toFixed(2);
             if (paymentTotal) paymentTotal.textContent = formatAmount(Number(schedule.total_due || 0));

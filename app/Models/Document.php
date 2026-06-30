@@ -24,7 +24,7 @@ class Document extends Model
     public static function tableForType($doc)
     {
         return match ($doc) {
-                'ZIN', 'ZOUT' => 'document',
+                'ZIN', 'ZOUT', 'CRDT' => 'document',
                 default => 'z_document',
             };
     }
@@ -345,7 +345,7 @@ class Document extends Model
                 ];
             }
 
-            $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'RN', 'PN'], true)
+            $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'CRDT', 'RN', 'CPLAN', 'PN'], true)
                 ? $docId
                 : (string) ($doc->docid ?: $docId);
             $lineItems = ZBody::where('docid', $lineDocId)
@@ -384,8 +384,8 @@ class Document extends Model
                     : $inventoryService->post($doc, $lineItems, $fid);
             }
 
-            if (in_array($docType, ['PO', 'RO', 'PP'], true)) {
-                $sign = $docType === 'RO' ? -1 : 1;
+            if (in_array($docType, ['PO', 'CPO', 'RO', 'CRO', 'PP'], true)) {
+                $sign = in_array($docType, ['RO', 'CRO'], true) ? -1 : 1;
                 $kasId = $oplata;
                 $confColumns = Schema::getColumnListing('conf');
                 $delta = $sign * $summa * $direction;
@@ -394,11 +394,11 @@ class Document extends Model
                     throw new \RuntimeException('Для проводки грошового документа потрібно вибрати касу.');
                 }
 
-                if (!$wasPosted && $docType === 'RO') {
+                if (!$wasPosted && in_array($docType, ['RO', 'CRO'], true)) {
                     self::assertCashboxBalanceAvailable($fid, $kasId, $summa, $confColumns);
                 }
 
-                if (in_array($docType, ['PO', 'RO'], true) && in_array('value', $confColumns, true)) {
+                if (in_array($docType, ['PO', 'CPO', 'RO', 'CRO'], true) && in_array('value', $confColumns, true)) {
                     $currentValue = (float) DB::table('conf')
                         ->where('id', $kasId)
                         ->where('type', 'oplata')
@@ -469,14 +469,14 @@ class Document extends Model
                 $wasPosted
             );
 
-            if (in_array($docType, ['PN', 'RN', 'PO', 'RO'], true) && $ledgerTransaction === null) {
+            if (in_array($docType, ['PN', 'RN', 'PO', 'CPO', 'RO', 'CRO'], true) && $ledgerTransaction === null) {
                 throw new \RuntimeException(
                     "Бухгалтерський регістр недоступний: {$docType} не може бути проведений без подвійного запису."
                 );
             }
 
             $mirrorLedgerTransaction = null;
-            if (in_array($docType, ['PN', 'RN', 'PO', 'RO'], true)) {
+            if (in_array($docType, ['PN', 'RN', 'PO', 'CPO', 'RO', 'CRO'], true)) {
                 $mirrorLedgerTransaction = $accountingService->createProjectMirrorTransaction(
                     "{$table}:{$docType}",
                     $docId,
@@ -528,18 +528,18 @@ class Document extends Model
 
     private static function refreshLinkedOrderCloseState(string $docType, string $typez, string $numz, int $parentDocId, string $fid): void
     {
-        if ($docType !== 'PO') {
+        if (!in_array($docType, ['PO', 'CPO'], true)) {
             return;
         }
 
-        if ($parentDocId <= 0 && $typez !== 'ZOUT') {
+        if ($parentDocId <= 0 && !in_array($typez, ['ZOUT', 'CRDT'], true)) {
             return;
         }
 
         $zout = $parentDocId > 0
             ? DB::table('document')
                 ->where('id', $parentDocId)
-                ->where('type', 'ZOUT')
+                ->whereIn('type', ['ZOUT', 'CRDT'])
                 ->where('firma', $fid)
                 ->first()
             : null;
@@ -547,7 +547,7 @@ class Document extends Model
         if (!$zout && $numz !== '0') {
             $zout = DB::table('document')
                 ->where('num', $numz)
-                ->where('type', 'ZOUT')
+                ->whereIn('type', ['ZOUT', 'CRDT'])
                 ->where('firma', $fid)
                 ->first();
         }
@@ -557,7 +557,7 @@ class Document extends Model
         }
 
         $paidQuery = DB::table('z_document')
-            ->where('type', 'PO')
+            ->whereIn('type', ['PO', 'CPO'])
             ->where('firma', $fid)
             ->where('provodka', 1);
 
@@ -566,7 +566,7 @@ class Document extends Model
         } else {
             $paidQuery
                 ->where('numz', $numz)
-                ->where('typez', 'ZOUT');
+                ->whereIn('typez', ['ZOUT', 'CRDT']);
         }
 
         $paid = (float) $paidQuery->sum('summa');
@@ -578,18 +578,18 @@ class Document extends Model
 
     private static function refreshLinkedOrderPostingState(string $docType, string $typez, string $numz, int $parentDocId, string $fid): void
     {
-        if (!in_array($docType, ['RN', 'PO'], true)) {
+        if (!in_array($docType, ['RN', 'CPLAN', 'PO', 'CPO'], true)) {
             return;
         }
 
-        if ($parentDocId <= 0 && $typez !== 'ZOUT') {
+        if ($parentDocId <= 0 && !in_array($typez, ['ZOUT', 'CRDT'], true)) {
             return;
         }
 
         $zout = $parentDocId > 0
             ? DB::table('document')
                 ->where('id', $parentDocId)
-                ->where('type', 'ZOUT')
+                ->whereIn('type', ['ZOUT', 'CRDT'])
                 ->where('firma', $fid)
                 ->first()
             : null;
@@ -597,7 +597,7 @@ class Document extends Model
         if (!$zout && $numz !== '0') {
             $zout = DB::table('document')
                 ->where('num', $numz)
-                ->where('type', 'ZOUT')
+                ->whereIn('type', ['ZOUT', 'CRDT'])
                 ->where('firma', $fid)
                 ->first();
         }
@@ -615,15 +615,15 @@ class Document extends Model
         } else {
             $postedChildrenBase
                 ->where('numz', $numz)
-                ->where('typez', 'ZOUT');
+                ->whereIn('typez', ['ZOUT', 'CRDT']);
         }
 
         $hasPostedRn = (clone $postedChildrenBase)
-            ->where('type', 'RN')
+            ->whereIn('type', ['RN', 'CPLAN'])
             ->exists();
 
         $hasPostedPo = (clone $postedChildrenBase)
-            ->where('type', 'PO')
+            ->whereIn('type', ['PO', 'CPO'])
             ->exists();
 
         if ($hasPostedRn || $hasPostedPo) {

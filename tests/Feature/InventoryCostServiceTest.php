@@ -930,7 +930,7 @@ class InventoryCostServiceTest extends TestCase
         );
     }
 
-    public function test_loan_ro_posts_to_lending_receivable_and_bank_cash(): void
+    public function test_loan_cro_posts_to_lending_receivable_and_bank_cash(): void
     {
         $borrowerId = DB::table('users')->insertGetId([
             'name' => 'Loan borrower',
@@ -947,7 +947,7 @@ class InventoryCostServiceTest extends TestCase
         ]);
         $loanId = DB::table('document')->insertGetId([
             'num' => (string) random_int(900000, 999999),
-            'type' => 'ZOUT',
+            'type' => 'CRDT',
             'firma' => (string) $this->companyId,
             'client1' => (string) $borrowerId,
             'summa' => 250,
@@ -957,15 +957,15 @@ class InventoryCostServiceTest extends TestCase
             'content' => '[AV8_LOAN_REQUEST]',
             'provodka' => 0,
         ]);
-        $roId = $this->createMoneyDocument('RO', 250, $borrowerId, $cashboxId);
+        $roId = $this->createMoneyDocument('CRO', 250, $borrowerId, $cashboxId);
         DB::table('z_document')->where('id', $roId)->update([
             'docid' => (string) $loanId,
-            'typez' => 'ZOUT',
+            'typez' => 'CRDT',
         ]);
 
-        Document::provodka((string) $roId, 'RO', (string) $this->companyId);
+        Document::provodka((string) $roId, 'CRO', (string) $this->companyId);
 
-        $transaction = $this->documentTransaction($roId, 'RO');
+        $transaction = $this->documentTransaction($roId, 'CRO');
         $this->assertNotNull($transaction);
         $this->assertAccountEntry(
             (int) $transaction->id,
@@ -982,7 +982,7 @@ class InventoryCostServiceTest extends TestCase
         $this->assertEqualsWithDelta(750, $this->cashboxValue($cashboxId), 0.001);
     }
 
-    public function test_loan_po_splits_repayment_between_principal_and_interest(): void
+    public function test_loan_cpo_splits_repayment_between_principal_and_interest(): void
     {
         $borrowerId = DB::table('users')->insertGetId([
             'name' => 'Repaying borrower',
@@ -999,7 +999,7 @@ class InventoryCostServiceTest extends TestCase
         ]);
         $loanId = DB::table('document')->insertGetId([
             'num' => (string) random_int(900000, 999999),
-            'type' => 'ZOUT',
+            'type' => 'CRDT',
             'firma' => (string) $this->companyId,
             'client1' => (string) $borrowerId,
             'summa' => 250,
@@ -1013,17 +1013,17 @@ class InventoryCostServiceTest extends TestCase
             ]),
             'provodka' => 0,
         ]);
-        $poId = $this->createMoneyDocument('PO', 28, $borrowerId, $cashboxId);
+        $poId = $this->createMoneyDocument('CPO', 28, $borrowerId, $cashboxId);
         DB::table('z_document')->where('id', $poId)->update([
             'docid' => (string) $loanId,
-            'typez' => 'ZOUT',
+            'typez' => 'CRDT',
             'typeproduct' => 'credit_payment',
             'numorder' => 'AV8-LOAN-PAYMENT',
         ]);
 
-        Document::provodka((string) $poId, 'PO', (string) $this->companyId);
+        Document::provodka((string) $poId, 'CPO', (string) $this->companyId);
 
-        $transaction = $this->documentTransaction($poId, 'PO');
+        $transaction = $this->documentTransaction($poId, 'CPO');
         $this->assertNotNull($transaction);
         $this->assertAccountEntry(
             (int) $transaction->id,

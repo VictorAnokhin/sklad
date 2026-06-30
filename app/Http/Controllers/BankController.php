@@ -2894,7 +2894,7 @@ class BankController extends Controller
             $loan = DB::table('document')
                 ->where('id', $loanId)
                 ->where('firma', (string) $project->id)
-                ->where('type', 'ZOUT')
+                ->where('type', 'CRDT')
                 ->where(function ($query) {
                     $query->where('typeproduct', 'credit_request')
                         ->orWhere('numorder', 'AV8-LOAN')
@@ -2913,7 +2913,7 @@ class BankController extends Controller
                     ->exists();
 
             if ($hasChildren) {
-                return redirect()->route('bank.loanDocs.index')->with('error', 'Нельзя удалить заявку со связанными RN/PO документами.');
+                return redirect()->route('bank.loanDocs.index')->with('error', 'Нельзя удалить заявку со связанными CPLAN/CPO документами.');
             }
 
             DB::table('document')->where('id', $loanId)->delete();
@@ -2960,7 +2960,7 @@ class BankController extends Controller
             $existing = DB::table('document')
                 ->where('id', $loanId)
                 ->where('firma', (string) $project->id)
-                ->where('type', 'ZOUT')
+                ->where('type', 'CRDT')
                 ->where(function ($query) {
                     $query->where('typeproduct', 'credit_request')
                         ->orWhere('numorder', 'AV8-LOAN')
@@ -2972,7 +2972,7 @@ class BankController extends Controller
                 return redirect()->route('bank.loanDocs.index')->with('error', 'Кредитная заявка не найдена.');
             }
         }
-        $num = $existing ? (string) ($existing->num ?? '') : Document::assignNextNum('ZOUT', (string) $project->id, $year);
+        $num = $existing ? (string) ($existing->num ?? '') : Document::assignNextNum('CRDT', (string) $project->id, $year);
         $deadlineAt = $now->copy()->addDays($deadlineDays);
         $content = implode("\n", array_filter([
             '[AV8_LOAN_REQUEST]',
@@ -2991,7 +2991,7 @@ class BankController extends Controller
             'num' => $num,
             'client1' => (string) $payload['borrower_id'],
             'client2' => '0',
-            'type' => 'ZOUT',
+            'type' => 'CRDT',
             'summa' => $loanAmount,
             'status' => 0,
             'data' => $now->format('d-m-Y'),
@@ -3000,7 +3000,7 @@ class BankController extends Controller
             'firma' => (string) $project->id,
             'dt' => $now->timestamp,
             'numz' => $num,
-            'typez' => 'ZOUT',
+            'typez' => 'CRDT',
             'docid' => 0,
             'manager' => session('login', ''),
             'user' => session('login', ''),
@@ -3035,7 +3035,7 @@ class BankController extends Controller
             'success',
             $loanId > 0
                 ? 'Кредитная заявка сохранена.'
-                : 'Заявка на кредит создана. Дальше оформите выдачу кредита через RN, а платежи заемщика через PO.'
+                : 'Заявка на кредит создана. Дальше оформите план выплат через CPLAN, выдачу через CRO, а платежи заемщика через CPO.'
         );
     }
 
@@ -3052,7 +3052,7 @@ class BankController extends Controller
         $loan = DB::table('document')
             ->where('id', (int) $payload['loan_id'])
             ->where('firma', (string) $project->id)
-            ->where('type', 'ZOUT')
+            ->where('type', 'CRDT')
             ->where(function ($query) {
                 $query->where('typeproduct', 'credit_request')
                     ->orWhere('numorder', 'AV8-LOAN')
@@ -3066,11 +3066,11 @@ class BankController extends Controller
 
         $amount = round((float) $payload['amount'], 2);
         $year = strlen((string) ($loan->data ?? '')) >= 10 ? substr((string) $loan->data, 6, 4) : now()->format('Y');
-        $num = Document::assignNextNum('PO', (string) $project->id, $year);
+        $num = Document::assignNextNum('CPO', (string) $project->id, $year);
         $now = now();
         $content = implode("\n", [
             '[AV8_LOAN_PAYMENT]',
-            'Платеж по кредитной заявке ZOUT #' . (string) ($loan->num ?? $loan->id),
+            'Платеж по кредитной заявке CRDT #' . (string) ($loan->num ?? $loan->id),
             'Сумма платежа: ' . number_format($amount, 2, '.', ' '),
         ]);
 
@@ -3079,7 +3079,7 @@ class BankController extends Controller
             'num' => $num,
             'client1' => (string) ($loan->client1 ?? '0'),
             'client2' => (string) ($loan->client2 ?? '0'),
-            'type' => 'PO',
+            'type' => 'CPO',
             'summa' => $amount,
             'status' => 0,
             'data' => $now->format('d-m-Y'),
@@ -3088,7 +3088,7 @@ class BankController extends Controller
             'firma' => (string) $project->id,
             'dt' => $now->timestamp,
             'numz' => (string) ($loan->num ?? $loan->numz ?? '0'),
-            'typez' => 'ZOUT',
+            'typez' => 'CRDT',
             'docid' => (string) $loan->id,
             'manager' => session('login', ''),
             'user' => session('login', ''),
@@ -3157,7 +3157,7 @@ class BankController extends Controller
 
         $saved = DB::table('document')
             ->where('firma', (string) $project->id)
-            ->where('type', 'ZOUT')
+            ->where('type', 'CRDT')
             ->where(function ($query) {
                 $query->where('typeproduct', 'credit_request')
                     ->orWhere('numorder', 'AV8-LOAN')
@@ -3186,7 +3186,7 @@ class BankController extends Controller
         return DB::table('document as d')
             ->leftJoin('users as u', 'u.id', '=', 'd.client1')
             ->where('d.firma', (string) $project->id)
-            ->where('d.type', 'ZOUT')
+            ->where('d.type', 'CRDT')
             ->where(function ($query) {
                 $query->where('d.typeproduct', 'credit_request')
                     ->orWhere('d.numorder', 'AV8-LOAN')
@@ -3223,28 +3223,28 @@ class BankController extends Controller
                 $row->loan_meta = $loanMeta;
                 $row->repayment_schedule = $schedule;
                 $row->show_url = route('bank.loanDocs.show', [
-                    'doc' => 'ZOUT',
+                    'doc' => 'CRDT',
                     'doc_id' => (int) $row->id,
                     'parent_doc_id' => (int) $row->id,
                     'num' => $row->num,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
                 $row->rn_url = route('bank.loanDocs.show', [
-                    'doc' => 'RN',
+                    'doc' => 'CPLAN',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
                     'num' => 0,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
                 $row->ra_url = route('bank.loanDocs.show', [
-                    'doc' => 'RA',
+                    'doc' => 'CDOC',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
                     'num' => 0,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
                 ]);
                 $row->po_url = route('bank.loanDocs.show', [
-                    'doc' => 'PO',
+                    'doc' => 'CPO',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
                     'num' => 0,
@@ -3253,7 +3253,7 @@ class BankController extends Controller
                 ]);
                 $row->po_store_url = route('bank.loan.payments.store');
                 $row->ro_url = route('bank.loanDocs.show', [
-                    'doc' => 'RO',
+                    'doc' => 'CRO',
                     'doc_id' => 0,
                     'parent_doc_id' => (int) $row->id,
                     'num' => 0,
@@ -3347,7 +3347,7 @@ class BankController extends Controller
         return (float) DB::table('z_document')
             ->where('docid', (string) $loanId)
             ->where('firma', $projectId)
-            ->where('type', 'PO')
+            ->where('type', 'CPO')
             ->where(function ($query) {
                 $query->where('typeproduct', 'credit_payment')
                     ->orWhere('numorder', 'AV8-LOAN-PAYMENT')

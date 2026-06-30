@@ -63,6 +63,11 @@ return [
         'ao' => 'Act',
         'sp' => 'Write-off',
         'ra' => 'File',
+        'crdt' => 'Credit application',
+        'cro' => 'Credit issue',
+        'cpo' => 'Credit payment',
+        'cplan' => 'Payment plan',
+        'cdoc' => 'Collateral document',
     ],
     'print' => [
         'browser_title' => 'Print :title No. :num',

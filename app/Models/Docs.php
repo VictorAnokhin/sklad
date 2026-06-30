@@ -38,6 +38,11 @@ class Docs extends Model
     public static function clientInfo1($client, $numz, $typez, $doc, $idstatus, $year, $docid, $summaZ, bool $orderPosted = false, string $routePrefix = 'document')
     {
         $isLoanFlow = $routePrefix === 'bank.loanDocs';
+        $rootType = $isLoanFlow ? 'CRDT' : 'ZOUT';
+        $planType = $isLoanFlow ? 'CPLAN' : 'RN';
+        $paymentType = $isLoanFlow ? 'CPO' : 'PO';
+        $issueType = $isLoanFlow ? 'CRO' : 'RO';
+        $fileType = $isLoanFlow ? 'CDOC' : 'RA';
 
         // Balance
         $balance = DB::table('users')->where('id', $client)->value('balance') ?? 0;
@@ -57,6 +62,11 @@ class Docs extends Model
             'PO'   => '💰',
             'RO'   => '💸',
             'RA'   => '📎',
+            'CRDT' => '📋',
+            'CPLAN' => '📅',
+            'CPO' => '💰',
+            'CRO' => '💸',
+            'CDOC' => '📎',
         ];
 
         // ── document table (ZIN / ZOUT) ──────────────────────────────────────
@@ -76,7 +86,7 @@ class Docs extends Model
                 $num = $row->num;
                 $summaZrow = $row->summa;
                 $provodka = $row->provodka ?? 0;
-                $postedLabel = $type === 'ZOUT'
+                $postedLabel = in_array($type, ['ZOUT', 'CRDT'], true)
                     ? ($orderPosted ? ' ✅ Проведено' : '')
                     : ($provodka > 0 ? ' ✅ Проведено' : '');
                 $year_ = substr($data, 6, 4);
@@ -94,7 +104,7 @@ class Docs extends Model
                     ? "<span class='rel-doc-link rel-doc-link--current'>{$icon} {$typeName} №{$num} от {$data} : {$summaZrow} грн{$postedLabel}</span>"
                     : "<a href='{$showUrl}' class='rel-doc-link rel-doc-link--{$type}'>{$icon} {$typeName} №{$num} от {$data} : {$summaZrow} грн{$postedLabel}</a>";
 
-                if (in_array($type, ['ZIN', 'ZOUT'])) {
+                if (in_array($type, ['ZIN', 'ZOUT', 'CRDT'], true)) {
                     $strWO1 .= "<div class='tstr'>$link</div>";
                 }
             }
@@ -138,6 +148,7 @@ class Docs extends Model
                     $strCH .= "<div class='tstr'>$link</div>";
                     break;
                 case 'RN':
+                case 'CPLAN':
                     $sumRN += $summa;
                     $strRN .= "<div class='tstr'>$link</div>";
                     break;
@@ -150,16 +161,19 @@ class Docs extends Model
                     $strWO1 .= "<div class='tstr'>$link</div>";
                     break;
                 case 'PO':
+                case 'CPO':
                     $sum -= $summa;
                     $sumPO += $summa;
                     $strPO .= "<div class='tstr'>$link</div>";
                     break;
                 case 'RO':
+                case 'CRO':
                     $sum -= $summa;
                     $sumRO += $summa;
                     $strRO .= "<div class='tstr'>$link</div>";
                     break;
                 case 'RA':
+                case 'CDOC':
                     $raUrl = route($routePrefix . '.show', ['doc' => $type, 'doc_id' => $id, 'num' => $num, 'year' => $year_]);
                     $strRA .= "<div class='tstr'><a class='rel-doc-link rel-doc-link--RA' href='{$raUrl}'>📎 Файл №{$num} від {$data} : {$content}</a></div>";
                     break;
@@ -168,12 +182,12 @@ class Docs extends Model
 
         $remainingPayment = max(0, (float)$sum);
         $createWO1Url = route($routePrefix . '.show', ['doc' => 'WO1', 'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createRNUrl  = route($routePrefix . '.show', ['doc' => 'RN',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createRNUrl  = route($routePrefix . '.show', ['doc' => $planType,  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
         $createCHUrl  = route($routePrefix . '.show', ['doc' => 'CH',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createPOUrl  = route($routePrefix . '.show', ['doc' => 'PO',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
+        $createPOUrl  = route($routePrefix . '.show', ['doc' => $paymentType,  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
         $createPNUrl  = route($routePrefix . '.show', ['doc' => 'PN',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
-        $createROUrl  = route($routePrefix . '.show', ['doc' => 'RO',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
-        $createRAUrl  = route($routePrefix . '.show', ['doc' => 'RA',  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
+        $createROUrl  = route($routePrefix . '.show', ['doc' => $issueType,  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year, 'sumPO' => $remainingPayment]);
+        $createRAUrl  = route($routePrefix . '.show', ['doc' => $fileType,  'doc_id' => 0, 'parent_doc_id' => $docid, 'num' => 0, 'year' => $year]);
         $canCreateRN  = $summaZ <= 0 || $sumRN < $summaZ;
         $canCreatePO  = $summaZ <= 0 || $sumPO < $summaZ;
         $canCreatePN  = $summaZ <= 0 || $sumPN < $summaZ;
@@ -196,11 +210,11 @@ class Docs extends Model
             ? route($routePrefix . '.show', ['doc' => $parentOrderType, 'doc_id' => $docid, 'num' => $parentOrderNum, 'year' => $year])
             : null;
 
-        if (!in_array($doc, ['ZIN', 'ZOUT'], true) && $parentOrderUrl) {
+        if (!in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) && $parentOrderUrl) {
             $actions .= "<div class='ttable'><a href='{$parentOrderUrl}' class='rel-doc-action-btn'>← {$orderLabel} №{$parentOrderNum}</a></div>";
         }
 
-        if ($parentOrderType === 'ZOUT') {
+        if ($parentOrderType === $rootType) {
             $actions .= $strWO1;
             if ($sumWO1 < $summaZ && $sumRN < $summaZ) {
                 $actions .= "<div class='tstr'><a href='{$createWO1Url}' class='rel-doc-action-btn'>🔧 В роботу</a></div>";

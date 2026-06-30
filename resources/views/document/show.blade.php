@@ -5,26 +5,26 @@
         $documentRoutes = $documentRoutePrefix ?? 'document';
         $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
         $isLoanDocument = in_array($documentRoutes, ['loan', 'bank.loanDocs'], true);
-        $showLoanRelatedMenu = ! $isLoanDocument || in_array($doc, ['ZOUT', 'RN', 'RO', 'PO', 'RA'], true);
-        $showLoanRepaymentSchedule = $isLoanDocument && $doc === 'RN';
-        $hideGoodsSection = $isLoanDocument && in_array($doc, ['ZOUT', 'RN'], true);
+        $showLoanRelatedMenu = ! $isLoanDocument || in_array($doc, ['CRDT', 'CPLAN', 'CRO', 'CPO', 'CDOC'], true);
+        $showLoanRepaymentSchedule = $isLoanDocument && $doc === 'CPLAN';
+        $hideGoodsSection = $isLoanDocument && in_array($doc, ['CRDT', 'CPLAN'], true);
     @endphp
 
     @if($isLoanDocument)
-        @if(in_array($doc, ['ZOUT', 'RO', 'PO'], true))
+        @if(in_array($doc, ['CRDT', 'CRO', 'CPO'], true))
             <div class="doc-tabs-wrap">
                 <nav class="doc-tabs" aria-label="Кредитные документы">
                 <a href="{{ route('bank.loanDocs.index') }}"
-                    class="doc-tab {{ $doc === 'ZOUT' ? 'is-active' : '' }}">
-                    <span class="doc-tab__label">Заявки (ZOUT)</span>
+                    class="doc-tab {{ $doc === 'CRDT' ? 'is-active' : '' }}">
+                    <span class="doc-tab__label">Заявки (CRDT)</span>
                 </a>
-                <a href="{{ route('bank.loanDocs.index', ['doc' => 'RO']) }}"
-                    class="doc-tab {{ $doc === 'RO' ? 'is-active' : '' }}">
-                    <span class="doc-tab__label">Кредиты (RO)</span>
+                <a href="{{ route('bank.loanDocs.index', ['doc' => 'CRO']) }}"
+                    class="doc-tab {{ $doc === 'CRO' ? 'is-active' : '' }}">
+                    <span class="doc-tab__label">Кредиты (CRO)</span>
                 </a>
-                <a href="{{ route('bank.loanDocs.index', ['doc' => 'PO']) }}"
-                    class="doc-tab {{ $doc === 'PO' ? 'is-active' : '' }}">
-                    <span class="doc-tab__label">Выплаты (PO)</span>
+                <a href="{{ route('bank.loanDocs.index', ['doc' => 'CPO']) }}"
+                    class="doc-tab {{ $doc === 'CPO' ? 'is-active' : '' }}">
+                    <span class="doc-tab__label">Выплаты (CPO)</span>
                 </a>
                 </nav>
             </div>
@@ -575,7 +575,7 @@
                     </div>
 
                     <!-- Row 2: Склад (only for RN, PN, WO1) -->
-                    @if(!$showLoanRepaymentSchedule && in_array($doc, ['RN', 'PN', 'WO1'], true))
+                    @if(!$showLoanRepaymentSchedule && in_array($doc, ['RN', 'CPLAN', 'PN', 'WO1'], true))
                         <div class="doc-form-row-single">
                             <label>Склад</label>
                             <select name="sklads" class="form-select text-white">
@@ -593,7 +593,7 @@
                     @endif
 
                     <!-- Row 3: ТТН | Статус (only for ZOUT and ZIN) -->
-                    @if(in_array($doc, ['ZOUT', 'ZIN'], true))
+                    @if(in_array($doc, ['ZOUT', 'CRDT', 'ZIN'], true))
                         <div class="doc-form-row doc-form-row-two-cols">
                             <div class="col-f">
                                 <label>ТТН Нова Пошта</label>
@@ -626,7 +626,7 @@
                     @endif
 
                     <!-- Row 3b: Каса | Вид платежу (only for PO/RO) -->
-                    @if(in_array($doc, ['PO', 'RO', 'ZP'], true))
+                    @if(in_array($doc, ['PO', 'CPO', 'RO', 'CRO', 'ZP'], true))
                         <div class="doc-form-row doc-form-row-two-cols">
                             <div class="col-f">
                                 <label>Каса</label>
@@ -901,7 +901,7 @@
                     @endif
 
                     <!-- Сума field for PO/RO documents -->
-                    @if(in_array($doc, ['PO', 'RO', 'ZP'], true))
+                    @if(in_array($doc, ['PO', 'CPO', 'RO', 'CRO', 'ZP'], true))
                         <div class="doc-form-row-single">
                             <label>Сума</label>
                             <input type="text" name="summa" id="documentSummaInput" class="form-control form-control-number text-white"
@@ -910,7 +910,7 @@
                     @endif
 
                     <!-- RA: Multiple file upload block -->
-                    @if($doc === 'RA')
+                    @if(in_array($doc, ['RA', 'CDOC'], true))
                         <div class="ra-document-block" style="border: 2px solid #4a5568; padding: 16px; border-radius: 8px; background: rgba(0,0,0,0.2); margin-bottom: 20px;">
                             <div class="ra-title" style="font-weight: 600; font-size: 1.1rem; margin-bottom: 16px; color: #e0e7ff;">
                                 📎 Завантажити файли
@@ -919,7 +919,7 @@
                             <div id="raFilesPreview" class="file-preview-container">
                                 @php
                                     $existingRaFiles = [];
-                                    if ($doc === 'RA' && !empty($document->docum)) {
+                                    if (in_array($doc, ['RA', 'CDOC'], true) && !empty($document->docum)) {
                                         $existingRaFiles = array_values(array_filter(array_map('trim', explode(';', (string) $document->docum))));
                                     }
                                     $imageExtensions = '/\.(jpe?g|png|gif|webp|bmp)(\?.*)?$/i';
@@ -980,7 +980,7 @@
                     @endif
 
                     <!-- Goods add — hidden for PO/RO (payment types) and RA (file documents) -->
-                    @if(!$hideGoodsSection && !in_array($doc, ['PO', 'RO', 'ZP', 'RA'], true))
+                    @if(!$hideGoodsSection && !in_array($doc, ['PO', 'CPO', 'RO', 'CRO', 'ZP', 'RA', 'CDOC'], true))
                         <div class="goods-search-container">
                             <div class="goods-search-row">
                                 <input type="text" id="goodsSearchInput" class="form-control text-white" placeholder="Поиск товара..."
@@ -1095,7 +1095,7 @@
                     {{-- Action buttons (inside form) --}}
                     @if(!$showLoanRepaymentSchedule)
                         <div class="doc-actions">
-                            @if(in_array($doc, ['RN', 'PN', 'PO', 'RO', 'ZP', 'VN', 'AO', 'WO1'], true))
+                            @if(in_array($doc, ['RN', 'CPLAN', 'PN', 'PO', 'CPO', 'RO', 'CRO', 'ZP', 'VN', 'AO', 'WO1'], true))
                                 @if((int) ($document->provodka ?? 0) === 1)
                                     <button type="button" 
                                         onclick="forceSubmitAction(this, '', '', '{{ route($documentRoutes . '.provodka') }}')"
@@ -1115,9 +1115,9 @@
                                     <button type="button" 
                                         onclick="forceSubmitAction(this, 'run', 'Зберегти')"
                                         ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
-                                        class="btn btn-primary {{ in_array($doc, ['PN', 'RN', 'PO', 'RO'], true) ? '' : 'w-100 mb-2' }}">💾 Зберегти</button>
+                                        class="btn btn-primary {{ in_array($doc, ['PN', 'RN', 'CPLAN', 'PO', 'CPO', 'RO', 'CRO'], true) ? '' : 'w-100 mb-2' }}">💾 Зберегти</button>
                                 @endif
-                            @elseif($doc === 'RA')
+                            @elseif(in_array($doc, ['RA', 'CDOC'], true))
                                 <button type="button" 
                                     onclick="forceSubmitAction(this, 'run', 'Зберегти')"
                                     ontouchstart="forceSubmitAction(this, 'run', 'Зберегти'); event.preventDefault();"
@@ -1134,7 +1134,7 @@
                                     Печать
                                 </a>
                             @endif
-                            @if(intval($document->provodka) === 0 && $doc !== 'RA')
+                            @if(intval($document->provodka) === 0 && !in_array($doc, ['RA', 'CDOC'], true))
                                 <button type="button" class="btn btn-outline-danger"
                                     onclick="if(confirm('Видалити документ{{ $doc === 'RA' ? '' : ' та всі товари' }}?')) { document.getElementById('deleteDocForm').submit(); }">🗑
                                     Видалити

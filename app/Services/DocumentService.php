@@ -31,7 +31,7 @@ class DocumentService
         $table = Document::tableForType($docType);
         $summa = (float) $request->input('summa', 0);
 
-        if (!in_array($docType, ['PO', 'RO', 'PP', 'ZP'], true)) {
+        if (!in_array($docType, ['PO', 'CPO', 'RO', 'CRO', 'PP', 'ZP'], true)) {
             $summa = collect($request->input('psumma', []))
                 ->reduce(function (float $carry, $value) {
                     return $carry + (float) $value;
@@ -67,7 +67,7 @@ class DocumentService
         // The z_document.docum column is shared by other document flows, so only
         // write it here when RA explicitly manages attached file paths.
         $documPath = null;
-        if ($docType === 'RA') {
+        if (in_array($docType, ['RA', 'CDOC'], true)) {
             $uploadedRAPaths = [];
             $existingDbDocum = DB::table($table)->where('id', $docId)->value('docum') ?? '';
             $existingDocumFromRequest = $request->input('existing_docum', []);
@@ -136,14 +136,14 @@ class DocumentService
             'time' => $request->input('time', ''),
         ];
 
-        if ($docType === 'RA') {
+        if (in_array($docType, ['RA', 'CDOC'], true)) {
             $data['docum'] = $documPath ?? '';
         }
 
         $existingColumns = Schema::getColumnListing($table);
         if (
             in_array('currency_from', $existingColumns, true)
-            && in_array($docType, ['PO', 'RO', 'ZP'], true)
+            && in_array($docType, ['PO', 'CPO', 'RO', 'CRO', 'ZP'], true)
         ) {
             $data['currency_from'] = $this->currencyForCashbox((string) ($data['oplata'] ?? ''), $fid);
         }
@@ -169,7 +169,7 @@ class DocumentService
         // numdoc auto-increment for PN / RN / CH
         if (
             in_array('numdoc', $existingColumns, true)
-            && in_array($docType, ['PN', 'RN', 'CH'], true)
+            && in_array($docType, ['PN', 'RN', 'CPLAN', 'CH'], true)
             && $request->input('numdoc', '') === ''
         ) {
             $last = DB::table($table)->where('firma', $fid)->max('numdoc');
@@ -209,7 +209,7 @@ class DocumentService
     public function saveBody(Request $request, string $docId, string $docType, string $fid): void
     {
         // Skip body processing for RA documents (they don't have goods/line items)
-        if (in_array($docType, ['RA', 'ZP'], true)) {
+        if (in_array($docType, ['RA', 'CDOC', 'ZP'], true)) {
             return;
         }
 
@@ -218,9 +218,9 @@ class DocumentService
         if (!$doc)
             return;
 
-        $numz = (string) ($docType === 'RN' || $docType === 'PN' ? $doc->num : $doc->numz);
-        $rowType = in_array($docType, ['RN', 'PN'], true) ? $docType : (string) $doc->typez;
-        $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'RN', 'PN'], true)
+        $numz = (string) (in_array($docType, ['RN', 'CPLAN', 'PN'], true) ? $doc->num : $doc->numz);
+        $rowType = in_array($docType, ['RN', 'CPLAN', 'PN'], true) ? $docType : (string) $doc->typez;
+        $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'CRDT', 'RN', 'CPLAN', 'PN'], true)
             ? $docId
             : (string) ($doc->docid ?: $docId);
 
@@ -239,7 +239,7 @@ class DocumentService
                 ->first();
 
             $costValue = '';
-            if ($docType === 'RN') {
+            if (in_array($docType, ['RN', 'CPLAN'], true)) {
                 $costValue = (string) ($exists->zvalue ?? '') !== ''
                     ? (string) $exists->zvalue
                     : \App\Models\ZBody::resolveUnitCost($pnum, $fid);
