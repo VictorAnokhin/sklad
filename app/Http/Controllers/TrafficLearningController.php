@@ -8,6 +8,7 @@ use App\Models\TrafficTestQuestion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class TrafficLearningController extends Controller
 {
@@ -36,7 +37,9 @@ class TrafficLearningController extends Controller
     public function store(Request $request, string $type): JsonResponse
     {
         $model = $this->modelFor($type);
-        $item = $model::query()->create($this->validated($request, $type));
+        $payload = $this->validated($request, $type);
+        $payload = $this->storeSignImage($request, $type, $payload);
+        $item = $model::query()->create($payload);
 
         return response()->json(['item' => $item], 201);
     }
@@ -45,7 +48,9 @@ class TrafficLearningController extends Controller
     {
         $model = $this->modelFor($type);
         $item = $model::query()->findOrFail($id);
-        $item->update($this->validated($request, $type));
+        $payload = $this->validated($request, $type);
+        $payload = $this->storeSignImage($request, $type, $payload);
+        $item->update($payload);
 
         return response()->json(['item' => $item->fresh()]);
     }
@@ -90,7 +95,8 @@ class TrafficLearningController extends Controller
                 'code' => ['required', 'string', 'max:30'],
                 'title' => ['required', 'string', 'max:255'],
                 'description' => ['nullable', 'string'],
-                'image_url' => ['required', 'string', 'max:500'],
+                'image_url' => ['nullable', 'string', 'max:500', 'required_without:image_upload'],
+                'image_upload' => ['nullable', 'file', 'mimes:svg,png,jpg,jpeg,webp', 'mimetypes:image/svg+xml,image/png,image/jpeg,image/webp', 'max:4096'],
                 'category' => ['nullable', 'string', 'max:100'],
             ],
             'tests' => [
@@ -107,5 +113,23 @@ class TrafficLearningController extends Controller
         };
 
         return $request->validate(array_merge($common, $specific));
+    }
+
+    private function storeSignImage(Request $request, string $type, array $payload): array
+    {
+        if ($type !== 'signs') {
+            return $payload;
+        }
+
+        unset($payload['image_upload']);
+
+        if (! $request->hasFile('image_upload')) {
+            return $payload;
+        }
+
+        $path = $request->file('image_upload')->store('traffic-signs', 'public');
+        $payload['image_url'] = Storage::disk('public')->url($path);
+
+        return $payload;
     }
 }

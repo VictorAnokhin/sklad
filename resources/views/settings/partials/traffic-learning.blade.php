@@ -70,7 +70,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function input(name, label, value = '', options = {}) {
         const col = options.full ? 'col-12' : 'col-md-6';
-        const control = options.textarea
+        const control = options.file
+            ? `<input class="form-control" name="${name}" type="file" accept="${options.accept || 'image/*'}">`
+            : options.textarea
             ? `<textarea class="form-control" name="${name}" rows="${options.rows || 3}" ${options.required ? 'required' : ''}>${escapeHtml(value)}</textarea>`
             : `<input class="form-control" name="${name}" type="${options.type || 'text'}" value="${escapeHtml(value)}" ${options.required ? 'required' : ''}>`;
         return `<div class="${col}"><label class="form-label">${label}</label>${control}</div>`;
@@ -88,7 +90,11 @@ document.addEventListener('DOMContentLoaded', function () {
             fields.innerHTML = input('code', 'Номер знака', item?.code, { required: true })
                 + input('title', 'Назва', item?.title, { required: true })
                 + input('category', 'Категорія', item?.category)
-                + input('image_url', 'SVG-файл', item?.image_url, { required: true })
+                + input('image_url', 'Поточний файл або URL', item?.image_url)
+                + input('image_upload', 'Завантажити нове зображення', '', { file: true, accept: '.svg,.png,.jpg,.jpeg,.webp,image/*' })
+                + (item?.image_url
+                    ? `<div class="col-12"><img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.title)}" class="traffic-sign-image"><div class="form-text">Поточне зображення</div></div>`
+                    : '')
                 + input('description', 'Опис', item?.description, { textarea: true, full: true });
         } else {
             fields.innerHTML = input('source_external_id', 'ID джерела', item?.source_external_id, { type: 'number' })
@@ -183,11 +189,26 @@ document.addEventListener('DOMContentLoaded', function () {
             data.source_external_id = data.source_external_id === '' ? null : Number(data.source_external_id);
             data.topic_external_id = data.topic_external_id === '' ? null : Number(data.topic_external_id);
         }
-        const response = await fetch(id ? `${base}/${type}/${id}` : `${base}/${type}`, {
-            method: id ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
-            body: JSON.stringify(data)
-        });
+        let requestOptions;
+        if (type === 'signs') {
+            const multipart = new FormData(form);
+            multipart.set('fid', String(fid));
+            multipart.set('sort_order', String(data.sort_order));
+            multipart.set('is_published', data.is_published ? '1' : '0');
+            if (id) multipart.set('_method', 'PUT');
+            requestOptions = {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: multipart
+            };
+        } else {
+            requestOptions = {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify(data)
+            };
+        }
+        const response = await fetch(id ? `${base}/${type}/${id}` : `${base}/${type}`, requestOptions);
         if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
             alert(payload.message || 'Не вдалося зберегти');
