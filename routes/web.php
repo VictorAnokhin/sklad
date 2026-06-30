@@ -16,7 +16,6 @@ use App\Http\Controllers\MoneyController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\TrafficLearningController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TaxReceiptController;
 use App\Http\Controllers\TeamController;
@@ -395,10 +394,6 @@ Route::middleware(['auth'])->group(function () {
             Route::delete('/banners/{id}', [SettingsController::class , 'bannersDestroy'])->name('banners.destroy');
             Route::get('/sitemap/status', [SettingsController::class, 'sitemapStatus'])->name('sitemap.status');
             Route::post('/sitemap/generate', [SettingsController::class, 'sitemapGenerate'])->name('sitemap.generate');
-            Route::get('/traffic-learning', [TrafficLearningController::class, 'settingsIndex'])->name('trafficLearning.index');
-            Route::post('/traffic-learning/{type}', [TrafficLearningController::class, 'store'])->name('trafficLearning.store');
-            Route::put('/traffic-learning/{type}/{id}', [TrafficLearningController::class, 'update'])->name('trafficLearning.update');
-            Route::delete('/traffic-learning/{type}/{id}', [TrafficLearningController::class, 'destroy'])->name('trafficLearning.destroy');
 
             // Async API
             Route::get('/api/web3-token-search', [SettingsController::class, 'web3TokenSearch'])->name('api.web3-token-search');

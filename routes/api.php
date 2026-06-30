@@ -28,7 +28,6 @@ use App\Http\Controllers\RwaAdminCapController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SolanaRpcProxyController;
 use App\Http\Controllers\TelegramWebchatController;
-use App\Http\Controllers\TrafficLearningController;
 use App\Http\Controllers\WalrusProxyController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WebchatIntelligenceController;
@@ -198,7 +197,6 @@ Route::middleware(['throttle:20,1'])->post('/news/agent', [NewsController::class
 Route::middleware('auth:sanctum')->post('/news', [NewsController::class, 'apiStore']);
 Route::middleware('auth:sanctum')->post('/news/{id}/publish', [NewsController::class, 'apiPublish']);
 Route::get('/news/{id}', [NewsController::class, 'apiShow']);
-Route::get('/traffic-rules', [TrafficLearningController::class, 'publicIndex']);
 Route::get('/banners', [BannerCarouselController::class, 'apiIndex']);
 Route::middleware(['api', 'throttle:30,1'])->prefix('projects/manager-ai')->group(function () {
     Route::get('/', [SettingsController::class, 'managerAiProjectsIndex']);
