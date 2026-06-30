@@ -254,8 +254,40 @@ class AccountingService
             return [];
         }
 
-        $paymentTypeBinding = Conf::paymentTypeAccountBinding((string) ($document->reestr ?? ''));
         $cashAccount = $this->cashAccount($fid, (string) ($document->oplata ?? $document->money ?? ''));
+        $loan = $this->loanParentDocument($document, $fid);
+        if ($loan !== null) {
+            ['principal' => $principal, 'interest' => $interest] = $this->loanRepaymentSplit($summa, $loan);
+            $entries = [
+                [
+                    'account_id' => $cashAccount->id,
+                    'debit' => $summa,
+                    'credit' => 0,
+                ],
+            ];
+
+            if ($principal > 0) {
+                $entries[] = [
+                    'account_id' => $this->lendingReceivableAccount(
+                        $fid,
+                        (string) ($document->client1 ?? $loan->client1 ?? '')
+                    )->id,
+                    'debit' => 0,
+                    'credit' => $principal,
+                ];
+            }
+            if ($interest > 0) {
+                $entries[] = [
+                    'account_id' => $this->loanInterestIncomeAccount($fid)->id,
+                    'debit' => 0,
+                    'credit' => $interest,
+                ];
+            }
+
+            return $entries;
+        }
+
+        $paymentTypeBinding = Conf::paymentTypeAccountBinding((string) ($document->reestr ?? ''));
         $receivableAccount = $this->receivableAccount($fid, (string) ($document->client1 ?? ''));
 
         return [
@@ -282,13 +314,18 @@ class AccountingService
         $paymentTypeBinding = Conf::paymentTypeAccountBinding((string) ($document->reestr ?? ''));
         $cashAccount = $this->cashAccount($fid, (string) ($document->oplata ?? $document->money ?? ''));
         $counterpartyId = trim((string) ($document->client1 ?? ''));
-        $debitAccount = $counterpartyId !== '' && $counterpartyId !== '0'
-            ? $this->payableAccount($fid, $counterpartyId)
-            : $this->operatingExpenseAccount($fid);
+        $isLoanIssue = $this->isLoanIssue($document, $fid);
+        $debitAccount = $isLoanIssue
+            ? $this->lendingReceivableAccount($fid, $counterpartyId)
+            : ($counterpartyId !== '' && $counterpartyId !== '0'
+                ? $this->payableAccount($fid, $counterpartyId)
+                : $this->operatingExpenseAccount($fid));
 
         return [
             [
-                'account_id' => $paymentTypeBinding['debit_account_id'] ?: $debitAccount->id,
+                'account_id' => $isLoanIssue
+                    ? $debitAccount->id
+                    : ($paymentTypeBinding['debit_account_id'] ?: $debitAccount->id),
                 'debit' => $summa,
                 'credit' => 0,
             ],
@@ -298,6 +335,76 @@ class AccountingService
                 'credit' => $summa,
             ],
         ];
+    }
+
+    private function isLoanIssue(object $document, string $fid): bool
+    {
+        return $this->loanParentDocument($document, $fid) !== null;
+    }
+
+    private function loanParentDocument(object $document, string $fid): ?object
+    {
+        $parentDocumentId = trim((string) ($document->docid ?? ''));
+        if ($parentDocumentId === '' || $parentDocumentId === '0' || ! Schema::hasTable('document')) {
+            return null;
+        }
+
+        return DB::table('document')
+            ->where('id', $parentDocumentId)
+            ->where('firma', $fid)
+            ->where('type', 'ZOUT')
+            ->where(function ($query) {
+                $query->where('typeproduct', 'credit_request')
+                    ->orWhere('numorder', 'AV8-LOAN')
+                    ->orWhere('content', 'like', '%[AV8_LOAN_REQUEST]%');
+            })
+            ->first();
+    }
+
+    private function loanRepaymentSplit(float $payment, object $loan): array
+    {
+        $principalTotal = max(0, round((float) ($loan->summa ?? 0), 2));
+        $content = (string) ($loan->content ?? '');
+        $annualRate = $this->loanContentNumber($content, 'Процентная ставка заемщика');
+        $termMonths = $this->loanTermMonths($content);
+        $totalDue = round($principalTotal * (1 + ($annualRate / 100) * ($termMonths / 12)), 2);
+
+        if ($principalTotal <= 0 || $totalDue <= 0) {
+            return ['principal' => $payment, 'interest' => 0.0];
+        }
+
+        $principal = round($payment * ($principalTotal / $totalDue), 2);
+
+        return [
+            'principal' => $principal,
+            'interest' => round($payment - $principal, 2),
+        ];
+    }
+
+    private function loanContentNumber(string $content, string $label): float
+    {
+        if (preg_match('/^'.preg_quote($label, '/').':\s*(.+)$/mu', $content, $matches) !== 1) {
+            return 0.0;
+        }
+
+        return (float) preg_replace('/[^\d.]/', '', str_replace(',', '.', (string) $matches[1]));
+    }
+
+    private function loanTermMonths(string $content): int
+    {
+        if (preg_match('/^Срок кредита:\s*(.+)$/mu', $content, $matches) !== 1) {
+            return 12;
+        }
+
+        $term = mb_strtolower(trim((string) $matches[1]));
+        preg_match('/\d+/', $term, $number);
+        $isYears = str_contains($term, 'год')
+            || str_contains($term, 'лет')
+            || str_contains($term, 'рок')
+            || str_contains($term, 'рік');
+        $value = max(1, (int) ($number[0] ?? ($isYears ? 1 : 12)));
+
+        return $isYears ? $value * 12 : $value;
     }
 
     private function entriesForDepositOperation(object $document, string $fid): array
@@ -664,6 +771,29 @@ class AccountingService
             "Расчеты с поставщиком {$name}",
             'liability',
             '631'
+        );
+    }
+
+    private function lendingReceivableAccount(string $fid, string $clientId): Account
+    {
+        $clientId = trim($clientId) !== '' && trim($clientId) !== '0' ? trim($clientId) : 'generic';
+        $name = $clientId === 'generic' ? 'Заемщики' : ($this->userName($clientId) ?: "Заемщик {$clientId}");
+
+        return $this->ensureAccount(
+            "377.{$fid}.{$clientId}",
+            "Выданный кредит: {$name}",
+            'asset',
+            '377'
+        );
+    }
+
+    private function loanInterestIncomeAccount(string $fid): Account
+    {
+        return $this->ensureAccount(
+            "732.{$fid}",
+            "Процентный доход по кредитованию {$fid}",
+            'income',
+            '732'
         );
     }
 

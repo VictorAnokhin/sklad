@@ -472,9 +472,6 @@
         <div class="mb-2 d-flex flex-wrap gap-2">
             @if($isLoanDocument)
                 <a href="{{ route('bank.loanDocs.index') }}" class="btn btn-outline-secondary btn-sm">← Назад в кредиты</a>
-                @if(!empty($loanRoUrl))
-                    <a href="{{ $loanRoUrl }}" class="btn btn-outline-primary btn-sm">RO выдача</a>
-                @endif
             @else
                 <a href="{{ $documentIndexUrl }}" class="btn btn-outline-secondary btn-sm">
                     ← До списку {{ \App\Models\Document::typeName($doc) }}
@@ -753,7 +750,10 @@
                                 <div class="col-f">
                                     <label>Срок кредита</label>
                                     <select name="loan_term_months" class="form-select text-white" required>
+                                        <option value="1" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '1' ? 'selected' : '' }}>1 мес</option>
+                                        <option value="3" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '3' ? 'selected' : '' }}>3 мес</option>
                                         <option value="6" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '6' ? 'selected' : '' }}>6 мес</option>
+                                        <option value="9" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '9' ? 'selected' : '' }}>9 мес</option>
                                         <option value="12" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '12' ? 'selected' : '' }}>1 год</option>
                                         <option value="24" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '24' ? 'selected' : '' }}>2 года</option>
                                         <option value="36" {{ (string) old('loan_term_months', $loanMeta['loan_term_months'] ?? '12') === '36' ? 'selected' : '' }}>3 года</option>
@@ -777,8 +777,10 @@
                                 <div class="col-f">
                                     <label>Дедлайн</label>
                                     <select name="deadline_days" class="form-select text-white" required>
+                                        <option value="0" {{ (string) old('deadline_days', $loanMeta['deadline_days'] ?? '7') === '0' ? 'selected' : '' }}>Сразу</option>
+                                        <option value="1" {{ (string) old('deadline_days', $loanMeta['deadline_days'] ?? '7') === '1' ? 'selected' : '' }}>1 день</option>
                                         @foreach([3, 7, 14, 21] as $days)
-                                            <option value="{{ $days }}" {{ (string) old('deadline_days', $loanMeta['deadline_days'] ?? '7') === (string) $days ? 'selected' : '' }}>{{ $days }} {{ $days === 21 ? 'день' : 'дней' }}</option>
+                                            <option value="{{ $days }}" {{ (string) old('deadline_days', $loanMeta['deadline_days'] ?? '7') === (string) $days ? 'selected' : '' }}>{{ $days }} дней</option>
                                         @endforeach
                                     </select>
                                     @error('deadline_days')
@@ -1120,11 +1122,16 @@
                 </div>
 
                 {{-- RIGHT: Related documents (client_info1) --}}
-                @if(!empty($relatedDocs))
+                @if(!empty($relatedDocs) || !empty($loanRoUrl))
                     <div class="doc-related-col">
                         <div class="related-panel">
                             <h5>{{ $isLoanDocument ? '📋 Документы кредита' : "📋 Зв'язані документи" }}</h5>
-                            {!! $relatedDocs['html'] !!}
+                            @if(!empty($loanRoUrl))
+                                <a href="{{ $loanRoUrl }}" class="btn btn-primary w-100 mb-3">Выдача кредита</a>
+                            @endif
+                            @if(!empty($relatedDocs))
+                                {!! $relatedDocs['html'] !!}
+                            @endif
                         </div>
                     </div>
                 @endif

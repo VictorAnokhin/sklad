@@ -158,7 +158,10 @@
             <label class="bank-field">
                 <span>Срок кредита</span>
                 <select name="loan_term_months" class="form-select" data-loan-field="loan_term_months" required>
+                    <option value="1" {{ old('loan_term_months') === '1' ? 'selected' : '' }}>1 мес</option>
+                    <option value="3" {{ old('loan_term_months') === '3' ? 'selected' : '' }}>3 мес</option>
                     <option value="6" {{ old('loan_term_months') === '6' ? 'selected' : '' }}>6 мес</option>
+                    <option value="9" {{ old('loan_term_months') === '9' ? 'selected' : '' }}>9 мес</option>
                     <option value="12" {{ old('loan_term_months', '12') === '12' ? 'selected' : '' }}>1 год</option>
                     <option value="24" {{ old('loan_term_months') === '24' ? 'selected' : '' }}>2 года</option>
                     <option value="36" {{ old('loan_term_months') === '36' ? 'selected' : '' }}>3 года</option>
@@ -173,8 +176,10 @@
             <label class="bank-field">
                 <span>Дедлайн</span>
                 <select name="deadline_days" class="form-select" data-loan-field="deadline_days" required>
+                    <option value="0" {{ old('deadline_days') === '0' ? 'selected' : '' }}>Сразу</option>
+                    <option value="1" {{ old('deadline_days') === '1' ? 'selected' : '' }}>1 день</option>
                     @foreach([3, 7, 14, 21] as $days)
-                        <option value="{{ $days }}" {{ (string) old('deadline_days', '7') === (string) $days ? 'selected' : '' }}>{{ $days }} {{ $days === 21 ? 'день' : 'дней' }}</option>
+                        <option value="{{ $days }}" {{ (string) old('deadline_days', '7') === (string) $days ? 'selected' : '' }}>{{ $days }} дней</option>
                     @endforeach
                 </select>
             </label>

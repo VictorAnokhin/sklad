@@ -2929,9 +2929,9 @@ class BankController extends Controller
             'ltv' => ['required', Rule::in(['40', '50', '60', '70', '80', '90', '100'])],
             'loan_amount' => ['required', 'numeric', 'gt:0', 'max:999999999'],
             'interest_rate' => ['required', 'numeric', 'min:0', 'max:100'],
-            'loan_term_months' => ['required', Rule::in(['6', '12', '24', '36'])],
+            'loan_term_months' => ['required', Rule::in(['1', '3', '6', '9', '12', '24', '36'])],
             'investor_yield' => ['required', 'numeric', 'min:0', 'max:100'],
-            'deadline_days' => ['required', Rule::in(['3', '7', '14', '21'])],
+            'deadline_days' => ['required', Rule::in(['0', '1', '3', '7', '14', '21'])],
             'comment' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -3388,7 +3388,10 @@ class BankController extends Controller
         $collateralLabel = $read('Тип залога') ?: 'Автомобиль';
         $termLabel = $read('Срок кредита');
         $termMonths = match ($termLabel) {
+            '1 мес.' => '1',
+            '3 мес.' => '3',
             '6 мес.' => '6',
+            '9 мес.' => '9',
             '2 года' => '24',
             '3 года' => '36',
             default => '12',
@@ -3411,7 +3414,10 @@ class BankController extends Controller
     private function loanTermLabel(int $months): string
     {
         return match ($months) {
+            1 => '1 мес.',
+            3 => '3 мес.',
             6 => '6 мес.',
+            9 => '9 мес.',
             12 => '1 год',
             24 => '2 года',
             36 => '3 года',

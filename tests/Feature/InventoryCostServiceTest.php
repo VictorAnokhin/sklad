@@ -930,6 +930,122 @@ class InventoryCostServiceTest extends TestCase
         );
     }
 
+    public function test_loan_ro_posts_to_lending_receivable_and_bank_cash(): void
+    {
+        $borrowerId = DB::table('users')->insertGetId([
+            'name' => 'Loan borrower',
+            'email' => "loan-borrower-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+        $cashboxId = DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $this->companyId,
+            'name' => 'Loan bank account',
+            'doc' => 'bank',
+            'value' => 1000,
+        ]);
+        $loanId = DB::table('document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => 'ZOUT',
+            'firma' => (string) $this->companyId,
+            'client1' => (string) $borrowerId,
+            'summa' => 250,
+            'data' => '12-06-2026',
+            'typeproduct' => 'credit_request',
+            'numorder' => 'AV8-LOAN',
+            'content' => '[AV8_LOAN_REQUEST]',
+            'provodka' => 0,
+        ]);
+        $roId = $this->createMoneyDocument('RO', 250, $borrowerId, $cashboxId);
+        DB::table('z_document')->where('id', $roId)->update([
+            'docid' => (string) $loanId,
+            'typez' => 'ZOUT',
+        ]);
+
+        Document::provodka((string) $roId, 'RO', (string) $this->companyId);
+
+        $transaction = $this->documentTransaction($roId, 'RO');
+        $this->assertNotNull($transaction);
+        $this->assertAccountEntry(
+            (int) $transaction->id,
+            "377.{$this->companyId}.{$borrowerId}",
+            250,
+            0
+        );
+        $this->assertAccountEntry(
+            (int) $transaction->id,
+            "301.{$this->companyId}.{$cashboxId}",
+            0,
+            250
+        );
+        $this->assertEqualsWithDelta(750, $this->cashboxValue($cashboxId), 0.001);
+    }
+
+    public function test_loan_po_splits_repayment_between_principal_and_interest(): void
+    {
+        $borrowerId = DB::table('users')->insertGetId([
+            'name' => 'Repaying borrower',
+            'email' => "repaying-borrower-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+        $cashboxId = DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $this->companyId,
+            'name' => 'Loan repayment bank account',
+            'doc' => 'bank',
+            'value' => 0,
+        ]);
+        $loanId = DB::table('document')->insertGetId([
+            'num' => (string) random_int(900000, 999999),
+            'type' => 'ZOUT',
+            'firma' => (string) $this->companyId,
+            'client1' => (string) $borrowerId,
+            'summa' => 250,
+            'data' => '12-06-2026',
+            'typeproduct' => 'credit_request',
+            'numorder' => 'AV8-LOAN',
+            'content' => implode("\n", [
+                '[AV8_LOAN_REQUEST]',
+                'Процентная ставка заемщика: 12.00%',
+                'Срок кредита: 1 год',
+            ]),
+            'provodka' => 0,
+        ]);
+        $poId = $this->createMoneyDocument('PO', 28, $borrowerId, $cashboxId);
+        DB::table('z_document')->where('id', $poId)->update([
+            'docid' => (string) $loanId,
+            'typez' => 'ZOUT',
+            'typeproduct' => 'credit_payment',
+            'numorder' => 'AV8-LOAN-PAYMENT',
+        ]);
+
+        Document::provodka((string) $poId, 'PO', (string) $this->companyId);
+
+        $transaction = $this->documentTransaction($poId, 'PO');
+        $this->assertNotNull($transaction);
+        $this->assertAccountEntry(
+            (int) $transaction->id,
+            "301.{$this->companyId}.{$cashboxId}",
+            28,
+            0
+        );
+        $this->assertAccountEntry(
+            (int) $transaction->id,
+            "377.{$this->companyId}.{$borrowerId}",
+            0,
+            25
+        );
+        $this->assertAccountEntry(
+            (int) $transaction->id,
+            "732.{$this->companyId}",
+            0,
+            3
+        );
+        $this->assertEqualsWithDelta(28, $this->cashboxValue($cashboxId), 0.001);
+    }
+
     private function createLine(string $type, float $quantity, float $price): object
     {
         $id = DB::table('z_body')->insertGetId([

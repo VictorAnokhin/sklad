@@ -1601,13 +1601,13 @@ class DocumentController extends Controller
         if ($payload['interest_rate'] < 0 || $payload['interest_rate'] > 100) {
             $errors['interest_rate'] = 'Укажите процентную ставку от 0 до 100';
         }
-        if (! in_array($payload['loan_term_months'], ['6', '12', '24', '36'], true)) {
+        if (! in_array($payload['loan_term_months'], ['1', '3', '6', '9', '12', '24', '36'], true)) {
             $errors['loan_term_months'] = 'Выберите срок кредита';
         }
         if ($payload['investor_yield'] < 0 || $payload['investor_yield'] > 100) {
             $errors['investor_yield'] = 'Укажите доходность для инвесторов от 0 до 100';
         }
-        if (! in_array($payload['deadline_days'], ['3', '7', '14', '21'], true)) {
+        if (! in_array($payload['deadline_days'], ['0', '1', '3', '7', '14', '21'], true)) {
             $errors['deadline_days'] = 'Выберите дедлайн';
         }
 
@@ -1695,7 +1695,10 @@ class DocumentController extends Controller
 
         $termLabel = $read('Срок кредита');
         $termMonths = match ($termLabel) {
+            '1 мес.' => '1',
+            '3 мес.' => '3',
             '6 мес.' => '6',
+            '9 мес.' => '9',
             '2 года' => '24',
             '3 года' => '36',
             default => '12',
@@ -1744,7 +1747,10 @@ class DocumentController extends Controller
     private function loanTermLabel(int $months): string
     {
         return match ($months) {
+            1 => '1 мес.',
+            3 => '3 мес.',
             6 => '6 мес.',
+            9 => '9 мес.',
             12 => '1 год',
             24 => '2 года',
             36 => '3 года',
