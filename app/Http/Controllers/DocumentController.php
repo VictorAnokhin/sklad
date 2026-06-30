@@ -504,6 +504,9 @@ class DocumentController extends Controller
                 ->get(['id', 'name', 'color'])->keyBy('id')->toArray();
         }
 
+        $documentRoutePrefix = $this->documentRoutePrefix();
+        $isLoanRoDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'RO';
+
         // Load all oplata and reestr options for PO/RO dropdowns
         $oplataList = collect();
         $reestrList = collect();
@@ -513,6 +516,13 @@ class DocumentController extends Controller
                 ->where('firma', $fid)
                 ->when(in_array($doc, ['PO', 'RO'], true), function ($query) {
                     $query->where('vision', '1');
+                })
+                ->when($isLoanRoDocument && Schema::hasColumn('conf', 'doc'), function ($query) {
+                    $query->where(function ($nested) {
+                        $nested->where('doc', 'bank')
+                            ->orWhereNull('doc')
+                            ->orWhere('doc', '');
+                    });
                 })
                 ->orderBy('name')
                 ->get();
@@ -562,13 +572,23 @@ class DocumentController extends Controller
             }
         }
 
-        $documentRoutePrefix = $this->documentRoutePrefix();
         $isLoanRequestDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'ZOUT';
         $isLoanIssueDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'RN';
+        $loanRoUrl = null;
         $loanMeta = [];
         $loanCollateralOptions = collect(['Автомобиль', 'Спецтехника', 'Госномер']);
         $loanRepaymentSchedule = null;
         if ($isLoanRequestDocument) {
+            $loanRoUrl = route('bank.loanDocs.show', [
+                'doc' => 'RO',
+                'doc_id' => 0,
+                'parent_doc_id' => (int) $document->id,
+                'num' => 0,
+                'year' => strlen((string) ($document->data ?? '')) >= 10
+                    ? substr((string) $document->data, 6, 4)
+                    : $year,
+                'sumRO' => (float) ($document->summa ?? 0),
+            ]);
             $loanMeta = $this->parseLoanRequestContent((string) ($document->content ?? ''));
             $loanMeta['loan_amount'] = $loanMeta['loan_amount'] !== '' ? $loanMeta['loan_amount'] : (string) ($document->summa ?? '');
             $loanMeta['ltv'] = $loanMeta['ltv'] !== '' ? $loanMeta['ltv'] : (string) ($document->reteil ?? '70');
@@ -655,7 +675,8 @@ class DocumentController extends Controller
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
-            'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions', 'loanRepaymentSchedule'
+            'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions', 'loanRepaymentSchedule',
+            'loanRoUrl'
         ));
     }
 

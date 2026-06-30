@@ -472,6 +472,9 @@
         <div class="mb-2 d-flex flex-wrap gap-2">
             @if($isLoanDocument)
                 <a href="{{ route('bank.loanDocs.index') }}" class="btn btn-outline-secondary btn-sm">← Назад в кредиты</a>
+                @if(!empty($loanRoUrl))
+                    <a href="{{ $loanRoUrl }}" class="btn btn-outline-primary btn-sm">RO выдача</a>
+                @endif
             @else
                 <a href="{{ $documentIndexUrl }}" class="btn btn-outline-secondary btn-sm">
                     ← До списку {{ \App\Models\Document::typeName($doc) }}
