@@ -58,8 +58,6 @@
 @endphp
 
 <div class="bank-page bank-loans-page" data-bank-loans-page data-loan-has-errors="{{ isset($errors) && $errors->any() ? '1' : '0' }}">
-    @include('bank.partials.nav')
-
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
@@ -70,49 +68,39 @@
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
 
-    <section class="bank-grid bank-grid--summary">
-        <div class="bank-panel bank-panel--accent">
-            <div class="bank-label">Кредитный сценарий</div>
-            <div class="bank-value">5 этапов</div>
-            <div class="bank-meta">От заявки заемщика до закрытия пула и выплат инвесторам.</div>
-        </div>
-        <div class="bank-panel">
-            <div class="bank-label">LTV</div>
-            <div class="bank-value">60-70%</div>
-            <div class="bank-meta">Целевой диапазон отношения кредита к стоимости залога.</div>
-        </div>
-        <div class="bank-panel">
-            <div class="bank-label">Залог</div>
-            <div class="bank-value">RWA</div>
-            <div class="bank-meta">Авто, спецтехника, госномера и другие ликвидные активы.</div>
-        </div>
-        <div class="bank-panel">
-            <div class="bank-label">Гарант</div>
-            <div class="bank-value">AV8</div>
-            <div class="bank-meta">Агент-гарант юридического управления и реализации залога.</div>
-        </div>
-    </section>
-
-    <div class="doc-tabs-wrap bank-loan-doc-tabs">
-        <nav class="doc-tabs" aria-label="Меню кредитов">
-            <button type="button" class="doc-tab bank-loan-menu-button" data-loan-open>
-                <span class="doc-tab__label">Создать заявку</span>
-            </button>
+    <div class="ttable top-action-bar bank-loan-actions-bar">
+        <div class="top-action-filter">
             <button type="button"
-                class="doc-tab bank-loan-menu-button {{ !empty($loanFilters['active']) ? 'is-active' : '' }}"
-                data-loan-filter-open>
-                <span class="doc-tab__label">Фильтр</span>
+                class="{{ !empty($loanFilters['active']) ? 'button_submit_start' : 'button_submit_start0' }}"
+                data-loan-filter-open
+                aria-label="Фильтр кредитных заявок"
+                style="width:70px;height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;border-radius:16px;box-shadow:0 4px 16px rgba(245,158,11,.3);cursor:pointer;padding:0;transition:transform .2s,box-shadow .2s;">
+                <img src="/img/icon-category.png" alt="" width="32" height="32" style="object-fit:contain;">
+                <span style="font-size:11px;font-weight:600;color:#0f172a;line-height:1;">Фильтр</span>
             </button>
-            <a href="{{ route('bank.loanDocs.index') }}" class="doc-tab is-active">
-                <span class="doc-tab__label">Заявки (ZOUT)</span>
-            </a>
-            <a href="{{ route('bank.loanDocs.index', ['doc' => 'RO']) }}" class="doc-tab">
-                <span class="doc-tab__label">Кредиты (RO)</span>
-            </a>
-            <a href="{{ route('bank.loanDocs.index', ['doc' => 'PO']) }}" class="doc-tab">
-                <span class="doc-tab__label">Выплаты (PO)</span>
-            </a>
-        </nav>
+        </div>
+
+        <div class="top-action-create">
+            <button type="button" class="button top-action-create-btn" data-loan-open>
+                + Создать заявку
+            </button>
+        </div>
+
+        <div class="top-action-panel">
+            <div class="doc-tabs-wrap bank-loan-doc-tabs">
+                <nav class="doc-tabs" aria-label="Меню кредитов">
+                    <a href="{{ route('bank.loanDocs.index') }}" class="doc-tab is-active">
+                        <span class="doc-tab__label">Заявки (ZOUT)</span>
+                    </a>
+                    <a href="{{ route('bank.loanDocs.index', ['doc' => 'RO']) }}" class="doc-tab">
+                        <span class="doc-tab__label">Кредиты (RO)</span>
+                    </a>
+                    <a href="{{ route('bank.loanDocs.index', ['doc' => 'PO']) }}" class="doc-tab">
+                        <span class="doc-tab__label">Выплаты (PO)</span>
+                    </a>
+                </nav>
+            </div>
+        </div>
     </div>
 
     <div class="bank-modal" data-loan-modal hidden>
@@ -442,13 +430,13 @@
         padding: 18px 20px 20px;
     }
 
-    .bank-loans-page .bank-loan-menu-button {
-        border-top: 0;
-        border-right: 0;
-        border-left: 0;
-        background: transparent;
-        font: inherit;
-        cursor: pointer;
+    .bank-loans-page .bank-loan-actions-bar {
+        margin-bottom: 12px;
+    }
+
+    .bank-loans-page .bank-loan-doc-tabs,
+    .bank-loans-page .bank-loan-doc-tabs .doc-tabs {
+        margin-bottom: 0;
     }
 
     .bank-loans-page .bank-field {
