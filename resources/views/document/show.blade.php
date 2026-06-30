@@ -6,7 +6,7 @@
         $documentRoutes = $documentRoutePrefix ?? 'document';
         $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
         $isLoanDocument = in_array($documentRoutes, ['loan', 'bank.loanDocs'], true);
-        $showLoanRelatedMenu = ! $isLoanDocument || in_array($doc, ['ZOUT', 'RO', 'PO', 'RA'], true);
+        $showLoanRelatedMenu = ! $isLoanDocument || in_array($doc, ['ZOUT', 'RN', 'RO', 'PO', 'RA'], true);
         $showLoanRepaymentSchedule = $isLoanDocument && $doc === 'RN';
         $hideGoodsSection = $isLoanDocument && in_array($doc, ['ZOUT', 'RN'], true);
     @endphp
