@@ -93,6 +93,28 @@
         </div>
     </section>
 
+    <div class="doc-tabs-wrap bank-loan-doc-tabs">
+        <nav class="doc-tabs" aria-label="Меню кредитов">
+            <button type="button" class="doc-tab bank-loan-menu-button" data-loan-open>
+                <span class="doc-tab__label">Создать заявку</span>
+            </button>
+            <button type="button"
+                class="doc-tab bank-loan-menu-button {{ !empty($loanFilters['active']) ? 'is-active' : '' }}"
+                data-loan-filter-open>
+                <span class="doc-tab__label">Фильтр</span>
+            </button>
+            <a href="{{ route('bank.loanDocs.index') }}" class="doc-tab is-active">
+                <span class="doc-tab__label">Заявки (ZOUT)</span>
+            </a>
+            <a href="{{ route('bank.loanDocs.index', ['doc' => 'RO']) }}" class="doc-tab">
+                <span class="doc-tab__label">Кредиты (RO)</span>
+            </a>
+            <a href="{{ route('bank.loanDocs.index', ['doc' => 'PO']) }}" class="doc-tab">
+                <span class="doc-tab__label">Выплаты (PO)</span>
+            </a>
+        </nav>
+    </div>
+
     <div class="bank-modal" data-loan-modal hidden>
         <div class="bank-modal__backdrop" data-loan-close></div>
         <div class="bank-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="loanModalTitle">
@@ -288,16 +310,10 @@
         <div class="bank-table-header">
             <div>
                 <div class="bank-label">Документооборот</div>
-                <div class="bank-loan-title-row">
-                    <h2 class="mb-1">Кредитные заявки</h2>
-                    <button type="button" class="bank-icon-add" data-loan-open aria-label="Новая заявка" title="Новая заявка">+</button>
-                </div>
+                <h2 class="mb-1">Кредитные заявки</h2>
                 <div class="bank-meta">ZOUT — заявка, RN — выдача кредита, RA — документы залога, PO/RO — платежи заемщика и выдача средств.</div>
             </div>
-            <div class="bank-loan-toolbar">
-                <button type="button" class="btn btn-sm {{ !empty($loanFilters['active']) ? 'btn-info' : 'btn-outline-light' }}" data-loan-filter-open>Фильтр</button>
-                <div class="bank-meta">{{ $loanRequests->count() }} заявок</div>
-            </div>
+            <div class="bank-meta">{{ $loanRequests->count() }} заявок</div>
         </div>
 
         <div class="table-responsive bank-table-scroll">
@@ -426,38 +442,13 @@
         padding: 18px 20px 20px;
     }
 
-    .bank-loans-page .bank-loan-toolbar {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: 8px;
-    }
-
-    .bank-loans-page .bank-loan-title-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .bank-loans-page .bank-icon-add {
-        display: inline-flex;
-        width: 30px;
-        height: 30px;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid rgba(45, 212, 191, 0.34);
-        border-radius: 8px;
-        background: rgba(20, 184, 166, 0.16);
-        color: #ccfbf1;
-        font-size: 1.35rem;
-        font-weight: 700;
-        line-height: 1;
-    }
-
-    .bank-loans-page .bank-icon-add:hover {
-        background: rgba(20, 184, 166, 0.26);
-        border-color: rgba(45, 212, 191, 0.54);
+    .bank-loans-page .bank-loan-menu-button {
+        border-top: 0;
+        border-right: 0;
+        border-left: 0;
+        background: transparent;
+        font: inherit;
+        cursor: pointer;
     }
 
     .bank-loans-page .bank-field {

@@ -12,20 +12,22 @@
 
     @if($isLoanDocument)
         @if(in_array($doc, ['ZOUT', 'RO', 'PO'], true))
-            <nav class="nav nav-pills gap-2 mb-3" aria-label="Кредитные документы">
+            <div class="doc-tabs-wrap">
+                <nav class="doc-tabs" aria-label="Кредитные документы">
                 <a href="{{ route('bank.loanDocs.index') }}"
-                    class="nav-link {{ $doc === 'ZOUT' ? 'active' : '' }}">
-                    Заявки (ZOUT)
+                    class="doc-tab {{ $doc === 'ZOUT' ? 'is-active' : '' }}">
+                    <span class="doc-tab__label">Заявки (ZOUT)</span>
                 </a>
                 <a href="{{ route('bank.loanDocs.index', ['doc' => 'RO']) }}"
-                    class="nav-link {{ $doc === 'RO' ? 'active' : '' }}">
-                    Кредиты (RO)
+                    class="doc-tab {{ $doc === 'RO' ? 'is-active' : '' }}">
+                    <span class="doc-tab__label">Кредиты (RO)</span>
                 </a>
                 <a href="{{ route('bank.loanDocs.index', ['doc' => 'PO']) }}"
-                    class="nav-link {{ $doc === 'PO' ? 'active' : '' }}">
-                    Выплаты (PO)
+                    class="doc-tab {{ $doc === 'PO' ? 'is-active' : '' }}">
+                    <span class="doc-tab__label">Выплаты (PO)</span>
                 </a>
-            </nav>
+                </nav>
+            </div>
         @endif
     @else
         @include('partials.panel')
