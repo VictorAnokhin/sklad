@@ -37,6 +37,8 @@ class Docs extends Model
      */
     public static function clientInfo1($client, $numz, $typez, $doc, $idstatus, $year, $docid, $summaZ, bool $orderPosted = false, string $routePrefix = 'document')
     {
+        $isLoanFlow = $routePrefix === 'bank.loanDocs';
+
         // Balance
         $balance = DB::table('users')->where('id', $client)->value('balance') ?? 0;
 
@@ -204,15 +206,19 @@ class Docs extends Model
                 $actions .= "<div class='tstr'><a href='{$createWO1Url}' class='rel-doc-action-btn'>🔧 В роботу</a></div>";
             }
             if ($idstatus != 2) {
-                $actions .= "<div class='ttable rel-doc-section'><span class='rel-doc-section__title'>🚚 Відвантаження</span>";
+                $shipmentTitle = $isLoanFlow ? '📅 План виплат' : '🚚 Відвантаження';
+                $issueActionLabel = $isLoanFlow ? 'Просмотр плана виплат' : '＋ Видача товару';
+                $paymentTitle = $isLoanFlow ? '💰 Выплати' : '💰 Оплата';
+
+                $actions .= "<div class='ttable rel-doc-section'><span class='rel-doc-section__title'>{$shipmentTitle}</span>";
                 $actions .= $strRN;
                 if ($canCreateRN) {
-                    $actions .= "<div class='tstr'><a href='{$createRNUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Видача товару</a></div>";
+                    $actions .= "<div class='tstr'><a href='{$createRNUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>{$issueActionLabel}</a></div>";
                 }
-                $actions .= "</div><div class='ttable rel-doc-section'><span class='rel-doc-section__title'>💰 Оплата</span>";
+                $actions .= "</div><div class='ttable rel-doc-section'><span class='rel-doc-section__title'>{$paymentTitle}</span>";
                 $actions .= $strCH;
                 $actions .= $strPO;
-                if ($canCreatePO && $strCH == '') {
+                if (! $isLoanFlow && $canCreatePO && $strCH == '') {
                     $actions .= "<div class='tstr'><a href='{$createCHUrl}' class='rel-doc-action-btn rel-doc-action-btn--create'>＋ Пропозиція</a></div>";
                 }
                 if ($canCreatePO) {

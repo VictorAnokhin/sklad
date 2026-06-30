@@ -6,6 +6,7 @@
         $documentRoutes = $documentRoutePrefix ?? 'document';
         $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
         $isLoanDocument = in_array($documentRoutes, ['loan', 'bank.loanDocs'], true);
+        $showLoanRelatedMenu = ! $isLoanDocument || in_array($doc, ['ZOUT', 'RO', 'PO', 'RA'], true);
         $showLoanRepaymentSchedule = $isLoanDocument && $doc === 'RN';
         $hideGoodsSection = $isLoanDocument && in_array($doc, ['ZOUT', 'RN'], true);
     @endphp
@@ -1122,7 +1123,7 @@
                 </div>
 
                 {{-- RIGHT: Related documents (client_info1) --}}
-                @if(!empty($relatedDocs) || !empty($loanRoUrl))
+                @if($showLoanRelatedMenu && (!empty($relatedDocs) || !empty($loanRoUrl)))
                     <div class="doc-related-col">
                         <div class="related-panel">
                             <h5>{{ $isLoanDocument ? '📋 Документы кредита' : "📋 Зв'язані документи" }}</h5>
