@@ -6,8 +6,6 @@
 
 @section('content')
 <div class="bank-page">
-    @include('bank.partials.nav')
-
     <section class="bank-panel bank-placeholder">
         <div class="bank-label">Банк / {{ $project->name }}</div>
         <h2>{{ $title }}</h2>

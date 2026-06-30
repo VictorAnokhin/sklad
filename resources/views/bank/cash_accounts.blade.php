@@ -6,8 +6,6 @@
 
 @section('content')
 <div class="bank-page" data-bank-accounts-page>
-    @include('bank.partials.nav')
-
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif

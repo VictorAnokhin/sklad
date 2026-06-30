@@ -6,8 +6,6 @@
 
 @section('content')
 <div class="bank-page">
-    @include('bank.partials.nav')
-
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel bank-panel--accent">
             <div class="bank-label">Входящие</div>

@@ -13,8 +13,6 @@
     ][$serviceStatus['listener_status'] ?? 'waiting'] ?? 'Ожидание событий';
 @endphp
 <div class="bank-page">
-    @include('bank.partials.nav')
-
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel">
             <div class="bank-label">Проекты холдинга</div>

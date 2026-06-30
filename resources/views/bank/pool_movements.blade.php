@@ -10,7 +10,7 @@
 @endphp
 
 <div class="bank-page bank-invest-page" data-bank-invest-page>
-    @include('bank.partials.nav')
+    @include('bank.partials.deposit_nav')
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>

@@ -44,8 +44,6 @@
         ->max();
 @endphp
 <div class="bank-page">
-    @include('bank.partials.nav')
-
     <ul class="nav nav-tabs bank-modal-tabs mb-3" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link {{ $activeExchangeTab === 'crypto' ? '' : 'active' }}" id="bankExchangeAv8Tab" data-bs-toggle="tab" data-bs-target="#bankExchangeAv8Pane" type="button" role="tab" data-bank-exchange-tab="av8">

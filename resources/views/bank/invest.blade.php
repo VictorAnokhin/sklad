@@ -16,7 +16,7 @@
 @endphp
 
 <div class="bank-page bank-invest-page" data-bank-invest-page>
-    @include('bank.partials.nav')
+    @include('bank.partials.invest_nav')
 
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">

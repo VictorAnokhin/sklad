@@ -6,7 +6,7 @@
 
 @section('content')
 <div class="bank-page">
-    @include('bank.partials.nav')
+    @include('bank.partials.deposit_nav')
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>

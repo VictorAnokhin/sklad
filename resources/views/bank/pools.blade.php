@@ -11,7 +11,7 @@
 @endphp
 
 <div class="bank-page bank-pools-page" data-bank-pools-page>
-    @include('bank.partials.nav')
+    @include('bank.partials.deposit_nav')
 
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel bank-panel--accent">

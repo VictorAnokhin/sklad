@@ -485,7 +485,7 @@
         <div class="doc-header">
             <h2>
                 @if($isLoanDocument)
-                    Кредитный документ {{ $doc }} № {{ $document->num }}
+                    {{ \App\Models\Document::typeName($doc) }} № {{ $document->num }}
                 @else
                     {{ \App\Models\Document::typeName($doc) }} № {{ $document->num }}
                 @endif
