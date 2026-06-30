@@ -582,9 +582,15 @@ class DocumentController extends Controller
         $loanMeta = [];
         $loanCollateralOptions = collect(['Автомобиль', 'Спецтехника', 'Госномер']);
         $loanRepaymentSchedule = null;
-        if ($isLoanRequestDocument) {
+        $loanRootDocument = $isLoanRequestDocument
+            ? $document
+            : (($documentRoutePrefix === 'bank.loanDocs' && ($parentDocument->type ?? '') === 'ZOUT')
+                ? $parentDocument
+                : null);
+
+        if ($loanRootDocument) {
             $postedLoanRo = DB::table('z_document')
-                ->where('docid', (string) $document->id)
+                ->where('docid', (string) $loanRootDocument->id)
                 ->where('firma', $fid)
                 ->where('type', 'RO')
                 ->where('provodka', 1)
@@ -595,22 +601,25 @@ class DocumentController extends Controller
                 ? route('bank.loanDocs.show', [
                     'doc' => 'RO',
                     'doc_id' => (int) $postedLoanRo->id,
-                    'parent_doc_id' => (int) $document->id,
+                    'parent_doc_id' => (int) $loanRootDocument->id,
                     'num' => $postedLoanRo->num,
                     'year' => strlen((string) ($postedLoanRo->data ?? '')) >= 10
                         ? substr((string) $postedLoanRo->data, 6, 4)
                         : $year,
                 ])
-                : route('bank.loanDocs.show', [
+                : ($isLoanRequestDocument ? route('bank.loanDocs.show', [
                     'doc' => 'RO',
                     'doc_id' => 0,
-                    'parent_doc_id' => (int) $document->id,
+                    'parent_doc_id' => (int) $loanRootDocument->id,
                     'num' => 0,
-                    'year' => strlen((string) ($document->data ?? '')) >= 10
-                        ? substr((string) $document->data, 6, 4)
+                    'year' => strlen((string) ($loanRootDocument->data ?? '')) >= 10
+                        ? substr((string) $loanRootDocument->data, 6, 4)
                         : $year,
-                    'sumPO' => (float) ($document->summa ?? 0),
-                ]);
+                    'sumPO' => (float) ($loanRootDocument->summa ?? 0),
+                ]) : null);
+        }
+
+        if ($isLoanRequestDocument) {
             $loanMeta = $this->parseLoanRequestContent((string) ($document->content ?? ''));
             $loanMeta['loan_amount'] = $loanMeta['loan_amount'] !== '' ? $loanMeta['loan_amount'] : (string) ($document->summa ?? '');
             $loanMeta['ltv'] = $loanMeta['ltv'] !== '' ? $loanMeta['ltv'] : (string) ($document->reteil ?? '70');
