@@ -3258,7 +3258,7 @@ class BankController extends Controller
                     'parent_doc_id' => (int) $row->id,
                     'num' => 0,
                     'year' => strlen((string) ($row->data ?? '')) >= 10 ? substr((string) $row->data, 6, 4) : date('Y'),
-                    'sumRO' => (float) $row->summa,
+                    'sumPO' => (float) $row->summa,
                 ]);
 
                 return $row;

@@ -299,7 +299,10 @@ class DocumentController extends Controller
             $parentDocid = session('docid', '0');
             $parentNumz = session('numz', '0');
             $parentTypez = session('typez', '');
-            $sumFromRequest = (float) $request->input('sumPO', 0);
+            $sumFromRequest = (float) $request->input(
+                'sumPO',
+                $request->input('sumRO', 0)
+            );
             $parentDocument = null;
 
             if (!in_array($doc, ['ZIN', 'ZOUT'], true) && $incomingParentDocId !== '0') {
@@ -587,7 +590,7 @@ class DocumentController extends Controller
                 'year' => strlen((string) ($document->data ?? '')) >= 10
                     ? substr((string) $document->data, 6, 4)
                     : $year,
-                'sumRO' => (float) ($document->summa ?? 0),
+                'sumPO' => (float) ($document->summa ?? 0),
             ]);
             $loanMeta = $this->parseLoanRequestContent((string) ($document->content ?? ''));
             $loanMeta['loan_amount'] = $loanMeta['loan_amount'] !== '' ? $loanMeta['loan_amount'] : (string) ($document->summa ?? '');
@@ -852,7 +855,9 @@ class DocumentController extends Controller
                 }
             }
 
-            $summaPO = in_array($docType, ['PO', 'RO', 'ZP'], true) ? (float)$request->input('sumPO', 0) : 0.0;
+            $summaPO = in_array($docType, ['PO', 'RO', 'ZP'], true)
+                ? (float) $request->input('sumPO', $request->input('sumRO', 0))
+                : 0.0;
             $client1 = session('client1', '0');
             $client2 = session('client2', '0');
             $numz = session('numz', '0');
