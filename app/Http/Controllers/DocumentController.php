@@ -578,20 +578,39 @@ class DocumentController extends Controller
         $isLoanRequestDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'ZOUT';
         $isLoanIssueDocument = $documentRoutePrefix === 'bank.loanDocs' && $doc === 'RN';
         $loanRoUrl = null;
+        $loanRoIsIssued = false;
         $loanMeta = [];
         $loanCollateralOptions = collect(['Автомобиль', 'Спецтехника', 'Госномер']);
         $loanRepaymentSchedule = null;
         if ($isLoanRequestDocument) {
-            $loanRoUrl = route('bank.loanDocs.show', [
-                'doc' => 'RO',
-                'doc_id' => 0,
-                'parent_doc_id' => (int) $document->id,
-                'num' => 0,
-                'year' => strlen((string) ($document->data ?? '')) >= 10
-                    ? substr((string) $document->data, 6, 4)
-                    : $year,
-                'sumPO' => (float) ($document->summa ?? 0),
-            ]);
+            $postedLoanRo = DB::table('z_document')
+                ->where('docid', (string) $document->id)
+                ->where('firma', $fid)
+                ->where('type', 'RO')
+                ->where('provodka', 1)
+                ->orderByDesc('id')
+                ->first();
+            $loanRoIsIssued = $postedLoanRo !== null;
+            $loanRoUrl = $postedLoanRo
+                ? route('bank.loanDocs.show', [
+                    'doc' => 'RO',
+                    'doc_id' => (int) $postedLoanRo->id,
+                    'parent_doc_id' => (int) $document->id,
+                    'num' => $postedLoanRo->num,
+                    'year' => strlen((string) ($postedLoanRo->data ?? '')) >= 10
+                        ? substr((string) $postedLoanRo->data, 6, 4)
+                        : $year,
+                ])
+                : route('bank.loanDocs.show', [
+                    'doc' => 'RO',
+                    'doc_id' => 0,
+                    'parent_doc_id' => (int) $document->id,
+                    'num' => 0,
+                    'year' => strlen((string) ($document->data ?? '')) >= 10
+                        ? substr((string) $document->data, 6, 4)
+                        : $year,
+                    'sumPO' => (float) ($document->summa ?? 0),
+                ]);
             $loanMeta = $this->parseLoanRequestContent((string) ($document->content ?? ''));
             $loanMeta['loan_amount'] = $loanMeta['loan_amount'] !== '' ? $loanMeta['loan_amount'] : (string) ($document->summa ?? '');
             $loanMeta['ltv'] = $loanMeta['ltv'] !== '' ? $loanMeta['ltv'] : (string) ($document->reteil ?? '70');
@@ -679,7 +698,7 @@ class DocumentController extends Controller
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
             'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions', 'loanRepaymentSchedule',
-            'loanRoUrl'
+            'loanRoUrl', 'loanRoIsIssued'
         ));
     }
 

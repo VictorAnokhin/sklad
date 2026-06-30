@@ -1127,7 +1127,9 @@
                         <div class="related-panel">
                             <h5>{{ $isLoanDocument ? '📋 Документы кредита' : "📋 Зв'язані документи" }}</h5>
                             @if(!empty($loanRoUrl))
-                                <a href="{{ $loanRoUrl }}" class="btn btn-primary w-100 mb-3">Выдача кредита</a>
+                                <a href="{{ $loanRoUrl }}" class="btn {{ !empty($loanRoIsIssued) ? 'btn-success' : 'btn-primary' }} w-100 mb-3">
+                                    {{ !empty($loanRoIsIssued) ? 'Кредит выдан' : 'Выдача кредита' }}
+                                </a>
                             @endif
                             @if(!empty($relatedDocs))
                                 {!! $relatedDocs['html'] !!}
