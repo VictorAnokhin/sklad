@@ -10,7 +10,13 @@
                 <ul class="nav nav-tabs mb-3">
                     <li class="nav-item"><button class="nav-link active traffic-tab" type="button" data-type="rules">ПДР</button></li>
                     <li class="nav-item"><button class="nav-link traffic-tab" type="button" data-type="signs">Знаки</button></li>
+                    <li class="nav-item"><button class="nav-link traffic-tab" type="button" data-type="tests">Тести</button></li>
                 </ul>
+                <p class="small text-muted">
+                    Джерело каталогу:
+                    <a href="https://pdr.infotech.gov.ua/" target="_blank" rel="noopener noreferrer">Офіційні тести ПДР України</a>.
+                    Правильні відповіді демонстраційний API не розкриває — їх можна вказати під час редагування.
+                </p>
 
                 <div id="traffic-form-wrap" class="card border-0 bg-light mb-4" style="display:none">
                     <div class="card-body">
@@ -37,6 +43,7 @@
     #modalTrafficLearning .traffic-admin-card { height: 100%; border: 1px solid rgba(148,163,184,.25); cursor: pointer; }
     #modalTrafficLearning .traffic-admin-card:hover { border-color: #f59e0b; }
     #modalTrafficLearning .traffic-sign-image { width: 92px; height: 92px; object-fit: contain; }
+    #modalTrafficLearning .traffic-answer-list { padding-left: 1.25rem; }
 </style>
 
 <script>
@@ -55,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const idInput = document.getElementById('traffic-id');
     const deleteButton = document.getElementById('traffic-delete');
     let type = 'rules';
-    let records = { rules: [], signs: [] };
+    let records = { rules: [], signs: [], tests: [] };
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -72,16 +79,27 @@ document.addEventListener('DOMContentLoaded', function () {
     function showForm(item = null) {
         idInput.value = item?.id || '';
         deleteButton.style.display = item ? '' : 'none';
-        fields.innerHTML = type === 'rules'
-            ? input('section_number', 'Розділ', item?.section_number, { required: true })
+        if (type === 'rules') {
+            fields.innerHTML = input('section_number', 'Розділ', item?.section_number, { required: true })
                 + input('title', 'Назва', item?.title, { required: true })
                 + input('summary', 'Короткий опис', item?.summary, { textarea: true, full: true, required: true })
-                + input('content', 'Текст правила', item?.content, { textarea: true, rows: 5, full: true })
-            : input('code', 'Номер знака', item?.code, { required: true })
+                + input('content', 'Текст правила', item?.content, { textarea: true, rows: 5, full: true });
+        } else if (type === 'signs') {
+            fields.innerHTML = input('code', 'Номер знака', item?.code, { required: true })
                 + input('title', 'Назва', item?.title, { required: true })
                 + input('category', 'Категорія', item?.category)
-                + input('image_url', 'URL зображення', item?.image_url, { required: true })
+                + input('image_url', 'SVG-файл', item?.image_url, { required: true })
                 + input('description', 'Опис', item?.description, { textarea: true, full: true });
+        } else {
+            fields.innerHTML = input('source_external_id', 'ID джерела', item?.source_external_id, { type: 'number' })
+                + input('topic_external_id', 'ID теми', item?.topic_external_id, { type: 'number' })
+                + input('question', 'Питання', item?.question, { textarea: true, full: true, required: true })
+                + input('answers_text', 'Варіанти відповіді — кожен з нового рядка', (item?.answers || []).join('\n'), { textarea: true, rows: 5, full: true, required: true })
+                + input('correct_answer', 'Правильний варіант (номер від 1)', item?.correct_answer == null ? '' : Number(item.correct_answer) + 1, { type: 'number' })
+                + input('image_url', 'Зображення питання', item?.image_url)
+                + input('explanation', 'Пояснення', item?.explanation, { textarea: true, rows: 5, full: true })
+                + input('source_url', 'Джерело', item?.source_url, { full: true });
+        }
         fields.insertAdjacentHTML('beforeend',
             input('sort_order', 'Порядок', item?.sort_order ?? 0, { type: 'number' })
             + `<div class="col-md-6 d-flex align-items-end pb-2"><div class="form-check">
@@ -105,9 +123,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="card traffic-admin-card" data-id="${item.id}">
                     <div class="card-body">
                         ${type === 'signs' ? `<img class="traffic-sign-image float-end ms-3" src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.title)}">` : ''}
-                        <div class="small text-warning fw-bold mb-1">${escapeHtml(type === 'rules' ? `Розділ ${item.section_number}` : `${item.category || 'Знак'} · ${item.code}`)}</div>
-                        <h6>${escapeHtml(item.title)}</h6>
-                        <p class="small text-muted mb-2">${escapeHtml(type === 'rules' ? item.summary : item.description)}</p>
+                        ${type === 'tests' && item.image_url ? `<img class="img-fluid rounded mb-3" src="${escapeHtml(item.image_url)}" alt="">` : ''}
+                        <div class="small text-warning fw-bold mb-1">${escapeHtml(
+                            type === 'rules'
+                                ? `Розділ ${item.section_number}`
+                                : type === 'signs'
+                                    ? `${item.category || 'Знак'} · ${item.code}`
+                                    : `Тест · ID ${item.source_external_id || item.id}`
+                        )}</div>
+                        <h6>${escapeHtml(type === 'tests' ? item.question : item.title)}</h6>
+                        ${type === 'tests'
+                            ? `<ol class="traffic-answer-list small text-muted">${(item.answers || []).map(answer => `<li>${escapeHtml(answer)}</li>`).join('')}</ol>`
+                            : `<p class="small text-muted mb-2">${escapeHtml(String(type === 'rules' ? item.summary : item.description || '').slice(0, 320))}</p>`}
                         <span class="badge ${item.is_published ? 'bg-success' : 'bg-secondary'}">${item.is_published ? 'Опубліковано' : 'Приховано'}</span>
                     </div>
                 </div>
@@ -149,6 +176,13 @@ document.addEventListener('DOMContentLoaded', function () {
         data.fid = fid;
         data.sort_order = Number(data.sort_order || 0);
         data.is_published = form.elements.is_published.checked;
+        if (type === 'tests') {
+            data.answers = String(data.answers_text || '').split(/\n+/).map(value => value.trim()).filter(Boolean);
+            delete data.answers_text;
+            data.correct_answer = data.correct_answer === '' ? null : Math.max(0, Number(data.correct_answer) - 1);
+            data.source_external_id = data.source_external_id === '' ? null : Number(data.source_external_id);
+            data.topic_external_id = data.topic_external_id === '' ? null : Number(data.topic_external_id);
+        }
         const response = await fetch(id ? `${base}/${type}/${id}` : `${base}/${type}`, {
             method: id ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
