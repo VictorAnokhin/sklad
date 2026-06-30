@@ -207,8 +207,20 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-4">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalTrafficLearning" style="border-color:#f59e0b;">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🚦 ПДР</h5>
+                    <p class="card-text text-muted">Правила дорожнього руху та дорожні знаки</p>
+                    <span class="badge bg-warning text-dark">Україна</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+@include('settings.partials.traffic-learning')
 
 <div class="modal fade" id="modalSitemap" tabindex="-1" aria-labelledby="modalSitemapLabel" aria-hidden="true">
     <div class="modal-dialog">

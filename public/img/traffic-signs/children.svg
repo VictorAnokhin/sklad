@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 210" role="img" aria-labelledby="title">
+  <title id="title">Дорожній знак Діти</title>
+  <path d="M120 8 230 198H10Z" fill="#fff" stroke="#dc2626" stroke-width="14" stroke-linejoin="round"/>
+  <g fill="#111827">
+    <circle cx="133" cy="65" r="12"/><path d="m126 78-23 36 14 9 13-19 14 27 15-8-18-36z"/>
+    <circle cx="91" cy="105" r="9"/><path d="m84 116-18 29 11 7 10-15 12 23 12-7-16-31z"/>
+  </g>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="title">
+  <title id="title">Дорожній знак STOP</title>
+  <path d="m72 8 96 0 64 64 0 96-64 64H72L8 168V72Z" fill="#dc2626" stroke="#fff" stroke-width="8"/>
+  <text x="120" y="139" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="58" font-weight="700">STOP</text>
+</svg>
