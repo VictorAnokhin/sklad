@@ -631,11 +631,11 @@
                             </div>
                             <div class="col-12" data-fiat-crypto-sell-field hidden>
                                 <label class="form-label">Крипта</label>
-                                <input type="number" name="crypto_amount" class="form-control" min="0.00000001" step="0.00000001" inputmode="decimal" data-fiat-crypto-crypto>
+                                <input type="text" name="crypto_amount" class="form-control" inputmode="numeric" data-terminal-amount data-terminal-decimals="2" data-fiat-crypto-crypto>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Курс</label>
-                                <input type="number" name="rate" class="form-control" min="0.00000001" step="0.00000001" inputmode="decimal" required data-fiat-crypto-rate>
+                                <input type="text" name="rate" class="form-control" inputmode="numeric" data-terminal-amount data-terminal-decimals="2" required data-fiat-crypto-rate>
                             </div>
                             <div class="col-12" data-fiat-crypto-buy-result>
                                 <label class="form-label">Крипта</label>
@@ -1138,9 +1138,62 @@
         const fiatCryptoPerformanceSellRate = document.querySelector('[data-fiat-crypto-performance-sell-rate]');
         const fiatCryptoPerformanceMargin = document.querySelector('[data-fiat-crypto-performance-margin]');
         const fiatCryptoPerformanceProfit = document.querySelector('[data-fiat-crypto-performance-profit]');
+        const fiatCryptoSelectionStorageKey = 'bank.exchange.fiatCryptoSelections';
 
         function selectedOption(select) {
             return select?.selectedOptions?.[0] || null;
+        }
+
+        function savedFiatCryptoSelections() {
+            try {
+                const saved = JSON.parse(window.localStorage?.getItem(fiatCryptoSelectionStorageKey) || '{}');
+                return saved && typeof saved === 'object' ? saved : {};
+            } catch (error) {
+                return {};
+            }
+        }
+
+        function saveFiatCryptoSelections() {
+            window.localStorage?.setItem(fiatCryptoSelectionStorageKey, JSON.stringify({
+                fiatCurrency: fiatCryptoFiatCurrency?.value || '',
+                cryptoCurrency: fiatCryptoCryptoCurrency?.value || '',
+                fiatAccountId: fiatCryptoFiatAccount?.value || '',
+                cryptoAccountId: fiatCryptoCryptoAccount?.value || '',
+            }));
+        }
+
+        function selectHasValue(select, value) {
+            return Boolean(select && value && Array.from(select.options).some((option) => option.value === String(value)));
+        }
+
+        function restoreFiatCryptoSelections({ currencies = true } = {}) {
+            const saved = savedFiatCryptoSelections();
+
+            if (currencies && selectHasValue(fiatCryptoFiatCurrency, saved.fiatCurrency)) {
+                fiatCryptoFiatCurrency.value = saved.fiatCurrency;
+            }
+            if (currencies && selectHasValue(fiatCryptoCryptoCurrency, saved.cryptoCurrency)) {
+                fiatCryptoCryptoCurrency.value = saved.cryptoCurrency;
+            }
+
+            filterFiatCryptoAccounts();
+
+            if (selectHasValue(fiatCryptoFiatAccount, saved.fiatAccountId)) {
+                const option = Array.from(fiatCryptoFiatAccount.options)
+                    .find((item) => item.value === String(saved.fiatAccountId));
+                if (!option?.hidden) {
+                    fiatCryptoFiatAccount.value = String(saved.fiatAccountId);
+                }
+            }
+            if (selectHasValue(fiatCryptoCryptoAccount, saved.cryptoAccountId)) {
+                const option = Array.from(fiatCryptoCryptoAccount.options)
+                    .find((item) => item.value === String(saved.cryptoAccountId));
+                if (!option?.hidden) {
+                    fiatCryptoCryptoAccount.value = String(saved.cryptoAccountId);
+                }
+            }
+
+            calculateFiatCrypto();
         }
 
         function localDateString(date) {
@@ -1482,7 +1535,7 @@
                 fiatCryptoSubmit.classList.add('btn-primary');
             }
             setFiatCryptoSide('buy');
-            filterFiatCryptoAccounts();
+            restoreFiatCryptoSelections();
             if (fiatCryptoDate) {
                 fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
             }
@@ -1581,7 +1634,7 @@
             if (fiatCryptoCryptoCurrency) {
                 fiatCryptoCryptoCurrency.value = 'AV8';
             }
-            filterFiatCryptoAccounts();
+            restoreFiatCryptoSelections({ currencies: false });
             if (fiatCryptoDate) {
                 fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
             }
@@ -1629,11 +1682,17 @@
         });
 
         [fiatCryptoFiatCurrency, fiatCryptoCryptoCurrency].forEach((field) => {
-            field?.addEventListener('change', filterFiatCryptoAccounts);
+            field?.addEventListener('change', () => {
+                filterFiatCryptoAccounts();
+                saveFiatCryptoSelections();
+            });
         });
 
         [fiatCryptoFiatAccount, fiatCryptoCryptoAccount].forEach((field) => {
-            field?.addEventListener('change', calculateFiatCrypto);
+            field?.addEventListener('change', () => {
+                calculateFiatCrypto();
+                saveFiatCryptoSelections();
+            });
         });
 
         fiatCryptoDateFilters.forEach((button) => {
@@ -1654,7 +1713,11 @@
         fiatCryptoForm?.addEventListener('reset', () => {
             window.setTimeout(() => {
                 setFiatCryptoSide(fiatCryptoForm.dataset.mode === 'swap-order' ? 'sell' : 'buy');
-                filterFiatCryptoAccounts();
+                if (fiatCryptoForm.dataset.mode === 'save') {
+                    restoreFiatCryptoSelections();
+                } else {
+                    filterFiatCryptoAccounts();
+                }
                 if (fiatCryptoDate) {
                     fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
                 }
