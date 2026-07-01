@@ -6,7 +6,22 @@
 
 @section('content')
 @php
-    $fiatCryptoOrders = $swapOrders->where('source', 'bank.exchange.crypto')->values();
+    $fiatCryptoOrders = $swapOrders
+        ->where('source', 'bank.exchange.crypto')
+        ->sort(function ($left, $right): int {
+            $leftMeta = json_decode((string) ($left->meta ?? ''), true);
+            $rightMeta = json_decode((string) ($right->meta ?? ''), true);
+            $leftMeta = is_array($leftMeta) ? $leftMeta : [];
+            $rightMeta = is_array($rightMeta) ? $rightMeta : [];
+            $leftOperatedAt = (string) ($leftMeta['operated_at'] ?? $left->created_at ?? '');
+            $rightOperatedAt = (string) ($rightMeta['operated_at'] ?? $right->created_at ?? '');
+            $dateComparison = strcmp($rightOperatedAt, $leftOperatedAt);
+
+            return $dateComparison !== 0
+                ? $dateComparison
+                : ((int) $right->id <=> (int) $left->id);
+        })
+        ->values();
     $fiatAv8Orders = $swapOrders->reject(fn ($order) => (string) $order->source === 'bank.exchange.crypto')->values();
     $ordersTotal = (float) $fiatAv8Orders->sum('pay_amount');
     $av8Total = (float) $fiatAv8Orders->sum('expected_av8');
@@ -474,6 +489,7 @@
                                     $isReversed = ! empty($meta['reversed_at']) || (string) $order->status === 'cancelled';
                                     $operatedAt = (string) ($meta['operated_at'] ?? $order->created_at);
                                     $operationDate = substr($operatedAt, 0, 10);
+                                    $operatedAtInput = \Illuminate\Support\Carbon::parse($operatedAt)->format('Y-m-d\TH:i');
                                     $fiatAccountId = (int) ($meta['fiat_account_id'] ?? 0);
                                     $cryptoAccountId = (int) ($meta['crypto_account_id'] ?? 0);
                                     $fiatAccountBalance = (float) ($operationalAccountsById->get($fiatAccountId)->balance ?? 0);
@@ -490,14 +506,14 @@
                                             : 'Недостаточно средств на фиатном счете для отмены.');
                                     $fiatCryptoPayload = [
                                         'id' => (int) $order->id,
-                                        'operated_at' => $operationDate,
+                                        'operated_at' => $operatedAtInput,
                                         'side' => $side,
                                         'side_label' => $side === 'sell' ? 'Продажа крипты' : 'Покупка крипты',
                                         'fiat_amount' => number_format((float) $order->pay_amount, 8, '.', ''),
                                         'fiat_currency' => (string) $order->pay_currency,
-                                        'crypto_amount' => number_format($cryptoAmount, 8, '.', ''),
+                                        'crypto_amount' => number_format($cryptoAmount, 2, '.', ''),
                                         'crypto_currency' => $cryptoCurrency,
-                                        'rate' => number_format((float) $order->rate_usdc, 8, '.', ''),
+                                        'rate' => number_format((float) $order->rate_usdc, 2, '.', ''),
                                         'fiat_account_id' => $fiatAccountId,
                                         'crypto_account_id' => $cryptoAccountId,
                                         'fiat_account_label' => $fiatAccountLabel,
@@ -538,8 +554,8 @@
                                         <div class="bank-meta">{{ $fiatAccountLabel !== '' || $cryptoAccountLabel !== '' ? trim($fiatAccountLabel . ' ↔ ' . $cryptoAccountLabel) : 'Счета не указаны' }}</div>
                                     </td>
                                     <td class="text-end fw-semibold">{{ number_format((float) $order->pay_amount, 2, '.', ' ') }} {{ $order->pay_currency }}</td>
-                                    <td class="text-end fw-semibold">{{ number_format($cryptoAmount, 8, '.', ' ') }} {{ $cryptoCurrency }}</td>
-                                    <td class="text-end">{{ number_format((float) $order->rate_usdc, 8, '.', ' ') }}</td>
+                                    <td class="text-end fw-semibold">{{ number_format($cryptoAmount, 2, '.', ' ') }} {{ $cryptoCurrency }}</td>
+                                    <td class="text-end">{{ number_format((float) $order->rate_usdc, 2, '.', ' ') }}</td>
                                     <td>
                                         <span class="bank-status {{ $isReversed ? 'bank-status--reversed' : '' }}">{{ $isReversed ? 'Отменено' : 'Сохранено' }}</span>
                                         <div class="bank-meta">{{ $reversalLedgerTransactionId > 0 ? 'Сторно TX #' . $reversalLedgerTransactionId : ($ledgerTransactionId > 0 ? 'TX #' . $ledgerTransactionId : 'Ledger pending') }}</div>
@@ -553,6 +569,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="bank-meta text-center py-3" data-fiat-crypto-load-status hidden></div>
             </section>
         </div>
     </div>
@@ -598,8 +615,8 @@
                                 </select>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Дата</label>
-                                <input type="date" name="operated_at" class="form-control" data-fiat-crypto-date>
+                                <label class="form-label">Дата и время</label>
+                                <input type="datetime-local" name="operated_at" class="form-control" step="60" data-fiat-crypto-date>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Фиатный счет</label>
@@ -1139,6 +1156,9 @@
         const fiatCryptoPerformanceMargin = document.querySelector('[data-fiat-crypto-performance-margin]');
         const fiatCryptoPerformanceProfit = document.querySelector('[data-fiat-crypto-performance-profit]');
         const fiatCryptoSelectionStorageKey = 'bank.exchange.fiatCryptoSelections';
+        const fiatCryptoLoadStatus = document.querySelector('[data-fiat-crypto-load-status]');
+        const fiatCryptoPageSize = 10;
+        let fiatCryptoVisibleLimit = fiatCryptoPageSize;
 
         function selectedOption(select) {
             return select?.selectedOptions?.[0] || null;
@@ -1201,6 +1221,12 @@
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
+        }
+
+        function localDateTimeString(date) {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${localDateString(date)}T${hours}:${minutes}`;
         }
 
         function fiatCryptoDateRange(preset) {
@@ -1292,6 +1318,7 @@
                 pairs: {},
             };
             let visibleCount = 0;
+            fiatCryptoVisibleLimit = fiatCryptoPageSize;
 
             fiatCryptoDateFilters.forEach((button) => {
                 button.classList.toggle('active', button.dataset.fiatCryptoDateFilter === preset);
@@ -1303,6 +1330,7 @@
             fiatCryptoRows.forEach((row) => {
                 const operationDate = row.dataset.operationDate || '';
                 const inRange = (!range.from || operationDate >= range.from) && (!range.to || operationDate <= range.to);
+                row.dataset.matchesDateFilter = inRange ? '1' : '0';
                 row.hidden = !inRange;
 
                 if (!inRange) {
@@ -1389,6 +1417,37 @@
             setPerformanceText(fiatCryptoPerformanceSellRate, sellRates.length > 0 ? sellRates.join(' · ') : '—');
             setPerformanceText(fiatCryptoPerformanceMargin, margins.length > 0 ? margins.join(' · ') : '—');
             setPerformanceText(fiatCryptoPerformanceProfit, Object.keys(profitByCurrency).length > 0 ? formatFiatGroups(profitByCurrency, true) : '—');
+            applyFiatCryptoPagination();
+        }
+
+        function applyFiatCryptoPagination() {
+            const matchingRows = Array.from(fiatCryptoRows)
+                .filter((row) => row.dataset.matchesDateFilter === '1');
+
+            matchingRows.forEach((row, index) => {
+                row.hidden = index >= fiatCryptoVisibleLimit;
+            });
+
+            if (fiatCryptoLoadStatus) {
+                const shown = Math.min(fiatCryptoVisibleLimit, matchingRows.length);
+                fiatCryptoLoadStatus.hidden = matchingRows.length === 0;
+                fiatCryptoLoadStatus.textContent = shown < matchingRows.length
+                    ? `Показано ${shown} из ${matchingRows.length}. Прокрутите вниз для загрузки следующих ${Math.min(fiatCryptoPageSize, matchingRows.length - shown)}.`
+                    : `Показано ${shown} из ${matchingRows.length}.`;
+            }
+        }
+
+        function loadNextFiatCryptoPage() {
+            const matchingCount = Array.from(fiatCryptoRows)
+                .filter((row) => row.dataset.matchesDateFilter === '1')
+                .length;
+
+            if (fiatCryptoVisibleLimit >= matchingCount) {
+                return;
+            }
+
+            fiatCryptoVisibleLimit += fiatCryptoPageSize;
+            applyFiatCryptoPagination();
         }
 
         function calculateFiatCrypto() {
@@ -1401,7 +1460,7 @@
             if (side === 'buy') {
                 const fiat = Number(fiatCryptoFiat?.value || 0);
                 if (fiatCryptoBuyOutput) {
-                    fiatCryptoBuyOutput.value = fiat > 0 && rate > 0 ? (fiat / rate).toFixed(8) : '';
+                    fiatCryptoBuyOutput.value = fiat > 0 && rate > 0 ? (fiat / rate).toFixed(2) : '';
                 }
                 if (fiatCryptoFiatAccountMeta) {
                     const balance = Number(fiatAccountOption?.dataset.balance || 0);
@@ -1537,7 +1596,7 @@
             setFiatCryptoSide('buy');
             restoreFiatCryptoSelections();
             if (fiatCryptoDate) {
-                fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
+                fiatCryptoDate.value = localDateTimeString(new Date());
             }
         }
 
@@ -1636,19 +1695,19 @@
             }
             restoreFiatCryptoSelections({ currencies: false });
             if (fiatCryptoDate) {
-                fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
+                fiatCryptoDate.value = localDateTimeString(new Date());
             }
             if (fiatCryptoFiat) {
                 fiatCryptoFiat.value = parseOrderNumber(order.pay_amount).toFixed(2);
             }
             if (fiatCryptoCrypto) {
-                fiatCryptoCrypto.value = parseOrderNumber(order.expected_av8).toFixed(8);
+                fiatCryptoCrypto.value = parseOrderNumber(order.expected_av8).toFixed(2);
             }
             if (fiatCryptoRate) {
-                fiatCryptoRate.value = parseOrderNumber(order.rate_usdc).toFixed(8);
+                fiatCryptoRate.value = parseOrderNumber(order.rate_usdc).toFixed(2);
             }
             if (fiatCryptoBuyOutput) {
-                fiatCryptoBuyOutput.value = parseOrderNumber(order.expected_av8).toFixed(8);
+                fiatCryptoBuyOutput.value = parseOrderNumber(order.expected_av8).toFixed(2);
             }
             if (fiatCryptoNote) {
                 fiatCryptoNote.value = `Заявка #${valueOrDash(order.id)}: ${valueOrDash(order.client_email)} -> ${valueOrDash(order.wallet_address)}`;
@@ -1719,7 +1778,7 @@
                     filterFiatCryptoAccounts();
                 }
                 if (fiatCryptoDate) {
-                    fiatCryptoDate.value = new Date().toISOString().slice(0, 10);
+                    fiatCryptoDate.value = localDateTimeString(new Date());
                 }
             }, 0);
         });
@@ -1775,6 +1834,14 @@
                 alert('Недостаточно средств на крипто операционном счете.');
             }
         });
+
+        window.addEventListener('scroll', () => {
+            const distanceToBottom = document.documentElement.scrollHeight
+                - (window.scrollY + window.innerHeight);
+            if (distanceToBottom <= 240) {
+                loadNextFiatCryptoPage();
+            }
+        }, { passive: true });
 
         filterFiatCryptoAccounts();
         applyFiatCryptoDateFilter(window.localStorage?.getItem(fiatCryptoFilterStorageKey) || 'today');

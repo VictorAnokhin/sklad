@@ -2436,8 +2436,8 @@ class BankController extends Controller
         $cryptoCurrency = strtoupper(trim((string) $payload['crypto_currency'])) ?: 'USDC';
         $now = now();
         $operatedAt = $request->filled('operated_at')
-            ? Carbon::parse((string) $payload['operated_at'])->toDateString()
-            : $now->toDateString();
+            ? Carbon::parse((string) $payload['operated_at'])->toDateTimeString()
+            : $now->toDateTimeString();
         $operationalAccounts = $this->bankOperationalAccounts((string) $project->id);
         $operationalAccountsById = $operationalAccounts->keyBy(fn ($account) => (int) $account->id);
         $fiatAccount = $operationalAccountsById->get((int) $payload['fiat_account_id']);
@@ -2506,7 +2506,7 @@ class BankController extends Controller
             ];
 
             if ($orderId === null) {
-                $values['created_at'] = Carbon::parse($operatedAt)->startOfDay();
+                $values['created_at'] = Carbon::parse($operatedAt);
                 $savedOrderId = (int) DB::table('av8_swap_orders')->insertGetId($values);
             } else {
                 DB::table('av8_swap_orders')->where('id', $orderId)->update($values);
