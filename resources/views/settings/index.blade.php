@@ -476,8 +476,17 @@
                         <div class="col-md-4 mb-3">
                             <label class="form-label">{{ __('settings.catalog_modal.file_upload') }}</label>
                             <input type="hidden" id="catalog-file-path">
-                            <input type="file" class="form-control" id="catalog-file-upload">
+                            <input type="file" class="form-control" id="catalog-file-upload" accept="image/*">
                             <div class="form-text" id="catalog-file-current">{{ __('settings.catalog_modal.file_not_uploaded') }}</div>
+                            <div class="mt-2" id="catalog-file-preview-wrap" hidden>
+                                <img
+                                    src=""
+                                    alt="{{ __('settings.catalog_modal.file_upload') }}"
+                                    id="catalog-file-preview"
+                                    class="img-thumbnail"
+                                    style="display:block;max-width:220px;max-height:160px;object-fit:contain;"
+                                >
+                            </div>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">{{ __('settings.catalog_modal.descr_ru') }}</label>
@@ -4264,6 +4273,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const descriptionHead = document.getElementById('catalog-description-head');
         const childrenHead = document.getElementById('catalog-children-head');
         const newsCatalogSelect = document.getElementById('catalog-news-catalog');
+        const catalogFileUpload = document.getElementById('catalog-file-upload');
+        const catalogFilePreview = document.getElementById('catalog-file-preview');
+        const catalogFilePreviewWrap = document.getElementById('catalog-file-preview-wrap');
         const regionCitiesArea = document.getElementById('region-cities-area');
         const regionCitiesTitle = document.getElementById('region-cities-title');
         const regionCitiesTbody = document.getElementById('region-cities-tbody');
@@ -4275,6 +4287,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const newsMap = new Map((newsOptions || []).map((item) => [String(item.id), item.title]));
 
         hydrateNewsSelect(newsCatalogSelect, newsOptions || []);
+
+        function setCatalogFilePreview(source = '') {
+            if (!catalogFilePreview || !catalogFilePreviewWrap) {
+                return;
+            }
+
+            if (!source) {
+                catalogFilePreview.src = '';
+                catalogFilePreviewWrap.hidden = true;
+                return;
+            }
+
+            catalogFilePreview.src = source;
+            catalogFilePreviewWrap.hidden = false;
+        }
+
+        let currentCatalogFilePreviewUrl = '';
+
+        catalogFileUpload?.addEventListener('change', () => {
+            const file = catalogFileUpload.files?.[0];
+            if (!file) {
+                setCatalogFilePreview(currentCatalogFilePreviewUrl);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => setCatalogFilePreview(String(reader.result || ''));
+            reader.readAsDataURL(file);
+        });
 
         let currentKeyfield = 'catalog';
         let currentParentId = '0';
@@ -4562,6 +4603,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('catalog-file-current').innerHTML = data.foto1_url
                         ? `${escapeHtml(_ts('catalog_modal.file_current'))} <a href="${escapeHtml(data.foto1_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(_ts('catalog_modal.open_file'))}</a>`
                         : escapeHtml(_ts('catalog_modal.file_not_uploaded'));
+                    currentCatalogFilePreviewUrl = data.foto1_url || '';
+                    setCatalogFilePreview(data.foto1_url || '');
                     document.getElementById('catalog-num').value = data.num ?? 0;
                     document.getElementById('catalog-visible').checked = String(data.visible ?? '1') === '1';
                     document.getElementById('catalog-firstpage').checked = String(data.firstpage ?? '0') === '1';
@@ -4636,6 +4679,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('catalog-file-path').value = '';
             document.getElementById('catalog-file-upload').value = '';
             document.getElementById('catalog-file-current').textContent = _ts('catalog_modal.file_not_uploaded');
+            currentCatalogFilePreviewUrl = '';
+            setCatalogFilePreview('');
             document.getElementById('catalog-num').value = '0';
             document.getElementById('catalog-visible').checked = true;
             document.getElementById('catalog-firstpage').checked = false;
