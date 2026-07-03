@@ -4523,7 +4523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const description = fieldModeConfig[currentKeyfield].showExtra ? `
                     <div><strong>${escapeHtml(_ts('catalog_modal.label_link'))}</strong> ${escapeHtml(shortText(item.link || '—'))}</div>
                     <div><strong>${escapeHtml(_ts('catalog_modal.label_article'))}</strong> ${escapeHtml(getNewsTitle(item.news_catalog_id))}</div>
-                    <div><strong>${escapeHtml(_ts('catalog_modal.label_file'))}</strong> ${item.foto1_url ? `<a href="${escapeHtml(item.foto1_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(_ts('catalog_modal.open_file'))}</a>` : '—'}</div>
+                    <div><strong>${escapeHtml(_ts('catalog_modal.label_file'))}</strong> ${item.image_url ? `<a href="${escapeHtml(item.image_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(_ts('catalog_modal.open_file'))}</a>` : '—'}</div>
                     <div>${escapeHtml(shortText(item.description_ru || '—'))}</div>
                     <div class="catalog-meta">UA: ${escapeHtml(shortText(item.description_ua || '—'))}</div>
                     <div class="catalog-meta">EN: ${escapeHtml(shortText(item.description_en || '—'))}</div>
@@ -4600,11 +4600,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('catalog-news-catalog').value = data.news_catalog_id ? String(data.news_catalog_id) : '';
                     document.getElementById('catalog-file-path').value = data.foto1 || '';
                     document.getElementById('catalog-file-upload').value = '';
-                    document.getElementById('catalog-file-current').innerHTML = data.foto1_url
-                        ? `${escapeHtml(_ts('catalog_modal.file_current'))} <a href="${escapeHtml(data.foto1_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(_ts('catalog_modal.open_file'))}</a>`
+                    document.getElementById('catalog-file-current').innerHTML = data.image_url
+                        ? `${escapeHtml(_ts('catalog_modal.file_current'))} <a href="${escapeHtml(data.image_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(_ts('catalog_modal.open_file'))}</a>`
                         : escapeHtml(_ts('catalog_modal.file_not_uploaded'));
-                    currentCatalogFilePreviewUrl = data.foto1_url || '';
-                    setCatalogFilePreview(data.foto1_url || '');
+                    currentCatalogFilePreviewUrl = data.image_url || '';
+                    setCatalogFilePreview(data.image_url || '');
                     document.getElementById('catalog-num').value = data.num ?? 0;
                     document.getElementById('catalog-visible').checked = String(data.visible ?? '1') === '1';
                     document.getElementById('catalog-firstpage').checked = String(data.firstpage ?? '0') === '1';
