@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\MediaUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 
@@ -66,7 +67,7 @@ class Field extends Model
         }
 
         $select = ['id', 'idkeyfield', 'val'];
-        foreach (['valua', 'valen', 'description', 'descriptionua', 'descriptionen', 'link', 'news_catalog_id', 'nw', 'num', 'visible', 'firstpage'] as $column) {
+        foreach (['valua', 'valen', 'description', 'descriptionua', 'descriptionen', 'link', 'foto1', 'news_catalog_id', 'nw', 'num', 'visible', 'firstpage'] as $column) {
             if ($hasColumn($column)) {
                 $select[] = $column;
             }
@@ -107,6 +108,8 @@ class Field extends Model
                 'name_ua' => $nameUa,
                 'name_en' => $nameEn,
                 'link' => trim((string) ($item->link ?? '')),
+                'foto1' => trim((string) ($item->foto1 ?? '')),
+                'image_url' => MediaUrl::storage((string) ($item->foto1 ?? '')),
                 'description' => self::localizedValue($locale, $descriptionRu, $descriptionUa, $descriptionEn),
                 'description_ru' => $descriptionRu,
                 'description_ua' => $descriptionUa,
