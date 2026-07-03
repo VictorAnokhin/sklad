@@ -3114,8 +3114,8 @@ class SettingsController extends Controller
                 ? ($item->news_catalog_id ? (int) $item->news_catalog_id : null)
                 : (in_array('nw', $fieldColumns, true) && (int) ($item->nw ?? 0) > 0 ? (int) $item->nw : null),
             'foto1' => in_array('foto1', $fieldColumns, true) ? ($item->foto1 ?? '') : '',
-            'image_url' => in_array('foto1', $fieldColumns, true) ? MediaUrl::storage((string) ($item->foto1 ?? '')) : null,
-            'foto1_url' => in_array('foto1', $fieldColumns, true) ? MediaUrl::storage((string) ($item->foto1 ?? '')) : null,
+            'image_url' => in_array('foto1', $fieldColumns, true) ? MediaUrl::image((string) ($item->foto1 ?? '')) : null,
+            'foto1_url' => in_array('foto1', $fieldColumns, true) ? MediaUrl::image((string) ($item->foto1 ?? '')) : null,
             'children_count' => (int) ($childCounts[(string) $item->id] ?? 0),
             'num' => (int) (property_exists($item, 'num') ? ($item->num ?? 0) : 0),
             'visible' => (string) (property_exists($item, 'visible') ? ($item->visible ?? '1') : '1'),

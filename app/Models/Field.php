@@ -109,7 +109,7 @@ class Field extends Model
                 'name_en' => $nameEn,
                 'link' => trim((string) ($item->link ?? '')),
                 'foto1' => trim((string) ($item->foto1 ?? '')),
-                'image_url' => MediaUrl::storage((string) ($item->foto1 ?? '')),
+                'image_url' => MediaUrl::image((string) ($item->foto1 ?? '')),
                 'description' => self::localizedValue($locale, $descriptionRu, $descriptionUa, $descriptionEn),
                 'description_ru' => $descriptionRu,
                 'description_ua' => $descriptionUa,
