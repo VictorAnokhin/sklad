@@ -111,6 +111,40 @@ class InventoryCostServiceTest extends TestCase
         );
     }
 
+    public function test_issue_resynchronizes_stale_cost_balance_from_physical_stock(): void
+    {
+        DB::table('inventory_cost_balances')
+            ->where('company_id', $this->companyId)
+            ->where('warehouse_id', $this->warehouseId)
+            ->where('product_id', $this->productId)
+            ->update([
+                'quantity' => 0,
+                'total_value' => 0,
+                'average_cost' => 0,
+            ]);
+
+        $service = app(InventoryCostService::class);
+        $service->post(
+            $this->document('RN', 920002),
+            collect([$this->createLine('RN', 1, 25)]),
+            (string) $this->companyId
+        );
+
+        $balance = $this->balance();
+        $this->assertEqualsWithDelta(9, (float) $balance->quantity, 0.0001);
+        $this->assertEqualsWithDelta(90, (float) $balance->total_value, 0.0001);
+        $this->assertEqualsWithDelta(10, (float) $balance->average_cost, 0.000001);
+        $this->assertEqualsWithDelta(
+            9,
+            (float) DB::table('price_sklad')
+                ->where('firma', $this->companyId)
+                ->where('sklad', $this->warehouseId)
+                ->where('pnum', $this->productId)
+                ->value('count'),
+            0.0001
+        );
+    }
+
     public function test_earlier_movement_is_blocked_after_later_movement(): void
     {
         $service = app(InventoryCostService::class);

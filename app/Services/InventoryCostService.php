@@ -35,7 +35,12 @@ class InventoryCostService
         foreach ($lineItems as $line) {
             $productId = trim((string) $line->pnum);
             $quantity = round((float) $line->pcount, 3);
-            $balance = $this->lockBalance((int) $fid, $warehouseId, $productId);
+            $balance = $this->lockBalance(
+                (int) $fid,
+                $warehouseId,
+                $productId,
+                syncPhysicalQuantity: $docType === 'RN'
+            );
 
             $latestDate = DB::table('inventory_cost_movements')
                 ->where('company_id', (int) $fid)
