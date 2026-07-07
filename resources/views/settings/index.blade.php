@@ -4834,7 +4834,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const deleteButton = event.target.closest('.region-city-delete');
 
             if (editButton) {
-                const response = await fetch(`/settings/region-cities/${encodeURIComponent(editButton.dataset.id)}`, {
+                const response = await fetch(`/settings/region-cities/${encodeURIComponent(editButton.dataset.id)}?ignore_firma=1`, {
                     headers: { Accept: 'application/json' },
                 });
                 const city = await response.json().catch(() => ({}));
@@ -4852,7 +4852,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (deleteButton) {
                 if (!confirm(_ts('catalog_modal.delete_city_confirm'))) return;
-                const response = await fetch(`/settings/region-cities/${encodeURIComponent(deleteButton.dataset.id)}`, {
+                const response = await fetch(`/settings/region-cities/${encodeURIComponent(deleteButton.dataset.id)}?ignore_firma=1`, {
                     method: 'DELETE',
                     headers: {
                         Accept: 'application/json',
@@ -4886,8 +4886,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const response = await fetch(id
-                ? `/settings/region-cities/${encodeURIComponent(id)}`
-                : '/settings/region-cities', {
+                ? `/settings/region-cities/${encodeURIComponent(id)}?ignore_firma=1`
+                : '/settings/region-cities?ignore_firma=1', {
                 method: id ? 'PUT' : 'POST',
                 headers: {
                     'Content-Type': 'application/json',

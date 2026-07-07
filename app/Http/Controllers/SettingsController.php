@@ -1955,9 +1955,10 @@ class SettingsController extends Controller
         return response()->json(['items' => $items, 'region_id' => $regionId]);
     }
 
-    public function regionCitiesShow($id)
+    public function regionCitiesShow(Request $request, $id)
     {
-        $row = $this->regionCityFind(session('fid', ''), $id);
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, 'city');
+        $row = $this->regionCityFind(session('fid', ''), $id, $ignoreFirma);
         if (!$row) {
             return response()->json(['message' => 'Місто не знайдено'], 404);
         }
@@ -1973,7 +1974,8 @@ class SettingsController extends Controller
 
         $data = $this->validateRegionCity($request, true);
         $regionId = (int) $data['region_id'];
-        if (!$this->fieldRegionFind(session('fid', ''), $regionId)) {
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, 'city');
+        if (!$this->fieldRegionFind(session('fid', ''), $regionId, $ignoreFirma)) {
             return response()->json(['success' => false, 'message' => 'Регіон не знайдено'], 404);
         }
 
@@ -2000,7 +2002,8 @@ class SettingsController extends Controller
 
     public function regionCitiesUpdate(Request $request, $id)
     {
-        $row = $this->regionCityFind(session('fid', ''), $id);
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, 'city');
+        $row = $this->regionCityFind(session('fid', ''), $id, $ignoreFirma);
         if (!$row) {
             return response()->json(['success' => false, 'message' => 'Місто не знайдено'], 404);
         }
@@ -2015,9 +2018,10 @@ class SettingsController extends Controller
         ]);
     }
 
-    public function regionCitiesDestroy($id)
+    public function regionCitiesDestroy(Request $request, $id)
     {
-        $row = $this->regionCityFind(session('fid', ''), $id);
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, 'city');
+        $row = $this->regionCityFind(session('fid', ''), $id, $ignoreFirma);
         if (!$row) {
             return response()->json(['success' => false, 'message' => 'Місто не знайдено'], 404);
         }
@@ -2917,7 +2921,7 @@ class SettingsController extends Controller
         return $this->fieldBaseQuery($fid, 'city', $ignoreFirma)->where('id', $id)->first();
     }
 
-    private function regionCityFind($fid, $cityId): ?object
+    private function regionCityFind($fid, $cityId, bool $ignoreFirma = false): ?object
     {
         if (!Schema::hasTable('filter')) {
             return null;
@@ -2928,7 +2932,7 @@ class SettingsController extends Controller
             ->where('keyfield', 'city')
             ->first();
 
-        return $row && $this->fieldRegionFind($fid, $row->idkeyfield) ? $row : null;
+        return $row && $this->fieldRegionFind($fid, $row->idkeyfield, $ignoreFirma) ? $row : null;
     }
 
     private function fieldColumns(): array
