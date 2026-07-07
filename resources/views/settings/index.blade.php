@@ -4440,7 +4440,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            fetch(id ? `/settings/fields/${id}` : '/settings/fields', {
+            fetch(fieldCrudUrl(id), {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': csrfToken,
@@ -4585,8 +4585,21 @@ document.addEventListener('DOMContentLoaded', () => {
             breadcrumbBox.appendChild(wrapper);
         }
 
+        function fieldCrudUrl(id = '') {
+            const path = id ? `/settings/fields/${encodeURIComponent(id)}` : '/settings/fields';
+            const url = new URL(path, window.location.origin);
+            if (id) {
+                url.searchParams.set('keyfield', currentKeyfield);
+            }
+            if (currentKeyfield === 'city') {
+                url.searchParams.set('ignore_firma', '1');
+            }
+
+            return url.toString();
+        }
+
         function editCategory(id) {
-            fetch(`/settings/fields/${id}?keyfield=${encodeURIComponent(currentKeyfield)}`)
+            fetch(fieldCrudUrl(id))
                 .then(async (r) => {
                     const data = await r.json();
                     return { ok: r.ok, data };
@@ -4631,7 +4644,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function deleteCategory(id) {
             if (!confirm(_ts('js.delete_category_confirm'))) return;
 
-            fetch(`/settings/fields/${id}?keyfield=${encodeURIComponent(currentKeyfield)}`, {
+            fetch(fieldCrudUrl(id), {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',

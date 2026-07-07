@@ -2872,9 +2872,9 @@ class SettingsController extends Controller
         return $query;
     }
 
-    private function fieldFind($fid, string $keyfield, $id)
+    private function fieldFind($fid, string $keyfield, $id, bool $ignoreFirma = false)
     {
-        return $this->fieldBaseQuery($fid, $keyfield)->where('id', $id)->first();
+        return $this->fieldBaseQuery($fid, $keyfield, $ignoreFirma)->where('id', $id)->first();
     }
 
     /**
@@ -3227,7 +3227,8 @@ class SettingsController extends Controller
         }
 
         $fid = session('fid', '');
-        $item = $this->fieldFind($fid, $keyfield, $id);
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, $keyfield);
+        $item = $this->fieldFind($fid, $keyfield, $id, $ignoreFirma);
         if (!$item) {
             return response()->json(['message' => 'Запис не знайдено'], 404);
         }
@@ -3264,7 +3265,8 @@ class SettingsController extends Controller
         }
 
         $fid = session('fid', '');
-        $item = $this->fieldFind($fid, $keyfield, $id);
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, $keyfield);
+        $item = $this->fieldFind($fid, $keyfield, $id, $ignoreFirma);
         if (!$item) {
             return response()->json(['success' => false, 'message' => 'Запис не знайдено'], 404);
         }
@@ -3292,7 +3294,8 @@ class SettingsController extends Controller
         }
 
         $fid = session('fid', '');
-        $item = $this->fieldFind($fid, $keyfield, $id);
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, $keyfield);
+        $item = $this->fieldFind($fid, $keyfield, $id, $ignoreFirma);
         if (!$item) {
             return response()->json(['success' => false, 'message' => 'Запис не знайдено'], 404);
         }
