@@ -4467,7 +4467,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function loadCatalog(parentId) {
             const targetParentId = currentKeyfield === 'catalog' ? parentId : '0';
-            fetch(`/settings/fields?keyfield=${encodeURIComponent(currentKeyfield)}&parent_id=${encodeURIComponent(targetParentId)}`)
+            const url = new URL('/settings/fields', window.location.origin);
+            url.searchParams.set('keyfield', currentKeyfield);
+            url.searchParams.set('parent_id', targetParentId);
+            if (currentKeyfield === 'city') {
+                url.searchParams.set('ignore_firma', '1');
+            }
+
+            fetch(url.toString())
                 .then(async (r) => {
                     const data = await r.json();
                     return { ok: r.ok, data };
@@ -4650,7 +4657,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function updateCatalogBadge() {
             Promise.all([
                 fetch('/settings/fields?keyfield=catalog&parent_id=0').then((r) => r.json()),
-                fetch('/settings/fields?keyfield=city&parent_id=0').then((r) => r.json()),
+                fetch('/settings/fields?keyfield=city&parent_id=0&ignore_firma=1').then((r) => r.json()),
             ]).then(([catalogData, cityData]) => {
                 const catalogCount = (catalogData.items || []).length;
                 const cityCount = (cityData.items || []).length;
@@ -4783,7 +4790,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!selectedRegion) return;
 
             regionCitiesTbody.innerHTML = `<tr><td colspan="6" class="text-muted">${escapeHtml(_ts('js.loading'))}</td></tr>`;
-            const response = await fetch(`/settings/region-cities?region_id=${encodeURIComponent(selectedRegion.id)}`, {
+            const response = await fetch(`/settings/region-cities?region_id=${encodeURIComponent(selectedRegion.id)}&ignore_firma=1`, {
                 headers: { Accept: 'application/json' },
             });
             const data = await response.json().catch(() => ({}));
