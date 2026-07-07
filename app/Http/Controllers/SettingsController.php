@@ -1937,7 +1937,8 @@ class SettingsController extends Controller
         }
 
         $regionId = (int) $request->query('region_id', 0);
-        if (!$this->fieldRegionFind(session('fid', ''), $regionId)) {
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, 'city');
+        if (!$this->fieldRegionFind(session('fid', ''), $regionId, $ignoreFirma)) {
             return response()->json(['message' => 'Регіон не знайдено'], 404);
         }
 
@@ -2834,16 +2835,20 @@ class SettingsController extends Controller
         return $id ? (int) $id : null;
     }
 
-    private function fieldBaseQuery($fid, string $keyfield)
+    private function fieldBaseQuery($fid, string $keyfield, bool $ignoreFirma = false)
     {
-        return DB::table('field')
-            ->where('keyfield', $keyfield)
-            ->where('firma', $fid);
+        $query = DB::table('field')->where('keyfield', $keyfield);
+
+        if (!$ignoreFirma) {
+            $query->where('firma', $fid);
+        }
+
+        return $query;
     }
 
-    private function fieldChildrenQuery($fid, string $keyfield, string $parentId)
+    private function fieldChildrenQuery($fid, string $keyfield, string $parentId, bool $ignoreFirma = false)
     {
-        $query = $this->fieldBaseQuery($fid, $keyfield);
+        $query = $this->fieldBaseQuery($fid, $keyfield, $ignoreFirma);
 
         if ($keyfield !== 'catalog') {
             return $query;
@@ -2898,7 +2903,7 @@ class SettingsController extends Controller
         return $this->fieldFilterCatalogBaseQuery($fid)->where('id', $id)->first();
     }
 
-    private function fieldRegionFind($fid, $regionId): ?object
+    private function fieldRegionFind($fid, $regionId, bool $ignoreFirma = false): ?object
     {
         if (!Schema::hasTable('field')) {
             return null;
@@ -2909,7 +2914,7 @@ class SettingsController extends Controller
             return null;
         }
 
-        return $this->fieldBaseQuery($fid, 'city')->where('id', $id)->first();
+        return $this->fieldBaseQuery($fid, 'city', $ignoreFirma)->where('id', $id)->first();
     }
 
     private function regionCityFind($fid, $cityId): ?object
@@ -3143,6 +3148,11 @@ class SettingsController extends Controller
         return in_array($keyfield, ['catalog', 'city'], true) ? $keyfield : 'catalog';
     }
 
+    private function shouldIgnoreCityFirma(Request $request, string $keyfield): bool
+    {
+        return $keyfield === 'city' && $request->boolean('ignore_firma');
+    }
+
     private function fieldIndexByKeyfield(Request $request, string $keyfield)
     {
         if (!Schema::hasTable('field')) {
@@ -3162,8 +3172,9 @@ class SettingsController extends Controller
             : '0';
         $parentId = $parentId === '' ? '0' : $parentId;
         $fieldColumns = $this->fieldColumns();
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, $keyfield);
 
-        $itemsQuery = $this->fieldChildrenQuery($fid, $keyfield, $parentId);
+        $itemsQuery = $this->fieldChildrenQuery($fid, $keyfield, $parentId, $ignoreFirma);
         if (in_array('num', $fieldColumns, true)) {
             $itemsQuery->orderBy('num');
         }

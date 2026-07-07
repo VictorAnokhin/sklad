@@ -289,14 +289,17 @@ class ClientController extends Controller
         }
 
         try {
-            $regionRow = $this->findClientRegionReference($fid, $region);
+            $regionRow = $this->findClientRegionReference($region);
             if (!$regionRow) {
-                Log::warning('Client city was not added to filter: region not found', [
-                    'fid' => $fid,
-                    'region' => $region,
-                    'city' => $city,
-                ]);
-                return;
+                $regionRow = $this->createClientRegionReference($region);
+                if (!$regionRow) {
+                    Log::warning('Client city was not added to filter: region could not be created', [
+                        'fid' => $fid,
+                        'region' => $region,
+                        'city' => $city,
+                    ]);
+                    return;
+                }
             }
 
             $filterColumns = Schema::getColumnListing('filter');
@@ -367,7 +370,7 @@ class ClientController extends Controller
         }
     }
 
-    private function findClientRegionReference(string $fid, string $region): ?object
+    private function findClientRegionReference(string $region): ?object
     {
         $regionValue = mb_substr($region, 0, 255);
         $fieldColumns = Schema::getColumnListing('field');
@@ -379,7 +382,6 @@ class ClientController extends Controller
 
         return DB::table('field')
             ->where('keyfield', 'city')
-            ->where('firma', $fid)
             ->where(function ($query) use ($nameColumns, $regionValue): void {
                 foreach ($nameColumns as $index => $column) {
                     $index === 0
@@ -388,6 +390,54 @@ class ClientController extends Controller
                 }
             })
             ->first();
+    }
+
+    private function createClientRegionReference(string $region): ?object
+    {
+        $fieldColumns = Schema::getColumnListing('field');
+        $hasFieldColumn = static fn (string $column): bool => in_array($column, $fieldColumns, true);
+        if (!$hasFieldColumn('keyfield')) {
+            return null;
+        }
+
+        $regionValue = mb_substr($region, 0, 50);
+        $payload = ['keyfield' => 'city'];
+
+        if ($hasFieldColumn('idkeyfield')) {
+            $payload['idkeyfield'] = 0;
+        }
+        if ($hasFieldColumn('val')) {
+            $payload['val'] = $regionValue;
+        }
+        if ($hasFieldColumn('valua')) {
+            $payload['valua'] = $regionValue;
+        }
+        if ($hasFieldColumn('valru')) {
+            $payload['valru'] = $regionValue;
+        }
+        if ($hasFieldColumn('valen')) {
+            $payload['valen'] = '';
+        }
+        if ($hasFieldColumn('firma')) {
+            $payload['firma'] = 0;
+        }
+        foreach (['description', 'descriptionua', 'descriptionen', 'link', 'links', 'comment', 'hkeys', 'hdescr', 'foto1'] as $column) {
+            if ($hasFieldColumn($column)) {
+                $payload[$column] = '';
+            }
+        }
+        foreach (['nw', 'upd', 'num', 'pers', 'pers1', 'pers2', 'firstpage'] as $column) {
+            if ($hasFieldColumn($column)) {
+                $payload[$column] = 0;
+            }
+        }
+        if ($hasFieldColumn('visible')) {
+            $payload['visible'] = 1;
+        }
+
+        $id = DB::table('field')->insertGetId($payload);
+
+        return DB::table('field')->where('id', $id)->first();
     }
 
     // ── Show / edit form ──────────────────────────────────────────────────────

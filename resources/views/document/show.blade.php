@@ -205,6 +205,47 @@
             min-height: 42px;
         }
 
+        .client-location-suggest {
+            position: relative;
+        }
+
+        .client-location-suggest__list {
+            display: none;
+            position: absolute;
+            z-index: 1065;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 220px;
+            overflow-y: auto;
+            margin-top: 2px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            border-radius: 8px;
+            background: #111827;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        .client-location-suggest__item {
+            width: 100%;
+            border: 0;
+            padding: 7px 10px;
+            background: transparent;
+            color: #f8fafc;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        .client-location-suggest__item:hover,
+        .client-location-suggest__item:focus {
+            background: rgba(59, 130, 246, 0.25);
+            outline: 0;
+        }
+
+        .client-location-suggest__region {
+            color: #cbd5e1;
+            font-style: italic;
+        }
+
         @media (max-width: 767.98px) {
             #goodsTable, 
             #goodsTable tbody, 
@@ -1211,15 +1252,15 @@
                                 <input type="text" class="form-control form-control-sm text-white" id="newClientPhone"
                                     placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                             </div>
-                            <div class="col-12 col-md-6 client-modal-field">
+                            <div class="col-12 col-md-6 client-modal-field client-location-suggest">
                                 <label class="form-label small mb-0">Місто</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientCity"
-                                    list="newClientCityList" autocomplete="off">
-                                <datalist id="newClientCityList"></datalist>
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientCity" autocomplete="off">
+                                <div id="newClientCityList" class="client-location-suggest__list"></div>
                             </div>
-                            <div class="col-12 col-md-6 client-modal-field">
+                            <div class="col-12 col-md-6 client-modal-field client-location-suggest">
                                 <label class="form-label small mb-0">Область</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientRegion">
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientRegion" autocomplete="off">
+                                <div id="newClientRegionList" class="client-location-suggest__list"></div>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Отделение НP</label>
@@ -1495,7 +1536,9 @@
             const newClientCityField = document.getElementById('newClientCity');
             const newClientRegionField = document.getElementById('newClientRegion');
             const newClientCityList = document.getElementById('newClientCityList');
+            const newClientRegionList = document.getElementById('newClientRegionList');
             let clientGroupsCache = @json(collect($clientGroups ?? [])->map(fn ($group) => ['id' => (int) $group->id, 'name' => (string) $group->name])->values());
+            let clientRegionsCache = [];
             let clientCitiesCache = [];
             let clientCitiesLoadPromise = null;
 
@@ -1548,11 +1591,9 @@
 
                 return [
                     city.name,
-                    city.valru,
-                    city.valen,
-                    city.region_name,
                 ].some((value) => normalizeLocationName(value).includes(query));
             };
+            const regionMatchesQuery = (region, query) => !query || normalizeLocationName(region.name).includes(query);
             const syncClientRegionFromCity = () => {
                 if (!newClientCityField || !newClientRegionField) {
                     return;
@@ -1574,22 +1615,58 @@
                 }
 
                 const query = normalizeLocationName(newClientCityField?.value || '');
-                const fragment = document.createDocumentFragment();
-                clientCitiesCache
+                const matches = clientCitiesCache
                     .filter((city) => cityMatchesQuery(city, query))
-                    .slice(0, 200)
-                    .forEach((city) => {
-                        const option = document.createElement('option');
-                        option.value = city.name;
-                        option.label = city.region_name ? `${city.region_name} | ${city.name}` : city.name;
-                        option.dataset.regionId = city.region_id;
-                        option.dataset.regionName = city.region_name;
-                        fragment.appendChild(option);
-                    });
+                    .slice(0, 80);
 
                 newClientCityList.innerHTML = '';
-                newClientCityList.appendChild(fragment);
+                matches.forEach((city) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'client-location-suggest__item';
+                    button.dataset.city = city.name;
+                    button.dataset.regionName = city.region_name || '';
+                    button.append(document.createTextNode(city.name));
+                    if (city.region_name) {
+                        button.append(document.createTextNode(', '));
+                        const region = document.createElement('span');
+                        region.className = 'client-location-suggest__region';
+                        region.textContent = city.region_name;
+                        button.append(region);
+                    }
+                    newClientCityList.appendChild(button);
+                });
+                newClientCityList.style.display = matches.length ? 'block' : 'none';
                 syncClientRegionFromCity();
+            };
+            const renderClientRegionOptions = () => {
+                if (!newClientRegionList) {
+                    return;
+                }
+
+                const query = normalizeLocationName(newClientRegionField?.value || '');
+                const matches = clientRegionsCache
+                    .filter((region) => regionMatchesQuery(region, query))
+                    .slice(0, 80);
+
+                newClientRegionList.innerHTML = '';
+                matches.forEach((region) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'client-location-suggest__item';
+                    button.dataset.regionName = region.name;
+                    button.textContent = region.name;
+                    newClientRegionList.appendChild(button);
+                });
+                newClientRegionList.style.display = matches.length ? 'block' : 'none';
+            };
+            const hideClientLocationOptions = () => {
+                if (newClientCityList) {
+                    newClientCityList.style.display = 'none';
+                }
+                if (newClientRegionList) {
+                    newClientRegionList.style.display = 'none';
+                }
             };
             const loadClientCities = () => {
                 if (!newClientCityField || !newClientCityList) {
@@ -1603,6 +1680,7 @@
                 const regionsUrl = new URL("{{ route('settings.fields.index') }}", window.location.origin);
                 regionsUrl.searchParams.set('keyfield', 'city');
                 regionsUrl.searchParams.set('parent_id', '0');
+                regionsUrl.searchParams.set('ignore_firma', '1');
 
                 clientCitiesLoadPromise = fetch(regionsUrl.toString(), { headers: { Accept: 'application/json' } })
                     .then(async (response) => {
@@ -1612,10 +1690,18 @@
                         }
 
                         const regions = data.items || [];
+                        clientRegionsCache = regions
+                            .map((region) => ({
+                                id: region.id,
+                                name: regionDisplayName(region),
+                            }))
+                            .filter((region) => region.name)
+                            .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
                         return Promise.all(regions.map(async (region) => {
                             const citiesUrl = new URL("{{ route('settings.regionCities.index') }}", window.location.origin);
                             citiesUrl.searchParams.set('region_id', region.id);
+                            citiesUrl.searchParams.set('ignore_firma', '1');
 
                             const citiesResponse = await fetch(citiesUrl.toString(), { headers: { Accept: 'application/json' } });
                             const citiesData = await citiesResponse.json().catch(() => ({}));
@@ -1700,7 +1786,7 @@
             let clientCitySearchTimeout = null;
             if (newClientCityField) {
                 newClientCityField.addEventListener('focus', () => {
-                    loadClientCities();
+                    loadClientCities().then(renderClientCityOptions);
                 });
                 newClientCityField.addEventListener('input', () => {
                     clearTimeout(clientCitySearchTimeout);
@@ -1710,6 +1796,51 @@
                 });
                 newClientCityField.addEventListener('change', syncClientRegionFromCity);
             }
+            if (newClientCityList) {
+                newClientCityList.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    const button = event.target.closest('.client-location-suggest__item');
+                    if (!button || !newClientCityField || !newClientRegionField) {
+                        return;
+                    }
+
+                    newClientCityField.value = button.dataset.city || '';
+                    newClientRegionField.value = button.dataset.regionName || newClientRegionField.value;
+                    hideClientLocationOptions();
+                });
+            }
+            if (newClientRegionField) {
+                newClientRegionField.addEventListener('focus', () => {
+                    loadClientCities().then(renderClientRegionOptions);
+                });
+                newClientRegionField.addEventListener('input', () => {
+                    loadClientCities().then(renderClientRegionOptions);
+                });
+            }
+            if (newClientRegionList) {
+                newClientRegionList.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    const button = event.target.closest('.client-location-suggest__item');
+                    if (!button || !newClientRegionField) {
+                        return;
+                    }
+
+                    newClientRegionField.value = button.dataset.regionName || '';
+                    hideClientLocationOptions();
+                });
+            }
+            document.addEventListener('mousedown', (event) => {
+                if (
+                    newClientCityField?.contains(event.target) ||
+                    newClientCityList?.contains(event.target) ||
+                    newClientRegionField?.contains(event.target) ||
+                    newClientRegionList?.contains(event.target)
+                ) {
+                    return;
+                }
+
+                hideClientLocationOptions();
+            });
 
             if(newClientBtn) {
                 newClientBtn.addEventListener('click', () => {
@@ -1841,6 +1972,10 @@
                             return payload;
                         })
                         .then(user => {
+                            clientCitiesLoadPromise = null;
+                            clientRegionsCache = [];
+                            clientCitiesCache = [];
+                            hideClientLocationOptions();
                             client1Id.value = user.id;
                             client1Id.dataset.orgname = user.orgname || '';
                             client1Id.dataset.name = user.name || '';
