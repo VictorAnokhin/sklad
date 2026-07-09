@@ -85,8 +85,29 @@
     @endforelse
 </div>
 
+<style>
+    #test-modal .modal-dialog {
+        max-height: calc(100vh - 1.75rem);
+    }
+    #test-modal .modal-content {
+        max-height: calc(100vh - 1.75rem);
+    }
+    #test-form {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    #test-modal .modal-body {
+        overflow-y: auto;
+        max-height: calc(100vh - 13rem);
+    }
+    #test-modal textarea {
+        resize: vertical;
+    }
+</style>
+
 <div class="modal fade" id="test-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary">
                 <h2 class="modal-title fs-5" id="test-modal-title">Создать тест</h2>
