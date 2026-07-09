@@ -75,7 +75,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
     Route::prefix('education')->name('education.')->group(function () {
         Route::get('/course', [EducationController::class, 'course'])->name('course');
+        Route::post('/course/materials', [EducationController::class, 'storeMaterial'])->name('materials.store');
+        Route::put('/course/materials/{material}', [EducationController::class, 'updateMaterial'])
+            ->whereNumber('material')->name('materials.update');
+        Route::delete('/course/materials/{material}', [EducationController::class, 'destroyMaterial'])
+            ->whereNumber('material')->name('materials.destroy');
         Route::get('/tests', [EducationController::class, 'tests'])->name('tests');
+        Route::post('/tests', [EducationController::class, 'storeTest'])->name('tests.store');
+        Route::put('/tests/{test}', [EducationController::class, 'updateTest'])
+            ->whereNumber('test')->name('tests.update');
+        Route::delete('/tests/{test}', [EducationController::class, 'destroyTest'])
+            ->whereNumber('test')->name('tests.destroy');
         Route::post('/tests/{test}/submit', [EducationController::class, 'submit'])
             ->whereNumber('test')
             ->name('tests.submit');

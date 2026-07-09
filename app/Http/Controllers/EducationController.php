@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\EducationProgress;
 use App\Models\EducationTopic;
+use App\Models\EducationalMaterial;
 use App\Models\QuestTest;
 use App\Models\QuestTestAttempt;
 use App\Models\Project;
@@ -11,6 +12,7 @@ use App\Services\EducationMaterialResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class EducationController extends Controller
 {
@@ -22,6 +24,10 @@ class EducationController extends Controller
         $topics = EducationTopic::query()
             ->where('project_id', $project->id)
             ->where('is_active', true)
+            ->with(['materials' => fn ($query) => $query
+                ->where('is_active', true)
+                ->orderBy('level')
+                ->orderByRaw('CAST(version AS DECIMAL(10,2))')])
             ->orderBy('position')
             ->orderBy('id')
             ->get();
@@ -46,29 +52,101 @@ class EducationController extends Controller
         return view('education.course', compact('project', 'topics'));
     }
 
+    public function storeMaterial(Request $request)
+    {
+        $project = $this->educationProject();
+        $validated = $this->validateMaterial($request);
+
+        DB::transaction(function () use ($validated, $project) {
+            $topic = empty($validated['topic_id'])
+                ? EducationTopic::create([
+                    'project_id' => $project->id,
+                    'title' => $validated['topic_title'],
+                    'description' => $validated['topic_description'] ?? null,
+                    'position' => $validated['position'] ?? 0,
+                    'is_active' => true,
+                ])
+                : EducationTopic::query()
+                    ->where('project_id', $project->id)
+                    ->whereKey($validated['topic_id'])
+                    ->firstOrFail();
+
+            EducationalMaterial::create([
+                'topic_id' => $topic->id,
+                'level' => $validated['level'],
+                'content_type' => $validated['content_type'],
+                'body' => $validated['body'],
+                'version' => $validated['version'],
+                'is_active' => true,
+            ]);
+        });
+
+        return redirect()->route('education.course')->with('success', 'Материал курса создан.');
+    }
+
+    public function updateMaterial(Request $request, EducationalMaterial $material)
+    {
+        $project = $this->educationProject();
+        $this->assertMaterialProject($material, $project);
+        $validated = $this->validateMaterial($request, $material);
+
+        DB::transaction(function () use ($validated, $material) {
+            $material->topic->update([
+                'title' => $validated['topic_title'],
+                'description' => $validated['topic_description'] ?? null,
+                'position' => $validated['position'] ?? 0,
+            ]);
+            $material->update([
+                'level' => $validated['level'],
+                'content_type' => $validated['content_type'],
+                'body' => $validated['body'],
+                'version' => $validated['version'],
+            ]);
+        });
+
+        return redirect()->route('education.course')->with('success', 'Материал курса изменён.');
+    }
+
+    public function destroyMaterial(EducationalMaterial $material)
+    {
+        $project = $this->educationProject();
+        $this->assertMaterialProject($material, $project);
+        DB::transaction(function () use ($material) {
+            $topic = $material->topic;
+            $material->delete();
+
+            if (!$topic->materials()->exists()) {
+                $topic->delete();
+            }
+        });
+
+        return redirect()->route('education.course')->with('success', 'Материал курса удалён.');
+    }
+
     public function tests()
     {
         $project = $this->educationProject();
-        $userId = (int) Auth::id();
-
         $tests = QuestTest::query()
             ->with(['material.topic'])
             ->where('is_active', true)
             ->whereHas('material.topic', fn ($query) => $query
                 ->where('project_id', $project->id)
                 ->where('is_active', true))
-            ->whereHas('material', function ($query) use ($userId) {
-                $query->where('is_active', true)
-                    ->where(function ($scope) use ($userId) {
-                        $scope->whereIn('id', EducationProgress::query()
-                            ->select('current_material_id')
-                            ->where('user_id', $userId)
-                            ->whereNotNull('current_material_id'))
-                            ->orWhere('level', 'beginner');
-                    });
-            })
+            ->whereHas('material', fn ($query) => $query->where('is_active', true))
             ->orderBy('id')
             ->get();
+
+        $materials = EducationalMaterial::query()
+            ->with('topic')
+            ->where('is_active', true)
+            ->whereHas('topic', fn ($query) => $query
+                ->where('project_id', $project->id)
+                ->where('is_active', true))
+            ->orderBy('topic_id')
+            ->orderBy('level')
+            ->get();
+
+        $userId = (int) Auth::id();
 
         $attempts = QuestTestAttempt::query()
             ->where('user_id', $userId)
@@ -77,7 +155,40 @@ class EducationController extends Controller
             ->get()
             ->groupBy('quest_test_id');
 
-        return view('education.tests', compact('project', 'tests', 'attempts'));
+        return view('education.tests', compact('project', 'tests', 'attempts', 'materials'));
+    }
+
+    public function storeTest(Request $request)
+    {
+        $project = $this->educationProject();
+        $validated = $this->validateTest($request);
+        $material = EducationalMaterial::query()->findOrFail($validated['material_id']);
+        $this->assertMaterialProject($material, $project);
+
+        QuestTest::create($validated + ['is_active' => true]);
+
+        return redirect()->route('education.tests')->with('success', 'Тест создан.');
+    }
+
+    public function updateTest(Request $request, QuestTest $test)
+    {
+        $project = $this->educationProject();
+        $this->assertTestProject($test, $project);
+        $validated = $this->validateTest($request);
+        $material = EducationalMaterial::query()->findOrFail($validated['material_id']);
+        $this->assertMaterialProject($material, $project);
+        $test->update($validated);
+
+        return redirect()->route('education.tests')->with('success', 'Тест изменён.');
+    }
+
+    public function destroyTest(QuestTest $test)
+    {
+        $project = $this->educationProject();
+        $this->assertTestProject($test, $project);
+        $test->delete();
+
+        return redirect()->route('education.tests')->with('success', 'Тест удалён.');
     }
 
     public function submit(Request $request, QuestTest $test, EducationMaterialResolver $resolver)
@@ -147,5 +258,55 @@ class EducationController extends Controller
         abort_unless($project && strtolower(trim((string) $project->project_type)) === 'education', 403);
 
         return $project;
+    }
+
+    private function validateMaterial(Request $request, ?EducationalMaterial $material = null): array
+    {
+        $topicId = $material?->topic_id ?? $request->integer('topic_id');
+        $versionUnique = Rule::unique('educational_materials', 'version')
+            ->where(fn ($query) => $query
+                ->where('topic_id', $topicId)
+                ->where('level', $request->input('level')))
+            ->ignore($material?->id);
+
+        return $request->validate([
+            'topic_id' => ['nullable', 'integer'],
+            'topic_title' => ['required', 'string', 'max:255'],
+            'topic_description' => ['nullable', 'string'],
+            'position' => ['nullable', 'integer', 'min:0'],
+            'level' => ['required', 'in:beginner,intermediate,advanced'],
+            'content_type' => ['required', 'in:markdown,video_link,interactive_scenario'],
+            'body' => ['required', 'string'],
+            'version' => ['required', 'string', 'max:32', $versionUnique],
+        ]);
+    }
+
+    private function validateTest(Request $request): array
+    {
+        $validated = $request->validate([
+            'material_id' => ['required', 'integer'],
+            'title' => ['required', 'string', 'max:255'],
+            'passing_score' => ['required', 'integer', 'min:1', 'max:100'],
+            'quest_data' => ['required', 'json'],
+        ]);
+        $validated['quest_data'] = json_decode($validated['quest_data'], true, 512, JSON_THROW_ON_ERROR);
+
+        if (!isset($validated['quest_data']['questions']) || !is_array($validated['quest_data']['questions'])) {
+            abort(422, 'quest_data должен содержать массив questions.');
+        }
+
+        return $validated;
+    }
+
+    private function assertMaterialProject(EducationalMaterial $material, Project $project): void
+    {
+        $material->loadMissing('topic');
+        abort_unless((int) $material->topic?->project_id === (int) $project->id, 404);
+    }
+
+    private function assertTestProject(QuestTest $test, Project $project): void
+    {
+        $test->loadMissing('material.topic');
+        abort_unless((int) $test->material?->topic?->project_id === (int) $project->id, 404);
     }
 }

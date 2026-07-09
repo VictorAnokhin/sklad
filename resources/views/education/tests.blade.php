@@ -2,6 +2,10 @@
 
 @section('title', 'Тесты')
 
+@section('header_actions')
+<button type="button" class="btn btn-warning" id="create-test-button" @disabled($materials->isEmpty())>Создать</button>
+@endsection
+
 @section('content')
 <div class="container pb-5">
     @foreach(['success', 'warning'] as $messageType)
@@ -9,6 +13,9 @@
             <div class="alert alert-{{ $messageType }}">{{ session($messageType) }}</div>
         @endif
     @endforeach
+    @if($errors->any())
+        <div class="alert alert-danger">{{ $errors->first() }}</div>
+    @endif
 
     @forelse($tests as $test)
         @php
@@ -29,6 +36,8 @@
                             Последний результат: {{ $lastAttempt->score }}%
                         </span>
                     @endif
+                    <button type="button" class="btn btn-sm btn-outline-light edit-test-button"
+                            data-test-id="{{ $test->id }}">Изменить</button>
                 </div>
 
                 <form method="POST" action="{{ route('education.tests.submit', $test) }}">
@@ -60,4 +69,133 @@
         <div class="alert alert-info">Для текущего уровня пока нет активных тестов.</div>
     @endforelse
 </div>
+
+<div class="modal fade" id="test-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h2 class="modal-title fs-5" id="test-modal-title">Создать тест</h2>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <form id="test-form" method="POST" action="{{ route('education.tests.store') }}">
+                @csrf
+                <input type="hidden" name="_method" id="test-method" value="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="test-title">Название теста</label>
+                        <input class="form-control" id="test-title" name="title" required maxlength="255">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-9 mb-3">
+                            <label class="form-label" for="test-material-id">Материал курса</label>
+                            <select class="form-select" id="test-material-id" name="material_id" required>
+                                @foreach($materials as $material)
+                                    <option value="{{ $material->id }}">
+                                        {{ $material->topic->title }} · {{ $material->level }} · v{{ $material->version }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="test-passing-score">Проходной балл, %</label>
+                            <input class="form-control" id="test-passing-score" name="passing_score"
+                                   type="number" min="1" max="100" value="80" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="test-quest-data">Вопросы в формате JSON</label>
+                        <textarea class="form-control font-monospace" id="test-quest-data" name="quest_data"
+                                  rows="16" required></textarea>
+                        <div class="form-text">
+                            Для каждого вопроса: <code>text</code>, массив <code>options</code> и номер правильного варианта
+                            <code>correct_index</code>, начиная с 0.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary justify-content-between">
+                    <button type="button" class="btn btn-outline-danger d-none" id="delete-test-button">Удалить</button>
+                    <div class="ms-auto d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-warning">Сохранить</button>
+                    </div>
+                </div>
+            </form>
+            <form id="delete-test-form" method="POST" class="d-none">
+                @csrf
+                @method('DELETE')
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = new bootstrap.Modal(document.getElementById('test-modal'));
+    const form = document.getElementById('test-form');
+    const deleteForm = document.getElementById('delete-test-form');
+    const deleteButton = document.getElementById('delete-test-button');
+    const fields = {
+        title: document.getElementById('test-title'),
+        materialId: document.getElementById('test-material-id'),
+        passingScore: document.getElementById('test-passing-score'),
+        questData: document.getElementById('test-quest-data'),
+    };
+    const tests = @json($tests->keyBy('id')->map(fn ($test) => [
+        'id' => $test->id,
+        'title' => $test->title,
+        'material_id' => $test->material_id,
+        'passing_score' => $test->passing_score,
+        'quest_data' => $test->quest_data,
+    ]));
+    const storeUrl = @json(route('education.tests.store'));
+    const updateUrl = @json(route('education.tests.update', ['test' => '__ID__']));
+    const deleteUrl = @json(route('education.tests.destroy', ['test' => '__ID__']));
+    const example = {
+        questions: [
+            {
+                text: 'Какой вариант является правильным?',
+                options: ['Первый', 'Второй', 'Третий'],
+                correct_index: 0
+            }
+        ]
+    };
+
+    function openCreate() {
+        form.reset();
+        form.action = storeUrl;
+        document.getElementById('test-method').value = 'POST';
+        document.getElementById('test-modal-title').textContent = 'Создать тест';
+        fields.passingScore.value = 80;
+        fields.questData.value = JSON.stringify(example, null, 2);
+        deleteButton.classList.add('d-none');
+        modal.show();
+    }
+
+    function openEdit(id) {
+        const item = tests[id];
+        if (!item) return;
+        form.reset();
+        form.action = updateUrl.replace('__ID__', id);
+        document.getElementById('test-method').value = 'PUT';
+        document.getElementById('test-modal-title').textContent = 'Изменить тест';
+        fields.title.value = item.title;
+        fields.materialId.value = item.material_id;
+        fields.passingScore.value = item.passing_score;
+        fields.questData.value = JSON.stringify(item.quest_data, null, 2);
+        deleteForm.action = deleteUrl.replace('__ID__', id);
+        deleteButton.classList.remove('d-none');
+        modal.show();
+    }
+
+    document.getElementById('create-test-button').addEventListener('click', openCreate);
+    document.querySelectorAll('.edit-test-button').forEach(button =>
+        button.addEventListener('click', () => openEdit(button.dataset.testId))
+    );
+    deleteButton.addEventListener('click', () => {
+        if (confirm('Удалить тест и историю попыток по нему?')) deleteForm.submit();
+    });
+});
+</script>
+@endpush
