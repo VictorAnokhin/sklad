@@ -233,6 +233,7 @@ class EducationController extends Controller
                 'tests' => collect(),
                 'attempts' => collect(),
                 'materials' => collect(),
+                'testEditorItems' => [],
                 'migrationRequired' => true,
             ]);
         }
@@ -266,11 +267,24 @@ class EducationController extends Controller
             ->get()
             ->groupBy('quest_test_id');
 
+        $testEditorItems = $tests
+            ->mapWithKeys(fn (QuestTest $test) => [
+                $test->id => [
+                    'id' => $test->id,
+                    'title' => $test->title,
+                    'material_id' => $test->material_id,
+                    'passing_score' => $test->passing_score,
+                    'quest_data' => $test->quest_data,
+                ],
+            ])
+            ->all();
+
         return view('education.tests', [
             'project' => $project,
             'tests' => $tests,
             'attempts' => $attempts,
             'materials' => $materials,
+            'testEditorItems' => $testEditorItems,
             'migrationRequired' => false,
         ]);
     }

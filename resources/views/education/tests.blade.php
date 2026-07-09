@@ -26,7 +26,8 @@
     @forelse($tests as $test)
         @php
             $questions = $test->quest_data['questions'] ?? [];
-            $lastAttempt = $attempts->get($test->id)?->first();
+            $testAttempts = $attempts->get($test->id);
+            $lastAttempt = $testAttempts ? $testAttempts->first() : null;
         @endphp
         <section class="card bg-dark border-secondary mb-4">
             <div class="card-body">
@@ -148,13 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
         passingScore: document.getElementById('test-passing-score'),
         questData: document.getElementById('test-quest-data'),
     };
-    const tests = @json($tests->keyBy('id')->map(fn ($test) => [
-        'id' => $test->id,
-        'title' => $test->title,
-        'material_id' => $test->material_id,
-        'passing_score' => $test->passing_score,
-        'quest_data' => $test->quest_data,
-    ]));
+    const tests = @json($testEditorItems ?? []);
     const storeUrl = @json(route('education.tests.store'));
     const updateUrl = @json(route('education.tests.update', ['test' => '__ID__']));
     const deleteUrl = @json(route('education.tests.destroy', ['test' => '__ID__']));

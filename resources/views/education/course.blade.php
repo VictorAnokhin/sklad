@@ -78,7 +78,7 @@
                         <div class="d-flex flex-wrap gap-2">
                             @foreach($topic->materials as $topicMaterial)
                                 <button type="button"
-                                        class="btn btn-sm {{ $material?->id === $topicMaterial->id ? 'btn-warning' : 'btn-outline-secondary' }} edit-material-button"
+                                        class="btn btn-sm {{ $material && $material->id === $topicMaterial->id ? 'btn-warning' : 'btn-outline-secondary' }} edit-material-button"
                                         data-material-id="{{ $topicMaterial->id }}">
                                     {{ $levelLabels[$topicMaterial->level] ?? $topicMaterial->level }} · v{{ $topicMaterial->version }}
                                 </button>
