@@ -3,7 +3,7 @@
 @section('title', 'Тесты')
 
 @section('header_actions')
-<button type="button" class="btn btn-warning" id="create-test-button" @disabled($materials->isEmpty())>Создать</button>
+<button type="button" class="btn btn-warning" id="create-test-button" @disabled(($migrationRequired ?? false) || $materials->isEmpty())>Создать</button>
 @endsection
 
 @section('content')
@@ -15,6 +15,12 @@
     @endforeach
     @if($errors->any())
         <div class="alert alert-danger">{{ $errors->first() }}</div>
+    @endif
+    @if($migrationRequired ?? false)
+        <div class="alert alert-warning">
+            Таблицы образовательного модуля ещё не созданы. Выполните миграции Laravel:
+            <code>php artisan migrate --force</code>.
+        </div>
     @endif
 
     @forelse($tests as $test)
@@ -53,7 +59,7 @@
                                            value="{{ $optionIndex }}" required>
                                     <label class="form-check-label text-light"
                                            for="test-{{ $test->id }}-q-{{ $questionIndex }}-a-{{ $optionIndex }}">
-                                        {{ $option }}
+                                        {{ is_array($option) ? ($option['text'] ?? $option['label'] ?? '') : $option }}
                                     </label>
                                 </div>
                             @endforeach
@@ -107,8 +113,8 @@
                         <textarea class="form-control font-monospace" id="test-quest-data" name="quest_data"
                                   rows="16" required></textarea>
                         <div class="form-text">
-                            Для каждого вопроса: <code>text</code>, массив <code>options</code> и номер правильного варианта
-                            <code>correct_index</code>, начиная с 0.
+                            Проверка знаний: <code>text</code>, <code>options</code>, <code>correct_index</code>.
+                            Анкета: варианты <code>{"text":"...","score":1}</code> и диапазоны <code>results</code>.
                         </div>
                     </div>
                 </div>
@@ -153,13 +159,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateUrl = @json(route('education.tests.update', ['test' => '__ID__']));
     const deleteUrl = @json(route('education.tests.destroy', ['test' => '__ID__']));
     const example = {
+        public_featured: false,
         questions: [
             {
                 text: 'Какой вариант является правильным?',
                 options: ['Первый', 'Второй', 'Третий'],
                 correct_index: 0
             }
-        ]
+        ],
+        results: []
     };
 
     function openCreate() {

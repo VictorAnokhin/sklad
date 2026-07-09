@@ -3,7 +3,7 @@
 @section('title', 'Курс обучения')
 
 @section('header_actions')
-<button type="button" class="btn btn-warning" id="create-material-button">Создать</button>
+<button type="button" class="btn btn-warning" id="create-material-button" @disabled($migrationRequired ?? false)>Создать</button>
 @endsection
 
 @section('content')
@@ -14,6 +14,12 @@
     @if($errors->any())
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
+    @if($migrationRequired ?? false)
+        <div class="alert alert-warning">
+            Таблицы образовательного модуля ещё не созданы. Выполните миграции Laravel:
+            <code>php artisan migrate --force</code>.
+        </div>
+    @endif
 
     <div class="mb-4 text-secondary">
         {{ $project->name }} · материал адаптируется к текущему уровню и результатам тестов.
@@ -21,8 +27,8 @@
 
     @forelse($topics as $topic)
         @php
-            $material = $topic->getRelation('selectedMaterial');
-            $progress = $topic->getRelation('studentProgress');
+            $material = $topic->relationLoaded('selectedMaterial') ? $topic->getRelation('selectedMaterial') : null;
+            $progress = $topic->relationLoaded('studentProgress') ? $topic->getRelation('studentProgress') : null;
             $levelLabels = ['beginner' => 'Начальный', 'intermediate' => 'Средний', 'advanced' => 'Продвинутый'];
         @endphp
         <article class="card bg-dark border-secondary mb-4">

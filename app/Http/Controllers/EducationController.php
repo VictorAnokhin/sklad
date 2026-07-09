@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class EducationController extends Controller
@@ -22,6 +23,8 @@ class EducationController extends Controller
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
         ]);
+        abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+
         $test = $this->firstPublicTest((int) $validated['fid']);
 
         return response()->json([
@@ -29,6 +32,7 @@ class EducationController extends Controller
                 'id' => $test->id,
                 'title' => $test->title,
                 'passing_score' => $test->passing_score,
+                'intro' => (string) ($test->quest_data['intro'] ?? ''),
                 'topic' => $test->material->topic->title,
                 'level' => $test->material->level,
                 'questions' => collect($test->quest_data['questions'] ?? [])
@@ -36,7 +40,7 @@ class EducationController extends Controller
                     ->map(fn ($question, $index) => [
                         'id' => $index,
                         'text' => (string) ($question['text'] ?? ''),
-                        'options' => array_values($question['options'] ?? []),
+                        'options' => $this->publicQuestionOptions($question['options'] ?? []),
                     ]),
             ],
         ]);
@@ -50,33 +54,39 @@ class EducationController extends Controller
             'answers' => ['required', 'array'],
             'answers.*' => ['required', 'integer', 'min:0'],
         ]);
+        abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+
         $test = $this->firstPublicTest((int) $validated['fid']);
         abort_unless((int) $test->id === (int) $validated['test_id'], 404);
 
         $questions = array_values($test->quest_data['questions'] ?? []);
         abort_if(count($questions) === 0, 422, 'В тесте нет вопросов.');
-        $correct = 0;
-
-        foreach ($questions as $index => $question) {
-            if ((int) ($validated['answers'][$index] ?? -1) === (int) ($question['correct_index'] ?? -2)) {
-                $correct++;
-            }
-        }
-
-        $score = (int) round($correct * 100 / count($questions));
+        $result = $this->evaluateTest($test->quest_data, $validated['answers'], (int) $test->passing_score);
 
         return response()->json([
-            'score' => $score,
-            'passed' => $score >= (int) $test->passing_score,
+            'score' => $result['score'],
+            'passed' => $result['passed'],
             'passing_score' => (int) $test->passing_score,
-            'correct_answers' => $correct,
+            'correct_answers' => $result['correct_answers'],
             'questions_count' => count($questions),
+            'scoring_type' => $result['scoring_type'],
+            'total_score' => $result['total_score'],
+            'max_score' => $result['max_score'],
+            'profile' => $result['profile'],
         ]);
     }
 
     public function course(EducationMaterialResolver $resolver)
     {
         $project = $this->educationProject();
+        if (!$this->educationSchemaReady()) {
+            return view('education.course', [
+                'project' => $project,
+                'topics' => collect(),
+                'migrationRequired' => true,
+            ]);
+        }
+
         $userId = (int) Auth::id();
 
         $topics = EducationTopic::query()
@@ -107,7 +117,11 @@ class EducationController extends Controller
             $topic->setRelation('studentProgress', $progress);
         });
 
-        return view('education.course', compact('project', 'topics'));
+        return view('education.course', [
+            'project' => $project,
+            'topics' => $topics,
+            'migrationRequired' => false,
+        ]);
     }
 
     public function storeMaterial(Request $request)
@@ -184,6 +198,16 @@ class EducationController extends Controller
     public function tests()
     {
         $project = $this->educationProject();
+        if (!$this->educationSchemaReady()) {
+            return view('education.tests', [
+                'project' => $project,
+                'tests' => collect(),
+                'attempts' => collect(),
+                'materials' => collect(),
+                'migrationRequired' => true,
+            ]);
+        }
+
         $tests = QuestTest::query()
             ->with(['material.topic'])
             ->where('is_active', true)
@@ -213,7 +237,13 @@ class EducationController extends Controller
             ->get()
             ->groupBy('quest_test_id');
 
-        return view('education.tests', compact('project', 'tests', 'attempts', 'materials'));
+        return view('education.tests', [
+            'project' => $project,
+            'tests' => $tests,
+            'attempts' => $attempts,
+            'materials' => $materials,
+            'migrationRequired' => false,
+        ]);
     }
 
     public function storeTest(Request $request)
@@ -263,15 +293,9 @@ class EducationController extends Controller
             'answers.*' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $correct = 0;
-        foreach ($questions as $index => $question) {
-            if ((int) ($validated['answers'][$index] ?? -1) === (int) ($question['correct_index'] ?? -2)) {
-                $correct++;
-            }
-        }
-
-        $score = (int) round($correct * 100 / count($questions));
-        $passed = $score >= $test->passing_score;
+        $result = $this->evaluateTest($test->quest_data, $validated['answers'], (int) $test->passing_score);
+        $score = $result['score'];
+        $passed = $result['passed'];
         $userId = (int) Auth::id();
 
         DB::transaction(function () use ($test, $resolver, $userId, $validated, $score, $passed) {
@@ -304,9 +328,11 @@ class EducationController extends Controller
 
         return redirect()->route('education.tests')->with(
             $passed ? 'success' : 'warning',
-            $passed
-                ? "Тест пройден: {$score}%. Открыт следующий уровень."
-                : "Результат {$score}%. Материал автоматически заменён на более подходящую версию."
+            $result['scoring_type'] === 'points'
+                ? "Результат: {$result['total_score']} из {$result['max_score']} баллов. Профиль: {$result['profile']['title']}."
+                : ($passed
+                    ? "Тест пройден: {$score}%. Открыт следующий уровень."
+                    : "Результат {$score}%. Материал автоматически заменён на более подходящую версию.")
         );
     }
 
@@ -316,6 +342,15 @@ class EducationController extends Controller
         abort_unless($project && strtolower(trim((string) $project->project_type)) === 'education', 403);
 
         return $project;
+    }
+
+    private function educationSchemaReady(): bool
+    {
+        return Schema::hasTable('education_topics')
+            && Schema::hasTable('educational_materials')
+            && Schema::hasTable('quests_tests')
+            && Schema::hasTable('education_progress')
+            && Schema::hasTable('quest_test_attempts');
     }
 
     private function validateMaterial(Request $request, ?EducationalMaterial $material = null): array
@@ -370,14 +405,105 @@ class EducationController extends Controller
 
     private function firstPublicTest(int $projectId): QuestTest
     {
-        return QuestTest::query()
+        $query = QuestTest::query()
             ->with('material.topic')
             ->where('is_active', true)
             ->whereHas('material', fn ($query) => $query->where('is_active', true))
             ->whereHas('material.topic', fn ($query) => $query
                 ->where('project_id', $projectId)
-                ->where('is_active', true))
+                ->where('is_active', true));
+
+        $featured = (clone $query)
+            ->where('quest_data->public_featured', true)
             ->orderBy('id')
-            ->firstOrFail();
+            ->first();
+
+        return $featured ?? $query->orderBy('id')->firstOrFail();
+    }
+
+    private function publicQuestionOptions(array $options): array
+    {
+        return collect($options)
+            ->values()
+            ->map(fn ($option) => is_array($option)
+                ? (string) ($option['text'] ?? $option['label'] ?? '')
+                : (string) $option)
+            ->all();
+    }
+
+    private function evaluateTest(array $questData, array $answers, int $passingScore): array
+    {
+        $questions = array_values($questData['questions'] ?? []);
+        $usesPointScoring = collect($questions)->contains(fn ($question) => collect($question['options'] ?? [])
+            ->contains(fn ($option) => is_array($option) && array_key_exists('score', $option)));
+
+        if ($usesPointScoring) {
+            $totalScore = 0;
+            $maxScore = 0;
+
+            foreach ($questions as $index => $question) {
+                $options = array_values($question['options'] ?? []);
+                $answerIndex = (int) ($answers[$index] ?? -1);
+
+                $maxScore += (collect($options)
+                    ->map(fn ($option) => is_array($option) ? (int) ($option['score'] ?? 0) : 0)
+                    ->max() ?? 0);
+
+                $selected = $options[$answerIndex] ?? null;
+                $totalScore += is_array($selected) ? (int) ($selected['score'] ?? 0) : 0;
+            }
+
+            $profile = $this->profileForScore($questData['results'] ?? [], $totalScore);
+
+            return [
+                'scoring_type' => 'points',
+                'score' => $maxScore > 0 ? (int) round($totalScore * 100 / $maxScore) : 0,
+                'passed' => true,
+                'correct_answers' => null,
+                'total_score' => $totalScore,
+                'max_score' => $maxScore,
+                'profile' => $profile,
+            ];
+        }
+
+        $correct = 0;
+        foreach ($questions as $index => $question) {
+            if ((int) ($answers[$index] ?? -1) === (int) ($question['correct_index'] ?? -2)) {
+                $correct++;
+            }
+        }
+
+        $score = count($questions) > 0 ? (int) round($correct * 100 / count($questions)) : 0;
+
+        return [
+            'scoring_type' => 'correct_answers',
+            'score' => $score,
+            'passed' => $score >= $passingScore,
+            'correct_answers' => $correct,
+            'total_score' => $correct,
+            'max_score' => count($questions),
+            'profile' => null,
+        ];
+    }
+
+    private function profileForScore(array $results, int $score): array
+    {
+        foreach ($results as $result) {
+            if ($score >= (int) ($result['min'] ?? PHP_INT_MIN) && $score <= (int) ($result['max'] ?? PHP_INT_MAX)) {
+                return [
+                    'title' => (string) ($result['title'] ?? 'Профиль определён'),
+                    'subtitle' => (string) ($result['subtitle'] ?? ''),
+                    'description' => (string) ($result['description'] ?? ''),
+                    'recommendation' => (string) ($result['recommendation'] ?? ''),
+                ];
+            }
+        }
+
+        return [
+            'title' => 'Профиль определён',
+            'subtitle' => '',
+            'description' => '',
+            'recommendation' => '',
+        ];
     }
 }
