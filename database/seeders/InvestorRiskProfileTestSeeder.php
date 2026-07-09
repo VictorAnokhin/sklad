@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\EducationTopic;
-use App\Models\EducationalMaterial;
 use App\Models\Project;
 use App\Models\QuestTest;
+use App\Models\QuestTestResult;
 use Illuminate\Database\Seeder;
 
 class InvestorRiskProfileTestSeeder extends Seeder
@@ -28,31 +27,6 @@ class InvestorRiskProfileTestSeeder extends Seeder
         if (blank($project->project_type)) {
             $project->forceFill(['project_type' => 'education'])->save();
         }
-
-        $topic = EducationTopic::query()->updateOrCreate(
-            [
-                'project_id' => $project->id,
-                'title' => 'Психология инвестора',
-            ],
-            [
-                'description' => 'Оценка психологической готовности к волатильности фондового рынка.',
-                'position' => 1,
-                'is_active' => true,
-            ]
-        );
-
-        $material = EducationalMaterial::query()->updateOrCreate(
-            [
-                'topic_id' => $topic->id,
-                'level' => 'beginner',
-                'version' => '1.0',
-            ],
-            [
-                'content_type' => 'markdown',
-                'body' => "## Уровень стрессоустойчивости и риск-профиль инвестора\n\nЭтот тест предназначен для оценки вашей психологической готовности к волатильности фондового рынка. Честно отвечайте на вопросы, исходя из ваших реальных ощущений, а не «правильных» стратегий из учебников.",
-                'is_active' => true,
-            ]
-        );
 
         $payload = [
             'public_featured' => true,
@@ -154,17 +128,40 @@ class InvestorRiskProfileTestSeeder extends Seeder
 
         $test = QuestTest::query()
             ->where('title', self::TEST_TITLE)
-            ->whereHas('material.topic', fn ($query) => $query->where('project_id', $project->id))
+            ->where(fn ($query) => $query
+                ->where('project_id', $project->id)
+                ->orWhereHas('material.topic', fn ($topicQuery) => $topicQuery->where('project_id', $project->id)))
             ->first();
 
         $attributes = [
-            'material_id' => $material->id,
+            'project_id' => $project->id,
+            'material_id' => null,
+            'test_type' => 'profile_assessment',
             'title' => self::TEST_TITLE,
             'quest_data' => $payload,
             'passing_score' => 1,
             'is_active' => true,
         ];
 
-        $test ? $test->update($attributes) : QuestTest::query()->create($attributes);
+        if ($test) {
+            $test->update($attributes);
+        } else {
+            $test = QuestTest::query()->create($attributes);
+        }
+
+        QuestTestResult::query()->where('quest_test_id', $test->id)->delete();
+
+        foreach ($payload['results'] as $index => $result) {
+            QuestTestResult::query()->create([
+                'quest_test_id' => $test->id,
+                'min_score' => (int) $result['min'],
+                'max_score' => (int) $result['max'],
+                'title' => $result['title'],
+                'subtitle' => $result['subtitle'] ?? null,
+                'description' => $result['description'] ?? null,
+                'recommendation' => $result['recommendation'] ?? null,
+                'sort_order' => $index,
+            ]);
+        }
     }
 }

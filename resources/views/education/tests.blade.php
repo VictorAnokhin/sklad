@@ -35,12 +35,20 @@
                     <div>
                         <h2 class="h4 text-white mb-1">{{ $test->title }}</h2>
                         <div class="text-secondary">
-                            {{ $test->material->topic->title }} · {{ $test->material->level }} · проходной балл {{ $test->passing_score }}%
+                            @if($test->material)
+                                {{ $test->material->topic->title }} · {{ $test->material->level }} · проходной балл {{ $test->passing_score }}%
+                            @else
+                                Самостоятельная профильная анкета · сумма баллов
+                            @endif
                         </div>
                     </div>
                     @if($lastAttempt)
                         <span class="badge {{ $lastAttempt->passed ? 'text-bg-success' : 'text-bg-danger' }}">
-                            Последний результат: {{ $lastAttempt->score }}%
+                            @if(($test->test_type ?? 'knowledge_check') === 'profile_assessment')
+                                Последний результат: {{ $lastAttempt->total_score ?? $lastAttempt->score }} / {{ $lastAttempt->max_score ?? '—' }} баллов
+                            @else
+                                Последний результат: {{ $lastAttempt->score }}%
+                            @endif
                         </span>
                     @endif
                     <button type="button" class="btn btn-sm btn-outline-light edit-test-button"
@@ -93,9 +101,17 @@
                         <input class="form-control" id="test-title" name="title" required maxlength="255">
                     </div>
                     <div class="row">
-                        <div class="col-md-9 mb-3">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="test-type">Тип теста</label>
+                            <select class="form-select" id="test-type" name="test_type" required>
+                                <option value="profile_assessment">Профильная анкета</option>
+                                <option value="knowledge_check">Проверка после материала</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5 mb-3">
                             <label class="form-label" for="test-material-id">Материал курса</label>
-                            <select class="form-select" id="test-material-id" name="material_id" required>
+                            <select class="form-select" id="test-material-id" name="material_id">
+                                <option value="">Без материала — самостоятельный тест</option>
                                 @if($materials->isEmpty())
                                     <option value="">Сначала создайте материал курса</option>
                                 @endif
@@ -107,7 +123,7 @@
                             </select>
                             @if($materials->isEmpty())
                                 <div class="form-text text-warning">
-                                    Для сохранения теста нужен хотя бы один материал на странице «Курс обучения».
+                                    Для профильной анкеты материал не нужен. Для проверки после урока сначала создайте материал на странице «Курс обучения».
                                 </div>
                             @endif
                         </div>
@@ -117,13 +133,53 @@
                                    type="number" min="1" max="100" value="80" required>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="test-quest-data">Вопросы в формате JSON</label>
-                        <textarea class="form-control font-monospace" id="test-quest-data" name="quest_data"
-                                  rows="16" required></textarea>
-                        <div class="form-text">
-                            Проверка знаний: <code>text</code>, <code>options</code>, <code>correct_index</code>.
-                            Анкета: варианты <code>{"text":"...","score":1}</code> и диапазоны <code>results</code>.
+                    <input type="hidden" id="test-quest-data" name="quest_data" required>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch" id="test-public-featured">
+                        <label class="form-check-label" for="test-public-featured">Показывать первым на публичной странице «Узнай себя»</label>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="test-intro">Описание перед вопросами</label>
+                        <textarea class="form-control" id="test-intro" rows="3"
+                                  placeholder="Кратко объясните, как проходить тест"></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                            <div>
+                                <h3 class="h6 text-white mb-1">Вопросы и варианты ответов</h3>
+                                <div class="form-text">Для профильной анкеты заполните баллы. Для проверки после материала отметьте правильный ответ.</div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-warning" id="add-question-button">
+                                Добавить вопрос
+                            </button>
+                        </div>
+                        <div class="vstack gap-3" id="questions-editor"></div>
+                    </div>
+
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                            <div>
+                                <h3 class="h6 text-white mb-1">Результаты по сумме баллов</h3>
+                                <div class="form-text">Результат выбирается из таблицы по диапазону: минимум ≤ сумма баллов ≤ максимум.</div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-warning" id="add-result-button">
+                                Добавить результат
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 90px;">Мин</th>
+                                        <th style="width: 90px;">Макс</th>
+                                        <th>Название</th>
+                                        <th>Описание / рекомендация</th>
+                                        <th style="width: 70px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="results-editor"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -153,33 +209,202 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteButton = document.getElementById('delete-test-button');
     const fields = {
         title: document.getElementById('test-title'),
+        testType: document.getElementById('test-type'),
         materialId: document.getElementById('test-material-id'),
         passingScore: document.getElementById('test-passing-score'),
         questData: document.getElementById('test-quest-data'),
+        publicFeatured: document.getElementById('test-public-featured'),
+        intro: document.getElementById('test-intro'),
     };
+    const questionsEditor = document.getElementById('questions-editor');
+    const resultsEditor = document.getElementById('results-editor');
     const tests = @json($testEditorItems ?? []);
     const storeUrl = @json(route('education.tests.store'));
     const updateUrl = @json(route('education.tests.update', ['test' => '__ID__']));
     const deleteUrl = @json(route('education.tests.destroy', ['test' => '__ID__']));
     const example = {
-        public_featured: false,
+        public_featured: true,
+        scoring: 'points',
+        intro: 'Ответьте честно: здесь нет правильных и неправильных вариантов. Каждый ответ добавляет баллы, по сумме определяется профиль.',
         questions: [
             {
-                text: 'Какой вариант является правильным?',
-                options: ['Первый', 'Второй', 'Третий'],
-                correct_index: 0
+                text: 'Ваш портфель упал на 10% за одну неделю из-за общих рыночных новостей. Ваша первая реакция?',
+                options: [
+                    { text: 'Тревога. Начинаю всерьез задумываться о закрытии позиций, чтобы сохранить остатки.', score: 1 },
+                    { text: 'Беспокойство. Буду чаще проверять котировки, но пока ничего не предприму.', score: 2 },
+                    { text: 'Спокойствие. Это обычные рыночные колебания, ничего страшного.', score: 3 }
+                ]
             }
         ],
-        results: []
+        results: [
+            { min: 1, max: 1, title: 'Низкая стрессоустойчивость', description: 'Просадка вызывает сильный стресс.', recommendation: 'Начните с консервативных инструментов и небольших сумм.' },
+            { min: 2, max: 2, title: 'Средняя стрессоустойчивость', description: 'Есть тревога, но без импульсивных действий.', recommendation: 'Подойдёт сбалансированный портфель и заранее прописанный план.' },
+            { min: 3, max: 3, title: 'Высокая стрессоустойчивость', description: 'Вы воспринимаете волатильность как нормальную часть рынка.', recommendation: 'Можно рассматривать более рискованные инструменты, не забывая про диверсификацию.' }
+        ]
     };
+
+    function optionValue(option, key, fallback = '') {
+        if (typeof option === 'string') {
+            return key === 'text' ? option : fallback;
+        }
+        return option?.[key] ?? fallback;
+    }
+
+    function addOption(questionElement, option = {}, isCorrect = false) {
+        const optionsWrap = questionElement.querySelector('[data-options]');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <input class="form-control form-control-sm" data-option-text required>
+            </td>
+            <td style="width: 90px;">
+                <input class="form-control form-control-sm" data-option-score type="number" min="0" value="0">
+            </td>
+            <td class="text-center" style="width: 90px;">
+                <input class="form-check-input" type="radio" data-option-correct>
+            </td>
+            <td class="text-end" style="width: 70px;">
+                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-option>×</button>
+            </td>
+        `;
+        row.querySelector('[data-option-text]').value = optionValue(option, 'text');
+        row.querySelector('[data-option-score]').value = optionValue(option, 'score', 0);
+        row.querySelector('[data-option-correct]').checked = isCorrect;
+        row.querySelector('[data-option-correct]').addEventListener('change', () => {
+            if (!row.querySelector('[data-option-correct]').checked) return;
+            optionsWrap.querySelectorAll('[data-option-correct]').forEach((input) => {
+                if (input !== row.querySelector('[data-option-correct]')) input.checked = false;
+            });
+        });
+        row.querySelector('[data-remove-option]').addEventListener('click', () => row.remove());
+        optionsWrap.appendChild(row);
+    }
+
+    function addQuestion(question = {}) {
+        const questionElement = document.createElement('div');
+        questionElement.className = 'card bg-black border-secondary';
+        questionElement.innerHTML = `
+            <div class="card-body">
+                <div class="d-flex justify-content-between gap-3 mb-3">
+                    <div class="flex-grow-1">
+                        <label class="form-label">Вопрос</label>
+                        <textarea class="form-control" data-question-text rows="2" required></textarea>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger align-self-start" data-remove-question>Удалить</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm align-middle mb-2">
+                        <thead>
+                            <tr>
+                                <th>Вариант ответа</th>
+                                <th style="width: 90px;">Балл</th>
+                                <th class="text-center" style="width: 90px;">Верный</th>
+                                <th style="width: 70px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody data-options></tbody>
+                    </table>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-light" data-add-option>Добавить вариант</button>
+            </div>
+        `;
+        questionElement.querySelector('[data-question-text]').value = question.text || '';
+        questionElement.querySelector('[data-remove-question]').addEventListener('click', () => questionElement.remove());
+        questionElement.querySelector('[data-add-option]').addEventListener('click', () => addOption(questionElement, { text: '', score: 0 }));
+
+        const options = Array.isArray(question.options) && question.options.length > 0
+            ? question.options
+            : [{ text: '', score: 1 }, { text: '', score: 2 }, { text: '', score: 3 }];
+        options.forEach((option, index) => addOption(questionElement, option, Number(question.correct_index) === index));
+        questionsEditor.appendChild(questionElement);
+    }
+
+    function addResult(result = {}) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><input class="form-control form-control-sm" data-result-min type="number" min="0" required></td>
+            <td><input class="form-control form-control-sm" data-result-max type="number" min="0" required></td>
+            <td>
+                <input class="form-control form-control-sm mb-2" data-result-title placeholder="Название результата" required>
+                <input class="form-control form-control-sm" data-result-subtitle placeholder="Подзаголовок">
+            </td>
+            <td>
+                <textarea class="form-control form-control-sm mb-2" data-result-description rows="2" placeholder="Описание"></textarea>
+                <textarea class="form-control form-control-sm" data-result-recommendation rows="2" placeholder="Рекомендация"></textarea>
+            </td>
+            <td class="text-end">
+                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-result>×</button>
+            </td>
+        `;
+        row.querySelector('[data-result-min]').value = result.min ?? 0;
+        row.querySelector('[data-result-max]').value = result.max ?? 0;
+        row.querySelector('[data-result-title]').value = result.title || '';
+        row.querySelector('[data-result-subtitle]').value = result.subtitle || '';
+        row.querySelector('[data-result-description]').value = result.description || '';
+        row.querySelector('[data-result-recommendation]').value = result.recommendation || '';
+        row.querySelector('[data-remove-result]').addEventListener('click', () => row.remove());
+        resultsEditor.appendChild(row);
+    }
+
+    function loadQuestData(data) {
+        questionsEditor.innerHTML = '';
+        resultsEditor.innerHTML = '';
+        fields.publicFeatured.checked = Boolean(data.public_featured);
+        fields.intro.value = data.intro || '';
+
+        const questions = Array.isArray(data.questions) && data.questions.length > 0 ? data.questions : example.questions;
+        questions.forEach(addQuestion);
+
+        const results = Array.isArray(data.results) && data.results.length > 0 ? data.results : example.results;
+        results.forEach(addResult);
+    }
+
+    function collectQuestData() {
+        const questions = Array.from(questionsEditor.children).map((questionElement) => {
+            const optionRows = Array.from(questionElement.querySelectorAll('[data-options] tr'));
+            const correctIndex = optionRows.findIndex((row) => row.querySelector('[data-option-correct]').checked);
+            const question = {
+                text: questionElement.querySelector('[data-question-text]').value.trim(),
+                options: optionRows.map((row) => ({
+                    text: row.querySelector('[data-option-text]').value.trim(),
+                    score: Number(row.querySelector('[data-option-score]').value || 0),
+                })),
+            };
+
+            if (fields.testType.value === 'knowledge_check') {
+                question.correct_index = correctIndex >= 0 ? correctIndex : 0;
+            }
+
+            return question;
+        });
+
+        const results = Array.from(resultsEditor.querySelectorAll('tr')).map((row) => ({
+            min: Number(row.querySelector('[data-result-min]').value || 0),
+            max: Number(row.querySelector('[data-result-max]').value || 0),
+            title: row.querySelector('[data-result-title]').value.trim(),
+            subtitle: row.querySelector('[data-result-subtitle]').value.trim(),
+            description: row.querySelector('[data-result-description]').value.trim(),
+            recommendation: row.querySelector('[data-result-recommendation]').value.trim(),
+        }));
+
+        return {
+            public_featured: fields.publicFeatured.checked,
+            scoring: fields.testType.value === 'profile_assessment' ? 'points' : 'correct_answers',
+            intro: fields.intro.value.trim(),
+            questions,
+            results,
+        };
+    }
 
     function openCreate() {
         form.reset();
         form.action = storeUrl;
         document.getElementById('test-method').value = 'POST';
         document.getElementById('test-modal-title').textContent = 'Создать тест';
-        fields.passingScore.value = 80;
-        fields.questData.value = JSON.stringify(example, null, 2);
+        fields.testType.value = 'profile_assessment';
+        fields.materialId.value = '';
+        fields.passingScore.value = 1;
+        loadQuestData(example);
         deleteButton.classList.add('d-none');
         modal.show();
     }
@@ -192,14 +417,20 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('test-method').value = 'PUT';
         document.getElementById('test-modal-title').textContent = 'Изменить тест';
         fields.title.value = item.title;
-        fields.materialId.value = item.material_id;
+        fields.testType.value = item.test_type || 'knowledge_check';
+        fields.materialId.value = item.material_id || '';
         fields.passingScore.value = item.passing_score;
-        fields.questData.value = JSON.stringify(item.quest_data, null, 2);
+        loadQuestData(item.quest_data || example);
         deleteForm.action = deleteUrl.replace('__ID__', id);
         deleteButton.classList.remove('d-none');
         modal.show();
     }
 
+    form.addEventListener('submit', () => {
+        fields.questData.value = JSON.stringify(collectQuestData());
+    });
+    document.getElementById('add-question-button').addEventListener('click', () => addQuestion());
+    document.getElementById('add-result-button').addEventListener('click', () => addResult());
     document.getElementById('create-test-button').addEventListener('click', openCreate);
     document.querySelectorAll('.edit-test-button').forEach(button =>
         button.addEventListener('click', () => openEdit(button.dataset.testId))

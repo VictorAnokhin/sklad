@@ -10,6 +10,7 @@ class QuestTestAttempt extends Model
 
     protected $casts = [
         'answers' => 'array',
+        'result_data' => 'array',
         'passed' => 'boolean',
     ];
 }

@@ -18,4 +18,9 @@ class QuestTest extends Model
     {
         return $this->belongsTo(EducationalMaterial::class, 'material_id');
     }
+
+    public function results()
+    {
+        return $this->hasMany(QuestTestResult::class, 'quest_test_id')->orderBy('sort_order')->orderBy('min_score');
+    }
 }

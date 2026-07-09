@@ -34,13 +34,29 @@ return new class extends Migration
 
         Schema::create('quests_tests', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('material_id')->constrained('educational_materials')->cascadeOnDelete();
+            $table->unsignedBigInteger('project_id')->nullable()->index();
+            $table->foreignId('material_id')->nullable()->constrained('educational_materials')->nullOnDelete();
+            $table->string('test_type', 40)->default('knowledge_check')->index();
             $table->string('title');
             $table->json('quest_data');
             $table->unsignedTinyInteger('passing_score')->default(80);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
             $table->index(['material_id', 'is_active']);
+        });
+
+        Schema::create('quest_test_results', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('quest_test_id')->constrained('quests_tests')->cascadeOnDelete();
+            $table->unsignedInteger('min_score');
+            $table->unsignedInteger('max_score');
+            $table->string('title');
+            $table->string('subtitle')->nullable();
+            $table->text('description')->nullable();
+            $table->text('recommendation')->nullable();
+            $table->unsignedInteger('sort_order')->default(0);
+            $table->timestamps();
+            $table->index(['quest_test_id', 'min_score', 'max_score'], 'quest_test_results_test_score_idx');
         });
 
         Schema::create('education_progress', function (Blueprint $table) {
@@ -60,10 +76,13 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->foreignId('quest_test_id')->constrained('quests_tests')->cascadeOnDelete();
-            $table->foreignId('material_id')->constrained('educational_materials')->cascadeOnDelete();
+            $table->foreignId('material_id')->nullable()->constrained('educational_materials')->nullOnDelete();
             $table->unsignedTinyInteger('score');
+            $table->unsignedInteger('total_score')->nullable();
+            $table->unsignedInteger('max_score')->nullable();
             $table->boolean('passed');
             $table->json('answers')->nullable();
+            $table->json('result_data')->nullable();
             $table->foreignId('next_material_id')->nullable()->constrained('educational_materials')->nullOnDelete();
             $table->timestamps();
             $table->index(['user_id', 'created_at']);
@@ -74,6 +93,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('quest_test_attempts');
         Schema::dropIfExists('education_progress');
+        Schema::dropIfExists('quest_test_results');
         Schema::dropIfExists('quests_tests');
         Schema::dropIfExists('educational_materials');
         Schema::dropIfExists('education_topics');
