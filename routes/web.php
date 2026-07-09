@@ -73,7 +73,7 @@ Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
-    Route::prefix('education')->name('education.')->group(function () {
+    Route::name('education.')->group(function () {
         Route::get('/course', [EducationController::class, 'course'])->name('course');
         Route::post('/course/materials', [EducationController::class, 'storeMaterial'])->name('materials.store');
         Route::put('/course/materials/{material}', [EducationController::class, 'updateMaterial'])
