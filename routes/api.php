@@ -17,6 +17,7 @@ use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\CctpProxyController;
 use App\Http\Controllers\DashboardAgentChatController;
+use App\Http\Controllers\EducationController;
 use App\Http\Controllers\FundPoolController;
 use App\Http\Controllers\FundShareSettingsController;
 use App\Http\Controllers\FundTokenController;
@@ -82,6 +83,11 @@ Route::middleware(['api', 'throttle:30,1'])->get('/cctp/v2/messages/{domain}', [
 Route::middleware(['api', 'throttle:120,1'])->post('/solana/rpc', [SolanaRpcProxyController::class, 'proxy']);
 
 Route::middleware(['api', 'throttle:120,1'])->post('/v1/widget/handshake', [WidgetIntelligenceController::class, 'handshake']);
+
+Route::middleware(['api', 'throttle:60,1'])->group(function () {
+    Route::get('/education/tests/first', [EducationController::class, 'publicFirstTest']);
+    Route::post('/education/tests/first/submit', [EducationController::class, 'publicSubmitFirstTest']);
+});
 
 Route::middleware('api')->post('/debug/frontend', function (Request $request) {
     $payload = $request->validate([

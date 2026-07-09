@@ -10,12 +10,70 @@ use App\Models\QuestTestAttempt;
 use App\Models\Project;
 use App\Services\EducationMaterialResolver;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class EducationController extends Controller
 {
+    public function publicFirstTest(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+        ]);
+        $test = $this->firstPublicTest((int) $validated['fid']);
+
+        return response()->json([
+            'test' => [
+                'id' => $test->id,
+                'title' => $test->title,
+                'passing_score' => $test->passing_score,
+                'topic' => $test->material->topic->title,
+                'level' => $test->material->level,
+                'questions' => collect($test->quest_data['questions'] ?? [])
+                    ->values()
+                    ->map(fn ($question, $index) => [
+                        'id' => $index,
+                        'text' => (string) ($question['text'] ?? ''),
+                        'options' => array_values($question['options'] ?? []),
+                    ]),
+            ],
+        ]);
+    }
+
+    public function publicSubmitFirstTest(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'test_id' => ['required', 'integer', 'min:1'],
+            'answers' => ['required', 'array'],
+            'answers.*' => ['required', 'integer', 'min:0'],
+        ]);
+        $test = $this->firstPublicTest((int) $validated['fid']);
+        abort_unless((int) $test->id === (int) $validated['test_id'], 404);
+
+        $questions = array_values($test->quest_data['questions'] ?? []);
+        abort_if(count($questions) === 0, 422, 'В тесте нет вопросов.');
+        $correct = 0;
+
+        foreach ($questions as $index => $question) {
+            if ((int) ($validated['answers'][$index] ?? -1) === (int) ($question['correct_index'] ?? -2)) {
+                $correct++;
+            }
+        }
+
+        $score = (int) round($correct * 100 / count($questions));
+
+        return response()->json([
+            'score' => $score,
+            'passed' => $score >= (int) $test->passing_score,
+            'passing_score' => (int) $test->passing_score,
+            'correct_answers' => $correct,
+            'questions_count' => count($questions),
+        ]);
+    }
+
     public function course(EducationMaterialResolver $resolver)
     {
         $project = $this->educationProject();
@@ -308,5 +366,18 @@ class EducationController extends Controller
     {
         $test->loadMissing('material.topic');
         abort_unless((int) $test->material?->topic?->project_id === (int) $project->id, 404);
+    }
+
+    private function firstPublicTest(int $projectId): QuestTest
+    {
+        return QuestTest::query()
+            ->with('material.topic')
+            ->where('is_active', true)
+            ->whereHas('material', fn ($query) => $query->where('is_active', true))
+            ->whereHas('material.topic', fn ($query) => $query
+                ->where('project_id', $projectId)
+                ->where('is_active', true))
+            ->orderBy('id')
+            ->firstOrFail();
     }
 }
