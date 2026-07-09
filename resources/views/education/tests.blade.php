@@ -3,7 +3,7 @@
 @section('title', 'Тесты')
 
 @section('header_actions')
-<button type="button" class="btn btn-warning" id="create-test-button" @disabled(($migrationRequired ?? false) || $materials->isEmpty())>Создать</button>
+<button type="button" class="btn btn-warning" id="create-test-button" @disabled($migrationRequired ?? false)>Создать</button>
 @endsection
 
 @section('content')
@@ -96,12 +96,20 @@
                         <div class="col-md-9 mb-3">
                             <label class="form-label" for="test-material-id">Материал курса</label>
                             <select class="form-select" id="test-material-id" name="material_id" required>
+                                @if($materials->isEmpty())
+                                    <option value="">Сначала создайте материал курса</option>
+                                @endif
                                 @foreach($materials as $material)
                                     <option value="{{ $material->id }}">
                                         {{ $material->topic->title }} · {{ $material->level }} · v{{ $material->version }}
                                     </option>
                                 @endforeach
                             </select>
+                            @if($materials->isEmpty())
+                                <div class="form-text text-warning">
+                                    Для сохранения теста нужен хотя бы один материал на странице «Курс обучения».
+                                </div>
+                            @endif
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label" for="test-passing-score">Проходной балл, %</label>
