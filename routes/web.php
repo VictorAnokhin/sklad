@@ -8,6 +8,7 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardAgentChatController;
 use App\Http\Controllers\DepositController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\EducationController;
 use App\Http\Controllers\FilterController;
 use App\Http\Controllers\GoodsController;
 use App\Http\Controllers\KursController;
@@ -72,6 +73,13 @@ Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
+    Route::prefix('education')->name('education.')->group(function () {
+        Route::get('/course', [EducationController::class, 'course'])->name('course');
+        Route::get('/tests', [EducationController::class, 'tests'])->name('tests');
+        Route::post('/tests/{test}/submit', [EducationController::class, 'submit'])
+            ->whereNumber('test')
+            ->name('tests.submit');
+    });
     Route::get('/dashboard/agent-chat', [DashboardAgentChatController::class, 'index'])->name('dashboard.agent-chat.index');
     Route::post('/dashboard/agent-chat', [DashboardAgentChatController::class, 'store'])->name('dashboard.agent-chat.store');
     Route::get('/blockchain-monitor', [BlockchainMonitorController::class, 'page'])->name('blockchain-monitor.index');

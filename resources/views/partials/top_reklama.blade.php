@@ -65,6 +65,7 @@
   $activeProject = $headerProjects->firstWhere('id', $activeFid);
   $activeProjectType = strtolower(trim((string) ($activeProject->project_type ?? '')));
   $isBankProject = $activeProjectType === 'bank';
+  $isEducationProject = $activeProjectType === 'education';
   $headerUserName = trim(implode(' ', array_filter([
     $authUser->name ?? session('name1', ''),
     $authUser->secondname ?? '',
@@ -185,6 +186,14 @@
         <a class="header-nav-menu__link" href="{{ route('bank.payments') }}">Платежи</a>
         <a class="header-nav-menu__link" href="{{ route('bank.reconciliation') }}">Сверка</a>
         <a class="header-nav-menu__link" href="{{ route('blockchain-monitor.index') }}">Blockchain Monitor</a>
+      </div>
+    @endif
+
+    @if($isEducationProject)
+      <div class="header-nav-menu__section-label">Образование</div>
+      <div class="header-nav-menu__grid">
+        <a class="header-nav-menu__link" href="{{ route('education.course') }}">Курс обучения</a>
+        <a class="header-nav-menu__link" href="{{ route('education.tests') }}">Тесты</a>
       </div>
     @endif
 
