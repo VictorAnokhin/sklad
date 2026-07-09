@@ -83,6 +83,8 @@ class EducationController extends Controller
             return view('education.course', [
                 'project' => $project,
                 'topics' => collect(),
+                'materialEditorItems' => [],
+                'topicEditorItems' => [],
                 'migrationRequired' => true,
             ]);
         }
@@ -117,9 +119,36 @@ class EducationController extends Controller
             $topic->setRelation('studentProgress', $progress);
         });
 
+        $materialEditorItems = $topics
+            ->flatMap(fn (EducationTopic $topic) => $topic->materials->map(fn (EducationalMaterial $material) => [
+                'id' => $material->id,
+                'topic_id' => $topic->id,
+                'topic_title' => $topic->title,
+                'topic_description' => $topic->description,
+                'position' => $topic->position,
+                'level' => $material->level,
+                'content_type' => $material->content_type,
+                'version' => $material->version,
+                'body' => $material->body,
+            ]))
+            ->keyBy('id')
+            ->all();
+
+        $topicEditorItems = $topics
+            ->mapWithKeys(fn (EducationTopic $topic) => [
+                $topic->id => [
+                    'title' => $topic->title,
+                    'description' => $topic->description,
+                    'position' => $topic->position,
+                ],
+            ])
+            ->all();
+
         return view('education.course', [
             'project' => $project,
             'topics' => $topics,
+            'materialEditorItems' => $materialEditorItems,
+            'topicEditorItems' => $topicEditorItems,
             'migrationRequired' => false,
         ]);
     }

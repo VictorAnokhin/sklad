@@ -190,22 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
         version: document.getElementById('material-version'),
         body: document.getElementById('material-body'),
     };
-    const materials = @json($topics->flatMap(fn ($topic) => $topic->materials->map(fn ($material) => [
-        'id' => $material->id,
-        'topic_id' => $topic->id,
-        'topic_title' => $topic->title,
-        'topic_description' => $topic->description,
-        'position' => $topic->position,
-        'level' => $material->level,
-        'content_type' => $material->content_type,
-        'version' => $material->version,
-        'body' => $material->body,
-    ]))->keyBy('id'));
-    const topics = @json($topics->keyBy('id')->map(fn ($topic) => [
-        'title' => $topic->title,
-        'description' => $topic->description,
-        'position' => $topic->position,
-    ]));
+    const materials = @json($materialEditorItems ?? []);
+    const topics = @json($topicEditorItems ?? []);
     const storeUrl = @json(route('education.materials.store'));
     const updateUrl = @json(route('education.materials.update', ['material' => '__ID__']));
     const deleteUrl = @json(route('education.materials.destroy', ['material' => '__ID__']));
