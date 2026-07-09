@@ -188,20 +188,7 @@
                                 Добавить результат
                             </button>
                         </div>
-                        <div class="table-responsive">
-                            <table class="table table-dark table-sm align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 90px;">Мин</th>
-                                        <th style="width: 90px;">Макс</th>
-                                        <th>Название</th>
-                                        <th>Описание / рекомендация</th>
-                                        <th style="width: 70px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="results-editor"></tbody>
-                            </table>
-                        </div>
+                        <div class="vstack gap-3" id="results-editor"></div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary justify-content-between">
