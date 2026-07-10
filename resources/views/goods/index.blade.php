@@ -208,7 +208,6 @@
                     <th>{{ __('goods.table.price') }}</th>
                     <th>{{ __('goods.table.price1') }}</th>
                     <th>{{ __('goods.table.stock') }}</th>
-                    <th>{{ __('goods.table.brand') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -268,11 +267,10 @@
                         <span>{{ $hasStock ? '✓' : '—' }}</span>
                         <span class="text-muted">/ {{ $warehouseCountFormatted }}</span>
                     </td>
-                    <td>{{ $comp->price_tgroup ?? '—' }}</td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="text-center">{{ __('goods.empty') }}</td>
+                    <td colspan="7" class="text-center">{{ __('goods.empty') }}</td>
                 </tr>
                 @endforelse
             </tbody>
@@ -348,12 +346,6 @@
                         <div class="meta-item">
                             <span class="meta-label">{{ __('goods.table.stock') }}</span>
                             <span class="meta-value">{{ $comp->price_sklad_name }}</span>
-                        </div>
-                        @endif
-                        @if($comp->price_tgroup)
-                        <div class="meta-item">
-                            <span class="meta-label">{{ __('goods.table.brand') }}</span>
-                            <span class="meta-value">{{ $comp->price_tgroup }}</span>
                         </div>
                         @endif
                     </div>
