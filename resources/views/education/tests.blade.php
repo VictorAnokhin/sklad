@@ -74,7 +74,7 @@
     }
     .test-answer-row {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 90px 90px 52px;
+        grid-template-columns: minmax(0, 1fr) 90px 52px;
         gap: 0.75rem;
         align-items: end;
     }
@@ -211,10 +211,11 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 text: 'Ваш портфель упал на 10% за одну неделю из-за общих рыночных новостей. Ваша первая реакция?',
                 options: [
-                    { text: 'Тревога. Начинаю всерьез задумываться о закрытии позиций, чтобы сохранить остатки.', score: 1 },
-                    { text: 'Беспокойство. Буду чаще проверять котировки, но пока ничего не предприму.', score: 2 },
-                    { text: 'Спокойствие. Это обычные рыночные колебания, ничего страшного.', score: 3 }
-                ]
+                    { text: 'Тревога. Начинаю всерьез задумываться о закрытии позиций, чтобы сохранить остатки.' },
+                    { text: 'Беспокойство. Буду чаще проверять котировки, но пока ничего не предприму.' },
+                    { text: 'Спокойствие. Это обычные рыночные колебания, ничего страшного.' }
+                ],
+                correct_index: 2
             }
         ],
         results: [
@@ -240,10 +241,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <label class="form-label small text-secondary mb-1">Вариант ответа</label>
                 <input class="form-control" data-option-text required>
             </div>
-            <div>
-                <label class="form-label small text-secondary mb-1">Балл</label>
-                <input class="form-control" data-option-score type="number" min="0" value="0">
-            </div>
             <div class="text-center">
                 <label class="form-label small text-secondary mb-1 d-block">Верный</label>
                 <input class="form-check-input" type="radio" data-option-correct>
@@ -253,7 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         row.querySelector('[data-option-text]').value = optionValue(option, 'text');
-        row.querySelector('[data-option-score]').value = optionValue(option, 'score', 0);
         row.querySelector('[data-option-correct]').checked = isCorrect;
         row.querySelector('[data-option-correct]').addEventListener('change', () => {
             if (!row.querySelector('[data-option-correct]').checked) return;
@@ -315,11 +311,11 @@ document.addEventListener('DOMContentLoaded', () => {
             questionElement.remove();
             refreshQuestionAccordion();
         });
-        questionElement.querySelector('[data-add-option]').addEventListener('click', () => addOption(questionElement, { text: '', score: 0 }));
+        questionElement.querySelector('[data-add-option]').addEventListener('click', () => addOption(questionElement, { text: '' }));
 
         const options = Array.isArray(question.options) && question.options.length > 0
             ? question.options
-            : [{ text: '', score: 1 }, { text: '', score: 2 }, { text: '', score: 3 }];
+            : [{ text: '' }, { text: '' }, { text: '' }];
         options.forEach((option, index) => addOption(questionElement, option, Number(question.correct_index) === index));
         questionsEditor.appendChild(questionElement);
         refreshQuestionAccordion();
@@ -387,7 +383,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 text: questionElement.querySelector('[data-question-text]').value.trim(),
                 options: optionRows.map((row) => ({
                     text: row.querySelector('[data-option-text]').value.trim(),
-                    score: Number(row.querySelector('[data-option-score]').value || 0),
                 })),
             };
 
@@ -409,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return {
             public_featured: false,
-            scoring: fields.testType.value === 'profile_assessment' ? 'points' : 'correct_answers',
+            scoring: 'correct_answers',
             intro: '',
             questions,
             results,
