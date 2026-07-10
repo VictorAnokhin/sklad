@@ -186,9 +186,9 @@
             <tbody>
                 @forelse($comps as $comp)
                 @php
-                    $stockQty = (float)($comp->price_count ?? 0);
-                    $stockFlag = (string)($comp->sklad ?? '0') === '1';
-                    $hasStock = $stockFlag || $stockQty > 0;
+                    $hasStock = (float)($comp->sklad ?? 0) > 0;
+                    $warehouseCount = (float)($comp->price_sklad_count ?? 0);
+                    $warehouseCountFormatted = rtrim(rtrim(number_format($warehouseCount, 3, '.', ''), '0'), '.');
                 @endphp
                 <tr>
                     <td><a href="{{ route('goods.show', ['pnum' => $comp->id]) }}">{{ $comp->id }}</a></td>
@@ -220,13 +220,9 @@
                     <td>{{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}</td>
                     <td>{{ number_format((float)($comp->price_oldpay ?? 0), 2, '.', ' ') }}</td>
                     <td>{{ rtrim(rtrim(number_format((float)($comp->price_count ?? 0), 3, '.', ''), '0'), '.') }}</td>
-                    <td>
-                        <div class="d-flex flex-column gap-1">
-                            <span>{{ $comp->price_sklad_name ?? '—' }}</span>
-                            <span class="goods-stock-badge {{ $hasStock ? 'in-stock' : 'out-of-stock' }}" style="width:max-content;">
-                                {{ $hasStock ? __('goods.in_stock') : __('goods.out_of_stock') }}
-                            </span>
-                        </div>
+                    <td class="text-center">
+                        <span>{{ $hasStock ? '✓' : '—' }}</span>
+                        <span class="text-muted">/ {{ $warehouseCountFormatted }}</span>
                     </td>
                     <td>{{ $comp->price_tgroup ?? '—' }}</td>
                 </tr>
@@ -244,9 +240,9 @@
         @forelse($comps as $comp)
         @php
             $previewImage = \App\Support\MediaUrl::image($comp->nfoto ?? '');
-            $stockQty = (float)($comp->price_count ?? 0);
-            $stockFlag = (string)($comp->sklad ?? '0') === '1';
-            $hasStock = $stockFlag || $stockQty > 0;
+            $hasStock = (float)($comp->sklad ?? 0) > 0;
+            $warehouseCount = (float)($comp->price_sklad_count ?? 0);
+            $warehouseCountFormatted = rtrim(rtrim(number_format($warehouseCount, 3, '.', ''), '0'), '.');
         @endphp
         <div class="goods-mobile-card">
             <a href="{{ route('goods.show', ['pnum' => $comp->id]) }}" class="goods-mobile-card-link">
@@ -264,9 +260,9 @@
                             @endif
                         </h3>
                         @if($hasStock)
-                        <span class="goods-stock-badge in-stock">{{ __('goods.in_stock') }}</span>
+                        <span class="goods-stock-badge in-stock">{{ __('goods.in_stock') }} / {{ $warehouseCountFormatted }}</span>
                         @else
-                        <span class="goods-stock-badge out-of-stock">{{ __('goods.out_of_stock') }}</span>
+                        <span class="goods-stock-badge out-of-stock">{{ __('goods.out_of_stock') }} / {{ $warehouseCountFormatted }}</span>
                         @endif
                     </div>
                     

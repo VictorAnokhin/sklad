@@ -232,7 +232,15 @@ class Goods extends Model
                 ->whereIn('id', $skladIds)
                 ->pluck('name', 'id');
 
-        return $comps->map(function ($comp) use ($priceRows, $skladNames, $retailGroups, $fid) {
+        $stockRows = Schema::hasTable('price_sklad')
+            ? DB::table('price_sklad')
+                ->whereIn('firma', $firmaIds)
+                ->whereIn('pnum', $productIds)
+                ->get()
+                ->groupBy(fn ($row) => $row->firma . ':' . $row->pnum . ':' . $row->sklad)
+            : collect();
+
+        return $comps->map(function ($comp) use ($priceRows, $skladNames, $stockRows, $retailGroups, $fid) {
             $itemFirma = (string) (($comp->firma ?? '') !== '' ? $comp->firma : $fid);
             $key = $itemFirma . ':' . ($comp->id ?? '');
             $rows = $priceRows->get($key, collect());
@@ -249,6 +257,9 @@ class Goods extends Model
             $comp->price_count = $price->count ?? 0;
             $comp->price_sklad = $price->sklad ?? $comp->sklad ?? 0;
             $comp->price_sklad_name = $skladNames->get($comp->price_sklad, '—');
+            $comp->price_sklad_count = $stockRows
+                ->get($itemFirma . ':' . ($comp->id ?? '') . ':' . ($comp->price_sklad ?? 0), collect())
+                ->sum(fn ($row) => (float) ($row->count ?? 0));
             $comp->price_tgroup = $price->tgroup ?? null;
 
             return $comp;
@@ -277,6 +288,7 @@ class Goods extends Model
                 $comp->price_count = 0;
                 $comp->price_sklad = $comp->sklad ?? 0;
                 $comp->price_sklad_name = '—';
+                $comp->price_sklad_count = 0;
                 $comp->price_tgroup = null;
                 return $comp;
             });
@@ -321,7 +333,15 @@ class Goods extends Model
                 ->whereIn('id', $skladIds)
                 ->pluck('name', 'id');
 
-        return $comps->map(function ($comp) use ($priceRows, $retailGroups, $skladNames, $targetTgroupId) {
+        $stockRows = Schema::hasTable('price_sklad')
+            ? DB::table('price_sklad')
+                ->whereIn('firma', $firmaIds)
+                ->whereIn('pnum', $productIds)
+                ->get()
+                ->groupBy(fn ($row) => $row->firma . ':' . $row->pnum . ':' . $row->sklad)
+            : collect();
+
+        return $comps->map(function ($comp) use ($priceRows, $retailGroups, $skladNames, $stockRows, $targetTgroupId) {
             $key = ($comp->firma ?? '') . ':' . ($comp->id ?? '');
             $rows = $priceRows->get($key, collect());
             
@@ -340,6 +360,9 @@ class Goods extends Model
             $comp->price_oldpay = $price->oldpay ?? 0;
             $comp->price_sklad = $price->sklad ?? $comp->sklad ?? 0;
             $comp->price_sklad_name = $skladNames->get($comp->price_sklad, '—');
+            $comp->price_sklad_count = $stockRows
+                ->get(($comp->firma ?? '') . ':' . ($comp->id ?? '') . ':' . ($comp->price_sklad ?? 0), collect())
+                ->sum(fn ($row) => (float) ($row->count ?? 0));
             $comp->price_tgroup = $price->tgroup ?? null;
             
             return $comp;
