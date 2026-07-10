@@ -336,6 +336,100 @@ class EducationController extends Controller
         return redirect()->route('education.tests')->with('success', 'Тест удалён.');
     }
 
+    public function knowYourself()
+    {
+        $project = $this->educationProject();
+        if (!$this->educationSchemaReady()) {
+            return view('education.know-yourself', [
+                'project' => $project,
+                'tests' => collect(),
+                'attempts' => collect(),
+                'testEditorItems' => [],
+                'migrationRequired' => true,
+            ]);
+        }
+
+        $tests = QuestTest::query()
+            ->with(['results'])
+            ->where('is_active', true)
+            ->where('project_id', $project->id)
+            ->where('test_type', 'profile_assessment')
+            ->orderBy('id')
+            ->get();
+
+        $userId = (int) Auth::id();
+
+        $attempts = QuestTestAttempt::query()
+            ->where('user_id', $userId)
+            ->whereIn('quest_test_id', $tests->pluck('id'))
+            ->latest()
+            ->get()
+            ->groupBy('quest_test_id');
+
+        $testEditorItems = $tests
+            ->mapWithKeys(fn (QuestTest $test) => [
+                $test->id => [
+                    'id' => $test->id,
+                    'title' => $test->title,
+                    'quest_data' => $test->quest_data,
+                ],
+            ])
+            ->all();
+
+        return view('education.know-yourself', [
+            'project' => $project,
+            'tests' => $tests,
+            'attempts' => $attempts,
+            'testEditorItems' => $testEditorItems,
+            'migrationRequired' => false,
+        ]);
+    }
+
+    public function storeKnowYourself(Request $request)
+    {
+        $project = $this->educationProject();
+        $validated = $this->validateKnowYourselfTest($request);
+
+        $test = QuestTest::create($validated + [
+            'project_id' => $project->id,
+            'material_id' => null,
+            'test_type' => 'profile_assessment',
+            'passing_score' => 1,
+            'is_active' => true,
+        ]);
+        $this->syncTestResults($test, $validated['quest_data']);
+
+        return redirect()->route('education.know-yourself')->with('success', 'Тест создан.');
+    }
+
+    public function updateKnowYourself(Request $request, QuestTest $test)
+    {
+        $project = $this->educationProject();
+        $this->assertTestProject($test, $project);
+        abort_unless(($test->test_type ?? '') === 'profile_assessment', 404);
+
+        $validated = $this->validateKnowYourselfTest($request);
+        $test->update($validated + [
+            'project_id' => $project->id,
+            'material_id' => null,
+            'test_type' => 'profile_assessment',
+            'passing_score' => 1,
+        ]);
+        $this->syncTestResults($test, $validated['quest_data']);
+
+        return redirect()->route('education.know-yourself')->with('success', 'Тест изменён.');
+    }
+
+    public function destroyKnowYourself(QuestTest $test)
+    {
+        $project = $this->educationProject();
+        $this->assertTestProject($test, $project);
+        abort_unless(($test->test_type ?? '') === 'profile_assessment', 404);
+        $test->delete();
+
+        return redirect()->route('education.know-yourself')->with('success', 'Тест удалён.');
+    }
+
     public function submit(Request $request, QuestTest $test, EducationMaterialResolver $resolver)
     {
         $project = $this->educationProject();
@@ -394,7 +488,7 @@ class EducationController extends Controller
             ]);
         });
 
-        return redirect()->route('education.tests')->with(
+        return back()->with(
             $passed ? 'success' : 'warning',
             $result['scoring_type'] === 'points'
                 ? "Результат: {$result['total_score']} из {$result['max_score']} баллов. Профиль: {$result['profile']['title']}."
@@ -462,6 +556,23 @@ class EducationController extends Controller
         if (!isset($validated['quest_data']['questions']) || !is_array($validated['quest_data']['questions'])) {
             abort(422, 'quest_data должен содержать массив questions.');
         }
+
+        return $validated;
+    }
+
+    private function validateKnowYourselfTest(Request $request): array
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'quest_data' => ['required', 'json'],
+        ]);
+        $validated['quest_data'] = json_decode($validated['quest_data'], true, 512, JSON_THROW_ON_ERROR);
+
+        if (!isset($validated['quest_data']['questions']) || !is_array($validated['quest_data']['questions'])) {
+            abort(422, 'quest_data должен содержать массив questions.');
+        }
+
+        $validated['quest_data']['scoring'] = 'points';
 
         return $validated;
     }

@@ -89,6 +89,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/tests/{test}/submit', [EducationController::class, 'submit'])
             ->whereNumber('test')
             ->name('tests.submit');
+        Route::get('/know-yourself', [EducationController::class, 'knowYourself'])->name('know-yourself');
+        Route::post('/know-yourself', [EducationController::class, 'storeKnowYourself'])->name('know-yourself.store');
+        Route::put('/know-yourself/{test}', [EducationController::class, 'updateKnowYourself'])
+            ->whereNumber('test')->name('know-yourself.update');
+        Route::delete('/know-yourself/{test}', [EducationController::class, 'destroyKnowYourself'])
+            ->whereNumber('test')->name('know-yourself.destroy');
     });
     Route::get('/dashboard/agent-chat', [DashboardAgentChatController::class, 'index'])->name('dashboard.agent-chat.index');
     Route::post('/dashboard/agent-chat', [DashboardAgentChatController::class, 'store'])->name('dashboard.agent-chat.store');
