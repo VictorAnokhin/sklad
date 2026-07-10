@@ -23,66 +23,34 @@
         </div>
     @endif
 
-    @forelse($tests as $test)
-        @php
-            $questions = $test->quest_data['questions'] ?? [];
-            $testAttempts = $attempts->get($test->id);
-            $lastAttempt = $testAttempts ? $testAttempts->first() : null;
-        @endphp
-        <section class="card bg-dark border-secondary mb-4">
-            <div class="card-body">
-                <div class="d-flex justify-content-between gap-3 flex-wrap mb-3">
-                    <div>
-                        <h2 class="h4 text-white mb-1">{{ $test->title }}</h2>
-                        <div class="text-secondary">
-                            @if($test->material)
-                                {{ $test->material->topic->title }} · {{ $test->material->level }} · проходной балл {{ $test->passing_score }}%
-                            @else
-                                Самостоятельная профильная анкета · сумма баллов
-                            @endif
-                        </div>
-                    </div>
-                    @if($lastAttempt)
-                        <span class="badge {{ $lastAttempt->passed ? 'text-bg-success' : 'text-bg-danger' }}">
-                            @if(($test->test_type ?? 'knowledge_check') === 'profile_assessment')
-                                Последний результат: {{ $lastAttempt->total_score ?? $lastAttempt->score }} / {{ $lastAttempt->max_score ?? '—' }} баллов
-                            @else
-                                Последний результат: {{ $lastAttempt->score }}%
-                            @endif
-                        </span>
-                    @endif
-                    <button type="button" class="btn btn-sm btn-outline-light edit-test-button"
-                            data-test-id="{{ $test->id }}">Изменить</button>
-                </div>
-
-                <form method="POST" action="{{ route('education.tests.submit', $test) }}">
-                    @csrf
-                    @foreach($questions as $questionIndex => $question)
-                        <fieldset class="mb-4">
-                            <legend class="fs-6 text-light">{{ $questionIndex + 1 }}. {{ $question['text'] ?? '' }}</legend>
-                            @foreach(($question['options'] ?? []) as $optionIndex => $option)
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="radio"
-                                           name="answers[{{ $questionIndex }}]"
-                                           id="test-{{ $test->id }}-q-{{ $questionIndex }}-a-{{ $optionIndex }}"
-                                           value="{{ $optionIndex }}" required>
-                                    <label class="form-check-label text-light"
-                                           for="test-{{ $test->id }}-q-{{ $questionIndex }}-a-{{ $optionIndex }}">
-                                        {{ is_array($option) ? ($option['text'] ?? $option['label'] ?? '') : $option }}
-                                    </label>
-                                </div>
-                            @endforeach
-                        </fieldset>
-                    @endforeach
-                    <button class="btn btn-warning" type="submit" @disabled(count($questions) === 0)>
-                        Завершить тест
-                    </button>
-                </form>
-            </div>
-        </section>
-    @empty
-        <div class="alert alert-info">Для текущего уровня пока нет активных тестов.</div>
-    @endforelse
+    <div class="card bg-dark border-secondary">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Название</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($tests as $test)
+                        <tr>
+                            <td>
+                                <button type="button"
+                                        class="btn btn-link text-light text-decoration-none p-0 edit-test-button"
+                                        data-test-id="{{ $test->id }}">
+                                    {{ $test->title }}
+                                </button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td class="text-secondary">Тесты пока не созданы.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -104,10 +72,21 @@
     #test-modal textarea {
         resize: vertical;
     }
+    .test-answer-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 90px 90px 52px;
+        gap: 0.75rem;
+        align-items: end;
+    }
+    @media (max-width: 768px) {
+        .test-answer-row {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 <div class="modal fade" id="test-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary">
                 <h2 class="modal-title fs-5" id="test-modal-title">Создать тест</h2>
@@ -159,36 +138,47 @@
                         <input class="form-check-input" type="checkbox" role="switch" id="test-public-featured">
                         <label class="form-check-label" for="test-public-featured">Показывать первым на публичной странице «Узнай себя»</label>
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <label class="form-label" for="test-intro">Описание перед вопросами</label>
                         <textarea class="form-control" id="test-intro" rows="3"
                                   placeholder="Кратко объясните, как проходить тест"></textarea>
                     </div>
 
-                    <div class="mb-4">
-                        <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
-                            <div>
-                                <h3 class="h6 text-white mb-1">Вопросы и варианты ответов</h3>
-                                <div class="form-text">Для профильной анкеты заполните баллы. Для проверки после материала отметьте правильный ответ.</div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-warning" id="add-question-button">
-                                Добавить вопрос
+                    <ul class="nav nav-tabs border-secondary mb-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="test-questions-tab" data-bs-toggle="tab"
+                                    data-bs-target="#test-questions-pane" type="button" role="tab">
+                                Вопросы
                             </button>
-                        </div>
-                        <div class="accordion" id="questions-editor"></div>
-                    </div>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="test-results-tab" data-bs-toggle="tab"
+                                    data-bs-target="#test-results-pane" type="button" role="tab">
+                                Результат
+                            </button>
+                        </li>
+                    </ul>
 
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
-                            <div>
-                                <h3 class="h6 text-white mb-1">Результаты по сумме баллов</h3>
-                                <div class="form-text">Результат выбирается из таблицы по диапазону: минимум ≤ сумма баллов ≤ максимум.</div>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="test-questions-pane" role="tabpanel" aria-labelledby="test-questions-tab">
+                            <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                                <div class="form-text">Для проверки после материала отметьте верный ответ. Для профильной анкеты заполните баллы.</div>
+                                <button type="button" class="btn btn-sm btn-outline-warning" id="add-question-button">
+                                    Добавить
+                                </button>
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-warning" id="add-result-button">
-                                Добавить результат
-                            </button>
+                            <div class="accordion" id="questions-editor"></div>
                         </div>
-                        <div class="vstack gap-3" id="results-editor"></div>
+
+                        <div class="tab-pane fade" id="test-results-pane" role="tabpanel" aria-labelledby="test-results-tab">
+                            <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                                <div class="form-text">Результат выбирается по диапазону: минимум ≤ сумма баллов ≤ максимум.</div>
+                                <button type="button" class="btn btn-sm btn-outline-warning" id="add-result-button">
+                                    Добавить результат
+                                </button>
+                            </div>
+                            <div class="vstack gap-3" id="results-editor"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary justify-content-between">
@@ -260,20 +250,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addOption(questionElement, option = {}, isCorrect = false) {
         const optionsWrap = questionElement.querySelector('[data-options]');
-        const row = document.createElement('tr');
+        const row = document.createElement('div');
+        row.className = 'test-answer-row';
         row.innerHTML = `
-            <td>
-                <input class="form-control form-control-sm" data-option-text required>
-            </td>
-            <td style="width: 90px;">
-                <input class="form-control form-control-sm" data-option-score type="number" min="0" value="0">
-            </td>
-            <td class="text-center" style="width: 90px;">
+            <div>
+                <label class="form-label small text-secondary mb-1">Вариант ответа</label>
+                <input class="form-control" data-option-text required>
+            </div>
+            <div>
+                <label class="form-label small text-secondary mb-1">Балл</label>
+                <input class="form-control" data-option-score type="number" min="0" value="0">
+            </div>
+            <div class="text-center">
+                <label class="form-label small text-secondary mb-1 d-block">Верный</label>
                 <input class="form-check-input" type="radio" data-option-correct>
-            </td>
-            <td class="text-end" style="width: 70px;">
-                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-option>×</button>
-            </td>
+            </div>
+            <div class="text-end">
+                <button type="button" class="btn btn-outline-danger" data-remove-option>×</button>
+            </div>
         `;
         row.querySelector('[data-option-text]').value = optionValue(option, 'text');
         row.querySelector('[data-option-score]').value = optionValue(option, 'score', 0);
@@ -326,19 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <button type="button" class="btn btn-sm btn-outline-danger align-self-start" data-remove-question>Удалить</button>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-dark table-sm align-middle mb-2">
-                        <thead>
-                            <tr>
-                                <th>Вариант ответа</th>
-                                <th style="width: 90px;">Балл</th>
-                                <th class="text-center" style="width: 90px;">Верный</th>
-                                <th style="width: 70px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody data-options></tbody>
-                    </table>
-                </div>
+                <div class="vstack gap-2 mb-2" data-options></div>
                 <button type="button" class="btn btn-sm btn-outline-light" data-add-option>Добавить вариант</button>
                 </div>
             </div>
@@ -361,21 +343,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addResult(result = {}) {
-        const row = document.createElement('tr');
+        const row = document.createElement('div');
+        row.className = 'card bg-black border-secondary';
         row.innerHTML = `
-            <td><input class="form-control form-control-sm" data-result-min type="number" min="0" required></td>
-            <td><input class="form-control form-control-sm" data-result-max type="number" min="0" required></td>
-            <td>
-                <input class="form-control form-control-sm mb-2" data-result-title placeholder="Название результата" required>
-                <input class="form-control form-control-sm" data-result-subtitle placeholder="Подзаголовок">
-            </td>
-            <td>
-                <textarea class="form-control form-control-sm mb-2" data-result-description rows="2" placeholder="Описание"></textarea>
-                <textarea class="form-control form-control-sm" data-result-recommendation rows="2" placeholder="Рекомендация"></textarea>
-            </td>
-            <td class="text-end">
-                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-result>×</button>
-            </td>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Мин.</label>
+                        <input class="form-control" data-result-min type="number" min="0" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Макс.</label>
+                        <input class="form-control" data-result-max type="number" min="0" required>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Название результата</label>
+                        <input class="form-control mb-2" data-result-title required>
+                        <input class="form-control" data-result-subtitle placeholder="Подзаголовок">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Описание</label>
+                        <textarea class="form-control" data-result-description rows="3"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Рекомендация</label>
+                        <textarea class="form-control" data-result-recommendation rows="3"></textarea>
+                    </div>
+                    <div class="col-12 text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-remove-result>Удалить</button>
+                    </div>
+                </div>
+            </div>
         `;
         row.querySelector('[data-result-min]').value = result.min ?? 0;
         row.querySelector('[data-result-max]').value = result.max ?? 0;
@@ -402,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function collectQuestData() {
         const questions = Array.from(questionsEditor.children).map((questionElement) => {
-            const optionRows = Array.from(questionElement.querySelectorAll('[data-options] tr'));
+            const optionRows = Array.from(questionElement.querySelectorAll('[data-options] .test-answer-row'));
             const correctIndex = optionRows.findIndex((row) => row.querySelector('[data-option-correct]').checked);
             const question = {
                 text: questionElement.querySelector('[data-question-text]').value.trim(),
@@ -419,7 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return question;
         });
 
-        const results = Array.from(resultsEditor.querySelectorAll('tr')).map((row) => ({
+        const results = Array.from(resultsEditor.children).map((row) => ({
             min: Number(row.querySelector('[data-result-min]').value || 0),
             max: Number(row.querySelector('[data-result-max]').value || 0),
             title: row.querySelector('[data-result-title]').value.trim(),
@@ -437,6 +435,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    function activateQuestionsTab() {
+        const trigger = document.getElementById('test-questions-tab');
+        if (trigger) bootstrap.Tab.getOrCreateInstance(trigger).show();
+    }
+
     function openCreate() {
         form.reset();
         form.action = storeUrl;
@@ -447,6 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.passingScore.value = 1;
         loadQuestData(example);
         deleteButton.classList.add('d-none');
+        activateQuestionsTab();
         modal.show();
     }
 
@@ -464,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadQuestData(item.quest_data || example);
         deleteForm.action = deleteUrl.replace('__ID__', id);
         deleteButton.classList.remove('d-none');
+        activateQuestionsTab();
         modal.show();
     }
 
