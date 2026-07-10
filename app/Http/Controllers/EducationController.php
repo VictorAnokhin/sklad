@@ -206,18 +206,10 @@ class EducationController extends Controller
         $validated = $this->validateMaterial($request);
 
         DB::transaction(function () use ($validated, $project) {
-            $topic = empty($validated['topic_id'])
-                ? EducationTopic::create([
-                    'project_id' => $project->id,
-                    'title' => $validated['topic_title'],
-                    'description' => $validated['topic_description'] ?? null,
-                    'position' => $validated['position'] ?? 0,
-                    'is_active' => true,
-                ])
-                : EducationTopic::query()
-                    ->where('project_id', $project->id)
-                    ->whereKey($validated['topic_id'])
-                    ->firstOrFail();
+            $topic = EducationTopic::query()
+                ->where('project_id', $project->id)
+                ->whereKey($validated['topic_id'])
+                ->firstOrFail();
 
             EducationalMaterial::create([
                 'topic_id' => $topic->id,
@@ -232,19 +224,60 @@ class EducationController extends Controller
         return redirect()->route('education.course')->with('success', 'Материал курса создан.');
     }
 
+    public function storeTopic(Request $request)
+    {
+        $project = $this->educationProject();
+        $validated = $this->validateTopic($request);
+
+        EducationTopic::create([
+            'project_id' => $project->id,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'position' => $validated['position'] ?? 0,
+            'is_active' => true,
+        ]);
+
+        return redirect()->route('education.course')->with('success', 'Курс создан.');
+    }
+
+    public function updateTopic(Request $request, EducationTopic $topic)
+    {
+        $project = $this->educationProject();
+        $this->assertTopicProject($topic, $project);
+        $validated = $this->validateTopic($request);
+
+        $topic->update([
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'position' => $validated['position'] ?? 0,
+        ]);
+
+        return redirect()->route('education.course')->with('success', 'Курс изменён.');
+    }
+
+    public function destroyTopic(EducationTopic $topic)
+    {
+        $project = $this->educationProject();
+        $this->assertTopicProject($topic, $project);
+        $topic->delete();
+
+        return redirect()->route('education.course')->with('success', 'Курс удалён.');
+    }
+
     public function updateMaterial(Request $request, EducationalMaterial $material)
     {
         $project = $this->educationProject();
         $this->assertMaterialProject($material, $project);
         $validated = $this->validateMaterial($request, $material);
 
-        DB::transaction(function () use ($validated, $material) {
-            $material->topic->update([
-                'title' => $validated['topic_title'],
-                'description' => $validated['topic_description'] ?? null,
-                'position' => $validated['position'] ?? 0,
-            ]);
+        DB::transaction(function () use ($validated, $material, $project) {
+            EducationTopic::query()
+                ->where('project_id', $project->id)
+                ->whereKey($validated['topic_id'])
+                ->firstOrFail();
+
             $material->update([
+                'topic_id' => $validated['topic_id'],
                 'level' => $validated['level'],
                 'content_type' => $validated['content_type'],
                 'body' => $validated['body'],
@@ -565,7 +598,7 @@ class EducationController extends Controller
 
     private function validateMaterial(Request $request, ?EducationalMaterial $material = null): array
     {
-        $topicId = $material?->topic_id ?? $request->integer('topic_id');
+        $topicId = $request->integer('topic_id') ?: $material?->topic_id;
         $versionUnique = Rule::unique('educational_materials', 'version')
             ->where(fn ($query) => $query
                 ->where('topic_id', $topicId)
@@ -573,14 +606,20 @@ class EducationController extends Controller
             ->ignore($material?->id);
 
         return $request->validate([
-            'topic_id' => ['nullable', 'integer'],
-            'topic_title' => ['required', 'string', 'max:255'],
-            'topic_description' => ['nullable', 'string'],
-            'position' => ['nullable', 'integer', 'min:0'],
+            'topic_id' => ['required', 'integer'],
             'level' => ['required', 'in:beginner,intermediate,advanced'],
             'content_type' => ['required', 'in:markdown,video_link,interactive_scenario'],
             'body' => ['required', 'string'],
             'version' => ['required', 'string', 'max:32', $versionUnique],
+        ]);
+    }
+
+    private function validateTopic(Request $request): array
+    {
+        return $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'position' => ['nullable', 'integer', 'min:0'],
         ]);
     }
 
@@ -623,6 +662,11 @@ class EducationController extends Controller
     {
         $material->loadMissing('topic');
         abort_unless((int) $material->topic?->project_id === (int) $project->id, 404);
+    }
+
+    private function assertTopicProject(EducationTopic $topic, Project $project): void
+    {
+        abort_unless((int) $topic->project_id === (int) $project->id, 404);
     }
 
     private function assertTestProject(QuestTest $test, Project $project): void

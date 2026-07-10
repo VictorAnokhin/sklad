@@ -75,6 +75,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
     Route::name('education.')->group(function () {
         Route::get('/course', [EducationController::class, 'course'])->name('course');
+        Route::post('/course/topics', [EducationController::class, 'storeTopic'])->name('topics.store');
+        Route::put('/course/topics/{topic}', [EducationController::class, 'updateTopic'])
+            ->whereNumber('topic')->name('topics.update');
+        Route::delete('/course/topics/{topic}', [EducationController::class, 'destroyTopic'])
+            ->whereNumber('topic')->name('topics.destroy');
         Route::post('/course/materials', [EducationController::class, 'storeMaterial'])->name('materials.store');
         Route::put('/course/materials/{material}', [EducationController::class, 'updateMaterial'])
             ->whereNumber('material')->name('materials.update');

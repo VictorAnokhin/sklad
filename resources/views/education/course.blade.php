@@ -3,7 +3,7 @@
 @section('title', 'Курс обучения')
 
 @section('header_actions')
-<button type="button" class="btn btn-warning" id="create-material-button" @disabled($migrationRequired ?? false)>Создать</button>
+<button type="button" class="btn btn-warning" id="create-course-button" @disabled($migrationRequired ?? false)>Создать</button>
 @endsection
 
 @section('content')
@@ -77,10 +77,16 @@
                                             </div>
                                         @endif
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-warning create-material-button"
-                                            data-topic-id="{{ $topic->id }}">
-                                        Добавить урок
-                                    </button>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-light edit-topic-button"
+                                                data-topic-id="{{ $topic->id }}">
+                                            Изменить курс
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-warning create-material-button"
+                                                data-topic-id="{{ $topic->id }}">
+                                            Добавить урок
+                                        </button>
+                                    </div>
                                 </div>
 
                                 @if($topic->materials->isNotEmpty())
@@ -92,14 +98,14 @@
                                                     <th>Уровень</th>
                                                     <th>Тип</th>
                                                     <th>Версия</th>
-                                                    <th class="text-end">Действия</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 @foreach($topic->materials as $topicMaterial)
-                                                    <tr>
+                                                    <tr class="lesson-row" role="button" tabindex="0"
+                                                        data-material-id="{{ $topicMaterial->id }}">
                                                         <td>
-                                                            <div class="fw-semibold">{{ $topic->title }}</div>
+                                                            <div class="fw-semibold">Урок #{{ $topicMaterial->id }}</div>
                                                             <div class="small text-secondary">
                                                                 {{ \Illuminate\Support\Str::limit(strip_tags($topicMaterial->body), 120) }}
                                                             </div>
@@ -107,18 +113,6 @@
                                                         <td>{{ $levelLabels[$topicMaterial->level] ?? $topicMaterial->level }}</td>
                                                         <td>{{ $contentTypeLabels[$topicMaterial->content_type] ?? $topicMaterial->content_type }}</td>
                                                         <td>v{{ $topicMaterial->version }}</td>
-                                                        <td>
-                                                            <div class="d-flex justify-content-end gap-2">
-                                                                <button type="button" class="btn btn-sm btn-outline-light edit-material-button"
-                                                                        data-material-id="{{ $topicMaterial->id }}">
-                                                                    Изменить
-                                                                </button>
-                                                                <button type="button" class="btn btn-sm btn-outline-danger delete-material-inline-button"
-                                                                        data-material-id="{{ $topicMaterial->id }}">
-                                                                    Удалить
-                                                                </button>
-                                                            </div>
-                                                        </td>
                                                     </tr>
                                                 @endforeach
                                             </tbody>
@@ -156,6 +150,46 @@
     </div>
 </div>
 
+<div class="modal fade" id="topic-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h2 class="modal-title fs-5" id="topic-modal-title">Создать курс</h2>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <form id="topic-form" method="POST" action="{{ route('education.topics.store') }}">
+                @csrf
+                <input type="hidden" name="_method" id="topic-method" value="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="topic-title">Название</label>
+                        <input class="form-control" id="topic-title" name="title" required maxlength="255">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="topic-description">Описание</label>
+                        <textarea class="form-control" id="topic-description" name="description" rows="5"></textarea>
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label" for="topic-position">Порядок</label>
+                        <input class="form-control" id="topic-position" name="position" type="number" min="0" value="0">
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary justify-content-between">
+                    <button type="button" class="btn btn-outline-danger d-none" id="delete-topic-button">Удалить</button>
+                    <div class="ms-auto d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-warning">Сохранить</button>
+                    </div>
+                </div>
+            </form>
+            <form id="delete-topic-form" method="POST" class="d-none">
+                @csrf
+                @method('DELETE')
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="material-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content bg-dark text-light border-secondary">
@@ -169,26 +203,12 @@
                 <div class="modal-body" style="overflow-y:auto; min-height:0; max-height:calc(100vh - 12rem);">
                     <div class="mb-3" id="topic-select-wrap">
                         <label class="form-label" for="material-topic-id">Курс</label>
-                        <select class="form-select" id="material-topic-id" name="topic_id">
-                            <option value="">Создать новый курс</option>
+                        <select class="form-select" id="material-topic-id" name="topic_id" required>
+                            <option value="">Выберите курс</option>
                             @foreach($topics as $topic)
                                 <option value="{{ $topic->id }}">{{ $topic->title }}</option>
                             @endforeach
                         </select>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-8 mb-3">
-                            <label class="form-label" for="material-topic-title">Название курса</label>
-                            <input class="form-control" id="material-topic-title" name="topic_title" required maxlength="255">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label" for="material-position">Порядок</label>
-                            <input class="form-control" id="material-position" name="position" type="number" min="0" value="0">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="material-topic-description">Описание курса</label>
-                        <textarea class="form-control" id="material-topic-description" name="topic_description" rows="2"></textarea>
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
@@ -266,11 +286,24 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const modalElement = document.getElementById('material-modal');
-    const modal = new bootstrap.Modal(modalElement);
-    const form = document.getElementById('material-form');
-    const deleteForm = document.getElementById('delete-material-form');
-    const deleteButton = document.getElementById('delete-material-button');
+    const topicModalElement = document.getElementById('topic-modal');
+    const topicModal = new bootstrap.Modal(topicModalElement);
+    const topicForm = document.getElementById('topic-form');
+    const topicMethod = document.getElementById('topic-method');
+    const topicDeleteForm = document.getElementById('delete-topic-form');
+    const topicDeleteButton = document.getElementById('delete-topic-button');
+    const topicFields = {
+        title: document.getElementById('topic-title'),
+        description: document.getElementById('topic-description'),
+        position: document.getElementById('topic-position'),
+    };
+
+    const materialModalElement = document.getElementById('material-modal');
+    const materialModal = new bootstrap.Modal(materialModalElement);
+    const materialForm = document.getElementById('material-form');
+    const materialMethod = document.getElementById('material-method');
+    const materialDeleteForm = document.getElementById('delete-material-form');
+    const materialDeleteButton = document.getElementById('delete-material-button');
     const previewTab = document.getElementById('material-body-preview-tab');
     const editTab = document.getElementById('material-body-edit-tab');
     const htmlPreview = document.getElementById('material-body-preview');
@@ -278,9 +311,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const linkPreview = document.getElementById('material-body-link-preview');
     const fields = {
         topicId: document.getElementById('material-topic-id'),
-        title: document.getElementById('material-topic-title'),
-        description: document.getElementById('material-topic-description'),
-        position: document.getElementById('material-position'),
         level: document.getElementById('material-level'),
         contentType: document.getElementById('material-content-type'),
         version: document.getElementById('material-version'),
@@ -288,24 +318,14 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const materials = @json($materialEditorItems ?? []);
     const topics = @json($topicEditorItems ?? []);
-    const storeUrl = @json(route('education.materials.store'));
-    const updateUrl = @json(route('education.materials.update', ['material' => '__ID__']));
-    const deleteUrl = @json(route('education.materials.destroy', ['material' => '__ID__']));
+    const topicStoreUrl = @json(route('education.topics.store'));
+    const topicUpdateUrl = @json(route('education.topics.update', ['topic' => '__ID__']));
+    const topicDeleteUrl = @json(route('education.topics.destroy', ['topic' => '__ID__']));
+    const materialStoreUrl = @json(route('education.materials.store'));
+    const materialUpdateUrl = @json(route('education.materials.update', ['material' => '__ID__']));
+    const materialDeleteUrl = @json(route('education.materials.destroy', ['material' => '__ID__']));
+    let currentTopicId = null;
     let currentMaterialId = null;
-
-    function applyTopic(topicId) {
-        const topic = topics[topicId];
-        if (!topic) {
-            fields.title.value = '';
-            fields.description.value = '';
-            fields.position.value = 0;
-            return;
-        }
-
-        fields.title.value = topic.title;
-        fields.description.value = topic.description || '';
-        fields.position.value = topic.position || 0;
-    }
 
     function resetPreview() {
         htmlPreview.srcdoc = '';
@@ -361,65 +381,104 @@ document.addEventListener('DOMContentLoaded', () => {
         bootstrap.Tab.getOrCreateInstance(editTab).show();
     }
 
-    function openCreate(topicId = '') {
-        form.reset();
-        form.action = storeUrl;
-        document.getElementById('material-method').value = 'POST';
+    function openCreateTopic() {
+        topicForm.reset();
+        currentTopicId = null;
+        topicForm.action = topicStoreUrl;
+        topicMethod.value = 'POST';
+        document.getElementById('topic-modal-title').textContent = 'Создать курс';
+        topicDeleteButton.classList.add('d-none');
+        topicFields.position.value = '0';
+        topicModal.show();
+    }
+
+    function openEditTopic(id) {
+        const topic = topics[id];
+        if (!topic) return;
+
+        topicForm.reset();
+        currentTopicId = id;
+        topicForm.action = topicUpdateUrl.replace('__ID__', id);
+        topicMethod.value = 'PUT';
+        document.getElementById('topic-modal-title').textContent = 'Изменить курс';
+        topicFields.title.value = topic.title || '';
+        topicFields.description.value = topic.description || '';
+        topicFields.position.value = topic.position || 0;
+        topicDeleteForm.action = topicDeleteUrl.replace('__ID__', id);
+        topicDeleteButton.classList.remove('d-none');
+        topicModal.show();
+    }
+
+    function deleteTopic(id) {
+        topicDeleteForm.action = topicDeleteUrl.replace('__ID__', id);
+        if (confirm('Удалить курс? Все уроки, связанные тесты и попытки также будут удалены.')) topicDeleteForm.submit();
+    }
+
+    function openCreateLesson(topicId = '') {
+        materialForm.reset();
+        materialForm.action = materialStoreUrl;
+        materialMethod.value = 'POST';
         document.getElementById('material-modal-title').textContent = 'Создать урок';
-        deleteButton.classList.add('d-none');
+        materialDeleteButton.classList.add('d-none');
         currentMaterialId = null;
         fields.version.value = '1.0';
         fields.topicId.value = topicId;
-        if (topicId) applyTopic(topicId);
         resetPreview();
         showEditTab();
-        modal.show();
+        materialModal.show();
     }
 
-    function openEdit(id) {
+    function openEditLesson(id) {
         const item = materials[id];
         if (!item) return;
-        form.reset();
+        materialForm.reset();
         currentMaterialId = id;
-        form.action = updateUrl.replace('__ID__', id);
-        document.getElementById('material-method').value = 'PUT';
+        materialForm.action = materialUpdateUrl.replace('__ID__', id);
+        materialMethod.value = 'PUT';
         document.getElementById('material-modal-title').textContent = 'Изменить урок';
         fields.topicId.value = item.topic_id;
-        fields.title.value = item.topic_title;
-        fields.description.value = item.topic_description || '';
-        fields.position.value = item.position || 0;
         fields.level.value = item.level;
         fields.contentType.value = item.content_type;
         fields.version.value = item.version;
         fields.body.value = item.body;
-        deleteForm.action = deleteUrl.replace('__ID__', id);
-        deleteButton.classList.remove('d-none');
+        materialDeleteForm.action = materialDeleteUrl.replace('__ID__', id);
+        materialDeleteButton.classList.remove('d-none');
         resetPreview();
         showEditTab();
-        modal.show();
+        materialModal.show();
     }
 
     function deleteMaterial(id) {
-        deleteForm.action = deleteUrl.replace('__ID__', id);
-        if (confirm('Удалить урок? Связанные тесты и попытки также будут удалены.')) deleteForm.submit();
+        materialDeleteForm.action = materialDeleteUrl.replace('__ID__', id);
+        if (confirm('Удалить урок? Связанные тесты и попытки также будут удалены.')) materialDeleteForm.submit();
     }
 
-    fields.topicId.addEventListener('change', () => applyTopic(fields.topicId.value));
     fields.body.addEventListener('input', updatePreview);
     fields.contentType.addEventListener('change', updatePreview);
     previewTab.addEventListener('shown.bs.tab', updatePreview);
 
-    document.getElementById('create-material-button').addEventListener('click', () => openCreate());
+    document.getElementById('create-course-button').addEventListener('click', openCreateTopic);
+    document.querySelectorAll('.edit-topic-button').forEach(button =>
+        button.addEventListener('click', () => openEditTopic(button.dataset.topicId))
+    );
     document.querySelectorAll('.create-material-button').forEach(button =>
-        button.addEventListener('click', () => openCreate(button.dataset.topicId || ''))
+        button.addEventListener('click', () => openCreateLesson(button.dataset.topicId || ''))
     );
-    document.querySelectorAll('.edit-material-button').forEach(button =>
-        button.addEventListener('click', () => openEdit(button.dataset.materialId))
+    document.querySelectorAll('.lesson-row').forEach(row =>
+        row.addEventListener('click', () => openEditLesson(row.dataset.materialId))
     );
-    document.querySelectorAll('.delete-material-inline-button').forEach(button =>
-        button.addEventListener('click', () => deleteMaterial(button.dataset.materialId))
+    document.querySelectorAll('.lesson-row').forEach(row =>
+        row.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openEditLesson(row.dataset.materialId);
+            }
+        })
     );
-    deleteButton.addEventListener('click', () => {
+    topicDeleteButton.addEventListener('click', () => {
+        if (currentTopicId) deleteTopic(currentTopicId);
+    });
+    materialDeleteButton.addEventListener('click', () => {
         if (currentMaterialId) deleteMaterial(currentMaterialId);
     });
 });
