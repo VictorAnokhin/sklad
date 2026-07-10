@@ -84,11 +84,7 @@ class EducationController extends Controller
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
 
-        $tests = QuestTest::query()
-            ->with(['results'])
-            ->where('is_active', true)
-            ->where('project_id', (int) $validated['fid'])
-            ->where('test_type', 'profile_assessment')
+        $tests = $this->knowYourselfTestsQuery((int) $validated['fid'])
             ->orderBy('id')
             ->get()
             ->map(fn (QuestTest $test) => $this->publicTestPayload($test))
@@ -107,10 +103,7 @@ class EducationController extends Controller
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
 
-        $test = QuestTest::query()
-            ->where('is_active', true)
-            ->where('project_id', (int) $validated['fid'])
-            ->where('test_type', 'profile_assessment')
+        $test = $this->knowYourselfTestsQuery((int) $validated['fid'])
             ->findOrFail((int) $validated['test_id']);
 
         $questions = array_values($test->quest_data['questions'] ?? []);
@@ -402,11 +395,7 @@ class EducationController extends Controller
             ]);
         }
 
-        $tests = QuestTest::query()
-            ->with(['results'])
-            ->where('is_active', true)
-            ->where('project_id', $project->id)
-            ->where('test_type', 'profile_assessment')
+        $tests = $this->knowYourselfTestsQuery((int) $project->id)
             ->orderBy('id')
             ->get();
 
@@ -662,6 +651,15 @@ class EducationController extends Controller
             ->first();
 
         return $featured ?? $query->orderBy('id')->firstOrFail();
+    }
+
+    private function knowYourselfTestsQuery(int $projectId)
+    {
+        return QuestTest::query()
+            ->with(['results'])
+            ->where('is_active', true)
+            ->where('project_id', $projectId)
+            ->where('test_type', 'profile_assessment');
     }
 
     private function publicTestPayload(QuestTest $test): array
