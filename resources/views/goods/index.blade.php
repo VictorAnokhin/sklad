@@ -257,8 +257,12 @@
                         @endif
                     </td>
                     <td>
-                        {{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}
-                        <span class="text-muted">{{ __('goods.from') }} {{ $priceCountFormatted }}</span>
+                        @if(($comp->price_pay1 ?? 0) > 0)
+                            {{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}
+                            <span class="text-muted">{{ __('goods.from') }} {{ $priceCountFormatted }}</span>
+                        @else
+                            -
+                        @endif
                     </td>
                     <td class="text-center">
                         <span>{{ $hasStock ? '✓' : '—' }}</span>
@@ -320,15 +324,17 @@
                                 @endif
                             </span>
                         </div>
-                        @if(($comp->price_pay1 ?? 0) > 0)
                         <div class="goods-price-item">
                             <span class="price-label">{{ __('goods.table.price1') }}</span>
                             <span class="price-value">
-                                {{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}
-                                <span class="text-muted">{{ __('goods.from') }} {{ $priceCountFormatted }}</span>
+                                @if(($comp->price_pay1 ?? 0) > 0)
+                                    {{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}
+                                    <span class="text-muted">{{ __('goods.from') }} {{ $priceCountFormatted }}</span>
+                                @else
+                                    -
+                                @endif
                             </span>
                         </div>
-                        @endif
                     </div>
 
                     <div class="goods-mobile-meta">
