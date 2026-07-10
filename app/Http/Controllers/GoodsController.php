@@ -1862,6 +1862,36 @@ class GoodsController extends Controller
         return redirect()->route('goods.index')->with('success', 'Видалено');
     }
 
+    public function bulkFlags(Request $request)
+    {
+        $validated = $request->validate([
+            'action' => ['required', 'in:in_stock,out_of_stock,hit,not_hit'],
+            'goods_ids' => ['required', 'array', 'min:1'],
+            'goods_ids.*' => ['integer'],
+        ]);
+
+        $ids = collect($validated['goods_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->withErrors(['goods_ids' => 'Выберите товары для изменения']);
+        }
+
+        $updates = match ($validated['action']) {
+            'in_stock' => ['sklad' => 1],
+            'out_of_stock' => ['sklad' => 0],
+            'hit' => ['hit' => 1],
+            'not_hit' => ['hit' => 0],
+        };
+
+        Goods::whereIn('id', $ids)->update($updates);
+
+        return back()->with('success', 'Товары обновлены');
+    }
+
     // ── Toggle sklad (AJAX) ───────────────────────────────────────────────────
 
     public function toggleSklad(Request $request)

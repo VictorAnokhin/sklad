@@ -298,6 +298,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/search', [GoodsController::class , 'search'])->name('search');
             Route::post('/save', [GoodsController::class , 'save'])->name('save');
             Route::post('/delete', [GoodsController::class , 'destroy'])->name('destroy');
+            Route::post('/bulk-flags', [GoodsController::class , 'bulkFlags'])->name('bulkFlags');
             Route::post('/toggle-sklad', [GoodsController::class , 'toggleSklad'])->name('toggleSklad');
         }
         );

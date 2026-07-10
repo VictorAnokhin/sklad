@@ -13,6 +13,9 @@ return [
     'show_hits' => 'Хіти',
     'show_all_goods' => 'Показати всі товари',
     'hit' => 'Hit',
+    'not_hit' => 'Не хіт',
+    'bulk_action' => 'Змінити позначені',
+    'bulk_select' => 'Оберіть дію',
     'find' => '🔍 Знайти',
     'reset' => '✕ Скинути',
     'table' => [

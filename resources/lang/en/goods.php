@@ -13,6 +13,9 @@ return [
     'show_hits' => 'Hits',
     'show_all_goods' => 'Show all goods',
     'hit' => 'Hit',
+    'not_hit' => 'Not hit',
+    'bulk_action' => 'Change selected',
+    'bulk_select' => 'Select action',
     'find' => '🔍 Search',
     'reset' => '✕ Reset',
     'table' => [

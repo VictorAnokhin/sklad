@@ -164,14 +164,44 @@
             if (d && d.style.display === 'flex') goodsFilterToggle();
         }
     });
+
+    function goodsBulkApply(select) {
+        if (!select || !select.value) return;
+
+        var form = document.getElementById('goodsBulkForm');
+        if (!form) return;
+
+        var checked = form.querySelectorAll('input[name="goods_ids[]"]:checked');
+        if (checked.length === 0) {
+            alert('Выберите товар');
+            select.value = '';
+            return;
+        }
+
+        form.submit();
+    }
     </script>
     @endpush
 
     {{-- Desktop: Table View --}}
+    <form id="goodsBulkForm" action="{{ route('goods.bulkFlags') }}" method="POST">
+        @csrf
+        <div class="d-none d-md-flex align-items-center gap-2 mb-2">
+            <label for="goodsBulkAction" class="mb-0">{{ __('goods.bulk_action') }}</label>
+            <select id="goodsBulkAction" name="action" class="form-select" style="width:220px;" onchange="goodsBulkApply(this)">
+                <option value="">{{ __('goods.bulk_select') }}</option>
+                <option value="in_stock">{{ __('goods.in_stock') }}</option>
+                <option value="out_of_stock">{{ __('goods.out_of_stock') }}</option>
+                <option value="hit">{{ __('goods.hit') }}</option>
+                <option value="not_hit">{{ __('goods.not_hit') }}</option>
+            </select>
+        </div>
+
     <div class="table-responsive goods-desktop-table">
         <table class="goods-index-table">
             <thead>
                 <tr>
+                    <th style="width:42px;"></th>
                     <th>{{ __('goods.table.id') }}</th>
                     <th>{{ __('goods.table.image') }}</th>
                     <th>{{ __('goods.table.name') }}</th>
@@ -191,6 +221,9 @@
                     $warehouseCountFormatted = rtrim(rtrim(number_format($warehouseCount, 3, '.', ''), '0'), '.');
                 @endphp
                 <tr>
+                    <td class="text-center">
+                        <input type="checkbox" name="goods_ids[]" value="{{ $comp->id }}" style="width:auto;">
+                    </td>
                     <td><a href="{{ route('goods.show', ['pnum' => $comp->id]) }}">{{ $comp->id }}</a></td>
                     <td class="text-center align-middle">
                         @php
@@ -228,12 +261,13 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="text-center">{{ __('goods.empty') }}</td>
+                    <td colspan="10" class="text-center">{{ __('goods.empty') }}</td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
     </div>
+    </form>
 
     {{-- Mobile: Card View --}}
     <div class="d-md-none goods-mobile-grid">
