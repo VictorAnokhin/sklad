@@ -3653,28 +3653,12 @@ small,
 }
 
 /* Price columns */
-.goods-index-table tbody td:nth-child(4),
 .goods-index-table tbody td:nth-child(5),
 .goods-index-table tbody td:nth-child(6) {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
     white-space: nowrap;
     color: #e2e8f0;
-}
-
-/* Old price — muted */
-.goods-index-table tbody td:nth-child(6) {
-    color: rgba(255,255,255,0.4);
-    font-weight: 400;
-    text-decoration: line-through;
-}
-
-/* Count column */
-.goods-index-table tbody td:nth-child(7) {
-    white-space: nowrap;
-    color: #a3e635;
-    font-weight: 600;
-    font-size: 0.88rem;
 }
 
 /* Empty row */
