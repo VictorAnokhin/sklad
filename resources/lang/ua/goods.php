@@ -16,6 +16,7 @@ return [
     'not_hit' => 'Не хіт',
     'bulk_action' => 'Змінити позначені',
     'bulk_select' => 'Оберіть дію',
+    'from' => 'від',
     'find' => '🔍 Знайти',
     'reset' => '✕ Скинути',
     'table' => [
@@ -24,7 +25,7 @@ return [
         'image' => 'Фото',
         'name' => 'Назва',
         'price' => 'Ціна (Pay)',
-        'price1' => 'Ціна 1 (Pay1)',
+        'price1' => 'Ціна зі знижкою',
         'old_price' => 'Стара ціна',
         'count' => 'К-сть (Count)',
         'stock' => 'Склад',

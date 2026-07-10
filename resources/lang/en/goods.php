@@ -16,6 +16,7 @@ return [
     'not_hit' => 'Not hit',
     'bulk_action' => 'Change selected',
     'bulk_select' => 'Select action',
+    'from' => 'from',
     'find' => '🔍 Search',
     'reset' => '✕ Reset',
     'table' => [
@@ -24,7 +25,7 @@ return [
         'image' => 'Image',
         'name' => 'Name',
         'price' => 'Price (Pay)',
-        'price1' => 'Price 1 (Pay1)',
+        'price1' => 'Discount price',
         'old_price' => 'Old price',
         'count' => 'Qty (Count)',
         'stock' => 'Warehouse',

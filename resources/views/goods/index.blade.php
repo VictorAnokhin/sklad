@@ -208,7 +208,6 @@
                     <th>{{ __('goods.table.price') }}</th>
                     <th>{{ __('goods.table.price1') }}</th>
                     <th>{{ __('goods.table.old_price') }}</th>
-                    <th>{{ __('goods.table.count') }}</th>
                     <th>{{ __('goods.table.stock') }}</th>
                     <th>{{ __('goods.table.brand') }}</th>
                 </tr>
@@ -217,6 +216,7 @@
                 @forelse($comps as $comp)
                 @php
                     $hasStock = (float)($comp->sklad ?? 0) > 0;
+                    $priceCountFormatted = rtrim(rtrim(number_format((float)($comp->price_count ?? 0), 3, '.', ''), '0'), '.');
                     $warehouseCount = (float)($comp->price_sklad_count ?? 0);
                     $warehouseCountFormatted = rtrim(rtrim(number_format($warehouseCount, 3, '.', ''), '0'), '.');
                 @endphp
@@ -250,9 +250,11 @@
                         @endif
                     </td>
                     <td>{{ number_format((float)($comp->price_pay ?? 0), 2, '.', ' ') }}</td>
-                    <td>{{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}</td>
+                    <td>
+                        {{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}
+                        <span class="text-muted">{{ __('goods.from') }} {{ $priceCountFormatted }}</span>
+                    </td>
                     <td>{{ number_format((float)($comp->price_oldpay ?? 0), 2, '.', ' ') }}</td>
-                    <td>{{ rtrim(rtrim(number_format((float)($comp->price_count ?? 0), 3, '.', ''), '0'), '.') }}</td>
                     <td class="text-center">
                         <span>{{ $hasStock ? '✓' : '—' }}</span>
                         <span class="text-muted">/ {{ $warehouseCountFormatted }}</span>
@@ -261,7 +263,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="10" class="text-center">{{ __('goods.empty') }}</td>
+                    <td colspan="9" class="text-center">{{ __('goods.empty') }}</td>
                 </tr>
                 @endforelse
             </tbody>
@@ -275,6 +277,7 @@
         @php
             $previewImage = \App\Support\MediaUrl::image($comp->nfoto ?? '');
             $hasStock = (float)($comp->sklad ?? 0) > 0;
+            $priceCountFormatted = rtrim(rtrim(number_format((float)($comp->price_count ?? 0), 3, '.', ''), '0'), '.');
             $warehouseCount = (float)($comp->price_sklad_count ?? 0);
             $warehouseCountFormatted = rtrim(rtrim(number_format($warehouseCount, 3, '.', ''), '0'), '.');
         @endphp
@@ -308,7 +311,10 @@
                         @if(($comp->price_pay1 ?? 0) > 0)
                         <div class="goods-price-item">
                             <span class="price-label">{{ __('goods.table.price1') }}</span>
-                            <span class="price-value">{{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}</span>
+                            <span class="price-value">
+                                {{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}
+                                <span class="text-muted">{{ __('goods.from') }} {{ $priceCountFormatted }}</span>
+                            </span>
                         </div>
                         @endif
                         @if(($comp->price_oldpay ?? 0) > 0)
