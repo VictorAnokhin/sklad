@@ -89,6 +89,7 @@ class User extends Authenticatable
         'kyc_liveness_file_size',
         'kyc_liveness_uploaded_at',
         'password',
+        'education_rating',
     ];
 
     /**
@@ -117,6 +118,7 @@ class User extends Authenticatable
         'kyc_kep_signature_uploaded_at' => 'datetime',
         'kyc_liveness_uploaded_at' => 'datetime',
         'password' => 'hashed',
+        'education_rating' => 'integer',
     ];
 
     public function getAuthPassword(): string

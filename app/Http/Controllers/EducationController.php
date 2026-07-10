@@ -74,6 +74,32 @@ class EducationController extends Controller
             'total_score' => $result['total_score'],
             'max_score' => $result['max_score'],
             'profile' => $result['profile'],
+            'rating_award' => (int) ($test->quest_data['rating'] ?? 0),
+        ]);
+    }
+
+    public function applyKnowYourselfRating(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'test_id' => ['required', 'integer', 'min:1'],
+        ]);
+        abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+
+        $test = $this->knowYourselfTestsQuery((int) $validated['fid'])
+            ->findOrFail((int) $validated['test_id']);
+        $rating = max(0, (int) ($test->quest_data['rating'] ?? 0));
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        $current = (int) ($user->education_rating ?? 0);
+        if ($rating > $current) {
+            $user->forceFill(['education_rating' => $rating])->save();
+        }
+
+        return response()->json([
+            'rating_award' => $rating,
+            'education_rating' => max($current, $rating),
         ]);
     }
 
@@ -120,6 +146,7 @@ class EducationController extends Controller
             'total_score' => $result['total_score'],
             'max_score' => $result['max_score'],
             'profile' => $result['profile'],
+            'rating_award' => (int) ($test->quest_data['rating'] ?? 0),
         ]);
     }
 
@@ -137,6 +164,8 @@ class EducationController extends Controller
         }
 
         $userId = (int) Auth::id();
+
+        $userRating = (int) (Auth::user()?->education_rating ?? 0);
 
         $topics = EducationTopic::query()
             ->where('project_id', $project->id)
@@ -188,6 +217,7 @@ class EducationController extends Controller
                     'title' => $topic->title,
                     'description' => $topic->description,
                     'position' => $topic->position,
+                    'rating' => $topic->position,
                 ],
             ])
             ->all();
@@ -197,6 +227,7 @@ class EducationController extends Controller
             'topics' => $topics,
             'materialEditorItems' => $materialEditorItems,
             'topicEditorItems' => $topicEditorItems,
+            'userRating' => $userRating,
             'migrationRequired' => false,
         ]);
     }
@@ -589,6 +620,7 @@ class EducationController extends Controller
         return Schema::hasTable('education_topics')
             && Schema::hasTable('educational_materials')
             && Schema::hasColumn('educational_materials', 'title')
+            && Schema::hasColumn('users', 'education_rating')
             && Schema::hasTable('quests_tests')
             && Schema::hasTable('quest_test_results')
             && Schema::hasColumn('quests_tests', 'project_id')
@@ -719,6 +751,7 @@ class EducationController extends Controller
             'passing_score' => $test->passing_score,
             'intro' => (string) ($test->quest_data['intro'] ?? ''),
             'auth_required' => ($test->quest_data['auth_required'] ?? '') === 'google' ? 'google' : 'none',
+            'rating_award' => (int) ($test->quest_data['rating'] ?? 0),
             'topic' => $test->material?->topic?->title ?? 'Диагностика',
             'level' => $test->material?->level ?? (string) ($test->test_type ?? 'profile_assessment'),
             'questions' => collect($test->quest_data['questions'] ?? [])

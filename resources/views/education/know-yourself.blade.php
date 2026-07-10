@@ -102,12 +102,18 @@
                         <label class="form-label" for="know-test-title">Название теста</label>
                         <input class="form-control" id="know-test-title" name="title" required maxlength="255">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="know-test-auth-required">Авторизация для прохождения</label>
-                        <select class="form-select" id="know-test-auth-required">
-                            <option value="none">Без авторизации</option>
-                            <option value="google">С гугл авторизацией</option>
-                        </select>
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label" for="know-test-auth-required">Авторизация для прохождения</label>
+                            <select class="form-select" id="know-test-auth-required">
+                                <option value="none">Без авторизации</option>
+                                <option value="google">С гугл авторизацией</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="know-test-rating">Рейтинг</label>
+                            <input class="form-control" id="know-test-rating" type="number" min="0" value="0">
+                        </div>
                     </div>
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" role="switch" id="know-test-public-featured">
@@ -187,6 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         questData: document.getElementById('know-test-quest-data'),
         publicFeatured: document.getElementById('know-test-public-featured'),
         authRequired: document.getElementById('know-test-auth-required'),
+        rating: document.getElementById('know-test-rating'),
         intro: document.getElementById('know-test-intro'),
     };
     const questionsEditor = document.getElementById('know-questions-editor');
@@ -198,6 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const example = {
         public_featured: true,
         auth_required: 'none',
+        rating: 0,
         scoring: 'points',
         intro: 'Ответьте честно: здесь нет правильных и неправильных вариантов. По сумме баллов определяется ваш профиль.',
         questions: [
@@ -350,6 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsEditor.innerHTML = '';
         fields.publicFeatured.checked = Boolean(data.public_featured);
         fields.authRequired.value = data.auth_required === 'google' ? 'google' : 'none';
+        fields.rating.value = data.rating ?? 0;
         fields.intro.value = data.intro || '';
 
         const questions = Array.isArray(data.questions) && data.questions.length > 0 ? data.questions : example.questions;
@@ -379,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return {
             public_featured: fields.publicFeatured.checked,
             auth_required: fields.authRequired.value === 'google' ? 'google' : 'none',
+            rating: Number(fields.rating.value || 0),
             scoring: 'points',
             intro: fields.intro.value.trim(),
             questions,

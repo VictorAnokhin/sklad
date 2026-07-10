@@ -22,7 +22,7 @@
     @endif
 
     <div class="mb-4 text-secondary">
-        {{ $project->name }} · материал адаптируется к текущему уровню и результатам тестов.
+        {{ $project->name }} · рейтинг пользователя: {{ $userRating ?? 0 }}.
     </div>
 
     @php
@@ -50,6 +50,8 @@
                 @php
                     $progress = $topic->relationLoaded('studentProgress') ? $topic->getRelation('studentProgress') : null;
                     $accordionId = 'course-lessons-' . $topic->id;
+                    $requiredRating = (int) $topic->position;
+                    $isLocked = (int) ($userRating ?? 0) < $requiredRating;
                 @endphp
 
                 <div class="accordion mb-3" id="course-accordion-{{ $topic->id }}">
@@ -57,9 +59,13 @@
                         <h2 class="accordion-header" id="{{ $accordionId }}-heading">
                             <button class="accordion-button collapsed bg-dark text-light" type="button"
                                     data-bs-toggle="collapse" data-bs-target="#{{ $accordionId }}-body"
-                                    aria-expanded="false" aria-controls="{{ $accordionId }}-body">
+                                    aria-expanded="false" aria-controls="{{ $accordionId }}-body" @disabled($isLocked)>
                                 <span class="me-3 fw-semibold">{{ $topic->title }}</span>
+                                <span class="badge text-bg-warning me-2">Рейтинг {{ $requiredRating }}</span>
                                 <span class="badge text-bg-secondary">{{ $topic->materials->count() }} урок(ов)</span>
+                                @if($isLocked)
+                                    <span class="badge text-bg-danger ms-2">Недоступно</span>
+                                @endif
                             </button>
                         </h2>
                         <div id="{{ $accordionId }}-body" class="accordion-collapse collapse"
@@ -150,7 +156,7 @@
                         <textarea class="form-control" id="topic-description" name="description" rows="5"></textarea>
                     </div>
                     <div class="mb-0">
-                        <label class="form-label" for="topic-position">Порядок</label>
+                        <label class="form-label" for="topic-position">Рейтинг</label>
                         <input class="form-control" id="topic-position" name="position" type="number" min="0" value="0">
                     </div>
                 </div>
