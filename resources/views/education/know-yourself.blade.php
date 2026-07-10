@@ -164,7 +164,7 @@
                                     Добавить
                                 </button>
                             </div>
-                            <div class="vstack gap-3" id="know-questions-editor"></div>
+                            <div class="accordion" id="know-questions-editor"></div>
                         </div>
 
                         <div class="tab-pane fade" id="know-results-pane" role="tabpanel" aria-labelledby="know-results-tab">
@@ -245,11 +245,37 @@ document.addEventListener('DOMContentLoaded', () => {
         return typeof option === 'object' && option !== null ? (option.score ?? fallback) : fallback;
     }
 
+    function refreshQuestionAccordion() {
+        Array.from(questionsEditor.children).forEach((questionElement, index) => {
+            const number = index + 1;
+            const heading = questionElement.querySelector('[data-question-heading]');
+            const collapse = questionElement.querySelector('[data-question-collapse]');
+            const button = questionElement.querySelector('[data-question-toggle]');
+            const titleInput = questionElement.querySelector('[data-question-text]');
+            const title = titleInput?.value.trim() || `Вопрос ${number}`;
+
+            questionElement.dataset.questionIndex = String(index);
+            heading.id = `know-question-heading-${number}`;
+            collapse.id = `know-question-collapse-${number}`;
+            collapse.setAttribute('aria-labelledby', heading.id);
+            button.setAttribute('data-bs-target', `#${collapse.id}`);
+            button.setAttribute('aria-controls', collapse.id);
+            button.textContent = `${number}. ${title}`;
+        });
+    }
+
     function addQuestion(question = {}) {
         const questionElement = document.createElement('div');
-        questionElement.className = 'card bg-black border-secondary';
+        questionElement.className = 'accordion-item bg-black border-secondary text-light';
         questionElement.innerHTML = `
-            <div class="card-body">
+            <h2 class="accordion-header" data-question-heading>
+                <button class="accordion-button collapsed bg-black text-light border-secondary" type="button"
+                        data-bs-toggle="collapse" data-question-toggle>
+                    Вопрос
+                </button>
+            </h2>
+            <div class="accordion-collapse collapse" data-question-collapse data-bs-parent="#know-questions-editor">
+                <div class="accordion-body">
                 <div class="d-flex justify-content-between gap-3 mb-3">
                     <div class="flex-grow-1">
                         <label class="form-label">Вопрос</label>
@@ -258,11 +284,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button type="button" class="btn btn-sm btn-outline-danger align-self-start" data-remove-question>Удалить</button>
                 </div>
                 <div class="vstack gap-2" data-options></div>
+                </div>
             </div>
         `;
 
-        questionElement.querySelector('[data-question-text]').value = question.text || '';
-        questionElement.querySelector('[data-remove-question]').addEventListener('click', () => questionElement.remove());
+        const questionText = questionElement.querySelector('[data-question-text]');
+        questionText.value = question.text || '';
+        questionText.addEventListener('input', refreshQuestionAccordion);
+        questionElement.querySelector('[data-remove-question]').addEventListener('click', () => {
+            questionElement.remove();
+            refreshQuestionAccordion();
+        });
 
         const optionsWrap = questionElement.querySelector('[data-options]');
         const options = Array.isArray(question.options) ? question.options.slice(0, 3) : [];
@@ -289,6 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         questionsEditor.appendChild(questionElement);
+        refreshQuestionAccordion();
     }
 
     function addResult(result = {}) {

@@ -175,7 +175,7 @@
                                 Добавить вопрос
                             </button>
                         </div>
-                        <div class="vstack gap-3" id="questions-editor"></div>
+                        <div class="accordion" id="questions-editor"></div>
                     </div>
 
                     <div class="mb-2">
@@ -288,11 +288,37 @@ document.addEventListener('DOMContentLoaded', () => {
         optionsWrap.appendChild(row);
     }
 
+    function refreshQuestionAccordion() {
+        Array.from(questionsEditor.children).forEach((questionElement, index) => {
+            const number = index + 1;
+            const heading = questionElement.querySelector('[data-question-heading]');
+            const collapse = questionElement.querySelector('[data-question-collapse]');
+            const button = questionElement.querySelector('[data-question-toggle]');
+            const titleInput = questionElement.querySelector('[data-question-text]');
+            const title = titleInput?.value.trim() || `Вопрос ${number}`;
+
+            questionElement.dataset.questionIndex = String(index);
+            heading.id = `test-question-heading-${number}`;
+            collapse.id = `test-question-collapse-${number}`;
+            collapse.setAttribute('aria-labelledby', heading.id);
+            button.setAttribute('data-bs-target', `#${collapse.id}`);
+            button.setAttribute('aria-controls', collapse.id);
+            button.textContent = `${number}. ${title}`;
+        });
+    }
+
     function addQuestion(question = {}) {
         const questionElement = document.createElement('div');
-        questionElement.className = 'card bg-black border-secondary';
+        questionElement.className = 'accordion-item bg-black border-secondary text-light';
         questionElement.innerHTML = `
-            <div class="card-body">
+            <h2 class="accordion-header" data-question-heading>
+                <button class="accordion-button collapsed bg-black text-light border-secondary" type="button"
+                        data-bs-toggle="collapse" data-question-toggle>
+                    Вопрос
+                </button>
+            </h2>
+            <div class="accordion-collapse collapse" data-question-collapse data-bs-parent="#questions-editor">
+                <div class="accordion-body">
                 <div class="d-flex justify-content-between gap-3 mb-3">
                     <div class="flex-grow-1">
                         <label class="form-label">Вопрос</label>
@@ -314,10 +340,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     </table>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-light" data-add-option>Добавить вариант</button>
+                </div>
             </div>
         `;
-        questionElement.querySelector('[data-question-text]').value = question.text || '';
-        questionElement.querySelector('[data-remove-question]').addEventListener('click', () => questionElement.remove());
+        const questionText = questionElement.querySelector('[data-question-text]');
+        questionText.value = question.text || '';
+        questionText.addEventListener('input', refreshQuestionAccordion);
+        questionElement.querySelector('[data-remove-question]').addEventListener('click', () => {
+            questionElement.remove();
+            refreshQuestionAccordion();
+        });
         questionElement.querySelector('[data-add-option]').addEventListener('click', () => addOption(questionElement, { text: '', score: 0 }));
 
         const options = Array.isArray(question.options) && question.options.length > 0
@@ -325,6 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : [{ text: '', score: 1 }, { text: '', score: 2 }, { text: '', score: 3 }];
         options.forEach((option, index) => addOption(questionElement, option, Number(question.correct_index) === index));
         questionsEditor.appendChild(questionElement);
+        refreshQuestionAccordion();
     }
 
     function addResult(result = {}) {
