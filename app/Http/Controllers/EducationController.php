@@ -77,6 +77,59 @@ class EducationController extends Controller
         ]);
     }
 
+    public function publicKnowYourselfTests(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+        ]);
+        abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+
+        $tests = QuestTest::query()
+            ->with(['results'])
+            ->where('is_active', true)
+            ->where('project_id', (int) $validated['fid'])
+            ->where('test_type', 'profile_assessment')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (QuestTest $test) => $this->publicTestPayload($test))
+            ->values();
+
+        return response()->json(['tests' => $tests]);
+    }
+
+    public function publicSubmitKnowYourselfTest(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'test_id' => ['required', 'integer', 'min:1'],
+            'answers' => ['required', 'array'],
+            'answers.*' => ['required', 'integer', 'min:0'],
+        ]);
+        abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+
+        $test = QuestTest::query()
+            ->where('is_active', true)
+            ->where('project_id', (int) $validated['fid'])
+            ->where('test_type', 'profile_assessment')
+            ->findOrFail((int) $validated['test_id']);
+
+        $questions = array_values($test->quest_data['questions'] ?? []);
+        abort_if(count($questions) === 0, 422, 'В тесте нет вопросов.');
+        $result = $this->evaluateTest($test, $validated['answers'], (int) $test->passing_score);
+
+        return response()->json([
+            'score' => $result['score'],
+            'passed' => $result['passed'],
+            'passing_score' => (int) $test->passing_score,
+            'correct_answers' => $result['correct_answers'],
+            'questions_count' => count($questions),
+            'scoring_type' => $result['scoring_type'],
+            'total_score' => $result['total_score'],
+            'max_score' => $result['max_score'],
+            'profile' => $result['profile'],
+        ]);
+    }
+
     public function course(EducationMaterialResolver $resolver)
     {
         $project = $this->educationProject();
@@ -609,6 +662,26 @@ class EducationController extends Controller
             ->first();
 
         return $featured ?? $query->orderBy('id')->firstOrFail();
+    }
+
+    private function publicTestPayload(QuestTest $test): array
+    {
+        return [
+            'id' => $test->id,
+            'title' => $test->title,
+            'passing_score' => $test->passing_score,
+            'intro' => (string) ($test->quest_data['intro'] ?? ''),
+            'auth_required' => ($test->quest_data['auth_required'] ?? '') === 'google' ? 'google' : 'none',
+            'topic' => $test->material?->topic?->title ?? 'Диагностика',
+            'level' => $test->material?->level ?? (string) ($test->test_type ?? 'profile_assessment'),
+            'questions' => collect($test->quest_data['questions'] ?? [])
+                ->values()
+                ->map(fn ($question, $index) => [
+                    'id' => $index,
+                    'text' => (string) ($question['text'] ?? ''),
+                    'options' => $this->publicQuestionOptions($question['options'] ?? []),
+                ]),
+        ];
     }
 
     private function publicQuestionOptions(array $options): array

@@ -102,6 +102,13 @@
                         <label class="form-label" for="know-test-title">Название теста</label>
                         <input class="form-control" id="know-test-title" name="title" required maxlength="255">
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="know-test-auth-required">Авторизация для прохождения</label>
+                        <select class="form-select" id="know-test-auth-required">
+                            <option value="none">Без авторизации</option>
+                            <option value="google">С гугл авторизацией</option>
+                        </select>
+                    </div>
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" role="switch" id="know-test-public-featured">
                         <label class="form-check-label" for="know-test-public-featured">Показывать первым на публичной странице «Узнай себя»</label>
@@ -179,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
         title: document.getElementById('know-test-title'),
         questData: document.getElementById('know-test-quest-data'),
         publicFeatured: document.getElementById('know-test-public-featured'),
+        authRequired: document.getElementById('know-test-auth-required'),
         intro: document.getElementById('know-test-intro'),
     };
     const questionsEditor = document.getElementById('know-questions-editor');
@@ -189,6 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteUrl = @json(route('education.know-yourself.destroy', ['test' => '__ID__']));
     const example = {
         public_featured: true,
+        auth_required: 'none',
         scoring: 'points',
         intro: 'Ответьте честно: здесь нет правильных и неправильных вариантов. По сумме баллов определяется ваш профиль.',
         questions: [
@@ -340,6 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
         questionsEditor.innerHTML = '';
         resultsEditor.innerHTML = '';
         fields.publicFeatured.checked = Boolean(data.public_featured);
+        fields.authRequired.value = data.auth_required === 'google' ? 'google' : 'none';
         fields.intro.value = data.intro || '';
 
         const questions = Array.isArray(data.questions) && data.questions.length > 0 ? data.questions : example.questions;
@@ -368,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return {
             public_featured: fields.publicFeatured.checked,
+            auth_required: fields.authRequired.value === 'google' ? 'google' : 'none',
             scoring: 'points',
             intro: fields.intro.value.trim(),
             questions,
