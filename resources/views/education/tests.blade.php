@@ -95,20 +95,14 @@
             <form id="test-form" method="POST" action="{{ route('education.tests.store') }}">
                 @csrf
                 <input type="hidden" name="_method" id="test-method" value="POST">
+                <input type="hidden" id="test-type" name="test_type" value="knowledge_check">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label" for="test-title">Название теста</label>
                         <input class="form-control" id="test-title" name="title" required maxlength="255">
                     </div>
                     <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label" for="test-type">Тип теста</label>
-                            <select class="form-select" id="test-type" name="test_type" required>
-                                <option value="profile_assessment">Профильная анкета</option>
-                                <option value="knowledge_check">Проверка после материала</option>
-                            </select>
-                        </div>
-                        <div class="col-md-5 mb-3">
+                        <div class="col-md-8 mb-3">
                             <label class="form-label" for="test-material-id">Материал курса</label>
                             <select class="form-select" id="test-material-id" name="material_id">
                                 <option value="">Без материала — самостоятельный тест</option>
@@ -127,22 +121,13 @@
                                 </div>
                             @endif
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label" for="test-passing-score">Проходной балл, %</label>
                             <input class="form-control" id="test-passing-score" name="passing_score"
                                    type="number" min="1" max="100" value="80" required>
                         </div>
                     </div>
                     <input type="hidden" id="test-quest-data" name="quest_data" required>
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" role="switch" id="test-public-featured">
-                        <label class="form-check-label" for="test-public-featured">Показывать первым на публичной странице «Узнай себя»</label>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="test-intro">Описание перед вопросами</label>
-                        <textarea class="form-control" id="test-intro" rows="3"
-                                  placeholder="Кратко объясните, как проходить тест"></textarea>
-                    </div>
 
                     <ul class="nav nav-tabs border-secondary mb-3" role="tablist">
                         <li class="nav-item" role="presentation">
@@ -211,8 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
         materialId: document.getElementById('test-material-id'),
         passingScore: document.getElementById('test-passing-score'),
         questData: document.getElementById('test-quest-data'),
-        publicFeatured: document.getElementById('test-public-featured'),
-        intro: document.getElementById('test-intro'),
     };
     const questionsEditor = document.getElementById('questions-editor');
     const resultsEditor = document.getElementById('results-editor');
@@ -221,9 +204,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateUrl = @json(route('education.tests.update', ['test' => '__ID__']));
     const deleteUrl = @json(route('education.tests.destroy', ['test' => '__ID__']));
     const example = {
-        public_featured: true,
-        scoring: 'points',
-        intro: 'Ответьте честно: здесь нет правильных и неправильных вариантов. Каждый ответ добавляет баллы, по сумме определяется профиль.',
+        public_featured: false,
+        scoring: 'correct_answers',
+        intro: '',
         questions: [
             {
                 text: 'Ваш портфель упал на 10% за одну неделю из-за общих рыночных новостей. Ваша первая реакция?',
@@ -388,8 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadQuestData(data) {
         questionsEditor.innerHTML = '';
         resultsEditor.innerHTML = '';
-        fields.publicFeatured.checked = Boolean(data.public_featured);
-        fields.intro.value = data.intro || '';
 
         const questions = Array.isArray(data.questions) && data.questions.length > 0 ? data.questions : example.questions;
         questions.forEach(addQuestion);
@@ -427,9 +408,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
 
         return {
-            public_featured: fields.publicFeatured.checked,
+            public_featured: false,
             scoring: fields.testType.value === 'profile_assessment' ? 'points' : 'correct_answers',
-            intro: fields.intro.value.trim(),
+            intro: '',
             questions,
             results,
         };
@@ -445,9 +426,9 @@ document.addEventListener('DOMContentLoaded', () => {
         form.action = storeUrl;
         document.getElementById('test-method').value = 'POST';
         document.getElementById('test-modal-title').textContent = 'Создать тест';
-        fields.testType.value = 'profile_assessment';
+        fields.testType.value = 'knowledge_check';
         fields.materialId.value = '';
-        fields.passingScore.value = 1;
+        fields.passingScore.value = 80;
         loadQuestData(example);
         deleteButton.classList.add('d-none');
         activateQuestionsTab();
