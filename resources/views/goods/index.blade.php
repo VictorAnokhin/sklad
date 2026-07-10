@@ -207,7 +207,6 @@
                     <th>{{ __('goods.table.name') }}</th>
                     <th>{{ __('goods.table.price') }}</th>
                     <th>{{ __('goods.table.price1') }}</th>
-                    <th>{{ __('goods.table.old_price') }}</th>
                     <th>{{ __('goods.table.stock') }}</th>
                     <th>{{ __('goods.table.brand') }}</th>
                 </tr>
@@ -249,12 +248,18 @@
                             <span class="goods-hit-badge">{{ __('goods.hit') }}</span>
                         @endif
                     </td>
-                    <td>{{ number_format((float)($comp->price_pay ?? 0), 2, '.', ' ') }}</td>
+                    <td>
+                        {{ number_format((float)($comp->price_pay ?? 0), 2, '.', ' ') }}
+                        @if(($comp->price_oldpay ?? 0) > 0)
+                            <span class="text-muted" style="font-size:0.82em;">
+                                {{ number_format((float)($comp->price_oldpay ?? 0), 2, '.', ' ') }}
+                            </span>
+                        @endif
+                    </td>
                     <td>
                         {{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}
                         <span class="text-muted">{{ __('goods.from') }} {{ $priceCountFormatted }}</span>
                     </td>
-                    <td>{{ number_format((float)($comp->price_oldpay ?? 0), 2, '.', ' ') }}</td>
                     <td class="text-center">
                         <span>{{ $hasStock ? '✓' : '—' }}</span>
                         <span class="text-muted">/ {{ $warehouseCountFormatted }}</span>
@@ -263,7 +268,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="text-center">{{ __('goods.empty') }}</td>
+                    <td colspan="8" class="text-center">{{ __('goods.empty') }}</td>
                 </tr>
                 @endforelse
             </tbody>
@@ -306,7 +311,14 @@
                     <div class="goods-mobile-prices">
                         <div class="goods-price-item">
                             <span class="price-label">{{ __('goods.table.price') }}</span>
-                            <span class="price-value">{{ number_format((float)($comp->price_pay ?? 0), 2, '.', ' ') }}</span>
+                            <span class="price-value">
+                                {{ number_format((float)($comp->price_pay ?? 0), 2, '.', ' ') }}
+                                @if(($comp->price_oldpay ?? 0) > 0)
+                                    <span class="text-muted" style="font-size:0.82em;">
+                                        {{ number_format((float)($comp->price_oldpay ?? 0), 2, '.', ' ') }}
+                                    </span>
+                                @endif
+                            </span>
                         </div>
                         @if(($comp->price_pay1 ?? 0) > 0)
                         <div class="goods-price-item">
@@ -315,12 +327,6 @@
                                 {{ number_format((float)($comp->price_pay1 ?? 0), 2, '.', ' ') }}
                                 <span class="text-muted">{{ __('goods.from') }} {{ $priceCountFormatted }}</span>
                             </span>
-                        </div>
-                        @endif
-                        @if(($comp->price_oldpay ?? 0) > 0)
-                        <div class="goods-price-item old-price">
-                            <span class="price-label">{{ __('goods.table.old_price') }}</span>
-                            <span class="price-value">{{ number_format((float)($comp->price_oldpay ?? 0), 2, '.', ' ') }}</span>
                         </div>
                         @endif
                     </div>
