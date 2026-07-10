@@ -93,7 +93,8 @@
                                         <table class="table table-dark table-hover align-middle mb-0">
                                             <thead>
                                                 <tr>
-                                                    <th>Урок</th>
+                                                    <th style="width: 72px;">№</th>
+                                                    <th class="w-50">Наименование</th>
                                                     <th>Уровень</th>
                                                     <th>Тип</th>
                                                     <th>Версия</th>
@@ -103,6 +104,7 @@
                                                 @foreach($topic->materials as $topicMaterial)
                                                     <tr class="lesson-row" role="button" tabindex="0"
                                                         data-material-id="{{ $topicMaterial->id }}">
+                                                        <td>{{ $loop->iteration }}</td>
                                                         <td>
                                                             <div class="fw-semibold">{{ $topicMaterial->title ?: 'Урок #' . $topicMaterial->id }}</div>
                                                         </td>
