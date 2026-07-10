@@ -48,7 +48,6 @@
         <div class="tab-pane fade show active" id="lessons-pane" role="tabpanel" aria-labelledby="lessons-tab" tabindex="0">
             @forelse($topics as $topic)
                 @php
-                    $material = $topic->relationLoaded('selectedMaterial') ? $topic->getRelation('selectedMaterial') : null;
                     $progress = $topic->relationLoaded('studentProgress') ? $topic->getRelation('studentProgress') : null;
                     $accordionId = 'course-lessons-' . $topic->id;
                 @endphp
@@ -117,24 +116,6 @@
                                     </div>
                                 @else
                                     <div class="alert alert-secondary mb-0">В этом курсе пока нет уроков.</div>
-                                @endif
-
-                                @if($material)
-                                    <div class="border-top border-secondary mt-4 pt-3">
-                                        <div class="small text-secondary mb-2">Текущий материал для студента</div>
-                                        @if($material->content_type === 'video_link')
-                                            <a class="btn btn-outline-warning" href="{{ $material->body }}" target="_blank" rel="noopener">
-                                                Открыть видео
-                                            </a>
-                                        @elseif($material->content_type === 'interactive_scenario')
-                                            <pre class="p-3 rounded bg-black text-light mb-0"><code>{{ json_encode(json_decode($material->body, true), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</code></pre>
-                                        @else
-                                            <div class="education-content text-light">{!! \Illuminate\Support\Str::markdown($material->body, [
-                                                'html_input' => 'strip',
-                                                'allow_unsafe_links' => false,
-                                            ]) !!}</div>
-                                        @endif
-                                    </div>
                                 @endif
                             </div>
                         </div>
