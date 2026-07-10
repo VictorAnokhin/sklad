@@ -173,6 +173,7 @@ class EducationController extends Controller
                 'topic_title' => $topic->title,
                 'topic_description' => $topic->description,
                 'position' => $topic->position,
+                'title' => $material->title,
                 'level' => $material->level,
                 'content_type' => $material->content_type,
                 'version' => $material->version,
@@ -213,6 +214,7 @@ class EducationController extends Controller
 
             EducationalMaterial::create([
                 'topic_id' => $topic->id,
+                'title' => $validated['title'],
                 'level' => $validated['level'],
                 'content_type' => $validated['content_type'],
                 'body' => $validated['body'],
@@ -278,6 +280,7 @@ class EducationController extends Controller
 
             $material->update([
                 'topic_id' => $validated['topic_id'],
+                'title' => $validated['title'],
                 'level' => $validated['level'],
                 'content_type' => $validated['content_type'],
                 'body' => $validated['body'],
@@ -585,6 +588,7 @@ class EducationController extends Controller
     {
         return Schema::hasTable('education_topics')
             && Schema::hasTable('educational_materials')
+            && Schema::hasColumn('educational_materials', 'title')
             && Schema::hasTable('quests_tests')
             && Schema::hasTable('quest_test_results')
             && Schema::hasColumn('quests_tests', 'project_id')
@@ -607,6 +611,7 @@ class EducationController extends Controller
 
         return $request->validate([
             'topic_id' => ['required', 'integer'],
+            'title' => ['required', 'string', 'max:255'],
             'level' => ['required', 'in:beginner,intermediate,advanced'],
             'content_type' => ['required', 'in:markdown,video_link,interactive_scenario'],
             'body' => ['required', 'string'],

@@ -105,10 +105,7 @@
                                                     <tr class="lesson-row" role="button" tabindex="0"
                                                         data-material-id="{{ $topicMaterial->id }}">
                                                         <td>
-                                                            <div class="fw-semibold">Урок #{{ $topicMaterial->id }}</div>
-                                                            <div class="small text-secondary">
-                                                                {{ \Illuminate\Support\Str::limit(strip_tags($topicMaterial->body), 120) }}
-                                                            </div>
+                                                            <div class="fw-semibold">{{ $topicMaterial->title ?: 'Урок #' . $topicMaterial->id }}</div>
                                                         </td>
                                                         <td>{{ $levelLabels[$topicMaterial->level] ?? $topicMaterial->level }}</td>
                                                         <td>{{ $contentTypeLabels[$topicMaterial->content_type] ?? $topicMaterial->content_type }}</td>
@@ -209,6 +206,10 @@
                                 <option value="{{ $topic->id }}">{{ $topic->title }}</option>
                             @endforeach
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="material-title">Название</label>
+                        <input class="form-control" id="material-title" name="title" required maxlength="255">
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
@@ -311,6 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const linkPreview = document.getElementById('material-body-link-preview');
     const fields = {
         topicId: document.getElementById('material-topic-id'),
+        title: document.getElementById('material-title'),
         level: document.getElementById('material-level'),
         contentType: document.getElementById('material-content-type'),
         version: document.getElementById('material-version'),
@@ -421,6 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('material-modal-title').textContent = 'Создать урок';
         materialDeleteButton.classList.add('d-none');
         currentMaterialId = null;
+        fields.title.value = '';
         fields.version.value = '1.0';
         fields.topicId.value = topicId;
         resetPreview();
@@ -437,6 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
         materialMethod.value = 'PUT';
         document.getElementById('material-modal-title').textContent = 'Изменить урок';
         fields.topicId.value = item.topic_id;
+        fields.title.value = item.title || `Урок #${id}`;
         fields.level.value = item.level;
         fields.contentType.value = item.content_type;
         fields.version.value = item.version;
