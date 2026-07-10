@@ -100,10 +100,10 @@
                 <h2 class="modal-title fs-5" id="material-modal-title">Создать материал</h2>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
-            <form id="material-form" method="POST" action="{{ route('education.materials.store') }}">
+            <form id="material-form" method="POST" action="{{ route('education.materials.store') }}" style="display:flex; flex-direction:column; min-height:0; max-height:calc(100vh - 3.5rem);">
                 @csrf
                 <input type="hidden" name="_method" id="material-method" value="POST">
-                <div class="modal-body">
+                <div class="modal-body" style="overflow-y:auto; min-height:0; max-height:calc(100vh - 12rem);">
                     <div class="mb-3" id="topic-select-wrap">
                         <label class="form-label" for="material-topic-id">Тема</label>
                         <select class="form-select" id="material-topic-id" name="topic_id">
@@ -151,7 +151,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="material-body">Содержимое</label>
-                        <textarea class="form-control font-monospace" id="material-body" name="body" rows="12" required></textarea>
+                        <textarea class="form-control font-monospace" id="material-body" name="body" rows="12" required style="max-height:45vh; overflow-y:auto; resize:vertical;"></textarea>
                         <div class="form-text">Markdown-текст, URL видео или JSON сценария — в зависимости от выбранного типа.</div>
                     </div>
                 </div>
