@@ -23,63 +23,34 @@
         </div>
     @endif
 
-    @forelse($tests as $test)
-        @php
-            $questions = $test->quest_data['questions'] ?? [];
-            $intro = $test->quest_data['intro'] ?? '';
-            $testAttempts = $attempts->get($test->id);
-            $lastAttempt = $testAttempts ? $testAttempts->first() : null;
-        @endphp
-        <section class="card bg-dark border-secondary mb-4">
-            <div class="card-body">
-                <div class="d-flex justify-content-between gap-3 flex-wrap mb-3">
-                    <div>
-                        <h2 class="h4 text-white mb-1">{{ $test->title }}</h2>
-                        <div class="text-secondary">Самостоятельная профильная анкета · сумма баллов</div>
-                    </div>
-                    <div class="d-flex align-items-start gap-2 flex-wrap">
-                        @if($lastAttempt)
-                            <span class="badge text-bg-success">
-                                Последний результат: {{ $lastAttempt->total_score ?? $lastAttempt->score }} / {{ $lastAttempt->max_score ?? '—' }} баллов
-                            </span>
-                        @endif
-                        <button type="button" class="btn btn-sm btn-outline-light edit-know-test-button"
-                                data-test-id="{{ $test->id }}">Изменить</button>
-                    </div>
-                </div>
-
-                @if($intro)
-                    <div class="alert alert-secondary bg-black border-secondary text-light">{{ $intro }}</div>
-                @endif
-
-                <form method="POST" action="{{ route('education.tests.submit', $test) }}">
-                    @csrf
-                    @foreach($questions as $questionIndex => $question)
-                        <fieldset class="mb-4">
-                            <legend class="fs-6 text-light">{{ $questionIndex + 1 }}. {{ $question['text'] ?? '' }}</legend>
-                            @foreach(($question['options'] ?? []) as $optionIndex => $option)
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="radio"
-                                           name="answers[{{ $questionIndex }}]"
-                                           id="know-test-{{ $test->id }}-q-{{ $questionIndex }}-a-{{ $optionIndex }}"
-                                           value="{{ $optionIndex }}" required>
-                                    <label class="form-check-label text-light"
-                                           for="know-test-{{ $test->id }}-q-{{ $questionIndex }}-a-{{ $optionIndex }}">
-                                        {{ is_array($option) ? ($option['text'] ?? $option['label'] ?? '') : $option }}
-                                    </label>
-                                </div>
-                            @endforeach
-                        </fieldset>
-                    @endforeach
-                    <button class="btn btn-warning" type="submit" @disabled(count($questions) === 0)>
-                        Завершить тест
-                    </button>
-                </form>
-            </div>
-        </section>
-    @empty
-        <div class="alert alert-info">Тесты для страницы «Узнай себя» пока не созданы.</div>
-    @endforelse
+    <div class="card bg-dark border-secondary">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Название</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($tests as $test)
+                        <tr>
+                            <td>
+                                <button type="button"
+                                        class="btn btn-link text-light text-decoration-none p-0 edit-know-test-button"
+                                        data-test-id="{{ $test->id }}">
+                                    {{ $test->title }}
+                                </button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td class="text-secondary">Тесты для страницы «Узнай себя» пока не созданы.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <style>
