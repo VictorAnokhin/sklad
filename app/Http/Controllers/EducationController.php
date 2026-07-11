@@ -103,6 +103,44 @@ class EducationController extends Controller
         ]);
     }
 
+    public function publicCourse(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+        ]);
+        abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+
+        $topics = EducationTopic::query()
+            ->where('project_id', (int) $validated['fid'])
+            ->where('is_active', true)
+            ->with(['materials' => fn ($query) => $query
+                ->where('is_active', true)
+                ->orderBy('level')
+                ->orderByRaw('CAST(version AS DECIMAL(10,2))')])
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (EducationTopic $topic) => [
+                'id' => $topic->id,
+                'title' => $topic->title,
+                'description' => (string) ($topic->description ?? ''),
+                'rating' => (int) $topic->position,
+                'materials' => $topic->materials
+                    ->map(fn (EducationalMaterial $material) => [
+                        'id' => $material->id,
+                        'title' => $material->title ?: $topic->title,
+                        'level' => $material->level,
+                        'content_type' => $material->content_type,
+                        'version' => $material->version,
+                        'body' => (string) $material->body,
+                    ])
+                    ->values(),
+            ])
+            ->values();
+
+        return response()->json(['topics' => $topics]);
+    }
+
     public function publicKnowYourselfTests(Request $request): JsonResponse
     {
         $validated = $request->validate([
