@@ -672,20 +672,13 @@ class EducationController extends Controller
 
     private function validateMaterial(Request $request, ?EducationalMaterial $material = null): array
     {
-        $topicId = $request->integer('topic_id') ?: $material?->topic_id;
-        $versionUnique = Rule::unique('educational_materials', 'version')
-            ->where(fn ($query) => $query
-                ->where('topic_id', $topicId)
-                ->where('level', $request->input('level')))
-            ->ignore($material?->id);
-
         return $request->validate([
             'topic_id' => ['required', 'integer'],
             'title' => ['required', 'string', 'max:255'],
             'level' => ['required', 'in:beginner,intermediate,advanced'],
             'content_type' => ['required', 'in:markdown,video_link,interactive_scenario'],
             'body' => ['required', 'string'],
-            'version' => ['required', 'string', 'max:32', $versionUnique],
+            'version' => ['required', 'string', 'max:32'],
         ]);
     }
 
