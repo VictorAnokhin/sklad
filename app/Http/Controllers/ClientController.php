@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Document;
 use App\Models\GarageVehicle;
 use App\Models\Project;
+use App\Models\QuestTestAttempt;
 use App\Services\AutoRiaVehicleCheckService;
 use App\Support\HoldingScope;
 use Illuminate\Http\Request;
@@ -475,8 +476,20 @@ class ClientController extends Controller
 
         $kycPhotos = $client ? $this->buildKycPhotoCards($client) : [];
         $garageVehicles = $client ? $this->clientGarageVehicles($client) : collect();
+        $clientEducationRating = $client && Schema::hasColumn('users', 'education_rating')
+            ? (int) ($client->education_rating ?? 0)
+            : 0;
+        $clientQuestTestAttempts = collect();
+        if ($client && Schema::hasTable('quest_test_attempts')) {
+            $clientQuestTestAttempts = QuestTestAttempt::query()
+                ->with('test')
+                ->where('user_id', $client->id)
+                ->latest()
+                ->limit(100)
+                ->get();
+        }
 
-        return view('client.show', compact('client', 'statuses', 'clientTypes', 'userGroups', 'projects', 'fid', 'kycPhotos', 'garageVehicles'));
+        return view('client.show', compact('client', 'statuses', 'clientTypes', 'userGroups', 'projects', 'fid', 'kycPhotos', 'garageVehicles', 'clientEducationRating', 'clientQuestTestAttempts'));
     }
 
     public function groups(Request $request)

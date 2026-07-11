@@ -203,6 +203,11 @@
                     Гараж
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="client-tests-tab" data-bs-toggle="tab" data-bs-target="#client-tests-pane" type="button" role="tab" aria-controls="client-tests-pane" aria-selected="false">
+                    Тесты
+                </button>
+            </li>
         </ul>
         <div class="tab-content" id="client-tabs-content">
             <div class="tab-pane fade show active" id="client-data-pane" role="tabpanel" aria-labelledby="client-data-tab" tabindex="0">
@@ -596,6 +601,64 @@
                                 @empty
                                     <tr id="garage-empty-row">
                                         <td colspan="6" class="text-center text-muted py-4">В гараже пока нет авто</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="client-tests-pane" role="tabpanel" aria-labelledby="client-tests-tab" tabindex="0">
+                <div class="glass-card" style="max-width: 1100px;">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+                        <div>
+                            <h5 class="mb-1">Тесты клиента</h5>
+                            <div class="text-muted">Результаты прохождения тестов и текущий образовательный рейтинг.</div>
+                        </div>
+                        <div class="rounded border bg-light px-3 py-2">
+                            <div class="small text-muted">Рейтинг</div>
+                            <div class="fs-4 fw-semibold">{{ $clientEducationRating ?? 0 }}</div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 150px;">Дата</th>
+                                    <th>Тест</th>
+                                    <th style="width: 170px;">Баллы</th>
+                                    <th style="width: 130px;">Статус</th>
+                                    <th>Результат</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($clientQuestTestAttempts ?? [] as $attempt)
+                                    @php
+                                        $resultData = is_array($attempt->result_data ?? null) ? $attempt->result_data : [];
+                                        $resultTitle = $resultData['title'] ?? $resultData['subtitle'] ?? null;
+                                        $scoreText = $attempt->max_score !== null && (int) $attempt->max_score > 0
+                                            ? ((int) $attempt->total_score . ' / ' . (int) $attempt->max_score)
+                                            : ((int) ($attempt->score ?? 0) . '%');
+                                    @endphp
+                                    <tr>
+                                        <td>{{ optional($attempt->created_at)->format('d.m.Y H:i') ?: '-' }}</td>
+                                        <td>
+                                            <div class="fw-semibold">{{ $attempt->test->title ?? 'Тест #' . $attempt->quest_test_id }}</div>
+                                        </td>
+                                        <td>{{ $scoreText }}</td>
+                                        <td>
+                                            @if($attempt->passed)
+                                                <span class="badge bg-success">Пройден</span>
+                                            @else
+                                                <span class="badge bg-secondary">Не пройден</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ $resultTitle ?: '-' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">Результатов тестов пока нет</td>
                                     </tr>
                                 @endforelse
                             </tbody>

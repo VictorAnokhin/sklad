@@ -2280,6 +2280,7 @@ class AuthController extends Controller
             'kyc_applicant_id' => $user->kyc_applicant_id ?? '',
             'kyc_level_name' => $user->kyc_level_name ?? '',
             'kyc_verified_at' => optional($user->kyc_verified_at)->toIso8601String(),
+            'education_rating' => (int) ($user->education_rating ?? 0),
             'idkassa' => $user->idkassa,
             'idsklad' => $user->idsklad,
             'idreestr' => $user->idreestr,

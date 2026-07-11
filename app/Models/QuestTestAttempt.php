@@ -13,4 +13,9 @@ class QuestTestAttempt extends Model
         'result_data' => 'array',
         'passed' => 'boolean',
     ];
+
+    public function test()
+    {
+        return $this->belongsTo(QuestTest::class, 'quest_test_id');
+    }
 }
