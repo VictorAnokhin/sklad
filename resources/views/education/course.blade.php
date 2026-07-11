@@ -64,7 +64,7 @@
                                 <span class="badge text-bg-secondary">{{ $topic->materials->count() }} урок(ов)</span>
                             </button>
                         </h2>
-                        <div id="{{ $accordionId }}-body" class="accordion-collapse collapse"
+                        <div id="{{ $accordionId }}-body" class="accordion-collapse collapse" data-topic-id="{{ $topic->id }}"
                              aria-labelledby="{{ $accordionId }}-heading">
                             <div class="accordion-body">
                                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
@@ -311,8 +311,73 @@ document.addEventListener('DOMContentLoaded', () => {
     const materialStoreUrl = @json(route('education.materials.store'));
     const materialUpdateUrl = @json(route('education.materials.update', ['material' => '__ID__']));
     const materialDeleteUrl = @json(route('education.materials.destroy', ['material' => '__ID__']));
+    const storageKeys = {
+        openTopicId: 'education.course.openTopicId',
+        materialSelectors: 'education.course.materialSelectors',
+    };
     let currentTopicId = null;
     let currentMaterialId = null;
+
+    function getStoredValue(key) {
+        try {
+            return window.sessionStorage.getItem(key);
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function setStoredValue(key, value) {
+        try {
+            window.sessionStorage.setItem(key, value);
+        } catch (error) {
+            // Storage may be unavailable in private or restricted browser modes.
+        }
+    }
+
+    function selectHasValue(select, value) {
+        return !!value && Array.from(select.options).some((option) => option.value === String(value));
+    }
+
+    function saveOpenTopic(topicId) {
+        if (topicId) setStoredValue(storageKeys.openTopicId, String(topicId));
+    }
+
+    function readMaterialSelectors() {
+        const rawValue = getStoredValue(storageKeys.materialSelectors);
+        if (!rawValue) return {};
+
+        try {
+            return JSON.parse(rawValue) || {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function saveMaterialSelectors() {
+        setStoredValue(storageKeys.materialSelectors, JSON.stringify({
+            topicId: fields.topicId.value || '',
+            level: fields.level.value || '',
+            contentType: fields.contentType.value || '',
+        }));
+    }
+
+    function applyStoredMaterialSelectors(preferredTopicId = '') {
+        const selectors = readMaterialSelectors();
+        const topicId = preferredTopicId || selectors.topicId || '';
+
+        if (selectHasValue(fields.topicId, topicId)) fields.topicId.value = String(topicId);
+        if (selectHasValue(fields.level, selectors.level)) fields.level.value = selectors.level;
+        if (selectHasValue(fields.contentType, selectors.contentType)) fields.contentType.value = selectors.contentType;
+    }
+
+    function restoreOpenTopic() {
+        const topicId = getStoredValue(storageKeys.openTopicId);
+        if (!topicId) return;
+
+        const collapseElement = Array.from(document.querySelectorAll('.accordion-collapse[data-topic-id]'))
+            .find((element) => element.dataset.topicId === String(topicId));
+        if (collapseElement) bootstrap.Collapse.getOrCreateInstance(collapseElement, { toggle: false }).show();
+    }
 
     function resetPreview() {
         htmlPreview.srcdoc = '';
@@ -410,7 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
         currentMaterialId = null;
         fields.title.value = '';
         fields.version.value = '1.0';
-        fields.topicId.value = topicId;
+        applyStoredMaterialSelectors(topicId);
+        saveOpenTopic(fields.topicId.value);
+        saveMaterialSelectors();
         resetPreview();
         showEditTab();
         materialModal.show();
@@ -430,6 +497,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.contentType.value = item.content_type;
         fields.version.value = item.version;
         fields.body.value = item.body;
+        saveOpenTopic(item.topic_id);
+        saveMaterialSelectors();
         materialDeleteForm.action = materialDeleteUrl.replace('__ID__', id);
         materialDeleteButton.classList.remove('d-none');
         resetPreview();
@@ -443,8 +512,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     fields.body.addEventListener('input', updatePreview);
-    fields.contentType.addEventListener('change', updatePreview);
+    fields.topicId.addEventListener('change', () => {
+        saveOpenTopic(fields.topicId.value);
+        saveMaterialSelectors();
+    });
+    fields.level.addEventListener('change', saveMaterialSelectors);
+    fields.contentType.addEventListener('change', () => {
+        saveMaterialSelectors();
+        updatePreview();
+    });
     previewTab.addEventListener('shown.bs.tab', updatePreview);
+    materialForm.addEventListener('submit', () => {
+        saveOpenTopic(fields.topicId.value);
+        saveMaterialSelectors();
+    });
+    document.querySelectorAll('.accordion-collapse[data-topic-id]').forEach((collapseElement) => {
+        collapseElement.addEventListener('shown.bs.collapse', () => saveOpenTopic(collapseElement.dataset.topicId));
+    });
 
     document.getElementById('create-course-button').addEventListener('click', openCreateTopic);
     document.querySelectorAll('.edit-topic-button').forEach(button =>
@@ -470,6 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
     materialDeleteButton.addEventListener('click', () => {
         if (currentMaterialId) deleteMaterial(currentMaterialId);
     });
+    restoreOpenTopic();
 });
 </script>
 @endpush
