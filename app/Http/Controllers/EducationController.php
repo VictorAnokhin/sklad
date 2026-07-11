@@ -203,8 +203,6 @@ class EducationController extends Controller
 
         $userId = (int) Auth::id();
 
-        $userRating = (int) (Auth::user()?->education_rating ?? 0);
-
         $topics = EducationTopic::query()
             ->where('project_id', $project->id)
             ->where('is_active', true)
@@ -265,7 +263,6 @@ class EducationController extends Controller
             'topics' => $topics,
             'materialEditorItems' => $materialEditorItems,
             'topicEditorItems' => $topicEditorItems,
-            'userRating' => $userRating,
             'migrationRequired' => false,
         ]);
     }

@@ -22,7 +22,7 @@
     @endif
 
     <div class="mb-4 text-secondary">
-        {{ $project->name }} · рейтинг пользователя: {{ $userRating ?? 0 }}.
+        {{ $project->name }}
     </div>
 
     @php
@@ -51,7 +51,6 @@
                     $progress = $topic->relationLoaded('studentProgress') ? $topic->getRelation('studentProgress') : null;
                     $accordionId = 'course-lessons-' . $topic->id;
                     $requiredRating = (int) $topic->position;
-                    $isLocked = (int) ($userRating ?? 0) < $requiredRating;
                 @endphp
 
                 <div class="accordion mb-3" id="course-accordion-{{ $topic->id }}">
@@ -59,13 +58,10 @@
                         <h2 class="accordion-header" id="{{ $accordionId }}-heading">
                             <button class="accordion-button collapsed bg-dark text-light" type="button"
                                     data-bs-toggle="collapse" data-bs-target="#{{ $accordionId }}-body"
-                                    aria-expanded="false" aria-controls="{{ $accordionId }}-body" @disabled($isLocked)>
+                                    aria-expanded="false" aria-controls="{{ $accordionId }}-body">
                                 <span class="me-3 fw-semibold">{{ $topic->title }}</span>
                                 <span class="badge text-bg-warning me-2">Рейтинг {{ $requiredRating }}</span>
                                 <span class="badge text-bg-secondary">{{ $topic->materials->count() }} урок(ов)</span>
-                                @if($isLocked)
-                                    <span class="badge text-bg-danger ms-2">Недоступно</span>
-                                @endif
                             </button>
                         </h2>
                         <div id="{{ $accordionId }}-body" class="accordion-collapse collapse"
