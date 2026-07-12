@@ -111,10 +111,12 @@
                             <input type="hidden" id="test-material-id" name="material_id">
                             <div class="dropdown">
                                 <button class="btn btn-outline-light dropdown-toggle w-100 text-start" type="button"
-                                        id="test-material-dropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        id="test-material-dropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                                     <span id="test-material-selected">Без материала — самостоятельный тест</span>
                                 </button>
                                 <div class="dropdown-menu dropdown-menu-dark w-100 p-2" aria-labelledby="test-material-dropdown" style="max-height:320px; overflow-y:auto;">
+                                    <input class="form-control form-control-sm mb-2" id="test-material-search" type="search"
+                                           placeholder="Поиск урока или курса" autocomplete="off">
                                     <button type="button" class="dropdown-item rounded py-2" data-material-option data-material-id="">
                                         <span class="d-block">Без материала — самостоятельный тест</span>
                                     </button>
@@ -127,6 +129,7 @@
                                             <span class="d-block small fst-italic text-secondary">{{ $material->topic->title }}</span>
                                         </button>
                                     @endforeach
+                                    <div class="dropdown-item-text text-secondary d-none" id="test-material-empty">Уроки не найдены</div>
                                 </div>
                             </div>
                             @if($materials->isEmpty())
@@ -224,6 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const questionsEditor = document.getElementById('questions-editor');
     const resultsEditor = document.getElementById('results-editor');
     const materialSelectedLabel = document.getElementById('test-material-selected');
+    const materialSearch = document.getElementById('test-material-search');
+    const materialEmpty = document.getElementById('test-material-empty');
     const tests = @json($testEditorItems ?? []);
     const storeUrl = @json(route('education.tests.store'));
     const updateUrl = @json(route('education.tests.update', ['test' => '__ID__']));
@@ -267,6 +272,29 @@ document.addEventListener('DOMContentLoaded', () => {
         materialSelectedLabel.textContent = option
             ? option.querySelector('.fw-semibold')?.textContent?.trim() || option.textContent.trim()
             : 'Без материала — самостоятельный тест';
+    }
+
+    function filterMaterialOptions() {
+        const query = materialSearch.value.trim().toLowerCase();
+        let visibleCount = 0;
+
+        document.querySelectorAll('[data-material-option]').forEach((button) => {
+            if (!button.dataset.materialId) {
+                button.classList.remove('d-none');
+                return;
+            }
+
+            const matches = query === '' || button.textContent.toLowerCase().includes(query);
+            button.classList.toggle('d-none', !matches);
+            if (matches) visibleCount += 1;
+        });
+
+        materialEmpty.classList.toggle('d-none', query === '' || visibleCount > 0);
+    }
+
+    function resetMaterialSearch() {
+        materialSearch.value = '';
+        filterMaterialOptions();
     }
 
     function addOption(questionElement, option = {}, isCorrect = false) {
@@ -481,6 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleUa.value = '';
         fields.title.value = '';
         fields.titleEn.value = '';
+        resetMaterialSearch();
         setSelectedMaterial('');
         fields.passingScore.value = 80;
         currentLang = 'ru';
@@ -503,6 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleUa.value = item.title_translations?.ua || '';
         fields.titleEn.value = item.title_translations?.en || '';
         fields.testType.value = item.test_type || 'knowledge_check';
+        resetMaterialSearch();
         setSelectedMaterial(item.material_id || '');
         fields.passingScore.value = item.passing_score;
         currentLang = 'ru';
@@ -528,8 +558,16 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => setLanguage(button.dataset.testLang));
     });
     document.querySelectorAll('[data-material-option]').forEach((button) => {
-        button.addEventListener('click', () => setSelectedMaterial(button.dataset.materialId || ''));
+        button.addEventListener('click', () => {
+            setSelectedMaterial(button.dataset.materialId || '');
+            resetMaterialSearch();
+        });
     });
+    materialSearch.addEventListener('click', (event) => event.stopPropagation());
+    materialSearch.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') event.preventDefault();
+    });
+    materialSearch.addEventListener('input', filterMaterialOptions);
     document.getElementById('add-question-button').addEventListener('click', () => addQuestion());
     document.getElementById('add-result-button').addEventListener('click', () => addResult());
     document.getElementById('create-test-button').addEventListener('click', openCreate);
