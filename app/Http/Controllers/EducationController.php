@@ -117,6 +117,13 @@ class EducationController extends Controller
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
         $lang = $this->language($request);
+        $user = Auth::guard('sanctum')->user();
+        $progressByTopic = $user
+            ? DB::table('user_course_progress')
+                ->where('user_id', $user->id)
+                ->get()
+                ->keyBy('education_topic_id')
+            : collect();
 
         $topics = EducationTopic::query()
             ->where('project_id', (int) $validated['fid'])
@@ -133,31 +140,38 @@ class EducationController extends Controller
             ->orderBy('position')
             ->orderBy('id')
             ->get()
-            ->map(fn (EducationTopic $topic) => [
-                'id' => $topic->id,
-                'title' => $this->localizedText($topic->title_translations, $lang, (string) $topic->title),
-                'description' => $this->localizedText($topic->description_translations, $lang, (string) ($topic->description ?? '')),
-                'rating' => (int) $topic->position,
-                'cost_av8' => (string) ($topic->cost_av8 ?? '0'),
-                'materials' => $topic->materials
-                    ->map(fn (EducationalMaterial $material) => [
-                        'id' => $material->id,
-                        'title' => $this->localizedText(
-                            $material->title_translations,
-                            $lang,
-                            $material->title ?: $this->localizedText($topic->title_translations, $lang, (string) $topic->title)
-                        ),
-                        'rating' => (int) ($material->rating ?? $topic->position ?? 0),
-                        'level' => $material->level,
-                        'content_type' => $material->content_type,
-                        'version' => $material->version,
-                        'body' => $this->localizedText($material->body_translations, $lang, (string) $material->body),
-                        'tests' => $material->tests
-                            ->map(fn (QuestTest $test) => $this->publicTestPayload($test, $lang))
-                            ->values(),
-                    ])
-                    ->values(),
-            ])
+            ->map(function (EducationTopic $topic) use ($lang, $progressByTopic) {
+                $progress = $progressByTopic->get($topic->id);
+                $topicRating = (int) $topic->position;
+
+                return [
+                    'id' => $topic->id,
+                    'title' => $this->localizedText($topic->title_translations, $lang, (string) $topic->title),
+                    'description' => $this->localizedText($topic->description_translations, $lang, (string) ($topic->description ?? '')),
+                    'rating' => $topicRating,
+                    'local_rating' => $progress ? max($topicRating, (int) $progress->local_rating) : null,
+                    'completed_at' => $progress?->completed_at,
+                    'cost_av8' => (string) ($topic->cost_av8 ?? '0'),
+                    'materials' => $topic->materials
+                        ->map(fn (EducationalMaterial $material) => [
+                            'id' => $material->id,
+                            'title' => $this->localizedText(
+                                $material->title_translations,
+                                $lang,
+                                $material->title ?: $this->localizedText($topic->title_translations, $lang, (string) $topic->title)
+                            ),
+                            'rating' => (int) ($material->rating ?? $topic->position ?? 0),
+                            'level' => $material->level,
+                            'content_type' => $material->content_type,
+                            'version' => $material->version,
+                            'body' => $this->localizedText($material->body_translations, $lang, (string) $material->body),
+                            'tests' => $material->tests
+                                ->map(fn (QuestTest $test) => $this->publicTestPayload($test, $lang))
+                                ->values(),
+                        ])
+                        ->values(),
+                ];
+            })
             ->values();
 
         return response()->json(['topics' => $topics]);
@@ -180,6 +194,96 @@ class EducationController extends Controller
         $questions = array_values($test->quest_data['questions'] ?? []);
         abort_if(count($questions) === 0, 422, 'В тесте нет вопросов.');
         $result = $this->evaluateTest($test, $validated['answers'], (int) $test->passing_score, $this->language($request));
+        $ratingAward = max(0, (int) ($test->quest_data['rating'] ?? 0));
+        $ratingAwarded = 0;
+        $educationRating = null;
+        $courseLocalRating = null;
+        $courseCompletedAt = null;
+        $user = Auth::guard('sanctum')->user();
+
+        if ($user) {
+            DB::transaction(function () use ($test, $user, $validated, $result, $ratingAward, &$ratingAwarded, &$educationRating, &$courseLocalRating, &$courseCompletedAt) {
+                $priorPassedAttempts = QuestTestAttempt::query()
+                    ->where('user_id', $user->id)
+                    ->where('quest_test_id', $test->id)
+                    ->where('passed', true)
+                    ->get();
+                $ratingAlreadyAwarded = $priorPassedAttempts
+                    ->contains(fn (QuestTestAttempt $attempt) => (int) data_get($attempt->result_data, 'rating_awarded', 0) > 0);
+                $localRatingAlreadyAwarded = $priorPassedAttempts
+                    ->contains(fn (QuestTestAttempt $attempt) => (int) data_get($attempt->result_data, 'local_rating_awarded', 0) > 0);
+
+                if ($result['passed'] && $ratingAward > 0 && !$ratingAlreadyAwarded) {
+                    DB::table('users')
+                        ->where('id', $user->id)
+                        ->increment('education_rating', $ratingAward);
+                    $ratingAwarded = $ratingAward;
+                }
+
+                $topic = $test->material?->topic;
+                $localRatingAwarded = 0;
+                if ($topic) {
+                    $progress = DB::table('user_course_progress')
+                        ->where('user_id', $user->id)
+                        ->where('education_topic_id', $topic->id)
+                        ->lockForUpdate()
+                        ->first();
+                    $baseRating = (int) $topic->position;
+                    $currentLocalRating = max($baseRating, (int) ($progress->local_rating ?? $baseRating));
+                    $localRatingAwarded = 0;
+
+                    if ($result['passed'] && $ratingAward > 0 && !$localRatingAlreadyAwarded) {
+                        $currentLocalRating += $ratingAward;
+                        $localRatingAwarded = $ratingAward;
+                    }
+
+                    $hasLockedLessons = EducationalMaterial::query()
+                        ->where('topic_id', $topic->id)
+                        ->where('is_active', true)
+                        ->where('rating', '>', $currentLocalRating)
+                        ->exists();
+                    $completedAt = !$hasLockedLessons
+                        ? ($progress?->completed_at ?? now())
+                        : null;
+
+                    DB::table('user_course_progress')->updateOrInsert(
+                        ['user_id' => $user->id, 'education_topic_id' => $topic->id],
+                        [
+                            'local_rating' => $currentLocalRating,
+                            'completed_at' => $completedAt,
+                            'created_at' => $progress?->created_at ?? now(),
+                            'updated_at' => now(),
+                        ]
+                    );
+
+                    $courseLocalRating = $currentLocalRating;
+                    $courseCompletedAt = $completedAt;
+                }
+
+                QuestTestAttempt::create([
+                    'user_id' => $user->id,
+                    'quest_test_id' => $test->id,
+                    'material_id' => $test->material_id,
+                    'score' => $result['score'],
+                    'total_score' => $result['total_score'],
+                    'max_score' => $result['max_score'],
+                    'passed' => $result['passed'],
+                    'answers' => $validated['answers'],
+                    'result_data' => [
+                        'scoring_type' => $result['scoring_type'],
+                        'profile' => $result['profile'],
+                        'rating_award' => $ratingAward,
+                        'rating_awarded' => $ratingAwarded,
+                        'local_rating_awarded' => $localRatingAwarded ?? 0,
+                        'rating_already_awarded' => $ratingAlreadyAwarded,
+                        'local_rating_already_awarded' => $localRatingAlreadyAwarded,
+                    ],
+                    'next_material_id' => null,
+                ]);
+
+                $educationRating = (int) DB::table('users')->where('id', $user->id)->value('education_rating');
+            });
+        }
 
         return response()->json([
             'score' => $result['score'],
@@ -191,7 +295,11 @@ class EducationController extends Controller
             'total_score' => $result['total_score'],
             'max_score' => $result['max_score'],
             'profile' => $result['profile'],
-            'rating_award' => (int) ($test->quest_data['rating'] ?? 0),
+            'rating_award' => $ratingAward,
+            'rating_awarded' => $ratingAwarded,
+            'education_rating' => $educationRating,
+            'course_local_rating' => $courseLocalRating,
+            'course_completed_at' => $courseCompletedAt,
         ]);
     }
 
@@ -790,6 +898,7 @@ class EducationController extends Controller
             && Schema::hasColumn('quests_tests', 'title_translations')
             && Schema::hasColumn('quests_tests', 'quest_data_translations')
             && Schema::hasTable('education_progress')
+            && Schema::hasTable('user_course_progress')
             && Schema::hasTable('quest_test_attempts')
             && Schema::hasColumn('quest_test_attempts', 'total_score')
             && Schema::hasColumn('quest_test_attempts', 'max_score')
