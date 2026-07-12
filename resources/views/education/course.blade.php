@@ -232,33 +232,39 @@
                         <label class="form-label" for="material-body">Содержание</label>
                         <ul class="nav nav-tabs border-secondary mb-2" id="material-body-tabs" role="tablist">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active bg-dark text-warning border-secondary" id="material-body-edit-tab"
-                                        data-bs-toggle="tab" data-bs-target="#material-body-edit-pane" type="button"
-                                        role="tab" aria-controls="material-body-edit-pane" aria-selected="true">
-                                    Редактирование HTML
+                                <button class="nav-link bg-dark text-light border-secondary" id="material-body-ua-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-body-ua-pane" type="button"
+                                        role="tab" aria-controls="material-body-ua-pane" aria-selected="false">
+                                    UA
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link bg-dark text-light border-secondary" id="material-body-preview-tab"
-                                        data-bs-toggle="tab" data-bs-target="#material-body-preview-pane" type="button"
-                                        role="tab" aria-controls="material-body-preview-pane" aria-selected="false">
-                                    Просмотр
+                                <button class="nav-link active bg-dark text-warning border-secondary" id="material-body-ru-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-body-ru-pane" type="button"
+                                        role="tab" aria-controls="material-body-ru-pane" aria-selected="true">
+                                    RU
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="material-body-en-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-body-en-pane" type="button"
+                                        role="tab" aria-controls="material-body-en-pane" aria-selected="false">
+                                    EN
                                 </button>
                             </li>
                         </ul>
                         <div class="tab-content border border-secondary rounded-bottom p-2">
-                            <div class="tab-pane fade show active" id="material-body-edit-pane" role="tabpanel"
-                                 aria-labelledby="material-body-edit-tab" tabindex="0">
-                                <textarea class="form-control font-monospace mb-2" id="material-body-ua" name="body_translations[ua]" rows="8" placeholder="UA" style="max-height:35vh; overflow-y:auto; resize:vertical;"></textarea>
-                                <textarea class="form-control font-monospace mb-2" id="material-body" name="body_translations[ru]" rows="8" placeholder="RU" style="max-height:35vh; overflow-y:auto; resize:vertical;"></textarea>
-                                <textarea class="form-control font-monospace" id="material-body-en" name="body_translations[en]" rows="8" placeholder="EN" style="max-height:35vh; overflow-y:auto; resize:vertical;"></textarea>
+                            <div class="tab-pane fade" id="material-body-ua-pane" role="tabpanel"
+                                 aria-labelledby="material-body-ua-tab" tabindex="0">
+                                <textarea class="form-control font-monospace" id="material-body-ua" name="body_translations[ua]" rows="12" placeholder="UA" style="max-height:45vh; overflow-y:auto; resize:vertical;"></textarea>
                             </div>
-                            <div class="tab-pane fade" id="material-body-preview-pane" role="tabpanel"
-                                 aria-labelledby="material-body-preview-tab" tabindex="0">
-                                <iframe id="material-body-preview" class="w-100 rounded border border-secondary bg-white"
-                                        style="min-height:320px;" sandbox=""></iframe>
-                                <pre id="material-body-json-preview" class="p-3 rounded bg-black text-light mb-0 d-none" style="max-height:45vh; overflow:auto;"></pre>
-                                <div id="material-body-link-preview" class="d-none"></div>
+                            <div class="tab-pane fade show active" id="material-body-ru-pane" role="tabpanel"
+                                 aria-labelledby="material-body-ru-tab" tabindex="0">
+                                <textarea class="form-control font-monospace" id="material-body" name="body_translations[ru]" rows="12" placeholder="RU" style="max-height:45vh; overflow-y:auto; resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="material-body-en-pane" role="tabpanel"
+                                 aria-labelledby="material-body-en-tab" tabindex="0">
+                                <textarea class="form-control font-monospace" id="material-body-en" name="body_translations[en]" rows="12" placeholder="EN" style="max-height:45vh; overflow-y:auto; resize:vertical;"></textarea>
                             </div>
                         </div>
                         <div class="form-text">HTML/Markdown-текст, URL видео или JSON сценария — в зависимости от выбранного типа.</div>
@@ -306,11 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const materialMethod = document.getElementById('material-method');
     const materialDeleteForm = document.getElementById('delete-material-form');
     const materialDeleteButton = document.getElementById('delete-material-button');
-    const previewTab = document.getElementById('material-body-preview-tab');
-    const editTab = document.getElementById('material-body-edit-tab');
-    const htmlPreview = document.getElementById('material-body-preview');
-    const jsonPreview = document.getElementById('material-body-json-preview');
-    const linkPreview = document.getElementById('material-body-link-preview');
+    const materialBodyRuTab = document.getElementById('material-body-ru-tab');
     const fields = {
         topicId: document.getElementById('material-topic-id'),
         title: document.getElementById('material-title'),
@@ -399,58 +401,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (collapseElement) bootstrap.Collapse.getOrCreateInstance(collapseElement, { toggle: false }).show();
     }
 
-    function resetPreview() {
-        htmlPreview.srcdoc = '';
-        jsonPreview.textContent = '';
-        linkPreview.innerHTML = '';
-        htmlPreview.classList.remove('d-none');
-        jsonPreview.classList.add('d-none');
-        linkPreview.classList.add('d-none');
-    }
-
-    function updatePreview() {
-        resetPreview();
-        const body = fields.body.value || '';
-
-        if (fields.contentType.value === 'interactive_scenario') {
-            htmlPreview.classList.add('d-none');
-            jsonPreview.classList.remove('d-none');
-            try {
-                jsonPreview.textContent = JSON.stringify(JSON.parse(body), null, 2);
-            } catch (error) {
-                jsonPreview.textContent = body || 'JSON пока не заполнен.';
-            }
-            return;
-        }
-
-        if (fields.contentType.value === 'video_link') {
-            htmlPreview.classList.add('d-none');
-            linkPreview.classList.remove('d-none');
-            const safeUrl = body.trim();
-            linkPreview.innerHTML = '';
-
-            if (safeUrl) {
-                const link = document.createElement('a');
-                link.className = 'btn btn-outline-warning';
-                link.href = safeUrl;
-                link.target = '_blank';
-                link.rel = 'noopener';
-                link.textContent = 'Открыть видео';
-                linkPreview.appendChild(link);
-            } else {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'text-secondary';
-                placeholder.textContent = 'Ссылка на видео пока не заполнена.';
-                linkPreview.appendChild(placeholder);
-            }
-            return;
-        }
-
-        htmlPreview.srcdoc = body || '<div style="font-family:Arial,sans-serif;color:#6c757d;padding:16px;">Содержимое пока не заполнено.</div>';
-    }
-
-    function showEditTab() {
-        bootstrap.Tab.getOrCreateInstance(editTab).show();
+    function showDefaultMaterialBodyTab() {
+        bootstrap.Tab.getOrCreateInstance(materialBodyRuTab).show();
     }
 
     function openCreateTopic() {
@@ -509,8 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
         applyStoredMaterialSelectors(topicId);
         saveOpenTopic(fields.topicId.value);
         saveMaterialSelectors();
-        resetPreview();
-        showEditTab();
+        showDefaultMaterialBodyTab();
         materialModal.show();
     }
 
@@ -536,8 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveMaterialSelectors();
         materialDeleteForm.action = materialDeleteUrl.replace('__ID__', id);
         materialDeleteButton.classList.remove('d-none');
-        resetPreview();
-        showEditTab();
+        showDefaultMaterialBodyTab();
         materialModal.show();
     }
 
@@ -546,9 +496,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm('Удалить урок? Связанные тесты и попытки также будут удалены.')) materialDeleteForm.submit();
     }
 
-    fields.body.addEventListener('input', updatePreview);
-    fields.bodyUa.addEventListener('input', updatePreview);
-    fields.bodyEn.addEventListener('input', updatePreview);
     fields.topicId.addEventListener('change', () => {
         saveOpenTopic(fields.topicId.value);
         saveMaterialSelectors();
@@ -556,9 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fields.level.addEventListener('change', saveMaterialSelectors);
     fields.contentType.addEventListener('change', () => {
         saveMaterialSelectors();
-        updatePreview();
     });
-    previewTab.addEventListener('shown.bs.tab', updatePreview);
     materialForm.addEventListener('submit', () => {
         saveOpenTopic(fields.topicId.value);
         saveMaterialSelectors();
