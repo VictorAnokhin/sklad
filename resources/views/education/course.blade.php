@@ -200,10 +200,42 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Название</label>
-                        <div class="row g-2">
-                            <div class="col-md-4"><input class="form-control" id="material-title-ua" name="title_translations[ua]" maxlength="255" placeholder="UA"></div>
-                            <div class="col-md-4"><input class="form-control" id="material-title" name="title_translations[ru]" maxlength="255" placeholder="RU"></div>
-                            <div class="col-md-4"><input class="form-control" id="material-title-en" name="title_translations[en]" maxlength="255" placeholder="EN"></div>
+                        <ul class="nav nav-tabs border-secondary mb-2" id="material-title-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="material-title-ua-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-title-ua-pane" type="button"
+                                        role="tab" aria-controls="material-title-ua-pane" aria-selected="false">
+                                    UA
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active bg-dark text-warning border-secondary" id="material-title-ru-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-title-ru-pane" type="button"
+                                        role="tab" aria-controls="material-title-ru-pane" aria-selected="true">
+                                    RU
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="material-title-en-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-title-en-pane" type="button"
+                                        role="tab" aria-controls="material-title-en-pane" aria-selected="false">
+                                    EN
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content border border-secondary rounded-bottom p-2">
+                            <div class="tab-pane fade" id="material-title-ua-pane" role="tabpanel"
+                                 aria-labelledby="material-title-ua-tab" tabindex="0">
+                                <textarea class="form-control" id="material-title-ua" name="title_translations[ua]" rows="2" maxlength="255" placeholder="UA" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade show active" id="material-title-ru-pane" role="tabpanel"
+                                 aria-labelledby="material-title-ru-tab" tabindex="0">
+                                <textarea class="form-control" id="material-title" name="title_translations[ru]" rows="2" maxlength="255" placeholder="RU" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="material-title-en-pane" role="tabpanel"
+                                 aria-labelledby="material-title-en-tab" tabindex="0">
+                                <textarea class="form-control" id="material-title-en" name="title_translations[en]" rows="2" maxlength="255" placeholder="EN" style="resize:vertical;"></textarea>
+                            </div>
                         </div>
                     </div>
                     <div class="row">
@@ -312,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const materialMethod = document.getElementById('material-method');
     const materialDeleteForm = document.getElementById('delete-material-form');
     const materialDeleteButton = document.getElementById('delete-material-button');
+    const materialTitleRuTab = document.getElementById('material-title-ru-tab');
     const materialBodyRuTab = document.getElementById('material-body-ru-tab');
     const fields = {
         topicId: document.getElementById('material-topic-id'),
@@ -401,7 +434,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (collapseElement) bootstrap.Collapse.getOrCreateInstance(collapseElement, { toggle: false }).show();
     }
 
-    function showDefaultMaterialBodyTab() {
+    function showDefaultMaterialLanguageTabs() {
+        bootstrap.Tab.getOrCreateInstance(materialTitleRuTab).show();
         bootstrap.Tab.getOrCreateInstance(materialBodyRuTab).show();
     }
 
@@ -461,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
         applyStoredMaterialSelectors(topicId);
         saveOpenTopic(fields.topicId.value);
         saveMaterialSelectors();
-        showDefaultMaterialBodyTab();
+        showDefaultMaterialLanguageTabs();
         materialModal.show();
     }
 
@@ -487,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveMaterialSelectors();
         materialDeleteForm.action = materialDeleteUrl.replace('__ID__', id);
         materialDeleteButton.classList.remove('d-none');
-        showDefaultMaterialBodyTab();
+        showDefaultMaterialLanguageTabs();
         materialModal.show();
     }
 
