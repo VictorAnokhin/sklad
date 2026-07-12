@@ -119,7 +119,7 @@
                         <div class="col-md-8 mb-3">
                             <label class="form-label" for="test-material-id">Материал курса</label>
                             <div class="client-search-row d-flex gap-1">
-                                <input type="text" id="test-material-search" class="form-control flex-grow-1 text-dark"
+                                <input type="text" id="test-material-search" class="form-control flex-grow-1 bg-dark text-white border-secondary"
                                        placeholder="Поиск урока или курса" autocomplete="off">
                             </div>
                             <div id="test-material-results" class="list-group client-search-results material-search-results"></div>
