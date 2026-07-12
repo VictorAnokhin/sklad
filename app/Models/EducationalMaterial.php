@@ -12,6 +12,7 @@ class EducationalMaterial extends Model
         'is_active' => 'boolean',
         'title_translations' => 'array',
         'body_translations' => 'array',
+        'rating' => 'integer',
     ];
 
     public function topic()

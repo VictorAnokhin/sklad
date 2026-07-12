@@ -97,7 +97,7 @@
                                                 <tr>
                                                     <th style="width: 72px;">№</th>
                                                     <th class="w-50">Наименование</th>
-                                                    <th>Уровень</th>
+                                                    <th>Рейтинг</th>
                                                     <th>Тип</th>
                                                     <th>Версия</th>
                                                 </tr>
@@ -110,7 +110,7 @@
                                                         <td>
                                                             <div class="fw-semibold">{{ $topicMaterial->title ?: 'Урок #' . $topicMaterial->id }}</div>
                                                         </td>
-                                                        <td>{{ $levelLabels[$topicMaterial->level] ?? $topicMaterial->level }}</td>
+                                                        <td>{{ (int) ($topicMaterial->rating ?? $topic->position ?? 0) }}</td>
                                                         <td>{{ $contentTypeLabels[$topicMaterial->content_type] ?? $topicMaterial->content_type }}</td>
                                                         <td>v{{ $topicMaterial->version }}</td>
                                                     </tr>
@@ -312,12 +312,9 @@
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label" for="material-level">Уровень</label>
-                            <select class="form-select" id="material-level" name="level" required>
-                                <option value="beginner">Начальный</option>
-                                <option value="intermediate">Средний</option>
-                                <option value="advanced">Продвинутый</option>
-                            </select>
+                            <label class="form-label" for="material-rating">Рейтинг</label>
+                            <input class="form-control" id="material-rating" name="rating" type="number" min="0" value="0" required>
+                            <input type="hidden" id="material-level" name="level" value="beginner">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label" for="material-content-type">Тип контента</label>
@@ -426,6 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
         title: document.getElementById('material-title'),
         titleUa: document.getElementById('material-title-ua'),
         titleEn: document.getElementById('material-title-en'),
+        rating: document.getElementById('material-rating'),
         level: document.getElementById('material-level'),
         contentType: document.getElementById('material-content-type'),
         version: document.getElementById('material-version'),
@@ -486,7 +484,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveMaterialSelectors() {
         setStoredValue(storageKeys.materialSelectors, JSON.stringify({
             topicId: fields.topicId.value || '',
-            level: fields.level.value || '',
             contentType: fields.contentType.value || '',
         }));
     }
@@ -496,8 +493,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const topicId = preferredTopicId || selectors.topicId || '';
 
         if (selectHasValue(fields.topicId, topicId)) fields.topicId.value = String(topicId);
-        if (selectHasValue(fields.level, selectors.level)) fields.level.value = selectors.level;
         if (selectHasValue(fields.contentType, selectors.contentType)) fields.contentType.value = selectors.contentType;
+    }
+
+    function selectedTopicRating() {
+        const topic = topics[fields.topicId.value];
+        return topic?.position ?? topic?.rating ?? 0;
+    }
+
+    function applyTopicRating() {
+        fields.rating.value = selectedTopicRating();
     }
 
     function restoreOpenTopic() {
@@ -575,8 +580,10 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.body.value = '';
         fields.bodyUa.value = '';
         fields.bodyEn.value = '';
+        fields.level.value = 'beginner';
         fields.version.value = '1.0';
         applyStoredMaterialSelectors(topicId);
+        applyTopicRating();
         saveOpenTopic(fields.topicId.value);
         saveMaterialSelectors();
         showDefaultMaterialLanguageTabs();
@@ -595,7 +602,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.title.value = item.title_translations?.ru || item.title || `Урок #${id}`;
         fields.titleUa.value = item.title_translations?.ua || '';
         fields.titleEn.value = item.title_translations?.en || '';
-        fields.level.value = item.level;
+        fields.rating.value = item.rating ?? topics[item.topic_id]?.position ?? 0;
+        fields.level.value = item.level || 'beginner';
         fields.contentType.value = item.content_type;
         fields.version.value = item.version;
         fields.body.value = item.body_translations?.ru || item.body || '';
@@ -615,10 +623,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     fields.topicId.addEventListener('change', () => {
+        if (!currentMaterialId) applyTopicRating();
         saveOpenTopic(fields.topicId.value);
         saveMaterialSelectors();
     });
-    fields.level.addEventListener('change', saveMaterialSelectors);
     fields.contentType.addEventListener('change', () => {
         saveMaterialSelectors();
     });

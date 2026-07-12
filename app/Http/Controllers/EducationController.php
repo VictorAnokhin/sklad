@@ -123,6 +123,11 @@ class EducationController extends Controller
             ->where('is_active', true)
             ->with(['materials' => fn ($query) => $query
                 ->where('is_active', true)
+                ->with(['tests' => fn ($testQuery) => $testQuery
+                    ->where('is_active', true)
+                    ->with('results')
+                    ->orderBy('id')])
+                ->orderBy('rating')
                 ->orderBy('level')
                 ->orderByRaw('CAST(version AS DECIMAL(10,2))')])
             ->orderBy('position')
@@ -142,16 +147,52 @@ class EducationController extends Controller
                             $lang,
                             $material->title ?: $this->localizedText($topic->title_translations, $lang, (string) $topic->title)
                         ),
+                        'rating' => (int) ($material->rating ?? $topic->position ?? 0),
                         'level' => $material->level,
                         'content_type' => $material->content_type,
                         'version' => $material->version,
                         'body' => $this->localizedText($material->body_translations, $lang, (string) $material->body),
+                        'tests' => $material->tests
+                            ->map(fn (QuestTest $test) => $this->publicTestPayload($test, $lang))
+                            ->values(),
                     ])
                     ->values(),
             ])
             ->values();
 
         return response()->json(['topics' => $topics]);
+    }
+
+    public function publicSubmitCourseTest(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'test_id' => ['required', 'integer', 'min:1'],
+            'lang' => ['nullable', 'in:ua,ru,en'],
+            'answers' => ['required', 'array'],
+            'answers.*' => ['required', 'integer', 'min:0'],
+        ]);
+        abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+
+        $test = $this->courseTestsQuery((int) $validated['fid'])
+            ->findOrFail((int) $validated['test_id']);
+
+        $questions = array_values($test->quest_data['questions'] ?? []);
+        abort_if(count($questions) === 0, 422, 'В тесте нет вопросов.');
+        $result = $this->evaluateTest($test, $validated['answers'], (int) $test->passing_score, $this->language($request));
+
+        return response()->json([
+            'score' => $result['score'],
+            'passed' => $result['passed'],
+            'passing_score' => (int) $test->passing_score,
+            'correct_answers' => $result['correct_answers'],
+            'questions_count' => count($questions),
+            'scoring_type' => $result['scoring_type'],
+            'total_score' => $result['total_score'],
+            'max_score' => $result['max_score'],
+            'profile' => $result['profile'],
+            'rating_award' => (int) ($test->quest_data['rating'] ?? 0),
+        ]);
     }
 
     public function publicKnowYourselfTests(Request $request): JsonResponse
@@ -224,6 +265,7 @@ class EducationController extends Controller
             ->where('is_active', true)
             ->with(['materials' => fn ($query) => $query
                 ->where('is_active', true)
+                ->orderBy('rating')
                 ->orderBy('level')
                 ->orderByRaw('CAST(version AS DECIMAL(10,2))')])
             ->orderBy('position')
@@ -256,6 +298,7 @@ class EducationController extends Controller
                 'topic_title_translations' => $topic->title_translations ?? [],
                 'topic_description_translations' => $topic->description_translations ?? [],
                 'position' => $topic->position,
+                'rating' => (int) ($material->rating ?? $topic->position ?? 0),
                 'title' => $material->title,
                 'title_translations' => $material->title_translations ?? [],
                 'level' => $material->level,
@@ -306,6 +349,7 @@ class EducationController extends Controller
                 'title' => $validated['title'],
                 'title_translations' => $validated['title_translations'],
                 'level' => $validated['level'],
+                'rating' => $validated['rating'],
                 'content_type' => $validated['content_type'],
                 'body' => $validated['body'],
                 'body_translations' => $validated['body_translations'],
@@ -380,6 +424,7 @@ class EducationController extends Controller
                 'title' => $validated['title'],
                 'title_translations' => $validated['title_translations'],
                 'level' => $validated['level'],
+                'rating' => $validated['rating'],
                 'content_type' => $validated['content_type'],
                 'body' => $validated['body'],
                 'body_translations' => $validated['body_translations'],
@@ -731,6 +776,7 @@ class EducationController extends Controller
         return Schema::hasTable('education_topics')
             && Schema::hasTable('educational_materials')
             && Schema::hasColumn('educational_materials', 'title')
+            && Schema::hasColumn('educational_materials', 'rating')
             && Schema::hasColumn('education_topics', 'title_translations')
             && Schema::hasColumn('education_topics', 'description_translations')
             && Schema::hasColumn('education_topics', 'cost_av8')
@@ -756,7 +802,8 @@ class EducationController extends Controller
             'topic_id' => ['required', 'integer'],
             'title' => ['nullable', 'string', 'max:255'],
             'title_translations' => ['nullable'],
-            'level' => ['required', 'in:beginner,intermediate,advanced'],
+            'level' => ['nullable', 'in:beginner,intermediate,advanced'],
+            'rating' => ['nullable', 'integer', 'min:0'],
             'content_type' => ['required', 'in:markdown,video_link,interactive_scenario'],
             'body' => ['nullable', 'string'],
             'body_translations' => ['nullable'],
@@ -775,6 +822,8 @@ class EducationController extends Controller
         if ($validated['body_translations'] === []) {
             $validated['body_translations'] = ['ru' => $validated['body']];
         }
+        $validated['level'] = $validated['level'] ?? $material?->level ?? 'beginner';
+        $validated['rating'] = (int) ($validated['rating'] ?? 0);
 
         return $validated;
     }
@@ -917,6 +966,19 @@ class EducationController extends Controller
             ->where('is_active', true)
             ->where('project_id', $projectId)
             ->where('test_type', 'profile_assessment');
+    }
+
+    private function courseTestsQuery(int $projectId)
+    {
+        return QuestTest::query()
+            ->with(['material.topic', 'results'])
+            ->where('is_active', true)
+            ->whereNotNull('material_id')
+            ->whereHas('material.topic', fn ($topicQuery) => $topicQuery
+                ->where('project_id', $projectId)
+                ->where('is_active', true))
+            ->whereHas('material', fn ($materialQuery) => $materialQuery
+                ->where('is_active', true));
     }
 
     private function publicTestPayload(QuestTest $test, string $lang = 'ru'): array
