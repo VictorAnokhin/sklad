@@ -23,20 +23,25 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
+            'lang' => ['nullable', 'in:ua,ru,en'],
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+        $lang = $this->language($request);
 
         $test = $this->firstPublicTest((int) $validated['fid']);
+        $questData = $this->localizedQuestData($test, $lang);
 
         return response()->json([
             'test' => [
                 'id' => $test->id,
-                'title' => $test->title,
+                'title' => $this->localizedText($test->title_translations, $lang, (string) $test->title),
                 'passing_score' => $test->passing_score,
-                'intro' => (string) ($test->quest_data['intro'] ?? ''),
-                'topic' => $test->material?->topic?->title ?? 'Диагностика',
+                'intro' => (string) ($questData['intro'] ?? ''),
+                'topic' => $test->material?->topic
+                    ? $this->localizedText($test->material->topic->title_translations, $lang, (string) $test->material->topic->title)
+                    : 'Диагностика',
                 'level' => $test->material?->level ?? (string) ($test->test_type ?? 'profile_assessment'),
-                'questions' => collect($test->quest_data['questions'] ?? [])
+                'questions' => collect($questData['questions'] ?? [])
                     ->values()
                     ->map(fn ($question, $index) => [
                         'id' => $index,
@@ -52,6 +57,7 @@ class EducationController extends Controller
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
             'test_id' => ['required', 'integer', 'min:1'],
+            'lang' => ['nullable', 'in:ua,ru,en'],
             'answers' => ['required', 'array'],
             'answers.*' => ['required', 'integer', 'min:0'],
         ]);
@@ -62,7 +68,7 @@ class EducationController extends Controller
 
         $questions = array_values($test->quest_data['questions'] ?? []);
         abort_if(count($questions) === 0, 422, 'В тесте нет вопросов.');
-        $result = $this->evaluateTest($test, $validated['answers'], (int) $test->passing_score);
+        $result = $this->evaluateTest($test, $validated['answers'], (int) $test->passing_score, $this->language($request));
 
         return response()->json([
             'score' => $result['score'],
@@ -107,8 +113,10 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
+            'lang' => ['nullable', 'in:ua,ru,en'],
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+        $lang = $this->language($request);
 
         $topics = EducationTopic::query()
             ->where('project_id', (int) $validated['fid'])
@@ -122,17 +130,21 @@ class EducationController extends Controller
             ->get()
             ->map(fn (EducationTopic $topic) => [
                 'id' => $topic->id,
-                'title' => $topic->title,
-                'description' => (string) ($topic->description ?? ''),
+                'title' => $this->localizedText($topic->title_translations, $lang, (string) $topic->title),
+                'description' => $this->localizedText($topic->description_translations, $lang, (string) ($topic->description ?? '')),
                 'rating' => (int) $topic->position,
                 'materials' => $topic->materials
                     ->map(fn (EducationalMaterial $material) => [
                         'id' => $material->id,
-                        'title' => $material->title ?: $topic->title,
+                        'title' => $this->localizedText(
+                            $material->title_translations,
+                            $lang,
+                            $material->title ?: $this->localizedText($topic->title_translations, $lang, (string) $topic->title)
+                        ),
                         'level' => $material->level,
                         'content_type' => $material->content_type,
                         'version' => $material->version,
-                        'body' => (string) $material->body,
+                        'body' => $this->localizedText($material->body_translations, $lang, (string) $material->body),
                     ])
                     ->values(),
             ])
@@ -145,13 +157,15 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
+            'lang' => ['nullable', 'in:ua,ru,en'],
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+        $lang = $this->language($request);
 
         $tests = $this->knowYourselfTestsQuery((int) $validated['fid'])
             ->orderBy('id')
             ->get()
-            ->map(fn (QuestTest $test) => $this->publicTestPayload($test))
+            ->map(fn (QuestTest $test) => $this->publicTestPayload($test, $lang))
             ->values();
 
         return response()->json(['tests' => $tests]);
@@ -162,6 +176,7 @@ class EducationController extends Controller
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
             'test_id' => ['required', 'integer', 'min:1'],
+            'lang' => ['nullable', 'in:ua,ru,en'],
             'answers' => ['required', 'array'],
             'answers.*' => ['required', 'integer', 'min:0'],
         ]);
@@ -172,7 +187,7 @@ class EducationController extends Controller
 
         $questions = array_values($test->quest_data['questions'] ?? []);
         abort_if(count($questions) === 0, 422, 'В тесте нет вопросов.');
-        $result = $this->evaluateTest($test, $validated['answers'], (int) $test->passing_score);
+        $result = $this->evaluateTest($test, $validated['answers'], (int) $test->passing_score, $this->language($request));
 
         return response()->json([
             'score' => $result['score'],
@@ -237,12 +252,16 @@ class EducationController extends Controller
                 'topic_id' => $topic->id,
                 'topic_title' => $topic->title,
                 'topic_description' => $topic->description,
+                'topic_title_translations' => $topic->title_translations ?? [],
+                'topic_description_translations' => $topic->description_translations ?? [],
                 'position' => $topic->position,
                 'title' => $material->title,
+                'title_translations' => $material->title_translations ?? [],
                 'level' => $material->level,
                 'content_type' => $material->content_type,
                 'version' => $material->version,
                 'body' => $material->body,
+                'body_translations' => $material->body_translations ?? [],
             ]))
             ->keyBy('id')
             ->all();
@@ -252,6 +271,8 @@ class EducationController extends Controller
                 $topic->id => [
                     'title' => $topic->title,
                     'description' => $topic->description,
+                    'title_translations' => $topic->title_translations ?? [],
+                    'description_translations' => $topic->description_translations ?? [],
                     'position' => $topic->position,
                     'rating' => $topic->position,
                 ],
@@ -281,9 +302,11 @@ class EducationController extends Controller
             EducationalMaterial::create([
                 'topic_id' => $topic->id,
                 'title' => $validated['title'],
+                'title_translations' => $validated['title_translations'],
                 'level' => $validated['level'],
                 'content_type' => $validated['content_type'],
                 'body' => $validated['body'],
+                'body_translations' => $validated['body_translations'],
                 'version' => $validated['version'],
                 'is_active' => true,
             ]);
@@ -300,7 +323,9 @@ class EducationController extends Controller
         EducationTopic::create([
             'project_id' => $project->id,
             'title' => $validated['title'],
+            'title_translations' => $validated['title_translations'],
             'description' => $validated['description'] ?? null,
+            'description_translations' => $validated['description_translations'],
             'position' => $validated['position'] ?? 0,
             'is_active' => true,
         ]);
@@ -316,7 +341,9 @@ class EducationController extends Controller
 
         $topic->update([
             'title' => $validated['title'],
+            'title_translations' => $validated['title_translations'],
             'description' => $validated['description'] ?? null,
+            'description_translations' => $validated['description_translations'],
             'position' => $validated['position'] ?? 0,
         ]);
 
@@ -347,9 +374,11 @@ class EducationController extends Controller
             $material->update([
                 'topic_id' => $validated['topic_id'],
                 'title' => $validated['title'],
+                'title_translations' => $validated['title_translations'],
                 'level' => $validated['level'],
                 'content_type' => $validated['content_type'],
                 'body' => $validated['body'],
+                'body_translations' => $validated['body_translations'],
                 'version' => $validated['version'],
             ]);
         });
@@ -422,10 +451,12 @@ class EducationController extends Controller
                 $test->id => [
                     'id' => $test->id,
                     'title' => $test->title,
+                    'title_translations' => $test->title_translations ?? [],
                     'material_id' => $test->material_id,
                     'test_type' => $test->test_type ?? 'knowledge_check',
                     'passing_score' => $test->passing_score,
                     'quest_data' => $test->quest_data,
+                    'quest_data_translations' => $test->quest_data_translations ?? [],
                 ],
             ])
             ->all();
@@ -515,7 +546,9 @@ class EducationController extends Controller
                 $test->id => [
                     'id' => $test->id,
                     'title' => $test->title,
+                    'title_translations' => $test->title_translations ?? [],
                     'quest_data' => $test->quest_data,
+                    'quest_data_translations' => $test->quest_data_translations ?? [],
                 ],
             ])
             ->all();
@@ -655,11 +688,17 @@ class EducationController extends Controller
         return Schema::hasTable('education_topics')
             && Schema::hasTable('educational_materials')
             && Schema::hasColumn('educational_materials', 'title')
+            && Schema::hasColumn('education_topics', 'title_translations')
+            && Schema::hasColumn('education_topics', 'description_translations')
+            && Schema::hasColumn('educational_materials', 'title_translations')
+            && Schema::hasColumn('educational_materials', 'body_translations')
             && Schema::hasColumn('users', 'education_rating')
             && Schema::hasTable('quests_tests')
             && Schema::hasTable('quest_test_results')
             && Schema::hasColumn('quests_tests', 'project_id')
             && Schema::hasColumn('quests_tests', 'test_type')
+            && Schema::hasColumn('quests_tests', 'title_translations')
+            && Schema::hasColumn('quests_tests', 'quest_data_translations')
             && Schema::hasTable('education_progress')
             && Schema::hasTable('quest_test_attempts')
             && Schema::hasColumn('quest_test_attempts', 'total_score')
@@ -669,23 +708,52 @@ class EducationController extends Controller
 
     private function validateMaterial(Request $request, ?EducationalMaterial $material = null): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'topic_id' => ['required', 'integer'],
-            'title' => ['required', 'string', 'max:255'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'title_translations' => ['nullable'],
             'level' => ['required', 'in:beginner,intermediate,advanced'],
             'content_type' => ['required', 'in:markdown,video_link,interactive_scenario'],
-            'body' => ['required', 'string'],
+            'body' => ['nullable', 'string'],
+            'body_translations' => ['nullable'],
             'version' => ['required', 'string', 'max:32'],
         ]);
+        $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
+        $validated['body_translations'] = $this->translationMap($validated['body_translations'] ?? null);
+        $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
+        $validated['body'] = $this->fallbackTranslationValue($validated['body_translations'], $validated['body'] ?? '');
+        abort_if($validated['title'] === '', 422, 'Заполните название урока хотя бы на одном языке.');
+        abort_if($validated['body'] === '', 422, 'Заполните содержание урока хотя бы на одном языке.');
+
+        if ($validated['title_translations'] === []) {
+            $validated['title_translations'] = ['ru' => $validated['title']];
+        }
+        if ($validated['body_translations'] === []) {
+            $validated['body_translations'] = ['ru' => $validated['body']];
+        }
+
+        return $validated;
     }
 
     private function validateTopic(Request $request): array
     {
-        return $request->validate([
-            'title' => ['required', 'string', 'max:255'],
+        $validated = $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'title_translations' => ['nullable'],
             'description' => ['nullable', 'string'],
+            'description_translations' => ['nullable'],
             'position' => ['nullable', 'integer', 'min:0'],
         ]);
+        $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
+        $validated['description_translations'] = $this->translationMap($validated['description_translations'] ?? null);
+        $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
+        $validated['description'] = $this->fallbackTranslationValue($validated['description_translations'], $validated['description'] ?? '');
+        abort_if($validated['title'] === '', 422, 'Заполните название курса хотя бы на одном языке.');
+        if ($validated['title_translations'] === []) {
+            $validated['title_translations'] = ['ru' => $validated['title']];
+        }
+
+        return $validated;
     }
 
     private function validateTest(Request $request): array
@@ -693,14 +761,28 @@ class EducationController extends Controller
         $validated = $request->validate([
             'material_id' => ['nullable', 'integer'],
             'test_type' => ['required', 'in:knowledge_check,profile_assessment'],
-            'title' => ['required', 'string', 'max:255'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'title_translations' => ['nullable'],
             'passing_score' => ['required', 'integer', 'min:1', 'max:100'],
             'quest_data' => ['required', 'json'],
+            'quest_data_translations' => ['nullable', 'json'],
         ]);
         $validated['quest_data'] = json_decode($validated['quest_data'], true, 512, JSON_THROW_ON_ERROR);
+        $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
+        $validated['quest_data_translations'] = $this->questDataTranslationMap($validated['quest_data_translations'] ?? null);
+        $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
+        abort_if($validated['title'] === '', 422, 'Заполните название теста хотя бы на одном языке.');
 
         if (!isset($validated['quest_data']['questions']) || !is_array($validated['quest_data']['questions'])) {
             abort(422, 'quest_data должен содержать массив questions.');
+        }
+        foreach ($validated['quest_data_translations'] as $questData) {
+            if (!isset($questData['questions']) || !is_array($questData['questions'])) {
+                abort(422, 'Переводы quest_data должны содержать массив questions.');
+            }
+        }
+        if ($validated['title_translations'] === []) {
+            $validated['title_translations'] = ['ru' => $validated['title']];
         }
 
         return $validated;
@@ -709,16 +791,33 @@ class EducationController extends Controller
     private function validateKnowYourselfTest(Request $request): array
     {
         $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'title_translations' => ['nullable'],
             'quest_data' => ['required', 'json'],
+            'quest_data_translations' => ['nullable', 'json'],
         ]);
         $validated['quest_data'] = json_decode($validated['quest_data'], true, 512, JSON_THROW_ON_ERROR);
+        $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
+        $validated['quest_data_translations'] = $this->questDataTranslationMap($validated['quest_data_translations'] ?? null);
+        $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
+        abort_if($validated['title'] === '', 422, 'Заполните название теста хотя бы на одном языке.');
 
         if (!isset($validated['quest_data']['questions']) || !is_array($validated['quest_data']['questions'])) {
             abort(422, 'quest_data должен содержать массив questions.');
         }
+        foreach ($validated['quest_data_translations'] as $questData) {
+            if (!isset($questData['questions']) || !is_array($questData['questions'])) {
+                abort(422, 'Переводы quest_data должны содержать массив questions.');
+            }
+        }
 
         $validated['quest_data']['scoring'] = 'points';
+        foreach ($validated['quest_data_translations'] as $lang => $questData) {
+            $validated['quest_data_translations'][$lang]['scoring'] = 'points';
+        }
+        if ($validated['title_translations'] === []) {
+            $validated['title_translations'] = ['ru' => $validated['title']];
+        }
 
         return $validated;
     }
@@ -771,18 +870,22 @@ class EducationController extends Controller
             ->where('test_type', 'profile_assessment');
     }
 
-    private function publicTestPayload(QuestTest $test): array
+    private function publicTestPayload(QuestTest $test, string $lang = 'ru'): array
     {
+        $questData = $this->localizedQuestData($test, $lang);
+
         return [
             'id' => $test->id,
-            'title' => $test->title,
+            'title' => $this->localizedText($test->title_translations, $lang, (string) $test->title),
             'passing_score' => $test->passing_score,
-            'intro' => (string) ($test->quest_data['intro'] ?? ''),
-            'auth_required' => ($test->quest_data['auth_required'] ?? '') === 'google' ? 'google' : 'none',
+            'intro' => (string) ($questData['intro'] ?? ''),
+            'auth_required' => ($questData['auth_required'] ?? '') === 'google' ? 'google' : 'none',
             'rating_award' => (int) ($test->quest_data['rating'] ?? 0),
-            'topic' => $test->material?->topic?->title ?? 'Диагностика',
+            'topic' => $test->material?->topic
+                ? $this->localizedText($test->material->topic->title_translations, $lang, (string) $test->material->topic->title)
+                : 'Диагностика',
             'level' => $test->material?->level ?? (string) ($test->test_type ?? 'profile_assessment'),
-            'questions' => collect($test->quest_data['questions'] ?? [])
+            'questions' => collect($questData['questions'] ?? [])
                 ->values()
                 ->map(fn ($question, $index) => [
                     'id' => $index,
@@ -802,7 +905,7 @@ class EducationController extends Controller
             ->all();
     }
 
-    private function evaluateTest(QuestTest $test, array $answers, int $passingScore): array
+    private function evaluateTest(QuestTest $test, array $answers, int $passingScore, string $lang = 'ru'): array
     {
         $questData = $test->quest_data ?? [];
         $questions = array_values($questData['questions'] ?? []);
@@ -825,7 +928,7 @@ class EducationController extends Controller
                 $totalScore += is_array($selected) ? (int) ($selected['score'] ?? 0) : 0;
             }
 
-            $profile = $this->profileForScore($test, $totalScore);
+            $profile = $this->profileForScore($test, $totalScore, $lang);
 
             return [
                 'scoring_type' => 'points',
@@ -858,8 +961,22 @@ class EducationController extends Controller
         ];
     }
 
-    private function profileForScore(QuestTest $test, int $score): array
+    private function profileForScore(QuestTest $test, int $score, string $lang = 'ru'): array
     {
+        $localizedResult = collect($this->localizedQuestData($test, $lang)['results'] ?? [])
+            ->first(fn ($result) => is_array($result)
+                && (int) ($result['min'] ?? 0) <= $score
+                && (int) ($result['max'] ?? 0) >= $score);
+
+        if (is_array($localizedResult)) {
+            return [
+                'title' => (string) ($localizedResult['title'] ?? 'Профиль определён'),
+                'subtitle' => (string) ($localizedResult['subtitle'] ?? ''),
+                'description' => (string) ($localizedResult['description'] ?? ''),
+                'recommendation' => (string) ($localizedResult['recommendation'] ?? ''),
+            ];
+        }
+
         $result = QuestTestResult::query()
             ->where('quest_test_id', $test->id)
             ->where('min_score', '<=', $score)
@@ -883,6 +1000,99 @@ class EducationController extends Controller
             'description' => '',
             'recommendation' => '',
         ];
+    }
+
+    private function language(Request $request): string
+    {
+        $lang = strtolower((string) $request->input('lang', 'ru'));
+
+        return in_array($lang, ['ua', 'ru', 'en'], true) ? $lang : 'ru';
+    }
+
+    private function localizedText(?array $translations, string $lang, string $fallback = ''): string
+    {
+        $translations = $translations ?? [];
+        $value = trim((string) ($translations[$lang] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
+
+        foreach (['ru', 'ua', 'en'] as $fallbackLang) {
+            $value = trim((string) ($translations[$fallbackLang] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function localizedQuestData(QuestTest $test, string $lang): array
+    {
+        $translations = $test->quest_data_translations ?? [];
+        $localized = is_array($translations[$lang] ?? null) ? $translations[$lang] : null;
+
+        return $localized ?: ($test->quest_data ?? []);
+    }
+
+    private function translationMap(mixed $value): array
+    {
+        if (!$value) {
+            return [];
+        }
+
+        $decoded = is_array($value) ? $value : json_decode((string) $value, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $translations = [];
+        foreach (['ua', 'ru', 'en'] as $lang) {
+            $value = trim((string) ($decoded[$lang] ?? ''));
+            if ($value !== '') {
+                $translations[$lang] = $value;
+            }
+        }
+
+        return $translations;
+    }
+
+    private function questDataTranslationMap(?string $json): array
+    {
+        if (!$json) {
+            return [];
+        }
+
+        $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $translations = [];
+        foreach (['ua', 'ru', 'en'] as $lang) {
+            if (isset($decoded[$lang]) && is_array($decoded[$lang])) {
+                $translations[$lang] = $decoded[$lang];
+            }
+        }
+
+        return $translations;
+    }
+
+    private function fallbackTranslationValue(array $translations, string $fallback = ''): string
+    {
+        $fallback = trim($fallback);
+        if ($fallback !== '') {
+            return $fallback;
+        }
+
+        foreach (['ru', 'ua', 'en'] as $lang) {
+            $value = trim((string) ($translations[$lang] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
     }
 
     private function syncTestResults(QuestTest $test, array $questData): void

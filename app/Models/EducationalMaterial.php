@@ -8,7 +8,11 @@ class EducationalMaterial extends Model
 {
     protected $guarded = [];
 
-    protected $casts = ['is_active' => 'boolean'];
+    protected $casts = [
+        'is_active' => 'boolean',
+        'title_translations' => 'array',
+        'body_translations' => 'array',
+    ];
 
     public function topic()
     {

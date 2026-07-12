@@ -98,8 +98,12 @@
                 <input type="hidden" id="test-type" name="test_type" value="knowledge_check">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label" for="test-title">Название теста</label>
-                        <input class="form-control" id="test-title" name="title" required maxlength="255">
+                        <label class="form-label">Название теста</label>
+                        <div class="row g-2">
+                            <div class="col-md-4"><input class="form-control" id="test-title-ua" name="title_translations[ua]" maxlength="255" placeholder="UA"></div>
+                            <div class="col-md-4"><input class="form-control" id="test-title" name="title_translations[ru]" maxlength="255" placeholder="RU"></div>
+                            <div class="col-md-4"><input class="form-control" id="test-title-en" name="title_translations[en]" maxlength="255" placeholder="EN"></div>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-8 mb-3">
@@ -128,6 +132,13 @@
                         </div>
                     </div>
                     <input type="hidden" id="test-quest-data" name="quest_data" required>
+                    <input type="hidden" id="test-quest-data-translations" name="quest_data_translations">
+
+                    <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Язык контента теста">
+                        <button type="button" class="btn btn-warning" data-test-lang="ru">RU</button>
+                        <button type="button" class="btn btn-outline-warning" data-test-lang="ua">UA</button>
+                        <button type="button" class="btn btn-outline-warning" data-test-lang="en">EN</button>
+                    </div>
 
                     <ul class="nav nav-tabs border-secondary mb-3" role="tablist">
                         <li class="nav-item" role="presentation">
@@ -192,10 +203,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteButton = document.getElementById('delete-test-button');
     const fields = {
         title: document.getElementById('test-title'),
+        titleUa: document.getElementById('test-title-ua'),
+        titleEn: document.getElementById('test-title-en'),
         testType: document.getElementById('test-type'),
         materialId: document.getElementById('test-material-id'),
         passingScore: document.getElementById('test-passing-score'),
         questData: document.getElementById('test-quest-data'),
+        questDataTranslations: document.getElementById('test-quest-data-translations'),
     };
     const questionsEditor = document.getElementById('questions-editor');
     const resultsEditor = document.getElementById('results-editor');
@@ -224,6 +238,8 @@ document.addEventListener('DOMContentLoaded', () => {
             { min: 3, max: 3, title: 'Высокая стрессоустойчивость', description: 'Вы воспринимаете волатильность как нормальную часть рынка.', recommendation: 'Можно рассматривать более рискованные инструменты, не забывая про диверсификацию.' }
         ]
     };
+    let currentLang = 'ru';
+    let questDataByLang = {};
 
     function optionValue(option, key, fallback = '') {
         if (typeof option === 'string') {
@@ -375,6 +391,25 @@ document.addEventListener('DOMContentLoaded', () => {
         results.forEach(addResult);
     }
 
+    function setLanguage(lang) {
+        questDataByLang[currentLang] = collectQuestData();
+        currentLang = lang;
+        document.querySelectorAll('[data-test-lang]').forEach((button) => {
+            const active = button.dataset.testLang === lang;
+            button.classList.toggle('btn-warning', active);
+            button.classList.toggle('btn-outline-warning', !active);
+        });
+        loadQuestData(questDataByLang[lang] || example);
+    }
+
+    function activateLanguageButton(lang) {
+        document.querySelectorAll('[data-test-lang]').forEach((button) => {
+            const active = button.dataset.testLang === lang;
+            button.classList.toggle('btn-warning', active);
+            button.classList.toggle('btn-outline-warning', !active);
+        });
+    }
+
     function collectQuestData() {
         const questions = Array.from(questionsEditor.children).map((questionElement) => {
             const optionRows = Array.from(questionElement.querySelectorAll('[data-options] .test-answer-row'));
@@ -422,8 +457,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('test-method').value = 'POST';
         document.getElementById('test-modal-title').textContent = 'Создать тест';
         fields.testType.value = 'knowledge_check';
+        fields.titleUa.value = '';
+        fields.title.value = '';
+        fields.titleEn.value = '';
         fields.materialId.value = '';
         fields.passingScore.value = 80;
+        currentLang = 'ru';
+        activateLanguageButton('ru');
+        questDataByLang = { ru: JSON.parse(JSON.stringify(example)) };
         loadQuestData(example);
         deleteButton.classList.add('d-none');
         activateQuestionsTab();
@@ -437,11 +478,20 @@ document.addEventListener('DOMContentLoaded', () => {
         form.action = updateUrl.replace('__ID__', id);
         document.getElementById('test-method').value = 'PUT';
         document.getElementById('test-modal-title').textContent = 'Изменить тест';
-        fields.title.value = item.title;
+        fields.title.value = item.title_translations?.ru || item.title || '';
+        fields.titleUa.value = item.title_translations?.ua || '';
+        fields.titleEn.value = item.title_translations?.en || '';
         fields.testType.value = item.test_type || 'knowledge_check';
         fields.materialId.value = item.material_id || '';
         fields.passingScore.value = item.passing_score;
-        loadQuestData(item.quest_data || example);
+        currentLang = 'ru';
+        activateLanguageButton('ru');
+        questDataByLang = {
+            ru: item.quest_data_translations?.ru || item.quest_data || example,
+            ua: item.quest_data_translations?.ua || item.quest_data || example,
+            en: item.quest_data_translations?.en || item.quest_data || example,
+        };
+        loadQuestData(questDataByLang.ru || example);
         deleteForm.action = deleteUrl.replace('__ID__', id);
         deleteButton.classList.remove('d-none');
         activateQuestionsTab();
@@ -449,7 +499,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     form.addEventListener('submit', () => {
-        fields.questData.value = JSON.stringify(collectQuestData());
+        questDataByLang[currentLang] = collectQuestData();
+        fields.questData.value = JSON.stringify(questDataByLang.ru || questDataByLang.ua || questDataByLang.en || example);
+        fields.questDataTranslations.value = JSON.stringify(questDataByLang);
+    });
+    document.querySelectorAll('[data-test-lang]').forEach((button) => {
+        button.addEventListener('click', () => setLanguage(button.dataset.testLang));
     });
     document.getElementById('add-question-button').addEventListener('click', () => addQuestion());
     document.getElementById('add-result-button').addEventListener('click', () => addResult());

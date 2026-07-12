@@ -11,6 +11,8 @@ class QuestTest extends Model
 
     protected $casts = [
         'quest_data' => 'array',
+        'quest_data_translations' => 'array',
+        'title_translations' => 'array',
         'is_active' => 'boolean',
     ];
 

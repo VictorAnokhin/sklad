@@ -144,12 +144,18 @@
                 <input type="hidden" name="_method" id="topic-method" value="POST">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label" for="topic-title">Название</label>
-                        <input class="form-control" id="topic-title" name="title" required maxlength="255">
+                        <label class="form-label">Название</label>
+                        <div class="row g-2">
+                            <div class="col-md-4"><input class="form-control" id="topic-title-ua" name="title_translations[ua]" maxlength="255" placeholder="UA"></div>
+                            <div class="col-md-4"><input class="form-control" id="topic-title" name="title_translations[ru]" maxlength="255" placeholder="RU"></div>
+                            <div class="col-md-4"><input class="form-control" id="topic-title-en" name="title_translations[en]" maxlength="255" placeholder="EN"></div>
+                        </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="topic-description">Описание</label>
-                        <textarea class="form-control" id="topic-description" name="description" rows="5"></textarea>
+                        <label class="form-label">Описание</label>
+                        <textarea class="form-control mb-2" id="topic-description-ua" name="description_translations[ua]" rows="3" placeholder="UA"></textarea>
+                        <textarea class="form-control mb-2" id="topic-description" name="description_translations[ru]" rows="3" placeholder="RU"></textarea>
+                        <textarea class="form-control" id="topic-description-en" name="description_translations[en]" rows="3" placeholder="EN"></textarea>
                     </div>
                     <div class="mb-0">
                         <label class="form-label" for="topic-position">Рейтинг</label>
@@ -193,8 +199,12 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="material-title">Название</label>
-                        <input class="form-control" id="material-title" name="title" required maxlength="255">
+                        <label class="form-label">Название</label>
+                        <div class="row g-2">
+                            <div class="col-md-4"><input class="form-control" id="material-title-ua" name="title_translations[ua]" maxlength="255" placeholder="UA"></div>
+                            <div class="col-md-4"><input class="form-control" id="material-title" name="title_translations[ru]" maxlength="255" placeholder="RU"></div>
+                            <div class="col-md-4"><input class="form-control" id="material-title-en" name="title_translations[en]" maxlength="255" placeholder="EN"></div>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
@@ -239,7 +249,9 @@
                         <div class="tab-content border border-secondary rounded-bottom p-2">
                             <div class="tab-pane fade show active" id="material-body-edit-pane" role="tabpanel"
                                  aria-labelledby="material-body-edit-tab" tabindex="0">
-                                <textarea class="form-control font-monospace" id="material-body" name="body" rows="12" required style="max-height:45vh; overflow-y:auto; resize:vertical;"></textarea>
+                                <textarea class="form-control font-monospace mb-2" id="material-body-ua" name="body_translations[ua]" rows="8" placeholder="UA" style="max-height:35vh; overflow-y:auto; resize:vertical;"></textarea>
+                                <textarea class="form-control font-monospace mb-2" id="material-body" name="body_translations[ru]" rows="8" placeholder="RU" style="max-height:35vh; overflow-y:auto; resize:vertical;"></textarea>
+                                <textarea class="form-control font-monospace" id="material-body-en" name="body_translations[en]" rows="8" placeholder="EN" style="max-height:35vh; overflow-y:auto; resize:vertical;"></textarea>
                             </div>
                             <div class="tab-pane fade" id="material-body-preview-pane" role="tabpanel"
                                  aria-labelledby="material-body-preview-tab" tabindex="0">
@@ -280,7 +292,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const topicDeleteButton = document.getElementById('delete-topic-button');
     const topicFields = {
         title: document.getElementById('topic-title'),
+        titleUa: document.getElementById('topic-title-ua'),
+        titleEn: document.getElementById('topic-title-en'),
         description: document.getElementById('topic-description'),
+        descriptionUa: document.getElementById('topic-description-ua'),
+        descriptionEn: document.getElementById('topic-description-en'),
         position: document.getElementById('topic-position'),
     };
 
@@ -298,10 +314,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const fields = {
         topicId: document.getElementById('material-topic-id'),
         title: document.getElementById('material-title'),
+        titleUa: document.getElementById('material-title-ua'),
+        titleEn: document.getElementById('material-title-en'),
         level: document.getElementById('material-level'),
         contentType: document.getElementById('material-content-type'),
         version: document.getElementById('material-version'),
         body: document.getElementById('material-body'),
+        bodyUa: document.getElementById('material-body-ua'),
+        bodyEn: document.getElementById('material-body-en'),
     };
     const materials = @json($materialEditorItems ?? []);
     const topics = @json($topicEditorItems ?? []);
@@ -454,7 +474,13 @@ document.addEventListener('DOMContentLoaded', () => {
         topicMethod.value = 'PUT';
         document.getElementById('topic-modal-title').textContent = 'Изменить курс';
         topicFields.title.value = topic.title || '';
+        topicFields.titleUa.value = topic.title_translations?.ua || '';
+        topicFields.title.value = topic.title_translations?.ru || topic.title || '';
+        topicFields.titleEn.value = topic.title_translations?.en || '';
         topicFields.description.value = topic.description || '';
+        topicFields.descriptionUa.value = topic.description_translations?.ua || '';
+        topicFields.description.value = topic.description_translations?.ru || topic.description || '';
+        topicFields.descriptionEn.value = topic.description_translations?.en || '';
         topicFields.position.value = topic.position || 0;
         topicDeleteForm.action = topicDeleteUrl.replace('__ID__', id);
         topicDeleteButton.classList.remove('d-none');
@@ -474,6 +500,11 @@ document.addEventListener('DOMContentLoaded', () => {
         materialDeleteButton.classList.add('d-none');
         currentMaterialId = null;
         fields.title.value = '';
+        fields.titleUa.value = '';
+        fields.titleEn.value = '';
+        fields.body.value = '';
+        fields.bodyUa.value = '';
+        fields.bodyEn.value = '';
         fields.version.value = '1.0';
         applyStoredMaterialSelectors(topicId);
         saveOpenTopic(fields.topicId.value);
@@ -492,11 +523,15 @@ document.addEventListener('DOMContentLoaded', () => {
         materialMethod.value = 'PUT';
         document.getElementById('material-modal-title').textContent = 'Изменить урок';
         fields.topicId.value = item.topic_id;
-        fields.title.value = item.title || `Урок #${id}`;
+        fields.title.value = item.title_translations?.ru || item.title || `Урок #${id}`;
+        fields.titleUa.value = item.title_translations?.ua || '';
+        fields.titleEn.value = item.title_translations?.en || '';
         fields.level.value = item.level;
         fields.contentType.value = item.content_type;
         fields.version.value = item.version;
-        fields.body.value = item.body;
+        fields.body.value = item.body_translations?.ru || item.body || '';
+        fields.bodyUa.value = item.body_translations?.ua || '';
+        fields.bodyEn.value = item.body_translations?.en || '';
         saveOpenTopic(item.topic_id);
         saveMaterialSelectors();
         materialDeleteForm.action = materialDeleteUrl.replace('__ID__', id);
@@ -512,6 +547,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     fields.body.addEventListener('input', updatePreview);
+    fields.bodyUa.addEventListener('input', updatePreview);
+    fields.bodyEn.addEventListener('input', updatePreview);
     fields.topicId.addEventListener('change', () => {
         saveOpenTopic(fields.topicId.value);
         saveMaterialSelectors();
