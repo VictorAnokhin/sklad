@@ -116,7 +116,7 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-8 mb-3">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label" for="test-material-id">Материал курса</label>
                             <div class="client-search-row d-flex gap-1">
                                 <input type="text" id="test-material-search" class="form-control flex-grow-1 bg-dark text-white border-secondary"
@@ -134,7 +134,12 @@
                                 </div>
                             @endif
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="test-rating">Рейтинг</label>
+                            <input class="form-control" id="test-rating" name="rating"
+                                   type="number" min="0" value="0" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
                             <label class="form-label" for="test-passing-score">Проходной балл, %</label>
                             <input class="form-control" id="test-passing-score" name="passing_score"
                                    type="number" min="1" max="100" value="80" required>
@@ -216,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
         titleEn: document.getElementById('test-title-en'),
         testType: document.getElementById('test-type'),
         materialId: document.getElementById('test-material-id'),
+        rating: document.getElementById('test-rating'),
         passingScore: document.getElementById('test-passing-score'),
         questData: document.getElementById('test-quest-data'),
         questDataTranslations: document.getElementById('test-quest-data-translations'),
@@ -532,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return {
             public_featured: false,
             scoring: 'correct_answers',
+            rating: Number(fields.rating.value || 0),
             intro: '',
             questions,
             results,
@@ -554,6 +561,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleEn.value = '';
         resetMaterialSearch();
         setSelectedMaterial('');
+        fields.rating.value = 0;
         fields.passingScore.value = 80;
         currentLang = 'ru';
         activateLanguageButton('ru');
@@ -577,6 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.testType.value = item.test_type || 'knowledge_check';
         resetMaterialSearch();
         setSelectedMaterial(item.material_id || '');
+        fields.rating.value = item.quest_data?.rating ?? 0;
         fields.passingScore.value = item.passing_score;
         currentLang = 'ru';
         activateLanguageButton('ru');

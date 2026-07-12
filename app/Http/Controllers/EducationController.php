@@ -639,8 +639,11 @@ class EducationController extends Controller
         $score = $result['score'];
         $passed = $result['passed'];
         $userId = (int) Auth::id();
+        $ratingAward = max(0, (int) ($test->quest_data['rating'] ?? 0));
+        $ratingAwarded = 0;
+        $ratingAlreadyAwarded = false;
 
-        DB::transaction(function () use ($test, $resolver, $userId, $validated, $score, $passed, $result) {
+        DB::transaction(function () use ($test, $resolver, $userId, $validated, $score, $passed, $result, $ratingAward, &$ratingAwarded, &$ratingAlreadyAwarded) {
             $nextMaterial = null;
 
             if ($test->material) {
@@ -661,6 +664,20 @@ class EducationController extends Controller
                 $progress->save();
             }
 
+            $ratingAlreadyAwarded = QuestTestAttempt::query()
+                ->where('user_id', $userId)
+                ->where('quest_test_id', $test->id)
+                ->where('passed', true)
+                ->get()
+                ->contains(fn (QuestTestAttempt $attempt) => (int) data_get($attempt->result_data, 'rating_awarded', 0) > 0);
+
+            if ($passed && $ratingAward > 0 && !$ratingAlreadyAwarded) {
+                DB::table('users')
+                    ->where('id', $userId)
+                    ->increment('education_rating', $ratingAward);
+                $ratingAwarded = $ratingAward;
+            }
+
             QuestTestAttempt::create([
                 'user_id' => $userId,
                 'quest_test_id' => $test->id,
@@ -673,17 +690,26 @@ class EducationController extends Controller
                 'result_data' => [
                     'scoring_type' => $result['scoring_type'],
                     'profile' => $result['profile'],
+                    'rating_award' => $ratingAward,
+                    'rating_awarded' => $ratingAwarded,
+                    'rating_already_awarded' => $ratingAlreadyAwarded,
                 ],
                 'next_material_id' => $nextMaterial?->id,
             ]);
         });
 
+        $ratingMessage = $ratingAwarded > 0
+            ? " Рейтинг увеличен на {$ratingAwarded}."
+            : ($passed && $ratingAward > 0 && $ratingAlreadyAwarded
+                ? ' Рейтинг за этот тест уже был начислен ранее.'
+                : '');
+
         return back()->with(
             $passed ? 'success' : 'warning',
             $result['scoring_type'] === 'points'
-                ? "Результат: {$result['total_score']} из {$result['max_score']} баллов. Профиль: {$result['profile']['title']}."
+                ? "Результат: {$result['total_score']} из {$result['max_score']} баллов. Профиль: {$result['profile']['title']}.{$ratingMessage}"
                 : ($passed
-                    ? "Тест пройден: {$score}%. Открыт следующий уровень."
+                    ? "Тест пройден: {$score}%. Открыт следующий уровень.{$ratingMessage}"
                     : "Результат {$score}%. Материал автоматически заменён на более подходящую версию.")
         );
     }
@@ -777,10 +803,13 @@ class EducationController extends Controller
             'title' => ['nullable', 'string', 'max:255'],
             'title_translations' => ['nullable'],
             'passing_score' => ['required', 'integer', 'min:1', 'max:100'],
+            'rating' => ['nullable', 'integer', 'min:0'],
             'quest_data' => ['required', 'json'],
             'quest_data_translations' => ['nullable', 'json'],
         ]);
         $validated['quest_data'] = json_decode($validated['quest_data'], true, 512, JSON_THROW_ON_ERROR);
+        $validated['quest_data']['rating'] = max(0, (int) ($validated['rating'] ?? 0));
+        unset($validated['rating']);
         $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
         $validated['quest_data_translations'] = $this->questDataTranslationMap($validated['quest_data_translations'] ?? null);
         $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
