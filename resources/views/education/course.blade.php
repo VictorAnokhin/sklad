@@ -145,17 +145,83 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Название</label>
-                        <div class="row g-2">
-                            <div class="col-md-4"><input class="form-control" id="topic-title-ua" name="title_translations[ua]" maxlength="255" placeholder="UA"></div>
-                            <div class="col-md-4"><input class="form-control" id="topic-title" name="title_translations[ru]" maxlength="255" placeholder="RU"></div>
-                            <div class="col-md-4"><input class="form-control" id="topic-title-en" name="title_translations[en]" maxlength="255" placeholder="EN"></div>
+                        <ul class="nav nav-tabs border-secondary mb-2" id="topic-title-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="topic-title-ua-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-title-ua-pane" type="button"
+                                        role="tab" aria-controls="topic-title-ua-pane" aria-selected="false">
+                                    UA
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active bg-dark text-warning border-secondary" id="topic-title-ru-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-title-ru-pane" type="button"
+                                        role="tab" aria-controls="topic-title-ru-pane" aria-selected="true">
+                                    RU
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="topic-title-en-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-title-en-pane" type="button"
+                                        role="tab" aria-controls="topic-title-en-pane" aria-selected="false">
+                                    EN
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content border border-secondary rounded-bottom p-2">
+                            <div class="tab-pane fade" id="topic-title-ua-pane" role="tabpanel"
+                                 aria-labelledby="topic-title-ua-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-title-ua" name="title_translations[ua]" rows="2" maxlength="255" placeholder="UA" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade show active" id="topic-title-ru-pane" role="tabpanel"
+                                 aria-labelledby="topic-title-ru-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-title" name="title_translations[ru]" rows="2" maxlength="255" placeholder="RU" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="topic-title-en-pane" role="tabpanel"
+                                 aria-labelledby="topic-title-en-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-title-en" name="title_translations[en]" rows="2" maxlength="255" placeholder="EN" style="resize:vertical;"></textarea>
+                            </div>
                         </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Описание</label>
-                        <textarea class="form-control mb-2" id="topic-description-ua" name="description_translations[ua]" rows="3" placeholder="UA"></textarea>
-                        <textarea class="form-control mb-2" id="topic-description" name="description_translations[ru]" rows="3" placeholder="RU"></textarea>
-                        <textarea class="form-control" id="topic-description-en" name="description_translations[en]" rows="3" placeholder="EN"></textarea>
+                        <ul class="nav nav-tabs border-secondary mb-2" id="topic-description-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="topic-description-ua-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-description-ua-pane" type="button"
+                                        role="tab" aria-controls="topic-description-ua-pane" aria-selected="false">
+                                    UA
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active bg-dark text-warning border-secondary" id="topic-description-ru-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-description-ru-pane" type="button"
+                                        role="tab" aria-controls="topic-description-ru-pane" aria-selected="true">
+                                    RU
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="topic-description-en-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-description-en-pane" type="button"
+                                        role="tab" aria-controls="topic-description-en-pane" aria-selected="false">
+                                    EN
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content border border-secondary rounded-bottom p-2">
+                            <div class="tab-pane fade" id="topic-description-ua-pane" role="tabpanel"
+                                 aria-labelledby="topic-description-ua-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-description-ua" name="description_translations[ua]" rows="5" placeholder="UA" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade show active" id="topic-description-ru-pane" role="tabpanel"
+                                 aria-labelledby="topic-description-ru-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-description" name="description_translations[ru]" rows="5" placeholder="RU" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="topic-description-en-pane" role="tabpanel"
+                                 aria-labelledby="topic-description-en-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-description-en" name="description_translations[en]" rows="5" placeholder="EN" style="resize:vertical;"></textarea>
+                            </div>
+                        </div>
                     </div>
                     <div class="mb-0">
                         <label class="form-label" for="topic-position">Рейтинг</label>
@@ -328,6 +394,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const topicMethod = document.getElementById('topic-method');
     const topicDeleteForm = document.getElementById('delete-topic-form');
     const topicDeleteButton = document.getElementById('delete-topic-button');
+    const topicTitleRuTab = document.getElementById('topic-title-ru-tab');
+    const topicDescriptionRuTab = document.getElementById('topic-description-ru-tab');
     const topicFields = {
         title: document.getElementById('topic-title'),
         titleUa: document.getElementById('topic-title-ua'),
@@ -439,6 +507,11 @@ document.addEventListener('DOMContentLoaded', () => {
         bootstrap.Tab.getOrCreateInstance(materialBodyRuTab).show();
     }
 
+    function showDefaultTopicLanguageTabs() {
+        bootstrap.Tab.getOrCreateInstance(topicTitleRuTab).show();
+        bootstrap.Tab.getOrCreateInstance(topicDescriptionRuTab).show();
+    }
+
     function openCreateTopic() {
         topicForm.reset();
         currentTopicId = null;
@@ -447,6 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('topic-modal-title').textContent = 'Создать курс';
         topicDeleteButton.classList.add('d-none');
         topicFields.position.value = '0';
+        showDefaultTopicLanguageTabs();
         topicModal.show();
     }
 
@@ -470,6 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
         topicFields.position.value = topic.position || 0;
         topicDeleteForm.action = topicDeleteUrl.replace('__ID__', id);
         topicDeleteButton.classList.remove('d-none');
+        showDefaultTopicLanguageTabs();
         topicModal.show();
     }
 
