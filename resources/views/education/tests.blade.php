@@ -78,6 +78,16 @@
         gap: 0.75rem;
         align-items: end;
     }
+    .material-search-results {
+        display: none;
+        max-height: 320px;
+        overflow-y: auto;
+        position: relative;
+        z-index: 1060;
+    }
+    .selected-material-details {
+        font-size: 0.85rem;
+    }
     @media (max-width: 768px) {
         .test-answer-row {
             grid-template-columns: 1fr;
@@ -108,29 +118,15 @@
                     <div class="row">
                         <div class="col-md-8 mb-3">
                             <label class="form-label" for="test-material-id">Материал курса</label>
+                            <div class="client-search-row d-flex gap-1">
+                                <input type="text" id="test-material-search" class="form-control flex-grow-1 text-dark"
+                                       placeholder="Поиск урока или курса" autocomplete="off">
+                            </div>
+                            <div id="test-material-results" class="list-group client-search-results material-search-results"></div>
                             <input type="hidden" id="test-material-id" name="material_id">
-                            <div class="dropdown">
-                                <button class="btn btn-outline-light dropdown-toggle w-100 text-start" type="button"
-                                        id="test-material-dropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                                    <span id="test-material-selected">Без материала — самостоятельный тест</span>
-                                </button>
-                                <div class="dropdown-menu dropdown-menu-dark w-100 p-2" aria-labelledby="test-material-dropdown" style="max-height:320px; overflow-y:auto;">
-                                    <input class="form-control form-control-sm mb-2" id="test-material-search" type="search"
-                                           placeholder="Поиск урока или курса" autocomplete="off">
-                                    <button type="button" class="dropdown-item rounded py-2" data-material-option data-material-id="">
-                                        <span class="d-block">Без материала — самостоятельный тест</span>
-                                    </button>
-                                    @if($materials->isEmpty())
-                                        <span class="dropdown-item-text text-warning">Сначала создайте материал курса</span>
-                                    @endif
-                                    @foreach($materials as $material)
-                                        <button type="button" class="dropdown-item rounded py-2" data-material-option data-material-id="{{ $material->id }}">
-                                            <span class="d-block fw-semibold">{{ $material->title ?: 'Урок #' . $material->id }}</span>
-                                            <span class="d-block small fst-italic text-secondary">{{ $material->topic->title }}</span>
-                                        </button>
-                                    @endforeach
-                                    <div class="dropdown-item-text text-secondary d-none" id="test-material-empty">Уроки не найдены</div>
-                                </div>
+                            <div id="selected-material-details"
+                                 class="alert alert-warning py-1 mt-1 selected-client-details selected-client-details--empty selected-material-details">
+                                Без материала — самостоятельный тест
                             </div>
                             @if($materials->isEmpty())
                                 <div class="form-text text-warning">
@@ -226,10 +222,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const questionsEditor = document.getElementById('questions-editor');
     const resultsEditor = document.getElementById('results-editor');
-    const materialSelectedLabel = document.getElementById('test-material-selected');
     const materialSearch = document.getElementById('test-material-search');
-    const materialEmpty = document.getElementById('test-material-empty');
+    const materialResults = document.getElementById('test-material-results');
+    const selectedMaterialDetails = document.getElementById('selected-material-details');
     const tests = @json($testEditorItems ?? []);
+    const materialOptions = @json($materials->map(fn ($material) => [
+        'id' => (string) $material->id,
+        'title' => $material->title ?: ('Урок #' . $material->id),
+        'topic' => $material->topic?->title ?? '',
+        'level' => $material->level,
+        'version' => $material->version,
+    ])->values());
     const storeUrl = @json(route('education.tests.store'));
     const updateUrl = @json(route('education.tests.update', ['test' => '__ID__']));
     const deleteUrl = @json(route('education.tests.destroy', ['test' => '__ID__']));
@@ -266,35 +269,81 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setSelectedMaterial(materialId = '') {
         fields.materialId.value = materialId ? String(materialId) : '';
-        const option = Array.from(document.querySelectorAll('[data-material-option]'))
-            .find((button) => button.dataset.materialId === fields.materialId.value);
+        const material = materialOptions.find((item) => item.id === fields.materialId.value);
 
-        materialSelectedLabel.textContent = option
-            ? option.querySelector('.fw-semibold')?.textContent?.trim() || option.textContent.trim()
-            : 'Без материала — самостоятельный тест';
-    }
+        if (!material) {
+            selectedMaterialDetails.className = 'alert alert-warning py-1 mt-1 selected-client-details selected-client-details--empty selected-material-details';
+            selectedMaterialDetails.innerHTML = 'Без материала — самостоятельный тест';
+            materialSearch.value = '';
+            return;
+        }
 
-    function filterMaterialOptions() {
-        const query = materialSearch.value.trim().toLowerCase();
-        let visibleCount = 0;
-
-        document.querySelectorAll('[data-material-option]').forEach((button) => {
-            if (!button.dataset.materialId) {
-                button.classList.remove('d-none');
-                return;
-            }
-
-            const matches = query === '' || button.textContent.toLowerCase().includes(query);
-            button.classList.toggle('d-none', !matches);
-            if (matches) visibleCount += 1;
-        });
-
-        materialEmpty.classList.toggle('d-none', query === '' || visibleCount > 0);
+        selectedMaterialDetails.className = 'alert alert-secondary py-1 mt-1 selected-client-details selected-client-details--filled selected-material-details';
+        selectedMaterialDetails.innerHTML = formatMaterialDetailsHtml(material);
+        materialSearch.value = material.title;
     }
 
     function resetMaterialSearch() {
         materialSearch.value = '';
-        filterMaterialOptions();
+        materialResults.innerHTML = '';
+        materialResults.style.display = 'none';
+    }
+
+    function formatMaterialDetailsHtml(material) {
+        const meta = [material.topic, material.level ? `Уровень: ${material.level}` : '', material.version ? `v${material.version}` : '']
+            .filter(Boolean)
+            .join(' | ');
+
+        return `<strong>${escapeHtml(material.title)}</strong><br><small><em>${escapeHtml(meta)}</em></small>`;
+    }
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = String(value || '');
+        return div.innerHTML;
+    }
+
+    function renderMaterialResults(query = materialSearch.value) {
+        const normalized = query.trim().toLowerCase();
+        const filtered = materialOptions.filter((material) => {
+            if (normalized === '') return true;
+            return `${material.title} ${material.topic} ${material.level} ${material.version}`.toLowerCase().includes(normalized);
+        });
+
+        materialResults.innerHTML = '';
+
+        const standalone = document.createElement('a');
+        standalone.href = '#';
+        standalone.className = 'list-group-item list-group-item-action bg-white text-dark';
+        standalone.innerHTML = 'Без материала — самостоятельный тест';
+        standalone.addEventListener('click', (event) => {
+            event.preventDefault();
+            setSelectedMaterial('');
+            materialResults.style.display = 'none';
+        });
+        materialResults.appendChild(standalone);
+
+        if (filtered.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'list-group-item text-dark bg-white';
+            empty.textContent = 'Уроки не найдены';
+            materialResults.appendChild(empty);
+        } else {
+            filtered.forEach((material) => {
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'list-group-item list-group-item-action bg-white text-dark';
+                item.innerHTML = formatMaterialDetailsHtml(material);
+                item.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    setSelectedMaterial(material.id);
+                    materialResults.style.display = 'none';
+                });
+                materialResults.appendChild(item);
+            });
+        }
+
+        materialResults.style.display = 'block';
     }
 
     function addOption(questionElement, option = {}, isCorrect = false) {
@@ -557,17 +606,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-test-lang]').forEach((button) => {
         button.addEventListener('click', () => setLanguage(button.dataset.testLang));
     });
-    document.querySelectorAll('[data-material-option]').forEach((button) => {
-        button.addEventListener('click', () => {
-            setSelectedMaterial(button.dataset.materialId || '');
-            resetMaterialSearch();
-        });
-    });
-    materialSearch.addEventListener('click', (event) => event.stopPropagation());
+    materialSearch.addEventListener('focus', () => renderMaterialResults());
     materialSearch.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') event.preventDefault();
     });
-    materialSearch.addEventListener('input', filterMaterialOptions);
+    materialSearch.addEventListener('input', () => renderMaterialResults());
+    document.addEventListener('click', (event) => {
+        if (event.target === materialSearch || materialResults.contains(event.target)) return;
+        materialResults.style.display = 'none';
+    });
     document.getElementById('add-question-button').addEventListener('click', () => addQuestion());
     document.getElementById('add-result-button').addEventListener('click', () => addResult());
     document.getElementById('create-test-button').addEventListener('click', openCreate);
