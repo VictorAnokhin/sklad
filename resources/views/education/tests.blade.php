@@ -108,17 +108,27 @@
                     <div class="row">
                         <div class="col-md-8 mb-3">
                             <label class="form-label" for="test-material-id">Материал курса</label>
-                            <select class="form-select" id="test-material-id" name="material_id">
-                                <option value="">Без материала — самостоятельный тест</option>
-                                @if($materials->isEmpty())
-                                    <option value="">Сначала создайте материал курса</option>
-                                @endif
-                                @foreach($materials as $material)
-                                    <option value="{{ $material->id }}">
-                                        {{ $material->topic->title }} · {{ $material->level }} · v{{ $material->version }}
-                                    </option>
-                                @endforeach
-                            </select>
+                            <input type="hidden" id="test-material-id" name="material_id">
+                            <div class="dropdown">
+                                <button class="btn btn-outline-light dropdown-toggle w-100 text-start" type="button"
+                                        id="test-material-dropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span id="test-material-selected">Без материала — самостоятельный тест</span>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-dark w-100 p-2" aria-labelledby="test-material-dropdown" style="max-height:320px; overflow-y:auto;">
+                                    <button type="button" class="dropdown-item rounded py-2" data-material-option data-material-id="">
+                                        <span class="d-block">Без материала — самостоятельный тест</span>
+                                    </button>
+                                    @if($materials->isEmpty())
+                                        <span class="dropdown-item-text text-warning">Сначала создайте материал курса</span>
+                                    @endif
+                                    @foreach($materials as $material)
+                                        <button type="button" class="dropdown-item rounded py-2" data-material-option data-material-id="{{ $material->id }}">
+                                            <span class="d-block fw-semibold">{{ $material->title ?: 'Урок #' . $material->id }}</span>
+                                            <span class="d-block small fst-italic text-secondary">{{ $material->topic->title }}</span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </div>
                             @if($materials->isEmpty())
                                 <div class="form-text text-warning">
                                     Для профильной анкеты материал не нужен. Для проверки после урока сначала создайте материал на странице «Курс обучения».
@@ -213,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const questionsEditor = document.getElementById('questions-editor');
     const resultsEditor = document.getElementById('results-editor');
+    const materialSelectedLabel = document.getElementById('test-material-selected');
     const tests = @json($testEditorItems ?? []);
     const storeUrl = @json(route('education.tests.store'));
     const updateUrl = @json(route('education.tests.update', ['test' => '__ID__']));
@@ -246,6 +257,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return key === 'text' ? option : fallback;
         }
         return option?.[key] ?? fallback;
+    }
+
+    function setSelectedMaterial(materialId = '') {
+        fields.materialId.value = materialId ? String(materialId) : '';
+        const option = Array.from(document.querySelectorAll('[data-material-option]'))
+            .find((button) => button.dataset.materialId === fields.materialId.value);
+
+        materialSelectedLabel.textContent = option
+            ? option.querySelector('.fw-semibold')?.textContent?.trim() || option.textContent.trim()
+            : 'Без материала — самостоятельный тест';
     }
 
     function addOption(questionElement, option = {}, isCorrect = false) {
@@ -460,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleUa.value = '';
         fields.title.value = '';
         fields.titleEn.value = '';
-        fields.materialId.value = '';
+        setSelectedMaterial('');
         fields.passingScore.value = 80;
         currentLang = 'ru';
         activateLanguageButton('ru');
@@ -482,7 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleUa.value = item.title_translations?.ua || '';
         fields.titleEn.value = item.title_translations?.en || '';
         fields.testType.value = item.test_type || 'knowledge_check';
-        fields.materialId.value = item.material_id || '';
+        setSelectedMaterial(item.material_id || '');
         fields.passingScore.value = item.passing_score;
         currentLang = 'ru';
         activateLanguageButton('ru');
@@ -505,6 +526,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.querySelectorAll('[data-test-lang]').forEach((button) => {
         button.addEventListener('click', () => setLanguage(button.dataset.testLang));
+    });
+    document.querySelectorAll('[data-material-option]').forEach((button) => {
+        button.addEventListener('click', () => setSelectedMaterial(button.dataset.materialId || ''));
     });
     document.getElementById('add-question-button').addEventListener('click', () => addQuestion());
     document.getElementById('add-result-button').addEventListener('click', () => addResult());
