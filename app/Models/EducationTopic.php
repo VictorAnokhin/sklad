@@ -12,6 +12,7 @@ class EducationTopic extends Model
         'is_active' => 'boolean',
         'title_translations' => 'array',
         'description_translations' => 'array',
+        'cost_av8' => 'decimal:6',
     ];
 
     public function materials()

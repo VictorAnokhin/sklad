@@ -223,9 +223,15 @@
                             </div>
                         </div>
                     </div>
-                    <div class="mb-0">
-                        <label class="form-label" for="topic-position">Рейтинг</label>
-                        <input class="form-control" id="topic-position" name="position" type="number" min="0" value="0">
+                    <div class="row">
+                        <div class="col-md-6 mb-0">
+                            <label class="form-label" for="topic-position">Рейтинг</label>
+                            <input class="form-control" id="topic-position" name="position" type="number" min="0" value="0">
+                        </div>
+                        <div class="col-md-6 mb-0">
+                            <label class="form-label" for="topic-cost-av8">Стоимость, AV8</label>
+                            <input class="form-control" id="topic-cost-av8" name="cost_av8" type="number" min="0" step="0.000001" value="0">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary justify-content-between">
@@ -404,6 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
         descriptionUa: document.getElementById('topic-description-ua'),
         descriptionEn: document.getElementById('topic-description-en'),
         position: document.getElementById('topic-position'),
+        costAv8: document.getElementById('topic-cost-av8'),
     };
 
     const materialModalElement = document.getElementById('material-modal');
@@ -520,6 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('topic-modal-title').textContent = 'Создать курс';
         topicDeleteButton.classList.add('d-none');
         topicFields.position.value = '0';
+        topicFields.costAv8.value = '0';
         showDefaultTopicLanguageTabs();
         topicModal.show();
     }
@@ -542,6 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
         topicFields.description.value = topic.description_translations?.ru || topic.description || '';
         topicFields.descriptionEn.value = topic.description_translations?.en || '';
         topicFields.position.value = topic.position || 0;
+        topicFields.costAv8.value = topic.cost_av8 || '0';
         topicDeleteForm.action = topicDeleteUrl.replace('__ID__', id);
         topicDeleteButton.classList.remove('d-none');
         showDefaultTopicLanguageTabs();

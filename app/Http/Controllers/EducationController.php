@@ -133,6 +133,7 @@ class EducationController extends Controller
                 'title' => $this->localizedText($topic->title_translations, $lang, (string) $topic->title),
                 'description' => $this->localizedText($topic->description_translations, $lang, (string) ($topic->description ?? '')),
                 'rating' => (int) $topic->position,
+                'cost_av8' => (string) ($topic->cost_av8 ?? '0'),
                 'materials' => $topic->materials
                     ->map(fn (EducationalMaterial $material) => [
                         'id' => $material->id,
@@ -275,6 +276,7 @@ class EducationController extends Controller
                     'description_translations' => $topic->description_translations ?? [],
                     'position' => $topic->position,
                     'rating' => $topic->position,
+                    'cost_av8' => (string) ($topic->cost_av8 ?? '0'),
                 ],
             ])
             ->all();
@@ -327,6 +329,7 @@ class EducationController extends Controller
             'description' => $validated['description'] ?? null,
             'description_translations' => $validated['description_translations'],
             'position' => $validated['position'] ?? 0,
+            'cost_av8' => $validated['cost_av8'],
             'is_active' => true,
         ]);
 
@@ -345,6 +348,7 @@ class EducationController extends Controller
             'description' => $validated['description'] ?? null,
             'description_translations' => $validated['description_translations'],
             'position' => $validated['position'] ?? 0,
+            'cost_av8' => $validated['cost_av8'],
         ]);
 
         return redirect()->route('education.course')->with('success', 'Курс изменён.');
@@ -729,6 +733,7 @@ class EducationController extends Controller
             && Schema::hasColumn('educational_materials', 'title')
             && Schema::hasColumn('education_topics', 'title_translations')
             && Schema::hasColumn('education_topics', 'description_translations')
+            && Schema::hasColumn('education_topics', 'cost_av8')
             && Schema::hasColumn('educational_materials', 'title_translations')
             && Schema::hasColumn('educational_materials', 'body_translations')
             && Schema::hasColumn('users', 'education_rating')
@@ -782,6 +787,7 @@ class EducationController extends Controller
             'description' => ['nullable', 'string'],
             'description_translations' => ['nullable'],
             'position' => ['nullable', 'integer', 'min:0'],
+            'cost_av8' => ['nullable', 'numeric', 'min:0'],
         ]);
         $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
         $validated['description_translations'] = $this->translationMap($validated['description_translations'] ?? null);
@@ -791,6 +797,7 @@ class EducationController extends Controller
         if ($validated['title_translations'] === []) {
             $validated['title_translations'] = ['ru' => $validated['title']];
         }
+        $validated['cost_av8'] = number_format((float) ($validated['cost_av8'] ?? 0), 6, '.', '');
 
         return $validated;
     }
