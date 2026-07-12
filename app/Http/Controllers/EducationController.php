@@ -177,6 +177,35 @@ class EducationController extends Controller
         return response()->json(['topics' => $topics]);
     }
 
+    public function publicCourseMaterialTests(Request $request, EducationalMaterial $material): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'lang' => ['nullable', 'in:ua,ru,en'],
+        ]);
+        abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+
+        $material->loadMissing('topic');
+        abort_unless(
+            $material->is_active
+            && $material->topic
+            && $material->topic->is_active
+            && (int) $material->topic->project_id === (int) $validated['fid'],
+            404
+        );
+
+        $lang = $this->language($request);
+        $tests = $material->tests()
+            ->where('is_active', true)
+            ->with('results')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (QuestTest $test) => $this->publicTestPayload($test, $lang))
+            ->values();
+
+        return response()->json(['tests' => $tests]);
+    }
+
     public function publicSubmitCourseTest(Request $request): JsonResponse
     {
         $validated = $request->validate([
