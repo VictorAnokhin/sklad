@@ -411,6 +411,7 @@ class EducationController extends Controller
                 'tests' => collect(),
                 'attempts' => collect(),
                 'materials' => collect(),
+                'materialSearchItems' => [],
                 'testEditorItems' => [],
                 'migrationRequired' => true,
             ]);
@@ -461,11 +462,23 @@ class EducationController extends Controller
             ])
             ->all();
 
+        $materialSearchItems = $materials
+            ->map(fn (EducationalMaterial $material) => [
+                'id' => (string) $material->id,
+                'title' => $material->title ?: ('Урок #' . $material->id),
+                'topic' => $material->topic?->title ?? '',
+                'level' => $material->level,
+                'version' => $material->version,
+            ])
+            ->values()
+            ->all();
+
         return view('education.tests', [
             'project' => $project,
             'tests' => $tests,
             'attempts' => $attempts,
             'materials' => $materials,
+            'materialSearchItems' => $materialSearchItems,
             'testEditorItems' => $testEditorItems,
             'migrationRequired' => false,
         ]);

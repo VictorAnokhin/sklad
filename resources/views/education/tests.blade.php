@@ -226,13 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const materialResults = document.getElementById('test-material-results');
     const selectedMaterialDetails = document.getElementById('selected-material-details');
     const tests = @json($testEditorItems ?? []);
-    const materialOptions = @json($materials->map(fn ($material) => [
-        'id' => (string) $material->id,
-        'title' => $material->title ?: ('Урок #' . $material->id),
-        'topic' => $material->topic?->title ?? '',
-        'level' => $material->level,
-        'version' => $material->version,
-    ])->values());
+    const materialOptions = @json($materialSearchItems ?? []);
     const storeUrl = @json(route('education.tests.store'));
     const updateUrl = @json(route('education.tests.update', ['test' => '__ID__']));
     const deleteUrl = @json(route('education.tests.destroy', ['test' => '__ID__']));
