@@ -33,6 +33,7 @@ use App\Http\Controllers\WalrusProxyController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WebchatIntelligenceController;
 use App\Http\Controllers\WidgetIntelligenceController;
+use App\Http\Controllers\UserWalletSecretController;
 use App\Http\Controllers\ZakazController;
 
 /*
@@ -74,6 +75,9 @@ Route::middleware('api')->prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->post('/wallet/unlink', [AuthController::class, 'unlinkWallet']);
     Route::middleware('auth:sanctum')->delete('/wallet', [AuthController::class, 'unlinkWallet']);
     Route::middleware('auth:sanctum')->post('/wallet/update-token-data', [WalletController::class, 'updateTokenData']);
+    Route::middleware('auth:sanctum')->get('/wallet-secrets/{kind}', [UserWalletSecretController::class, 'show']);
+    Route::middleware('auth:sanctum')->put('/wallet-secrets/{kind}', [UserWalletSecretController::class, 'store']);
+    Route::middleware('auth:sanctum')->delete('/wallet-secrets/{kind}', [UserWalletSecretController::class, 'destroy']);
 });
 
 Route::middleware(['api', 'sui.sponsor.log', 'auth:sanctum'])->post('/sui/shinami/sponsor-transaction', [AuthController::class, 'shinamiSponsorSuiTransaction']);
