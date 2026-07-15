@@ -89,23 +89,77 @@ class EducationController extends Controller
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
             'test_id' => ['required', 'integer', 'min:1'],
+            'answers' => ['required', 'array'],
+            'answers.*' => ['required', 'integer', 'min:0'],
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
 
         $test = $this->knowYourselfTestsQuery((int) $validated['fid'])
             ->findOrFail((int) $validated['test_id']);
-        $rating = max(0, (int) ($test->quest_data['rating'] ?? 0));
+        $questions = array_values($test->quest_data['questions'] ?? []);
+        abort_if(count($questions) === 0, 422, 'В тесте нет вопросов.');
+        $answers = array_values($validated['answers']);
+        abort_if(count($answers) !== count($questions), 422, 'Необходимо ответить на все вопросы теста.');
+
+        $result = $this->evaluateTest($test, $answers, (int) $test->passing_score, $this->language($request));
+        $ratingAward = max(0, (int) ($test->quest_data['rating'] ?? 0));
         $user = $request->user();
         abort_unless($user, 401);
+        $ratingAwarded = 0;
+        $ratingAlreadyAwarded = false;
+        $educationRating = 0;
 
-        $current = (int) ($user->education_rating ?? 0);
-        if ($rating > $current) {
-            $user->forceFill(['education_rating' => $rating])->save();
-        }
+        DB::transaction(function () use ($test, $user, $answers, $result, $ratingAward, &$ratingAwarded, &$ratingAlreadyAwarded, &$educationRating) {
+            $lockedUser = DB::table('users')
+                ->where('id', $user->id)
+                ->lockForUpdate()
+                ->first();
+            abort_unless($lockedUser, 401);
+
+            $ratingAlreadyAwarded = QuestTestAttempt::query()
+                ->where('user_id', $user->id)
+                ->where('quest_test_id', $test->id)
+                ->where('passed', true)
+                ->get()
+                ->contains(fn (QuestTestAttempt $attempt) => (int) data_get($attempt->result_data, 'rating_awarded', 0) > 0);
+
+            if ($result['passed'] && $ratingAward > 0 && !$ratingAlreadyAwarded) {
+                DB::table('users')
+                    ->where('id', $user->id)
+                    ->increment('education_rating', $ratingAward);
+                $ratingAwarded = $ratingAward;
+            }
+
+            QuestTestAttempt::create([
+                'user_id' => $user->id,
+                'quest_test_id' => $test->id,
+                'material_id' => null,
+                'score' => $result['score'],
+                'total_score' => $result['total_score'],
+                'max_score' => $result['max_score'],
+                'passed' => $result['passed'],
+                'answers' => $answers,
+                'result_data' => [
+                    'scoring_type' => $result['scoring_type'],
+                    'profile' => $result['profile'],
+                    'rating_award' => $ratingAward,
+                    'rating_awarded' => $ratingAwarded,
+                    'rating_already_awarded' => $ratingAlreadyAwarded,
+                ],
+                'next_material_id' => null,
+            ]);
+
+            $educationRating = (int) DB::table('users')
+                ->where('id', $user->id)
+                ->value('education_rating');
+        });
 
         return response()->json([
-            'rating_award' => $rating,
-            'education_rating' => max($current, $rating),
+            'passed' => $result['passed'],
+            'rating_award' => $ratingAward,
+            'rating_awarded' => $ratingAwarded,
+            'rating_already_awarded' => $ratingAlreadyAwarded,
+            'education_rating' => $educationRating,
         ]);
     }
 
