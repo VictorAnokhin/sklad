@@ -180,6 +180,13 @@
     }
 </style>
 
+<style>
+    .client-tests-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+</style>
+
 <div class="container mt-4">
     
     @if(session('success'))
@@ -622,13 +629,16 @@
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0 client-tests-table">
+                            <colgroup>
+                                <col style="width: 15%;">
+                                <col style="width: 25%;">
+                                <col style="width: 60%;">
+                            </colgroup>
                             <thead>
                                 <tr>
-                                    <th style="width: 150px;">Дата</th>
+                                    <th>Дата</th>
                                     <th>Тест</th>
-                                    <th style="width: 170px;">Баллы</th>
-                                    <th style="width: 130px;">Статус</th>
                                     <th>Результат</th>
                                 </tr>
                             </thead>
@@ -636,29 +646,39 @@
                                 @forelse($clientQuestTestAttempts ?? [] as $attempt)
                                     @php
                                         $resultData = is_array($attempt->result_data ?? null) ? $attempt->result_data : [];
-                                        $resultTitle = $resultData['title'] ?? $resultData['subtitle'] ?? null;
-                                        $scoreText = $attempt->max_score !== null && (int) $attempt->max_score > 0
-                                            ? ((int) $attempt->total_score . ' / ' . (int) $attempt->max_score)
-                                            : ((int) ($attempt->score ?? 0) . '%');
+                                        $profile = is_array($resultData['profile'] ?? null) ? $resultData['profile'] : [];
+                                        $resultTitle = $profile['title'] ?? $resultData['title'] ?? null;
+                                        $resultSubtitle = $profile['subtitle'] ?? $resultData['subtitle'] ?? null;
+                                        $resultDescription = $profile['description'] ?? $resultData['description'] ?? null;
+                                        $resultRecommendation = $profile['recommendation'] ?? $resultData['recommendation'] ?? null;
                                     @endphp
                                     <tr>
                                         <td>{{ optional($attempt->created_at)->format('d.m.Y H:i') ?: '-' }}</td>
                                         <td>
                                             <div class="fw-semibold">{{ $attempt->test->title ?? 'Тест #' . $attempt->quest_test_id }}</div>
                                         </td>
-                                        <td>{{ $scoreText }}</td>
                                         <td>
-                                            @if($attempt->passed)
-                                                <span class="badge bg-success">Пройден</span>
+                                            @if($resultTitle || $resultSubtitle || $resultDescription || $resultRecommendation)
+                                                @if($resultTitle)
+                                                    <div class="fw-semibold">{{ $resultTitle }}</div>
+                                                @endif
+                                                @if($resultSubtitle)
+                                                    <div class="small text-muted mt-1">{{ $resultSubtitle }}</div>
+                                                @endif
+                                                @if($resultDescription)
+                                                    <div class="mt-2">{{ $resultDescription }}</div>
+                                                @endif
+                                                @if($resultRecommendation)
+                                                    <div class="mt-2"><span class="fw-semibold">Рекомендация:</span> {{ $resultRecommendation }}</div>
+                                                @endif
                                             @else
-                                                <span class="badge bg-secondary">Не пройден</span>
+                                                -
                                             @endif
                                         </td>
-                                        <td>{{ $resultTitle ?: '-' }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center text-muted py-4">Результатов тестов пока нет</td>
+                                        <td colspan="3" class="text-center text-muted py-4">Результатов тестов пока нет</td>
                                     </tr>
                                 @endforelse
                             </tbody>
