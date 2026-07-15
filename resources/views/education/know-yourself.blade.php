@@ -74,7 +74,7 @@
     }
     .know-answer-row {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 110px;
+        grid-template-columns: minmax(0, 1fr) 110px auto;
         gap: 0.75rem;
         align-items: start;
     }
@@ -153,7 +153,7 @@
                     <div class="tab-content">
                         <div class="tab-pane fade show active" id="know-questions-pane" role="tabpanel" aria-labelledby="know-questions-tab">
                             <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
-                                <div class="form-text">Кнопка добавляет вопрос и 3 варианта ответа. У каждого варианта укажите балл.</div>
+                                <div class="form-text">Кнопка добавляет вопрос с 3 вариантами ответа. Дополнительные варианты можно добавить внутри вопроса. У каждого варианта укажите балл.</div>
                                 <button type="button" class="btn btn-sm btn-outline-warning" id="know-add-question-button">
                                     Добавить
                                 </button>
@@ -248,6 +248,43 @@ document.addEventListener('DOMContentLoaded', () => {
         return typeof option === 'object' && option !== null ? (option.score ?? fallback) : fallback;
     }
 
+    function refreshOptionLabels(questionElement) {
+        questionElement.querySelectorAll('.know-answer-row').forEach((row, index) => {
+            const label = row.querySelector('[data-option-label]');
+            if (label) label.textContent = `Вариант ответа ${index + 1}`;
+        });
+    }
+
+    function addOption(questionElement, option = {}, fallbackScore = null) {
+        const optionsWrap = questionElement.querySelector('[data-options]');
+        const row = document.createElement('div');
+        row.className = 'know-answer-row';
+        row.innerHTML = `
+            <div>
+                <label class="form-label small text-secondary mb-1" data-option-label>Вариант ответа</label>
+                <input class="form-control" data-option-text required>
+            </div>
+            <div>
+                <label class="form-label small text-secondary mb-1">Балл</label>
+                <input class="form-control" data-option-score type="number" min="0" required>
+            </div>
+            <div class="text-end">
+                <label class="form-label small text-secondary mb-1 d-block">&nbsp;</label>
+                <button type="button" class="btn btn-outline-danger" data-remove-option aria-label="Удалить вариант">×</button>
+            </div>
+        `;
+
+        const defaultScore = fallbackScore ?? (optionsWrap.children.length + 1);
+        row.querySelector('[data-option-text]').value = optionText(option);
+        row.querySelector('[data-option-score]').value = optionScore(option, defaultScore);
+        row.querySelector('[data-remove-option]').addEventListener('click', () => {
+            row.remove();
+            refreshOptionLabels(questionElement);
+        });
+        optionsWrap.appendChild(row);
+        refreshOptionLabels(questionElement);
+    }
+
     function refreshQuestionAccordion() {
         Array.from(questionsEditor.children).forEach((questionElement, index) => {
             const number = index + 1;
@@ -286,7 +323,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <button type="button" class="btn btn-sm btn-outline-danger align-self-start" data-remove-question>Удалить</button>
                 </div>
-                <div class="vstack gap-2" data-options></div>
+                <div class="vstack gap-2 mb-2" data-options></div>
+                <button type="button" class="btn btn-sm btn-outline-light" data-add-option>Добавить вариант</button>
                 </div>
             </div>
         `;
@@ -298,30 +336,13 @@ document.addEventListener('DOMContentLoaded', () => {
             questionElement.remove();
             refreshQuestionAccordion();
         });
+        questionElement.querySelector('[data-add-option]').addEventListener('click', () => addOption(questionElement));
 
-        const optionsWrap = questionElement.querySelector('[data-options]');
-        const options = Array.isArray(question.options) ? question.options.slice(0, 3) : [];
+        const options = Array.isArray(question.options) ? [...question.options] : [];
         while (options.length < 3) {
             options.push({ text: '', score: options.length + 1 });
         }
-
-        options.forEach((option, index) => {
-            const row = document.createElement('div');
-            row.className = 'know-answer-row';
-            row.innerHTML = `
-                <div>
-                    <label class="form-label small text-secondary mb-1">Вариант ответа ${index + 1}</label>
-                    <input class="form-control" data-option-text required>
-                </div>
-                <div>
-                    <label class="form-label small text-secondary mb-1">Балл</label>
-                    <input class="form-control" data-option-score type="number" min="0" required>
-                </div>
-            `;
-            row.querySelector('[data-option-text]').value = optionText(option);
-            row.querySelector('[data-option-score]').value = optionScore(option, index + 1);
-            optionsWrap.appendChild(row);
-        });
+        options.forEach((option, index) => addOption(questionElement, option, index + 1));
 
         questionsEditor.appendChild(questionElement);
         refreshQuestionAccordion();
