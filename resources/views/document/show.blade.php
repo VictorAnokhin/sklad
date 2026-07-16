@@ -1024,7 +1024,7 @@
                     @if(!$hideGoodsSection && !in_array($doc, ['PO', 'CPO', 'RO', 'CRO', 'ZP', 'RA', 'CDOC'], true))
                         <div class="goods-search-container">
                             <div class="goods-search-row">
-                                <input type="text" id="goodsSearchInput" class="form-control text-white" placeholder="Поиск товара..."
+                                <input type="text" id="goodsSearchInput" class="form-control text-white" placeholder="{{ ($isEducationProject ?? false) ? 'Поиск курса...' : 'Поиск товара...' }}"
                                     autocomplete="off">
                                 <button type="button" id="searchGoodsBtn"
                                     class="btn btn-outline-secondary btn-sm">Шукати</button>
@@ -1034,7 +1034,7 @@
                         </div>
 
                         <!-- Goods table -->
-                        <h5 class="goods-title">Товари</h5>
+                        <h5 class="goods-title">{{ ($isEducationProject ?? false) ? 'Курсы' : 'Товари' }}</h5>
                         <table class="table table-bordered table-sm " id="goodsTable">
                             <thead class="goods-table-header">
                                 <tr>
@@ -1069,7 +1069,7 @@
                                                 <div class="goods-name-map-wrap">
                                                     <input type="text" class="form-control form-control-sm text-white" value="{{ $item->name ?? '' }}"
                                                         readonly>
-                                                    @if($mappingTargetProjectId)
+                                                    @if($mappingTargetProjectId && !($isEducationProject ?? false))
                                                         <button type="button"
                                                             class="btn btn-sm btn-outline-secondary product-map-btn {{ !empty($item->mapped_product_id) ? 'is-mapped' : '' }}"
                                                             data-source-product-id="{{ $item->pnum }}"
@@ -2381,7 +2381,9 @@
     	                                    ? `<img src="${imageUrl}" alt="" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f1f5f9;flex:0 0 48px;">`
     	                                    : `<div style="width:48px;height:48px;border-radius:6px;background:#e5e7eb;flex:0 0 48px;"></div>`;
     	                                a.href = '#'; a.className = 'list-group-item list-group-item-action py-2 bg-white text-dark';
-    	                                a.innerHTML = `<div style="display:flex;gap:10px;align-items:center;">${imageHtml}<div><strong>${good.pnum}</strong> - ${good.name || ''} <br><small class="text-dark">Ціна (pay): ${good.priceCompPay} грн</small></div></div>`;
+	                                const priceLabel = good.itemType === 'course' ? 'Стоимость курса' : 'Ціна (pay)';
+	                                const priceCurrency = good.itemType === 'course' ? ' AV8' : ' грн';
+	                                a.innerHTML = `<div style="display:flex;gap:10px;align-items:center;">${imageHtml}<div><strong>${good.pnum}</strong> - ${good.name || ''} <br><small class="text-dark">${priceLabel}: ${good.priceCompPay}${priceCurrency}</small></div></div>`;
     	                                a.addEventListener('click', function (e) {
                                         e.preventDefault();
                                         const emptyRow = document.getElementById('emptyGoodsRow');
@@ -2392,19 +2394,23 @@
                                         const pay1 = parseFloat(good.priceCompPay1 || 0);
                                         const priceBase = parseFloat(good.priceBase || 0) || pay;
                                         const priceWholesale = parseFloat(good.priceWholesale || 0) || parseFloat(good.pay1 || 0);
-                                        let initialPrice = (docType === 'ZIN' || docType === 'PN') ? pay1 : priceBase;
-                                        if ((docType === 'ZOUT' || docType === 'RN') && wholesaleFrom > 0 && quantity >= wholesaleFrom && priceWholesale > 0) {
-                                            initialPrice = priceWholesale;
-                                        } else if ((docType === 'ZOUT' || docType === 'RN') && priceBase > 0) {
-                                            initialPrice = priceBase;
-                                        } else if ((docType === 'ZIN' || docType === 'PN') && pay1 <= 0) {
-                                            initialPrice = 0;
-                                        } else if (initialPrice <= 0) {
-                                            initialPrice = pay1;
+                                        let initialPrice = priceBase;
+                                        if (good.itemType !== 'course') {
+                                            initialPrice = (docType === 'ZIN' || docType === 'PN') ? pay1 : priceBase;
+                                            if ((docType === 'ZOUT' || docType === 'RN') && wholesaleFrom > 0 && quantity >= wholesaleFrom && priceWholesale > 0) {
+                                                initialPrice = priceWholesale;
+                                            } else if ((docType === 'ZOUT' || docType === 'RN') && priceBase > 0) {
+                                                initialPrice = priceBase;
+                                            } else if ((docType === 'ZIN' || docType === 'PN') && pay1 <= 0) {
+                                                initialPrice = 0;
+                                            } else if (initialPrice <= 0) {
+                                                initialPrice = pay1;
+                                            }
                                         }
                                         const mappedProductId = String(good.mappedProductId || '');
                                         const mapButtonClass = mappedProductId ? 'btn btn-sm btn-outline-secondary product-map-btn is-mapped' : 'btn btn-sm btn-outline-secondary product-map-btn';
                                         const mapButtonText = mappedProductId || '...';
+                                        const mapButtonHtml = good.itemType === 'course' ? '' : `<button type="button" class="${mapButtonClass}" data-source-product-id="${escapeHtml(good.pnum)}" data-source-product-name="${escapeHtml(good.name || '')}" data-target-product-id="${escapeHtml(mappedProductId)}" title="Маппінг товару проекту ${escapeHtml(mappingTargetProjectId || 'не визначено')}">${escapeHtml(mapButtonText)}</button>`;
 
                                         const tr = document.createElement('tr');
                                         tr.innerHTML = `
@@ -2413,7 +2419,7 @@
                                                 <input type="hidden" name="name[]" value="${escapeHtml(good.name || '')}">
                                                 <div class="goods-name-map-wrap">
                                                     <input type="text" class="form-control form-control-sm text-dark text-white" value="${escapeHtml(good.name || '')}" readonly>
-                                                    <button type="button" class="${mapButtonClass}" data-source-product-id="${escapeHtml(good.pnum)}" data-source-product-name="${escapeHtml(good.name || '')}" data-target-product-id="${escapeHtml(mappedProductId)}" title="Маппінг товару проекту ${escapeHtml(mappingTargetProjectId || 'не визначено')}">${escapeHtml(mapButtonText)}</button>
+                                                    ${mapButtonHtml}
                                                 </div>
                                             </td>
                                             <td class="goods-table-col-qty" data-label="К-ть">

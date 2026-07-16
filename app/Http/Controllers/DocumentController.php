@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\Goods;
+use App\Models\EducationTopic;
+use App\Models\Project;
 use App\Models\Field;
 use App\Models\ZBody;
 use App\Models\Conf;
@@ -468,7 +470,24 @@ class DocumentController extends Controller
 
         $pricingMeta = $this->goodsPricingMetaByPnum($lineItems->pluck('pnum'), $fid);
 
-        $lineItems = $lineItems->map(function ($item) use ($pricingMeta, $locale) {
+        $isEducationProject = Schema::hasTable('project')
+            && Schema::hasColumn('project', 'project_type')
+            && strtolower(trim((string) Project::query()->whereKey((int) $fid)->value('project_type'))) === 'education';
+        $educationCourseNames = collect();
+        if ($isEducationProject && Schema::hasTable('education_topics')) {
+            $educationCourseNames = EducationTopic::query()
+                ->where('project_id', (int) $fid)
+                ->whereIn('id', $lineItems->pluck('pnum')->filter()->map(fn ($id) => (int) $id))
+                ->get()
+                ->mapWithKeys(function (EducationTopic $course) use ($locale) {
+                    $translations = is_array($course->title_translations ?? null) ? $course->title_translations : [];
+                    $name = trim((string) ($translations[$locale] ?? '')) ?: trim((string) $course->title);
+
+                    return [(string) $course->id => $name];
+                });
+        }
+
+        $lineItems = $lineItems->map(function ($item) use ($pricingMeta, $locale, $educationCourseNames) {
             $meta = $pricingMeta[(string) $item->pnum] ?? [];
             $item->name = Field::localizedValue(
                 $locale,
@@ -476,6 +495,16 @@ class DocumentController extends Controller
                 $item->descript_name_ua ?? '',
                 $item->descript_name_en ?? ''
             ) ?: (string) ($item->comp_name ?? '');
+            if ($educationCourseNames->has((string) $item->pnum)) {
+                $item->name = (string) $educationCourseNames->get((string) $item->pnum);
+                $meta = [
+                    'price_pay' => (float) ($item->pprice ?? 0),
+                    'price_pay1' => 0,
+                    'price_count' => 0,
+                    'comp_pay' => (float) ($item->pprice ?? 0),
+                    'comp_pay1' => 0,
+                ];
+            }
             $item->price_pay = (float) ($meta['price_pay'] ?? 0);
             $item->price_pay1 = (float) ($meta['price_pay1'] ?? 0);
             $item->price_count = (int) ($meta['price_count'] ?? 0);
@@ -712,7 +741,7 @@ class DocumentController extends Controller
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
             'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions', 'loanRepaymentSchedule',
-            'loanRoUrl', 'loanRoIsIssued'
+            'loanRoUrl', 'loanRoIsIssued', 'isEducationProject'
         ));
     }
 

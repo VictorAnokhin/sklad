@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Goods;
+use App\Models\EducationTopic;
 use App\Models\Field;
 use App\Models\Filter;
 use App\Models\Price;
@@ -243,6 +244,11 @@ class GoodsController extends Controller
 
         $fid = $this->resolveApiFid($request);
         $locale = $this->resolveApiLocale($request);
+
+        if ($this->isEducationProject($fid)) {
+            return response()->json($this->searchEducationCourses((string) $q, $fid, $locale));
+        }
+
         $doc = strtoupper((string) $request->input('doc', ''));
         $counterpartyUserId = (int) $request->input('counterparty_user_id', 0);
         $targetProjectId = $counterpartyUserId > 0
@@ -331,6 +337,69 @@ class GoodsController extends Controller
             });
 
         return response()->json($goods);
+    }
+
+    private function isEducationProject(string $fid): bool
+    {
+        if ($fid === '' || !Schema::hasTable('project') || !Schema::hasColumn('project', 'project_type')) {
+            return false;
+        }
+
+        return strtolower(trim((string) Project::query()->whereKey((int) $fid)->value('project_type'))) === 'education';
+    }
+
+    private function searchEducationCourses(string $search, string $fid, string $locale)
+    {
+        if (!Schema::hasTable('education_topics')) {
+            return collect();
+        }
+
+        $search = trim($search);
+        $hasTranslations = Schema::hasColumn('education_topics', 'title_translations');
+        $hasCost = Schema::hasColumn('education_topics', 'cost_av8');
+
+        return EducationTopic::query()
+            ->where('project_id', (int) $fid)
+            ->where('is_active', true)
+            ->where(function ($query) use ($search, $hasTranslations) {
+                $query->where('id', 'like', "%{$search}%")
+                    ->orWhere('title', 'like', "%{$search}%");
+                if ($hasTranslations) {
+                    $query->orWhere('title_translations', 'like', "%{$search}%");
+                }
+            })
+            ->orderBy('position')
+            ->orderBy('id')
+            ->limit(20)
+            ->get()
+            ->map(function (EducationTopic $course) use ($locale, $hasCost) {
+                $translations = is_array($course->title_translations ?? null) ? $course->title_translations : [];
+                $name = trim((string) ($translations[$locale] ?? ''));
+                if ($name === '') {
+                    $name = trim((string) $course->title);
+                }
+                $price = $hasCost ? (float) ($course->cost_av8 ?? 0) : 0.0;
+
+                return [
+                    'id' => (int) $course->id,
+                    'pnum' => (int) $course->id,
+                    'name' => $name,
+                    'image' => '',
+                    'image_thumb' => '',
+                    'price' => $price,
+                    'pay' => $price,
+                    'pay1' => 0,
+                    'priceCompPay' => $price,
+                    'priceCompPay1' => 0,
+                    'priceBase' => $price,
+                    'priceWholesale' => 0,
+                    'wholesaleFrom' => 0,
+                    'count' => 0,
+                    'sklad' => 1,
+                    'mappedProductId' => '',
+                    'itemType' => 'course',
+                ];
+            });
     }
 
     private function counterpartyProjectId(int $counterpartyUserId, string $sourceCompanyId): ?int
