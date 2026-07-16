@@ -20,6 +20,22 @@ use Illuminate\Validation\Rule;
 
 class EducationController extends Controller
 {
+    public function ensureCourseOrder(Request $request, AcademyCoursePaymentService $payments): JsonResponse
+    {
+        $validated = $request->validate([
+            'course_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $course = EducationTopic::query()
+            ->where('project_id', 36)
+            ->where('is_active', true)
+            ->findOrFail((int) $validated['course_id']);
+
+        return response()->json([
+            'order' => $payments->ensureOrder($request->user(), $course),
+        ]);
+    }
+
     public function recordCoursePayment(Request $request, AcademyCoursePaymentService $payments): JsonResponse
     {
         $validated = $request->validate([
@@ -202,6 +218,9 @@ class EducationController extends Controller
                 ->get()
                 ->keyBy('education_topic_id')
             : collect();
+        $paidCourseIds = $user
+            ? $this->paidEducationCourseIds((int) $validated['fid'], (int) $user->id)
+            : collect();
 
         $topics = EducationTopic::query()
             ->where('project_id', (int) $validated['fid'])
@@ -218,9 +237,11 @@ class EducationController extends Controller
             ->orderBy('position')
             ->orderBy('id')
             ->get()
-            ->map(function (EducationTopic $topic) use ($lang, $progressByTopic) {
+            ->map(function (EducationTopic $topic) use ($lang, $progressByTopic, $paidCourseIds) {
                 $progress = $progressByTopic->get($topic->id);
                 $topicRating = (int) $topic->position;
+                $requiresPayment = (float) ($topic->cost_av8 ?? 0) > 0;
+                $isPaid = !$requiresPayment || $paidCourseIds->contains((int) $topic->id);
 
                 return [
                     'id' => $topic->id,
@@ -230,6 +251,7 @@ class EducationController extends Controller
                     'local_rating' => $progress ? max($topicRating, (int) $progress->local_rating) : null,
                     'completed_at' => $progress?->completed_at,
                     'cost_av8' => (string) ($topic->cost_av8 ?? '0'),
+                    'is_paid' => $isPaid,
                     'materials' => $topic->materials
                         ->map(fn (EducationalMaterial $material) => [
                             'id' => $material->id,
@@ -242,10 +264,12 @@ class EducationController extends Controller
                             'level' => $material->level,
                             'content_type' => $material->content_type,
                             'version' => $material->version,
-                            'body' => $this->localizedText($material->body_translations, $lang, (string) $material->body),
-                            'tests' => $material->tests
+                            'body' => $isPaid
+                                ? $this->localizedText($material->body_translations, $lang, (string) $material->body)
+                                : '',
+                            'tests' => $isPaid ? $material->tests
                                 ->map(fn (QuestTest $test) => $this->publicTestPayload($test, $lang))
-                                ->values(),
+                                ->values() : collect(),
                         ])
                         ->values(),
                 ];
@@ -253,6 +277,65 @@ class EducationController extends Controller
             ->values();
 
         return response()->json(['topics' => $topics]);
+    }
+
+    private function paidEducationCourseIds(int $projectId, int $userId)
+    {
+        if (!Schema::hasTable('z_document')) {
+            return collect();
+        }
+
+        $payments = DB::table('z_document as po')
+            ->join('document as course_order', function ($join) {
+                $join->on('course_order.id', '=', 'po.docid')
+                    ->on('course_order.firma', '=', 'po.firma');
+            })
+            ->where('po.firma', (string) $projectId)
+            ->where('po.type', 'PO')
+            ->where('po.client1', (string) $userId)
+            ->where('po.provodka', 1)
+            ->where('course_order.type', 'ZOUT')
+            ->where('course_order.client1', (string) $userId)
+            ->get(['po.docid', 'po.numdoc', 'po.typeproduct']);
+
+        $directCourseIds = $payments
+            ->filter(fn ($payment) => strtolower(trim((string) ($payment->typeproduct ?? ''))) === 'course')
+            ->pluck('numdoc')
+            ->map(fn ($id) => (int) $id)
+            ->filter();
+
+        if (!Schema::hasTable('z_body')) {
+            return $directCourseIds->unique()->values();
+        }
+
+        $orderIds = $payments->pluck('docid')->map(fn ($id) => (string) $id)->filter()->unique();
+        $orderedCourseIds = $orderIds->isEmpty()
+            ? collect()
+            : DB::table('z_body')
+                ->where('firma', (string) $projectId)
+                ->whereIn('docid', $orderIds->all())
+                ->pluck('pnum')
+                ->map(fn ($id) => (int) $id)
+                ->filter();
+
+        return $directCourseIds
+            ->merge($orderedCourseIds)
+            ->unique()
+            ->values();
+    }
+
+    private function assertCoursePaymentAccess(EducationTopic $course): void
+    {
+        if ((float) ($course->cost_av8 ?? 0) <= 0) {
+            return;
+        }
+
+        $user = Auth::guard('sanctum')->user();
+        abort_unless(
+            $user && $this->paidEducationCourseIds((int) $course->project_id, (int) $user->id)->contains((int) $course->id),
+            403,
+            'Курс не оплачен.'
+        );
     }
 
     public function publicCourseMaterialTests(Request $request, EducationalMaterial $material): JsonResponse
@@ -271,6 +354,7 @@ class EducationController extends Controller
             && (int) $material->topic->project_id === (int) $validated['fid'],
             404
         );
+        $this->assertCoursePaymentAccess($material->topic);
 
         $lang = $this->language($request);
         $tests = $material->tests()
@@ -297,6 +381,7 @@ class EducationController extends Controller
 
         $test = $this->courseTestsQuery((int) $validated['fid'])
             ->findOrFail((int) $validated['test_id']);
+        $this->assertCoursePaymentAccess($test->material->topic);
 
         $questions = array_values($test->quest_data['questions'] ?? []);
         abort_if(count($questions) === 0, 422, 'В тесте нет вопросов.');

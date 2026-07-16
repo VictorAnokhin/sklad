@@ -14,6 +14,51 @@ class AcademyCoursePaymentService
 {
     private const FID = '36';
 
+    public function ensureOrder(Authenticatable $user, EducationTopic $course): array
+    {
+        return DB::transaction(function () use ($user, $course) {
+            DB::table('project')->where('id', self::FID)->lockForUpdate()->first();
+
+            $order = $this->findCourseOrder((int) $user->getAuthIdentifier(), (int) $course->id, true);
+            if (!$order) {
+                $now = now();
+                $year = $now->format('Y');
+                $orderNum = Document::nextNum('ZOUT', self::FID, $year);
+                $amount = round((float) $this->normalizeAv8Amount((string) $course->cost_av8), 2);
+
+                $orderId = DB::table('document')->insertGetId([
+                    'num' => (string) $orderNum,
+                    'type' => 'ZOUT',
+                    'firma' => self::FID,
+                    'client1' => (string) $user->getAuthIdentifier(),
+                    'client2' => '0',
+                    'summa' => $amount,
+                    'data' => $now->format('d-m-Y'),
+                    'data2' => $now->format('d-m-Y'),
+                    'time' => $now->format('H:i:s'),
+                    'dt' => $now->timestamp,
+                    'manager' => 'academy_api',
+                    'user' => 'academy_api',
+                    'content' => sprintf('Academy: заявка на курс #%d «%s»', $course->id, trim((string) $course->title)),
+                    'numz' => (string) $orderNum,
+                    'typez' => 'ZOUT',
+                    'docum' => 'academy_course',
+                    'provodka' => 0,
+                    'dostup' => 1,
+                    'money' => 'AV8',
+                    'numdoc' => (string) $course->id,
+                    'close' => 0,
+                    'typeproduct' => 'course',
+                ]);
+                $order = DB::table('document')->where('id', $orderId)->first();
+            }
+
+            $this->ensureCourseLine($order, $course);
+
+            return $this->orderResponse($order, (int) $course->id);
+        });
+    }
+
     public function record(Authenticatable $user, EducationTopic $course, string $digest, string $walletAddress): array
     {
         $walletAddress = $this->normalizeSuiAddress($walletAddress);
@@ -35,22 +80,24 @@ class AcademyCoursePaymentService
             throw ValidationException::withMessages(['payment' => 'Параметры оплаты AV8 не настроены на сервере.']);
         }
 
+        $this->ensureOrder($user, $course);
+        $cashboxId = $this->av8CashboxId();
         $this->assertWalletBelongsToUser((int) $user->getAuthIdentifier(), $walletAddress);
         $this->verifySuiPayment($digest, $walletAddress, $receiverAddress, $coinType, $this->av8BaseUnits($amountAv8));
 
-        return DB::transaction(function () use ($user, $course, $digest, $walletAddress, $amountAv8) {
+        $paymentResult = DB::transaction(function () use ($user, $course, $digest, $walletAddress, $amountAv8, $cashboxId) {
             DB::table('project')->where('id', self::FID)->lockForUpdate()->first();
 
-            $existing = DB::table('document')
+            $digestOrder = DB::table('document')
                 ->where('firma', self::FID)
                 ->where('type', 'ZOUT')
                 ->where('numorder', $digest)
                 ->first();
 
-            if ($existing) {
+            if ($digestOrder) {
                 if (
-                    (string) $existing->client1 !== (string) $user->getAuthIdentifier()
-                    || (string) $existing->numdoc !== (string) $course->id
+                    (string) $digestOrder->client1 !== (string) $user->getAuthIdentifier()
+                    || !$this->orderContainsCourse($digestOrder, (int) $course->id)
                 ) {
                     throw ValidationException::withMessages([
                         'digest' => 'Эта транзакция уже зарегистрирована для другой покупки.',
@@ -60,16 +107,17 @@ class AcademyCoursePaymentService
                 $payment = DB::table('z_document')
                     ->where('firma', self::FID)
                     ->where('type', 'PO')
-                    ->where('docid', $existing->id)
+                    ->where('docid', $digestOrder->id)
                     ->first();
 
-                return $this->response($existing, $payment, true);
+                if ($payment) {
+                    return ['order' => $digestOrder, 'payment' => $payment, 'already_recorded' => true];
+                }
             }
 
             $now = now();
             $date = $now->format('d-m-Y');
             $year = $now->format('Y');
-            $zoutNum = Document::nextNum('ZOUT', self::FID, $year);
             $poNum = Document::nextNum('PO', self::FID, $year);
             $amount = round((float) $amountAv8, 2);
             $content = sprintf(
@@ -81,30 +129,29 @@ class AcademyCoursePaymentService
                 $digest
             );
 
-            $zoutId = DB::table('document')->insertGetId([
-                'num' => (string) $zoutNum,
-                'type' => 'ZOUT',
-                'firma' => self::FID,
-                'client1' => (string) $user->getAuthIdentifier(),
-                'client2' => '0',
+            $order = $digestOrder
+                ?: $this->findCourseOrder((int) $user->getAuthIdentifier(), (int) $course->id, true);
+            if (!$order) {
+                throw ValidationException::withMessages(['course_id' => 'Заявка на курс не найдена. Откройте курс и повторите оплату.']);
+            }
+            $this->ensureCourseLine($order, $course);
+            DB::table('document')->where('id', $order->id)->update([
                 'summa' => $amount,
-                'data' => $date,
-                'time' => $now->format('H:i:s'),
-                'dt' => $now->timestamp,
-                'manager' => 'academy_api',
-                'user' => 'academy_api',
                 'content' => $content,
-                'numz' => (string) $zoutNum,
-                'typez' => 'ZOUT',
-                'docum' => 'academy_course',
-                'provodka' => 1,
-                'dostup' => 1,
-                'money' => 'AV8',
-                'numdoc' => (string) $course->id,
                 'numorder' => $digest,
-                'close' => 1,
-                'typeproduct' => 'course',
+                'money' => 'AV8',
+                'close' => 0,
             ]);
+            $order = DB::table('document')->where('id', $order->id)->first();
+
+            $existingPayment = DB::table('z_document')
+                ->where('firma', self::FID)
+                ->where('type', 'PO')
+                ->where('docid', $order->id)
+                ->first();
+            if ($existingPayment) {
+                return ['order' => $order, 'payment' => $existingPayment, 'already_recorded' => true];
+            }
 
             $poId = DB::table('z_document')->insertGetId([
                 'num' => (string) $poNum,
@@ -114,30 +161,141 @@ class AcademyCoursePaymentService
                 'client2' => '0',
                 'summa' => $amount,
                 'data' => $date,
+                'data2' => $date,
                 'time' => $now->format('H:i:s'),
                 'dt' => $now->timestamp,
                 'manager' => 'academy_api',
                 'user' => 'academy_api',
                 'content' => $content,
-                'numz' => (string) $zoutNum,
+                'oplata' => $cashboxId,
+                'numz' => (string) $order->num,
                 'typez' => 'ZOUT',
-                'docid' => (string) $zoutId,
+                'docid' => (string) $order->id,
                 'docum' => 'sui_av8',
-                'provodka' => 1,
+                'provodka' => 0,
                 'dostup' => 1,
                 'money' => 'AV8',
                 'numdoc' => (string) $course->id,
                 'numorder' => $digest,
-                'close' => 1,
+                'close' => 0,
                 'typeproduct' => 'course',
             ]);
 
-            return $this->response(
-                DB::table('document')->find($zoutId),
-                DB::table('z_document')->find($poId),
-                false
-            );
+            return [
+                'order' => $order,
+                'payment' => DB::table('z_document')->find($poId),
+                'already_recorded' => false,
+            ];
         });
+
+        $payment = $paymentResult['payment'];
+        if ($payment && (int) ($payment->provodka ?? 0) !== 1) {
+            $posting = Document::provodka((string) $payment->id, 'PO', self::FID);
+            if (!($posting['isPosted'] ?? false)) {
+                throw ValidationException::withMessages(['payment' => 'Не удалось провести документ оплаты PO.']);
+            }
+            $payment = $posting['document'];
+        }
+
+        return $this->response(
+            DB::table('document')->where('id', $paymentResult['order']->id)->first(),
+            $payment,
+            (bool) $paymentResult['already_recorded']
+        );
+    }
+
+    private function findCourseOrder(int $userId, int $courseId, bool $lock = false): ?object
+    {
+        $query = DB::table('document')
+            ->where('firma', self::FID)
+            ->where('type', 'ZOUT')
+            ->where('client1', (string) $userId)
+            ->where(function ($courseOrder) use ($courseId) {
+                $courseOrder
+                    ->where(function ($typedOrder) use ($courseId) {
+                        $typedOrder->where('typeproduct', 'course')
+                            ->where('numdoc', (string) $courseId);
+                    })
+                    ->orWhereExists(function ($line) use ($courseId) {
+                        $line->selectRaw('1')
+                            ->from('z_body')
+                            ->whereColumn('z_body.docid', 'document.id')
+                            ->whereColumn('z_body.firma', 'document.firma')
+                            ->where('z_body.pnum', (string) $courseId);
+                    });
+            })
+            ->orderByDesc('id');
+
+        return ($lock ? $query->lockForUpdate() : $query)->first();
+    }
+
+    private function ensureCourseLine(object $order, EducationTopic $course): void
+    {
+        $values = [
+            'docnum' => (string) $order->num,
+            'pid' => (string) $course->id,
+            'pcount' => 1,
+            'pprice' => round((float) $course->cost_av8, 2),
+            'psumma' => round((float) $course->cost_av8, 2),
+            'type' => 'ZOUT',
+            'pcod' => 'course',
+            'pname' => trim((string) $course->title),
+            'zvalue' => '',
+        ];
+        $values = array_intersect_key($values, array_flip(Schema::getColumnListing('z_body')));
+
+        DB::table('z_body')->updateOrInsert(
+            [
+                'docid' => (string) $order->id,
+                'firma' => self::FID,
+                'pnum' => (string) $course->id,
+            ],
+            $values
+        );
+    }
+
+    private function orderContainsCourse(object $order, int $courseId): bool
+    {
+        if (
+            strtolower(trim((string) ($order->typeproduct ?? ''))) === 'course'
+            && (string) ($order->numdoc ?? '') === (string) $courseId
+        ) {
+            return true;
+        }
+
+        return DB::table('z_body')
+            ->where('docid', (string) $order->id)
+            ->where('firma', self::FID)
+            ->where('pnum', (string) $courseId)
+            ->exists();
+    }
+
+    private function av8CashboxId(): string
+    {
+        $query = DB::table('conf')
+            ->where('firma', self::FID)
+            ->where('type', 'oplata');
+        if (Schema::hasColumn('conf', 'currency')) {
+            $query->whereRaw('UPPER(currency) = ?', ['AV8']);
+        } else {
+            $query->where('name', 'like', '%AV8%');
+        }
+        $id = $query->orderByDesc('first')->orderBy('id')->value('id');
+        if (!$id) {
+            throw ValidationException::withMessages(['payment' => 'Для проекта 36 не настроена касса AV8.']);
+        }
+
+        return (string) $id;
+    }
+
+    private function orderResponse(object $order, int $courseId): array
+    {
+        return [
+            'zout_id' => (int) $order->id,
+            'zout_num' => (string) $order->num,
+            'course_id' => $courseId,
+            'client_id' => (int) $order->client1,
+        ];
     }
 
     private function assertWalletBelongsToUser(int $userId, string $walletAddress): void
