@@ -9,6 +9,7 @@ use App\Models\QuestTest;
 use App\Models\QuestTestAttempt;
 use App\Models\QuestTestResult;
 use App\Models\Project;
+use App\Services\AcademyCoursePaymentService;
 use App\Services\EducationMaterialResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,29 @@ use Illuminate\Validation\Rule;
 
 class EducationController extends Controller
 {
+    public function recordCoursePayment(Request $request, AcademyCoursePaymentService $payments): JsonResponse
+    {
+        $validated = $request->validate([
+            'course_id' => ['required', 'integer', 'min:1'],
+            'digest' => ['required', 'string', 'max:64', 'regex:/^[1-9A-HJ-NP-Za-km-z]+$/'],
+            'wallet_address' => ['required', 'string', 'max:80', 'regex:/^0x[a-fA-F0-9]{1,64}$/'],
+        ]);
+
+        $course = EducationTopic::query()
+            ->where('project_id', 36)
+            ->where('is_active', true)
+            ->findOrFail((int) $validated['course_id']);
+
+        return response()->json([
+            'payment' => $payments->record(
+                $request->user(),
+                $course,
+                $validated['digest'],
+                $validated['wallet_address']
+            ),
+        ]);
+    }
+
     public function publicFirstTest(Request $request): JsonResponse
     {
         $validated = $request->validate([

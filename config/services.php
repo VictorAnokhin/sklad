@@ -91,7 +91,7 @@ return [
         'zklogin_prover_url' => env('SUI_ZKLOGIN_PROVER_URL', 'https://prover-dev.mystenlabs.com/v1'),
         'verify_node_binary' => env('SUI_VERIFY_NODE_BINARY', 'node'),
         /** Fullnode JSON-RPC URL (same network as the SPA). Required for local gas sponsorship. */
-        'rpc_url' => env('SUI_RPC_URL', ''),
+        'rpc_url' => env('SUI_RPC_URL', 'https://sui-testnet-rpc.publicnode.com'),
         'mainnet_rpc_url' => env('SUI_MAINNET_RPC_URL', 'https://fullnode.mainnet.sui.io:443'),
         /** Bech32 export `suiprivkey1...` (Ed25519 or Secp256k1). Keep in .env only; funds this hot wallet with SUI for gas. */
         'gas_sponsor_private_key' => env('SUI_GAS_SPONSOR_PRIVATE_KEY', ''),
@@ -107,7 +107,8 @@ return [
 
     'av8_capital' => [
         /** Deployed av8_capital package id used by /invest and fund:pools:* commands. */
-        'package_id' => env('AV8_CAPITAL_PACKAGE_ID', ''),
+        'package_id' => env('AV8_CAPITAL_PACKAGE_ID', '0x799f69b5be95ddc5d1107912a74f6835bef6a80a6ede155cb843753940a92934'),
+        'payment_receiver_address' => env('AV8_PAYMENT_RECEIVER_ADDRESS', '0xb1a698b321dd94ba0ad955888d4f9a94262f9ddeb07964d228fcd788f08c5062'),
         'pool_registry_id' => env('AV8_CAPITAL_POOL_REGISTRY_ID', ''),
         'pool_admin_cap_id' => env('AV8_CAPITAL_POOL_ADMIN_CAP_ID', ''),
     ],
