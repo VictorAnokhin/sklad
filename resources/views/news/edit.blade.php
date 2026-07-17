@@ -11,16 +11,12 @@
     <div class="alert alert-danger">{{ session('error') }}</div>
     @endif
 
-    @php
-        $photoPreview = trim((string) ($item->foto ?? ''));
-        if ($photoPreview !== '' && !str_starts_with($photoPreview, 'http://') && !str_starts_with($photoPreview, 'https://') && !str_starts_with($photoPreview, '/')) {
-            $photoPreview = asset('storage/files/' . ltrim($photoPreview, '/'));
-        }
-    @endphp
+    @php($photoPreview = trim((string) ($item->photo_view ?? '')))
 
     <form action="{{ route('news.save') }}" method="post" enctype="multipart/form-data">
         @csrf
         <input type="hidden" name="id" value="{{ $item->id ?? 0 }}">
+        <input type="hidden" name="foto" value="{{ old('foto', $item->foto ?? '') }}">
 
         <div class="news-edit-actions-top">
             <div class="d-flex gap-2 flex-wrap">
@@ -59,7 +55,10 @@
 
         <div class="mb-4">
             <label class="form-label">Завантажити фото</label>
-            <input type="file" name="foto_upload" class="form-control" accept="image/*">
+            <input type="file" name="foto_upload" class="form-control @error('foto_upload') is-invalid @enderror" accept="image/*">
+            @error('foto_upload')
+            <div class="invalid-feedback">{{ $message }}</div>
+            @enderror
             <div class="form-text">Новий файл буде збережений у `storage/files/news` і оновить `foto`.</div>
         </div>
 

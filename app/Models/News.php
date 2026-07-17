@@ -159,13 +159,30 @@ class News extends Model
         return $item;
     }
 
-    private static function resolvePhoto(string $photo): ?string
+    public static function resolvePhoto(string $photo): ?string
     {
-        $photo = trim($photo);
+        $photo = str_replace('\\', '/', trim($photo));
         if ($photo === '') {
             return null;
         }
 
-        return MediaUrl::storage($photo, 'storage/files');
+        if (str_starts_with($photo, 'http://') || str_starts_with($photo, 'https://')) {
+            return $photo;
+        }
+
+        // New uploads are stored on the public disk as `files/news/...`.
+        // Do not prepend `files` again or the URL becomes
+        // `/storage/files/files/news/...`.
+        if (str_starts_with(ltrim($photo, '/'), 'files/')) {
+            return MediaUrl::storage(ltrim($photo, '/'), 'storage');
+        }
+
+        if (str_starts_with(ltrim($photo, '/'), 'storage/')) {
+            return MediaUrl::storage('/' . ltrim($photo, '/'), 'storage');
+        }
+
+        // Keep compatibility with legacy values containing only a filename or
+        // a path relative to the old `storage/files` directory.
+        return MediaUrl::storage(ltrim($photo, '/'), 'storage/files');
     }
 }

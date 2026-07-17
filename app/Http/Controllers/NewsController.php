@@ -216,11 +216,17 @@ class NewsController extends Controller
             $item = News::emptyNews($fid);
         }
 
+        $item->photo_view = News::resolvePhoto((string) ($item->foto ?? ''));
+
         return view('news.edit', compact('item'));
     }
 
     public function save(Request $request)
     {
+        $request->validate([
+            'foto_upload' => ['nullable', 'image', 'max:5120'],
+        ]);
+
         $fid = (string) session('fid', '');
         $id = (int) $request->input('id', 0);
 
