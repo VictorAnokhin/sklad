@@ -170,6 +170,10 @@ class News extends Model
             return $photo;
         }
 
+        if (str_starts_with($photo, '../files') || str_starts_with($photo, '..\\files')) {
+            return MediaUrl::image($photo);
+        }
+
         // New uploads are stored on the public disk as `files/news/...`.
         // Do not prepend `files` again or the URL becomes
         // `/storage/files/files/news/...`.
