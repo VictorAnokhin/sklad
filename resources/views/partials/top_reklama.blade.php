@@ -277,6 +277,23 @@
 
 <style>
   /* Desktop: project selector is compact and on the right */
+  #header-project-select {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  #header-project-select optgroup {
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
+  #header-project-select option {
+    color: var(--foreground);
+    font-size: 0.82rem;
+    font-weight: 400;
+  }
+
   .header-nav-menu__link--with-badge {
     display: inline-flex;
     align-items: center;
