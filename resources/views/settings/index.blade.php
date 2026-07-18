@@ -808,7 +808,7 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Назва</th>
-                                <th>Тип</th>
+                                <th>Статус</th>
                                 <th>Холдинг</th>
                                 <th>Email</th>
                                 <th>Телефон</th>
@@ -1939,6 +1939,20 @@
         cursor: pointer;
     }
 
+    .project-compact-table tbody .project-scope-group {
+        cursor: default;
+    }
+
+    .project-scope-group td {
+        padding: 0.55rem 0.45rem;
+        background: rgba(251, 191, 36, 0.1);
+        color: #fbbf24;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
     .project-compact-table .company-meta,
     .project-compact-table .small {
         font-size: 0.76rem;
@@ -2638,6 +2652,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let projectsLoading = false;
         let projectsSearchTimer = null;
         let projectsRequestController = null;
+        let lastRenderedProjectGroup = '';
 
         if (!modal || !tbody || !form || !addBtn || !cancelBtn) {
             return;
@@ -2827,6 +2842,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 projectsRequestController?.abort();
                 projectsPage = 1;
                 projectsLastPage = 1;
+                lastRenderedProjectGroup = '';
                 tbody.innerHTML = '';
                 emptyMsg.style.display = 'none';
                 if (scrollArea) scrollArea.scrollTop = 0;
@@ -2895,6 +2911,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tbody.querySelector('.projects-load-error')?.remove();
             if (!append) {
                 tbody.innerHTML = '';
+                lastRenderedProjectGroup = '';
             }
 
             if (!append && !items.length) {
@@ -2920,8 +2937,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const projectUrl = item.url
                     ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>`
                     : '—';
-                const projectType = item.project_type_label || projectTypeLabel(item.project_type) || '—';
+                const projectRole = item.user_role === 'creator'
+                    ? 'Создатель'
+                    : (item.user_role === 'employee' ? 'Сотрудник' : '');
+                const projectType = item.project_type_label || projectTypeLabel(item.project_type) || '';
                 const holdingName = item.holding_name || '—';
+
+                if (item.scope_group && item.scope_group !== lastRenderedProjectGroup) {
+                    const groupRow = document.createElement('tr');
+                    groupRow.className = 'project-scope-group';
+                    groupRow.innerHTML = `<td colspan="7">${escapeHtml(item.scope_group_label || '')}</td>`;
+                    tbody.appendChild(groupRow);
+                    lastRenderedProjectGroup = item.scope_group;
+                }
 
                 const tr = document.createElement('tr');
                 tr.dataset.projectId = item.id;
@@ -2929,10 +2957,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${item.id ?? ''}</td>
                     <td>
                         <div class="fw-semibold">${escapeHtml(item.name || '')}</div>
-                        ${item.description ? `<div class="company-meta text-truncate">${escapeHtml(item.description || '')}</div>` : ''}
+                        ${projectType ? `<div class="company-meta text-muted">${escapeHtml(projectType)}</div>` : ''}
                         ${Number(item.constanta) === 1 ? '<span class="badge bg-warning text-dark mt-1">Маркетплейс</span>' : ''}
                     </td>
-                    <td>${escapeHtml(projectType)}</td>
+                    <td>${projectRole ? `<span class="badge bg-secondary">${escapeHtml(projectRole)}</span>` : ''}</td>
                     <td>${escapeHtml(holdingName)}</td>
                     <td>${projectEmail}</td>
                     <td>

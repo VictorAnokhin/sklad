@@ -36,9 +36,12 @@ class SettingsController extends Controller
 
         $data = Settings::init($fid);
 
-        $projectScope = HoldingScope::projectIdsFor($fid);
-        $projectsCount = Schema::hasTable('project') && $projectScope !== []
-            ? Project::query()->whereIn('id', $projectScope)->count()
+        $holdingProjectIds = collect(HoldingScope::projectIdsFor($fid))->map(fn ($id) => (int) $id);
+        $participatingProjectIds = $this->creatorProjectIdsForUser($user)
+            ->merge($this->employeeProjectIdsForUser($user));
+        $defaultProjectIds = $holdingProjectIds->merge($participatingProjectIds)->filter()->unique()->values();
+        $projectsCount = Schema::hasTable('project') && $defaultProjectIds->isNotEmpty()
+            ? Project::query()->whereIn('id', $defaultProjectIds->all())->count()
             : 0;
 
         // Statuses — conf where type='status'
@@ -1212,13 +1215,23 @@ class SettingsController extends Controller
         }
 
         $query = Project::query();
+        $fid = session('fid', '');
+        $holdingProjectIds = collect(HoldingScope::projectIdsFor($fid))
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+        $creatorProjectIds = $this->creatorProjectIdsForUser($user);
+        $employeeProjectIds = $this->employeeProjectIdsForUser($user)->diff($creatorProjectIds)->values();
+        $participatingProjectIds = $creatorProjectIds->merge($employeeProjectIds)->unique()->values();
+        $otherProjectIds = $participatingProjectIds->diff($holdingProjectIds)->values();
 
         if (! $request->boolean('all_projects')) {
-            $projectIds = HoldingScope::projectIdsFor(session('fid', ''));
-            if ($projectIds === []) {
+            $projectIds = $holdingProjectIds->merge($otherProjectIds)->unique()->values();
+            if ($projectIds->isEmpty()) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->whereIn('id', $projectIds);
+                $query->whereIn('id', $projectIds->all());
             }
         }
 
@@ -1228,15 +1241,47 @@ class SettingsController extends Controller
             $query->where('name', 'like', '%' . mb_substr($search, 0, 100) . '%');
         }
 
+        if ($holdingProjectIds->isNotEmpty()) {
+            $holdingPlaceholders = implode(',', array_fill(0, $holdingProjectIds->count(), '?'));
+            $bindings = $holdingProjectIds->all();
+            $groupOrderSql = "CASE WHEN id IN ({$holdingPlaceholders}) THEN 0";
+            if ($otherProjectIds->isNotEmpty()) {
+                $otherPlaceholders = implode(',', array_fill(0, $otherProjectIds->count(), '?'));
+                $groupOrderSql .= " WHEN id IN ({$otherPlaceholders}) THEN 1";
+                $bindings = array_merge($bindings, $otherProjectIds->all());
+            }
+            $query->orderByRaw($groupOrderSql . ' ELSE 2 END', $bindings);
+        }
+
+        $hasHolding = Schema::hasColumn('project', 'holding_id')
+            && (int) (Project::query()->where('id', $fid)->value('holding_id') ?? 0) > 0;
+
         $items = $query
             ->orderBy('num')
             ->orderBy('name')
             ->orderBy('id')
             ->paginate(10);
 
-        $items->getCollection()->transform(
-            fn (Project $project) => $this->normalizeProject($project, $user)
-        );
+        $items->getCollection()->transform(function (Project $project) use ($user, $holdingProjectIds, $otherProjectIds, $creatorProjectIds, $employeeProjectIds, $hasHolding): array {
+            $payload = $this->normalizeProject($project, $user);
+            $projectId = (int) $project->id;
+            $payload['user_role'] = $creatorProjectIds->contains($projectId)
+                ? 'creator'
+                : ($employeeProjectIds->contains($projectId) ? 'employee' : '');
+
+            if ($holdingProjectIds->contains($projectId)) {
+                $payload['scope_group'] = 'holding';
+                $payload['scope_group_label'] = $hasHolding ? 'Проекты холдинга' : 'Текущий проект';
+            } elseif ($otherProjectIds->contains($projectId)) {
+                $payload['scope_group'] = 'other';
+                $payload['scope_group_label'] = 'Другие проекты';
+            } else {
+                $payload['scope_group'] = 'all';
+                $payload['scope_group_label'] = 'Все проекты';
+            }
+
+            return $payload;
+        });
 
         return response()->json($items);
     }
@@ -2613,6 +2658,73 @@ class SettingsController extends Controller
         $userEmail = mb_strtolower(trim((string) ($user->email ?? '')));
 
         return $projectEmail !== '' && $userEmail !== '' && $projectEmail === $userEmail;
+    }
+
+    private function projectIdentityUserIds(?object $user): \Illuminate\Support\Collection
+    {
+        if (! $user instanceof User) {
+            return collect();
+        }
+
+        $ids = collect([(int) $user->id]);
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+        if ($email !== '' && Schema::hasTable('users') && Schema::hasColumn('users', 'email')) {
+            $ids = $ids->merge(
+                User::query()
+                    ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+            );
+        }
+
+        return $ids->filter()->unique()->values();
+    }
+
+    private function creatorProjectIdsForUser(?object $user): \Illuminate\Support\Collection
+    {
+        if (! $user instanceof User || ! Schema::hasTable('project')) {
+            return collect();
+        }
+
+        $identityUserIds = $this->projectIdentityUserIds($user);
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+        $hasUserId = Schema::hasColumn('project', 'userid') && $identityUserIds->isNotEmpty();
+        $hasEmail = Schema::hasColumn('project', 'email') && $email !== '';
+        if (! $hasUserId && ! $hasEmail) {
+            return collect();
+        }
+
+        return Project::query()
+            ->where(function ($query) use ($hasUserId, $hasEmail, $identityUserIds, $email): void {
+                if ($hasUserId) {
+                    $query->whereIn('userid', $identityUserIds->all());
+                }
+                if ($hasEmail) {
+                    $method = $hasUserId ? 'orWhereRaw' : 'whereRaw';
+                    $query->{$method}('LOWER(TRIM(email)) = ?', [$email]);
+                }
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    private function employeeProjectIdsForUser(?object $user): \Illuminate\Support\Collection
+    {
+        $identityUserIds = $this->projectIdentityUserIds($user);
+        if (! Schema::hasTable('team_memberships') || $identityUserIds->isEmpty()) {
+            return collect();
+        }
+
+        return DB::table('team_memberships')
+            ->whereIn('user_id', $identityUserIds->all())
+            ->pluck('project_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     private function normalizeProject(Project $project, ?object $user): array
