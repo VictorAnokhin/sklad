@@ -570,6 +570,7 @@ class EducationController extends Controller
                 'topicEditorItems' => [],
                 'migrationRequired' => true,
                 'categories' => collect(),
+                'categoryGroups' => collect(),
                 'categoryEditorItems' => [],
             ]);
         }
@@ -649,6 +650,7 @@ class EducationController extends Controller
             'materialEditorItems' => $materialEditorItems,
             'topicEditorItems' => $topicEditorItems,
             'categories' => $categories,
+            'categoryGroups' => $this->educationCategoryGroups($categories, $topics, 'topics'),
             'categoryEditorItems' => $this->categoryEditorItems($categories),
             'migrationRequired' => false,
         ]);
@@ -929,6 +931,7 @@ class EducationController extends Controller
                 'testEditorItems' => [],
                 'migrationRequired' => true,
                 'categories' => collect(),
+                'categoryGroups' => collect(),
                 'categoryEditorItems' => [],
             ]);
         }
@@ -967,6 +970,7 @@ class EducationController extends Controller
             'attempts' => $attempts,
             'testEditorItems' => $testEditorItems,
             'categories' => $categories,
+            'categoryGroups' => $this->educationCategoryGroups($categories, $tests, 'tests'),
             'categoryEditorItems' => $this->categoryEditorItems($categories),
             'migrationRequired' => false,
         ]);
@@ -1392,6 +1396,39 @@ class EducationController extends Controller
                 'context' => $category->context,
             ],
         ])->all();
+    }
+
+    private function educationCategoryGroups($categories, $items, string $itemsKey)
+    {
+        $itemsByCategory = $items->groupBy(fn ($item) => $item->category_id ? (string) $item->category_id : 'none');
+        $knownCategoryKeys = $categories->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $groups = $categories->map(fn (EducationCategory $category) => [
+            'key' => (string) $category->id,
+            'title' => $category->title,
+            $itemsKey => $itemsByCategory->get((string) $category->id, collect()),
+        ]);
+
+        foreach ($itemsByCategory as $categoryKey => $groupedItems) {
+            if ($categoryKey === 'none' || in_array((string) $categoryKey, $knownCategoryKeys, true)) {
+                continue;
+            }
+
+            $groups->push([
+                'key' => (string) $categoryKey,
+                'title' => $groupedItems->first()?->category?->title ?? 'Без категории',
+                $itemsKey => $groupedItems,
+            ]);
+        }
+
+        if ($itemsByCategory->has('none')) {
+            $groups->push([
+                'key' => 'none',
+                'title' => 'Без категории',
+                $itemsKey => $itemsByCategory->get('none'),
+            ]);
+        }
+
+        return $groups;
     }
 
     private function categoryRedirectRoute(string $context): string

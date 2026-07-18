@@ -26,29 +26,7 @@
 
     @php
         $openCategoryId = (string) session('open_category_id', session('education_know_yourself_open_category_id', ''));
-        $testsByCategory = $tests->groupBy(fn ($test) => $test->category_id ? (string) $test->category_id : 'none');
-        $knownCategoryKeys = $categories->pluck('id')->map(fn ($id) => (string) $id);
-        $categoryGroups = $categories->map(fn ($category) => [
-            'key' => (string) $category->id,
-            'title' => $category->title,
-            'tests' => $testsByCategory->get((string) $category->id, collect()),
-        ]);
-        $testsByCategory
-            ->except($knownCategoryKeys->push('none')->all())
-            ->each(function ($groupedTests, $categoryKey) use ($categoryGroups) {
-                $categoryGroups->push([
-                    'key' => (string) $categoryKey,
-                    'title' => $groupedTests->first()?->category?->title ?? 'Без категории',
-                    'tests' => $groupedTests,
-                ]);
-            });
-        if ($testsByCategory->has('none')) {
-            $categoryGroups->push([
-                'key' => 'none',
-                'title' => 'Без категории',
-                'tests' => $testsByCategory->get('none'),
-            ]);
-        }
+        $categoryGroups = $categoryGroups ?? collect();
     @endphp
 
     @if($categoryGroups->isNotEmpty())

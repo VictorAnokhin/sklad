@@ -34,29 +34,7 @@
             'interactive_scenario' => 'Интерактивный JSON',
         ];
         $openCategoryId = (string) session('open_category_id', session('education_course_open_category_id', ''));
-        $topicsByCategory = $topics->groupBy(fn ($topic) => $topic->category_id ? (string) $topic->category_id : 'none');
-        $knownCategoryKeys = $categories->pluck('id')->map(fn ($id) => (string) $id);
-        $categoryGroups = $categories->map(fn ($category) => [
-            'key' => (string) $category->id,
-            'title' => $category->title,
-            'topics' => $topicsByCategory->get((string) $category->id, collect()),
-        ]);
-        $topicsByCategory
-            ->except($knownCategoryKeys->push('none')->all())
-            ->each(function ($groupedTopics, $categoryKey) use ($categoryGroups) {
-                $categoryGroups->push([
-                    'key' => (string) $categoryKey,
-                    'title' => $groupedTopics->first()?->category?->title ?? 'Без категории',
-                    'topics' => $groupedTopics,
-                ]);
-            });
-        if ($topicsByCategory->has('none')) {
-            $categoryGroups->push([
-                'key' => 'none',
-                'title' => 'Без категории',
-                'topics' => $topicsByCategory->get('none'),
-            ]);
-        }
+        $categoryGroups = $categoryGroups ?? collect();
     @endphp
 
     <ul class="nav nav-tabs border-secondary mb-4" role="tablist">
