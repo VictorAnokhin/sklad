@@ -2111,15 +2111,19 @@ class Report extends Model
 
         $payrollTable = Document::tableForType('ZP');
 
-        if (! Schema::hasTable($payrollTable) || ! Schema::hasTable('users') || ! Schema::hasColumn('users', 'firmuser')) {
+        if (! Schema::hasTable($payrollTable) || ! Schema::hasTable('users') || ! Schema::hasTable('team_memberships')) {
             return $empty;
         }
 
         $firmaScope = HoldingScope::projectIdsFor($fid);
 
         $teamMembers = DB::table('users')
-            ->whereIn('firma', $firmaScope)
-            ->where('firmuser', '1')
+            ->whereExists(function ($query) use ($firmaScope): void {
+                $query->selectRaw('1')
+                    ->from('team_memberships as tm')
+                    ->whereColumn('tm.user_id', 'users.id')
+                    ->whereIn('tm.project_id', $firmaScope);
+            })
             ->orderBy('secondname')
             ->orderBy('name')
             ->get(['id', 'name', 'secondname', 'fathername', 'orgname', 'name2']);
@@ -2177,8 +2181,12 @@ class Report extends Model
         $detailLines = DB::table($payrollTable . ' as d')
             ->join('users as u', 'u.id', '=', 'd.client1')
             ->whereIn('d.firma', $firmaScope)
-            ->whereIn('u.firma', $firmaScope)
-            ->where('u.firmuser', '1')
+            ->whereExists(function ($query) use ($firmaScope): void {
+                $query->selectRaw('1')
+                    ->from('team_memberships as tm')
+                    ->whereColumn('tm.user_id', 'u.id')
+                    ->whereIn('tm.project_id', $firmaScope);
+            })
             ->where('d.type', 'ZP')
             ->where('d.provodka', 1)
             ->whereIn('d.client1', $teamIds)

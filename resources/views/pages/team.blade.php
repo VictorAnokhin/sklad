@@ -7,7 +7,7 @@
 @section('header_actions')
     @auth
         <a href="{{ route('team.report') }}" class="btn btn-outline-warning me-2">{{ __('team.payroll_title') }}</a>
-        <a href="{{ route('team.show', ['id' => 0]) }}" class="btn btn-primary">{{ __('team.payroll_add_member') }}</a>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#teamMemberModal">{{ __('team.payroll_add_member') }}</button>
     @endauth
 @endsection
 
@@ -107,12 +107,34 @@
         border: 1px dashed rgba(255,255,255,0.12);
         background: rgba(255,255,255,0.02);
     }
+
+    .team-user-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.9rem 1rem;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .team-user-row:last-child { border-bottom: 0; }
+    .team-user-row__name { color: #fff; font-weight: 600; }
+    .team-user-row__meta { color: rgba(255,255,255,.62); font-size: .86rem; }
+    .team-photo-preview { width: 100%; max-width: 220px; min-height: 140px; border: 1px solid rgba(255,255,255,.12); border-radius: 16px; background: rgba(255,255,255,.03); display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--muted-foreground); text-align: center; }
+    .team-photo-preview img { width: 100%; height: 140px; object-fit: cover; }
 </style>
 
 <div class="team-page">
+    @if($errors->any())
+        <div class="alert alert-danger">
+            @foreach($errors->all() as $error)
+                <div>{{ $error }}</div>
+            @endforeach
+        </div>
+    @endif
     @if($teamMembers->isEmpty())
         <div class="team-empty">
-            В команде пока нет участников с <code>firmuser=1</code>.
+            В команде этой компании пока нет сотрудников.
         </div>
     @else
         <section class="team-grid">
@@ -164,4 +186,172 @@
         </section>
     @endif
 </div>
+
+@auth
+<div class="modal fade" id="teamMemberModal" tabindex="-1" aria-labelledby="teamMemberModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header">
+                <h5 class="modal-title" id="teamMemberModalLabel">Добавить сотрудника</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-4" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {{ $errors->any() ? '' : 'active' }}" id="team-users-tab" data-bs-toggle="tab" data-bs-target="#team-users-pane" type="button" role="tab">Пользователи</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {{ $errors->any() ? 'active' : '' }}" id="team-new-tab" data-bs-toggle="tab" data-bs-target="#team-new-pane" type="button" role="tab">Новый</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade {{ $errors->any() ? '' : 'show active' }}" id="team-users-pane" role="tabpanel">
+                        <p class="text-muted">Выберите существующего пользователя компании или холдинга. Его данные и клиентская запись будут сохранены.</p>
+                        <div class="mb-3">
+                            <label class="form-label d-block">Добавить сотрудником в компании</label>
+                            <div class="d-flex flex-wrap gap-3 rounded border p-3" id="team-existing-projects">
+                                @foreach($companyOptions as $company)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="{{ $company->id }}" id="existing-project-{{ $company->id }}" {{ in_array((string) $company->id, $selectedCompanyIds, true) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="existing-project-{{ $company->id }}">{{ $company->name }}</label>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        <input type="search" class="form-control mb-3" id="team-user-search" placeholder="Поиск по имени, email или телефону" autocomplete="off">
+                        <div class="rounded border" id="team-users-list"></div>
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="team-users-prev" disabled>Назад</button>
+                            <span class="text-muted small" id="team-users-page"></span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="team-users-next" disabled>Далее</button>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade {{ $errors->any() ? 'show active' : '' }}" id="team-new-pane" role="tabpanel">
+                        @include('team._form', ['member' => null, 'inModal' => true])
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endauth
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const modalElement = document.getElementById('teamMemberModal');
+    const list = document.getElementById('team-users-list');
+    const search = document.getElementById('team-user-search');
+    const prev = document.getElementById('team-users-prev');
+    const next = document.getElementById('team-users-next');
+    const pageLabel = document.getElementById('team-users-page');
+    if (!modalElement || !list || !search || !prev || !next || !pageLabel) return;
+
+    let page = 1;
+    let lastPage = 1;
+    let timer = null;
+    let controller = null;
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = String(value || '');
+        return div.innerHTML;
+    }
+
+    async function loadUsers(requestedPage = 1) {
+        controller?.abort();
+        controller = new AbortController();
+        list.innerHTML = '<div class="p-3 text-muted">Загрузка...</div>';
+        const params = new URLSearchParams({ page: String(requestedPage) });
+        if (search.value.trim()) params.set('search', search.value.trim());
+
+        try {
+            const response = await fetch(`{{ route('team.users') }}?${params.toString()}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                signal: controller.signal,
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.message || 'Не удалось загрузить пользователей.');
+
+            page = Number(payload.current_page) || 1;
+            lastPage = Number(payload.last_page) || 1;
+            prev.disabled = page <= 1;
+            next.disabled = page >= lastPage;
+            pageLabel.textContent = `Страница ${page} из ${lastPage}`;
+
+            const users = Array.isArray(payload.data) ? payload.data : [];
+            if (!users.length) {
+                list.innerHTML = '<div class="p-3 text-muted">Пользователи не найдены.</div>';
+                return;
+            }
+
+            list.innerHTML = users.map(user => {
+                const contacts = [user.email, user.phone].filter(Boolean).map(escapeHtml).join(' · ');
+                const memberships = Array.isArray(user.company_names) && user.company_names.length
+                    ? `<div class="team-user-row__meta">Уже сотрудник: ${user.company_names.map(escapeHtml).join(', ')}</div>`
+                    : '';
+                return `<div class="team-user-row">
+                    <div>
+                        <div class="team-user-row__name">${escapeHtml(user.name)}</div>
+                        <div class="team-user-row__meta">${contacts}</div>
+                        ${memberships}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-success" data-team-user-id="${user.id}">Добавить</button>
+                </div>`;
+            }).join('');
+        } catch (error) {
+            if (error?.name !== 'AbortError') list.innerHTML = `<div class="p-3 text-danger">${escapeHtml(error?.message || 'Ошибка загрузки.')}</div>`;
+        }
+    }
+
+    async function attachUser(button) {
+        const projectIds = Array.from(document.querySelectorAll('#team-existing-projects input:checked')).map(input => input.value);
+        if (!projectIds.length) {
+            alert('Выберите хотя бы одну компанию.');
+            return;
+        }
+
+        button.disabled = true;
+        try {
+            const response = await fetch(`{{ route('team.attach') }}`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ user_id: button.dataset.teamUserId, project_ids: projectIds }),
+            });
+            const payload = await response.json();
+            if (!response.ok || payload.success === false) throw new Error(payload.message || 'Не удалось добавить сотрудника.');
+            window.location.reload();
+        } catch (error) {
+            alert(error?.message || 'Не удалось добавить сотрудника.');
+            button.disabled = false;
+        }
+    }
+
+    modalElement.addEventListener('show.bs.modal', () => loadUsers(1));
+    list.addEventListener('click', event => {
+        const button = event.target.closest('[data-team-user-id]');
+        if (button) attachUser(button);
+    });
+    search.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => loadUsers(1), 300);
+    });
+    prev.addEventListener('click', () => { if (page > 1) loadUsers(page - 1); });
+    next.addEventListener('click', () => { if (page < lastPage) loadUsers(page + 1); });
+
+    @if($errors->any())
+        bootstrap.Modal.getOrCreateInstance(modalElement).show();
+    @endif
+});
+</script>
+@endpush

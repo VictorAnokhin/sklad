@@ -93,7 +93,20 @@ class ClientController extends Controller
                     ->where('client_group.firma', '=', $fid);
             })
             ->whereIn('u.firma', $clientFirmaScope)
-            ->when($teamOnly, fn ($query) => $query->where('u.firmuser', '1'))
+            ->when($teamOnly, function ($query) use ($clientFirmaScope): void {
+                if (! Schema::hasTable('team_memberships')) {
+                    $query->whereRaw('1 = 0');
+
+                    return;
+                }
+
+                $query->whereExists(function ($query) use ($clientFirmaScope): void {
+                    $query->selectRaw('1')
+                        ->from('team_memberships as tm')
+                        ->whereColumn('tm.user_id', 'u.id')
+                        ->whereIn('tm.project_id', $clientFirmaScope);
+                });
+            })
             ->where(function ($query) use ($q, $qBase) {
             $query->where('u.orgname', 'LIKE', "%{$qBase}%")
                 ->orWhere('u.name', 'LIKE', "%{$qBase}%")

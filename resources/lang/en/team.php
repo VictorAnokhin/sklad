@@ -1,15 +1,15 @@
 <?php
 
 return [
-    'payroll_add_member' => 'Add member',
+    'payroll_add_member' => 'Add employee',
     'payroll_title' => 'Team payroll sheet',
-    'payroll_subtitle' => 'Posted salary payments (ZP documents) for team members (firmuser = 1) in the selected period.',
+    'payroll_subtitle' => 'Posted salary payments (ZP documents) for employees of the holding companies in the selected period.',
     'payroll_period_label' => 'Period',
     'payroll_back_team' => 'Back to team',
     'payroll_reset_period' => 'Current month',
     'payroll_ledger_heading' => 'Summary by employee',
     'payroll_zp_hint' => 'Only posted «Payroll issue» documents (ZP) with a team member selected in the employee field are included.',
-    'payroll_no_team' => 'There are no team members (firmuser = 1) for this company context.',
+    'payroll_no_team' => 'There are no employees for this project or holding.',
     'payroll_col_name' => 'Name',
     'payroll_col_position' => 'Role',
     'payroll_col_count' => 'Payments',

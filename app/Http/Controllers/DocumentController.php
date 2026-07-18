@@ -1003,10 +1003,9 @@ class DocumentController extends Controller
             if ($doc === 'ZP' && ! isset($errors['client1'])) {
                 $employeeId = trim((string) $request->input('client1', ''));
                 $employeeFirmaScope = HoldingScope::projectIdsFor($fid);
-                $employeeExists = DB::table('users')
-                    ->where('id', $employeeId)
-                    ->whereIn('firma', $employeeFirmaScope)
-                    ->where('firmuser', '1')
+                $employeeExists = Schema::hasTable('team_memberships') && DB::table('team_memberships')
+                    ->where('user_id', $employeeId)
+                    ->whereIn('project_id', $employeeFirmaScope)
                     ->exists();
 
                 if (! $employeeExists) {

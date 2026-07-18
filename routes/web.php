@@ -234,6 +234,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/dashboard/transport-lookup', [AuthController::class, 'transportLookup'])->name('dashboard.transportLookup');
     Route::prefix('team')->name('team.')->group(function () {
         Route::get('/show', [TeamController::class, 'show'])->name('show');
+        Route::get('/users', [TeamController::class, 'users'])->name('users');
+        Route::post('/attach', [TeamController::class, 'attach'])->name('attach');
         Route::get('/report', [TeamController::class, 'payrollReport'])->name('report');
         Route::post('/save', [TeamController::class, 'save'])->name('save');
         Route::post('/delete', [TeamController::class, 'destroy'])->name('destroy');
