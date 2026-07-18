@@ -9,6 +9,7 @@ use App\Models\QuestTest;
 use App\Models\QuestTestAttempt;
 use App\Models\QuestTestResult;
 use App\Models\Project;
+use App\Support\MediaUrl;
 use App\Services\AcademyCoursePaymentService;
 use App\Services\EducationMaterialResolver;
 use Illuminate\Http\Request;
@@ -86,6 +87,7 @@ class EducationController extends Controller
                     ->map(fn ($question, $index) => [
                         'id' => $index,
                         'text' => (string) ($question['text'] ?? ''),
+                        'image_url' => $this->publicQuestionImage($test, $question, $index),
                         'options' => $this->publicQuestionOptions($question['options'] ?? []),
                     ]),
             ],
@@ -1194,6 +1196,8 @@ class EducationController extends Controller
             'title_translations' => ['nullable'],
             'quest_data' => ['required', 'json'],
             'quest_data_translations' => ['nullable', 'json'],
+            'question_images' => ['nullable', 'array'],
+            'question_images.*' => ['nullable', 'image', 'max:5120'],
         ]);
         $validated['quest_data'] = json_decode($validated['quest_data'], true, 512, JSON_THROW_ON_ERROR);
         $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
@@ -1214,9 +1218,12 @@ class EducationController extends Controller
         foreach ($validated['quest_data_translations'] as $lang => $questData) {
             $validated['quest_data_translations'][$lang]['scoring'] = 'points';
         }
+        $validated = $this->storeKnowYourselfQuestionImages($request, $validated);
         if ($validated['title_translations'] === []) {
             $validated['title_translations'] = ['ru' => $validated['title']];
         }
+
+        unset($validated['question_images']);
 
         return $validated;
     }
@@ -1302,9 +1309,64 @@ class EducationController extends Controller
                 ->map(fn ($question, $index) => [
                     'id' => $index,
                     'text' => (string) ($question['text'] ?? ''),
+                    'image_url' => $this->publicQuestionImage($test, $question, $index),
                     'options' => $this->publicQuestionOptions($question['options'] ?? []),
                 ]),
         ];
+    }
+
+    private function publicQuestionImage(QuestTest $test, mixed $question, int $index): ?string
+    {
+        $localizedQuestion = is_array($question) ? $question : [];
+        $baseQuestions = array_values($test->quest_data['questions'] ?? []);
+        $baseQuestion = is_array($baseQuestions[$index] ?? null) ? $baseQuestions[$index] : [];
+        $path = trim((string) ($localizedQuestion['image'] ?? $baseQuestion['image'] ?? ''));
+
+        return $path === '' ? null : MediaUrl::image($path);
+    }
+
+    private function storeKnowYourselfQuestionImages(Request $request, array $validated): array
+    {
+        $baseQuestions = array_values($validated['quest_data']['questions'] ?? []);
+        $sharedImages = array_map(
+            fn ($question) => is_array($question) ? trim((string) ($question['image'] ?? '')) : '',
+            $baseQuestions
+        );
+
+        foreach ((array) $request->file('question_images', []) as $index => $uploadedFile) {
+            $index = (int) $index;
+            if (!$uploadedFile || !$uploadedFile->isValid() || !array_key_exists($index, $baseQuestions)) {
+                continue;
+            }
+
+            $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'jpg');
+            $filename = 'question_' . date('Ymd_His') . '_' . $index . '_' . uniqid() . '.' . $extension;
+            $path = $uploadedFile->storeAs('files/education/questions', $filename, 'public');
+            if ($path) {
+                $sharedImages[$index] = $path;
+            }
+        }
+
+        foreach ($baseQuestions as $index => &$question) {
+            if (is_array($question)) {
+                $question['image'] = $sharedImages[$index] ?? '';
+            }
+        }
+        unset($question);
+        $validated['quest_data']['questions'] = $baseQuestions;
+
+        foreach ($validated['quest_data_translations'] as $lang => $questData) {
+            $questions = array_values($questData['questions'] ?? []);
+            foreach ($questions as $index => &$question) {
+                if (is_array($question)) {
+                    $question['image'] = $sharedImages[$index] ?? '';
+                }
+            }
+            unset($question);
+            $validated['quest_data_translations'][$lang]['questions'] = $questions;
+        }
+
+        return $validated;
     }
 
     private function publicQuestionOptions(array $options): array

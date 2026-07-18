@@ -78,6 +78,15 @@
         gap: 0.75rem;
         align-items: start;
     }
+    .know-question-image-preview {
+        display: block;
+        width: min(100%, 520px);
+        max-height: 280px;
+        object-fit: contain;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(0, 0, 0, 0.35);
+    }
     @media (max-width: 576px) {
         .know-answer-row {
             grid-template-columns: 1fr;
@@ -92,7 +101,7 @@
                 <h2 class="modal-title fs-5" id="know-test-modal-title">Создать тест</h2>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
-            <form id="know-test-form" method="POST" action="{{ route('education.know-yourself.store') }}">
+            <form id="know-test-form" method="POST" enctype="multipart/form-data" action="{{ route('education.know-yourself.store') }}">
                 @csrf
                 <input type="hidden" name="_method" id="know-test-method" value="POST">
                 <input type="hidden" id="know-test-quest-data" name="quest_data" required>
@@ -215,6 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const storeUrl = @json(route('education.know-yourself.store'));
     const updateUrl = @json(route('education.know-yourself.update', ['test' => '__ID__']));
     const deleteUrl = @json(route('education.know-yourself.destroy', ['test' => '__ID__']));
+    const storageBaseUrl = @json(asset('storage'));
     const example = {
         public_featured: true,
         auth_required: 'none',
@@ -239,6 +249,25 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let currentLang = 'ru';
     let questDataByLang = {};
+    let sharedQuestionImages = [];
+    let pendingQuestionImages = {};
+
+    function questionImageUrl(path) {
+        const value = String(path || '').trim().replace(/\\/g, '/');
+        if (!value) return '';
+        if (/^https?:\/\//i.test(value) || value.startsWith('/')) return value;
+        if (value.startsWith('files/')) return storageBaseUrl + '/' + value;
+        if (value.startsWith('storage/')) return '/' + value;
+        return storageBaseUrl + '/files/' + value;
+    }
+
+    function restorePendingQuestionImage(input, index) {
+        const file = pendingQuestionImages[index];
+        if (!file || typeof DataTransfer === 'undefined') return;
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+    }
 
     function optionText(option) {
         return typeof option === 'string' ? option : (option?.text || option?.label || '');
@@ -292,6 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const collapse = questionElement.querySelector('[data-question-collapse]');
             const button = questionElement.querySelector('[data-question-toggle]');
             const titleInput = questionElement.querySelector('[data-question-text]');
+            const imageInput = questionElement.querySelector('[data-question-image-file]');
             const title = titleInput?.value.trim() || `Вопрос ${number}`;
 
             questionElement.dataset.questionIndex = String(index);
@@ -301,6 +331,10 @@ document.addEventListener('DOMContentLoaded', () => {
             button.setAttribute('data-bs-target', `#${collapse.id}`);
             button.setAttribute('aria-controls', collapse.id);
             button.textContent = `${number}. ${title}`;
+            if (imageInput) {
+                imageInput.name = 'question_images[' + index + ']';
+                restorePendingQuestionImage(imageInput, index);
+            }
         });
     }
 
@@ -323,6 +357,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <button type="button" class="btn btn-sm btn-outline-danger align-self-start" data-remove-question>Удалить</button>
                 </div>
+                <div class="rounded border border-secondary p-3 mb-3">
+                    <label class="form-label">Изображение вопроса</label>
+                    <input type="hidden" data-question-image-current>
+                    <img class="know-question-image-preview d-none mb-3" data-question-image-preview alt="Изображение вопроса">
+                    <input class="form-control" type="file" accept="image/*" data-question-image-file>
+                    <div class="mt-2 d-flex align-items-center justify-content-between gap-3">
+                        <div class="form-text">JPG, PNG, WebP или GIF, не более 5 МБ. Изображение общее для RU, UA и EN.</div>
+                        <button type="button" class="btn btn-sm btn-outline-danger d-none" data-clear-question-image>Убрать</button>
+                    </div>
+                </div>
                 <div class="vstack gap-2 mb-2" data-options></div>
                 <button type="button" class="btn btn-sm btn-outline-light" data-add-option>Добавить вариант</button>
                 </div>
@@ -330,9 +374,50 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         const questionText = questionElement.querySelector('[data-question-text]');
+        const imageCurrent = questionElement.querySelector('[data-question-image-current]');
+        const imagePreview = questionElement.querySelector('[data-question-image-preview]');
+        const imageInput = questionElement.querySelector('[data-question-image-file]');
+        const clearImageButton = questionElement.querySelector('[data-clear-question-image]');
+        const newQuestionIndex = questionsEditor.children.length;
         questionText.value = question.text || '';
+        const hasSharedImage = Object.prototype.hasOwnProperty.call(sharedQuestionImages, newQuestionIndex);
+        const currentImage = hasSharedImage ? sharedQuestionImages[newQuestionIndex] : (question.image || '');
+        sharedQuestionImages[newQuestionIndex] = currentImage;
+        imageCurrent.value = currentImage;
+        const pendingImage = pendingQuestionImages[newQuestionIndex];
+        if (pendingImage || currentImage) {
+            imagePreview.src = pendingImage ? URL.createObjectURL(pendingImage) : questionImageUrl(currentImage);
+            imagePreview.classList.remove('d-none');
+            clearImageButton.classList.remove('d-none');
+        }
+        imageInput.addEventListener('change', () => {
+            const index = Number(questionElement.dataset.questionIndex ?? newQuestionIndex);
+            const file = imageInput.files?.[0];
+            if (!file) return;
+            pendingQuestionImages[index] = file;
+            imagePreview.src = URL.createObjectURL(file);
+            imagePreview.classList.remove('d-none');
+            clearImageButton.classList.remove('d-none');
+        });
+        clearImageButton.addEventListener('click', () => {
+            const index = Number(questionElement.dataset.questionIndex ?? newQuestionIndex);
+            sharedQuestionImages[index] = '';
+            delete pendingQuestionImages[index];
+            imageCurrent.value = '';
+            imageInput.value = '';
+            imagePreview.removeAttribute('src');
+            imagePreview.classList.add('d-none');
+            clearImageButton.classList.add('d-none');
+        });
         questionText.addEventListener('input', refreshQuestionAccordion);
         questionElement.querySelector('[data-remove-question]').addEventListener('click', () => {
+            const removedIndex = Number(questionElement.dataset.questionIndex ?? newQuestionIndex);
+            sharedQuestionImages.splice(removedIndex, 1);
+            pendingQuestionImages = Object.fromEntries(
+                Object.entries(pendingQuestionImages)
+                    .filter(([index]) => Number(index) !== removedIndex)
+                    .map(([index, file]) => [Number(index) > removedIndex ? Number(index) - 1 : Number(index), file])
+            );
             questionElement.remove();
             refreshQuestionAccordion();
         });
@@ -426,6 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function collectQuestData() {
         const questions = Array.from(questionsEditor.children).map((questionElement) => ({
             text: questionElement.querySelector('[data-question-text]').value.trim(),
+            image: questionElement.querySelector('[data-question-image-current]').value.trim(),
             options: Array.from(questionElement.querySelectorAll('.know-answer-row')).map((row) => ({
                 text: row.querySelector('[data-option-text]').value.trim(),
                 score: Number(row.querySelector('[data-option-score]').value || 0),
@@ -466,6 +552,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleEn.value = '';
         currentLang = 'ru';
         activateLanguageButton('ru');
+        sharedQuestionImages = [];
+        pendingQuestionImages = {};
         questDataByLang = { ru: JSON.parse(JSON.stringify(example)) };
         loadQuestData(example);
         deleteButton.classList.add('d-none');
@@ -485,6 +573,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleEn.value = item.title_translations?.en || '';
         currentLang = 'ru';
         activateLanguageButton('ru');
+        sharedQuestionImages = Array.from(item.quest_data?.questions || []).map((question) => question?.image || '');
+        pendingQuestionImages = {};
         questDataByLang = {
             ru: item.quest_data_translations?.ru || item.quest_data || example,
             ua: item.quest_data_translations?.ua || item.quest_data || example,
@@ -499,6 +589,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     form.addEventListener('submit', () => {
         questDataByLang[currentLang] = collectQuestData();
+        Object.values(questDataByLang).forEach((data) => {
+            if (!Array.isArray(data?.questions)) return;
+            data.questions.forEach((question, index) => {
+                question.image = sharedQuestionImages[index] ?? question.image ?? '';
+            });
+        });
         fields.questData.value = JSON.stringify(questDataByLang.ru || questDataByLang.ua || questDataByLang.en || example);
         fields.questDataTranslations.value = JSON.stringify(questDataByLang);
     });
