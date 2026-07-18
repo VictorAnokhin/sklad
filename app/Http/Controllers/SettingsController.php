@@ -36,12 +36,10 @@ class SettingsController extends Controller
 
         $data = Settings::init($fid);
 
-        $projects = Schema::hasTable('project')
-            ? Project::query()
-                ->orderBy('num')
-                ->orderBy('name')
-                ->get()
-            : collect();
+        $projectScope = HoldingScope::projectIdsFor($fid);
+        $projectsCount = Schema::hasTable('project') && $projectScope !== []
+            ? Project::query()->whereIn('id', $projectScope)->count()
+            : 0;
 
         // Statuses — conf where type='status'
         $statuses = DB::table('conf')->where('type', 'status')->where('firma', $fid)->orderBy('name')->get();
@@ -168,7 +166,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projects', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -1181,18 +1179,45 @@ class SettingsController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function projectsIndex()
+    public function projectsIndex(Request $request)
     {
         $user = $this->currentUser();
         if (!Schema::hasTable('project')) {
-            return response()->json([]);
+            return response()->json([
+                'data' => [],
+                'current_page' => 1,
+                'last_page' => 1,
+                'per_page' => 10,
+                'total' => 0,
+            ]);
         }
 
-        $items = Project::query()
+        $query = Project::query();
+
+        if (! $request->boolean('all_projects')) {
+            $projectIds = HoldingScope::projectIdsFor(session('fid', ''));
+            if ($projectIds === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('id', $projectIds);
+            }
+        }
+
+        $searchValue = $request->query('search', '');
+        $search = is_string($searchValue) ? trim($searchValue) : '';
+        if ($search !== '') {
+            $query->where('name', 'like', '%' . mb_substr($search, 0, 100) . '%');
+        }
+
+        $items = $query
             ->orderBy('num')
             ->orderBy('name')
-            ->get()
-            ->map(fn (Project $project) => $this->normalizeProject($project, $user));
+            ->orderBy('id')
+            ->paginate(10);
+
+        $items->getCollection()->transform(
+            fn (Project $project) => $this->normalizeProject($project, $user)
+        );
 
         return response()->json($items);
     }

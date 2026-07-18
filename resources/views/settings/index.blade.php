@@ -21,7 +21,7 @@
                 <div class="card-body text-center">
                     <h5 class="card-title">📁 {{ __('settings.projects') }}</h5>
                     <p class="card-text text-muted">{{ __('settings.projects_desc') }}</p>
-                    <span class="badge bg-primary" id="badge-projects">{{ count($projects ?? []) }}</span>
+                    <span class="badge bg-primary" id="badge-projects">{{ $projectsCount ?? 0 }}</span>
                 </div>
             </div>
         </div>
@@ -795,7 +795,14 @@
             </div>
 
             <div class="modal-body" id="project-list-area">
-                <div class="table-responsive">
+                <div class="project-list-toolbar mb-3">
+                    <input type="search" class="form-control" id="projects-search" placeholder="Поиск по названию проекта" autocomplete="off">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="projects-all">
+                        <label class="form-check-label" for="projects-all">Все проекты</label>
+                    </div>
+                </div>
+                <div class="table-responsive project-list-scroll" id="projects-scroll-area">
                     <table class="table table-hover table-sm align-middle project-compact-table">
                         <thead>
                             <tr>
@@ -810,6 +817,7 @@
                         </thead>
                         <tbody id="projects-tbody"></tbody>
                     </table>
+                    <div class="text-center text-muted py-2" id="projects-loading" hidden>Загрузка...</div>
                 </div>
                 <p class="text-center text-muted" id="projects-empty-msg" style="display:none">Проєктів ще немає</p>
             </div>
@@ -1890,6 +1898,32 @@
         color: #000;
     }
 
+    .project-list-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .project-list-toolbar .form-control {
+        max-width: 420px;
+    }
+
+    .project-list-toolbar .form-check {
+        flex: 0 0 auto;
+    }
+
+    .project-list-scroll {
+        max-height: 55vh;
+        overflow-y: auto;
+    }
+
+    .project-compact-table thead {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
     .project-compact-table {
         margin-bottom: 0;
         font-size: 0.86rem;
@@ -2584,6 +2618,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const listArea = document.getElementById('project-list-area');
         const form = document.getElementById('project-form');
         const emptyMsg = document.getElementById('projects-empty-msg');
+        const searchInput = document.getElementById('projects-search');
+        const allProjectsInput = document.getElementById('projects-all');
+        const scrollArea = document.getElementById('projects-scroll-area');
+        const loadingIndicator = document.getElementById('projects-loading');
         const addBtn = document.getElementById('btn-project-add');
         const cancelBtn = document.getElementById('btn-project-cancel');
         const deleteBtn = document.getElementById('btn-project-delete');
@@ -2595,6 +2633,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const holdingToggle = document.getElementById('project-holding-toggle');
         const holdingMenu = document.getElementById('project-holding-menu');
         let holdings = [];
+        let projectsPage = 1;
+        let projectsLastPage = 1;
+        let projectsLoading = false;
+        let projectsSearchTimer = null;
+        let projectsRequestController = null;
 
         if (!modal || !tbody || !form || !addBtn || !cancelBtn) {
             return;
@@ -2640,8 +2683,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         modal.addEventListener('show.bs.modal', () => {
             hideForm();
+            if (searchInput) searchInput.value = '';
+            if (allProjectsInput) allProjectsInput.checked = false;
+            if (scrollArea) scrollArea.scrollTop = 0;
             loadHoldings();
-            loadProjects();
+            loadProjects(true);
         });
 
         modal.addEventListener('hidden.bs.modal', () => {
@@ -2657,6 +2703,20 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelBtn.addEventListener('click', () => {
             hideForm();
             resetProjectForm();
+        });
+
+        searchInput?.addEventListener('input', () => {
+            window.clearTimeout(projectsSearchTimer);
+            projectsSearchTimer = window.setTimeout(() => loadProjects(true), 300);
+        });
+
+        allProjectsInput?.addEventListener('change', () => loadProjects(true));
+
+        scrollArea?.addEventListener('scroll', () => {
+            const distanceToBottom = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight;
+            if (distanceToBottom <= 120 && !projectsLoading && projectsPage < projectsLastPage) {
+                loadProjects(false);
+            }
         });
         deleteBtn?.addEventListener('click', () => {
             const id = document.getElementById('project-id').value;
@@ -2758,8 +2818,41 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch((error) => alert(error?.message || _ts('js.network_error')));
         });
 
-        function loadProjects() {
-            fetch('/settings/projects')
+        function loadProjects(reset = true) {
+            if (projectsLoading && !reset) {
+                return;
+            }
+
+            if (reset) {
+                projectsRequestController?.abort();
+                projectsPage = 1;
+                projectsLastPage = 1;
+                tbody.innerHTML = '';
+                emptyMsg.style.display = 'none';
+                if (scrollArea) scrollArea.scrollTop = 0;
+            } else {
+                projectsPage += 1;
+            }
+
+            const requestedPage = projectsPage;
+            const params = new URLSearchParams({ page: String(requestedPage) });
+            const search = searchInput?.value.trim() || '';
+            if (search) params.set('search', search);
+            if (allProjectsInput?.checked) params.set('all_projects', '1');
+
+            const controller = new AbortController();
+            projectsRequestController = controller;
+            projectsLoading = true;
+            if (loadingIndicator) loadingIndicator.hidden = false;
+
+            fetch(`/settings/projects?${params.toString()}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+                signal: controller.signal,
+            })
                 .then(async (response) => {
                     const data = await parseResponseData(response);
                     return { ok: response.ok, data };
@@ -2769,18 +2862,42 @@ document.addEventListener('DOMContentLoaded', () => {
                         throw new Error(extractErrorMessage(data, _ts('js.load_error')));
                     }
 
-                    renderProjects(Array.isArray(data) ? data : []);
+                    projectsPage = Number(data.current_page) || requestedPage;
+                    projectsLastPage = Number(data.last_page) || projectsPage;
+                    renderProjects(Array.isArray(data.data) ? data.data : [], requestedPage > 1, Number(data.total) || 0);
                 })
                 .catch((error) => {
-                    tbody.innerHTML = `<tr><td colspan="7" class="text-danger">${escapeHtml(error?.message || _ts('js.load_error'))}</td></tr>`;
+                    if (error?.name === 'AbortError') {
+                        return;
+                    }
+                    if (requestedPage > 1) {
+                        projectsPage = requestedPage - 1;
+                    }
+                    const errorRow = `<tr class="projects-load-error"><td colspan="7" class="text-danger">${escapeHtml(error?.message || _ts('js.load_error'))}</td></tr>`;
+                    if (requestedPage > 1) {
+                        tbody.querySelector('.projects-load-error')?.remove();
+                        tbody.insertAdjacentHTML('beforeend', errorRow);
+                    } else {
+                        tbody.innerHTML = errorRow;
+                    }
                     emptyMsg.style.display = 'none';
+                })
+                .finally(() => {
+                    if (projectsRequestController === controller) {
+                        projectsLoading = false;
+                        projectsRequestController = null;
+                        if (loadingIndicator) loadingIndicator.hidden = true;
+                    }
                 });
         }
 
-        function renderProjects(items) {
-            tbody.innerHTML = '';
+        function renderProjects(items, append = false, total = items.length) {
+            tbody.querySelector('.projects-load-error')?.remove();
+            if (!append) {
+                tbody.innerHTML = '';
+            }
 
-            if (!items.length) {
+            if (!append && !items.length) {
                 emptyMsg.style.display = 'block';
                 if (badge) {
                     badge.textContent = '0';
@@ -2790,7 +2907,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             emptyMsg.style.display = 'none';
             if (badge) {
-                badge.textContent = String(items.length);
+                badge.textContent = String(total);
             }
 
             items.forEach((item) => {
