@@ -278,7 +278,7 @@
 <style>
   /* Desktop: project selector is compact and on the right */
   #header-project-select {
-    font-size: 0.9rem;
+    font-size: 1.5rem;
     font-weight: 600;
   }
 
@@ -290,7 +290,7 @@
 
   #header-project-select option {
     color: var(--foreground);
-    font-size: 0.82rem;
+    font-size: 1rem;
     font-weight: 400;
   }
 
