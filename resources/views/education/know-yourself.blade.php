@@ -24,36 +24,90 @@
         </div>
     @endif
 
-    <div class="card bg-dark border-secondary">
-        <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Категория</th>
-                        <th>Название</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($tests as $test)
-                        <tr>
-                            <td class="text-secondary">{{ $test->category?->title ?? 'Без категории' }}</td>
-                            <td>
-                                <button type="button"
-                                        class="btn btn-link text-light text-decoration-none p-0 edit-know-test-button"
-                                        data-test-id="{{ $test->id }}">
-                                    {{ $test->title }}
-                                </button>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="2" class="text-secondary">Тесты для страницы «Узнай себя» пока не созданы.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+    @php
+        $openCategoryId = (string) session('open_category_id', session('education_know_yourself_open_category_id', ''));
+        $testsByCategory = $tests->groupBy(fn ($test) => $test->category_id ? (string) $test->category_id : 'none');
+        $knownCategoryKeys = $categories->pluck('id')->map(fn ($id) => (string) $id);
+        $categoryGroups = $categories->map(fn ($category) => [
+            'key' => (string) $category->id,
+            'title' => $category->title,
+            'tests' => $testsByCategory->get((string) $category->id, collect()),
+        ]);
+        $testsByCategory
+            ->except($knownCategoryKeys->push('none')->all())
+            ->each(function ($groupedTests, $categoryKey) use ($categoryGroups) {
+                $categoryGroups->push([
+                    'key' => (string) $categoryKey,
+                    'title' => $groupedTests->first()?->category?->title ?? 'Без категории',
+                    'tests' => $groupedTests,
+                ]);
+            });
+        if ($testsByCategory->has('none')) {
+            $categoryGroups->push([
+                'key' => 'none',
+                'title' => 'Без категории',
+                'tests' => $testsByCategory->get('none'),
+            ]);
+        }
+    @endphp
+
+    @if($categoryGroups->isNotEmpty())
+        <div class="accordion" id="know-category-accordion">
+            @foreach($categoryGroups as $categoryGroup)
+                @php
+                    $categoryKey = $categoryGroup['key'];
+                    $categoryHeadingId = 'know-category-' . $categoryKey . '-heading';
+                    $categoryBodyId = 'know-category-' . $categoryKey . '-body';
+                    $isOpenCategory = $openCategoryId !== ''
+                        ? $openCategoryId === $categoryKey
+                        : $loop->first;
+                @endphp
+                <div class="accordion-item bg-dark border-secondary text-light">
+                    <h2 class="accordion-header" id="{{ $categoryHeadingId }}">
+                        <button class="accordion-button bg-dark text-light {{ $isOpenCategory ? '' : 'collapsed' }}" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#{{ $categoryBodyId }}"
+                                aria-expanded="{{ $isOpenCategory ? 'true' : 'false' }}" aria-controls="{{ $categoryBodyId }}">
+                            <span class="me-3 fw-semibold">{{ $categoryGroup['title'] }}</span>
+                            <span class="badge text-bg-secondary">{{ $categoryGroup['tests']->count() }} тест(ов)</span>
+                        </button>
+                    </h2>
+                    <div id="{{ $categoryBodyId }}" class="accordion-collapse collapse {{ $isOpenCategory ? 'show' : '' }}"
+                         data-category-id="{{ $categoryKey }}" aria-labelledby="{{ $categoryHeadingId }}" data-bs-parent="#know-category-accordion">
+                        <div class="accordion-body p-0">
+                            @if($categoryGroup['tests']->isNotEmpty())
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-hover align-middle mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Название</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($categoryGroup['tests'] as $test)
+                                                <tr>
+                                                    <td>
+                                                        <button type="button"
+                                                                class="btn btn-link text-light text-decoration-none p-0 edit-know-test-button"
+                                                                data-test-id="{{ $test->id }}" data-category-id="{{ $categoryKey }}">
+                                                            {{ $test->title }}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @else
+                                <div class="p-3 text-secondary">В этой категории пока нет тестов.</div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endforeach
         </div>
-    </div>
+    @else
+        <div class="alert alert-info">Тесты для страницы «Узнай себя» пока не созданы.</div>
+    @endif
 </div>
 
 <style>
@@ -239,6 +293,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateUrl = @json(route('education.know-yourself.update', ['test' => '__ID__']));
     const deleteUrl = @json(route('education.know-yourself.destroy', ['test' => '__ID__']));
     const storageBaseUrl = @json(asset('storage'));
+    const serverOpenCategoryId = @json($openCategoryId);
+    const storageKeys = {
+        openCategoryId: 'education.knowYourself.openCategoryId',
+    };
     const example = {
         public_featured: true,
         auth_required: 'none',
@@ -265,6 +323,34 @@ document.addEventListener('DOMContentLoaded', () => {
     let questDataByLang = {};
     let sharedQuestionImages = [];
     let pendingQuestionImages = {};
+
+    function getStoredValue(key) {
+        try {
+            return window.sessionStorage.getItem(key);
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function setStoredValue(key, value) {
+        try {
+            window.sessionStorage.setItem(key, value);
+        } catch (error) {
+            // Storage may be unavailable in private or restricted browser modes.
+        }
+    }
+
+    function saveOpenCategory(categoryId) {
+        if (categoryId) setStoredValue(storageKeys.openCategoryId, String(categoryId));
+    }
+
+    function showCategory(categoryId) {
+        if (!categoryId) return;
+        const collapseElement = Array.from(document.querySelectorAll('.accordion-collapse[data-category-id]'))
+            .find((element) => element.dataset.categoryId === String(categoryId));
+        if (collapseElement) bootstrap.Collapse.getOrCreateInstance(collapseElement, { toggle: false }).show();
+        saveOpenCategory(categoryId);
+    }
 
     function questionImageUrl(path) {
         const value = String(path || '').trim().replace(/\\/g, '/');
@@ -579,6 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function openEdit(id) {
         const item = tests[id];
         if (!item) return;
+        showCategory(item.category_id || 'none');
         form.reset();
         form.action = updateUrl.replace('__ID__', id);
         document.getElementById('know-test-method').value = 'PUT';
@@ -604,6 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     form.addEventListener('submit', () => {
+        saveOpenCategory(fields.categoryId.value || 'none');
         questDataByLang[currentLang] = collectQuestData();
         Object.values(questDataByLang).forEach((data) => {
             if (!Array.isArray(data?.questions)) return;
@@ -623,6 +711,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.edit-know-test-button').forEach((button) => {
         button.addEventListener('click', () => openEdit(button.dataset.testId));
     });
+    document.querySelectorAll('.accordion-collapse[data-category-id]').forEach((collapseElement) => {
+        collapseElement.addEventListener('shown.bs.collapse', () => saveOpenCategory(collapseElement.dataset.categoryId));
+    });
+    showCategory(serverOpenCategoryId || getStoredValue(storageKeys.openCategoryId));
     deleteButton.addEventListener('click', () => {
         if (confirm('Удалить тест и историю попыток по нему?')) deleteForm.submit();
     });

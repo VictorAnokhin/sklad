@@ -659,7 +659,7 @@ class EducationController extends Controller
         $project = $this->educationProject();
         $validated = $this->validateMaterial($request);
 
-        DB::transaction(function () use ($validated, $project) {
+        $categoryId = DB::transaction(function () use ($validated, $project) {
             $topic = EducationTopic::query()
                 ->where('project_id', $project->id)
                 ->whereKey($validated['topic_id'])
@@ -677,9 +677,13 @@ class EducationController extends Controller
                 'version' => $validated['version'],
                 'is_active' => true,
             ]);
+
+            return $topic->category_id;
         });
 
-        return redirect()->route('education.course')->with('success', 'Материал курса создан.');
+        return redirect()->route('education.course')
+            ->with('success', 'Материал курса создан.')
+            ->with('open_category_id', $this->educationOpenCategoryId($categoryId));
     }
 
     public function storeTopic(Request $request)
@@ -687,7 +691,7 @@ class EducationController extends Controller
         $project = $this->educationProject();
         $validated = $this->validateTopic($request);
 
-        EducationTopic::create([
+        $topic = EducationTopic::create([
             'project_id' => $project->id,
             'category_id' => $validated['category_id'],
             'title' => $validated['title'],
@@ -699,7 +703,9 @@ class EducationController extends Controller
             'is_active' => true,
         ]);
 
-        return redirect()->route('education.course')->with('success', 'Курс создан.');
+        return redirect()->route('education.course')
+            ->with('success', 'Курс создан.')
+            ->with('open_category_id', $this->educationOpenCategoryId($topic->category_id));
     }
 
     public function updateTopic(Request $request, EducationTopic $topic)
@@ -718,16 +724,21 @@ class EducationController extends Controller
             'category_id' => $validated['category_id'],
         ]);
 
-        return redirect()->route('education.course')->with('success', 'Курс изменён.');
+        return redirect()->route('education.course')
+            ->with('success', 'Курс изменён.')
+            ->with('open_category_id', $this->educationOpenCategoryId($topic->category_id));
     }
 
     public function destroyTopic(EducationTopic $topic)
     {
         $project = $this->educationProject();
         $this->assertTopicProject($topic, $project);
+        $categoryId = $topic->category_id;
         $topic->delete();
 
-        return redirect()->route('education.course')->with('success', 'Курс удалён.');
+        return redirect()->route('education.course')
+            ->with('success', 'Курс удалён.')
+            ->with('open_category_id', $this->educationOpenCategoryId($categoryId));
     }
 
     public function updateMaterial(Request $request, EducationalMaterial $material)
@@ -736,8 +747,8 @@ class EducationController extends Controller
         $this->assertMaterialProject($material, $project);
         $validated = $this->validateMaterial($request, $material);
 
-        DB::transaction(function () use ($validated, $material, $project) {
-            EducationTopic::query()
+        $categoryId = DB::transaction(function () use ($validated, $material, $project) {
+            $topic = EducationTopic::query()
                 ->where('project_id', $project->id)
                 ->whereKey($validated['topic_id'])
                 ->firstOrFail();
@@ -753,15 +764,20 @@ class EducationController extends Controller
                 'body_translations' => $validated['body_translations'],
                 'version' => $validated['version'],
             ]);
+
+            return $topic->category_id;
         });
 
-        return redirect()->route('education.course')->with('success', 'Материал курса изменён.');
+        return redirect()->route('education.course')
+            ->with('success', 'Материал курса изменён.')
+            ->with('open_category_id', $this->educationOpenCategoryId($categoryId));
     }
 
     public function destroyMaterial(EducationalMaterial $material)
     {
         $project = $this->educationProject();
         $this->assertMaterialProject($material, $project);
+        $categoryId = $material->topic?->category_id;
         DB::transaction(function () use ($material) {
             $topic = $material->topic;
             $material->delete();
@@ -771,7 +787,9 @@ class EducationController extends Controller
             }
         });
 
-        return redirect()->route('education.course')->with('success', 'Материал курса удалён.');
+        return redirect()->route('education.course')
+            ->with('success', 'Материал курса удалён.')
+            ->with('open_category_id', $this->educationOpenCategoryId($categoryId));
     }
 
     public function tests()
@@ -959,13 +977,14 @@ class EducationController extends Controller
         $project = $this->educationProject();
         $validated = $this->validateCategory($request);
 
-        EducationCategory::create($validated + [
+        $category = EducationCategory::create($validated + [
             'project_id' => $project->id,
             'is_active' => true,
         ]);
 
         return redirect()->route($this->categoryRedirectRoute($validated['context']))
-            ->with('success', 'Категория создана.');
+            ->with('success', 'Категория создана.')
+            ->with('open_category_id', $this->educationOpenCategoryId($category->id));
     }
 
     public function updateCategory(Request $request, EducationCategory $category)
@@ -977,7 +996,8 @@ class EducationController extends Controller
         $category->update($validated);
 
         return redirect()->route($this->categoryRedirectRoute($category->context))
-            ->with('success', 'Категория изменена.');
+            ->with('success', 'Категория изменена.')
+            ->with('open_category_id', $this->educationOpenCategoryId($category->id));
     }
 
     public function destroyCategory(EducationCategory $category)
@@ -988,7 +1008,8 @@ class EducationController extends Controller
         $category->delete();
 
         return redirect()->route($this->categoryRedirectRoute($context))
-            ->with('success', 'Категория удалена. Элементы перемещены в «Без категории».');
+            ->with('success', 'Категория удалена. Элементы перемещены в «Без категории».')
+            ->with('open_category_id', 'none');
     }
 
     public function storeKnowYourself(Request $request)
@@ -1005,7 +1026,9 @@ class EducationController extends Controller
         ]);
         $this->syncTestResults($test, $validated['quest_data']);
 
-        return redirect()->route('education.know-yourself')->with('success', 'Тест создан.');
+        return redirect()->route('education.know-yourself')
+            ->with('success', 'Тест создан.')
+            ->with('open_category_id', $this->educationOpenCategoryId($test->category_id));
     }
 
     public function updateKnowYourself(Request $request, QuestTest $test)
@@ -1023,7 +1046,9 @@ class EducationController extends Controller
         ]);
         $this->syncTestResults($test, $validated['quest_data']);
 
-        return redirect()->route('education.know-yourself')->with('success', 'Тест изменён.');
+        return redirect()->route('education.know-yourself')
+            ->with('success', 'Тест изменён.')
+            ->with('open_category_id', $this->educationOpenCategoryId($test->category_id));
     }
 
     public function destroyKnowYourself(QuestTest $test)
@@ -1031,9 +1056,12 @@ class EducationController extends Controller
         $project = $this->educationProject();
         $this->assertTestProject($test, $project);
         abort_unless(($test->test_type ?? '') === 'profile_assessment', 404);
+        $categoryId = $test->category_id;
         $test->delete();
 
-        return redirect()->route('education.know-yourself')->with('success', 'Тест удалён.');
+        return redirect()->route('education.know-yourself')
+            ->with('success', 'Тест удалён.')
+            ->with('open_category_id', $this->educationOpenCategoryId($categoryId));
     }
 
     public function submit(Request $request, QuestTest $test, EducationMaterialResolver $resolver)
@@ -1371,6 +1399,11 @@ class EducationController extends Controller
         return $context === EducationCategory::CONTEXT_COURSE
             ? 'education.course'
             : 'education.know-yourself';
+    }
+
+    private function educationOpenCategoryId(mixed $categoryId): string
+    {
+        return $categoryId ? (string) $categoryId : 'none';
     }
 
     private function assertMaterialProject(EducationalMaterial $material, Project $project): void
