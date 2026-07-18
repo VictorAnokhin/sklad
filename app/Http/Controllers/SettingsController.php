@@ -278,6 +278,26 @@ class SettingsController extends Controller
             }
         }
 
+        if (Schema::hasTable('team_memberships')) {
+            $identityUserIds = collect([(int) $user->id]);
+            if ($email !== '' && Schema::hasTable('users') && Schema::hasColumn('users', 'email')) {
+                $identityUserIds = $identityUserIds
+                    ->merge(User::query()
+                        ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+                        ->pluck('id')
+                        ->map(fn ($id) => (int) $id))
+                    ->unique()
+                    ->values();
+            }
+
+            if (DB::table('team_memberships')
+                ->whereIn('user_id', $identityUserIds->all())
+                ->where('project_id', $projectId)
+                ->exists()) {
+                return true;
+            }
+        }
+
         return false;
     }
 

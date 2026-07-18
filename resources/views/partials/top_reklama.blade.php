@@ -3,39 +3,81 @@
   $authUser = \Illuminate\Support\Facades\Auth::user();
   $isAuthenticated = \Illuminate\Support\Facades\Auth::check();
   $userProjectId = (int) (($authUser->firma ?? 0) ?: ($authUser->fid ?? 0));
-  $userProjectIds = collect();
+  $identityUserIds = $isAuthenticated && !empty($authUser?->id)
+    ? collect([(int) $authUser->id])
+    : collect();
+  $userEmail = mb_strtolower(trim((string) ($authUser?->email ?? '')));
 
   if (
     $isAuthenticated
-    && !empty($authUser?->email)
+    && $userEmail !== ''
     && \App\Models\User::hasUsersColumn('email')
-    && \App\Models\User::hasUsersColumn('firma')
   ) {
-    $userProjectIds = \App\Models\User::query()
-      ->where('email', (string) $authUser->email)
-      ->pluck('firma')
-      ->map(fn ($firma) => (int) $firma)
-      ->filter(fn ($firma) => $firma > 0)
+    $identityUserIds = $identityUserIds
+      ->merge(\App\Models\User::query()
+        ->whereRaw('LOWER(TRIM(email)) = ?', [$userEmail])
+        ->pluck('id')
+        ->map(fn ($id) => (int) $id))
       ->unique()
       ->values();
   }
 
-  if ($userProjectIds->isEmpty() && $userProjectId > 0) {
-    $userProjectIds = collect([$userProjectId]);
+  $hasProjectTable = \Illuminate\Support\Facades\Schema::hasTable('project');
+  $hasProjectUserId = $hasProjectTable && \Illuminate\Support\Facades\Schema::hasColumn('project', 'userid');
+  $hasProjectEmail = $hasProjectTable && \Illuminate\Support\Facades\Schema::hasColumn('project', 'email');
+  $creatorProjectIds = collect();
+  $employeeProjectIds = collect();
+
+  if ($isAuthenticated && $hasProjectTable) {
+    $creatorProjectIds = \App\Models\Project::query()
+      ->where(function ($query) use ($hasProjectUserId, $hasProjectEmail, $identityUserIds, $userEmail) {
+        $hasCondition = false;
+        if ($hasProjectUserId && $identityUserIds->isNotEmpty()) {
+          $query->whereIn('userid', $identityUserIds->all());
+          $hasCondition = true;
+        }
+        if ($hasProjectEmail && $userEmail !== '') {
+          $method = $hasCondition ? 'orWhereRaw' : 'whereRaw';
+          $query->{$method}('LOWER(TRIM(email)) = ?', [$userEmail]);
+          $hasCondition = true;
+        }
+        if (!$hasCondition) {
+          $query->whereRaw('1 = 0');
+        }
+      })
+      ->pluck('id')
+      ->map(fn ($id) => (int) $id)
+      ->unique()
+      ->values();
+
+    if (\Illuminate\Support\Facades\Schema::hasTable('team_memberships') && $identityUserIds->isNotEmpty()) {
+      $employeeProjectIds = \Illuminate\Support\Facades\DB::table('team_memberships')
+        ->whereIn('user_id', $identityUserIds->all())
+        ->pluck('project_id')
+        ->map(fn ($id) => (int) $id)
+        ->filter(fn ($id) => $id > 0)
+        ->unique()
+        ->diff($creatorProjectIds)
+        ->values();
+    }
   }
+
+  $userProjectIds = $creatorProjectIds->merge($employeeProjectIds)->unique()->values();
 
   $projectSelectColumns = ['id', 'num', 'name'];
   if (\Illuminate\Support\Facades\Schema::hasTable('project') && \Illuminate\Support\Facades\Schema::hasColumn('project', 'project_type')) {
     $projectSelectColumns[] = 'project_type';
   }
 
-  $headerProjects = \Illuminate\Support\Facades\Schema::hasTable('project')
+  $headerProjects = $hasProjectTable && $userProjectIds->isNotEmpty()
     ? \App\Models\Project::query()
-        ->when($userProjectIds->isNotEmpty(), fn ($query) => $query->whereIn('id', $userProjectIds->all()))
+        ->whereIn('id', $userProjectIds->all())
         ->orderBy('num')
         ->orderBy('name')
         ->get($projectSelectColumns)
     : collect();
+  $creatorHeaderProjects = $headerProjects->whereIn('id', $creatorProjectIds)->values();
+  $employeeHeaderProjects = $headerProjects->whereIn('id', $employeeProjectIds)->values();
   $newOrdersByProject = collect();
   $newOrdersCount = 0;
 
@@ -86,12 +128,26 @@
         <form method="POST" action="{{ route('settings.switchProject') }}" class="header-project-switch__form">
           @csrf
           <select id="header-project-select" name="fid" class="header-bar__title" onchange="this.form.submit()">
-            @foreach($headerProjects as $project)
-              @php $projectNewOrdersCount = (int) ($newOrdersByProject->get((int) $project->id, 0)); @endphp
-              <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
-                 {{ $project->name }} #{{ $project->id }}{{ $projectNewOrdersCount > 0 ? ' | new: ' . $projectNewOrdersCount : '' }}
-              </option>
-            @endforeach
+            @if($creatorHeaderProjects->isNotEmpty())
+              <optgroup label="Создатель">
+                @foreach($creatorHeaderProjects as $project)
+                  @php $projectNewOrdersCount = (int) ($newOrdersByProject->get((int) $project->id, 0)); @endphp
+                  <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
+                    {{ $project->name }} #{{ $project->id }}{{ $projectNewOrdersCount > 0 ? ' | new: ' . $projectNewOrdersCount : '' }}
+                  </option>
+                @endforeach
+              </optgroup>
+            @endif
+            @if($employeeHeaderProjects->isNotEmpty())
+              <optgroup label="Сотрудник">
+                @foreach($employeeHeaderProjects as $project)
+                  @php $projectNewOrdersCount = (int) ($newOrdersByProject->get((int) $project->id, 0)); @endphp
+                  <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
+                    {{ $project->name }} #{{ $project->id }}{{ $projectNewOrdersCount > 0 ? ' | new: ' . $projectNewOrdersCount : '' }}
+                  </option>
+                @endforeach
+              </optgroup>
+            @endif
           </select>
         </form>
       </div>
