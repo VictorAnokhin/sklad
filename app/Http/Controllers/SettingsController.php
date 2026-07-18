@@ -260,42 +260,41 @@ class SettingsController extends Controller
             return true;
         }
 
-        if ((int) ($project->userid ?? 0) > 0 && (int) $project->userid === (int) $user->id) {
-            return true;
-        }
-
         $email = $this->resolveUserEmailForProjectMetadata($user) ?? '';
-        if ($email !== '') {
-            if (Schema::hasColumn('project', 'email') && mb_strtolower(trim((string) ($project->email ?? ''))) === $email) {
-                return true;
-            }
-
-            if (Schema::hasTable('users') && Schema::hasColumn('users', 'email') && Schema::hasColumn('users', 'firma')) {
-                return User::query()
-                    ->where('firma', $projectId)
+        $identityUserIds = collect([(int) $user->id]);
+        if ($email !== '' && Schema::hasTable('users') && Schema::hasColumn('users', 'email')) {
+            $identityUserIds = $identityUserIds
+                ->merge(User::query()
                     ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
-                    ->exists();
-            }
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id))
+                ->unique()
+                ->values();
         }
 
         if (Schema::hasTable('team_memberships')) {
-            $identityUserIds = collect([(int) $user->id]);
-            if ($email !== '' && Schema::hasTable('users') && Schema::hasColumn('users', 'email')) {
-                $identityUserIds = $identityUserIds
-                    ->merge(User::query()
-                        ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
-                        ->pluck('id')
-                        ->map(fn ($id) => (int) $id))
-                    ->unique()
-                    ->values();
-            }
-
             if (DB::table('team_memberships')
                 ->whereIn('user_id', $identityUserIds->all())
                 ->where('project_id', $projectId)
                 ->exists()) {
                 return true;
             }
+        }
+
+        if (
+            Schema::hasColumn('project', 'userid')
+            && (int) ($project->userid ?? 0) > 0
+            && $identityUserIds->contains((int) $project->userid)
+        ) {
+            return true;
+        }
+
+        if (
+            $email !== ''
+            && Schema::hasColumn('project', 'email')
+            && mb_strtolower(trim((string) ($project->email ?? ''))) === $email
+        ) {
+            return true;
         }
 
         return false;
