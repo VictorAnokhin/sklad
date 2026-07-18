@@ -3,6 +3,7 @@
 @section('title', 'Узнай себя')
 
 @section('header_actions')
+<button type="button" class="btn btn-outline-warning me-2" id="manage-education-categories-button" @disabled($migrationRequired ?? false)>Категории</button>
 <button type="button" class="btn btn-warning" id="create-know-test-button" @disabled($migrationRequired ?? false)>Создать</button>
 @endsection
 
@@ -28,12 +29,14 @@
             <table class="table table-dark table-hover align-middle mb-0">
                 <thead>
                     <tr>
+                        <th>Категория</th>
                         <th>Название</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($tests as $test)
                         <tr>
+                            <td class="text-secondary">{{ $test->category?->title ?? 'Без категории' }}</td>
                             <td>
                                 <button type="button"
                                         class="btn btn-link text-light text-decoration-none p-0 edit-know-test-button"
@@ -44,7 +47,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td class="text-secondary">Тесты для страницы «Узнай себя» пока не созданы.</td>
+                            <td colspan="2" class="text-secondary">Тесты для страницы «Узнай себя» пока не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -117,14 +120,23 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-8 mb-3">
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label" for="know-test-category">Категория</label>
+                            <select class="form-select" id="know-test-category" name="category_id">
+                                <option value="">Без категории</option>
+                                @foreach($categories as $category)
+                                    <option value="{{ $category->id }}">{{ $category->title }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
                             <label class="form-label" for="know-test-auth-required">Авторизация для прохождения</label>
                             <select class="form-select" id="know-test-auth-required">
                                 <option value="none">Без авторизации</option>
                                 <option value="google">С гугл авторизацией</option>
                             </select>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label" for="know-test-rating">Рейтинг</label>
                             <input class="form-control" id="know-test-rating" type="number" min="0" value="0">
                         </div>
@@ -197,6 +209,7 @@
         </div>
     </div>
 </div>
+@include('education.category-modal', ['categoryContext' => \App\Models\EducationCategory::CONTEXT_KNOW_YOURSELF])
 @endsection
 
 @push('scripts')
@@ -211,6 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         title: document.getElementById('know-test-title'),
         titleUa: document.getElementById('know-test-title-ua'),
         titleEn: document.getElementById('know-test-title-en'),
+        categoryId: document.getElementById('know-test-category'),
         questData: document.getElementById('know-test-quest-data'),
         questDataTranslations: document.getElementById('know-test-quest-data-translations'),
         publicFeatured: document.getElementById('know-test-public-featured'),
@@ -550,6 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleUa.value = '';
         fields.title.value = '';
         fields.titleEn.value = '';
+        fields.categoryId.value = '';
         currentLang = 'ru';
         activateLanguageButton('ru');
         sharedQuestionImages = [];
@@ -571,6 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.title.value = item.title_translations?.ru || item.title || '';
         fields.titleUa.value = item.title_translations?.ua || '';
         fields.titleEn.value = item.title_translations?.en || '';
+        fields.categoryId.value = item.category_id || '';
         currentLang = 'ru';
         activateLanguageButton('ru');
         sharedQuestionImages = Array.from(item.quest_data?.questions || []).map((question) => question?.image || '');

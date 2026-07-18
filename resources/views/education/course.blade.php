@@ -3,6 +3,7 @@
 @section('title', 'Курс обучения')
 
 @section('header_actions')
+<button type="button" class="btn btn-outline-warning me-2" id="manage-education-categories-button" @disabled($migrationRequired ?? false)>Категории</button>
 <button type="button" class="btn btn-warning" id="create-course-button" @disabled($migrationRequired ?? false)>Создать</button>
 @endsection
 
@@ -60,6 +61,7 @@
                                     data-bs-toggle="collapse" data-bs-target="#{{ $accordionId }}-body"
                                     aria-expanded="false" aria-controls="{{ $accordionId }}-body">
                                 <span class="me-3 fw-semibold">{{ $topic->title }}</span>
+                                <span class="badge text-bg-info me-2">{{ $topic->category?->title ?? 'Без категории' }}</span>
                                 <span class="badge text-bg-warning me-2">Рейтинг {{ $requiredRating }}</span>
                                 <span class="badge text-bg-secondary">{{ $topic->materials->count() }} урок(ов)</span>
                             </button>
@@ -224,11 +226,20 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-0">
+                        <div class="col-md-4 mb-0">
+                            <label class="form-label" for="topic-category">Категория</label>
+                            <select class="form-select" id="topic-category" name="category_id">
+                                <option value="">Без категории</option>
+                                @foreach($categories as $category)
+                                    <option value="{{ $category->id }}">{{ $category->title }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-0">
                             <label class="form-label" for="topic-position">Рейтинг</label>
                             <input class="form-control" id="topic-position" name="position" type="number" min="0" value="0">
                         </div>
-                        <div class="col-md-6 mb-0">
+                        <div class="col-md-4 mb-0">
                             <label class="form-label" for="topic-cost-av8">Стоимость, AV8</label>
                             <input class="form-control" id="topic-cost-av8" name="cost_av8" type="number" min="0" step="0.000001" value="0">
                         </div>
@@ -386,6 +397,7 @@
         </div>
     </div>
 </div>
+@include('education.category-modal', ['categoryContext' => \App\Models\EducationCategory::CONTEXT_COURSE])
 @endsection
 
 @push('scripts')
@@ -406,6 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
         description: document.getElementById('topic-description'),
         descriptionUa: document.getElementById('topic-description-ua'),
         descriptionEn: document.getElementById('topic-description-en'),
+        categoryId: document.getElementById('topic-category'),
         position: document.getElementById('topic-position'),
         costAv8: document.getElementById('topic-cost-av8'),
     };
@@ -533,6 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
         topicDeleteButton.classList.add('d-none');
         topicFields.position.value = '0';
         topicFields.costAv8.value = '0';
+        topicFields.categoryId.value = '';
         showDefaultTopicLanguageTabs();
         topicModal.show();
     }
@@ -556,6 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
         topicFields.descriptionEn.value = topic.description_translations?.en || '';
         topicFields.position.value = topic.position || 0;
         topicFields.costAv8.value = topic.cost_av8 || '0';
+        topicFields.categoryId.value = topic.category_id || '';
         topicDeleteForm.action = topicDeleteUrl.replace('__ID__', id);
         topicDeleteButton.classList.remove('d-none');
         showDefaultTopicLanguageTabs();

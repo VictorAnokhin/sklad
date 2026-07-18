@@ -100,6 +100,11 @@ Route::middleware(['auth'])->group(function () {
             ->whereNumber('test')->name('know-yourself.update');
         Route::delete('/know-yourself/{test}', [EducationController::class, 'destroyKnowYourself'])
             ->whereNumber('test')->name('know-yourself.destroy');
+        Route::post('/education-categories', [EducationController::class, 'storeCategory'])->name('categories.store');
+        Route::put('/education-categories/{category}', [EducationController::class, 'updateCategory'])
+            ->whereNumber('category')->name('categories.update');
+        Route::delete('/education-categories/{category}', [EducationController::class, 'destroyCategory'])
+            ->whereNumber('category')->name('categories.destroy');
     });
     Route::get('/dashboard/agent-chat', [DashboardAgentChatController::class, 'index'])->name('dashboard.agent-chat.index');
     Route::post('/dashboard/agent-chat', [DashboardAgentChatController::class, 'store'])->name('dashboard.agent-chat.store');

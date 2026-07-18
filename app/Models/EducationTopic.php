@@ -19,4 +19,9 @@ class EducationTopic extends Model
     {
         return $this->hasMany(EducationalMaterial::class, 'topic_id');
     }
+
+    public function category()
+    {
+        return $this->belongsTo(EducationCategory::class, 'category_id');
+    }
 }

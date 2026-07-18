@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EducationCategory;
 use App\Models\EducationProgress;
 use App\Models\EducationTopic;
 use App\Models\EducationalMaterial;
@@ -75,6 +76,11 @@ class EducationController extends Controller
         return response()->json([
             'test' => [
                 'id' => $test->id,
+                'category_id' => $test->category_id,
+                'category_title' => $test->category
+                    ? $this->localizedText($test->category->title_translations, $lang, (string) $test->category->title)
+                    : null,
+                'category_position' => (int) ($test->category?->position ?? 2147483647),
                 'title' => $this->localizedText($test->title_translations, $lang, (string) $test->title),
                 'passing_score' => $test->passing_score,
                 'intro' => (string) ($questData['intro'] ?? ''),
@@ -227,7 +233,7 @@ class EducationController extends Controller
         $topics = EducationTopic::query()
             ->where('project_id', (int) $validated['fid'])
             ->where('is_active', true)
-            ->with(['materials' => fn ($query) => $query
+            ->with(['category', 'materials' => fn ($query) => $query
                 ->where('is_active', true)
                 ->with(['tests' => fn ($testQuery) => $testQuery
                     ->where('is_active', true)
@@ -247,6 +253,11 @@ class EducationController extends Controller
 
                 return [
                     'id' => $topic->id,
+                    'category_id' => $topic->category_id,
+                    'category_title' => $topic->category
+                        ? $this->localizedText($topic->category->title_translations, $lang, (string) $topic->category->title)
+                        : null,
+                    'category_position' => (int) ($topic->category?->position ?? 2147483647),
                     'title' => $this->localizedText($topic->title_translations, $lang, (string) $topic->title),
                     'description' => $this->localizedText($topic->description_translations, $lang, (string) ($topic->description ?? '')),
                     'rating' => $topicRating,
@@ -507,6 +518,7 @@ class EducationController extends Controller
         $lang = $this->language($request);
 
         $tests = $this->knowYourselfTestsQuery((int) $validated['fid'])
+            ->with('category')
             ->orderBy('id')
             ->get()
             ->map(fn (QuestTest $test) => $this->publicTestPayload($test, $lang))
@@ -557,6 +569,8 @@ class EducationController extends Controller
                 'materialEditorItems' => [],
                 'topicEditorItems' => [],
                 'migrationRequired' => true,
+                'categories' => collect(),
+                'categoryEditorItems' => [],
             ]);
         }
 
@@ -565,7 +579,7 @@ class EducationController extends Controller
         $topics = EducationTopic::query()
             ->where('project_id', $project->id)
             ->where('is_active', true)
-            ->with(['materials' => fn ($query) => $query
+            ->with(['category', 'materials' => fn ($query) => $query
                 ->where('is_active', true)
                 ->orderBy('rating')
                 ->orderBy('level')
@@ -622,15 +636,20 @@ class EducationController extends Controller
                     'position' => $topic->position,
                     'rating' => $topic->position,
                     'cost_av8' => (string) ($topic->cost_av8 ?? '0'),
+                    'category_id' => $topic->category_id,
                 ],
             ])
             ->all();
+
+        $categories = $this->educationCategories((int) $project->id, EducationCategory::CONTEXT_COURSE);
 
         return view('education.course', [
             'project' => $project,
             'topics' => $topics,
             'materialEditorItems' => $materialEditorItems,
             'topicEditorItems' => $topicEditorItems,
+            'categories' => $categories,
+            'categoryEditorItems' => $this->categoryEditorItems($categories),
             'migrationRequired' => false,
         ]);
     }
@@ -670,6 +689,7 @@ class EducationController extends Controller
 
         EducationTopic::create([
             'project_id' => $project->id,
+            'category_id' => $validated['category_id'],
             'title' => $validated['title'],
             'title_translations' => $validated['title_translations'],
             'description' => $validated['description'] ?? null,
@@ -695,6 +715,7 @@ class EducationController extends Controller
             'description_translations' => $validated['description_translations'],
             'position' => $validated['position'] ?? 0,
             'cost_av8' => $validated['cost_av8'],
+            'category_id' => $validated['category_id'],
         ]);
 
         return redirect()->route('education.course')->with('success', 'Курс изменён.');
@@ -889,6 +910,8 @@ class EducationController extends Controller
                 'attempts' => collect(),
                 'testEditorItems' => [],
                 'migrationRequired' => true,
+                'categories' => collect(),
+                'categoryEditorItems' => [],
             ]);
         }
 
@@ -913,17 +936,59 @@ class EducationController extends Controller
                     'title_translations' => $test->title_translations ?? [],
                     'quest_data' => $test->quest_data,
                     'quest_data_translations' => $test->quest_data_translations ?? [],
+                    'category_id' => $test->category_id,
                 ],
             ])
             ->all();
+
+        $categories = $this->educationCategories((int) $project->id, EducationCategory::CONTEXT_KNOW_YOURSELF);
 
         return view('education.know-yourself', [
             'project' => $project,
             'tests' => $tests,
             'attempts' => $attempts,
             'testEditorItems' => $testEditorItems,
+            'categories' => $categories,
+            'categoryEditorItems' => $this->categoryEditorItems($categories),
             'migrationRequired' => false,
         ]);
+    }
+
+    public function storeCategory(Request $request)
+    {
+        $project = $this->educationProject();
+        $validated = $this->validateCategory($request);
+
+        EducationCategory::create($validated + [
+            'project_id' => $project->id,
+            'is_active' => true,
+        ]);
+
+        return redirect()->route($this->categoryRedirectRoute($validated['context']))
+            ->with('success', 'Категория создана.');
+    }
+
+    public function updateCategory(Request $request, EducationCategory $category)
+    {
+        $project = $this->educationProject();
+        abort_unless((int) $category->project_id === (int) $project->id, 404);
+        $validated = $this->validateCategory($request);
+        abort_unless($category->context === $validated['context'], 422, 'Нельзя изменить раздел категории.');
+        $category->update($validated);
+
+        return redirect()->route($this->categoryRedirectRoute($category->context))
+            ->with('success', 'Категория изменена.');
+    }
+
+    public function destroyCategory(EducationCategory $category)
+    {
+        $project = $this->educationProject();
+        abort_unless((int) $category->project_id === (int) $project->id, 404);
+        $context = $category->context;
+        $category->delete();
+
+        return redirect()->route($this->categoryRedirectRoute($context))
+            ->with('success', 'Категория удалена. Элементы перемещены в «Без категории».');
     }
 
     public function storeKnowYourself(Request $request)
@@ -1076,6 +1141,8 @@ class EducationController extends Controller
     private function educationSchemaReady(): bool
     {
         return Schema::hasTable('education_topics')
+            && Schema::hasTable('education_categories')
+            && Schema::hasColumn('education_topics', 'category_id')
             && Schema::hasTable('educational_materials')
             && Schema::hasColumn('educational_materials', 'title')
             && Schema::hasColumn('educational_materials', 'rating')
@@ -1088,6 +1155,7 @@ class EducationController extends Controller
             && Schema::hasTable('quests_tests')
             && Schema::hasTable('quest_test_results')
             && Schema::hasColumn('quests_tests', 'project_id')
+            && Schema::hasColumn('quests_tests', 'category_id')
             && Schema::hasColumn('quests_tests', 'test_type')
             && Schema::hasColumn('quests_tests', 'title_translations')
             && Schema::hasColumn('quests_tests', 'quest_data_translations')
@@ -1140,6 +1208,7 @@ class EducationController extends Controller
             'description_translations' => ['nullable'],
             'position' => ['nullable', 'integer', 'min:0'],
             'cost_av8' => ['nullable', 'numeric', 'min:0'],
+            'category_id' => ['nullable', 'integer', 'min:1'],
         ]);
         $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
         $validated['description_translations'] = $this->translationMap($validated['description_translations'] ?? null);
@@ -1150,6 +1219,10 @@ class EducationController extends Controller
             $validated['title_translations'] = ['ru' => $validated['title']];
         }
         $validated['cost_av8'] = number_format((float) ($validated['cost_av8'] ?? 0), 6, '.', '');
+        $validated['category_id'] = $this->validatedCategoryId(
+            $validated['category_id'] ?? null,
+            EducationCategory::CONTEXT_COURSE
+        );
 
         return $validated;
     }
@@ -1198,6 +1271,7 @@ class EducationController extends Controller
             'quest_data_translations' => ['nullable', 'json'],
             'question_images' => ['nullable', 'array'],
             'question_images.*' => ['nullable', 'image', 'max:5120'],
+            'category_id' => ['nullable', 'integer', 'min:1'],
         ]);
         $validated['quest_data'] = json_decode($validated['quest_data'], true, 512, JSON_THROW_ON_ERROR);
         $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
@@ -1219,6 +1293,10 @@ class EducationController extends Controller
             $validated['quest_data_translations'][$lang]['scoring'] = 'points';
         }
         $validated = $this->storeKnowYourselfQuestionImages($request, $validated);
+        $validated['category_id'] = $this->validatedCategoryId(
+            $validated['category_id'] ?? null,
+            EducationCategory::CONTEXT_KNOW_YOURSELF
+        );
         if ($validated['title_translations'] === []) {
             $validated['title_translations'] = ['ru' => $validated['title']];
         }
@@ -1226,6 +1304,73 @@ class EducationController extends Controller
         unset($validated['question_images']);
 
         return $validated;
+    }
+
+    private function validateCategory(Request $request): array
+    {
+        $validated = $request->validate([
+            'context' => ['required', Rule::in([
+                EducationCategory::CONTEXT_KNOW_YOURSELF,
+                EducationCategory::CONTEXT_COURSE,
+            ])],
+            'title' => ['nullable', 'string', 'max:255'],
+            'title_translations' => ['nullable'],
+            'position' => ['nullable', 'integer', 'min:0'],
+        ]);
+        $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
+        $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
+        abort_if($validated['title'] === '', 422, 'Заполните название категории хотя бы на одном языке.');
+        if ($validated['title_translations'] === []) {
+            $validated['title_translations'] = ['ru' => $validated['title']];
+        }
+        $validated['position'] = (int) ($validated['position'] ?? 0);
+
+        return $validated;
+    }
+
+    private function validatedCategoryId(mixed $categoryId, string $context): ?int
+    {
+        if (!$categoryId) {
+            return null;
+        }
+
+        return (int) EducationCategory::query()
+            ->where('project_id', (int) session('fid'))
+            ->where('context', $context)
+            ->where('is_active', true)
+            ->findOrFail((int) $categoryId)
+            ->id;
+    }
+
+    private function educationCategories(int $projectId, string $context)
+    {
+        return EducationCategory::query()
+            ->where('project_id', $projectId)
+            ->where('context', $context)
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get();
+    }
+
+    private function categoryEditorItems($categories): array
+    {
+        return $categories->mapWithKeys(fn (EducationCategory $category) => [
+            $category->id => [
+                'id' => $category->id,
+                'title' => $category->title,
+                'title_translations' => $category->title_translations ?? [],
+                'position' => $category->position,
+                'context' => $category->context,
+            ],
+        ])->all();
+    }
+
+    private function categoryRedirectRoute(string $context): string
+    {
+        return $context === EducationCategory::CONTEXT_COURSE
+            ? 'education.course'
+            : 'education.know-yourself';
     }
 
     private function assertMaterialProject(EducationalMaterial $material, Project $project): void
@@ -1251,7 +1396,7 @@ class EducationController extends Controller
     private function firstPublicTest(int $projectId): QuestTest
     {
         $query = QuestTest::query()
-            ->with(['material.topic', 'results'])
+            ->with(['material.topic', 'results', 'category'])
             ->where('is_active', true)
             ->where(fn ($query) => $query
                 ->where('project_id', $projectId)
@@ -1270,7 +1415,7 @@ class EducationController extends Controller
     private function knowYourselfTestsQuery(int $projectId)
     {
         return QuestTest::query()
-            ->with(['results'])
+            ->with(['results', 'category'])
             ->where('is_active', true)
             ->where('project_id', $projectId)
             ->where('test_type', 'profile_assessment');
@@ -1295,6 +1440,11 @@ class EducationController extends Controller
 
         return [
             'id' => $test->id,
+            'category_id' => $test->category_id,
+            'category_title' => $test->category
+                ? $this->localizedText($test->category->title_translations, $lang, (string) $test->category->title)
+                : null,
+            'category_position' => (int) ($test->category?->position ?? 2147483647),
             'title' => $this->localizedText($test->title_translations, $lang, (string) $test->title),
             'passing_score' => $test->passing_score,
             'intro' => (string) ($questData['intro'] ?? ''),
