@@ -1390,24 +1390,7 @@ class AuthController extends Controller
             ]);
         }
 
-        $walletAddress = $network === 'sui' ? $this->resolveZkLoginWalletAddress($user->id) : null;
-        if (! $walletAddress && Schema::hasTable('user_wallets')) {
-            $walletRow = DB::table('user_wallets')
-                ->where('user_id', $user->id)
-                ->where('network', $network)
-                ->when(Schema::hasColumn('user_wallets', 'web3auth'), function ($query) {
-                    $query->where('web3auth', 1);
-                })
-                ->orderByDesc('connected_at')
-                ->orderByDesc('id')
-                ->first(['address']);
-
-            if ($walletRow && ! empty($walletRow->address)) {
-                $walletAddress = $network === 'sui'
-                    ? $this->normalizeSuiWalletAddress((string) $walletRow->address)
-                    : trim((string) $walletRow->address);
-            }
-        }
+        $walletAddress = $this->resolveGoogleWalletAddressForNetwork($user->id, $network);
 
         return response()->json([
             'found' => true,
@@ -1454,24 +1437,7 @@ class AuthController extends Controller
         $items = [];
 
         foreach ($users as $user) {
-            $walletAddress = $network === 'sui' ? $this->resolveZkLoginWalletAddress($user->id) : null;
-            if (! $walletAddress && Schema::hasTable('user_wallets')) {
-                $walletRow = DB::table('user_wallets')
-                    ->where('user_id', $user->id)
-                    ->where('network', $network)
-                    ->when(Schema::hasColumn('user_wallets', 'web3auth'), function ($walletQuery) {
-                        $walletQuery->where('web3auth', 1);
-                    })
-                    ->orderByDesc('connected_at')
-                    ->orderByDesc('id')
-                    ->first(['address']);
-
-                if ($walletRow && ! empty($walletRow->address)) {
-                    $walletAddress = $network === 'sui'
-                        ? $this->normalizeSuiWalletAddress((string) $walletRow->address)
-                        : trim((string) $walletRow->address);
-                }
-            }
+            $walletAddress = $this->resolveGoogleWalletAddressForNetwork($user->id, $network);
 
             if (! $walletAddress) {
                 continue;
@@ -2833,6 +2799,64 @@ class AuthController extends Controller
             'wallet_network' => $network,
             'wallet_connected_at' => now(),
         ])->save();
+    }
+
+    private function resolveGoogleWalletAddressForNetwork(int|string $userId, string $network): ?string
+    {
+        if ($network === 'sui') {
+            $zkLoginAddress = $this->resolveZkLoginWalletAddress($userId);
+            if ($zkLoginAddress) {
+                return $zkLoginAddress;
+            }
+        }
+
+        if (! Schema::hasTable('user_wallets')) {
+            return null;
+        }
+
+        $networkAliases = match ($network) {
+            'eth' => ['eth', 'ethereum', 'mainnet', 'evm'],
+            'arbitrum' => ['arbitrum', 'arbitrum-one', 'arb'],
+            'base' => ['base'],
+            'polygon' => ['polygon', 'polygon-pos', 'matic'],
+            'bnb' => ['bnb', 'bsc', 'bnb-smart-chain', 'binance-smart-chain'],
+            'solana' => ['solana'],
+            'sui' => ['sui'],
+            default => [$network],
+        };
+
+        $findWallet = function (array $networks) use ($userId) {
+            $placeholders = implode(',', array_fill(0, count($networks), '?'));
+
+            return DB::table('user_wallets')
+                ->where('user_id', $userId)
+                ->whereRaw("LOWER(TRIM(network)) IN ({$placeholders})", $networks)
+                ->when(Schema::hasColumn('user_wallets', 'web3auth'), function ($query) {
+                    $query->where('web3auth', 1);
+                })
+                ->orderByDesc('connected_at')
+                ->orderByDesc('id')
+                ->first(['address']);
+        };
+
+        $walletRow = $findWallet($networkAliases);
+        if (! $walletRow && $this->isEvmWalletType($network)) {
+            $walletRow = $findWallet([
+                'eth', 'ethereum', 'mainnet', 'evm',
+                'arbitrum', 'arbitrum-one', 'arb',
+                'base',
+                'polygon', 'polygon-pos', 'matic',
+                'bnb', 'bsc', 'bnb-smart-chain', 'binance-smart-chain',
+            ]);
+        }
+
+        if (! $walletRow || empty($walletRow->address)) {
+            return null;
+        }
+
+        $address = trim((string) $walletRow->address);
+
+        return $network === 'sui' ? $this->normalizeSuiWalletAddress($address) : $address;
     }
 
     private function userWallets(int|string $userId): array
