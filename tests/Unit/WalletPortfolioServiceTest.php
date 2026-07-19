@@ -61,6 +61,10 @@ class WalletPortfolioServiceTest extends TestCase
         $this->assertSame('0xa79798c0637daea4ac7fccbd61371dbb08d1d002', $payload['address']);
         $this->assertCount(2, $payload['result']);
         $this->assertSame('eth', $payload['chains'][0]['chain']);
+        $this->assertContains('base', $payload['meta']['supported_chains']);
+        Http::assertSent(function ($request) {
+            return in_array('base-mainnet', data_get($request->data(), 'addresses.0.networks', []), true);
+        });
         $this->assertDatabaseHas('wallets', [
             'address' => '0xa79798c0637daea4ac7fccbd61371dbb08d1d002',
         ]);

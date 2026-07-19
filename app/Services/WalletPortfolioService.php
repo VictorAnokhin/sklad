@@ -22,6 +22,7 @@ class WalletPortfolioService
     private const NETWORK_MAP = [
         '0x1' => ['slug' => 'eth', 'alchemy' => 'eth-mainnet', 'coingecko_platform' => 'ethereum', 'coingecko_native_id' => 'ethereum'],
         '0xa4b1' => ['slug' => 'arbitrum', 'alchemy' => 'arb-mainnet', 'coingecko_platform' => 'arbitrum-one', 'coingecko_native_id' => 'ethereum'],
+        '0x2105' => ['slug' => 'base', 'alchemy' => 'base-mainnet', 'coingecko_platform' => 'base', 'coingecko_native_id' => 'ethereum'],
         '0x89' => ['slug' => 'polygon', 'alchemy' => 'polygon-mainnet', 'coingecko_platform' => 'polygon-pos', 'coingecko_native_id' => 'matic-network'],
         '0x38' => ['slug' => 'bsc', 'alchemy' => 'bnb-mainnet', 'coingecko_platform' => 'binance-smart-chain', 'coingecko_native_id' => 'binancecoin'],
     ];
