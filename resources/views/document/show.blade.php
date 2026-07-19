@@ -5,6 +5,7 @@
         $documentRoutes = $documentRoutePrefix ?? 'document';
         $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
         $isLoanDocument = in_array($documentRoutes, ['loan', 'bank.loanDocs'], true);
+        $isProductionDocument = in_array($doc, ['WO1', 'SP'], true);
         $showLoanRelatedMenu = ! $isLoanDocument || in_array($doc, ['CRDT', 'CPLAN', 'CRO', 'CPO', 'CDOC'], true);
         $showLoanRepaymentSchedule = $isLoanDocument && $doc === 'CPLAN';
         $hideGoodsSection = $isLoanDocument && in_array($doc, ['CRDT', 'CPLAN'], true);
@@ -29,6 +30,15 @@
                 </nav>
             </div>
         @endif
+    @elseif($isProductionDocument)
+        <div class="ttable top-action-bar">
+            <div class="top-action-filter">
+                @include('partials.filter')
+            </div>
+            <div class="top-action-panel">
+                @include('partials.panel')
+            </div>
+        </div>
     @else
         @include('partials.panel')
     @endif

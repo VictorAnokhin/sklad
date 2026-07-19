@@ -6,6 +6,7 @@
 @php
 $documentRoutes = $documentRoutePrefix ?? 'document';
 $isLoanDocuments = $documentRoutes === 'bank.loanDocs';
+$isProductionDocuments = in_array($doc, ['WO1', 'SP'], true);
 $btnLabel = match($doc) {
 'PO' => \App\Models\Document::typeName('PO'),
 'RO' => \App\Models\Document::typeName('RO'),
@@ -26,23 +27,25 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
   <div class="top-action-filter">
     @include('partials.filter', $isLoanDocuments ? ['filterButtonLabel' => 'Фильтр'] : [])
   </div>
-  @if($isLoanDocuments)
-    <div class="top-action-create">
-      <a href="{{ route('bank.loanDocs.index', ['action' => 'create']) }}" class="button top-action-create-btn">
-        + Создать заявку
-      </a>
-    </div>
-  @else
-    <form action="{{ route($documentRoutes . '.save') }}" method="post" name="dataform" class="top-action-create">
-      @csrf
-      <input type="hidden" name="year_N" value="{{ session('year', date('Y')) }}">
-      <input type="hidden" name="create_doc_type" value="{{ $doc }}">
+  @unless($isProductionDocuments)
+    @if($isLoanDocuments)
+      <div class="top-action-create">
+        <a href="{{ route('bank.loanDocs.index', ['action' => 'create']) }}" class="button top-action-create-btn">
+          + Создать заявку
+        </a>
+      </div>
+    @else
+      <form action="{{ route($documentRoutes . '.save') }}" method="post" name="dataform" class="top-action-create">
+        @csrf
+        <input type="hidden" name="year_N" value="{{ session('year', date('Y')) }}">
+        <input type="hidden" name="create_doc_type" value="{{ $doc }}">
 
-      <button type="submit" name="run" value="{{ $btnLabel }}" class="button top-action-create-btn">
-        + {{ $btnLabel }}
-      </button>
-    </form>
-  @endif
+        <button type="submit" name="run" value="{{ $btnLabel }}" class="button top-action-create-btn">
+          + {{ $btnLabel }}
+        </button>
+      </form>
+    @endif
+  @endunless
   <div class="top-action-panel">
     @if($isLoanDocuments)
       <div class="doc-tabs-wrap">

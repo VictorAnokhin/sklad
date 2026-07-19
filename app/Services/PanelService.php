@@ -45,7 +45,6 @@ class PanelService
                 $this->makeTab('CH', __('document.tabs.invoices'), 'icon-invoice.png', $currentDoc),
                 $this->makeTab('RN', __('document.tabs.shipments'), 'icon-packing.png', $currentDoc),
                 $this->makeTab('PO', __('document.tabs.money'), 'icon-business.png', $currentDoc),
-                $this->makeTab('WO1', __('document.tabs.jobs'), 'icon-naryad.png', $currentDoc),
                 $this->makeTab('RA', __('document.tabs.files'), 'icon-attach-file.png', $currentDoc),
             ];
         }

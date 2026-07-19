@@ -209,6 +209,12 @@
         <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">Трансферы</a>
         <a class="header-nav-menu__link" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
       </div>
+
+      <div class="header-nav-menu__section-label">Производство</div>
+      <div class="header-nav-menu__grid">
+        <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'WO1']) }}">Наряды WO1</a>
+        <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'SP']) }}">Спецификации SP</a>
+      </div>
     @endif
 
     <div class="header-nav-menu__section-label">Частный</div>

@@ -61,7 +61,7 @@ return [
         'wo1' => 'Job order',
         'vn' => 'Internal',
         'ao' => 'Act',
-        'sp' => 'Write-off',
+        'sp' => 'Specification',
         'ra' => 'File',
         'crdt' => 'Credit application',
         'cro' => 'Credit issue',
