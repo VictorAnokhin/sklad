@@ -1368,7 +1368,7 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255'],
-            'network' => ['nullable', 'string', 'in:sui,solana'],
+            'network' => ['nullable', 'string', 'in:eth,arbitrum,base,polygon,bnb,solana,sui'],
         ]);
 
         $email = mb_strtolower(trim((string) $validated['email']));
@@ -1421,7 +1421,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'q' => ['required', 'string', 'min:1', 'max:120'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
-            'network' => ['nullable', 'string', 'in:sui,solana'],
+            'network' => ['nullable', 'string', 'in:eth,arbitrum,base,polygon,bnb,solana,sui'],
         ]);
 
         if (! Schema::hasColumn('users', 'email')) {
