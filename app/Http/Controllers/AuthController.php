@@ -1926,6 +1926,7 @@ class AuthController extends Controller
             'signature' => ['required', 'string', 'max:8192'],
             'network' => 'nullable|string|max:80',
             'wallet_type' => ['nullable', 'string', 'in:eth,arbitrum,base,polygon,bnb,solana,sui'],
+            'web3auth' => ['nullable', 'integer', 'in:0,1'],
         ]);
 
         $walletType = $this->resolveLinkWalletType($validated);
@@ -1949,7 +1950,12 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $this->bindWalletToUser($user, $address, $this->storageNetworkForLinkedWallet($walletType), 0);
+        $this->bindWalletToUser(
+            $user,
+            $address,
+            $this->storageNetworkForLinkedWallet($walletType),
+            (int) ($validated['web3auth'] ?? 0),
+        );
         Cache::forget($this->web3LinkNonceKey($user->id, $walletType, $address));
 
         return response()->json([
