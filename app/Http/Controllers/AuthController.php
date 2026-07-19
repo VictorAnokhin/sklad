@@ -1381,16 +1381,27 @@ class AuthController extends Controller
         }
 
         $query = User::query()->whereRaw('LOWER(TRIM(email)) = ?', [$email]);
-        $user = $this->scopeUserQueryToFid($query, $this->resolveAuthFid($request))->first();
+        $users = $this->scopeUserQueryToFid($query, $this->resolveAuthFid($request))->get();
 
-        if (! $user) {
+        if ($users->isEmpty()) {
             return response()->json([
                 'found' => false,
                 'wallet_address' => null,
             ]);
         }
 
-        $walletAddress = $this->resolveGoogleWalletAddressForNetwork($user->id, $network);
+        $user = $users->first();
+        $walletAddress = null;
+        foreach ($users as $candidate) {
+            $candidateWalletAddress = $this->resolveGoogleWalletAddressForNetwork($candidate->id, $network);
+            if (! $candidateWalletAddress) {
+                continue;
+            }
+
+            $user = $candidate;
+            $walletAddress = $candidateWalletAddress;
+            break;
+        }
 
         return response()->json([
             'found' => true,
