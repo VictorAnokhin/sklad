@@ -2754,6 +2754,20 @@ class AuthController extends Controller
                 ], 422));
             }
 
+            if ($web3authFlag === 1 && $networkKey === 'solana' && Schema::hasColumn('user_wallets', 'web3auth')) {
+                $existingGoogleSolanaWallet = DB::table('user_wallets')
+                    ->where('user_id', $user->id)
+                    ->where('network', 'solana')
+                    ->where('web3auth', 1)
+                    ->first();
+
+                if ($existingGoogleSolanaWallet && (string) $existingGoogleSolanaWallet->address !== $address) {
+                    abort(response()->json([
+                        'message' => 'Google Solana гаманець для цього акаунта вже існує.',
+                    ], 422));
+                }
+            }
+
             $now = now();
 
             $existing = DB::table('user_wallets')
