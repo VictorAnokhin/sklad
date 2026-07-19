@@ -218,9 +218,9 @@ class DocumentService
         if (!$doc)
             return;
 
-        $numz = (string) (in_array($docType, ['RN', 'CPLAN', 'PN'], true) ? $doc->num : $doc->numz);
-        $rowType = in_array($docType, ['RN', 'CPLAN', 'PN'], true) ? $docType : (string) $doc->typez;
-        $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'CRDT', 'RN', 'CPLAN', 'PN'], true)
+        $numz = (string) (in_array($docType, ['RN', 'CPLAN', 'PN', 'WO1', 'SP'], true) ? $doc->num : $doc->numz);
+        $rowType = in_array($docType, ['RN', 'CPLAN', 'PN', 'WO1', 'SP'], true) ? $docType : (string) $doc->typez;
+        $lineDocId = in_array($docType, ['ZIN', 'ZOUT', 'CRDT', 'RN', 'CPLAN', 'PN', 'WO1', 'SP'], true)
             ? $docId
             : (string) ($doc->docid ?: $docId);
 

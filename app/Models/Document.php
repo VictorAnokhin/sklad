@@ -383,6 +383,12 @@ class Document extends Model
                     ? $inventoryService->reverse($doc, $fid)
                     : $inventoryService->post($doc, $lineItems, $fid);
             }
+            if ($docType === 'WO1') {
+                $inventoryService = app(InventoryCostService::class);
+                $inventoryMovements = $wasPosted
+                    ? $inventoryService->reverseProduction($doc, $fid)
+                    : $inventoryService->postProduction($doc, $lineItems, $fid);
+            }
 
             if (in_array($docType, ['PO', 'CPO', 'RO', 'CRO', 'PP'], true)) {
                 $sign = in_array($docType, ['RO', 'CRO'], true) ? -1 : 1;
@@ -488,12 +494,14 @@ class Document extends Model
                 );
             }
 
-            if (! $wasPosted && in_array($docType, ['PN', 'RN'], true)) {
+            if (! $wasPosted && in_array($docType, ['PN', 'RN', 'WO1'], true)) {
                 $inventoryService->attachLedgerTransaction(
                     $inventoryMovements,
                     $ledgerTransaction?->id
                 );
+            }
 
+            if (! $wasPosted && in_array($docType, ['PN', 'RN'], true)) {
                 $mirrorInventoryMovements = $inventoryService->postProjectMirror($doc, $lineItems, $fid);
                 $inventoryService->attachLedgerTransaction(
                     $mirrorInventoryMovements,

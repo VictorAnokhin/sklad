@@ -625,10 +625,44 @@
                         </div>
                     </div>
 
-                    <!-- Row 2: Склад (only for RN, PN, WO1) -->
-                    @if(!$showLoanRepaymentSchedule && in_array($doc, ['RN', 'CPLAN', 'PN', 'WO1'], true))
+                    @if($doc === 'SP')
                         <div class="doc-form-row-single">
-                            <label>Склад</label>
+                            <label>Готовая продукция</label>
+                            <div class="goods-search-row">
+                                <input type="text" id="finishedProductSearchInput" class="form-control text-white"
+                                    placeholder="Поиск готовой продукции..." autocomplete="off">
+                                <button type="button" id="finishedProductSearchBtn" class="btn btn-outline-secondary btn-sm">Шукати</button>
+                            </div>
+                            <div id="finishedProductSearchResults" class="list-group goods-search-results"></div>
+                            <input type="hidden" name="typeproduct" id="finishedProductIdInput" value="{{ $document->typeproduct ?? '' }}">
+                            @if(!empty($finishedProduct))
+                                <div class="text-muted small mt-1" id="finishedProductSelectedLabel">
+                                    Код {{ $finishedProduct->id }}:
+                                    {{ $finishedProduct->name }}
+                                </div>
+                            @else
+                                <div class="text-muted small mt-1" id="finishedProductSelectedLabel">
+                                    Готовая продукция не выбрана.
+                                </div>
+                            @endif
+                            @error('typeproduct')
+                                <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    @endif
+
+                    <!-- Row 2: Склад -->
+                    @if(!$showLoanRepaymentSchedule && in_array($doc, ['RN', 'CPLAN', 'PN', 'WO1', 'SP'], true))
+                        <div class="doc-form-row-single">
+                            <label>
+                                @if($doc === 'SP')
+                                    Склад списания материалов
+                                @elseif($doc === 'WO1')
+                                    Склад получения готовой продукции
+                                @else
+                                    Склад
+                                @endif
+                            </label>
                             <select name="sklads" class="form-select text-white">
                                 <option value="">— Оберіть склад —</option>
                                 @foreach(($skladsList ?? collect()) as $skladOption)
@@ -717,6 +751,7 @@
                     @endif
 
                     <!-- Row 2: Клієнт -->
+                    @if(!in_array($doc, ['WO1', 'SP'], true))
                     <div class="doc-form-row-single">
                         <label>{{ $doc === 'ZP' ? 'Сотрудник' : 'Клієнт' }}</label>
                         <div class="client-search-row d-flex gap-1">
@@ -760,6 +795,7 @@
                             <div class="text-danger small mt-1 text-red">{{ $message }}</div>
                         @enderror
                     </div>
+                    @endif
 
                     @if($hideGoodsSection)
                         <div class="loan-request-fields">
@@ -2779,6 +2815,85 @@
                 console.log('✅ Document already loaded, initializing RA uploads immediately');
                 initRaUploads();
             }
+        })();
+
+        (() => {
+            const searchInput = document.getElementById('finishedProductSearchInput');
+            const searchBtn = document.getElementById('finishedProductSearchBtn');
+            const results = document.getElementById('finishedProductSearchResults');
+            const productInput = document.getElementById('finishedProductIdInput');
+            const selectedLabel = document.getElementById('finishedProductSelectedLabel');
+
+            if (!searchInput || !searchBtn || !results || !productInput) {
+                return;
+            }
+
+            const escapeFinishedProductHtml = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            const hideResults = () => {
+                results.style.display = 'none';
+                results.innerHTML = '';
+            };
+
+            const performSearch = () => {
+                const q = searchInput.value.trim();
+                if (q.length < 2) {
+                    hideResults();
+                    return;
+                }
+
+                const params = new URLSearchParams({
+                    q,
+                    doc: 'SP',
+                });
+
+                fetch("{{ route('goods.search') }}?" + params.toString())
+                    .then(response => response.json())
+                    .then(data => {
+                        results.innerHTML = '';
+                        const goods = Array.isArray(data) ? data : (data.goods || []);
+                        if (goods.length === 0) {
+                            results.innerHTML = '<div class="list-group-item text-muted">Ничего не найдено</div>';
+                            results.style.display = 'block';
+                            return;
+                        }
+
+                        goods.forEach(good => {
+                            const item = document.createElement('button');
+                            item.type = 'button';
+                            item.className = 'list-group-item list-group-item-action';
+                            item.innerHTML = `<strong>${escapeFinishedProductHtml(good.pnum || '')}</strong> - ${escapeFinishedProductHtml(good.name || '')}`;
+                            item.addEventListener('click', () => {
+                                productInput.value = good.pnum || '';
+                                searchInput.value = '';
+                                if (selectedLabel) {
+                                    selectedLabel.textContent = `Код ${good.pnum || ''}: ${good.name || ''}`;
+                                }
+                                hideResults();
+                            });
+                            results.appendChild(item);
+                        });
+
+                        results.style.display = 'block';
+                    })
+                    .catch(() => {
+                        results.innerHTML = '<div class="list-group-item text-danger">Ошибка поиска</div>';
+                        results.style.display = 'block';
+                    });
+            };
+
+            searchBtn.addEventListener('click', performSearch);
+            searchInput.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    performSearch();
+                }
+            });
         })();
 
     </script>

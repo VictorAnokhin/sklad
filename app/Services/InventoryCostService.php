@@ -211,6 +211,111 @@ class InventoryCostService
         return $movements;
     }
 
+    public function postProduction(object $document, Collection $finishedLines, string $fid): Collection
+    {
+        $docType = strtoupper((string) ($document->type ?? ''));
+        if ($docType !== 'WO1') {
+            return collect();
+        }
+
+        $receiptWarehouseId = (int) ($document->sklads ?? 0);
+        if ($receiptWarehouseId <= 0) {
+            throw new RuntimeException('Для проведення WO1 потрібно вибрати склад отримання готової продукції.');
+        }
+
+        $finishedLines = $this->validatedLines($finishedLines);
+        $sourceId = (string) ($document->id ?? '');
+        $movementDate = $this->normalizeDate((string) ($document->data ?? ''));
+
+        if ($this->activeMovements((int) $fid, $docType, $sourceId)->exists()) {
+            throw new RuntimeException('Наряд WO1 вже має активні складські рухи.');
+        }
+
+        $movements = collect();
+        $documentTotalCost = 0.0;
+        foreach ($finishedLines as $finishedLine) {
+            $finishedProductId = trim((string) $finishedLine->pnum);
+            $finishedQuantity = round((float) $finishedLine->pcount, 3);
+            $specification = $this->productionSpecification((int) $fid, $finishedProductId);
+            $issueWarehouseId = (int) ($specification->sklads ?? 0);
+            if ($issueWarehouseId <= 0) {
+                throw new RuntimeException("У специфікації SP №{$specification->num} для товару {$finishedProductId} не вибрано склад списання.");
+            }
+
+            $specLines = $this->validatedLines(DB::table('z_body')
+                ->where('docid', (string) $specification->id)
+                ->where('firma', $fid)
+                ->orderBy('id')
+                ->get());
+
+            $finishedTotalCost = 0.0;
+            foreach ($specLines as $specLine) {
+                $materialProductId = trim((string) $specLine->pnum);
+                $materialQuantity = round((float) $specLine->pcount * $finishedQuantity, 3);
+                $movement = $this->postProductionIssue(
+                    (int) $fid,
+                    $issueWarehouseId,
+                    $materialProductId,
+                    $materialQuantity,
+                    $docType,
+                    $sourceId,
+                    (int) ($specLine->id ?? 0),
+                    $movementDate
+                );
+                $finishedTotalCost += (float) $movement->total_cost;
+                $movements->push($movement);
+            }
+
+            $unitCost = $finishedQuantity > self::EPSILON
+                ? round($finishedTotalCost / $finishedQuantity, 6)
+                : 0.0;
+            if ($unitCost <= 0) {
+                throw new RuntimeException("Не вдалося визначити собівартість готової продукції {$finishedProductId}.");
+            }
+
+            DB::table('z_body')
+                ->where('id', $finishedLine->id)
+                ->update([
+                    'pprice' => $unitCost,
+                    'psumma' => round($finishedTotalCost, 4),
+                    'zvalue' => number_format($unitCost, 6, '.', ''),
+                ]);
+            $finishedLine->pprice = $unitCost;
+            $finishedLine->psumma = round($finishedTotalCost, 4);
+            $finishedLine->zvalue = number_format($unitCost, 6, '.', '');
+            $documentTotalCost += $finishedTotalCost;
+
+            $movements->push($this->postProductionReceipt(
+                (int) $fid,
+                $receiptWarehouseId,
+                $finishedProductId,
+                $finishedQuantity,
+                $unitCost,
+                $docType,
+                $sourceId,
+                (int) ($finishedLine->id ?? 0),
+                $movementDate
+            ));
+        }
+
+        DB::table('z_document')
+            ->where('id', $sourceId)
+            ->where('firma', $fid)
+            ->where('type', 'WO1')
+            ->update(['summa' => round($documentTotalCost, 2)]);
+
+        return $movements;
+    }
+
+    public function reverseProduction(object $document, string $fid): Collection
+    {
+        if (strtoupper((string) ($document->type ?? '')) !== 'WO1') {
+            return collect();
+        }
+
+        return $this->reverse($document, $fid);
+    }
+
     public function postProjectMirror(object $document, Collection $lineItems, string $sourceCompanyId): Collection
     {
         $sourceDocType = strtoupper((string) ($document->type ?? ''));
@@ -469,6 +574,208 @@ class InventoryCostService
         }
 
         return $unitCost;
+    }
+
+    private function productionSpecification(int $companyId, string $finishedProductId): object
+    {
+        $query = DB::table('z_document')
+            ->where('firma', $companyId)
+            ->where('type', 'SP')
+            ->where('typeproduct', $finishedProductId);
+
+        $active = (clone $query)
+            ->where(function ($nested) {
+                $nested->where('status', '1')
+                    ->orWhere('status', 'active')
+                    ->orWhere('status', 'ACTIVE');
+            })
+            ->orderByDesc('id')
+            ->first();
+
+        $specification = $active ?: $query->orderByDesc('id')->first();
+        if (! $specification) {
+            throw new RuntimeException("Не знайдено специфікацію SP для готової продукції {$finishedProductId}.");
+        }
+
+        return $specification;
+    }
+
+    private function postProductionIssue(
+        int $companyId,
+        int $warehouseId,
+        string $productId,
+        float $quantity,
+        string $sourceType,
+        string $sourceId,
+        int $lineId,
+        string $movementDate
+    ): object {
+        $balance = $this->lockBalance($companyId, $warehouseId, $productId, syncPhysicalQuantity: true);
+        $latestDate = DB::table('inventory_cost_movements')
+            ->where('company_id', $companyId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->whereNull('reversed_at')
+            ->max('movement_date');
+
+        if ($latestDate !== null && $latestDate > $movementDate) {
+            throw new RuntimeException(
+                "Не можна провести WO1 заднім числом: для матеріалу {$productId} є пізніший рух {$latestDate}."
+            );
+        }
+
+        $beforeQuantity = round((float) $balance->quantity, 3);
+        $beforeValue = round((float) $balance->total_value, 4);
+        $beforeAverage = round((float) $balance->average_cost, 6);
+        if ($beforeQuantity + self::EPSILON < $quantity) {
+            throw new RuntimeException(
+                "Недостатньо матеріалу {$productId} на складі: доступно {$beforeQuantity}, потрібно {$quantity}."
+            );
+        }
+        if ($beforeAverage <= 0) {
+            throw new RuntimeException("Для матеріалу {$productId} не визначена середня собівартість.");
+        }
+
+        $afterQuantity = round($beforeQuantity - $quantity, 3);
+        $afterValue = $afterQuantity <= self::EPSILON
+            ? 0.0
+            : round($beforeValue - ($quantity * $beforeAverage), 4);
+        $afterAverage = $afterQuantity <= self::EPSILON
+            ? 0.0
+            : round($afterValue / $afterQuantity, 6);
+
+        return $this->recordInventoryMovement(
+            $companyId,
+            $warehouseId,
+            $productId,
+            $sourceType,
+            $sourceId,
+            $lineId,
+            $movementDate,
+            'out',
+            $quantity,
+            $beforeAverage,
+            $beforeQuantity,
+            $beforeValue,
+            $beforeAverage,
+            $afterQuantity,
+            $afterValue,
+            $afterAverage
+        );
+    }
+
+    private function postProductionReceipt(
+        int $companyId,
+        int $warehouseId,
+        string $productId,
+        float $quantity,
+        float $unitCost,
+        string $sourceType,
+        string $sourceId,
+        int $lineId,
+        string $movementDate
+    ): object {
+        $balance = $this->lockBalance($companyId, $warehouseId, $productId);
+        $latestDate = DB::table('inventory_cost_movements')
+            ->where('company_id', $companyId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->whereNull('reversed_at')
+            ->max('movement_date');
+
+        if ($latestDate !== null && $latestDate > $movementDate) {
+            throw new RuntimeException(
+                "Не можна провести WO1 заднім числом: для готової продукції {$productId} є пізніший рух {$latestDate}."
+            );
+        }
+
+        $beforeQuantity = round((float) $balance->quantity, 3);
+        $beforeValue = round((float) $balance->total_value, 4);
+        $beforeAverage = round((float) $balance->average_cost, 6);
+        $afterQuantity = round($beforeQuantity + $quantity, 3);
+        $afterValue = $beforeQuantity <= self::EPSILON
+            ? round($afterQuantity * $unitCost, 4)
+            : round($beforeValue + ($quantity * $unitCost), 4);
+        $afterAverage = $afterQuantity > self::EPSILON
+            ? round($afterValue / $afterQuantity, 6)
+            : $unitCost;
+
+        return $this->recordInventoryMovement(
+            $companyId,
+            $warehouseId,
+            $productId,
+            $sourceType,
+            $sourceId,
+            $lineId,
+            $movementDate,
+            'in',
+            $quantity,
+            $unitCost,
+            $beforeQuantity,
+            $beforeValue,
+            $beforeAverage,
+            $afterQuantity,
+            $afterValue,
+            $afterAverage
+        );
+    }
+
+    private function recordInventoryMovement(
+        int $companyId,
+        int $warehouseId,
+        string $productId,
+        string $sourceType,
+        string $sourceId,
+        int $lineId,
+        string $movementDate,
+        string $direction,
+        float $quantity,
+        float $unitCost,
+        float $beforeQuantity,
+        float $beforeValue,
+        float $beforeAverage,
+        float $afterQuantity,
+        float $afterValue,
+        float $afterAverage
+    ): object {
+        DB::table('inventory_cost_balances')
+            ->where('company_id', $companyId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->update([
+                'quantity' => $afterQuantity,
+                'total_value' => $afterValue,
+                'average_cost' => $afterAverage,
+                'last_movement_date' => $movementDate,
+                'updated_at' => now(),
+            ]);
+
+        $movementId = DB::table('inventory_cost_movements')->insertGetId([
+            'company_id' => $companyId,
+            'warehouse_id' => $warehouseId,
+            'product_id' => $productId,
+            'source_type' => $sourceType,
+            'source_id' => $sourceId,
+            'line_id' => $lineId > 0 ? $lineId : null,
+            'movement_date' => $movementDate,
+            'direction' => $direction,
+            'quantity' => $quantity,
+            'unit_cost' => $unitCost,
+            'total_cost' => round($quantity * $unitCost, 4),
+            'quantity_before' => $beforeQuantity,
+            'value_before' => $beforeValue,
+            'average_cost_before' => $beforeAverage,
+            'quantity_after' => $afterQuantity,
+            'value_after' => $afterValue,
+            'average_cost_after' => $afterAverage,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->setPhysicalStock($companyId, $warehouseId, $productId, $afterQuantity);
+        $this->setReferenceCost($companyId, $productId, $afterAverage);
+
+        return DB::table('inventory_cost_movements')->where('id', $movementId)->first();
     }
 
     private function mappedProductId(

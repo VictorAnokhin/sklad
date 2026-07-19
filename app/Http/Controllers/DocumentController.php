@@ -415,13 +415,14 @@ class DocumentController extends Controller
         }
 
         // Populate session from doc (mirrors legacy class document constructor)
-        $parentNumz = in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)
+        $isOwnLineDocument = in_array($doc, ['ZIN', 'ZOUT', 'CRDT', 'WO1', 'SP'], true);
+        $parentNumz = $isOwnLineDocument
             ? ($document->num ?: $document->numz)
             : ($document->numz ?: '0');
-        $parentTypez = in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)
+        $parentTypez = $isOwnLineDocument
             ? $doc
             : ($document->typez ?: '');
-        $parentDocid = in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true)
+        $parentDocid = $isOwnLineDocument
             ? $docId
             : ($document->docid ?: $docId);
         $parentDocument = (!in_array($doc, ['ZIN', 'ZOUT', 'CRDT'], true) && $parentDocid)
@@ -445,7 +446,7 @@ class DocumentController extends Controller
             'reestr' => $document->reestr,
         ]);
 
-        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'CRDT', 'RN', 'CPLAN', 'PN'], true) ? $docId : $parentDocid;
+        $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'CRDT', 'RN', 'CPLAN', 'PN', 'WO1', 'SP'], true) ? $docId : $parentDocid;
         $lineItems = ZBody::from('z_body as zb')
             ->leftJoin('comp as c', function ($join) {
                 $join->on('zb.pnum', '=', 'c.id')
@@ -523,6 +524,21 @@ class DocumentController extends Controller
 
             return $item;
         });
+        $finishedProduct = null;
+        if ($doc === 'SP' && trim((string) ($document->typeproduct ?? '')) !== '') {
+            $finishedProduct = DB::table('comp')
+                ->leftJoin('descript as d', function ($join) {
+                    $join->on('d.pnum', '=', 'comp.id')
+                        ->whereColumn('d.firma', '=', 'comp.firma');
+                })
+                ->where('comp.id', (string) $document->typeproduct)
+                ->where('comp.firma', $fid)
+                ->select(
+                    'comp.id',
+                    DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(comp.nickname, ''), NULLIF(comp.namedoc, ''), NULLIF(comp.name, ''), CONCAT('Товар #', comp.id)) as name")
+                )
+                ->first();
+        }
 
         // Load conf lookups for this doc
         $confIds = array_filter([
@@ -741,7 +757,7 @@ class DocumentController extends Controller
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
             'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions', 'loanRepaymentSchedule',
-            'loanRoUrl', 'loanRoIsIssued', 'isEducationProject'
+            'loanRoUrl', 'loanRoIsIssued', 'isEducationProject', 'finishedProduct'
         ));
     }
 
@@ -967,9 +983,9 @@ class DocumentController extends Controller
                 'work' => session('work', '1'),
             ]);
 
-            if (in_array($docType, ['ZIN', 'ZOUT'], true)) {
-                DB::table($table)->where('id', $id)->update(['docid' => $id, 'numz' => $num]);
-                session(['docid' => $id]);
+            if (in_array($docType, ['ZIN', 'ZOUT', 'WO1', 'SP'], true)) {
+                DB::table($table)->where('id', $id)->update(['docid' => $id, 'numz' => $num, 'typez' => $docType]);
+                session(['docid' => $id, 'numz' => $num, 'typez' => $docType]);
             }
 
             session(['doc' => $docType, 'doc_id' => $id, 'num' => $num]);
@@ -996,7 +1012,7 @@ class DocumentController extends Controller
             $errors = [];
             
             // Client validation (not required for RA documents)
-            if (!in_array($doc, ['RA', 'CDOC'], true) && trim((string) $request->input('client1', '')) === '') {
+            if (!in_array($doc, ['RA', 'CDOC', 'WO1', 'SP'], true) && trim((string) $request->input('client1', '')) === '') {
                 $errors['client1'] = 'Оберіть клієнта';
             }
 
@@ -1026,8 +1042,12 @@ class DocumentController extends Controller
                 }
             }
 
-            if (in_array($doc, ['PN', 'RN', 'WO1'], true) && trim((string) $request->input('sklads', '')) === '') {
+            if (in_array($doc, ['PN', 'RN', 'WO1', 'SP'], true) && trim((string) $request->input('sklads', '')) === '') {
                 $errors['sklads'] = 'Оберіть склад';
+            }
+
+            if ($doc === 'SP' && trim((string) $request->input('typeproduct', '')) === '') {
+                $errors['typeproduct'] = 'Оберіть готову продукцію';
             }
 
             \Illuminate\Support\Facades\Log::info('Validation errors check', [
@@ -1353,8 +1373,8 @@ class DocumentController extends Controller
     {
         $doc = session('doc', '');
         $fid = session('fid', '');
-        $docid = in_array($doc, ['RN', 'PN'], true) ? session('doc_id', '0') : session('docid', '0');
-        $typez = in_array($doc, ['RN', 'PN'], true) ? $doc : session('typez', '');
+        $docid = in_array($doc, ['RN', 'PN', 'WO1', 'SP'], true) ? session('doc_id', '0') : session('docid', '0');
+        $typez = in_array($doc, ['RN', 'PN', 'WO1', 'SP'], true) ? $doc : session('typez', '');
         $numz = session('numz', '0');
 
         if ($this->isRootDocumentLocked($doc, (string) $docid, $fid)) {
@@ -1367,21 +1387,10 @@ class DocumentController extends Controller
         $psumma = $request->input('psumma', '0');
         $pcount = $request->input('pcount', '1');
 
-        $docTypes = ['CH', 'PN', 'RN', 'VN', 'WO1', 'AO', 'ZOUT', 'ZIN'];
+        $docTypes = ['CH', 'PN', 'RN', 'VN', 'WO1', 'SP', 'AO', 'ZOUT', 'ZIN'];
 
         if (in_array($doc, $docTypes, true)) {
             ZBody::addOrIncrement($typez, $numz, $pnum, $fid, $docid, $pid, $pprice, $psumma);
-        }
-        elseif ($doc === 'SP') {
-            $exists = ZBody::where('type', $typez)->where('docnum', $numz)
-                ->where('pnum', $pnum)->where('firma', $fid)->exists();
-            if (!$exists) {
-                ZBody::create([
-                    'docnum' => $numz, 'pid' => $pid, 'pnum' => $pnum,
-                    'pcount' => $pcount, 'pprice' => $pprice, 'psumma' => $psumma,
-                    'type' => $typez, 'firma' => $fid,
-                ]);
-            }
         }
 
         return redirect()->back();
