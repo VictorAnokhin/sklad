@@ -1368,9 +1368,11 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255'],
+            'network' => ['nullable', 'string', 'in:sui,solana'],
         ]);
 
         $email = mb_strtolower(trim((string) $validated['email']));
+        $network = (string) ($validated['network'] ?? 'sui');
         if ($email === '' || ! Schema::hasColumn('users', 'email')) {
             return response()->json([
                 'found' => false,
@@ -1388,11 +1390,11 @@ class AuthController extends Controller
             ]);
         }
 
-        $walletAddress = $this->resolveZkLoginWalletAddress($user->id);
+        $walletAddress = $network === 'sui' ? $this->resolveZkLoginWalletAddress($user->id) : null;
         if (! $walletAddress && Schema::hasTable('user_wallets')) {
             $walletRow = DB::table('user_wallets')
                 ->where('user_id', $user->id)
-                ->where('network', 'sui')
+                ->where('network', $network)
                 ->when(Schema::hasColumn('user_wallets', 'web3auth'), function ($query) {
                     $query->where('web3auth', 1);
                 })
@@ -1401,7 +1403,9 @@ class AuthController extends Controller
                 ->first(['address']);
 
             if ($walletRow && ! empty($walletRow->address)) {
-                $walletAddress = $this->normalizeSuiWalletAddress((string) $walletRow->address);
+                $walletAddress = $network === 'sui'
+                    ? $this->normalizeSuiWalletAddress((string) $walletRow->address)
+                    : trim((string) $walletRow->address);
             }
         }
 
@@ -1417,6 +1421,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'q' => ['required', 'string', 'min:1', 'max:120'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'network' => ['nullable', 'string', 'in:sui,solana'],
         ]);
 
         if (! Schema::hasColumn('users', 'email')) {
@@ -1430,6 +1435,7 @@ class AuthController extends Controller
 
         $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
         $limit = (int) ($validated['limit'] ?? 8);
+        $network = (string) ($validated['network'] ?? 'sui');
         $query = User::query()
             ->where(function ($builder) use ($like) {
                 $builder->whereRaw('LOWER(email) LIKE ?', [$like]);
@@ -1448,11 +1454,11 @@ class AuthController extends Controller
         $items = [];
 
         foreach ($users as $user) {
-            $walletAddress = $this->resolveZkLoginWalletAddress($user->id);
+            $walletAddress = $network === 'sui' ? $this->resolveZkLoginWalletAddress($user->id) : null;
             if (! $walletAddress && Schema::hasTable('user_wallets')) {
                 $walletRow = DB::table('user_wallets')
                     ->where('user_id', $user->id)
-                    ->where('network', 'sui')
+                    ->where('network', $network)
                     ->when(Schema::hasColumn('user_wallets', 'web3auth'), function ($walletQuery) {
                         $walletQuery->where('web3auth', 1);
                     })
@@ -1461,7 +1467,9 @@ class AuthController extends Controller
                     ->first(['address']);
 
                 if ($walletRow && ! empty($walletRow->address)) {
-                    $walletAddress = $this->normalizeSuiWalletAddress((string) $walletRow->address);
+                    $walletAddress = $network === 'sui'
+                        ? $this->normalizeSuiWalletAddress((string) $walletRow->address)
+                        : trim((string) $walletRow->address);
                 }
             }
 
