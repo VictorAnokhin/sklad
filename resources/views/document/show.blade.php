@@ -795,6 +795,11 @@
                             <div class="text-danger small mt-1 text-red">{{ $message }}</div>
                         @enderror
                     </div>
+                    @else
+                        <input type="hidden" id="clientSearchInput" value="">
+                        <div id="clientSearchResults" style="display:none;"></div>
+                        <input type="hidden" name="client1" id="client1_id" value="{{ old('client1', $document->client1 ?? '') }}">
+                        <div id="selectedClientDetails" style="display:none;"></div>
                     @endif
 
                     @if($hideGoodsSection)
