@@ -2865,9 +2865,13 @@
 
                         goods.forEach(good => {
                             const item = document.createElement('button');
+                            const imageUrl = good.image_thumb || good.image || '';
+                            const imageHtml = imageUrl
+                                ? `<img src="${escapeFinishedProductHtml(imageUrl)}" alt="" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#f1f5f9;flex:0 0 48px;">`
+                                : `<div style="width:48px;height:48px;border-radius:6px;background:#e5e7eb;flex:0 0 48px;"></div>`;
                             item.type = 'button';
-                            item.className = 'list-group-item list-group-item-action';
-                            item.innerHTML = `<strong>${escapeFinishedProductHtml(good.pnum || '')}</strong> - ${escapeFinishedProductHtml(good.name || '')}`;
+                            item.className = 'list-group-item list-group-item-action py-2 bg-white text-dark';
+                            item.innerHTML = `<div style="display:flex;gap:10px;align-items:center;">${imageHtml}<div><strong>${escapeFinishedProductHtml(good.pnum || '')}</strong> - ${escapeFinishedProductHtml(good.name || '')}<br><small class="text-dark">Ціна (pay): ${escapeFinishedProductHtml(good.priceCompPay || 0)} грн</small></div></div>`;
                             item.addEventListener('click', () => {
                                 productInput.value = good.pnum || '';
                                 searchInput.value = '';
@@ -2888,10 +2892,20 @@
             };
 
             searchBtn.addEventListener('click', performSearch);
+            let finishedProductSearchTimeout = null;
+            searchInput.addEventListener('input', () => {
+                clearTimeout(finishedProductSearchTimeout);
+                finishedProductSearchTimeout = setTimeout(performSearch, 400);
+            });
             searchInput.addEventListener('keydown', event => {
                 if (event.key === 'Enter') {
                     event.preventDefault();
                     performSearch();
+                }
+            });
+            document.addEventListener('click', event => {
+                if (!searchInput.contains(event.target) && !results.contains(event.target) && !searchBtn.contains(event.target)) {
+                    hideResults();
                 }
             });
         })();
