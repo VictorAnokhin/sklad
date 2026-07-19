@@ -2726,10 +2726,14 @@ class AuthController extends Controller
 
         if (Schema::hasTable('user_wallets')) {
             $networkKey = $network !== null && trim($network) !== '' ? trim((string) $network) : 'eth';
+            $hasWeb3AuthColumn = Schema::hasColumn('user_wallets', 'web3auth');
+            $networkKeys = $web3authFlag === 1 && $this->isEvmWalletType($networkKey)
+                ? ['eth', 'arbitrum', 'base', 'polygon', 'bnb']
+                : [$networkKey];
 
             $exists = DB::table('user_wallets')
                 ->where('address', $address)
-                ->where('network', $networkKey)
+                ->whereIn('network', $networkKeys)
                 ->where('user_id', '!=', $user->id)
                 ->exists();
 
@@ -2739,7 +2743,7 @@ class AuthController extends Controller
                 ], 422));
             }
 
-            if ($web3authFlag === 1 && $networkKey === 'solana' && Schema::hasColumn('user_wallets', 'web3auth')) {
+            if ($web3authFlag === 1 && $networkKey === 'solana' && $hasWeb3AuthColumn) {
                 $existingGoogleSolanaWallet = DB::table('user_wallets')
                     ->where('user_id', $user->id)
                     ->where('network', 'solana')
@@ -2755,39 +2759,50 @@ class AuthController extends Controller
 
             $now = now();
 
-            $existing = DB::table('user_wallets')
-                ->where('user_id', $user->id)
-                ->where('address', $address)
-                ->where('network', $networkKey)
-                ->first();
-
-            $walletRow = [
-                'connected_at' => $now,
-                'updated_at' => $now,
-            ];
-
-            if (Schema::hasColumn('user_wallets', 'web3auth')) {
-                $walletRow['web3auth'] = $web3authFlag;
-            }
-
-            if ($existing) {
-                DB::table('user_wallets')->where('id', $existing->id)->update($walletRow);
-            } else {
-                $insert = [
-                    'user_id' => $user->id,
-                    'address' => $address,
-                    'network' => $networkKey,
-                    'connected_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-
-                if (Schema::hasColumn('user_wallets', 'web3auth')) {
-                    $insert['web3auth'] = $web3authFlag;
+            DB::transaction(function () use ($address, $hasWeb3AuthColumn, $networkKeys, $now, $user, $web3authFlag) {
+                if ($web3authFlag === 1 && $hasWeb3AuthColumn && count($networkKeys) > 1) {
+                    DB::table('user_wallets')
+                        ->where('user_id', $user->id)
+                        ->whereIn('network', $networkKeys)
+                        ->where('web3auth', 1)
+                        ->where('address', '!=', $address)
+                        ->delete();
                 }
 
-                DB::table('user_wallets')->insert($insert);
-            }
+                foreach ($networkKeys as $targetNetwork) {
+                    $existing = DB::table('user_wallets')
+                        ->where('user_id', $user->id)
+                        ->where('address', $address)
+                        ->where('network', $targetNetwork)
+                        ->first();
+
+                    $walletRow = [
+                        'connected_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                    if ($hasWeb3AuthColumn) {
+                        $walletRow['web3auth'] = $web3authFlag;
+                    }
+
+                    if ($existing) {
+                        DB::table('user_wallets')->where('id', $existing->id)->update($walletRow);
+                        continue;
+                    }
+
+                    $insert = [
+                        'user_id' => $user->id,
+                        'address' => $address,
+                        'network' => $targetNetwork,
+                        'connected_at' => $now,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                    if ($hasWeb3AuthColumn) {
+                        $insert['web3auth'] = $web3authFlag;
+                    }
+                    DB::table('user_wallets')->insert($insert);
+                }
+            });
 
             $this->syncPrimaryWalletColumns($user->fresh() ?? $user);
 
