@@ -96,6 +96,54 @@ class Av8SwapOrderController extends Controller
         ], 201);
     }
 
+    public function paymentReceipt(Request $request, int $id): JsonResponse
+    {
+        if (! Schema::hasTable('av8_swap_orders')) {
+            return response()->json(['message' => 'Run migrations before updating AV8 swap orders.'], 422);
+        }
+
+        $payload = $request->validate([
+            'client_email' => ['required', 'email', 'max:191'],
+            'receipt' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,pdf,webp'],
+        ]);
+
+        $row = DB::table('av8_swap_orders')->where('id', $id)->first();
+        if (! $row) {
+            return response()->json(['message' => 'Order not found.'], 404);
+        }
+
+        $requestEmail = mb_strtolower(trim((string) $payload['client_email']));
+        $orderEmail = mb_strtolower(trim((string) ($row->client_email ?? '')));
+        if ($requestEmail === '' || $requestEmail !== $orderEmail) {
+            return response()->json(['message' => 'Order does not belong to this user.'], 403);
+        }
+
+        $file = $request->file('receipt');
+        $path = $file->store('files/av8-swap-receipts', 'public');
+        $meta = [];
+        if (! empty($row->meta)) {
+            $decodedMeta = json_decode((string) $row->meta, true);
+            $meta = is_array($decodedMeta) ? $decodedMeta : [];
+        }
+
+        $meta['receipt_path'] = $path;
+        $meta['receipt_original_name'] = $file->getClientOriginalName();
+        $meta['receipt_uploaded_at'] = now()->toIso8601String();
+        $meta['payment_confirmed_by_client_at'] = now()->toIso8601String();
+
+        DB::table('av8_swap_orders')
+            ->where('id', $id)
+            ->update([
+                'status' => 'payment_submitted',
+                'meta' => json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'updated_at' => now(),
+            ]);
+
+        return response()->json([
+            'data' => $this->mapOrder(DB::table('av8_swap_orders')->where('id', $id)->first()),
+        ]);
+    }
+
     private function currentAv8RateUsdc(): float
     {
         if (! Schema::hasTable('fund_share_settings') || ! Schema::hasColumn('fund_share_settings', 'current_price_usdc')) {

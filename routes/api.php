@@ -260,6 +260,7 @@ Route::get('/fund/share-settings', [FundShareSettingsController::class, 'show'])
 Route::put('/fund/share-settings', [FundShareSettingsController::class, 'update']);
 Route::middleware(['api', 'throttle:60,1'])->get('/av8-swap/orders', [Av8SwapOrderController::class, 'index']);
 Route::middleware(['api', 'throttle:20,1'])->post('/av8-swap/orders', [Av8SwapOrderController::class, 'store']);
+Route::middleware(['api', 'throttle:20,1'])->post('/av8-swap/orders/{id}/payment-receipt', [Av8SwapOrderController::class, 'paymentReceipt']);
 
 // ── Orders (Zakaz) API ─────────────────────────────────────────────────────
 
