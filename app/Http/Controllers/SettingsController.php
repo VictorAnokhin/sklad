@@ -350,6 +350,29 @@ class SettingsController extends Controller
         return response()->json($items);
     }
 
+    public function publicCurrencies(Request $request)
+    {
+        $fid = (string) $request->query('fid', config('app.fid', '12'));
+        $items = DB::table('conf')
+            ->where('type', 'currency')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->get()
+            ->map(function ($item) {
+                $code = $this->normalizeCurrencyCode($item->currency ?? $item->name ?? '');
+                return [
+                    'id' => (int) $item->id,
+                    'code' => $code,
+                    'name' => $code,
+                    'description' => trim((string) ($item->descript ?? '')),
+                ];
+            })
+            ->filter(fn ($item) => $item['code'] !== '')
+            ->values();
+
+        return response()->json(['data' => $items]);
+    }
+
     /**
      * GET /settings/api/{type}/{id}
      * Return a single conf record.
@@ -2355,6 +2378,7 @@ class SettingsController extends Controller
             'doc' => 'nullable|string|max:100',
             'constanta' => 'nullable|string|max:255',
             'currency' => 'nullable|string|max:10',
+            'description' => 'nullable|string|max:2000',
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:255',
             'google_map' => 'nullable|string|max:65535',
@@ -2396,6 +2420,10 @@ class SettingsController extends Controller
 
         if (Schema::hasColumn('conf', 'currency')) {
             $data['currency'] = $type === 'oplata' || $type === 'deposit' || $type === 'currency' ? $currency : '';
+        }
+
+        if ($type === 'currency' && Schema::hasColumn('conf', 'descript')) {
+            $data['descript'] = trim((string) ($validated['description'] ?? ''));
         }
 
         if ($hasCommissionColumn) {
@@ -2470,6 +2498,10 @@ class SettingsController extends Controller
 
         if ($type === 'sklads') {
             $item->foto_preview = MediaUrl::image((string) ($item->foto ?? ''));
+        }
+
+        if ($type === 'currency') {
+            $item->description = trim((string) ($item->descript ?? ''));
         }
 
         if ($type === 'web3_token') {
