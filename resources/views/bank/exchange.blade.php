@@ -137,6 +137,11 @@
                             $walletAddressShort = $walletAddress !== '' && mb_strlen($walletAddress) > 18
                                 ? mb_substr($walletAddress, 0, 10) . '...' . mb_substr($walletAddress, -6)
                                 : $walletAddress;
+                            $receiptPath = (string) ($orderMeta['receipt_path'] ?? '');
+                            $clientPaidAt = (string) ($orderMeta['payment_confirmed_by_client_at'] ?? '');
+                            $receiptUrl = $receiptPath !== '' ? asset('storage/' . ltrim($receiptPath, '/')) : '';
+                            $receiptName = (string) ($orderMeta['receipt_original_name'] ?? '');
+                            $isClientPaid = $clientPaidAt !== '' || (string) $order->status === 'payment_submitted';
                             $orderPayload = [
                                 'id' => $order->id,
                                 'created_at' => (string) $order->created_at,
@@ -153,6 +158,10 @@
                                 'client_phone' => (string) ($order->client_phone ?? ''),
                                 'status' => (string) $order->status,
                                 'source' => (string) $order->source,
+                                'receipt_url' => $receiptUrl,
+                                'receipt_name' => $receiptName,
+                                'receipt_uploaded_at' => (string) ($orderMeta['receipt_uploaded_at'] ?? ''),
+                                'is_client_paid' => $isClientPaid,
                                 'meta' => $orderMeta,
                             ];
                         @endphp
@@ -266,6 +275,12 @@
                         <div>
                             <span>Источник</span>
                             <strong data-order-field="source"></strong>
+                        </div>
+                        <div class="bank-order-modal__receipt">
+                            <span>Квитанция</span>
+                            <strong data-order-field="receipt_status"></strong>
+                            <a href="#" target="_blank" rel="noopener" data-order-receipt-link hidden>Открыть квитанцию</a>
+                            <small data-order-field="receipt_name"></small>
                         </div>
                     </div>
 
@@ -1007,6 +1022,19 @@
             }
         }
 
+        function setReceipt(order) {
+            const receiptLink = modal.querySelector('[data-order-receipt-link]');
+            const hasReceipt = String(order.receipt_url || '').trim() !== '';
+
+            setText('[data-order-field="receipt_status"]', order.is_client_paid ? 'Оплачено' : 'Не оплачено');
+            setText('[data-order-field="receipt_name"]', hasReceipt ? (order.receipt_name || order.receipt_uploaded_at || 'Файл загружен') : '');
+
+            if (receiptLink instanceof HTMLAnchorElement) {
+                receiptLink.hidden = !hasReceipt;
+                receiptLink.href = hasReceipt ? order.receipt_url : '#';
+            }
+        }
+
         modal.addEventListener('show.bs.modal', (event) => {
             const trigger = event.relatedTarget;
             if (!(trigger instanceof HTMLElement)) {
@@ -1033,6 +1061,7 @@
             setText('[data-order-field="client_email"]', order.client_email);
             setText('[data-order-field="client_phone"]', order.client_phone);
             setText('[data-order-field="wallet_address"]', order.wallet_address);
+            setReceipt(order);
             currentSwapOrder = order;
 
             const statusForm = modal.querySelector('[data-order-status-form]');

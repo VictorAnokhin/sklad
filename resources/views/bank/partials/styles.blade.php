@@ -895,6 +895,28 @@
         font-size: 0.94rem;
     }
 
+    .bank-order-modal__receipt a {
+        width: fit-content;
+        color: #93c5fd;
+        font-size: 0.84rem;
+        font-weight: 700;
+        text-decoration: none;
+    }
+
+    .bank-order-modal__receipt a:hover {
+        color: #bfdbfe;
+        text-decoration: underline;
+    }
+
+    .bank-order-modal__receipt small {
+        min-width: 0;
+        overflow: hidden;
+        color: rgba(203, 213, 225, 0.68);
+        font-size: 0.78rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     .bank-order-modal__meta {
         max-height: 220px;
         margin: 0;
