@@ -3638,7 +3638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currencyHtml = currentType === 'oplata' || currentType === 'deposit'
                     ? `<span class="badge bg-info text-dark">${escapeHtml(item.currency || defaultCurrencyCode())}</span>`
                     : '';
-                const descriptionHtml = currentType === 'currency' || currentType === 'faq'
+                const descriptionHtml = currentType === 'currency'
                     ? escapeHtml(item.description || item.descript || '—')
                     : '';
                 const defaultHtml = currentType === 'sklads' || currentType === 'oplata'
@@ -3675,7 +3675,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="conf-name-col" title="${escapeHtml(item.name || '')}">${escapeHtml(item.name || '')}</td>
                     ${currentType === 'sklads' || currentType === 'currency' ? '' : `<td class="conf-color-col">${colorHtml}</td>`}
                     ${currentType === 'oplata' || currentType === 'deposit' ? `<td class="conf-currency-col">${currencyHtml}</td>` : ''}
-                    ${currentType === 'currency' || currentType === 'faq' ? `<td class="conf-description-col" title="${descriptionHtml}">${descriptionHtml}</td>` : ''}
+                    ${currentType === 'currency' ? `<td class="conf-description-col" title="${descriptionHtml}">${descriptionHtml}</td>` : ''}
                     ${currentType === 'sklads' || currentType === 'oplata' ? `<td class="conf-default-col">${defaultHtml}</td>` : ''}
                     <td class="conf-status-col">${statusLabel}</td>
                     ${currentType === 'sklads' ? `<td class="conf-address-col" title="${escapeHtml(item.address || '')}">${addressHtml}</td>` : ''}
@@ -3829,7 +3829,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasCurrency = currentType === 'oplata' || currentType === 'deposit';
             const isCurrency = currentType === 'currency';
             const isFaq = currentType === 'faq';
-            const hasDescription = isCurrency || isFaq;
+            const hasDescription = isCurrency;
             docRow.style.display = isReestr ? 'block' : 'none';
             docColumn.style.display = isReestr ? '' : 'none';
             defaultRow.style.display = supportsDefault ? '' : 'none';
@@ -3859,7 +3859,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelector('#form-description-row .form-text').textContent = isFaq
                 ? 'Показывается в FAQ выбранной страницы сайта.'
                 : 'Показывается на странице swap в пункте 3.';
-            descriptionColumn.textContent = isFaq ? 'Ответ' : 'Описание';
+            descriptionColumn.textContent = 'Описание';
             colorColumn.textContent = isFaq ? 'Вопрос' : 'Колір';
             phoneColumn.style.display = 'none';
             addressColumn.style.display = isOffice ? '' : 'none';
@@ -4009,9 +4009,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 count += 1;
             }
             if (currentType === 'oplata') {
-                count += 1;
-            }
-            if (currentType === 'faq') {
                 count += 1;
             }
             return count;
