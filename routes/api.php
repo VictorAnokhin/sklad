@@ -97,6 +97,7 @@ Route::middleware(['api', 'throttle:60,1'])->group(function () {
     Route::post('/education/course/test/submit', [EducationController::class, 'publicSubmitCourseTest']);
     Route::middleware('auth:sanctum')->post('/education/course/order', [EducationController::class, 'ensureCourseOrder']);
     Route::middleware('auth:sanctum')->post('/education/course/payment', [EducationController::class, 'recordCoursePayment']);
+    Route::middleware('auth:sanctum')->get('/education/profile', [EducationController::class, 'profile']);
     Route::get('/education/know-yourself/tests', [EducationController::class, 'publicKnowYourselfTests']);
     Route::post('/education/know-yourself/submit', [EducationController::class, 'publicSubmitKnowYourselfTest']);
     Route::middleware('auth:sanctum')->post('/education/know-yourself/rating/apply', [EducationController::class, 'applyKnowYourselfRating']);

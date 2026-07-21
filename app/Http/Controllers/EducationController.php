@@ -61,6 +61,116 @@ class EducationController extends Controller
         ]);
     }
 
+    public function profile(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['nullable', 'integer', 'min:1'],
+            'lang' => ['nullable', 'in:ua,ru,en'],
+        ]);
+
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        $projectId = (int) ($validated['fid'] ?? 36);
+        $lang = $this->language($request);
+        $educationRating = Schema::hasColumn('users', 'education_rating')
+            ? (int) DB::table('users')->where('id', $user->id)->value('education_rating')
+            : 0;
+
+        $testAttempts = collect();
+        if (Schema::hasTable('quest_test_attempts') && Schema::hasTable('quests_tests')) {
+            $testAttempts = QuestTestAttempt::query()
+                ->with('test.category')
+                ->where('user_id', $user->id)
+                ->latest()
+                ->limit(100)
+                ->get()
+                ->map(function (QuestTestAttempt $attempt) use ($lang): array {
+                    $test = $attempt->test;
+                    $profile = data_get($attempt->result_data, 'profile');
+
+                    return [
+                        'id' => (int) $attempt->id,
+                        'test_id' => (int) ($attempt->quest_test_id ?? 0),
+                        'title' => $test
+                            ? $this->localizedText($test->title_translations, $lang, (string) $test->title)
+                            : 'Тест',
+                        'category' => $test?->category
+                            ? $this->localizedText($test->category->title_translations, $lang, (string) $test->category->title)
+                            : null,
+                        'score' => (int) ($attempt->score ?? 0),
+                        'total_score' => $attempt->total_score !== null ? (int) $attempt->total_score : null,
+                        'max_score' => $attempt->max_score !== null ? (int) $attempt->max_score : null,
+                        'passed' => (bool) $attempt->passed,
+                        'profile' => is_array($profile) ? $profile : null,
+                        'rating_awarded' => (int) data_get($attempt->result_data, 'rating_awarded', 0),
+                        'created_at' => optional($attempt->created_at)->toDateTimeString(),
+                    ];
+                });
+        }
+
+        $courseOrders = collect();
+        if (Schema::hasTable('document')) {
+            $courseOrders = DB::table('document')
+                ->where('firma', (string) $projectId)
+                ->where('type', 'ZOUT')
+                ->where('client1', (string) $user->id)
+                ->orderByDesc('dt')
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get()
+                ->map(function ($order): array {
+                    return [
+                        'id' => (int) $order->id,
+                        'num' => (string) ($order->num ?? ''),
+                        'summa' => (string) ($order->summa ?? '0'),
+                        'status' => (string) ($order->status ?? ''),
+                        'data' => (string) ($order->data ?? ''),
+                        'dt' => (int) ($order->dt ?? 0),
+                        'close' => (bool) ($order->close ?? false),
+                        'typeproduct' => (string) ($order->typeproduct ?? ''),
+                    ];
+                });
+        }
+
+        $coursePayments = collect();
+        if (Schema::hasTable('z_document')) {
+            $coursePayments = DB::table('z_document')
+                ->where('firma', (string) $projectId)
+                ->where('type', 'PO')
+                ->where('client1', (string) $user->id)
+                ->orderByDesc('dt')
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get()
+                ->map(function ($payment): array {
+                    return [
+                        'id' => (int) $payment->id,
+                        'num' => (string) ($payment->num ?? ''),
+                        'docid' => (int) ($payment->docid ?? 0),
+                        'summa' => (string) ($payment->summa ?? '0'),
+                        'status' => (string) ($payment->status ?? ''),
+                        'data' => (string) ($payment->data ?? ''),
+                        'dt' => (int) ($payment->dt ?? 0),
+                        'provodka' => (bool) ($payment->provodka ?? false),
+                        'typeproduct' => (string) ($payment->typeproduct ?? ''),
+                    ];
+                });
+        }
+
+        $latestProfileAttempt = $testAttempts->first(fn (array $attempt): bool => is_array($attempt['profile']));
+
+        return response()->json([
+            'profile' => [
+                'education_rating' => $educationRating,
+                'latest_profile' => $latestProfileAttempt['profile'] ?? null,
+                'tests' => $testAttempts->values(),
+                'course_orders' => $courseOrders->values(),
+                'course_payments' => $coursePayments->values(),
+            ],
+        ]);
+    }
+
     public function publicFirstTest(Request $request): JsonResponse
     {
         $validated = $request->validate([
