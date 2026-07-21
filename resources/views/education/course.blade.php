@@ -95,9 +95,6 @@
                                                     <div class="accordion-body">
                                                         <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
                                                             <div>
-                                                                @if($topic->description)
-                                                                    <p class="text-secondary mb-2">{{ $topic->description }}</p>
-                                                                @endif
                                                                 @if($progress)
                                                                     <div class="small text-secondary">
                                                                         Успешных попыток: {{ $progress->passed_attempts }} · неуспешных: {{ $progress->failed_attempts }}
