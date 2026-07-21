@@ -379,34 +379,35 @@ class SettingsController extends Controller
     public function publicFaq(Request $request)
     {
         $fid = (string) $request->query('fid', config('app.fid', '12'));
-        $page = strtolower(trim((string) $request->query('page', '')));
-        $allowedPages = ['academy', 'portfolio', 'swap', 'articles'];
-
-        if ($page !== '' && ! in_array($page, $allowedPages, true)) {
-            return response()->json(['data' => []]);
-        }
+        $title = trim((string) $request->query('title', $request->query('page', '')));
+        $language = $this->normalizeFaqLanguage((string) $request->query('lang', 'ru'));
 
         $query = DB::table('conf')
             ->where('type', 'faq')
             ->where('firma', $fid)
             ->where('status', '1');
 
-        if ($page !== '') {
-            $query->where('color', $page);
+        if ($title !== '') {
+            $query->where('name', $title);
         }
 
         $items = $query
             ->orderBy('id')
             ->get()
-            ->map(function ($item) {
+            ->map(function ($item) use ($language) {
+                $translations = $this->faqTranslationsFromItem($item);
+
                 return [
                     'id' => (int) $item->id,
-                    'page' => strtolower(trim((string) ($item->color ?? ''))),
-                    'question' => trim((string) ($item->name ?? '')),
-                    'answer' => trim((string) ($item->descript ?? '')),
+                    'title' => trim((string) ($item->name ?? '')),
+                    'page' => trim((string) ($item->name ?? '')),
+                    'question' => $this->faqTranslatedText($translations['questions'], $language),
+                    'answer' => $this->faqTranslatedText($translations['answers'], $language),
+                    'questions' => $translations['questions'],
+                    'answers' => $translations['answers'],
                 ];
             })
-            ->filter(fn ($item) => $item['page'] !== '' && $item['question'] !== '' && $item['answer'] !== '')
+            ->filter(fn ($item) => $item['title'] !== '' && $item['question'] !== '' && $item['answer'] !== '')
             ->values();
 
         return response()->json(['data' => $items]);
@@ -2424,11 +2425,28 @@ class SettingsController extends Controller
             'foto' => 'nullable|string|max:255',
             'foto_file' => 'nullable|image|max:4096',
             'is_default' => 'nullable|boolean',
+            'faq' => 'nullable|array',
+            'faq.questions' => 'nullable|array',
+            'faq.answers' => 'nullable|array',
+            'faq.questions.ua' => 'nullable|string|max:65535',
+            'faq.questions.ru' => 'nullable|string|max:65535',
+            'faq.questions.en' => 'nullable|string|max:65535',
+            'faq.questions.es' => 'nullable|string|max:65535',
+            'faq.questions.fr' => 'nullable|string|max:65535',
+            'faq.answers.ua' => 'nullable|string|max:65535',
+            'faq.answers.ru' => 'nullable|string|max:65535',
+            'faq.answers.en' => 'nullable|string|max:65535',
+            'faq.answers.es' => 'nullable|string|max:65535',
+            'faq.answers.fr' => 'nullable|string|max:65535',
         ]);
 
         $type = (string) ($validated['type'] ?? '');
         $currency = $this->normalizeCurrencyCode($validated['currency'] ?? 'UAH');
         $vision = $validated['vision'] ?? '1';
+        $faqTranslations = $this->normalizeFaqTranslations(
+            $request->input('faq.questions', []),
+            $request->input('faq.answers', [])
+        );
         if ($type === 'web3_token') {
             $vision = Conf::normalizeWeb3ChainIdToDecimalString($vision) ?? $vision;
         }
@@ -2436,13 +2454,11 @@ class SettingsController extends Controller
             $currency = $this->normalizeCurrencyCode($validated['name'] ?? $currency);
         }
         if ($type === 'faq') {
-            $faqPage = strtolower(trim((string) ($validated['color'] ?? '')));
-            if (! in_array($faqPage, ['academy', 'portfolio', 'swap', 'articles'], true)) {
+            if (! $this->faqHasCompleteTranslation($faqTranslations)) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'color' => 'Выберите страницу FAQ: academy, portfolio, swap или articles.',
+                    'faq' => 'Заполните вопрос и ответ хотя бы на одном языке.',
                 ]);
             }
-            $validated['color'] = $faqPage;
         }
         if (($type === 'oplata' || $type === 'deposit') && Schema::hasColumn('conf', 'currency')) {
             $availableCurrencies = $this->currencyCodesForFirma(session('fid', ''));
@@ -2456,7 +2472,9 @@ class SettingsController extends Controller
         $data = [
             'name' => $type === 'currency' ? $currency : trim((string) ($validated['name'] ?? '')),
             'type' => $type,
-            'color' => trim((string) ($validated['color'] ?? '')),
+            'color' => $type === 'faq'
+                ? $this->faqTranslatedText($faqTranslations['questions'], 'ru')
+                : trim((string) ($validated['color'] ?? '')),
             'status' => (string) ($validated['status'] ?? '1'),
             'vision' => (string) $vision,
             'constanta' => (string) ($validated['constanta'] ?? '0'),
@@ -2471,7 +2489,13 @@ class SettingsController extends Controller
         }
 
         if (in_array($type, ['currency', 'faq'], true) && Schema::hasColumn('conf', 'descript')) {
-            $data['descript'] = trim((string) ($validated['description'] ?? ''));
+            $data['descript'] = $type === 'faq'
+                ? $this->faqTranslatedText($faqTranslations['answers'], 'ru')
+                : trim((string) ($validated['description'] ?? ''));
+        }
+
+        if ($type === 'faq' && Schema::hasColumn('conf', 'htmlkeys')) {
+            $data['htmlkeys'] = json_encode($faqTranslations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
         if ($hasCommissionColumn) {
@@ -2538,6 +2562,91 @@ class SettingsController extends Controller
             ->update(['is_default' => 0]);
     }
 
+    private function faqLanguages(): array
+    {
+        return ['ua', 'ru', 'en', 'es', 'fr'];
+    }
+
+    private function normalizeFaqLanguage(string $language): string
+    {
+        $language = strtolower(trim($language));
+        $language = $language === 'uk' ? 'ua' : $language;
+
+        return in_array($language, $this->faqLanguages(), true) ? $language : 'ru';
+    }
+
+    private function normalizeFaqTranslations(mixed $questions, mixed $answers): array
+    {
+        $questions = is_array($questions) ? $questions : [];
+        $answers = is_array($answers) ? $answers : [];
+        $translations = ['questions' => [], 'answers' => []];
+
+        foreach ($this->faqLanguages() as $language) {
+            $translations['questions'][$language] = trim((string) ($questions[$language] ?? ''));
+            $translations['answers'][$language] = trim((string) ($answers[$language] ?? ''));
+        }
+
+        return $translations;
+    }
+
+    private function faqTranslationsFromItem(object $item): array
+    {
+        $decoded = json_decode((string) ($item->htmlkeys ?? ''), true);
+        $decoded = is_array($decoded) ? $decoded : [];
+        $translations = $this->normalizeFaqTranslations(
+            is_array($decoded['questions'] ?? null) ? $decoded['questions'] : [],
+            is_array($decoded['answers'] ?? null) ? $decoded['answers'] : []
+        );
+
+        $legacyQuestion = trim((string) ($item->color ?? ''));
+        $legacyAnswer = trim((string) ($item->descript ?? ''));
+        if ($legacyQuestion !== '' && ! $this->faqHasText($translations['questions'])) {
+            $translations['questions']['ru'] = $legacyQuestion;
+        }
+        if ($legacyAnswer !== '' && ! $this->faqHasText($translations['answers'])) {
+            $translations['answers']['ru'] = $legacyAnswer;
+        }
+
+        return $translations;
+    }
+
+    private function faqHasCompleteTranslation(array $translations): bool
+    {
+        foreach ($this->faqLanguages() as $language) {
+            if (($translations['questions'][$language] ?? '') !== '' && ($translations['answers'][$language] ?? '') !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function faqHasText(array $values): bool
+    {
+        foreach ($values as $value) {
+            if (trim((string) $value) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function faqTranslatedText(array $values, string $language): string
+    {
+        $language = $this->normalizeFaqLanguage($language);
+        $fallbacks = array_unique([$language, 'ru', 'ua', 'en', 'es', 'fr']);
+
+        foreach ($fallbacks as $fallback) {
+            $value = trim((string) ($values[$fallback] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
     private function decorateConfItem(object $item, string $type): object
     {
         if ($type === 'reestr') {
@@ -2553,7 +2662,14 @@ class SettingsController extends Controller
         }
 
         if ($type === 'faq') {
-            $item->page = strtolower(trim((string) ($item->color ?? '')));
+            $translations = $this->faqTranslationsFromItem($item);
+            $item->page = trim((string) ($item->name ?? ''));
+            $item->title = trim((string) ($item->name ?? ''));
+            $item->questions = $translations['questions'];
+            $item->answers = $translations['answers'];
+            $item->question = $this->faqTranslatedText($translations['questions'], 'ru');
+            $item->answer = $this->faqTranslatedText($translations['answers'], 'ru');
+            $item->description = $item->answer;
         }
 
         if ($type === 'web3_token') {

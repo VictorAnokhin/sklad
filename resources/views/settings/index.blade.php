@@ -898,6 +898,53 @@
                         <textarea class="form-control" id="form-description" rows="4" placeholder="Описание валюты, реквизиты или подсказка для обмена"></textarea>
                         <div class="form-text">Показывается на странице swap в пункте 3.</div>
                     </div>
+                    <div id="form-faq-fields" style="display:none;">
+                        <div class="alert alert-info py-2">
+                            Заголовок страницы должен совпадать с заголовком, по которому фронтенд фильтрует FAQ.
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="form-faq-question-ua" class="form-label">Вопрос (укр)</label>
+                                <input type="text" class="form-control form-faq-question" id="form-faq-question-ua" data-lang="ua">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="form-faq-answer-ua" class="form-label">Ответ (укр)</label>
+                                <textarea class="form-control form-faq-answer" id="form-faq-answer-ua" data-lang="ua" rows="3"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="form-faq-question-ru" class="form-label">Вопрос (рус)</label>
+                                <input type="text" class="form-control form-faq-question" id="form-faq-question-ru" data-lang="ru">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="form-faq-answer-ru" class="form-label">Ответ (рус)</label>
+                                <textarea class="form-control form-faq-answer" id="form-faq-answer-ru" data-lang="ru" rows="3"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="form-faq-question-en" class="form-label">Вопрос (англ)</label>
+                                <input type="text" class="form-control form-faq-question" id="form-faq-question-en" data-lang="en">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="form-faq-answer-en" class="form-label">Ответ (англ)</label>
+                                <textarea class="form-control form-faq-answer" id="form-faq-answer-en" data-lang="en" rows="3"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="form-faq-question-es" class="form-label">Вопрос (испан)</label>
+                                <input type="text" class="form-control form-faq-question" id="form-faq-question-es" data-lang="es">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="form-faq-answer-es" class="form-label">Ответ (испан)</label>
+                                <textarea class="form-control form-faq-answer" id="form-faq-answer-es" data-lang="es" rows="3"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="form-faq-question-fr" class="form-label">Вопрос (франц)</label>
+                                <input type="text" class="form-control form-faq-question" id="form-faq-question-fr" data-lang="fr">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="form-faq-answer-fr" class="form-label">Ответ (франц)</label>
+                                <textarea class="form-control form-faq-answer" id="form-faq-answer-fr" data-lang="fr" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
                     <div class="mb-3" id="form-doc-row" style="display:none;">
                         <label class="form-label">Показывать в документах</label>
                         <div class="d-flex flex-column gap-2">
@@ -3331,6 +3378,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const currencySelect = document.getElementById('form-currency');
         const descriptionRow = document.getElementById('form-description-row');
         const descriptionInput = document.getElementById('form-description');
+        const faqFields = document.getElementById('form-faq-fields');
+        const faqQuestionInputs = Array.from(document.querySelectorAll('.form-faq-question'));
+        const faqAnswerInputs = Array.from(document.querySelectorAll('.form-faq-answer'));
         const visibilityRow = document.getElementById('form-visibility-row');
         const visibilityCheckbox = document.getElementById('form-visibility-checkbox');
         const visibilityLabel = document.getElementById('form-visibility-label');
@@ -3349,6 +3399,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const colorColumn = document.getElementById('crud-color-column');
         const currencyColumn = document.getElementById('crud-currency-column');
         const descriptionColumn = document.getElementById('crud-description-column');
+        const nameColumn = document.querySelector('#modalCrud thead .conf-name-col');
         const phoneColumn = document.getElementById('crud-phone-column');
         const addressColumn = document.getElementById('crud-address-column');
         const docCheckboxes = [
@@ -3395,6 +3446,7 @@ document.addEventListener('DOMContentLoaded', () => {
             colorInput.value = '';
             colorPicker.value = '#ffffff';
             if (faqPageSelect) faqPageSelect.value = 'academy';
+            clearFaqFields();
             document.getElementById('form-status').value = currentType === 'tclient' ? '0' : '1';
             descriptionInput.value = '';
             setDocFlags('');
@@ -3458,7 +3510,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const payload = {
                 type: currentType,
                 name: document.getElementById('form-name').value.trim(),
-                color: currentType === 'faq' ? (faqPageSelect?.value || 'academy') : colorInput.value.trim(),
+                color: currentType === 'faq' ? '' : colorInput.value.trim(),
                 status: document.getElementById('form-status').value,
                 vision: currentType === 'sklads'
                     ? (visibilityCheckbox.checked ? '1' : '0')
@@ -3467,6 +3519,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (currentType === 'currency' || currentType === 'faq') {
                 payload.description = descriptionInput.value.trim();
+            }
+
+            if (currentType === 'faq') {
+                payload.faq = getFaqPayload();
             }
 
             if (currentType === 'sklads' || currentType === 'oplata') {
@@ -3509,6 +3565,40 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => alert(_ts('js.network_error')));
         });
 
+        function clearFaqFields() {
+            faqQuestionInputs.forEach((input) => {
+                input.value = '';
+            });
+            faqAnswerInputs.forEach((input) => {
+                input.value = '';
+            });
+        }
+
+        function getFaqPayload() {
+            const payload = { questions: {}, answers: {} };
+            faqQuestionInputs.forEach((input) => {
+                payload.questions[input.dataset.lang] = input.value.trim();
+            });
+            faqAnswerInputs.forEach((input) => {
+                payload.answers[input.dataset.lang] = input.value.trim();
+            });
+            return payload;
+        }
+
+        function setFaqFields(item) {
+            if (currentType !== 'faq') {
+                return;
+            }
+            const questions = item.questions || {};
+            const answers = item.answers || {};
+            faqQuestionInputs.forEach((input) => {
+                input.value = questions[input.dataset.lang] || '';
+            });
+            faqAnswerInputs.forEach((input) => {
+                input.value = answers[input.dataset.lang] || '';
+            });
+        }
+
         function loadData() {
             fetch(`/settings/api/${currentType}`)
                 .then((r) => r.json())
@@ -3535,7 +3625,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const tr = document.createElement('tr');
                 const colorHtml = currentType === 'faq'
-                    ? `<span class="badge bg-info text-dark">${escapeHtml(item.page || item.color || 'academy')}</span>`
+                    ? escapeHtml(item.question || item.color || '—')
                     : item.color
                         ? `<span style="display:inline-block;width:16px;height:16px;background:${item.color};border-radius:3px;vertical-align:middle"></span> ${escapeHtml(item.color)}`
                         : '—';
@@ -3654,6 +3744,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     colorInput.value = item.color || '';
                     colorPicker.value = /^#[0-9a-fA-F]{6}$/.test(item.color || '') ? item.color : '#ffffff';
                     if (faqPageSelect) faqPageSelect.value = item.page || item.color || 'academy';
+                    setFaqFields(item);
                     document.getElementById('form-status').value = currentType === 'sklads'
                         ? (item.vision ?? '1')
                         : (item.status ?? '1');
@@ -3745,20 +3836,22 @@ document.addEventListener('DOMContentLoaded', () => {
             defaultColumn.style.display = supportsDefault ? '' : 'none';
             currencyRow.style.display = hasCurrency ? 'block' : 'none';
             currencyColumn.style.display = hasCurrency ? '' : 'none';
-            descriptionRow.style.display = hasDescription ? 'block' : 'none';
+            descriptionRow.style.display = isCurrency ? 'block' : 'none';
+            if (faqFields) faqFields.style.display = isFaq ? 'block' : 'none';
             descriptionColumn.style.display = hasDescription ? '' : 'none';
             officeFields.style.display = isOffice ? 'block' : 'none';
             visibilityRow.style.display = isOffice ? '' : 'none';
             statusRow.style.display = isOffice ? 'none' : 'block';
-            colorRow.style.display = isCurrency ? 'none' : '';
+            colorRow.style.display = isCurrency || isFaq ? 'none' : '';
             colorColumn.style.display = isOffice || isCurrency ? 'none' : '';
             colorLabel.textContent = isFaq ? 'Страница' : 'Колір';
             colorPicker.style.display = isFaq ? 'none' : '';
             colorInput.style.display = isFaq ? 'none' : '';
             if (faqPageSelect) faqPageSelect.style.display = isFaq ? '' : 'none';
             document.querySelector('label[for="form-name"]').innerHTML = isFaq
-                ? 'Вопрос <span class="text-danger">*</span>'
+                ? 'Заголовок страницы <span class="text-danger">*</span>'
                 : 'Назва <span class="text-danger">*</span>';
+            if (nameColumn) nameColumn.textContent = isFaq ? 'Заголовок страницы' : 'Назва';
             document.querySelector('label[for="form-description"]').textContent = isFaq ? 'Ответ' : 'Описание';
             descriptionInput.placeholder = isFaq
                 ? 'Ответ на вопрос FAQ'
@@ -3767,7 +3860,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? 'Показывается в FAQ выбранной страницы сайта.'
                 : 'Показывается на странице swap в пункте 3.';
             descriptionColumn.textContent = isFaq ? 'Ответ' : 'Описание';
-            colorColumn.textContent = isFaq ? 'Страница' : 'Колір';
+            colorColumn.textContent = isFaq ? 'Вопрос' : 'Колір';
             phoneColumn.style.display = 'none';
             addressColumn.style.display = isOffice ? '' : 'none';
             populateCurrencySelect(currencySelect.value || defaultCurrencyCode());
