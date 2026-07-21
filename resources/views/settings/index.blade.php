@@ -87,6 +87,16 @@
         </div>
 
         <div class="col-md-4">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="faq" data-title="❓ FAQ">
+                <div class="card-body text-center">
+                    <h5 class="card-title">❓ FAQ</h5>
+                    <p class="card-text text-muted">Вопросы и ответы для страниц сайта</p>
+                    <span class="badge bg-info text-dark" id="badge-faq">{{ count($faqs ?? []) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
             <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="sklads" data-title="🏢 {{ __('settings.cards.offices.modal_title') }}">
                 <div class="card-body text-center">
                     <h5 class="card-title">🏢 {{ __('settings.cards.offices.title') }}</h5>
@@ -844,10 +854,16 @@
                             <input type="text" class="form-control" id="form-name" required>
                         </div>
                         <div class="col-md-4 mb-3" id="form-color-row">
-                            <label for="form-color" class="form-label">Колір</label>
+                            <label for="form-color" class="form-label" id="form-color-label">Колір</label>
                             <div class="d-flex align-items-center gap-2">
                                 <input type="color" class="form-control form-control-color" id="form-color-picker" value="#ffffff">
                                 <input type="text" class="form-control" id="form-color" placeholder="#hex">
+                                <select class="form-select" id="form-faq-page" style="display:none;">
+                                    <option value="academy">academy</option>
+                                    <option value="portfolio">portfolio</option>
+                                    <option value="swap">swap</option>
+                                    <option value="articles">articles</option>
+                                </select>
                             </div>
                         </div>
                         <div class="col-md-3 mb-3" id="form-visibility-row" style="display:none;">
@@ -3304,7 +3320,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const deleteBtn = document.getElementById('btn-delete');
         const colorPicker = document.getElementById('form-color-picker');
         const colorRow = document.getElementById('form-color-row');
+        const colorLabel = document.getElementById('form-color-label');
         const colorInput = document.getElementById('form-color');
+        const faqPageSelect = document.getElementById('form-faq-page');
         const statusRow = document.getElementById('form-status-row');
         const statusLabel = document.getElementById('form-status-label');
         const statusSelect = document.getElementById('form-status');
@@ -3376,6 +3394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('form-name').value = '';
             colorInput.value = '';
             colorPicker.value = '#ffffff';
+            if (faqPageSelect) faqPageSelect.value = 'academy';
             document.getElementById('form-status').value = currentType === 'tclient' ? '0' : '1';
             descriptionInput.value = '';
             setDocFlags('');
@@ -3439,14 +3458,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const payload = {
                 type: currentType,
                 name: document.getElementById('form-name').value.trim(),
-                color: colorInput.value.trim(),
+                color: currentType === 'faq' ? (faqPageSelect?.value || 'academy') : colorInput.value.trim(),
                 status: document.getElementById('form-status').value,
                 vision: currentType === 'sklads'
                     ? (visibilityCheckbox.checked ? '1' : '0')
                     : '1',
             };
 
-            if (currentType === 'currency') {
+            if (currentType === 'currency' || currentType === 'faq') {
                 payload.description = descriptionInput.value.trim();
             }
 
@@ -3515,9 +3534,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const tr = document.createElement('tr');
-                const colorHtml = item.color
-                    ? `<span style="display:inline-block;width:16px;height:16px;background:${item.color};border-radius:3px;vertical-align:middle"></span> ${escapeHtml(item.color)}`
-                    : '—';
+                const colorHtml = currentType === 'faq'
+                    ? `<span class="badge bg-info text-dark">${escapeHtml(item.page || item.color || 'academy')}</span>`
+                    : item.color
+                        ? `<span style="display:inline-block;width:16px;height:16px;background:${item.color};border-radius:3px;vertical-align:middle"></span> ${escapeHtml(item.color)}`
+                        : '—';
                 const docHtml = currentType === 'reestr'
                     ? escapeHtml(item.doc_label || _ts('crud.all_documents'))
                     : '';
@@ -3527,7 +3548,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currencyHtml = currentType === 'oplata' || currentType === 'deposit'
                     ? `<span class="badge bg-info text-dark">${escapeHtml(item.currency || defaultCurrencyCode())}</span>`
                     : '';
-                const descriptionHtml = currentType === 'currency'
+                const descriptionHtml = currentType === 'currency' || currentType === 'faq'
                     ? escapeHtml(item.description || item.descript || '—')
                     : '';
                 const defaultHtml = currentType === 'sklads' || currentType === 'oplata'
@@ -3564,7 +3585,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="conf-name-col" title="${escapeHtml(item.name || '')}">${escapeHtml(item.name || '')}</td>
                     ${currentType === 'sklads' || currentType === 'currency' ? '' : `<td class="conf-color-col">${colorHtml}</td>`}
                     ${currentType === 'oplata' || currentType === 'deposit' ? `<td class="conf-currency-col">${currencyHtml}</td>` : ''}
-                    ${currentType === 'currency' ? `<td class="conf-description-col" title="${descriptionHtml}">${descriptionHtml}</td>` : ''}
+                    ${currentType === 'currency' || currentType === 'faq' ? `<td class="conf-description-col" title="${descriptionHtml}">${descriptionHtml}</td>` : ''}
                     ${currentType === 'sklads' || currentType === 'oplata' ? `<td class="conf-default-col">${defaultHtml}</td>` : ''}
                     <td class="conf-status-col">${statusLabel}</td>
                     ${currentType === 'sklads' ? `<td class="conf-address-col" title="${escapeHtml(item.address || '')}">${addressHtml}</td>` : ''}
@@ -3631,7 +3652,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('form-id').value = item.id;
                     document.getElementById('form-name').value = item.name || '';
                     colorInput.value = item.color || '';
-                    colorPicker.value = item.color || '#ffffff';
+                    colorPicker.value = /^#[0-9a-fA-F]{6}$/.test(item.color || '') ? item.color : '#ffffff';
+                    if (faqPageSelect) faqPageSelect.value = item.page || item.color || 'academy';
                     document.getElementById('form-status').value = currentType === 'sklads'
                         ? (item.vision ?? '1')
                         : (item.status ?? '1');
@@ -3715,19 +3737,37 @@ document.addEventListener('DOMContentLoaded', () => {
             const supportsDefault = currentType === 'sklads' || currentType === 'oplata';
             const hasCurrency = currentType === 'oplata' || currentType === 'deposit';
             const isCurrency = currentType === 'currency';
+            const isFaq = currentType === 'faq';
+            const hasDescription = isCurrency || isFaq;
             docRow.style.display = isReestr ? 'block' : 'none';
             docColumn.style.display = isReestr ? '' : 'none';
             defaultRow.style.display = supportsDefault ? '' : 'none';
             defaultColumn.style.display = supportsDefault ? '' : 'none';
             currencyRow.style.display = hasCurrency ? 'block' : 'none';
             currencyColumn.style.display = hasCurrency ? '' : 'none';
-            descriptionRow.style.display = isCurrency ? 'block' : 'none';
-            descriptionColumn.style.display = isCurrency ? '' : 'none';
+            descriptionRow.style.display = hasDescription ? 'block' : 'none';
+            descriptionColumn.style.display = hasDescription ? '' : 'none';
             officeFields.style.display = isOffice ? 'block' : 'none';
             visibilityRow.style.display = isOffice ? '' : 'none';
             statusRow.style.display = isOffice ? 'none' : 'block';
             colorRow.style.display = isCurrency ? 'none' : '';
             colorColumn.style.display = isOffice || isCurrency ? 'none' : '';
+            colorLabel.textContent = isFaq ? 'Страница' : 'Колір';
+            colorPicker.style.display = isFaq ? 'none' : '';
+            colorInput.style.display = isFaq ? 'none' : '';
+            if (faqPageSelect) faqPageSelect.style.display = isFaq ? '' : 'none';
+            document.querySelector('label[for="form-name"]').innerHTML = isFaq
+                ? 'Вопрос <span class="text-danger">*</span>'
+                : 'Назва <span class="text-danger">*</span>';
+            document.querySelector('label[for="form-description"]').textContent = isFaq ? 'Ответ' : 'Описание';
+            descriptionInput.placeholder = isFaq
+                ? 'Ответ на вопрос FAQ'
+                : 'Описание валюты, реквизиты или подсказка для обмена';
+            document.querySelector('#form-description-row .form-text').textContent = isFaq
+                ? 'Показывается в FAQ выбранной страницы сайта.'
+                : 'Показывается на странице swap в пункте 3.';
+            descriptionColumn.textContent = isFaq ? 'Ответ' : 'Описание';
+            colorColumn.textContent = isFaq ? 'Страница' : 'Колір';
             phoneColumn.style.display = 'none';
             addressColumn.style.display = isOffice ? '' : 'none';
             populateCurrencySelect(currencySelect.value || defaultCurrencyCode());
@@ -3761,7 +3801,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 statusHelp.style.display = 'block';
                 statusHelp.textContent = _ts('crud.office_help');
-            } else if (currentType === 'currency') {
+            } else if (currentType === 'currency' || currentType === 'faq') {
                 statusColumn.textContent = _ts('crud.status_column');
                 statusLabel.textContent = _ts('crud.generic_status_label');
                 statusSelect.innerHTML = `
@@ -3769,7 +3809,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <option value="0">${_ts('crud.generic_inactive')}</option>
                 `;
                 statusHelp.style.display = 'block';
-                statusHelp.textContent = _ts('crud.currency_help');
+                statusHelp.textContent = currentType === 'faq' ? 'Активные записи показываются в FAQ на сайте.' : _ts('crud.currency_help');
             } else {
                 statusColumn.textContent = _ts('crud.status_column');
                 statusLabel.textContent = _ts('crud.generic_status_label');
@@ -3876,6 +3916,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 count += 1;
             }
             if (currentType === 'oplata') {
+                count += 1;
+            }
+            if (currentType === 'faq') {
                 count += 1;
             }
             return count;

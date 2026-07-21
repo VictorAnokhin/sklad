@@ -70,6 +70,9 @@ class SettingsController extends Controller
         // Валюты — conf where type='currency'
         $currencies = DB::table('conf')->where('type', 'currency')->where('firma', $fid)->orderBy('name')->get();
 
+        // FAQ — conf where type='faq'
+        $faqs = DB::table('conf')->where('type', 'faq')->where('firma', $fid)->orderBy('name')->get();
+
         // Офисы — conf where type='sklads'
         $sklads = DB::table('conf')->where('type', 'sklads')->where('firma', $fid)->orderBy('name')->get();
 
@@ -169,7 +172,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -368,6 +371,42 @@ class SettingsController extends Controller
                 ];
             })
             ->filter(fn ($item) => $item['code'] !== '')
+            ->values();
+
+        return response()->json(['data' => $items]);
+    }
+
+    public function publicFaq(Request $request)
+    {
+        $fid = (string) $request->query('fid', config('app.fid', '12'));
+        $page = strtolower(trim((string) $request->query('page', '')));
+        $allowedPages = ['academy', 'portfolio', 'swap', 'articles'];
+
+        if ($page !== '' && ! in_array($page, $allowedPages, true)) {
+            return response()->json(['data' => []]);
+        }
+
+        $query = DB::table('conf')
+            ->where('type', 'faq')
+            ->where('firma', $fid)
+            ->where('status', '1');
+
+        if ($page !== '') {
+            $query->where('color', $page);
+        }
+
+        $items = $query
+            ->orderBy('id')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => (int) $item->id,
+                    'page' => strtolower(trim((string) ($item->color ?? ''))),
+                    'question' => trim((string) ($item->name ?? '')),
+                    'answer' => trim((string) ($item->descript ?? '')),
+                ];
+            })
+            ->filter(fn ($item) => $item['page'] !== '' && $item['question'] !== '' && $item['answer'] !== '')
             ->values();
 
         return response()->json(['data' => $items]);
@@ -2378,7 +2417,7 @@ class SettingsController extends Controller
             'doc' => 'nullable|string|max:100',
             'constanta' => 'nullable|string|max:255',
             'currency' => 'nullable|string|max:10',
-            'description' => 'nullable|string|max:2000',
+            'description' => 'nullable|string|max:65535',
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:255',
             'google_map' => 'nullable|string|max:65535',
@@ -2395,6 +2434,15 @@ class SettingsController extends Controller
         }
         if ($type === 'currency') {
             $currency = $this->normalizeCurrencyCode($validated['name'] ?? $currency);
+        }
+        if ($type === 'faq') {
+            $faqPage = strtolower(trim((string) ($validated['color'] ?? '')));
+            if (! in_array($faqPage, ['academy', 'portfolio', 'swap', 'articles'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'color' => 'Выберите страницу FAQ: academy, portfolio, swap или articles.',
+                ]);
+            }
+            $validated['color'] = $faqPage;
         }
         if (($type === 'oplata' || $type === 'deposit') && Schema::hasColumn('conf', 'currency')) {
             $availableCurrencies = $this->currencyCodesForFirma(session('fid', ''));
@@ -2422,7 +2470,7 @@ class SettingsController extends Controller
             $data['currency'] = $type === 'oplata' || $type === 'deposit' || $type === 'currency' ? $currency : '';
         }
 
-        if ($type === 'currency' && Schema::hasColumn('conf', 'descript')) {
+        if (in_array($type, ['currency', 'faq'], true) && Schema::hasColumn('conf', 'descript')) {
             $data['descript'] = trim((string) ($validated['description'] ?? ''));
         }
 
@@ -2500,8 +2548,12 @@ class SettingsController extends Controller
             $item->foto_preview = MediaUrl::image((string) ($item->foto ?? ''));
         }
 
-        if ($type === 'currency') {
+        if (in_array($type, ['currency', 'faq'], true)) {
             $item->description = trim((string) ($item->descript ?? ''));
+        }
+
+        if ($type === 'faq') {
+            $item->page = strtolower(trim((string) ($item->color ?? '')));
         }
 
         if ($type === 'web3_token') {
