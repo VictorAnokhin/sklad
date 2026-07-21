@@ -379,7 +379,7 @@ class SettingsController extends Controller
     public function publicFaq(Request $request)
     {
         $fid = (string) $request->query('fid', config('app.fid', '12'));
-        $title = trim((string) $request->query('title', $request->query('page', '')));
+        $pageKey = trim((string) $request->query('page_key', $request->query('title', $request->query('page', ''))));
         $language = $this->normalizeFaqLanguage((string) $request->query('lang', 'ru'));
 
         $query = DB::table('conf')
@@ -387,8 +387,8 @@ class SettingsController extends Controller
             ->where('firma', $fid)
             ->where('status', '1');
 
-        if ($title !== '') {
-            $query->where('name', $title);
+        if ($pageKey !== '') {
+            $query->where('name', $pageKey);
         }
 
         $items = $query
@@ -399,7 +399,7 @@ class SettingsController extends Controller
 
                 return [
                     'id' => (int) $item->id,
-                    'title' => trim((string) ($item->name ?? '')),
+                    'page_key' => trim((string) ($item->name ?? '')),
                     'page' => trim((string) ($item->name ?? '')),
                     'question' => $this->faqTranslatedText($translations['questions'], $language),
                     'answer' => $this->faqTranslatedText($translations['answers'], $language),
@@ -407,7 +407,7 @@ class SettingsController extends Controller
                     'answers' => $translations['answers'],
                 ];
             })
-            ->filter(fn ($item) => $item['title'] !== '' && $item['question'] !== '' && $item['answer'] !== '')
+            ->filter(fn ($item) => $item['page_key'] !== '' && $item['question'] !== '' && $item['answer'] !== '')
             ->values();
 
         return response()->json(['data' => $items]);
@@ -2663,8 +2663,8 @@ class SettingsController extends Controller
 
         if ($type === 'faq') {
             $translations = $this->faqTranslationsFromItem($item);
-            $item->page = trim((string) ($item->name ?? ''));
-            $item->title = trim((string) ($item->name ?? ''));
+            $item->page_key = trim((string) ($item->name ?? ''));
+            $item->page = $item->page_key;
             $item->questions = $translations['questions'];
             $item->answers = $translations['answers'];
             $item->question = $this->faqTranslatedText($translations['questions'], 'ru');

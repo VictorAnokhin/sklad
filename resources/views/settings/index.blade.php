@@ -900,7 +900,7 @@
                     </div>
                     <div id="form-faq-fields" style="display:none;">
                         <div class="alert alert-info py-2">
-                            Заголовок страницы должен совпадать с заголовком, по которому фронтенд фильтрует FAQ.
+                            В поле page вводите page_key страницы, например swap, academy, portfolio или articles.
                         </div>
                         <div class="row g-3">
                             <div class="col-md-6">
@@ -3849,9 +3849,9 @@ document.addEventListener('DOMContentLoaded', () => {
             colorInput.style.display = isFaq ? 'none' : '';
             if (faqPageSelect) faqPageSelect.style.display = isFaq ? '' : 'none';
             document.querySelector('label[for="form-name"]').innerHTML = isFaq
-                ? 'Заголовок страницы <span class="text-danger">*</span>'
+                ? 'page <span class="text-danger">*</span>'
                 : 'Назва <span class="text-danger">*</span>';
-            if (nameColumn) nameColumn.textContent = isFaq ? 'Заголовок страницы' : 'Назва';
+            if (nameColumn) nameColumn.textContent = isFaq ? 'page' : 'Назва';
             document.querySelector('label[for="form-description"]').textContent = isFaq ? 'Ответ' : 'Описание';
             descriptionInput.placeholder = isFaq
                 ? 'Ответ на вопрос FAQ'
