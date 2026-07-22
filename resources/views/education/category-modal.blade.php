@@ -24,17 +24,25 @@
                     <input type="hidden" name="context" value="{{ $categoryContext }}">
                     <h3 class="fs-6 mb-3" id="education-category-form-title">Новая категория</h3>
                     <div class="row g-2 mb-3">
-                        <div class="col-md-4">
+                        <div class="col-md">
                             <label class="form-label" for="education-category-title-ua">Название UA</label>
                             <input class="form-control" id="education-category-title-ua" name="title_translations[ua]" maxlength="255">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md">
                             <label class="form-label" for="education-category-title-ru">Название RU</label>
                             <input class="form-control" id="education-category-title-ru" name="title_translations[ru]" maxlength="255">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md">
                             <label class="form-label" for="education-category-title-en">Название EN</label>
                             <input class="form-control" id="education-category-title-en" name="title_translations[en]" maxlength="255">
+                        </div>
+                        <div class="col-md">
+                            <label class="form-label" for="education-category-title-es">Название ES</label>
+                            <input class="form-control" id="education-category-title-es" name="title_translations[es]" maxlength="255">
+                        </div>
+                        <div class="col-md">
+                            <label class="form-label" for="education-category-title-fr">Название FR</label>
+                            <input class="form-control" id="education-category-title-fr" name="title_translations[fr]" maxlength="255">
                         </div>
                     </div>
                     <div class="row g-3 align-items-end">
@@ -96,6 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('education-category-title-ua').value = item.title_translations?.ua || '';
         document.getElementById('education-category-title-ru').value = item.title_translations?.ru || item.title || '';
         document.getElementById('education-category-title-en').value = item.title_translations?.en || '';
+        document.getElementById('education-category-title-es').value = item.title_translations?.es || '';
+        document.getElementById('education-category-title-fr').value = item.title_translations?.fr || '';
         document.getElementById('education-category-position').value = item.position ?? 0;
         deleteButton.classList.remove('d-none');
     }

@@ -198,6 +198,20 @@
                                     EN
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="topic-title-es-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-title-es-pane" type="button"
+                                        role="tab" aria-controls="topic-title-es-pane" aria-selected="false">
+                                    ES
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="topic-title-fr-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-title-fr-pane" type="button"
+                                        role="tab" aria-controls="topic-title-fr-pane" aria-selected="false">
+                                    FR
+                                </button>
+                            </li>
                         </ul>
                         <div class="tab-content border border-secondary rounded-bottom p-2">
                             <div class="tab-pane fade" id="topic-title-ua-pane" role="tabpanel"
@@ -211,6 +225,14 @@
                             <div class="tab-pane fade" id="topic-title-en-pane" role="tabpanel"
                                  aria-labelledby="topic-title-en-tab" tabindex="0">
                                 <textarea class="form-control" id="topic-title-en" name="title_translations[en]" rows="2" maxlength="255" placeholder="EN" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="topic-title-es-pane" role="tabpanel"
+                                 aria-labelledby="topic-title-es-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-title-es" name="title_translations[es]" rows="2" maxlength="255" placeholder="ES" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="topic-title-fr-pane" role="tabpanel"
+                                 aria-labelledby="topic-title-fr-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-title-fr" name="title_translations[fr]" rows="2" maxlength="255" placeholder="FR" style="resize:vertical;"></textarea>
                             </div>
                         </div>
                     </div>
@@ -238,6 +260,20 @@
                                     EN
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="topic-description-es-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-description-es-pane" type="button"
+                                        role="tab" aria-controls="topic-description-es-pane" aria-selected="false">
+                                    ES
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="topic-description-fr-tab"
+                                        data-bs-toggle="tab" data-bs-target="#topic-description-fr-pane" type="button"
+                                        role="tab" aria-controls="topic-description-fr-pane" aria-selected="false">
+                                    FR
+                                </button>
+                            </li>
                         </ul>
                         <div class="tab-content border border-secondary rounded-bottom p-2">
                             <div class="tab-pane fade" id="topic-description-ua-pane" role="tabpanel"
@@ -251,6 +287,14 @@
                             <div class="tab-pane fade" id="topic-description-en-pane" role="tabpanel"
                                  aria-labelledby="topic-description-en-tab" tabindex="0">
                                 <textarea class="form-control" id="topic-description-en" name="description_translations[en]" rows="5" placeholder="EN" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="topic-description-es-pane" role="tabpanel"
+                                 aria-labelledby="topic-description-es-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-description-es" name="description_translations[es]" rows="5" placeholder="ES" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="topic-description-fr-pane" role="tabpanel"
+                                 aria-labelledby="topic-description-fr-tab" tabindex="0">
+                                <textarea class="form-control" id="topic-description-fr" name="description_translations[fr]" rows="5" placeholder="FR" style="resize:vertical;"></textarea>
                             </div>
                         </div>
                     </div>
@@ -334,6 +378,20 @@
                                     EN
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="material-title-es-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-title-es-pane" type="button"
+                                        role="tab" aria-controls="material-title-es-pane" aria-selected="false">
+                                    ES
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="material-title-fr-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-title-fr-pane" type="button"
+                                        role="tab" aria-controls="material-title-fr-pane" aria-selected="false">
+                                    FR
+                                </button>
+                            </li>
                         </ul>
                         <div class="tab-content border border-secondary rounded-bottom p-2">
                             <div class="tab-pane fade" id="material-title-ua-pane" role="tabpanel"
@@ -347,6 +405,14 @@
                             <div class="tab-pane fade" id="material-title-en-pane" role="tabpanel"
                                  aria-labelledby="material-title-en-tab" tabindex="0">
                                 <textarea class="form-control" id="material-title-en" name="title_translations[en]" rows="2" maxlength="255" placeholder="EN" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="material-title-es-pane" role="tabpanel"
+                                 aria-labelledby="material-title-es-tab" tabindex="0">
+                                <textarea class="form-control" id="material-title-es" name="title_translations[es]" rows="2" maxlength="255" placeholder="ES" style="resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="material-title-fr-pane" role="tabpanel"
+                                 aria-labelledby="material-title-fr-tab" tabindex="0">
+                                <textarea class="form-control" id="material-title-fr" name="title_translations[fr]" rows="2" maxlength="255" placeholder="FR" style="resize:vertical;"></textarea>
                             </div>
                         </div>
                     </div>
@@ -393,6 +459,20 @@
                                     EN
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="material-body-es-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-body-es-pane" type="button"
+                                        role="tab" aria-controls="material-body-es-pane" aria-selected="false">
+                                    ES
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="material-body-fr-tab"
+                                        data-bs-toggle="tab" data-bs-target="#material-body-fr-pane" type="button"
+                                        role="tab" aria-controls="material-body-fr-pane" aria-selected="false">
+                                    FR
+                                </button>
+                            </li>
                         </ul>
                         <div class="tab-content border border-secondary rounded-bottom p-2">
                             <div class="tab-pane fade" id="material-body-ua-pane" role="tabpanel"
@@ -406,6 +486,14 @@
                             <div class="tab-pane fade" id="material-body-en-pane" role="tabpanel"
                                  aria-labelledby="material-body-en-tab" tabindex="0">
                                 <textarea class="form-control font-monospace" id="material-body-en" name="body_translations[en]" rows="12" placeholder="EN" style="max-height:45vh; overflow-y:auto; resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="material-body-es-pane" role="tabpanel"
+                                 aria-labelledby="material-body-es-tab" tabindex="0">
+                                <textarea class="form-control font-monospace" id="material-body-es" name="body_translations[es]" rows="12" placeholder="ES" style="max-height:45vh; overflow-y:auto; resize:vertical;"></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="material-body-fr-pane" role="tabpanel"
+                                 aria-labelledby="material-body-fr-tab" tabindex="0">
+                                <textarea class="form-control font-monospace" id="material-body-fr" name="body_translations[fr]" rows="12" placeholder="FR" style="max-height:45vh; overflow-y:auto; resize:vertical;"></textarea>
                             </div>
                         </div>
                         <div class="form-text">HTML/Markdown-текст, URL видео или JSON сценария — в зависимости от выбранного типа.</div>
@@ -444,9 +532,13 @@ document.addEventListener('DOMContentLoaded', () => {
         title: document.getElementById('topic-title'),
         titleUa: document.getElementById('topic-title-ua'),
         titleEn: document.getElementById('topic-title-en'),
+        titleEs: document.getElementById('topic-title-es'),
+        titleFr: document.getElementById('topic-title-fr'),
         description: document.getElementById('topic-description'),
         descriptionUa: document.getElementById('topic-description-ua'),
         descriptionEn: document.getElementById('topic-description-en'),
+        descriptionEs: document.getElementById('topic-description-es'),
+        descriptionFr: document.getElementById('topic-description-fr'),
         categoryId: document.getElementById('topic-category'),
         position: document.getElementById('topic-position'),
         costAv8: document.getElementById('topic-cost-av8'),
@@ -465,6 +557,8 @@ document.addEventListener('DOMContentLoaded', () => {
         title: document.getElementById('material-title'),
         titleUa: document.getElementById('material-title-ua'),
         titleEn: document.getElementById('material-title-en'),
+        titleEs: document.getElementById('material-title-es'),
+        titleFr: document.getElementById('material-title-fr'),
         rating: document.getElementById('material-rating'),
         level: document.getElementById('material-level'),
         contentType: document.getElementById('material-content-type'),
@@ -472,6 +566,8 @@ document.addEventListener('DOMContentLoaded', () => {
         body: document.getElementById('material-body'),
         bodyUa: document.getElementById('material-body-ua'),
         bodyEn: document.getElementById('material-body-en'),
+        bodyEs: document.getElementById('material-body-es'),
+        bodyFr: document.getElementById('material-body-fr'),
     };
     const materials = @json($materialEditorItems ?? []);
     const topics = @json($topicEditorItems ?? []);
@@ -612,10 +708,14 @@ document.addEventListener('DOMContentLoaded', () => {
         topicFields.titleUa.value = topic.title_translations?.ua || '';
         topicFields.title.value = topic.title_translations?.ru || topic.title || '';
         topicFields.titleEn.value = topic.title_translations?.en || '';
+        topicFields.titleEs.value = topic.title_translations?.es || '';
+        topicFields.titleFr.value = topic.title_translations?.fr || '';
         topicFields.description.value = topic.description || '';
         topicFields.descriptionUa.value = topic.description_translations?.ua || '';
         topicFields.description.value = topic.description_translations?.ru || topic.description || '';
         topicFields.descriptionEn.value = topic.description_translations?.en || '';
+        topicFields.descriptionEs.value = topic.description_translations?.es || '';
+        topicFields.descriptionFr.value = topic.description_translations?.fr || '';
         topicFields.position.value = topic.position || 0;
         topicFields.costAv8.value = topic.cost_av8 || '0';
         topicFields.categoryId.value = topic.category_id || '';
@@ -640,9 +740,13 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.title.value = '';
         fields.titleUa.value = '';
         fields.titleEn.value = '';
+        fields.titleEs.value = '';
+        fields.titleFr.value = '';
         fields.body.value = '';
         fields.bodyUa.value = '';
         fields.bodyEn.value = '';
+        fields.bodyEs.value = '';
+        fields.bodyFr.value = '';
         fields.level.value = 'beginner';
         fields.version.value = '1.0';
         applyStoredMaterialSelectors(topicId);
@@ -667,6 +771,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.title.value = item.title_translations?.ru || item.title || `Урок #${id}`;
         fields.titleUa.value = item.title_translations?.ua || '';
         fields.titleEn.value = item.title_translations?.en || '';
+        fields.titleEs.value = item.title_translations?.es || '';
+        fields.titleFr.value = item.title_translations?.fr || '';
         fields.rating.value = item.rating ?? topics[item.topic_id]?.position ?? 0;
         fields.level.value = item.level || 'beginner';
         fields.contentType.value = item.content_type;
@@ -674,6 +780,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.body.value = item.body_translations?.ru || item.body || '';
         fields.bodyUa.value = item.body_translations?.ua || '';
         fields.bodyEn.value = item.body_translations?.en || '';
+        fields.bodyEs.value = item.body_translations?.es || '';
+        fields.bodyFr.value = item.body_translations?.fr || '';
         saveOpenTopic(item.topic_id);
         saveMaterialSelectors();
         materialDeleteForm.action = materialDeleteUrl.replace('__ID__', id);

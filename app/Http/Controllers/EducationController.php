@@ -22,6 +22,8 @@ use Illuminate\Validation\Rule;
 
 class EducationController extends Controller
 {
+    private const EDUCATION_LANGUAGES = ['ru', 'ua', 'en', 'es', 'fr'];
+
     public function ensureCourseOrder(Request $request, AcademyCoursePaymentService $payments): JsonResponse
     {
         $validated = $request->validate([
@@ -65,7 +67,7 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'fid' => ['nullable', 'integer', 'min:1'],
-            'lang' => ['nullable', 'in:ua,ru,en'],
+            'lang' => ['nullable', 'in:ua,ru,en,es,fr'],
         ]);
 
         $user = $request->user();
@@ -175,7 +177,7 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
-            'lang' => ['nullable', 'in:ua,ru,en'],
+            'lang' => ['nullable', 'in:ua,ru,en,es,fr'],
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
         $lang = $this->language($request);
@@ -215,7 +217,7 @@ class EducationController extends Controller
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
             'test_id' => ['required', 'integer', 'min:1'],
-            'lang' => ['nullable', 'in:ua,ru,en'],
+            'lang' => ['nullable', 'in:ua,ru,en,es,fr'],
             'answers' => ['required', 'array'],
             'answers.*' => ['required', 'integer', 'min:0'],
         ]);
@@ -325,7 +327,7 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
-            'lang' => ['nullable', 'in:ua,ru,en'],
+            'lang' => ['nullable', 'in:ua,ru,en,es,fr'],
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
         $lang = $this->language($request);
@@ -465,7 +467,7 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
-            'lang' => ['nullable', 'in:ua,ru,en'],
+            'lang' => ['nullable', 'in:ua,ru,en,es,fr'],
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
 
@@ -496,7 +498,7 @@ class EducationController extends Controller
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
             'test_id' => ['required', 'integer', 'min:1'],
-            'lang' => ['nullable', 'in:ua,ru,en'],
+            'lang' => ['nullable', 'in:ua,ru,en,es,fr'],
             'answers' => ['required', 'array'],
             'answers.*' => ['required', 'integer', 'min:0'],
         ]);
@@ -622,7 +624,7 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
-            'lang' => ['nullable', 'in:ua,ru,en'],
+            'lang' => ['nullable', 'in:ua,ru,en,es,fr'],
         ]);
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
         $lang = $this->language($request);
@@ -642,7 +644,7 @@ class EducationController extends Controller
         $validated = $request->validate([
             'fid' => ['required', 'integer', 'min:1'],
             'test_id' => ['required', 'integer', 'min:1'],
-            'lang' => ['nullable', 'in:ua,ru,en'],
+            'lang' => ['nullable', 'in:ua,ru,en,es,fr'],
             'answers' => ['required', 'array'],
             'answers.*' => ['required', 'integer', 'min:0'],
         ]);
@@ -1810,7 +1812,7 @@ class EducationController extends Controller
     {
         $lang = strtolower((string) $request->input('lang', 'ru'));
 
-        return in_array($lang, ['ua', 'ru', 'en'], true) ? $lang : 'ru';
+        return in_array($lang, self::EDUCATION_LANGUAGES, true) ? $lang : 'ru';
     }
 
     private function localizedText(?array $translations, string $lang, string $fallback = ''): string
@@ -1821,7 +1823,7 @@ class EducationController extends Controller
             return $value;
         }
 
-        foreach (['ru', 'ua', 'en'] as $fallbackLang) {
+        foreach (self::EDUCATION_LANGUAGES as $fallbackLang) {
             $value = trim((string) ($translations[$fallbackLang] ?? ''));
             if ($value !== '') {
                 return $value;
@@ -1851,7 +1853,7 @@ class EducationController extends Controller
         }
 
         $translations = [];
-        foreach (['ua', 'ru', 'en'] as $lang) {
+        foreach (self::EDUCATION_LANGUAGES as $lang) {
             $value = trim((string) ($decoded[$lang] ?? ''));
             if ($value !== '') {
                 $translations[$lang] = $value;
@@ -1873,7 +1875,7 @@ class EducationController extends Controller
         }
 
         $translations = [];
-        foreach (['ua', 'ru', 'en'] as $lang) {
+        foreach (self::EDUCATION_LANGUAGES as $lang) {
             if (isset($decoded[$lang]) && is_array($decoded[$lang])) {
                 $translations[$lang] = $decoded[$lang];
             }
@@ -1889,7 +1891,7 @@ class EducationController extends Controller
             return $fallback;
         }
 
-        foreach (['ru', 'ua', 'en'] as $lang) {
+        foreach (self::EDUCATION_LANGUAGES as $lang) {
             $value = trim((string) ($translations[$lang] ?? ''));
             if ($value !== '') {
                 return $value;

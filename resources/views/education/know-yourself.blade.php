@@ -146,9 +146,11 @@
                     <div class="mb-3">
                         <label class="form-label">Название теста</label>
                         <div class="row g-2">
-                            <div class="col-md-4"><input class="form-control" id="know-test-title-ua" name="title_translations[ua]" maxlength="255" placeholder="UA"></div>
-                            <div class="col-md-4"><input class="form-control" id="know-test-title" name="title_translations[ru]" maxlength="255" placeholder="RU"></div>
-                            <div class="col-md-4"><input class="form-control" id="know-test-title-en" name="title_translations[en]" maxlength="255" placeholder="EN"></div>
+                            <div class="col-md"><input class="form-control" id="know-test-title-ua" name="title_translations[ua]" maxlength="255" placeholder="UA"></div>
+                            <div class="col-md"><input class="form-control" id="know-test-title" name="title_translations[ru]" maxlength="255" placeholder="RU"></div>
+                            <div class="col-md"><input class="form-control" id="know-test-title-en" name="title_translations[en]" maxlength="255" placeholder="EN"></div>
+                            <div class="col-md"><input class="form-control" id="know-test-title-es" name="title_translations[es]" maxlength="255" placeholder="ES"></div>
+                            <div class="col-md"><input class="form-control" id="know-test-title-fr" name="title_translations[fr]" maxlength="255" placeholder="FR"></div>
                         </div>
                     </div>
                     <div class="row">
@@ -186,6 +188,8 @@
                         <button type="button" class="btn btn-warning" data-know-lang="ru">RU</button>
                         <button type="button" class="btn btn-outline-warning" data-know-lang="ua">UA</button>
                         <button type="button" class="btn btn-outline-warning" data-know-lang="en">EN</button>
+                        <button type="button" class="btn btn-outline-warning" data-know-lang="es">ES</button>
+                        <button type="button" class="btn btn-outline-warning" data-know-lang="fr">FR</button>
                     </div>
 
                     <ul class="nav nav-tabs border-secondary mb-3" role="tablist">
@@ -256,6 +260,8 @@ document.addEventListener('DOMContentLoaded', () => {
         title: document.getElementById('know-test-title'),
         titleUa: document.getElementById('know-test-title-ua'),
         titleEn: document.getElementById('know-test-title-en'),
+        titleEs: document.getElementById('know-test-title-es'),
+        titleFr: document.getElementById('know-test-title-fr'),
         categoryId: document.getElementById('know-test-category'),
         questData: document.getElementById('know-test-quest-data'),
         questDataTranslations: document.getElementById('know-test-quest-data-translations'),
@@ -628,6 +634,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleUa.value = '';
         fields.title.value = '';
         fields.titleEn.value = '';
+        fields.titleEs.value = '';
+        fields.titleFr.value = '';
         fields.categoryId.value = '';
         currentLang = 'ru';
         activateLanguageButton('ru');
@@ -651,6 +659,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.title.value = item.title_translations?.ru || item.title || '';
         fields.titleUa.value = item.title_translations?.ua || '';
         fields.titleEn.value = item.title_translations?.en || '';
+        fields.titleEs.value = item.title_translations?.es || '';
+        fields.titleFr.value = item.title_translations?.fr || '';
         fields.categoryId.value = item.category_id || '';
         currentLang = 'ru';
         activateLanguageButton('ru');
@@ -660,6 +670,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ru: item.quest_data_translations?.ru || item.quest_data || example,
             ua: item.quest_data_translations?.ua || item.quest_data || example,
             en: item.quest_data_translations?.en || item.quest_data || example,
+            es: item.quest_data_translations?.es || item.quest_data || example,
+            fr: item.quest_data_translations?.fr || item.quest_data || example,
         };
         loadQuestData(questDataByLang.ru || example);
         deleteForm.action = deleteUrl.replace('__ID__', id);
@@ -677,7 +689,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 question.image = sharedQuestionImages[index] ?? question.image ?? '';
             });
         });
-        fields.questData.value = JSON.stringify(questDataByLang.ru || questDataByLang.ua || questDataByLang.en || example);
+        fields.questData.value = JSON.stringify(questDataByLang.ru || questDataByLang.ua || questDataByLang.en || questDataByLang.es || questDataByLang.fr || example);
         fields.questDataTranslations.value = JSON.stringify(questDataByLang);
     });
     document.querySelectorAll('[data-know-lang]').forEach((button) => {
