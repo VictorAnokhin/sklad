@@ -107,6 +107,11 @@
     #know-test-modal textarea {
         resize: vertical;
     }
+    #know-test-title-tabs .nav-link.active {
+        background-color: #ffc107 !important;
+        border-color: #ffc107 !important;
+        color: #111 !important;
+    }
     .know-answer-row {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 110px auto;

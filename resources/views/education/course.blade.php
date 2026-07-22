@@ -163,6 +163,17 @@
     </div>
 </div>
 
+<style>
+    #topic-title-tabs .nav-link.active,
+    #topic-description-tabs .nav-link.active,
+    #material-title-tabs .nav-link.active,
+    #material-body-tabs .nav-link.active {
+        background-color: #ffc107 !important;
+        border-color: #ffc107 !important;
+        color: #111 !important;
+    }
+</style>
+
 <div class="modal fade" id="topic-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content bg-dark text-light border-secondary">
