@@ -145,12 +145,64 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Название теста</label>
-                        <div class="row g-2">
-                            <div class="col-md"><input class="form-control" id="know-test-title-ua" name="title_translations[ua]" maxlength="255" placeholder="UA"></div>
-                            <div class="col-md"><input class="form-control" id="know-test-title" name="title_translations[ru]" maxlength="255" placeholder="RU"></div>
-                            <div class="col-md"><input class="form-control" id="know-test-title-en" name="title_translations[en]" maxlength="255" placeholder="EN"></div>
-                            <div class="col-md"><input class="form-control" id="know-test-title-es" name="title_translations[es]" maxlength="255" placeholder="ES"></div>
-                            <div class="col-md"><input class="form-control" id="know-test-title-fr" name="title_translations[fr]" maxlength="255" placeholder="FR"></div>
+                        <ul class="nav nav-tabs border-secondary mb-2" id="know-test-title-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="know-test-title-ua-tab"
+                                        data-bs-toggle="tab" data-bs-target="#know-test-title-ua-pane" type="button"
+                                        role="tab" aria-controls="know-test-title-ua-pane" aria-selected="false">
+                                    UA
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active bg-dark text-warning border-secondary" id="know-test-title-ru-tab"
+                                        data-bs-toggle="tab" data-bs-target="#know-test-title-ru-pane" type="button"
+                                        role="tab" aria-controls="know-test-title-ru-pane" aria-selected="true">
+                                    RU
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="know-test-title-en-tab"
+                                        data-bs-toggle="tab" data-bs-target="#know-test-title-en-pane" type="button"
+                                        role="tab" aria-controls="know-test-title-en-pane" aria-selected="false">
+                                    EN
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="know-test-title-es-tab"
+                                        data-bs-toggle="tab" data-bs-target="#know-test-title-es-pane" type="button"
+                                        role="tab" aria-controls="know-test-title-es-pane" aria-selected="false">
+                                    ES
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link bg-dark text-light border-secondary" id="know-test-title-fr-tab"
+                                        data-bs-toggle="tab" data-bs-target="#know-test-title-fr-pane" type="button"
+                                        role="tab" aria-controls="know-test-title-fr-pane" aria-selected="false">
+                                    FR
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content border border-secondary rounded-bottom p-2">
+                            <div class="tab-pane fade" id="know-test-title-ua-pane" role="tabpanel"
+                                 aria-labelledby="know-test-title-ua-tab" tabindex="0">
+                                <input class="form-control" id="know-test-title-ua" name="title_translations[ua]" maxlength="255" placeholder="UA">
+                            </div>
+                            <div class="tab-pane fade show active" id="know-test-title-ru-pane" role="tabpanel"
+                                 aria-labelledby="know-test-title-ru-tab" tabindex="0">
+                                <input class="form-control" id="know-test-title" name="title_translations[ru]" maxlength="255" placeholder="RU">
+                            </div>
+                            <div class="tab-pane fade" id="know-test-title-en-pane" role="tabpanel"
+                                 aria-labelledby="know-test-title-en-tab" tabindex="0">
+                                <input class="form-control" id="know-test-title-en" name="title_translations[en]" maxlength="255" placeholder="EN">
+                            </div>
+                            <div class="tab-pane fade" id="know-test-title-es-pane" role="tabpanel"
+                                 aria-labelledby="know-test-title-es-tab" tabindex="0">
+                                <input class="form-control" id="know-test-title-es" name="title_translations[es]" maxlength="255" placeholder="ES">
+                            </div>
+                            <div class="tab-pane fade" id="know-test-title-fr-pane" role="tabpanel"
+                                 aria-labelledby="know-test-title-fr-tab" tabindex="0">
+                                <input class="form-control" id="know-test-title-fr" name="title_translations[fr]" maxlength="255" placeholder="FR">
+                            </div>
                         </div>
                     </div>
                     <div class="row">
