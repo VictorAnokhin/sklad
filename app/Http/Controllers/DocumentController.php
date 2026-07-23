@@ -147,6 +147,415 @@ class DocumentController extends Controller
         }
     }
 
+    private function syncProjectMirrorDocuments(string $docType, string $docId, string $sourceCompanyId): void
+    {
+        if (! in_array($docType, ['PN', 'RN'], true)) {
+            return;
+        }
+
+        $sourceTable = Document::tableForType($docType);
+        $sourceDocument = DB::table($sourceTable)
+            ->where('id', $docId)
+            ->where('firma', $sourceCompanyId)
+            ->where('type', $docType)
+            ->first();
+
+        if (! $sourceDocument) {
+            return;
+        }
+
+        $targetCompanyId = $this->counterpartyProjectIdForDocument($sourceDocument, $sourceCompanyId);
+        if ($targetCompanyId === null) {
+            return;
+        }
+
+        $targetRootType = $docType === 'PN' ? 'ZOUT' : 'ZIN';
+        $targetChildType = $docType === 'PN' ? 'RN' : 'PN';
+        $lineItems = ZBody::where('docid', $docId)
+            ->where('firma', $sourceCompanyId)
+            ->orderBy('id')
+            ->get();
+
+        if ($lineItems->isEmpty()) {
+            return;
+        }
+
+        $targetRows = $this->projectMirrorRows(
+            $lineItems,
+            $sourceDocument,
+            (int) $sourceCompanyId,
+            $targetCompanyId,
+            $targetChildType
+        );
+
+        if ($targetRows === []) {
+            return;
+        }
+
+        DB::transaction(function () use (
+            $sourceDocument,
+            $sourceCompanyId,
+            $docType,
+            $docId,
+            $targetCompanyId,
+            $targetRootType,
+            $targetChildType,
+            $targetRows
+        ): void {
+            $marker = $this->projectMirrorMarker($sourceCompanyId, $docType, $docId);
+            $mirrorClientId = $this->mirrorCounterpartyUserId($sourceCompanyId, $targetCompanyId, (int) ($sourceDocument->client1 ?? 0));
+            $targetWarehouseId = $this->defaultWarehouseId($targetCompanyId, (string) ($sourceDocument->sklads ?? ''));
+            $root = $this->upsertMirrorHeader(
+                'document',
+                $targetRootType,
+                $targetCompanyId,
+                $marker,
+                [
+                    'client1' => $mirrorClientId,
+                    'client2' => (string) ($sourceDocument->client2 ?? '0'),
+                    'summa' => (float) ($sourceDocument->summa ?? 0),
+                    'status' => (string) ($sourceDocument->status ?? '0'),
+                    'data' => (string) ($sourceDocument->data ?? date('d-m-Y')),
+                    'data2' => (string) ($sourceDocument->data2 ?? date('d-m-Y')),
+                    'time' => (string) ($sourceDocument->time ?? date('H:i:s')),
+                    'firma' => (string) $targetCompanyId,
+                    'content' => trim($marker.' Дзеркальний документ для '.$docType.' #'.$docId),
+                    'ttn' => (string) ($sourceDocument->ttn ?? ''),
+                    'oplata' => (string) ($sourceDocument->oplata ?? ''),
+                    'reteil' => (string) ($sourceDocument->reteil ?? ''),
+                    'reestr' => (string) ($sourceDocument->reestr ?? ''),
+                    'sklads' => $targetWarehouseId,
+                    'money' => (string) ($sourceDocument->money ?? ''),
+                ]
+            );
+
+            $rootId = (string) $root->id;
+            $rootNum = (string) ($root->num ?: $root->numz ?: '0');
+
+            DB::table('document')
+                ->where('id', $rootId)
+                ->where('firma', (string) $targetCompanyId)
+                ->update([
+                    'docid' => $rootId,
+                    'numz' => $rootNum,
+                    'typez' => $targetRootType,
+                ]);
+
+            $child = $this->upsertMirrorHeader(
+                'z_document',
+                $targetChildType,
+                $targetCompanyId,
+                $marker,
+                [
+                    'client1' => $mirrorClientId,
+                    'client2' => (string) ($sourceDocument->client2 ?? '0'),
+                    'summa' => (float) ($sourceDocument->summa ?? 0),
+                    'status' => (string) ($sourceDocument->status ?? '0'),
+                    'data' => (string) ($sourceDocument->data ?? date('d-m-Y')),
+                    'data2' => (string) ($sourceDocument->data2 ?? date('d-m-Y')),
+                    'time' => (string) ($sourceDocument->time ?? date('H:i:s')),
+                    'firma' => (string) $targetCompanyId,
+                    'numz' => $rootNum,
+                    'typez' => $targetRootType,
+                    'docid' => $rootId,
+                    'content' => trim($marker.' Дзеркальная накладная для '.$docType.' #'.$docId),
+                    'ttn' => (string) ($sourceDocument->ttn ?? ''),
+                    'oplata' => (string) ($sourceDocument->oplata ?? ''),
+                    'reteil' => (string) ($sourceDocument->reteil ?? ''),
+                    'reestr' => (string) ($sourceDocument->reestr ?? ''),
+                    'sklads' => $targetWarehouseId,
+                    'money' => (string) ($sourceDocument->money ?? ''),
+                ]
+            );
+
+            $this->replaceMirrorBodyRows($rootId, $rootNum, $targetRootType, (string) $targetCompanyId, $targetRows);
+            $this->replaceMirrorBodyRows((string) $child->id, (string) $child->num, $targetChildType, (string) $targetCompanyId, $targetRows);
+        });
+    }
+
+    private function ensureSourceParentOrder(string $docType, string $docId, string $companyId): void
+    {
+        if (! in_array($docType, ['PN', 'RN'], true)) {
+            return;
+        }
+
+        $child = DB::table('z_document')
+            ->where('id', $docId)
+            ->where('firma', $companyId)
+            ->where('type', $docType)
+            ->first();
+
+        if (! $child) {
+            return;
+        }
+
+        $parentId = (int) ($child->docid ?? 0);
+        $parentType = $docType === 'PN' ? 'ZIN' : 'ZOUT';
+        if ($parentId > 0 && DB::table('document')
+            ->where('id', $parentId)
+            ->where('firma', $companyId)
+            ->where('type', $parentType)
+            ->exists()) {
+            return;
+        }
+
+        $lineItems = ZBody::where('docid', $docId)
+            ->where('firma', $companyId)
+            ->orderBy('id')
+            ->get();
+
+        if ($lineItems->isEmpty()) {
+            return;
+        }
+
+        DB::transaction(function () use ($child, $docType, $docId, $companyId, $parentType, $lineItems): void {
+            $marker = "[AV8_SOURCE_ORDER child={$docType} id={$docId}]";
+            $parent = $this->upsertMirrorHeader(
+                'document',
+                $parentType,
+                (int) $companyId,
+                $marker,
+                [
+                    'client1' => (string) ($child->client1 ?? '0'),
+                    'client2' => (string) ($child->client2 ?? '0'),
+                    'summa' => (float) ($child->summa ?? 0),
+                    'status' => (string) ($child->status ?? '0'),
+                    'data' => (string) ($child->data ?? date('d-m-Y')),
+                    'data2' => (string) ($child->data2 ?? date('d-m-Y')),
+                    'time' => (string) ($child->time ?? date('H:i:s')),
+                    'firma' => (string) $companyId,
+                    'content' => trim($marker.' Автоматическая заявка для '.$docType.' #'.$docId),
+                    'ttn' => (string) ($child->ttn ?? ''),
+                    'oplata' => (string) ($child->oplata ?? ''),
+                    'reteil' => (string) ($child->reteil ?? ''),
+                    'reestr' => (string) ($child->reestr ?? ''),
+                    'sklads' => (string) ($child->sklads ?? ''),
+                    'money' => (string) ($child->money ?? ''),
+                ]
+            );
+
+            $parentId = (string) $parent->id;
+            $parentNum = (string) ($parent->num ?: $parent->numz ?: '0');
+
+            DB::table('document')
+                ->where('id', $parentId)
+                ->where('firma', $companyId)
+                ->update([
+                    'docid' => $parentId,
+                    'numz' => $parentNum,
+                    'typez' => $parentType,
+                ]);
+
+            DB::table('z_document')
+                ->where('id', $docId)
+                ->where('firma', $companyId)
+                ->update([
+                    'docid' => $parentId,
+                    'numz' => $parentNum,
+                    'typez' => $parentType,
+                ]);
+
+            $rows = $lineItems->map(fn ($line): array => [
+                'pid' => $line->pid ?? '',
+                'pnum' => (string) $line->pnum,
+                'pcount' => (float) ($line->pcount ?? 0),
+                'pprice' => (float) ($line->pprice ?? 0),
+                'psumma' => (float) ($line->psumma ?? 0),
+                'zvalue' => (string) ($line->zvalue ?? ''),
+            ])->all();
+
+            $this->replaceMirrorBodyRows($parentId, $parentNum, $parentType, $companyId, $rows);
+        });
+    }
+
+    private function projectMirrorRows($lineItems, object $sourceDocument, int $sourceCompanyId, int $targetCompanyId, string $targetDocType): array
+    {
+        $counterpartyUserId = (int) ($sourceDocument->client1 ?? 0);
+        $rows = [];
+
+        foreach ($lineItems as $line) {
+            $targetProductId = $this->mappedProjectProductId(
+                $sourceCompanyId,
+                (string) $line->pnum,
+                $targetCompanyId,
+                $counterpartyUserId
+            );
+            $quantity = (float) ($line->pcount ?? 0);
+            $price = (float) ($line->pprice ?? 0);
+
+            $rows[] = [
+                'pid' => $line->pid ?? '',
+                'pnum' => $targetProductId,
+                'pcount' => $quantity,
+                'pprice' => $price,
+                'psumma' => (float) ($line->psumma ?? ($quantity * $price)),
+                'zvalue' => $targetDocType === 'RN'
+                    ? ZBody::resolveUnitCost($targetProductId, (string) $targetCompanyId)
+                    : '',
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function mappedProjectProductId(int $sourceCompanyId, string $sourceProductId, int $targetCompanyId, int $counterpartyUserId): string
+    {
+        if (! Schema::hasTable('product_project_mappings')) {
+            throw new \RuntimeException('Таблиця маппінгу товарів product_project_mappings не створена.');
+        }
+
+        $query = DB::table('product_project_mappings')
+            ->where('source_company_id', $sourceCompanyId)
+            ->where('source_product_id', $sourceProductId)
+            ->where('target_company_id', $targetCompanyId);
+
+        if (Schema::hasColumn('product_project_mappings', 'counterparty_user_id')) {
+            $query->whereIn('counterparty_user_id', [$counterpartyUserId, 0])
+                ->orderByRaw('CASE WHEN counterparty_user_id = ? THEN 0 ELSE 1 END', [$counterpartyUserId]);
+        }
+
+        $targetProductId = trim((string) $query->value('target_product_id'));
+        if ($targetProductId === '') {
+            throw new \RuntimeException(
+                "Не знайдено маппінг товару {$sourceProductId}: проект {$sourceCompanyId}, контрагент {$counterpartyUserId} -> проект {$targetCompanyId}."
+            );
+        }
+
+        return $targetProductId;
+    }
+
+    private function upsertMirrorHeader(string $table, string $docType, int $companyId, string $marker, array $attributes): object
+    {
+        $existing = DB::table($table)
+            ->where('firma', (string) $companyId)
+            ->where('type', $docType)
+            ->where('content', 'like', '%'.$marker.'%')
+            ->first();
+
+        $columns = Schema::getColumnListing($table);
+        $now = now();
+        $payload = array_merge([
+            'client1' => '0',
+            'client2' => '0',
+            'type' => $docType,
+            'summa' => 0,
+            'status' => 0,
+            'data' => $now->format('d-m-Y'),
+            'data2' => $now->format('d-m-Y'),
+            'time' => $now->format('H:i:s'),
+            'firma' => (string) $companyId,
+            'dt' => $now->timestamp,
+            'numz' => '0',
+            'typez' => '',
+            'docid' => '0',
+            'manager' => session('login', ''),
+            'user' => session('login', ''),
+            'docum' => '',
+            'dostup' => 1,
+            'work' => session('work', '1'),
+        ], $attributes);
+
+        $payload['type'] = $docType;
+        $payload['firma'] = (string) $companyId;
+        $payload = array_intersect_key($payload, array_flip($columns));
+
+        if ($existing) {
+            DB::table($table)
+                ->where('id', $existing->id)
+                ->where('firma', (string) $companyId)
+                ->update($payload);
+
+            return DB::table($table)->where('id', $existing->id)->first();
+        }
+
+        $year = yearFromDMY((string) ($payload['data'] ?? date('d-m-Y')));
+        $num = Document::assignNextNum($docType, (string) $companyId, $year);
+        $payload['num'] = $num;
+        $payload['numz'] = $payload['numz'] ?? $num;
+
+        $id = DB::table($table)->insertGetId($payload);
+
+        return DB::table($table)->where('id', $id)->first();
+    }
+
+    private function replaceMirrorBodyRows(string $docId, string $docNum, string $docType, string $companyId, array $rows): void
+    {
+        ZBody::where('docid', $docId)
+            ->where('firma', $companyId)
+            ->delete();
+
+        foreach ($rows as $row) {
+            ZBody::create([
+                'docnum' => $docNum,
+                'pid' => $row['pid'] ?? '',
+                'pnum' => $row['pnum'],
+                'pcount' => $row['pcount'],
+                'pprice' => $row['pprice'],
+                'psumma' => $row['psumma'],
+                'type' => $docType,
+                'firma' => $companyId,
+                'docid' => $docId,
+                'zvalue' => $row['zvalue'] ?? '',
+            ]);
+        }
+    }
+
+    private function projectMirrorMarker(string $sourceCompanyId, string $docType, string $docId): string
+    {
+        return "[AV8_PROJECT_MIRROR source={$sourceCompanyId} doc={$docType} id={$docId}]";
+    }
+
+    private function mirrorCounterpartyUserId(string $sourceCompanyId, int $targetCompanyId, int $fallbackUserId): string
+    {
+        if (Schema::hasColumn('users', 'project_id')) {
+            $userId = DB::table('users')
+                ->where('firma', (string) $targetCompanyId)
+                ->where('project_id', (int) $sourceCompanyId)
+                ->orderBy('id')
+                ->value('id');
+
+            if ($userId !== null) {
+                return (string) $userId;
+            }
+        }
+
+        return $fallbackUserId > 0 ? (string) $fallbackUserId : '0';
+    }
+
+    private function defaultWarehouseId(int $companyId, string $sourceWarehouseId): string
+    {
+        if ($sourceWarehouseId !== '') {
+            $sameWarehouseExists = DB::table('conf')
+                ->where('id', $sourceWarehouseId)
+                ->where('type', 'sklads')
+                ->where('firma', (string) $companyId)
+                ->exists();
+
+            if ($sameWarehouseExists) {
+                return $sourceWarehouseId;
+            }
+        }
+
+        if (Schema::hasColumn('conf', 'is_default')) {
+            $defaultId = DB::table('conf')
+                ->where('type', 'sklads')
+                ->where('firma', (string) $companyId)
+                ->where('is_default', 1)
+                ->orderBy('id')
+                ->value('id');
+
+            if ($defaultId !== null) {
+                return (string) $defaultId;
+            }
+        }
+
+        return (string) (DB::table('conf')
+            ->where('type', 'sklads')
+            ->where('firma', (string) $companyId)
+            ->orderBy('id')
+            ->value('id') ?? '');
+    }
+
     private function isRootDocumentLocked(string $docType, string $docId, string $fid): bool
     {
         if (!in_array($docType, ['ZOUT', 'ZIN', 'CRDT'], true) || $docId === '' || $docId === '0') {
@@ -1145,6 +1554,8 @@ class DocumentController extends Controller
 
                 $this->docService->saveHead($request, $docId, $doc, $fid);
                 $this->docService->saveBody($request, $docId, $doc, $fid);
+                $this->ensureSourceParentOrder($doc, $docId, $fid);
+                $this->syncProjectMirrorDocuments($doc, $docId, $fid);
 
                 \Illuminate\Support\Facades\Log::info('Document head and body saved', [
                     'doc' => $doc,
