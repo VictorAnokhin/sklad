@@ -1,231 +1,126 @@
 @extends('home')
 
-@section('title', 'P&L')
+@section('title', 'Фінансовий P&L')
 @section('header_actions')
     @include('partials.report_panel')
 @endsection
 
 @section('content')
 @php
-    $formatMoney = static fn ($value) => number_format((float) $value, 2, ',', ' ');
+    $formatMoney = static fn ($value) => number_format((float) $value, 2, '.', ' ');
     $pnlMonths = $pnlMonths ?? [];
     $pnlRows = $pnlRows ?? [];
 @endphp
 
-<div class="container mt-4 reports-page pnl-page">
+<div class="container mt-4 reports-page" data-bs-theme="dark">
     @include('reports.period_form', [
         'periodFormAction' => route('reports.financialpnl'),
         'periodResetUrl' => route('reports.financialpnl'),
     ])
 
-    <div class="pnl-sheet">
-        <div class="pnl-report-head">
-            <h1>Отчет о прибылях и убытках</h1>
-            <div>За период: {{ $monthLabel }}</div>
-        </div>
+    <div class="card shadow-sm mb-4 bg-transparent border-secondary bg-opacity-10">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <div>
+                    <h3 class="mb-1 text-light">Отчет о прибылях и убытках</h3>
+                    <div class="text-muted small">Період: {{ $monthLabel }}</div>
+                </div>
+                <div class="text-muted small">Доходы по группам товаров и расходы по статьям</div>
+            </div>
 
-        <div class="table-responsive">
-            <table class="pnl-table">
-                <thead>
-                    <tr>
-                        <th></th>
-                        @foreach($pnlMonths as $month)
-                            <th>{{ $month['label'] }}</th>
-                        @endforeach
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($pnlRows as $row)
-                        @if($row['type'] === 'spacer')
-                            <tr class="pnl-table__spacer">
-                                <td colspan="{{ count($pnlMonths) + 1 }}"></td>
-                            </tr>
-                        @elseif($row['type'] === 'title')
-                            <tr class="pnl-table__title-row">
-                                <td colspan="{{ count($pnlMonths) + 1 }}">{{ $row['label'] }}</td>
-                            </tr>
-                        @elseif($row['type'] === 'section')
-                            <tr class="pnl-table__section-row">
-                                <td>{{ $row['label'] }}</td>
-                                @foreach($pnlMonths as $month)
-                                    <td></td>
-                                @endforeach
-                            </tr>
-                        @elseif($row['type'] === 'subsection')
-                            <tr class="pnl-table__subsection">
-                                <td>{{ $row['label'] }}</td>
-                                @foreach($pnlMonths as $month)
-                                    <td></td>
-                                @endforeach
-                            </tr>
-                        @else
-                            <tr class="pnl-table__{{ $row['type'] }}">
-                                <td>{{ $row['label'] }}</td>
-                                @foreach($pnlMonths as $month)
-                                    <td class="pnl-table__amount">{{ $formatMoney($row['values'][$month['key']] ?? 0) }}</td>
-                                @endforeach
-                            </tr>
-                        @endif
-                    @empty
+            <div class="row g-3">
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Виручка</div><div class="fs-5 fw-bold text-primary">{{ $formatMoney($revenueTotal) }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">COGS</div><div class="fs-5 fw-bold text-light">{{ $formatMoney($cogsTotal) }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Валова прибуток</div><div class="fs-5 fw-bold {{ $grossProfitTotal >= 0 ? 'text-success' : 'text-danger' }}">{{ $formatMoney($grossProfitTotal) }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Маржа</div><div class="fs-5 fw-bold {{ $grossMarginTotal >= 0 ? 'text-warning' : 'text-danger' }}">{{ number_format((float) $grossMarginTotal, 1, '.', ' ') }}%</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">OPEX</div><div class="fs-5 fw-bold text-warning">{{ $formatMoney($operatingExpensesTotal) }} грн</div></div></div>
+                <div class="col-md-2"><div class="rounded border p-3 h-100"><div class="text-muted small mb-1">Чистий прибуток</div><div class="fs-5 fw-bold {{ $netProfit >= 0 ? 'text-success' : 'text-danger' }}">{{ $formatMoney($netProfit) }} грн</div></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm bg-transparent border-secondary">
+        <div class="card-body">
+            <h4 class="card-title mb-3 text-light">Детализация P&amp;L</h4>
+            <div class="table-responsive">
+                <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent financial-pnl-table">
+                    <thead class="table-dark">
                         <tr>
-                            <td colspan="{{ count($pnlMonths) + 1 }}" class="pnl-table__empty">
-                                Данных для P&amp;L за выбранный период не найдено.
-                            </td>
+                            <th>Статья</th>
+                            @foreach($pnlMonths as $month)
+                                <th class="text-end">{{ $month['label'] }}</th>
+                            @endforeach
                         </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @forelse($pnlRows as $row)
+                            @if($row['type'] === 'spacer')
+                                <tr class="financial-pnl-table__spacer">
+                                    <td colspan="{{ count($pnlMonths) + 1 }}"></td>
+                                </tr>
+                            @elseif($row['type'] === 'title')
+                                <tr class="table-active financial-pnl-table__title">
+                                    <td colspan="{{ count($pnlMonths) + 1 }}" class="fw-bold text-light">{{ $row['label'] }}</td>
+                                </tr>
+                            @elseif($row['type'] === 'section')
+                                <tr class="table-secondary financial-pnl-table__section">
+                                    <td class="fw-bold text-dark">{{ $row['label'] }}</td>
+                                    @foreach($pnlMonths as $month)
+                                        <td></td>
+                                    @endforeach
+                                </tr>
+                            @elseif($row['type'] === 'subsection')
+                                <tr class="financial-pnl-table__subsection">
+                                    <td class="fw-semibold text-light ps-4">{{ $row['label'] }}</td>
+                                    @foreach($pnlMonths as $month)
+                                        <td></td>
+                                    @endforeach
+                                </tr>
+                            @else
+                                <tr class="financial-pnl-table__{{ $row['type'] }}">
+                                    <td class="{{ $row['type'] === 'item' ? 'ps-5' : 'fw-bold' }}">{{ $row['label'] }}</td>
+                                    @foreach($pnlMonths as $month)
+                                        @php $value = (float) ($row['values'][$month['key']] ?? 0); @endphp
+                                        <td class="text-end {{ $value < 0 ? 'text-danger' : '' }}">{{ $formatMoney($value) }}</td>
+                                    @endforeach
+                                </tr>
+                            @endif
+                        @empty
+                            <tr>
+                                <td colspan="{{ count($pnlMonths) + 1 }}" class="text-muted">Данных для P&amp;L за выбранный период не найдено.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
 <style>
-    .pnl-page {
-        color: #000;
-    }
-
-    .pnl-sheet {
-        background: #fff;
-        border: 1px solid #111;
-        border-radius: 0;
-        padding: 18px;
-        box-shadow: none;
-    }
-
-    .pnl-report-head {
-        margin-bottom: 12px;
-        text-align: center;
-        color: #000;
-    }
-
-    .pnl-report-head h1 {
-        margin: 0 0 2px;
-        font-size: 1.28rem;
-        font-weight: 800;
-        line-height: 1.15;
-    }
-
-    .pnl-report-head div {
-        font-size: 0.95rem;
-        font-weight: 700;
-    }
-
-    .pnl-table {
-        width: 100%;
-        min-width: 760px;
+    .financial-pnl-table {
+        min-width: 860px;
         table-layout: fixed;
-        border-collapse: collapse;
-        background: #fff;
-        color: #000;
-        font-family: Arial, Helvetica, sans-serif;
-        font-size: 0.86rem;
-        line-height: 1.12;
     }
 
-    .pnl-table th,
-    .pnl-table td {
-        border: 1px solid #111;
-        padding: 2px 6px;
-        vertical-align: middle;
+    .financial-pnl-table th:first-child,
+    .financial-pnl-table td:first-child {
+        width: 44%;
     }
 
-    .pnl-table th:first-child,
-    .pnl-table td:first-child {
-        width: 58%;
-        text-align: left;
-    }
-
-    .pnl-table th {
-        background: #c9c9c9;
-        color: #000;
+    .financial-pnl-table__summary td {
         font-weight: 700;
-        text-align: right;
+        border-top: 2px solid rgba(255, 255, 255, 0.35);
     }
 
-    .pnl-table th:first-child {
-        background: #fff;
-    }
-
-    .pnl-table__amount {
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-    }
-
-    .pnl-table__section-row td {
-        background: #fff;
-        color: #000;
-        font-weight: 800;
-        font-size: 0.92rem;
-    }
-
-    .pnl-table__title-row td {
-        background: #fff;
-        padding: 6px;
-        color: #000;
-        text-align: left;
-        font-size: 0.92rem;
-        font-weight: 800;
-    }
-
-    .pnl-table__subsection td {
-        background: #fff;
+    .financial-pnl-table__total td {
         font-weight: 700;
     }
 
-    .pnl-table__subsection td:first-child,
-    .pnl-table__item td:first-child {
-        padding-left: 24px;
-    }
-
-    .pnl-table__item td {
-        background: #fff;
-        font-weight: 400;
-    }
-
-    .pnl-table__total td {
-        background: #fff;
-        font-weight: 800;
-    }
-
-    .pnl-table__summary td {
-        background: #fff;
-        color: #000;
-        border-top: 2px solid #111;
-        border-bottom: 2px solid #111;
-        font-weight: 800;
-    }
-
-    .pnl-table tbody tr:last-child td {
-        border: 3px solid #dc2626;
-    }
-
-    .pnl-table__spacer td {
-        height: 8px;
+    .financial-pnl-table__spacer td {
+        padding: 0.35rem 0;
         border: 0;
-        background: #fff;
-        padding: 0;
-    }
-
-    .pnl-table__empty {
-        padding: 14px;
-        text-align: center;
-        color: #6b7280;
-    }
-
-    @media (max-width: 768px) {
-        .pnl-sheet {
-            padding: 10px;
-        }
-
-        .pnl-table {
-            font-size: 0.78rem;
-        }
-
-        .pnl-table th,
-        .pnl-table td {
-            padding: 2px 5px;
-        }
+        background: transparent;
     }
 </style>
 @endsection
