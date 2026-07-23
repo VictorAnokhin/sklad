@@ -1174,6 +1174,11 @@ class Report extends Model
     {
         [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
         $turnovers = self::ledgerAccountTurnovers($fid, $dateFromUi, $dateToUi);
+        $pnlMonths = self::pnlMonths($dateFromUi, $dateToUi);
+        $monthlySnapshots = collect($pnlMonths)
+            ->mapWithKeys(fn ($month) => [
+                $month['key'] => self::financialPnlSnapshot($fid, $month['date_from'], $month['date_to']),
+            ]);
 
         $revenueTotal = (float) $turnovers
             ->where('type', 'income')
@@ -1197,11 +1202,14 @@ class Report extends Model
         $operatingExpensesTotal = (float) $operatingExpensesByType->sum('expense_sum');
         $grossProfitTotal = $revenueTotal - $cogsTotal;
         $netProfit = $grossProfitTotal - $operatingExpensesTotal;
+        $pnlRows = self::financialPnlTableRows($pnlMonths, $monthlySnapshots);
 
         return [
             'dateFrom' => $dateFromUi,
             'dateTo' => $dateToUi,
             'monthLabel' => self::periodLabel($dateFromUi, $dateToUi),
+            'pnlMonths' => $pnlMonths,
+            'pnlRows' => $pnlRows,
             'revenueTotal' => $revenueTotal,
             'cogsTotal' => $cogsTotal,
             'grossProfitTotal' => $grossProfitTotal,
@@ -1210,6 +1218,219 @@ class Report extends Model
             'netProfit' => $netProfit,
             'operatingExpensesByType' => $operatingExpensesByType,
         ];
+    }
+
+    private static function pnlMonths(string $dateFromUi, string $dateToUi): array
+    {
+        $start = Carbon::createFromFormat('Y-m-d', $dateFromUi)->startOfMonth();
+        $end = Carbon::createFromFormat('Y-m-d', $dateToUi)->startOfMonth();
+        $periodStart = Carbon::createFromFormat('Y-m-d', $dateFromUi)->startOfDay();
+        $periodEnd = Carbon::createFromFormat('Y-m-d', $dateToUi)->endOfDay();
+        $months = [];
+
+        while ($start->lte($end)) {
+            $monthStart = $start->copy()->startOfMonth();
+            $monthEnd = $start->copy()->endOfMonth();
+            $boundedStart = $monthStart->lt($periodStart) ? $periodStart->copy() : $monthStart;
+            $boundedEnd = $monthEnd->gt($periodEnd) ? $periodEnd->copy() : $monthEnd;
+
+            $months[] = [
+                'key' => $start->format('Y-m'),
+                'label' => self::pnlMonthLabel($start),
+                'date_from' => $boundedStart->format('Y-m-d'),
+                'date_to' => $boundedEnd->format('Y-m-d'),
+            ];
+
+            $start->addMonth();
+        }
+
+        return $months;
+    }
+
+    private static function pnlMonthLabel(Carbon $date): string
+    {
+        $months = [
+            1 => 'январь',
+            2 => 'февраль',
+            3 => 'март',
+            4 => 'апрель',
+            5 => 'май',
+            6 => 'июнь',
+            7 => 'июль',
+            8 => 'август',
+            9 => 'сентябрь',
+            10 => 'октябрь',
+            11 => 'ноябрь',
+            12 => 'декабрь',
+        ];
+
+        return $months[(int) $date->format('n')] ?? $date->format('m.Y');
+    }
+
+    private static function financialPnlSnapshot(string $fid, string $dateFromUi, string $dateToUi): array
+    {
+        $turnovers = self::ledgerAccountTurnovers($fid, $dateFromUi, $dateToUi);
+        $income = self::pnlBucket($turnovers, fn ($item) => $item->type === 'income', fn ($item) => (float) $item->credit - (float) $item->debit);
+        $variableExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '902'), fn ($item) => (float) $item->debit - (float) $item->credit);
+        $productionExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '91'), fn ($item) => (float) $item->debit - (float) $item->credit);
+        $administrativeExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '92'), fn ($item) => (float) $item->debit - (float) $item->credit);
+        $commercialExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '93'), fn ($item) => (float) $item->debit - (float) $item->credit);
+        $otherIndirectExpenses = self::pnlBucket($turnovers, function ($item) {
+            $code = (string) $item->code;
+
+            return $item->type === 'expense'
+                && ! str_starts_with($code, '902')
+                && ! str_starts_with($code, '91')
+                && ! str_starts_with($code, '92')
+                && ! str_starts_with($code, '93');
+        }, fn ($item) => (float) $item->debit - (float) $item->credit);
+
+        $revenue = array_sum(array_column($income, 'amount'));
+        $variableTotal = array_sum(array_column($variableExpenses, 'amount'));
+        $marginalIncome = $revenue - $variableTotal;
+        $productionTotal = array_sum(array_column($productionExpenses, 'amount'));
+        $grossProfit = $marginalIncome - $productionTotal;
+        $indirectTotal = array_sum(array_column($administrativeExpenses, 'amount'))
+            + array_sum(array_column($commercialExpenses, 'amount'))
+            + array_sum(array_column($otherIndirectExpenses, 'amount'));
+        $operatingProfit = $grossProfit - $indirectTotal;
+
+        return [
+            'income' => $income,
+            'variable_expenses' => $variableExpenses,
+            'production_expenses' => $productionExpenses,
+            'administrative_expenses' => $administrativeExpenses,
+            'commercial_expenses' => $commercialExpenses,
+            'other_indirect_expenses' => $otherIndirectExpenses,
+            'totals' => [
+                'revenue' => $revenue,
+                'variable_expenses' => $variableTotal,
+                'marginal_income' => $marginalIncome,
+                'production_expenses' => $productionTotal,
+                'gross_profit' => $grossProfit,
+                'indirect_expenses' => $indirectTotal,
+                'operating_profit' => $operatingProfit,
+                'net_profit' => $operatingProfit,
+            ],
+        ];
+    }
+
+    private static function pnlBucket($turnovers, callable $filter, callable $amountResolver): array
+    {
+        return $turnovers
+            ->filter($filter)
+            ->mapWithKeys(function ($item) use ($amountResolver) {
+                $amount = (float) $amountResolver($item);
+
+                return [
+                    (string) $item->code => [
+                        'label' => trim((string) $item->name) !== '' ? (string) $item->name : (string) $item->code,
+                        'amount' => $amount,
+                    ],
+                ];
+            })
+            ->filter(fn ($item) => abs((float) $item['amount']) > 0.0001)
+            ->all();
+    }
+
+    private static function financialPnlTableRows(array $pnlMonths, $monthlySnapshots): array
+    {
+        $rows = [];
+        $rows[] = self::pnlSectionRow('Доходы');
+        $rows = array_merge($rows, self::pnlAccountRows($pnlMonths, $monthlySnapshots, 'income'));
+        $rows[] = self::pnlTotalRow('Выручка', $pnlMonths, $monthlySnapshots, 'revenue', 'summary');
+        $rows[] = self::pnlTitleRow('Расходы');
+        $rows[] = self::pnlSectionRow('Переменные расходы');
+        $rows = array_merge($rows, self::pnlAccountRows($pnlMonths, $monthlySnapshots, 'variable_expenses'));
+        $rows[] = self::pnlTotalRow('Итого (расходы)', $pnlMonths, $monthlySnapshots, 'variable_expenses');
+        $rows[] = self::pnlTotalRow('Маржинальный доход', $pnlMonths, $monthlySnapshots, 'marginal_income', 'summary');
+        $rows[] = self::pnlSpacerRow();
+        $rows[] = self::pnlSectionRow('Общепроизводственные расходы');
+        $rows = array_merge($rows, self::pnlAccountRows($pnlMonths, $monthlySnapshots, 'production_expenses'));
+        $rows[] = self::pnlTotalRow('Итого', $pnlMonths, $monthlySnapshots, 'production_expenses');
+        $rows[] = self::pnlTotalRow('Валовая прибыль', $pnlMonths, $monthlySnapshots, 'gross_profit', 'summary');
+        $rows[] = self::pnlSpacerRow();
+        $rows[] = self::pnlSectionRow('Косвенные расходы');
+        $rows = array_merge($rows, self::pnlSubsectionWithRows('Административные', $pnlMonths, $monthlySnapshots, 'administrative_expenses'));
+        $rows = array_merge($rows, self::pnlSubsectionWithRows('Коммерческие', $pnlMonths, $monthlySnapshots, 'commercial_expenses'));
+        $rows = array_merge($rows, self::pnlSubsectionWithRows('Прочие', $pnlMonths, $monthlySnapshots, 'other_indirect_expenses'));
+        $rows[] = self::pnlTotalRow('Операционная прибыль (EBITDA)', $pnlMonths, $monthlySnapshots, 'operating_profit', 'summary');
+        $rows[] = self::pnlSpacerRow();
+        $rows[] = self::pnlTotalRow('Чистая прибыль', $pnlMonths, $monthlySnapshots, 'net_profit', 'summary');
+
+        return $rows;
+    }
+
+    private static function pnlAccountRows(array $pnlMonths, $monthlySnapshots, string $bucket): array
+    {
+        $labels = [];
+        foreach ($monthlySnapshots as $snapshot) {
+            foreach (($snapshot[$bucket] ?? []) as $code => $item) {
+                $labels[$code] = $item['label'];
+            }
+        }
+
+        ksort($labels);
+
+        return collect($labels)
+            ->map(function ($label, $code) use ($pnlMonths, $monthlySnapshots, $bucket) {
+                $values = [];
+                foreach ($pnlMonths as $month) {
+                    $values[$month['key']] = (float) ($monthlySnapshots->get($month['key'])[$bucket][$code]['amount'] ?? 0);
+                }
+
+                return [
+                    'type' => 'item',
+                    'label' => $label,
+                    'values' => $values,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private static function pnlSubsectionWithRows(string $label, array $pnlMonths, $monthlySnapshots, string $bucket): array
+    {
+        $rows = self::pnlAccountRows($pnlMonths, $monthlySnapshots, $bucket);
+        if (empty($rows)) {
+            return [];
+        }
+
+        return array_merge([self::pnlSubsectionRow($label)], $rows);
+    }
+
+    private static function pnlTotalRow(string $label, array $pnlMonths, $monthlySnapshots, string $totalKey, string $type = 'total'): array
+    {
+        $values = [];
+        foreach ($pnlMonths as $month) {
+            $values[$month['key']] = (float) ($monthlySnapshots->get($month['key'])['totals'][$totalKey] ?? 0);
+        }
+
+        return [
+            'type' => $type,
+            'label' => $label,
+            'values' => $values,
+        ];
+    }
+
+    private static function pnlSectionRow(string $label): array
+    {
+        return ['type' => 'section', 'label' => $label, 'values' => []];
+    }
+
+    private static function pnlTitleRow(string $label): array
+    {
+        return ['type' => 'title', 'label' => $label, 'values' => []];
+    }
+
+    private static function pnlSubsectionRow(string $label): array
+    {
+        return ['type' => 'subsection', 'label' => $label, 'values' => []];
+    }
+
+    private static function pnlSpacerRow(): array
+    {
+        return ['type' => 'spacer', 'label' => '', 'values' => []];
     }
 
     public static function balanceSheet(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
