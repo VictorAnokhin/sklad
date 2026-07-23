@@ -1270,7 +1270,10 @@ class Report extends Model
     private static function financialPnlSnapshot(string $fid, string $dateFromUi, string $dateToUi): array
     {
         $turnovers = self::ledgerAccountTurnovers($fid, $dateFromUi, $dateToUi);
-        $income = self::pnlBucket($turnovers, fn ($item) => $item->type === 'income', fn ($item) => (float) $item->credit - (float) $item->debit);
+        $income = self::pnlSalesCategoryIncome($fid, $dateFromUi, $dateToUi);
+        if (empty($income)) {
+            $income = self::pnlBucket($turnovers, fn ($item) => $item->type === 'income', fn ($item) => (float) $item->credit - (float) $item->debit);
+        }
         $variableExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '902'), fn ($item) => (float) $item->debit - (float) $item->credit);
         $productionExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '91'), fn ($item) => (float) $item->debit - (float) $item->credit);
         $administrativeExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '92'), fn ($item) => (float) $item->debit - (float) $item->credit);
@@ -1321,15 +1324,37 @@ class Report extends Model
             ->filter($filter)
             ->mapWithKeys(function ($item) use ($amountResolver) {
                 $amount = (float) $amountResolver($item);
+                $name = trim((string) $item->name);
+                $code = trim((string) $item->code);
 
                 return [
                     (string) $item->code => [
-                        'label' => trim((string) $item->name) !== '' ? (string) $item->name : (string) $item->code,
+                        'label' => $name !== '' && $code !== '' ? "{$code} {$name}" : ($name !== '' ? $name : $code),
                         'amount' => $amount,
                     ],
                 ];
             })
             ->filter(fn ($item) => abs((float) $item['amount']) > 0.0001)
+            ->all();
+    }
+
+    private static function pnlSalesCategoryIncome(string $fid, string $dateFromUi, string $dateToUi): array
+    {
+        $dateFromLegacy = Carbon::createFromFormat('Y-m-d', $dateFromUi)->format('d-m-Y');
+        $dateToLegacy = Carbon::createFromFormat('Y-m-d', $dateToUi)->format('d-m-Y');
+
+        return self::salesLineItems($fid, $dateFromLegacy, $dateToLegacy)
+            ->groupBy(fn ($item) => trim((string) ($item->category_name ?? '')) ?: 'Без категорії')
+            ->mapWithKeys(function ($items, $categoryName) {
+                return [
+                    (string) $categoryName => [
+                        'label' => 'Продажи: ' . (string) $categoryName,
+                        'amount' => (float) $items->sum(fn ($item) => (float) ($item->revenue ?? 0)),
+                    ],
+                ];
+            })
+            ->filter(fn ($item) => abs((float) $item['amount']) > 0.0001)
+            ->sortKeys()
             ->all();
     }
 

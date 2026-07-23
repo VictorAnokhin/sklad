@@ -7,7 +7,7 @@
 
 @section('content')
 @php
-    $formatMoney = static fn ($value) => number_format((float) $value, 0, '.', ' ') . ' грн';
+    $formatMoney = static fn ($value) => number_format((float) $value, 2, ',', ' ');
     $pnlMonths = $pnlMonths ?? [];
     $pnlRows = $pnlRows ?? [];
 @endphp
@@ -19,18 +19,18 @@
     ])
 
     <div class="pnl-sheet">
-        <div class="pnl-sheet__title">
-            <span>P&amp;L</span>
-            <small>{{ $monthLabel }}</small>
+        <div class="pnl-report-head">
+            <h1>Отчет о прибылях и убытках</h1>
+            <div>За период: {{ $monthLabel }}</div>
         </div>
 
         <div class="table-responsive">
             <table class="pnl-table">
                 <thead>
                     <tr>
-                        <th>Месяц</th>
+                        <th></th>
                         @foreach($pnlMonths as $month)
-                            <th class="pnl-table__amount">{{ $month['label'] }}</th>
+                            <th>{{ $month['label'] }}</th>
                         @endforeach
                     </tr>
                 </thead>
@@ -48,7 +48,7 @@
                             <tr class="pnl-table__section-row">
                                 <td>{{ $row['label'] }}</td>
                                 @foreach($pnlMonths as $month)
-                                    <td class="pnl-table__amount">{{ $month['label'] }}</td>
+                                    <td></td>
                                 @endforeach
                             </tr>
                         @elseif($row['type'] === 'subsection')
@@ -68,7 +68,7 @@
                         @endif
                     @empty
                         <tr>
-                            <td colspan="{{ count($pnlMonths) + 1 }}" class="text-center text-muted py-4">
+                            <td colspan="{{ count($pnlMonths) + 1 }}" class="pnl-table__empty">
                                 Данных для P&amp;L за выбранный период не найдено.
                             </td>
                         </tr>
@@ -81,73 +81,69 @@
 
 <style>
     .pnl-page {
-        color: #111827;
+        color: #000;
     }
 
     .pnl-sheet {
-        background: #f7f7f7;
-        border: 1px solid rgba(148, 163, 184, 0.25);
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+        background: #fff;
+        border: 1px solid #111;
+        border-radius: 0;
+        padding: 18px;
+        box-shadow: none;
     }
 
-    .pnl-sheet__title {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 18px;
-        color: #111827;
-    }
-
-    .pnl-sheet__title span {
-        min-width: 180px;
-        border-radius: 10px;
-        background: #4f5489;
-        color: #fff;
-        padding: 7px 22px;
+    .pnl-report-head {
+        margin-bottom: 12px;
         text-align: center;
-        font-size: 1.2rem;
-        font-weight: 800;
-        line-height: 1.1;
+        color: #000;
     }
 
-    .pnl-sheet__title small {
-        color: #6b7280;
-        font-weight: 600;
+    .pnl-report-head h1 {
+        margin: 0 0 2px;
+        font-size: 1.28rem;
+        font-weight: 800;
+        line-height: 1.15;
+    }
+
+    .pnl-report-head div {
+        font-size: 0.95rem;
+        font-weight: 700;
     }
 
     .pnl-table {
         width: 100%;
-        min-width: 860px;
+        min-width: 760px;
         table-layout: fixed;
         border-collapse: collapse;
         background: #fff;
-        color: #111;
-        font-size: 1rem;
+        color: #000;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 0.86rem;
+        line-height: 1.12;
     }
 
     .pnl-table th,
     .pnl-table td {
-        border: 1px solid #d1d5db;
-        padding: 9px 12px;
+        border: 1px solid #111;
+        padding: 2px 6px;
         vertical-align: middle;
     }
 
     .pnl-table th:first-child,
     .pnl-table td:first-child {
-        width: 47%;
-        border-right-color: #6b7280;
-        font-weight: 800;
+        width: 58%;
         text-align: left;
     }
 
     .pnl-table th {
-        background: #13b800;
-        color: #fff;
-        font-weight: 900;
-        font-size: 1.05rem;
+        background: #c9c9c9;
+        color: #000;
+        font-weight: 700;
+        text-align: right;
+    }
+
+    .pnl-table th:first-child {
+        background: #fff;
     }
 
     .pnl-table__amount {
@@ -157,80 +153,78 @@
     }
 
     .pnl-table__section-row td {
-        background: #13b800;
-        color: #fff;
-        font-weight: 900;
-        font-size: 1.05rem;
-    }
-
-    .pnl-table__section-row .pnl-table__amount {
-        text-align: center;
+        background: #fff;
+        color: #000;
+        font-weight: 800;
+        font-size: 0.92rem;
     }
 
     .pnl-table__title-row td {
-        border-left-color: transparent;
-        border-right-color: transparent;
-        background: #f7f7f7;
-        padding: 22px 12px 14px;
-        color: #111;
-        text-align: center;
-        font-size: 1.35rem;
-        font-weight: 500;
+        background: #fff;
+        padding: 6px;
+        color: #000;
+        text-align: left;
+        font-size: 0.92rem;
+        font-weight: 800;
+    }
+
+    .pnl-table__subsection td {
+        background: #fff;
+        font-weight: 700;
+    }
+
+    .pnl-table__subsection td:first-child,
+    .pnl-table__item td:first-child {
+        padding-left: 24px;
     }
 
     .pnl-table__item td {
         background: #fff;
-        font-weight: 600;
+        font-weight: 400;
     }
 
     .pnl-table__total td {
-        background: #f5f5f5;
-        border-top-color: #9ca3af;
-        font-weight: 900;
-    }
-
-    .pnl-table__subsection td {
-        background: #d6d6d6;
-        font-weight: 900;
+        background: #fff;
+        font-weight: 800;
     }
 
     .pnl-table__summary td {
-        background: #9b9b9b;
-        color: #050505;
-        border-color: #9ca3af;
-        font-weight: 900;
+        background: #fff;
+        color: #000;
+        border-top: 2px solid #111;
+        border-bottom: 2px solid #111;
+        font-weight: 800;
+    }
+
+    .pnl-table tbody tr:last-child td {
+        border: 3px solid #dc2626;
     }
 
     .pnl-table__spacer td {
-        height: 22px;
+        height: 8px;
         border: 0;
-        background: #f7f7f7;
+        background: #fff;
         padding: 0;
+    }
+
+    .pnl-table__empty {
+        padding: 14px;
+        text-align: center;
+        color: #6b7280;
     }
 
     @media (max-width: 768px) {
         .pnl-sheet {
-            padding: 12px;
-        }
-
-        .pnl-sheet__title {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 8px;
-        }
-
-        .pnl-sheet__title span {
-            width: 100%;
-            min-width: 0;
+            padding: 10px;
         }
 
         .pnl-table {
-            font-size: 0.9rem;
+            font-size: 0.78rem;
         }
 
         .pnl-table th,
         .pnl-table td {
-            padding: 8px 10px;
+            padding: 2px 5px;
         }
     }
 </style>
