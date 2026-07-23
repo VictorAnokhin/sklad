@@ -527,6 +527,107 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalReportRuleEdit" tabindex="-1" aria-labelledby="modalReportRuleEditLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalReportRuleEditLabel">Редактирование правила</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <form id="report-rule-edit-form">
+                <div class="modal-body">
+                    <input type="hidden" id="report-rule-edit-id">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Группа</label>
+                            <select class="form-select form-select-sm" id="report-rule-edit-group" required>
+                                <option value="unit_economics">Unit economics</option>
+                                <option value="cash_flow">Cash flow</option>
+                                <option value="balance_sheet">Balance sheet</option>
+                                <option value="sales_lines">Sales lines</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Ключ правила</label>
+                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-key">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Тип</label>
+                            <select class="form-select form-select-sm" id="report-rule-edit-type" required>
+                                <option value="keyword">keyword</option>
+                                <option value="field_rule">field_rule</option>
+                                <option value="fallback">fallback</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Таблица</label>
+                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-source-table">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Поле</label>
+                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-source-field">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Оператор</label>
+                            <select class="form-select form-select-sm" id="report-rule-edit-operator" required>
+                                <option value="contains">contains</option>
+                                <option value="starts_with">starts_with</option>
+                                <option value="equals">equals</option>
+                                <option value="fallback">fallback</option>
+                                <option value="coalesce_order">coalesce_order</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Значение для поиска</label>
+                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-match-value" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Целевая категория</label>
+                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-target-value">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Тип документа</label>
+                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-document-type">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Направление</label>
+                            <select class="form-select form-select-sm" id="report-rule-edit-direction">
+                                <option value="">—</option>
+                                <option value="inflow">inflow</option>
+                                <option value="outflow">outflow</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Область</label>
+                            <select class="form-select form-select-sm" id="report-rule-edit-scope">
+                                <option value="local">Текущий проект</option>
+                                <option value="global">Глобально</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Приоритет</label>
+                            <input type="number" class="form-control form-control-sm" id="report-rule-edit-priority" min="0">
+                        </div>
+                        <div class="col-md-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="report-rule-edit-active" checked>
+                                <label class="form-check-label" for="report-rule-edit-active">Активно</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="btn-report-rule-edit-delete">Удалить</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-sm btn-success">Сохранить</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <style>
     #modalAccounts .accounts-modal-dialog {
         width: min(96vw, 1680px);
@@ -2028,6 +2129,14 @@
         vertical-align: middle;
     }
 
+    .report-rules-table tbody tr.report-rule-row {
+        cursor: pointer;
+    }
+
+    .report-rules-table tbody tr.report-rule-row:hover {
+        background: rgba(251, 191, 36, 0.12);
+    }
+
     .company-meta {
         font-size: 0.85rem;
         color: #aab4c8;
@@ -3515,8 +3624,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const empty = document.getElementById('report-rules-empty');
         const addBtn = document.getElementById('btn-report-rule-add');
         const cancelBtn = document.getElementById('btn-report-rule-cancel');
+        const editModal = document.getElementById('modalReportRuleEdit');
+        const editBootstrapModal = editModal ? new bootstrap.Modal(editModal) : null;
+        const editForm = document.getElementById('report-rule-edit-form');
+        const editDeleteBtn = document.getElementById('btn-report-rule-edit-delete');
 
-        if (!modal || !tbody || !formArea || !form || !addBtn || !cancelBtn) {
+        if (!modal || !tbody || !formArea || !form || !addBtn || !cancelBtn || !editModal || !editBootstrapModal || !editForm || !editDeleteBtn) {
             return;
         }
 
@@ -3549,84 +3662,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tbody.addEventListener('click', (event) => {
             const btn = event.target.closest('.report-rule-action');
-            if (!btn) {
+            if (btn) {
+                event.stopPropagation();
+                openReportRuleEdit(btn.dataset.id);
                 return;
             }
 
-            const id = btn.dataset.id;
-            if (btn.dataset.action === 'edit') {
-                fetch(`/settings/report-rules/${encodeURIComponent(id)}`)
-                    .then((response) => response.json())
-                    .then((item) => {
-                        fillReportRuleForm(item);
-                        showReportRuleForm();
-                    })
-                    .catch(() => alert('Не удалось загрузить правило'));
+            const row = event.target.closest('.report-rule-row');
+            if (!row || !row.dataset.id) {
+                return;
             }
 
-            if (btn.dataset.action === 'delete') {
-                if (!confirm('Удалить правило?')) {
-                    return;
-                }
+            openReportRuleEdit(row.dataset.id);
+        });
 
-                fetch(`/settings/report-rules/${encodeURIComponent(id)}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                })
-                    .then((response) => response.json())
-                    .then((data) => {
-                        if (!data.success) {
-                            alert(data.message || 'Не удалось удалить правило');
-                            return;
-                        }
-                        loadReportRules();
-                    })
-                    .catch(() => alert('Не удалось удалить правило'));
+        editForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const id = valueOf('report-rule-edit-id');
+            if (!id) {
+                return;
             }
+
+            saveReportRule(id, payloadFromPrefix('report-rule-edit'))
+                .then((ok) => {
+                    if (!ok) {
+                        return;
+                    }
+                    editBootstrapModal.hide();
+                    loadReportRules();
+                });
+        });
+
+        editDeleteBtn.addEventListener('click', () => {
+            const id = valueOf('report-rule-edit-id');
+            if (!id || !confirm('Удалить правило?')) {
+                return;
+            }
+
+            deleteReportRule(id)
+                .then((ok) => {
+                    if (!ok) {
+                        return;
+                    }
+                    editBootstrapModal.hide();
+                    loadReportRules();
+                });
         });
 
         form.addEventListener('submit', (event) => {
             event.preventDefault();
             const id = valueOf('report-rule-id');
-            const payload = {
-                rule_group: valueOf('report-rule-group'),
-                rule_key: valueOf('report-rule-key'),
-                rule_type: valueOf('report-rule-type'),
-                source_table: valueOf('report-rule-source-table'),
-                source_field: valueOf('report-rule-source-field'),
-                operator: valueOf('report-rule-operator'),
-                match_value: valueOf('report-rule-match-value'),
-                target_value: valueOf('report-rule-target-value'),
-                document_type: valueOf('report-rule-document-type'),
-                direction: valueOf('report-rule-direction'),
-                priority: parseInt(valueOf('report-rule-priority'), 10) || 0,
-                is_active: document.getElementById('report-rule-active').checked,
-                is_global: valueOf('report-rule-scope') === 'global',
-            };
-
-            fetch(id ? `/settings/report-rules/${encodeURIComponent(id)}` : '/settings/report-rules', {
-                method: id ? 'PUT' : 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-                body: JSON.stringify(payload),
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (!data.success) {
-                        alert(data.message || 'Не удалось сохранить правило');
+            saveReportRule(id, payloadFromPrefix('report-rule'))
+                .then((ok) => {
+                    if (!ok) {
                         return;
                     }
                     hideReportRuleForm();
                     loadReportRules();
-                })
-                .catch(() => alert('Не удалось сохранить правило'));
+                });
         });
 
         function loadReportRules() {
@@ -3652,6 +3745,8 @@ document.addEventListener('DOMContentLoaded', () => {
             updateReportRulesBadge(items.length);
             items.forEach((item) => {
                 const tr = document.createElement('tr');
+                tr.className = 'report-rule-row';
+                tr.dataset.id = item.id;
                 const status = item.is_active
                     ? '<span class="badge bg-success">активно</span>'
                     : '<span class="badge bg-secondary">выкл.</span>';
@@ -3670,29 +3765,114 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td title="${esc(item.document_type)}">${esc(item.document_type || '—')}</td>
                     <td>${status}${scope}</td>
                     <td class="text-end">
-                        <button type="button" class="btn btn-sm btn-outline-primary report-rule-action" data-action="edit" data-id="${esc(item.id)}">✏</button>
-                        <button type="button" class="btn btn-sm btn-outline-danger report-rule-action" data-action="delete" data-id="${esc(item.id)}">🗑</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary report-rule-action" data-id="${esc(item.id)}">Открыть</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
+        function openReportRuleEdit(id) {
+            if (!id) {
+                return;
+            }
+
+            fetch(`/settings/report-rules/${encodeURIComponent(id)}`)
+                .then((response) => response.json())
+                .then((item) => {
+                    fillReportRuleFormFields('report-rule-edit', item);
+                    document.getElementById('modalReportRuleEditLabel').textContent = `Редактирование правила #${item.id}`;
+                    editBootstrapModal.show();
+                })
+                .catch(() => alert('Не удалось загрузить правило'));
+        }
+
+        function saveReportRule(id, payload) {
+            return fetch(id ? `/settings/report-rules/${encodeURIComponent(id)}` : '/settings/report-rules', {
+                method: id ? 'PUT' : 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify(payload),
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (!data.success) {
+                        alert(data.message || 'Не удалось сохранить правило');
+                        return false;
+                    }
+
+                    return true;
+                })
+                .catch(() => {
+                    alert('Не удалось сохранить правило');
+                    return false;
+                });
+        }
+
+        function deleteReportRule(id) {
+            return fetch(`/settings/report-rules/${encodeURIComponent(id)}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (!data.success) {
+                        alert(data.message || 'Не удалось удалить правило');
+                        return false;
+                    }
+
+                    return true;
+                })
+                .catch(() => {
+                    alert('Не удалось удалить правило');
+                    return false;
+                });
+        }
+
         function fillReportRuleForm(item) {
-            setValue('report-rule-id', item.id || '');
-            setValue('report-rule-group', item.rule_group || 'unit_economics');
-            setValue('report-rule-key', item.rule_key || '');
-            setValue('report-rule-type', item.rule_type || 'keyword');
-            setValue('report-rule-source-table', item.source_table || '');
-            setValue('report-rule-source-field', item.source_field || '');
-            setValue('report-rule-operator', item.operator || 'contains');
-            setValue('report-rule-match-value', item.match_value || '');
-            setValue('report-rule-target-value', item.target_value || '');
-            setValue('report-rule-document-type', item.document_type || '');
-            setValue('report-rule-direction', item.direction || '');
-            setValue('report-rule-scope', item.is_global ? 'global' : 'local');
-            setValue('report-rule-priority', item.priority ?? 100);
-            document.getElementById('report-rule-active').checked = Boolean(item.is_active ?? true);
+            fillReportRuleFormFields('report-rule', item);
+        }
+
+        function fillReportRuleFormFields(prefix, item) {
+            setValue(`${prefix}-id`, item.id || '');
+            setValue(`${prefix}-group`, item.rule_group || 'unit_economics');
+            setValue(`${prefix}-key`, item.rule_key || '');
+            setValue(`${prefix}-type`, item.rule_type || 'keyword');
+            setValue(`${prefix}-source-table`, item.source_table || '');
+            setValue(`${prefix}-source-field`, item.source_field || '');
+            setValue(`${prefix}-operator`, item.operator || 'contains');
+            setValue(`${prefix}-match-value`, item.match_value || '');
+            setValue(`${prefix}-target-value`, item.target_value || '');
+            setValue(`${prefix}-document-type`, item.document_type || '');
+            setValue(`${prefix}-direction`, item.direction || '');
+            setValue(`${prefix}-scope`, item.is_global ? 'global' : 'local');
+            setValue(`${prefix}-priority`, item.priority ?? 100);
+            document.getElementById(`${prefix}-active`).checked = Boolean(item.is_active ?? true);
+        }
+
+        function payloadFromPrefix(prefix) {
+            return {
+                rule_group: valueOf(`${prefix}-group`),
+                rule_key: valueOf(`${prefix}-key`),
+                rule_type: valueOf(`${prefix}-type`),
+                source_table: valueOf(`${prefix}-source-table`),
+                source_field: valueOf(`${prefix}-source-field`),
+                operator: valueOf(`${prefix}-operator`),
+                match_value: valueOf(`${prefix}-match-value`),
+                target_value: valueOf(`${prefix}-target-value`),
+                document_type: valueOf(`${prefix}-document-type`),
+                direction: valueOf(`${prefix}-direction`),
+                priority: parseInt(valueOf(`${prefix}-priority`), 10) || 0,
+                is_active: document.getElementById(`${prefix}-active`).checked,
+                is_global: valueOf(`${prefix}-scope`) === 'global',
+            };
         }
 
         function showReportRuleForm() {
