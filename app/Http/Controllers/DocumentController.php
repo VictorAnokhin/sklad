@@ -751,14 +751,50 @@ class DocumentController extends Controller
                     : $year,
             ])
             : null;
+        $reportKeywordHints = $this->reportKeywordHintsForDocument($fid, $doc);
 
         return view('document.show', compact(
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
             'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions', 'loanRepaymentSchedule',
-            'loanRoUrl', 'loanRoIsIssued', 'isEducationProject', 'finishedProduct'
+            'loanRoUrl', 'loanRoIsIssued', 'isEducationProject', 'finishedProduct', 'reportKeywordHints'
         ));
+    }
+
+    private function reportKeywordHintsForDocument(string $fid, string $doc)
+    {
+        if (! Schema::hasTable('report_classification_rules')) {
+            return collect();
+        }
+
+        return DB::table('report_classification_rules')
+            ->where('rule_type', 'keyword')
+            ->where('is_active', true)
+            ->where(function ($query) use ($fid) {
+                $query->whereNull('firma')
+                    ->orWhere('firma', $fid);
+            })
+            ->where(function ($query) use ($doc) {
+                $query->whereNull('document_type')
+                    ->orWhere('document_type', '')
+                    ->orWhere('document_type', $doc);
+            })
+            ->orderBy('rule_group')
+            ->orderBy('priority')
+            ->orderBy('match_value')
+            ->get()
+            ->map(function ($item) {
+                return (object) [
+                    'keyword' => trim((string) ($item->match_value ?? '')),
+                    'group' => trim((string) ($item->rule_group ?? '')),
+                    'target' => trim((string) ($item->target_value ?? '')),
+                    'document_type' => trim((string) ($item->document_type ?? '')),
+                ];
+            })
+            ->filter(fn ($item) => $item->keyword !== '')
+            ->unique(fn ($item) => mb_strtolower($item->keyword . '|' . $item->target))
+            ->values();
     }
 
     public function print(Request $request)

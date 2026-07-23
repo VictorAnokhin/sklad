@@ -132,6 +132,14 @@ class SettingsController extends Controller
         $accountsCount = Schema::hasTable('accounts')
             ? (int) Account::query()->count()
             : 0;
+        $reportRulesCount = Schema::hasTable('report_classification_rules')
+            ? (int) DB::table('report_classification_rules')
+                ->where(function ($query) use ($fid) {
+                    $query->whereNull('firma')
+                        ->orWhere('firma', $fid);
+                })
+                ->count()
+            : 0;
         $sitemapService = app(SitemapService::class);
         $sitemapInfo = [
             'public_url' => $sitemapService->getPublicUrl($fid !== '' ? (int) $fid : null),
@@ -172,7 +180,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'reportRulesCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -488,6 +496,179 @@ class SettingsController extends Controller
 
         DB::table('conf')->where('id', $id)->delete();
         return response()->json(['success' => true]);
+    }
+
+    public function reportRulesIndex()
+    {
+        abort_unless(Schema::hasTable('report_classification_rules'), 404);
+
+        $fid = session('fid', '');
+        $items = DB::table('report_classification_rules')
+            ->where(function ($query) use ($fid) {
+                $query->whereNull('firma')
+                    ->orWhere('firma', $fid);
+            })
+            ->orderBy('rule_group')
+            ->orderBy('priority')
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($item) => $this->decorateReportRule($item));
+
+        return response()->json($items);
+    }
+
+    public function reportRulesShow($id)
+    {
+        abort_unless(Schema::hasTable('report_classification_rules'), 404);
+
+        $fid = session('fid', '');
+        $item = DB::table('report_classification_rules')
+            ->where('id', $id)
+            ->where(function ($query) use ($fid) {
+                $query->whereNull('firma')
+                    ->orWhere('firma', $fid);
+            })
+            ->first();
+
+        if (! $item) {
+            return response()->json(['message' => 'Не знайдено'], 404);
+        }
+
+        return response()->json($this->decorateReportRule($item));
+    }
+
+    public function reportRulesStore(Request $request)
+    {
+        abort_unless(Schema::hasTable('report_classification_rules'), 404);
+
+        $payload = $this->validateReportRule($request);
+        $payload['firma'] = $request->boolean('is_global') ? null : (string) session('fid', '');
+        $payload['created_at'] = now();
+        $payload['updated_at'] = now();
+
+        $id = DB::table('report_classification_rules')->insertGetId($payload);
+
+        return response()->json(['success' => true, 'id' => $id]);
+    }
+
+    public function reportRulesUpdate(Request $request, $id)
+    {
+        abort_unless(Schema::hasTable('report_classification_rules'), 404);
+
+        $fid = session('fid', '');
+        $exists = DB::table('report_classification_rules')
+            ->where('id', $id)
+            ->where(function ($query) use ($fid) {
+                $query->whereNull('firma')
+                    ->orWhere('firma', $fid);
+            })
+            ->first();
+
+        if (! $exists) {
+            return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+        }
+
+        $payload = $this->validateReportRule($request);
+        $payload['firma'] = $request->boolean('is_global') ? null : (string) session('fid', '');
+        $payload['updated_at'] = now();
+
+        DB::table('report_classification_rules')->where('id', $id)->update($payload);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function reportRulesDestroy($id)
+    {
+        abort_unless(Schema::hasTable('report_classification_rules'), 404);
+
+        $fid = session('fid', '');
+        $exists = DB::table('report_classification_rules')
+            ->where('id', $id)
+            ->where(function ($query) use ($fid) {
+                $query->whereNull('firma')
+                    ->orWhere('firma', $fid);
+            })
+            ->first();
+
+        if (! $exists) {
+            return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+        }
+
+        DB::table('report_classification_rules')->where('id', $id)->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    private function validateReportRule(Request $request): array
+    {
+        $validated = $request->validate([
+            'rule_group' => ['required', 'string', 'max:80'],
+            'rule_key' => ['nullable', 'string', 'max:120'],
+            'rule_type' => ['required', 'string', 'max:40'],
+            'source_table' => ['nullable', 'string', 'max:80'],
+            'source_field' => ['nullable', 'string', 'max:80'],
+            'operator' => ['required', 'string', 'max:40'],
+            'match_value' => ['required', 'string', 'max:255'],
+            'target_value' => ['nullable', 'string', 'max:120'],
+            'document_type' => ['nullable', 'string', 'max:40'],
+            'direction' => ['nullable', 'string', 'max:40'],
+            'priority' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'is_active' => ['nullable', 'boolean'],
+            'meta' => ['nullable', 'array'],
+        ]);
+
+        return [
+            'rule_group' => trim((string) $validated['rule_group']),
+            'rule_key' => trim((string) ($validated['rule_key'] ?? '')),
+            'rule_type' => trim((string) $validated['rule_type']),
+            'source_table' => trim((string) ($validated['source_table'] ?? '')),
+            'source_field' => trim((string) ($validated['source_field'] ?? '')),
+            'operator' => trim((string) $validated['operator']),
+            'match_value' => trim((string) $validated['match_value']),
+            'target_value' => trim((string) ($validated['target_value'] ?? '')),
+            'document_type' => trim((string) ($validated['document_type'] ?? '')),
+            'direction' => trim((string) ($validated['direction'] ?? '')),
+            'priority' => (int) ($validated['priority'] ?? 100),
+            'is_active' => (bool) ($validated['is_active'] ?? true),
+            'meta' => isset($validated['meta']) ? json_encode($validated['meta'], JSON_UNESCAPED_UNICODE) : null,
+        ];
+    }
+
+    private function decorateReportRule(object $item): array
+    {
+        return [
+            'id' => (int) $item->id,
+            'firma' => $item->firma,
+            'is_global' => $item->firma === null || $item->firma === '',
+            'rule_group' => (string) ($item->rule_group ?? ''),
+            'rule_key' => (string) ($item->rule_key ?? ''),
+            'rule_type' => (string) ($item->rule_type ?? ''),
+            'source_table' => (string) ($item->source_table ?? ''),
+            'source_field' => (string) ($item->source_field ?? ''),
+            'operator' => (string) ($item->operator ?? ''),
+            'match_value' => (string) ($item->match_value ?? ''),
+            'target_value' => (string) ($item->target_value ?? ''),
+            'document_type' => (string) ($item->document_type ?? ''),
+            'direction' => (string) ($item->direction ?? ''),
+            'priority' => (int) ($item->priority ?? 100),
+            'is_active' => (bool) ($item->is_active ?? false),
+            'meta' => $this->decodeJsonObject($item->meta ?? null),
+        ];
+    }
+
+    private function decodeJsonObject(mixed $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        if (is_array($value)) {
+            return $value;
+        }
+
+        $decoded = json_decode((string) $value, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     public function web3TokenSearch(Request $request, ZerionWalletService $zerionWalletService)

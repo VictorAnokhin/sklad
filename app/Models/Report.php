@@ -1769,6 +1769,8 @@ class Report extends Model
 
     private static function marketingSpend(string $fid, string $dateFromLegacy, string $dateToLegacy): float
     {
+        $keywords = self::reportKeywordRules($fid, 'unit_economics', 'marketing_spend_keywords', 'marketing_spend', 'RO');
+
         return (float) DB::table('z_document')
             ->where('firma', $fid)
             ->where('type', 'RO')
@@ -1777,8 +1779,8 @@ class Report extends Model
                 "STR_TO_DATE(data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
                 [$dateFromLegacy, $dateToLegacy]
             )
-            ->where(function ($query) {
-                foreach (['маркет', 'реклам', 'ads', 'google', 'meta', 'facebook', 'instagram', 'smm', 'seo', 'promo', 'просув'] as $keyword) {
+            ->where(function ($query) use ($keywords) {
+                foreach ($keywords as $keyword) {
                     $query->orWhereRaw('LOWER(COALESCE(content, "")) LIKE ?', ['%' . mb_strtolower($keyword) . '%']);
                 }
             })
@@ -1849,7 +1851,7 @@ class Report extends Model
 
     private static function financingFlow(string $fid, string $dateFromLegacy, string $dateToLegacy): array
     {
-        $keywords = ['кредит', 'loan', 'інвестор', 'investor', 'дивіденд', 'dividend', 'внесок', 'capital'];
+        $keywords = self::reportKeywordRules($fid, 'cash_flow', 'financing_keywords', 'financing');
 
         $inflows = (float) DB::table('z_document')
             ->where('firma', $fid)
@@ -1887,6 +1889,51 @@ class Report extends Model
             'loan_balance_proxy' => max($inflows - $outflows, 0.0),
             'assumption' => 'Фінансова діяльність визначається за PO/RO з ключовими словами: кредит, investor, dividend, capital.',
         ];
+    }
+
+    private static function reportKeywordRules(
+        string $fid,
+        string $ruleGroup,
+        string $ruleKey,
+        string $targetValue,
+        ?string $documentType = null
+    ): array {
+        $defaults = [
+            'marketing_spend_keywords' => ['маркет', 'реклам', 'ads', 'google', 'meta', 'facebook', 'instagram', 'smm', 'seo', 'promo', 'просув'],
+            'financing_keywords' => ['кредит', 'loan', 'інвестор', 'investor', 'дивіденд', 'dividend', 'внесок', 'capital'],
+        ];
+
+        if (! Schema::hasTable('report_classification_rules')) {
+            return $defaults[$ruleKey] ?? [];
+        }
+
+        $items = DB::table('report_classification_rules')
+            ->where('rule_group', $ruleGroup)
+            ->where('rule_key', $ruleKey)
+            ->where('rule_type', 'keyword')
+            ->where('target_value', $targetValue)
+            ->where('is_active', true)
+            ->where(function ($query) use ($fid) {
+                $query->whereNull('firma')
+                    ->orWhere('firma', $fid);
+            })
+            ->when($documentType !== null, function ($query) use ($documentType) {
+                $query->where(function ($typeQuery) use ($documentType) {
+                    $typeQuery->whereNull('document_type')
+                        ->orWhere('document_type', '')
+                        ->orWhere('document_type', $documentType);
+                });
+            })
+            ->orderByRaw('CASE WHEN firma IS NULL OR firma = "" THEN 1 ELSE 0 END')
+            ->orderBy('priority')
+            ->pluck('match_value')
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return ! empty($items) ? $items : ($defaults[$ruleKey] ?? []);
     }
 
     private static function salesMonthlyHistory(string $fid, int $months = 6, bool $byProduct = false)
