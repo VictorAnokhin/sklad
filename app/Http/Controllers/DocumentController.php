@@ -368,6 +368,56 @@ class DocumentController extends Controller
         });
     }
 
+    private function syncLinkedDocumentPostingState(string $docType, string $docId, string $companyId, bool $isPosted): void
+    {
+        if (! in_array($docType, ['PN', 'RN'], true)) {
+            return;
+        }
+
+        $sourceDocument = DB::table(Document::tableForType($docType))
+            ->where('id', $docId)
+            ->where('firma', $companyId)
+            ->where('type', $docType)
+            ->first();
+
+        if (! $sourceDocument) {
+            return;
+        }
+
+        $postedValue = $isPosted ? 1 : 0;
+        $parentType = $docType === 'PN' ? 'ZIN' : 'ZOUT';
+        $parentId = (int) ($sourceDocument->docid ?? 0);
+
+        if ($parentId > 0) {
+            DB::table('document')
+                ->where('id', $parentId)
+                ->where('firma', $companyId)
+                ->where('type', $parentType)
+                ->update(['provodka' => $postedValue]);
+        }
+
+        $targetCompanyId = $this->counterpartyProjectIdForDocument($sourceDocument, $companyId);
+        if ($targetCompanyId === null) {
+            return;
+        }
+
+        $marker = $this->projectMirrorMarker($companyId, $docType, $docId);
+        $targetRootType = $docType === 'PN' ? 'ZOUT' : 'ZIN';
+        $targetChildType = $docType === 'PN' ? 'RN' : 'PN';
+
+        DB::table('document')
+            ->where('firma', (string) $targetCompanyId)
+            ->where('type', $targetRootType)
+            ->where('content', 'like', '%'.$marker.'%')
+            ->update(['provodka' => $postedValue]);
+
+        DB::table('z_document')
+            ->where('firma', (string) $targetCompanyId)
+            ->where('type', $targetChildType)
+            ->where('content', 'like', '%'.$marker.'%')
+            ->update(['provodka' => $postedValue]);
+    }
+
     private function projectMirrorRows($lineItems, object $sourceDocument, int $sourceCompanyId, int $targetCompanyId, string $targetDocType): array
     {
         $counterpartyUserId = (int) ($sourceDocument->client1 ?? 0);
@@ -1546,7 +1596,8 @@ class DocumentController extends Controller
                             );
                         }
 
-                        Document::provodka($docId, $doc, $fid);
+                        $result = Document::provodka($docId, $doc, $fid);
+                        $this->syncLinkedDocumentPostingState($doc, $docId, $fid, (bool) ($result['isPosted'] ?? false));
 
                         return redirect()->back()->with('success', 'Проводку скасовано');
                     }
@@ -1586,6 +1637,7 @@ class DocumentController extends Controller
 
                     if ($desiredPosted !== $currentPosted) {
                         $result = Document::provodka($docId, $doc, $fid);
+                        $this->syncLinkedDocumentPostingState($doc, $docId, $fid, (bool) ($result['isPosted'] ?? false));
                         $message = ($result['isPosted'] ?? false)
                             ? 'Збережено та проведено'
                             : 'Збережено, проводку скасовано';
@@ -1630,7 +1682,10 @@ class DocumentController extends Controller
         $doc = $request->input('doc', session('doc', ''));
         $fid = (string) session('fid', '');
         try {
+            $this->ensureSourceParentOrder($doc, (string) $docId, $fid);
+            $this->syncProjectMirrorDocuments($doc, (string) $docId, $fid);
             $result = Document::provodka($docId, $doc, $fid);
+            $this->syncLinkedDocumentPostingState($doc, (string) $docId, $fid, (bool) ($result['isPosted'] ?? false));
         } catch (\Throwable $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }
