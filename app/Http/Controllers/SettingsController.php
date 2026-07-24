@@ -989,6 +989,8 @@ class SettingsController extends Controller
                 'c.id',
                 'c.name',
                 'c.doc',
+                'c.constanta',
+                'c.vision',
                 'c.debit_account_id',
                 'c.credit_account_id',
                 'da.code as debit_account_code',
@@ -2663,6 +2665,7 @@ class SettingsController extends Controller
 
         if ($type === 'reestr') {
             $data['constanta'] = (string) ($validated['constanta'] ?? '1') === '0' ? '0' : '1';
+            $data['vision'] = Conf::normalizeCashFlowActivity($validated['vision'] ?? 'operating');
         }
 
         if (Schema::hasColumn('conf', 'is_default') && in_array($type, ['sklads', 'oplata'], true)) {

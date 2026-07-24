@@ -1224,6 +1224,15 @@
                         </select>
                         <div class="form-text">Используется в отчете P&amp;L для разделения расходов.</div>
                     </div>
+                    <div class="mb-3" id="form-cash-flow-activity-row" style="display:none;">
+                        <label for="form-cash-flow-activity" class="form-label">Вид деятельности</label>
+                        <select class="form-select" id="form-cash-flow-activity">
+                            <option value="operating">Операционная</option>
+                            <option value="investing">Инвестиционная</option>
+                            <option value="financing">Финансовая</option>
+                        </select>
+                        <div class="form-text">Используется в отчете Cash Flow для классификации поступлений и выплат.</div>
+                    </div>
                     <div id="form-office-fields" style="display:none;">
                         <div class="row">
                             <div class="col-md-6 mb-3">
@@ -1271,6 +1280,7 @@
                             <th id="crud-address-column" class="conf-address-col" style="display:none;">Адреса</th>
                             <th id="crud-doc-column" class="conf-doc-col" style="display:none;">Документ</th>
                             <th id="crud-cost-type-column" class="conf-cost-type-col" style="display:none;">Тип затрат</th>
+                            <th id="crud-cash-flow-activity-column" class="conf-cash-flow-activity-col" style="display:none;">Вид деятельности</th>
                             <th class="text-end conf-actions-col">Дії</th>
                         </tr>
                     </thead>
@@ -3963,6 +3973,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const costTypeRow = document.getElementById('form-cost-type-row');
         const costTypeSelect = document.getElementById('form-cost-type');
         const costTypeColumn = document.getElementById('crud-cost-type-column');
+        const cashFlowActivityRow = document.getElementById('form-cash-flow-activity-row');
+        const cashFlowActivitySelect = document.getElementById('form-cash-flow-activity');
+        const cashFlowActivityColumn = document.getElementById('crud-cash-flow-activity-column');
         const officeFields = document.getElementById('form-office-fields');
         const phoneInput = document.getElementById('form-phone');
         const addressInput = document.getElementById('form-address');
@@ -4024,6 +4037,7 @@ document.addEventListener('DOMContentLoaded', () => {
             descriptionInput.value = '';
             setDocFlags('');
             setCostType('1');
+            setCashFlowActivity('operating');
             resetOfficeFields();
             if (defaultCheckbox) {
                 defaultCheckbox.checked = false;
@@ -4110,6 +4124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentType === 'reestr') {
                 payload.doc = getDocFlags();
                 payload.constanta = costTypeSelect.value || '1';
+                payload.vision = cashFlowActivitySelect.value || 'operating';
             }
 
             if (!payload.name) return;
@@ -4212,6 +4227,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         ? '<span class="badge bg-warning text-dark">Переменные</span>'
                         : '<span class="badge bg-secondary">Постоянные</span>')
                     : '';
+                const cashFlowActivityHtml = currentType === 'reestr'
+                    ? cashFlowActivityBadge(item.cash_flow_activity || item.vision || 'operating')
+                    : '';
                 const addressHtml = currentType === 'sklads'
                     ? escapeHtml(item.address || '—')
                     : '';
@@ -4261,6 +4279,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${currentType === 'sklads' ? `<td class="conf-address-col" title="${escapeHtml(item.address || '')}">${addressHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td class="conf-doc-col">${docHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td class="conf-cost-type-col">${costTypeHtml}</td>` : ''}
+                    ${currentType === 'reestr' ? `<td class="conf-cash-flow-activity-col">${cashFlowActivityHtml}</td>` : ''}
                     <td class="text-end conf-actions-col">
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}" title="${escapeHtml(_ts('crud.edit'))}">${editLabel}</button>
                         ${deleteButtonHtml}
@@ -4336,6 +4355,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     setDocFlags(item.doc || '');
                     setCostType(item.constanta ?? '1');
+                    setCashFlowActivity(item.cash_flow_activity || item.vision || 'operating');
                     phoneInput.value = item.phone || '';
                     addressInput.value = item.address || '';
                     googleMapInput.value = item.google_map || '';
@@ -4416,6 +4436,8 @@ document.addEventListener('DOMContentLoaded', () => {
             docColumn.style.display = isReestr ? '' : 'none';
             costTypeRow.style.display = isReestr ? 'block' : 'none';
             costTypeColumn.style.display = isReestr ? '' : 'none';
+            cashFlowActivityRow.style.display = isReestr ? 'block' : 'none';
+            cashFlowActivityColumn.style.display = isReestr ? '' : 'none';
             defaultRow.style.display = supportsDefault ? '' : 'none';
             defaultColumn.style.display = supportsDefault ? '' : 'none';
             currencyRow.style.display = hasCurrency ? 'block' : 'none';
@@ -4587,7 +4609,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return 6;
             }
             if (currentType === 'reestr') {
-                count += 2;
+                count += 3;
             }
             if (currentType === 'oplata' || currentType === 'deposit') {
                 count += 1;
@@ -4626,6 +4648,39 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             costTypeSelect.value = String(value ?? '1') === '0' ? '0' : '1';
+        }
+
+        function normalizeCashFlowActivity(value) {
+            const activity = String(value || '').trim();
+
+            return ['operating', 'investing', 'financing'].includes(activity) ? activity : 'operating';
+        }
+
+        function cashFlowActivityLabel(value) {
+            return {
+                operating: 'Операционная',
+                investing: 'Инвестиционная',
+                financing: 'Финансовая',
+            }[normalizeCashFlowActivity(value)];
+        }
+
+        function cashFlowActivityBadge(value) {
+            const activity = normalizeCashFlowActivity(value);
+            const badgeClass = {
+                operating: 'bg-success',
+                investing: 'bg-info text-dark',
+                financing: 'bg-primary',
+            }[activity];
+
+            return `<span class="badge ${badgeClass}">${escapeHtml(cashFlowActivityLabel(activity))}</span>`;
+        }
+
+        function setCashFlowActivity(value) {
+            if (!cashFlowActivitySelect) {
+                return;
+            }
+
+            cashFlowActivitySelect.value = normalizeCashFlowActivity(value);
         }
     }
 

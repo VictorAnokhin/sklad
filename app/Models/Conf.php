@@ -68,8 +68,26 @@ class Conf extends Model
         $item->credit_account_id = Schema::hasColumn('conf', 'credit_account_id') ? (int) ($item->credit_account_id ?? 0) : 0;
         $item->cost_type = (string) ($item->constanta ?? '1') === '1' ? 'variable' : 'fixed';
         $item->cost_type_label = $item->cost_type === 'variable' ? 'Переменные' : 'Постоянные';
+        $item->cash_flow_activity = self::normalizeCashFlowActivity($item->vision ?? '');
+        $item->cash_flow_activity_label = self::cashFlowActivityLabel($item->cash_flow_activity);
 
         return $item;
+    }
+
+    public static function normalizeCashFlowActivity(string|null $value): string
+    {
+        $activity = trim((string) $value);
+
+        return in_array($activity, ['operating', 'investing', 'financing'], true) ? $activity : 'operating';
+    }
+
+    public static function cashFlowActivityLabel(string|null $value): string
+    {
+        return match (self::normalizeCashFlowActivity($value)) {
+            'investing' => 'Инвестиционная',
+            'financing' => 'Финансовая',
+            default => 'Операционная',
+        };
     }
 
     public static function normalizeWeb3ChainIdToHex(string|int|null $value): ?string

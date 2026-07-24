@@ -1663,17 +1663,9 @@ class Report extends Model
         $openingCashBalance = self::debitBalanceByPrefix(self::ledgerAccountBalances($fid, $dateBeforePeriod), '301');
         $closingCashBalance = self::debitBalanceByPrefix(self::ledgerAccountBalances($fid, $dateToUi), '301');
 
-        $operating = $cashMovements->filter(
-            fn ($item) => str_contains((string) $item->reference_type, ':PO')
-                || str_contains((string) $item->reference_type, ':RO')
-        );
-        $investingRows = $cashMovements->filter(
-            fn ($item) => str_contains((string) $item->reference_type, ':PP')
-        );
-        $financingRows = $cashMovements->reject(
-            fn ($item) => $operating->contains('transaction_id', $item->transaction_id)
-                || $investingRows->contains('transaction_id', $item->transaction_id)
-        );
+        $operating = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'operating');
+        $investingRows = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'investing');
+        $financingRows = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'financing');
 
         $operatingInflows = (float) $operating->sum('debit');
         $operatingOutflows = (float) $operating->sum('credit');
@@ -1684,7 +1676,7 @@ class Report extends Model
         $financing = [
             'inflows' => (float) $financingRows->sum('debit'),
             'outflows' => (float) $financingRows->sum('credit'),
-            'assumption' => 'Класифікація побудована за бухгалтерськими транзакціями: PO/RO — операційні, PP — інвестиційні, інші рухи рахунку 301 — фінансові.',
+            'assumption' => 'Классификация построена по виду платежа документа: операционная, инвестиционная или финансовая деятельность. Если вид платежа не задан, используется тип документа: PO/RO/ZP/PPO — операционная, PP — инвестиционная, остальные движения счета 301 — финансовая.',
         ];
 
         $operatingNet = $operatingInflows - $operatingOutflows;
@@ -1748,6 +1740,39 @@ class Report extends Model
             'categoryForecasts' => $segmentForecasts['categories'],
             'channelForecasts' => $segmentForecasts['channels'],
         ];
+    }
+
+    private static function cashFlowActivity(object $item): string
+    {
+        $activity = trim((string) ($item->cash_flow_activity ?? ''));
+        if (in_array($activity, ['operating', 'investing', 'financing'], true)) {
+            return $activity;
+        }
+
+        $referenceType = (string) ($item->reference_type ?? '');
+        $documentType = strtoupper(trim((string) ($item->payment_document_type ?? '')));
+        if (in_array($documentType, ['PO', 'RO', 'ZP', 'PPO'], true)) {
+            return 'operating';
+        }
+
+        if ($documentType === 'PP') {
+            return 'investing';
+        }
+
+        if (
+            str_contains($referenceType, ':PO')
+            || str_contains($referenceType, ':RO')
+            || str_contains($referenceType, ':ZP')
+            || str_contains($referenceType, ':PPO')
+        ) {
+            return 'operating';
+        }
+
+        if (str_contains($referenceType, ':PP')) {
+            return 'investing';
+        }
+
+        return 'financing';
     }
 
     public static function purchasePlan(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
@@ -2974,6 +2999,21 @@ class Report extends Model
         $query = DB::table('entries as e')
             ->join('transactions as t', 't.id', '=', 'e.transaction_id')
             ->join('accounts as a', 'a.id', '=', 'e.account_id')
+            ->leftJoin('z_document as zd', function ($join) use ($fid) {
+                $join->on('zd.id', '=', 't.reference_id')
+                    ->where('t.reference_type', 'like', 'z_document:%')
+                    ->where('zd.firma', '=', $fid);
+            })
+            ->leftJoin('document as doc', function ($join) use ($fid) {
+                $join->on('doc.id', '=', 't.reference_id')
+                    ->where('t.reference_type', 'like', 'document:%')
+                    ->where('doc.firma', '=', $fid);
+            })
+            ->leftJoin('conf as payment_type', function ($join) use ($fid) {
+                $join->on('payment_type.id', '=', DB::raw('COALESCE(NULLIF(zd.reestr, \'\'), NULLIF(doc.reestr, \'\'))'))
+                    ->where('payment_type.type', '=', 'reestr')
+                    ->where('payment_type.firma', '=', $fid);
+            })
             ->where('e.company_id', (int) $fid)
             ->where('a.code', 'like', '301.%')
             ->whereBetween('t.date', [$dateFrom, $dateTo]);
@@ -2989,6 +3029,8 @@ class Report extends Model
                 'e.transaction_id',
                 't.reference_type',
                 't.reference_id',
+                DB::raw('COALESCE(zd.type, doc.type) as payment_document_type'),
+                DB::raw("CASE WHEN payment_type.vision IN ('operating', 'investing', 'financing') THEN payment_type.vision ELSE NULL END as cash_flow_activity"),
                 'e.debit',
                 'e.credit',
             ]);
