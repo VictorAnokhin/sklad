@@ -1659,6 +1659,9 @@ class Report extends Model
     {
         [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
         $cashMovements = self::ledgerCashMovements($fid, $dateFromUi, $dateToUi);
+        $dateBeforePeriod = Carbon::createFromFormat('Y-m-d', $dateFromUi)->subDay()->format('Y-m-d');
+        $openingCashBalance = self::debitBalanceByPrefix(self::ledgerAccountBalances($fid, $dateBeforePeriod), '301');
+        $closingCashBalance = self::debitBalanceByPrefix(self::ledgerAccountBalances($fid, $dateToUi), '301');
 
         $operating = $cashMovements->filter(
             fn ($item) => str_contains((string) $item->reference_type, ':PO')
@@ -1688,11 +1691,13 @@ class Report extends Model
         $investingNet = $investing['inflows'] - $investing['outflows'];
         $financingNet = $financing['inflows'] - $financing['outflows'];
         $netChange = $operatingNet + $investingNet + $financingNet;
+        $calculatedClosingCashBalance = $openingCashBalance + $netChange;
 
         return [
             'dateFrom' => $dateFromUi,
             'dateTo' => $dateToUi,
             'monthLabel' => self::periodLabel($dateFromUi, $dateToUi),
+            'openingCashBalance' => $openingCashBalance,
             'operatingInflows' => $operatingInflows,
             'operatingOutflows' => $operatingOutflows,
             'operatingNet' => $operatingNet,
@@ -1703,6 +1708,8 @@ class Report extends Model
             'financingOutflows' => $financing['outflows'],
             'financingNet' => $financingNet,
             'netCashFlow' => $netChange,
+            'calculatedClosingCashBalance' => $calculatedClosingCashBalance,
+            'closingCashBalance' => $closingCashBalance,
             'financingAssumption' => $financing['assumption'],
         ];
     }
