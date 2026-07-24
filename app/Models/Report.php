@@ -1676,7 +1676,7 @@ class Report extends Model
         $financing = [
             'inflows' => (float) $financingRows->sum('debit'),
             'outflows' => (float) $financingRows->sum('credit'),
-            'assumption' => 'Классификация построена по виду платежа документа: операционная, инвестиционная или финансовая деятельность. Если вид платежа не задан, используется тип документа: PO/RO/ZP/PPO — операционная, PP — инвестиционная, остальные движения счета 301 — финансовая.',
+            'assumption' => 'Классификация построена по виду платежа документа: операционная, инвестиционная или финансовая деятельность. Если вид платежа не задан, используется тип документа: PO/CPO/PPO/RO/CRO/PRO/ZP — операционная, PP — инвестиционная, остальные движения счета 301 — финансовая.',
         ];
 
         $operatingNet = $operatingInflows - $operatingOutflows;
@@ -1751,7 +1751,7 @@ class Report extends Model
 
         $referenceType = (string) ($item->reference_type ?? '');
         $documentType = strtoupper(trim((string) ($item->payment_document_type ?? '')));
-        if (in_array($documentType, ['PO', 'RO', 'ZP', 'PPO'], true)) {
+        if (in_array($documentType, ['PO', 'CPO', 'RO', 'CRO', 'ZP', 'PPO', 'PRO'], true)) {
             return 'operating';
         }
 
@@ -1761,9 +1761,12 @@ class Report extends Model
 
         if (
             str_contains($referenceType, ':PO')
+            || str_contains($referenceType, ':CPO')
             || str_contains($referenceType, ':RO')
+            || str_contains($referenceType, ':CRO')
             || str_contains($referenceType, ':ZP')
             || str_contains($referenceType, ':PPO')
+            || str_contains($referenceType, ':PRO')
         ) {
             return 'operating';
         }
