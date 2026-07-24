@@ -2661,6 +2661,10 @@ class SettingsController extends Controller
             'constanta' => (string) ($validated['constanta'] ?? '0'),
         ];
 
+        if ($type === 'reestr') {
+            $data['constanta'] = (string) ($validated['constanta'] ?? '1') === '0' ? '0' : '1';
+        }
+
         if (Schema::hasColumn('conf', 'is_default') && in_array($type, ['sklads', 'oplata'], true)) {
             $data['is_default'] = $request->boolean('is_default') ? 1 : 0;
         }

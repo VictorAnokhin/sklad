@@ -66,6 +66,8 @@ class Conf extends Model
         $item->doc_label = self::paymentDocLabel($item->doc);
         $item->debit_account_id = Schema::hasColumn('conf', 'debit_account_id') ? (int) ($item->debit_account_id ?? 0) : 0;
         $item->credit_account_id = Schema::hasColumn('conf', 'credit_account_id') ? (int) ($item->credit_account_id ?? 0) : 0;
+        $item->cost_type = (string) ($item->constanta ?? '1') === '1' ? 'variable' : 'fixed';
+        $item->cost_type_label = $item->cost_type === 'variable' ? 'Переменные' : 'Постоянные';
 
         return $item;
     }

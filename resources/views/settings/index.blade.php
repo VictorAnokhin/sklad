@@ -1216,6 +1216,14 @@
                         </div>
                         <div class="form-text">Для яких документів доступний цей вид платежу.</div>
                     </div>
+                    <div class="mb-3" id="form-cost-type-row" style="display:none;">
+                        <label for="form-cost-type" class="form-label">Тип затрат</label>
+                        <select class="form-select" id="form-cost-type">
+                            <option value="1">Переменные</option>
+                            <option value="0">Постоянные</option>
+                        </select>
+                        <div class="form-text">Используется в отчете P&amp;L для разделения расходов.</div>
+                    </div>
                     <div id="form-office-fields" style="display:none;">
                         <div class="row">
                             <div class="col-md-6 mb-3">
@@ -1262,6 +1270,7 @@
                             <th id="crud-phone-column" class="conf-phone-col" style="display:none;">Телефон</th>
                             <th id="crud-address-column" class="conf-address-col" style="display:none;">Адреса</th>
                             <th id="crud-doc-column" class="conf-doc-col" style="display:none;">Документ</th>
+                            <th id="crud-cost-type-column" class="conf-cost-type-col" style="display:none;">Тип затрат</th>
                             <th class="text-end conf-actions-col">Дії</th>
                         </tr>
                     </thead>
@@ -3951,6 +3960,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusColumn = document.getElementById('crud-status-column');
         const docRow = document.getElementById('form-doc-row');
         const docColumn = document.getElementById('crud-doc-column');
+        const costTypeRow = document.getElementById('form-cost-type-row');
+        const costTypeSelect = document.getElementById('form-cost-type');
+        const costTypeColumn = document.getElementById('crud-cost-type-column');
         const officeFields = document.getElementById('form-office-fields');
         const phoneInput = document.getElementById('form-phone');
         const addressInput = document.getElementById('form-address');
@@ -4011,6 +4023,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('form-status').value = currentType === 'tclient' ? '0' : '1';
             descriptionInput.value = '';
             setDocFlags('');
+            setCostType('1');
             resetOfficeFields();
             if (defaultCheckbox) {
                 defaultCheckbox.checked = false;
@@ -4096,6 +4109,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (currentType === 'reestr') {
                 payload.doc = getDocFlags();
+                payload.constanta = costTypeSelect.value || '1';
             }
 
             if (!payload.name) return;
@@ -4193,6 +4207,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const docHtml = currentType === 'reestr'
                     ? escapeHtml(item.doc_label || _ts('crud.all_documents'))
                     : '';
+                const costTypeHtml = currentType === 'reestr'
+                    ? (String(item.constanta ?? '1') === '1'
+                        ? '<span class="badge bg-warning text-dark">Переменные</span>'
+                        : '<span class="badge bg-secondary">Постоянные</span>')
+                    : '';
                 const addressHtml = currentType === 'sklads'
                     ? escapeHtml(item.address || '—')
                     : '';
@@ -4241,6 +4260,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="conf-status-col">${statusLabel}</td>
                     ${currentType === 'sklads' ? `<td class="conf-address-col" title="${escapeHtml(item.address || '')}">${addressHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td class="conf-doc-col">${docHtml}</td>` : ''}
+                    ${currentType === 'reestr' ? `<td class="conf-cost-type-col">${costTypeHtml}</td>` : ''}
                     <td class="text-end conf-actions-col">
                         <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}" title="${escapeHtml(_ts('crud.edit'))}">${editLabel}</button>
                         ${deleteButtonHtml}
@@ -4315,6 +4335,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         defaultCheckbox.checked = String(item.is_default ?? '0') === '1';
                     }
                     setDocFlags(item.doc || '');
+                    setCostType(item.constanta ?? '1');
                     phoneInput.value = item.phone || '';
                     addressInput.value = item.address || '';
                     googleMapInput.value = item.google_map || '';
@@ -4393,6 +4414,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasDescription = isCurrency;
             docRow.style.display = isReestr ? 'block' : 'none';
             docColumn.style.display = isReestr ? '' : 'none';
+            costTypeRow.style.display = isReestr ? 'block' : 'none';
+            costTypeColumn.style.display = isReestr ? '' : 'none';
             defaultRow.style.display = supportsDefault ? '' : 'none';
             defaultColumn.style.display = supportsDefault ? '' : 'none';
             currencyRow.style.display = hasCurrency ? 'block' : 'none';
@@ -4564,7 +4587,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return 6;
             }
             if (currentType === 'reestr') {
-                count += 1;
+                count += 2;
             }
             if (currentType === 'oplata' || currentType === 'deposit') {
                 count += 1;
@@ -4595,6 +4618,14 @@ document.addEventListener('DOMContentLoaded', () => {
             docCheckboxes.forEach((checkbox) => {
                 checkbox.checked = flags.includes(checkbox.value);
             });
+        }
+
+        function setCostType(value) {
+            if (!costTypeSelect) {
+                return;
+            }
+
+            costTypeSelect.value = String(value ?? '1') === '0' ? '0' : '1';
         }
     }
 

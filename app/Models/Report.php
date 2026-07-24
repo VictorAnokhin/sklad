@@ -1173,35 +1173,18 @@ class Report extends Model
     public static function financialPnl(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
     {
         [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
-        $turnovers = self::ledgerAccountTurnovers($fid, $dateFromUi, $dateToUi);
         $pnlMonths = self::pnlMonths($dateFromUi, $dateToUi);
         $monthlySnapshots = collect($pnlMonths)
             ->mapWithKeys(fn ($month) => [
                 $month['key'] => self::financialPnlSnapshot($fid, $month['date_from'], $month['date_to']),
             ]);
 
-        $revenueTotal = (float) $turnovers
-            ->where('type', 'income')
-            ->sum(fn ($item) => (float) $item->credit - (float) $item->debit);
-        $cogsTotal = (float) $turnovers
-            ->filter(fn ($item) => str_starts_with((string) $item->code, '902'))
-            ->sum(fn ($item) => (float) $item->debit - (float) $item->credit);
-        $operatingExpensesByType = $turnovers
-            ->filter(fn ($item) => $item->type === 'expense' && ! str_starts_with((string) $item->code, '902'))
-            ->map(function ($item) {
-                return (object) [
-                    'expense_name' => "{$item->code} | {$item->name}",
-                    'expense_sum' => (float) $item->debit - (float) $item->credit,
-                    'docs_count' => (int) $item->transactions_count,
-                ];
-            })
-            ->filter(fn ($item) => abs((float) $item->expense_sum) > 0.0001)
-            ->sortByDesc('expense_sum')
-            ->values();
-
-        $operatingExpensesTotal = (float) $operatingExpensesByType->sum('expense_sum');
+        $revenueTotal = (float) $monthlySnapshots->sum(fn ($snapshot) => (float) ($snapshot['totals']['revenue'] ?? 0));
+        $cogsTotal = (float) $monthlySnapshots->sum(fn ($snapshot) => (float) ($snapshot['totals']['variable_expenses'] ?? 0));
+        $operatingExpensesTotal = (float) $monthlySnapshots->sum(fn ($snapshot) => (float) ($snapshot['totals']['fixed_expenses'] ?? 0));
         $grossProfitTotal = $revenueTotal - $cogsTotal;
         $netProfit = $grossProfitTotal - $operatingExpensesTotal;
+        $operatingExpensesByType = collect();
         $pnlRows = self::financialPnlTableRows($pnlMonths, $monthlySnapshots);
 
         return [
@@ -1274,44 +1257,27 @@ class Report extends Model
         if (empty($income)) {
             $income = self::pnlBucket($turnovers, fn ($item) => $item->type === 'income', fn ($item) => (float) $item->credit - (float) $item->debit);
         }
-        $variableExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '902'), fn ($item) => (float) $item->debit - (float) $item->credit);
-        $productionExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '91'), fn ($item) => (float) $item->debit - (float) $item->credit);
-        $administrativeExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '92'), fn ($item) => (float) $item->debit - (float) $item->credit);
-        $commercialExpenses = self::pnlBucket($turnovers, fn ($item) => $item->type === 'expense' && str_starts_with((string) $item->code, '93'), fn ($item) => (float) $item->debit - (float) $item->credit);
-        $otherIndirectExpenses = self::pnlBucket($turnovers, function ($item) {
-            $code = (string) $item->code;
-
-            return $item->type === 'expense'
-                && ! str_starts_with($code, '902')
-                && ! str_starts_with($code, '91')
-                && ! str_starts_with($code, '92')
-                && ! str_starts_with($code, '93');
-        }, fn ($item) => (float) $item->debit - (float) $item->credit);
+        $cashExpenses = self::pnlPaymentTypeExpenses($fid, $dateFromUi, $dateToUi);
+        $variableExpenses = $cashExpenses['variable'];
+        $fixedExpenses = $cashExpenses['fixed'];
 
         $revenue = array_sum(array_column($income, 'amount'));
         $variableTotal = array_sum(array_column($variableExpenses, 'amount'));
         $marginalIncome = $revenue - $variableTotal;
-        $productionTotal = array_sum(array_column($productionExpenses, 'amount'));
-        $grossProfit = $marginalIncome - $productionTotal;
-        $indirectTotal = array_sum(array_column($administrativeExpenses, 'amount'))
-            + array_sum(array_column($commercialExpenses, 'amount'))
-            + array_sum(array_column($otherIndirectExpenses, 'amount'));
-        $operatingProfit = $grossProfit - $indirectTotal;
+        $fixedTotal = array_sum(array_column($fixedExpenses, 'amount'));
+        $operatingProfit = $marginalIncome - $fixedTotal;
 
         return [
             'income' => $income,
             'variable_expenses' => $variableExpenses,
-            'production_expenses' => $productionExpenses,
-            'administrative_expenses' => $administrativeExpenses,
-            'commercial_expenses' => $commercialExpenses,
-            'other_indirect_expenses' => $otherIndirectExpenses,
+            'fixed_expenses' => $fixedExpenses,
             'totals' => [
                 'revenue' => $revenue,
                 'variable_expenses' => $variableTotal,
                 'marginal_income' => $marginalIncome,
-                'production_expenses' => $productionTotal,
-                'gross_profit' => $grossProfit,
-                'indirect_expenses' => $indirectTotal,
+                'fixed_expenses' => $fixedTotal,
+                'gross_profit' => $operatingProfit,
+                'indirect_expenses' => $fixedTotal,
                 'operating_profit' => $operatingProfit,
                 'net_profit' => $operatingProfit,
             ],
@@ -1343,71 +1309,232 @@ class Report extends Model
         $dateFromLegacy = Carbon::createFromFormat('Y-m-d', $dateFromUi)->format('d-m-Y');
         $dateToLegacy = Carbon::createFromFormat('Y-m-d', $dateToUi)->format('d-m-Y');
 
-        return self::salesLineItems($fid, $dateFromLegacy, $dateToLegacy)
-            ->groupBy(fn ($item) => trim((string) ($item->category_name ?? '')) ?: 'Без категорії')
-            ->mapWithKeys(function ($items, $categoryName) {
+        $rows = [];
+        $grouped = self::salesLineItems($fid, $dateFromLegacy, $dateToLegacy)
+            ->groupBy(fn ($item) => trim((string) ($item->category_name ?? '')) ?: 'Без категории')
+            ->map(function ($categoryItems, $categoryName) {
+                $categoryAmount = (float) $categoryItems->sum(fn ($item) => (float) ($item->revenue ?? 0));
+                $children = $categoryItems
+                    ->groupBy(fn ($item) => trim((string) ($item->subcategory_name ?? '')) ?: 'Без подкатегории')
+                    ->mapWithKeys(function ($subItems, $subcategoryName) {
+                        $key = 'sub:' . md5((string) $subcategoryName);
+
+                        return [
+                            $key => [
+                                'label' => (string) $subcategoryName,
+                                'amount' => (float) $subItems->sum(fn ($item) => (float) ($item->revenue ?? 0)),
+                                'level' => 1,
+                            ],
+                        ];
+                    })
+                    ->filter(fn ($item) => abs((float) $item['amount']) > 0.0001)
+                    ->sortBy('label')
+                    ->all();
+
                 return [
-                    (string) $categoryName => [
-                        'label' => 'Продажи: ' . (string) $categoryName,
-                        'amount' => (float) $items->sum(fn ($item) => (float) ($item->revenue ?? 0)),
-                    ],
+                    'label' => 'Продажи: ' . (string) $categoryName,
+                    'amount' => $categoryAmount,
+                    'level' => 0,
+                    'children' => $children,
                 ];
             })
             ->filter(fn ($item) => abs((float) $item['amount']) > 0.0001)
-            ->sortKeys()
-            ->all();
-    }
+            ->sortKeys();
 
-    private static function financialPnlTableRows(array $pnlMonths, $monthlySnapshots): array
-    {
-        $rows = [];
-        $rows[] = self::pnlSectionRow('Доходы');
-        $rows = array_merge($rows, self::pnlAccountRows($pnlMonths, $monthlySnapshots, 'income'));
-        $rows[] = self::pnlTotalRow('Выручка', $pnlMonths, $monthlySnapshots, 'revenue', 'summary');
-        $rows[] = self::pnlTitleRow('Расходы');
-        $rows[] = self::pnlSectionRow('Переменные расходы');
-        $rows = array_merge($rows, self::pnlAccountRows($pnlMonths, $monthlySnapshots, 'variable_expenses'));
-        $rows[] = self::pnlTotalRow('Итого (расходы)', $pnlMonths, $monthlySnapshots, 'variable_expenses');
-        $rows[] = self::pnlTotalRow('Маржинальный доход', $pnlMonths, $monthlySnapshots, 'marginal_income', 'summary');
-        $rows[] = self::pnlSpacerRow();
-        $rows[] = self::pnlSectionRow('Общепроизводственные расходы');
-        $rows = array_merge($rows, self::pnlAccountRows($pnlMonths, $monthlySnapshots, 'production_expenses'));
-        $rows[] = self::pnlTotalRow('Итого', $pnlMonths, $monthlySnapshots, 'production_expenses');
-        $rows[] = self::pnlTotalRow('Валовая прибыль', $pnlMonths, $monthlySnapshots, 'gross_profit', 'summary');
-        $rows[] = self::pnlSpacerRow();
-        $rows[] = self::pnlSectionRow('Косвенные расходы');
-        $rows = array_merge($rows, self::pnlSubsectionWithRows('Административные', $pnlMonths, $monthlySnapshots, 'administrative_expenses'));
-        $rows = array_merge($rows, self::pnlSubsectionWithRows('Коммерческие', $pnlMonths, $monthlySnapshots, 'commercial_expenses'));
-        $rows = array_merge($rows, self::pnlSubsectionWithRows('Прочие', $pnlMonths, $monthlySnapshots, 'other_indirect_expenses'));
-        $rows[] = self::pnlTotalRow('Операционная прибыль (EBITDA)', $pnlMonths, $monthlySnapshots, 'operating_profit', 'summary');
-        $rows[] = self::pnlSpacerRow();
-        $rows[] = self::pnlTotalRow('Чистая прибыль', $pnlMonths, $monthlySnapshots, 'net_profit', 'summary');
+        foreach ($grouped as $categoryName => $item) {
+            $rows[(string) $categoryName] = [
+                'label' => $item['label'],
+                'amount' => $item['amount'],
+                'level' => $item['level'],
+            ];
+
+            foreach (($item['children'] ?? []) as $childKey => $child) {
+                $rows[(string) $categoryName . '|' . (string) $childKey] = $child;
+            }
+        }
 
         return $rows;
     }
 
-    private static function pnlAccountRows(array $pnlMonths, $monthlySnapshots, string $bucket): array
+    private static function pnlPaymentTypeExpenses(string $fid, string $dateFromUi, string $dateToUi): array
+    {
+        $dateFromLegacy = Carbon::createFromFormat('Y-m-d', $dateFromUi)->format('d-m-Y');
+        $dateToLegacy = Carbon::createFromFormat('Y-m-d', $dateToUi)->format('d-m-Y');
+
+        $items = DB::table('z_document as zd')
+            ->leftJoin('conf as r', function ($join) use ($fid) {
+                $join->on('zd.reestr', '=', 'r.id')
+                    ->where('r.type', '=', 'reestr')
+                    ->where('r.firma', '=', $fid);
+            })
+            ->where('zd.firma', $fid)
+            ->whereIn('zd.type', ['RO', 'CRO', 'ZP'])
+            ->where('zd.provodka', 1)
+            ->whereRaw(
+                "STR_TO_DATE(zd.data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
+                [$dateFromLegacy, $dateToLegacy]
+            )
+            ->groupBy('zd.reestr', 'r.name', 'r.constanta')
+            ->get([
+                DB::raw("COALESCE(NULLIF(r.name, ''), 'Без вида платежа') as payment_type_name"),
+                DB::raw("CASE WHEN COALESCE(r.constanta, '0') = '1' THEN 'variable' ELSE 'fixed' END as cost_type"),
+                DB::raw('COALESCE(SUM(zd.summa), 0) as amount'),
+            ]);
+
+        $result = ['variable' => [], 'fixed' => []];
+        foreach ($items as $item) {
+            $bucket = (string) ($item->cost_type ?? '') === 'variable' ? 'variable' : 'fixed';
+            $label = trim((string) ($item->payment_type_name ?? '')) ?: 'Без вида платежа';
+            $key = md5($bucket . '|' . $label);
+            $amount = (float) ($item->amount ?? 0);
+
+            if (abs($amount) <= 0.0001) {
+                continue;
+            }
+
+            $result[$bucket][$key] = [
+                'label' => $label,
+                'amount' => $amount,
+                'level' => 0,
+            ];
+        }
+
+        ksort($result['variable']);
+        ksort($result['fixed']);
+
+        return $result;
+    }
+
+    private static function pnlTotalRevenueByMonth(array $pnlMonths, $monthlySnapshots): array
+    {
+        $values = [];
+        foreach ($pnlMonths as $month) {
+            $values[$month['key']] = (float) ($monthlySnapshots->get($month['key'])['totals']['revenue'] ?? 0);
+        }
+
+        return $values;
+    }
+
+    private static function pnlPercentByMonth(array $values, array $totalValues): array
+    {
+        $percents = [];
+        foreach ($values as $key => $value) {
+            $total = (float) ($totalValues[$key] ?? 0);
+            $percents[$key] = $total > 0 ? ((float) $value / $total) * 100 : 0.0;
+        }
+
+        return $percents;
+    }
+
+    private static function pnlTotalPercentRow(array $pnlMonths, $monthlySnapshots, string $totalKey): array
+    {
+        $values = [];
+        foreach ($pnlMonths as $month) {
+            $revenue = (float) ($monthlySnapshots->get($month['key'])['totals']['revenue'] ?? 0);
+            $value = (float) ($monthlySnapshots->get($month['key'])['totals'][$totalKey] ?? 0);
+            $values[$month['key']] = $revenue > 0 ? ($value / $revenue) * 100 : 0.0;
+        }
+
+        return $values;
+    }
+
+    private static function pnlBlankPercents(array $pnlMonths): array
+    {
+        $values = [];
+        foreach ($pnlMonths as $month) {
+            $values[$month['key']] = null;
+        }
+
+        return $values;
+    }
+
+    private static function pnlRevenuePercentRow(array $pnlMonths): array
+    {
+        $values = [];
+        foreach ($pnlMonths as $month) {
+            $values[$month['key']] = 100.0;
+        }
+
+        return $values;
+    }
+
+    private static function pnlRowPercent(array $row, string $monthKey): ?float
+    {
+        if (! array_key_exists('percents', $row)) {
+            return null;
+        }
+
+        $value = $row['percents'][$monthKey] ?? null;
+
+        return $value === null ? null : (float) $value;
+    }
+
+    private static function pnlPercentLabel(?float $value): string
+    {
+        return $value === null ? '' : number_format($value, 1, '.', ' ') . '%';
+    }
+
+    private static function pnlExpenseTotals(string $fid, string $dateFromUi, string $dateToUi): array
+    {
+        $cashExpenses = self::pnlPaymentTypeExpenses($fid, $dateFromUi, $dateToUi);
+
+        return [
+            'variable' => array_sum(array_column($cashExpenses['variable'], 'amount')),
+            'fixed' => array_sum(array_column($cashExpenses['fixed'], 'amount')),
+        ];
+    }
+
+    private static function financialPnlTableRows(array $pnlMonths, $monthlySnapshots): array
+    {
+        $revenueValues = self::pnlTotalRevenueByMonth($pnlMonths, $monthlySnapshots);
+        $revenueTotal = array_sum($revenueValues);
+        $rows = [];
+        $rows[] = self::pnlSectionRow('Доходы');
+        $rows = array_merge($rows, self::pnlAccountRows($pnlMonths, $monthlySnapshots, 'income', $revenueTotal));
+        $rows[] = self::pnlTotalRow('Выручка', $pnlMonths, $monthlySnapshots, 'revenue', 'summary', $revenueTotal);
+        $rows[] = self::pnlTitleRow('Расходы');
+        $rows[] = self::pnlSectionRow('Переменные расходы');
+        $rows = array_merge($rows, self::pnlAccountRows($pnlMonths, $monthlySnapshots, 'variable_expenses', $revenueTotal));
+        $rows[] = self::pnlTotalRow('Итого переменные расходы', $pnlMonths, $monthlySnapshots, 'variable_expenses', 'total', $revenueTotal);
+        $rows[] = self::pnlTotalRow('Маржинальный доход', $pnlMonths, $monthlySnapshots, 'marginal_income', 'summary', $revenueTotal);
+        $rows[] = self::pnlSpacerRow();
+        $rows[] = self::pnlSectionRow('Постоянные расходы');
+        $rows = array_merge($rows, self::pnlAccountRows($pnlMonths, $monthlySnapshots, 'fixed_expenses', $revenueTotal));
+        $rows[] = self::pnlTotalRow('Итого постоянные расходы', $pnlMonths, $monthlySnapshots, 'fixed_expenses', 'total', $revenueTotal);
+        $rows[] = self::pnlTotalRow('Операционная прибыль (EBITDA)', $pnlMonths, $monthlySnapshots, 'operating_profit', 'summary', $revenueTotal);
+        $rows[] = self::pnlSpacerRow();
+        $rows[] = self::pnlTotalRow('Чистая прибыль', $pnlMonths, $monthlySnapshots, 'net_profit', 'summary', $revenueTotal);
+
+        return $rows;
+    }
+
+    private static function pnlAccountRows(array $pnlMonths, $monthlySnapshots, string $bucket, float $revenueTotal): array
     {
         $labels = [];
+        $levels = [];
         foreach ($monthlySnapshots as $snapshot) {
             foreach (($snapshot[$bucket] ?? []) as $code => $item) {
                 $labels[$code] = $item['label'];
+                $levels[$code] = (int) ($item['level'] ?? 0);
             }
         }
 
         ksort($labels);
 
         return collect($labels)
-            ->map(function ($label, $code) use ($pnlMonths, $monthlySnapshots, $bucket) {
+            ->map(function ($label, $code) use ($pnlMonths, $monthlySnapshots, $bucket, $revenueTotal, $levels) {
                 $values = [];
                 foreach ($pnlMonths as $month) {
                     $values[$month['key']] = (float) ($monthlySnapshots->get($month['key'])[$bucket][$code]['amount'] ?? 0);
                 }
+                $rowTotal = array_sum($values);
 
                 return [
                     'type' => 'item',
                     'label' => $label,
                     'values' => $values,
+                    'percent' => $revenueTotal > 0 ? ($rowTotal / $revenueTotal) * 100 : null,
+                    'level' => $levels[$code] ?? 0,
                 ];
             })
             ->values()
@@ -1416,7 +1543,8 @@ class Report extends Model
 
     private static function pnlSubsectionWithRows(string $label, array $pnlMonths, $monthlySnapshots, string $bucket): array
     {
-        $rows = self::pnlAccountRows($pnlMonths, $monthlySnapshots, $bucket);
+        $revenueTotal = array_sum(self::pnlTotalRevenueByMonth($pnlMonths, $monthlySnapshots));
+        $rows = self::pnlAccountRows($pnlMonths, $monthlySnapshots, $bucket, $revenueTotal);
         if (empty($rows)) {
             return [];
         }
@@ -1424,38 +1552,40 @@ class Report extends Model
         return array_merge([self::pnlSubsectionRow($label)], $rows);
     }
 
-    private static function pnlTotalRow(string $label, array $pnlMonths, $monthlySnapshots, string $totalKey, string $type = 'total'): array
+    private static function pnlTotalRow(string $label, array $pnlMonths, $monthlySnapshots, string $totalKey, string $type = 'total', ?float $revenueTotal = null): array
     {
         $values = [];
         foreach ($pnlMonths as $month) {
             $values[$month['key']] = (float) ($monthlySnapshots->get($month['key'])['totals'][$totalKey] ?? 0);
         }
+        $rowTotal = array_sum($values);
 
         return [
             'type' => $type,
             'label' => $label,
             'values' => $values,
+            'percent' => $revenueTotal && $revenueTotal > 0 ? ($rowTotal / $revenueTotal) * 100 : null,
         ];
     }
 
     private static function pnlSectionRow(string $label): array
     {
-        return ['type' => 'section', 'label' => $label, 'values' => []];
+        return ['type' => 'section', 'label' => $label, 'values' => [], 'percent' => null];
     }
 
     private static function pnlTitleRow(string $label): array
     {
-        return ['type' => 'title', 'label' => $label, 'values' => []];
+        return ['type' => 'title', 'label' => $label, 'values' => [], 'percent' => null];
     }
 
     private static function pnlSubsectionRow(string $label): array
     {
-        return ['type' => 'subsection', 'label' => $label, 'values' => []];
+        return ['type' => 'subsection', 'label' => $label, 'values' => [], 'percent' => null];
     }
 
     private static function pnlSpacerRow(): array
     {
-        return ['type' => 'spacer', 'label' => '', 'values' => []];
+        return ['type' => 'spacer', 'label' => '', 'values' => [], 'percent' => null];
     }
 
     public static function balanceSheet(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
@@ -1937,6 +2067,11 @@ class Report extends Model
                     ->on('c.firma', '=', 'cat.firma')
                     ->where('cat.keyfield', '=', 'catalog');
             })
+            ->leftJoin('field as subcat', function ($join) {
+                $join->on('c.idcaption', '=', 'subcat.id')
+                    ->on('c.firma', '=', 'subcat.firma')
+                    ->where('subcat.keyfield', '=', 'catalog');
+            })
             ->leftJoin('conf as rt', function ($join) use ($fid) {
                 $join->on('zd.reteil', '=', 'rt.id')
                     ->where('rt.type', '=', 'reteil')
@@ -1969,6 +2104,7 @@ class Report extends Model
                 DB::raw('GREATEST((COALESCE(zb.pprice, 0) * COALESCE(zb.pcount, 0)) - COALESCE(zb.psumma, 0), 0) as line_discount_impact'),
                 DB::raw("COALESCE(NULLIF(d.name, ''), NULLIF(d.name_ua, ''), NULLIF(d.name_en, ''), NULLIF(c.nickname, ''), NULLIF(c.namedoc, ''), NULLIF(c.name, ''), CONCAT('Товар #', zb.pnum)) as product_name"),
                 DB::raw("COALESCE(NULLIF(cat.val, ''), 'Без категорії') as category_name"),
+                DB::raw("COALESCE(NULLIF(subcat.val, ''), 'Без подкатегории') as subcategory_name"),
                 DB::raw("COALESCE(NULLIF(rt.name, ''), 'Без каналу') as channel_name"),
                 DB::raw("COALESCE(NULLIF(u.region, ''), NULLIF(u.city, ''), 'Невизначено') as region_name"),
             ]);
