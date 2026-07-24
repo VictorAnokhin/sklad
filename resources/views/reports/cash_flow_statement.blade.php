@@ -5,6 +5,23 @@
     @include('partials.report_panel')
 @endsection
 
+@push('styles')
+<style>
+    .cash-flow-total-row {
+        --bs-table-bg: #2a1b12;
+        --bs-table-color: #f4e7d5;
+        --bs-table-border-color: rgba(212, 175, 55, 0.28);
+        background-color: #2a1b12;
+        color: #f4e7d5;
+    }
+
+    .cash-flow-total-row > * {
+        background-color: #2a1b12 !important;
+        color: #f4e7d5 !important;
+    }
+</style>
+@endpush
+
 @section('content')
 <div class="container mt-4 reports-page" data-bs-theme="dark">
     @include('reports.period_form', [
@@ -64,7 +81,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr class="table-light">
+                        <tr class="cash-flow-total-row">
                             <td><strong>Остаток на начало периода</strong></td>
                             <td class="text-end text-muted">-</td>
                             <td class="text-end text-muted">-</td>
@@ -137,7 +154,7 @@
                             <td class="text-end text-muted">-</td>
                         </tr>
 
-                        <tr class="table-light">
+                        <tr class="cash-flow-total-row">
                             <td><strong>Остаток на конец периода</strong></td>
                             <td class="text-end text-muted">-</td>
                             <td class="text-end text-muted">-</td>
