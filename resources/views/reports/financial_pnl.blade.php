@@ -80,15 +80,32 @@
                                     @endforeach
                                 </tr>
                             @else
-                                <tr class="financial-pnl-table__{{ $row['type'] }}">
+                                @php
+                                    $level = (int) ($row['level'] ?? 0);
+                                    $groupKey = (string) ($row['group_key'] ?? '');
+                                    $parentKey = (string) ($row['parent_key'] ?? '');
+                                    $hasChildren = (bool) ($row['has_children'] ?? false);
+                                @endphp
+                                <tr class="financial-pnl-table__{{ $row['type'] }} {{ $level > 0 ? 'financial-pnl-table__child-row' : '' }}"
+                                    @if($parentKey !== '') data-parent-key="{{ $parentKey }}" hidden @endif>
                                     @php
-                                        $level = (int) ($row['level'] ?? 0);
                                         $labelClass = $row['type'] === 'item'
                                             ? ($level > 0 ? 'ps-5 financial-pnl-table__nested-item' : 'ps-4')
                                             : 'fw-bold';
                                         $percent = $row['percent'] ?? null;
                                     @endphp
-                                    <td class="{{ $labelClass }}">{{ $row['label'] }}</td>
+                                    <td class="{{ $labelClass }}">
+                                        @if($hasChildren && $groupKey !== '')
+                                            <button type="button"
+                                                    class="financial-pnl-toggle"
+                                                    data-group-key="{{ $groupKey }}"
+                                                    aria-expanded="false"
+                                                    aria-label="Показать подкатегории">+</button>
+                                        @elseif($level > 0)
+                                            <span class="financial-pnl-toggle-placeholder"></span>
+                                        @endif
+                                        <span>{{ $row['label'] }}</span>
+                                    </td>
                                     <td class="text-end text-muted">{{ $percent === null ? '' : number_format((float) $percent, 1, '.', ' ') . '%' }}</td>
                                     @foreach($pnlMonths as $month)
                                         @php $value = (float) ($row['values'][$month['key']] ?? 0); @endphp
@@ -129,6 +146,30 @@
         font-size: 0.92rem;
     }
 
+    .financial-pnl-toggle,
+    .financial-pnl-toggle-placeholder {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        margin-right: 0.45rem;
+        vertical-align: middle;
+    }
+
+    .financial-pnl-toggle {
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .financial-pnl-toggle:hover {
+        background: rgba(255, 255, 255, 0.18);
+    }
+
     .financial-pnl-table__summary td {
         font-weight: 700;
         border-top: 2px solid rgba(255, 255, 255, 0.35);
@@ -144,4 +185,27 @@
         background: transparent;
     }
 </style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.financial-pnl-toggle').forEach((button) => {
+            button.addEventListener('click', () => {
+                const groupKey = button.dataset.groupKey || '';
+                const expanded = button.getAttribute('aria-expanded') === 'true';
+                if (!groupKey) return;
+
+                document.querySelectorAll('.financial-pnl-table__child-row')
+                    .forEach((row) => {
+                        if (row.dataset.parentKey === groupKey) {
+                            row.hidden = expanded;
+                        }
+                    });
+
+                button.textContent = expanded ? '+' : '-';
+                button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+                button.setAttribute('aria-label', expanded ? 'Показать подкатегории' : 'Скрыть подкатегории');
+            });
+        });
+    });
+</script>
 @endsection

@@ -1342,13 +1342,17 @@ class Report extends Model
             ->sortKeys();
 
         foreach ($grouped as $categoryName => $item) {
+            $categoryKey = 'income-category-' . md5((string) $categoryName);
             $rows[(string) $categoryName] = [
                 'label' => $item['label'],
                 'amount' => $item['amount'],
                 'level' => $item['level'],
+                'group_key' => $categoryKey,
+                'has_children' => ! empty($item['children'] ?? []),
             ];
 
             foreach (($item['children'] ?? []) as $childKey => $child) {
+                $child['parent_key'] = $categoryKey;
                 $rows[(string) $categoryName . '|' . (string) $childKey] = $child;
             }
         }
@@ -1512,17 +1516,23 @@ class Report extends Model
     {
         $labels = [];
         $levels = [];
+        $groupKeys = [];
+        $parentKeys = [];
+        $hasChildren = [];
         foreach ($monthlySnapshots as $snapshot) {
             foreach (($snapshot[$bucket] ?? []) as $code => $item) {
                 $labels[$code] = $item['label'];
                 $levels[$code] = (int) ($item['level'] ?? 0);
+                $groupKeys[$code] = (string) ($item['group_key'] ?? '');
+                $parentKeys[$code] = (string) ($item['parent_key'] ?? '');
+                $hasChildren[$code] = (bool) ($item['has_children'] ?? false);
             }
         }
 
         ksort($labels);
 
         return collect($labels)
-            ->map(function ($label, $code) use ($pnlMonths, $monthlySnapshots, $bucket, $revenueTotal, $levels) {
+            ->map(function ($label, $code) use ($pnlMonths, $monthlySnapshots, $bucket, $revenueTotal, $levels, $groupKeys, $parentKeys, $hasChildren) {
                 $values = [];
                 foreach ($pnlMonths as $month) {
                     $values[$month['key']] = (float) ($monthlySnapshots->get($month['key'])[$bucket][$code]['amount'] ?? 0);
@@ -1535,6 +1545,9 @@ class Report extends Model
                     'values' => $values,
                     'percent' => $revenueTotal > 0 ? ($rowTotal / $revenueTotal) * 100 : null,
                     'level' => $levels[$code] ?? 0,
+                    'group_key' => $groupKeys[$code] ?? '',
+                    'parent_key' => $parentKeys[$code] ?? '',
+                    'has_children' => $hasChildren[$code] ?? false,
                 ];
             })
             ->values()
