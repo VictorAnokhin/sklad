@@ -1261,7 +1261,7 @@ class Report extends Model
         $variableExpenses = $cashExpenses['variable'];
         $fixedExpenses = $cashExpenses['fixed'];
 
-        $revenue = array_sum(array_column($income, 'amount'));
+        $revenue = self::pnlTopLevelAmount($income);
         $variableTotal = array_sum(array_column($variableExpenses, 'amount'));
         $marginalIncome = $revenue - $variableTotal;
         $fixedTotal = array_sum(array_column($fixedExpenses, 'amount'));
@@ -1407,6 +1407,13 @@ class Report extends Model
         ksort($result['fixed']);
 
         return $result;
+    }
+
+    private static function pnlTopLevelAmount(array $items): float
+    {
+        return (float) collect($items)
+            ->filter(fn ($item) => trim((string) ($item['parent_key'] ?? '')) === '')
+            ->sum(fn ($item) => (float) ($item['amount'] ?? 0));
     }
 
     private static function pnlTotalRevenueByMonth(array $pnlMonths, $monthlySnapshots): array
