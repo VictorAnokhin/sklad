@@ -1667,7 +1667,7 @@ class Report extends Model
         $investingRows = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'investing');
         $financingRows = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'financing');
 
-        $operatingInflows = (float) $operating->sum('debit');
+        $operatingInflows = self::cashFlowOperatingInflows($fid, $dateFromUi, $dateToUi);
         $operatingOutflows = (float) $operating->sum('credit');
         $investing = [
             'inflows' => (float) $investingRows->sum('debit'),
@@ -1676,7 +1676,7 @@ class Report extends Model
         $financing = [
             'inflows' => (float) $financingRows->sum('debit'),
             'outflows' => (float) $financingRows->sum('credit'),
-            'assumption' => 'Классификация построена по виду платежа документа: операционная, инвестиционная или финансовая деятельность. Если вид платежа не задан, используется тип документа: PO/CPO/PPO/RO/CRO/PRO/ZP — операционная, PP — инвестиционная, остальные движения счета 301 — финансовая.',
+            'assumption' => 'Поступления от клиентов и продаж берутся по проведенным входящим денежным документам PO/CPO/PPO. Выплаты и прочие денежные потоки классифицируются по виду платежа документа: операционная, инвестиционная или финансовая деятельность.',
         ];
 
         $operatingNet = $operatingInflows - $operatingOutflows;
@@ -1776,6 +1776,32 @@ class Report extends Model
         }
 
         return 'financing';
+    }
+
+    private static function cashFlowOperatingInflows(string $fid, string $dateFromUi, string $dateToUi): float
+    {
+        $dateFromLegacy = Carbon::createFromFormat('Y-m-d', $dateFromUi)->format('d-m-Y');
+        $dateToLegacy = Carbon::createFromFormat('Y-m-d', $dateToUi)->format('d-m-Y');
+
+        return (float) DB::table('z_document as zd')
+            ->leftJoin('conf as payment_type', function ($join) use ($fid) {
+                $join->on('zd.reestr', '=', 'payment_type.id')
+                    ->where('payment_type.type', '=', 'reestr')
+                    ->where('payment_type.firma', '=', $fid);
+            })
+            ->where('zd.firma', $fid)
+            ->whereIn('zd.type', ['PO', 'CPO', 'PPO'])
+            ->where('zd.provodka', 1)
+            ->whereRaw(
+                "STR_TO_DATE(zd.data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
+                [$dateFromLegacy, $dateToLegacy]
+            )
+            ->where(function ($query) {
+                $query->whereNull('payment_type.vision')
+                    ->orWhere('payment_type.vision', '')
+                    ->orWhere('payment_type.vision', 'operating');
+            })
+            ->sum('zd.summa');
     }
 
     public static function purchasePlan(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
