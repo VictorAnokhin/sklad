@@ -1,7 +1,6 @@
 @php
 	  $rows = \Illuminate\Support\Facades\DB::table('conf')
 	    ->where('type', 'reestr')->where('status', '1')
-    ->where(fn($q) => $q->where('firma', $fid)->orWhere('constanta', '1'))
     ->orderBy('name')->get();
 @endphp
 <select name="reestr">

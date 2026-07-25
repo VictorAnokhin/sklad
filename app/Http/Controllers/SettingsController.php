@@ -47,8 +47,8 @@ class SettingsController extends Controller
         // Statuses — conf where type='status'
         $statuses = DB::table('conf')->where('type', 'status')->where('firma', $fid)->orderBy('name')->get();
 
-        // Reestr (payment types) — conf where type='reestr'
-        $reestrs = DB::table('conf')->where('type', 'reestr')->where('firma', $fid)->orderBy('name')->get()
+        // Payment types are shared by every project.
+        $reestrs = DB::table('conf')->where('type', 'reestr')->orderBy('name')->get()
             ->map(fn ($item) => Conf::decoratePaymentType($item));
 
         // Client types — той самий набір, що Conf::tgroupsForFirma (форма товару / price)
@@ -69,6 +69,7 @@ class SettingsController extends Controller
 
         // Валюты — conf where type='currency'
         $currencies = DB::table('conf')->where('type', 'currency')->where('firma', $fid)->orderBy('name')->get();
+        $accountCurrencies = $this->currencyCodesForAccounts();
 
         // FAQ — conf where type='faq'
         $faqs = DB::table('conf')->where('type', 'faq')->where('firma', $fid)->orderBy('name')->get();
@@ -180,7 +181,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'reportRulesCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'reportRulesCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -356,7 +357,11 @@ class SettingsController extends Controller
             return response()->json($this->settingsPoolDepositRows());
         }
 
-        $items = DB::table('conf')->where('type', $type)->where('firma', $fid)->orderBy('name')->get()
+        $items = DB::table('conf')
+            ->where('type', $type)
+            ->when($type !== 'reestr', fn ($query) => $query->where('firma', $fid))
+            ->orderBy('name')
+            ->get()
             ->map(fn ($item) => $this->decorateConfItem($item, $type));
         return response()->json($items);
     }
@@ -437,7 +442,11 @@ class SettingsController extends Controller
             return response()->json($item);
         }
 
-        $item = DB::table('conf')->where('id', $id)->where('type', $type)->where('firma', $fid)->first();
+        $item = DB::table('conf')
+            ->where('id', $id)
+            ->where('type', $type)
+            ->when($type !== 'reestr', fn ($query) => $query->where('firma', $fid))
+            ->first();
         if (!$item) return response()->json(['message' => 'Не знайдено'], 404);
         return response()->json($this->decorateConfItem($item, $type));
     }
@@ -455,7 +464,7 @@ class SettingsController extends Controller
 
         $data = $this->validateConfRecord($request);
         $data['hide'] = '0';
-        $data['firma'] = $fid;
+        $data['firma'] = (string) ($data['type'] ?? '') === 'reestr' ? 0 : $fid;
 
         $id = DB::table('conf')->insertGetId($data);
         $this->syncDefaultConfRecord((int) $id, $data);
@@ -474,9 +483,17 @@ class SettingsController extends Controller
             return response()->json(['success' => false, 'message' => 'Депозиты-пулы доступны только для просмотра.'], 403);
         }
 
-        $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
+        $type = (string) $request->input('type');
+        $exists = DB::table('conf')
+            ->where('id', $id)
+            ->where('type', $type)
+            ->when($type !== 'reestr', fn ($query) => $query->where('firma', $fid))
+            ->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
         $update = $this->validateConfRecord($request, $exists);
+        if ($type === 'reestr') {
+            $update['firma'] = 0;
+        }
 
         DB::table('conf')->where('id', $id)->update($update);
         $this->syncDefaultConfRecord((int) $id, $update);
@@ -491,8 +508,11 @@ class SettingsController extends Controller
     public function apiDestroy($id)
     {
         $fid = session('fid', '');
-        $exists = DB::table('conf')->where('id', $id)->where('firma', $fid)->first();
+        $exists = DB::table('conf')->where('id', $id)->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+        if ((string) $exists->type !== 'reestr' && (string) $exists->firma !== (string) $fid) {
+            return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+        }
 
         DB::table('conf')->where('id', $id)->delete();
         return response()->json(['success' => true]);
@@ -828,7 +848,6 @@ class SettingsController extends Controller
             return response()->json([]);
         }
 
-        $fid = (string) session('fid', '');
         $columns = [
             'accounts.id',
             'accounts.code',
@@ -844,12 +863,6 @@ class SettingsController extends Controller
 
         $items = Account::query()
             ->leftJoin('accounts as parent', 'accounts.parent_id', '=', 'parent.id')
-            ->where(function ($query) use ($fid) {
-                $query->where('accounts.code', 'not like', '%.%');
-                if ($fid !== '') {
-                    $query->orWhere('accounts.code', 'like', "%.{$fid}.%");
-                }
-            })
             ->orderBy('accounts.code')
             ->get($columns)
             ->map(fn ($item) => $this->decorateAccountItem($item));
@@ -950,7 +963,7 @@ class SettingsController extends Controller
         }
 
         $currency = $this->normalizeCurrencyCode($validated['currency'] ?? 'UAH');
-        $availableCurrencies = $this->currencyCodesForFirma(session('fid', ''));
+        $availableCurrencies = $this->currencyCodesForAccounts();
         if ($availableCurrencies->isNotEmpty() && ! $availableCurrencies->contains($currency)) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'currency' => 'Валюта счета должна быть выбрана из справочника валют.',
@@ -973,8 +986,6 @@ class SettingsController extends Controller
 
     public function paymentTypeAccountBindings()
     {
-        $fid = session('fid', '');
-
         if (!Schema::hasTable('conf')) {
             return response()->json([]);
         }
@@ -983,7 +994,6 @@ class SettingsController extends Controller
             ->leftJoin('accounts as da', 'c.debit_account_id', '=', 'da.id')
             ->leftJoin('accounts as ca', 'c.credit_account_id', '=', 'ca.id')
             ->where('c.type', 'reestr')
-            ->where('c.firma', $fid)
             ->orderBy('c.name')
             ->get([
                 'c.id',
@@ -1005,8 +1015,6 @@ class SettingsController extends Controller
 
     public function updatePaymentTypeAccountBinding(Request $request, $id)
     {
-        $fid = session('fid', '');
-
         $validated = $request->validate([
             'debit_account_id' => 'nullable|integer|exists:accounts,id',
             'credit_account_id' => 'nullable|integer|exists:accounts,id',
@@ -1015,7 +1023,6 @@ class SettingsController extends Controller
         $paymentType = DB::table('conf')
             ->where('id', $id)
             ->where('type', 'reestr')
-            ->where('firma', $fid)
             ->first();
 
         if (!$paymentType) {
@@ -2899,6 +2906,20 @@ class SettingsController extends Controller
             ->filter()
             ->unique()
             ->values();
+    }
+
+    private function currencyCodesForAccounts(): \Illuminate\Support\Collection
+    {
+        $currencies = DB::table('conf')
+            ->where('type', 'currency')
+            ->orderBy('name')
+            ->get(['name', 'currency'])
+            ->map(fn ($item) => $this->normalizeCurrencyCode($item->currency ?? $item->name ?? ''))
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $currencies->isNotEmpty() ? $currencies : collect(['UAH']);
     }
 
     private function validateProject(Request $request): array

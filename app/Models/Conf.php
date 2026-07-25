@@ -217,7 +217,6 @@ class Conf extends Model
         $docType = strtoupper(trim((string) $docType));
         $query = self::query()
             ->where('type', 'reestr')
-            ->where('firma', $fid)
             ->orderBy('name');
 
         if (Schema::hasColumn('conf', 'doc') && $docType !== '') {

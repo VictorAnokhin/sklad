@@ -1660,14 +1660,19 @@ class Report extends Model
         [$dateFromUi, $dateToUi] = self::normalizePeriod($dateFromInput, $dateToInput);
         $cashMovements = self::ledgerCashMovements($fid, $dateFromUi, $dateToUi);
         $dateBeforePeriod = Carbon::createFromFormat('Y-m-d', $dateFromUi)->subDay()->format('Y-m-d');
-        $openingCashBalance = self::debitBalanceByPrefix(self::ledgerAccountBalances($fid, $dateBeforePeriod), '301');
-        $closingCashBalance = self::debitBalanceByPrefix(self::ledgerAccountBalances($fid, $dateToUi), '301');
+        $openingCashBalance = self::cashEquivalentBalance(
+            self::ledgerAccountBalances($fid, $dateBeforePeriod)
+        );
+        $closingCashBalance = self::cashEquivalentBalance(
+            self::ledgerAccountBalances($fid, $dateToUi)
+        );
 
+        $operatingRows = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'operating');
         $investingRows = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'investing');
         $financingRows = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'financing');
 
-        $operatingInflows = self::cashFlowOperatingInflows($fid, $dateFromUi, $dateToUi);
-        $operatingOutflows = self::cashFlowOperatingOutflows($fid, $dateFromUi, $dateToUi);
+        $operatingInflows = (float) $operatingRows->sum('debit');
+        $operatingOutflows = (float) $operatingRows->sum('credit');
         $investing = [
             'inflows' => (float) $investingRows->sum('debit'),
             'outflows' => (float) $investingRows->sum('credit'),
@@ -1675,7 +1680,7 @@ class Report extends Model
         $financing = [
             'inflows' => (float) $financingRows->sum('debit'),
             'outflows' => (float) $financingRows->sum('credit'),
-            'assumption' => 'Операционные поступления и выплаты берутся по проведенным денежным документам PO/CPO/PPO и RO/CRO/PRO/ZP. Инвестиционные и финансовые потоки классифицируются по виду платежа документа: операционная, инвестиционная или финансовая деятельность.',
+            'assumption' => 'Все потоки рассчитываются по проводкам денежных счетов 301 и 311. Вид деятельности определяется видом платежа документа; внутренние переводы между денежными счетами не изменяют итоговый поток.',
         ];
 
         $operatingNet = $operatingInflows - $operatingOutflows;
@@ -1775,42 +1780,6 @@ class Report extends Model
         }
 
         return 'financing';
-    }
-
-    private static function cashFlowOperatingInflows(string $fid, string $dateFromUi, string $dateToUi): float
-    {
-        return self::cashFlowDocumentSum($fid, $dateFromUi, $dateToUi, ['PO', 'CPO', 'PPO']);
-    }
-
-    private static function cashFlowOperatingOutflows(string $fid, string $dateFromUi, string $dateToUi): float
-    {
-        return self::cashFlowDocumentSum($fid, $dateFromUi, $dateToUi, ['RO', 'CRO', 'PRO', 'ZP']);
-    }
-
-    private static function cashFlowDocumentSum(string $fid, string $dateFromUi, string $dateToUi, array $types): float
-    {
-        $dateFromLegacy = Carbon::createFromFormat('Y-m-d', $dateFromUi)->format('d-m-Y');
-        $dateToLegacy = Carbon::createFromFormat('Y-m-d', $dateToUi)->format('d-m-Y');
-
-        return (float) DB::table('z_document as zd')
-            ->leftJoin('conf as payment_type', function ($join) use ($fid) {
-                $join->on('zd.reestr', '=', 'payment_type.id')
-                    ->where('payment_type.type', '=', 'reestr')
-                    ->where('payment_type.firma', '=', $fid);
-            })
-            ->where('zd.firma', $fid)
-            ->whereIn('zd.type', $types)
-            ->where('zd.provodka', 1)
-            ->whereRaw(
-                "STR_TO_DATE(zd.data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
-                [$dateFromLegacy, $dateToLegacy]
-            )
-            ->where(function ($query) {
-                $query->whereNull('payment_type.vision')
-                    ->orWhere('payment_type.vision', '')
-                    ->orWhere('payment_type.vision', 'operating');
-            })
-            ->sum('zd.summa');
     }
 
     public static function purchasePlan(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
@@ -2127,6 +2096,21 @@ class Report extends Model
 
     private static function salesLineItems(string $fid, string $dateFromLegacy, string $dateToLegacy)
     {
+        $descriptionIds = DB::table('descript')
+            ->groupBy('firma', 'pnum')
+            ->select([
+                'firma',
+                'pnum',
+                DB::raw('MIN(id) as description_id'),
+            ]);
+        $priceIds = DB::table('price')
+            ->groupBy('firma', 'pnum')
+            ->select([
+                'firma',
+                'pnum',
+                DB::raw('MIN(id) as price_id'),
+            ]);
+
         return DB::table('z_document as zd')
             ->join('z_body as zb', function ($join) {
                 $join->on('zb.firma', '=', 'zd.firma')
@@ -2148,10 +2132,11 @@ class Report extends Model
                 $join->on('zb.pnum', '=', 'c.id')
                     ->on('zb.firma', '=', 'c.firma');
             })
-            ->leftJoin('descript as d', function ($join) {
-                $join->on('c.id', '=', 'd.pnum')
-                    ->on('c.firma', '=', 'd.firma');
+            ->leftJoinSub($descriptionIds, 'description_choice', function ($join) {
+                $join->on('c.id', '=', 'description_choice.pnum')
+                    ->on('c.firma', '=', 'description_choice.firma');
             })
+            ->leftJoin('descript as d', 'd.id', '=', 'description_choice.description_id')
             ->leftJoin('field as cat', function ($join) {
                 $join->on('c.idglava', '=', 'cat.id')
                     ->on('c.firma', '=', 'cat.firma')
@@ -2168,10 +2153,11 @@ class Report extends Model
                     ->where('rt.firma', '=', $fid);
             })
             ->leftJoin('users as u', 'u.id', '=', 'zd.client1')
-            ->leftJoin('price as pr', function ($join) {
-                $join->on('zb.pnum', '=', 'pr.pnum')
-                    ->on('zb.firma', '=', 'pr.firma');
+            ->leftJoinSub($priceIds, 'price_choice', function ($join) {
+                $join->on('zb.pnum', '=', 'price_choice.pnum')
+                    ->on('zb.firma', '=', 'price_choice.firma');
             })
+            ->leftJoin('price as pr', 'pr.id', '=', 'price_choice.price_id')
             ->where('zd.firma', $fid)
             ->where('zd.type', 'RN')
             ->where('zd.provodka', 1)
@@ -3053,11 +3039,17 @@ class Report extends Model
                     ->where('payment_type.firma', '=', $fid);
             })
             ->where('e.company_id', (int) $fid)
-            ->where('a.code', 'like', '301.%')
             ->whereBetween('t.date', [$dateFrom, $dateTo]);
 
         if ($cashboxId !== '') {
             $query->where('a.code', "301.{$fid}.{$cashboxId}");
+        } else {
+            $query->where(function ($nested) {
+                $nested->where('a.code', '301')
+                    ->orWhere('a.code', 'like', '301.%')
+                    ->orWhere('a.code', '311')
+                    ->orWhere('a.code', 'like', '311.%');
+            });
         }
 
         return $query
@@ -3071,7 +3063,32 @@ class Report extends Model
                 DB::raw("CASE WHEN payment_type.vision IN ('operating', 'investing', 'financing') THEN payment_type.vision ELSE NULL END as cash_flow_activity"),
                 'e.debit',
                 'e.credit',
-            ]);
+            ])
+            ->groupBy('transaction_id')
+            ->map(function ($rows) {
+                $first = $rows->first();
+                $netMovement = (float) $rows->sum(
+                    fn ($row) => (float) $row->debit - (float) $row->credit
+                );
+
+                return (object) [
+                    'transaction_id' => $first->transaction_id,
+                    'reference_type' => $first->reference_type,
+                    'reference_id' => $first->reference_id,
+                    'payment_document_type' => $first->payment_document_type,
+                    'cash_flow_activity' => $first->cash_flow_activity,
+                    'debit' => max($netMovement, 0),
+                    'credit' => max(-$netMovement, 0),
+                ];
+            })
+            ->filter(fn ($row) => abs((float) $row->debit - (float) $row->credit) > 0.0001)
+            ->values();
+    }
+
+    private static function cashEquivalentBalance($balances): float
+    {
+        return self::debitBalanceByPrefix($balances, '301')
+            + self::debitBalanceByPrefix($balances, '311');
     }
 
     private static function debitBalanceByPrefix($balances, string $prefix): float

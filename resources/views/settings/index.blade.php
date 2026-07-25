@@ -4707,7 +4707,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let accountsCache = [];
-        const accountCurrencyOptions = @json(($currencies ?? collect())->pluck('name')->values());
+        const accountCurrencyOptions = @json($accountCurrencies ?? collect(['UAH']));
 
         modal.addEventListener('show.bs.modal', () => {
             hideAccountForm();

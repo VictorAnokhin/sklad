@@ -86,7 +86,6 @@ class MoneyController extends Controller
             ? Conf::paymentTypesForDocument($fid, $filters['type'])
             : DB::table('conf')
                 ->where('type', 'reestr')
-                ->where('firma', $fid)
                 ->orderBy('name')
                 ->get()
                 ->map(fn ($item) => Conf::decoratePaymentType($item));

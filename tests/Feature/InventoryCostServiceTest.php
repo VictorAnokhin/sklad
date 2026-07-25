@@ -918,6 +918,94 @@ class InventoryCostServiceTest extends TestCase
         ));
     }
 
+    public function test_cash_flow_uses_bank_entries_and_ignores_noncash_documents(): void
+    {
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'Bank report counterparty',
+            'email' => "bank-report-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+        $cashboxId = DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $this->companyId,
+            'name' => 'Bank report cashbox',
+            'value' => 0,
+        ]);
+        $bankAccountId = (int) DB::table('accounts')->where('code', '311')->value('id');
+        $expenseAccountId = (int) DB::table('accounts')->where('code', '94')->value('id');
+        $payableAccountId = (int) DB::table('accounts')->where('code', '631')->value('id');
+
+        $receiptTypeId = DB::table('conf')->insertGetId([
+            'type' => 'reestr',
+            'firma' => (string) $this->companyId,
+            'name' => 'Bank receipt',
+            'vision' => 'operating',
+            'debit_account_id' => $bankAccountId,
+        ]);
+        $noncashExpenseTypeId = DB::table('conf')->insertGetId([
+            'type' => 'reestr',
+            'firma' => (string) $this->companyId,
+            'name' => 'Noncash expense',
+            'vision' => 'operating',
+            'debit_account_id' => $expenseAccountId,
+            'credit_account_id' => $payableAccountId,
+        ]);
+
+        $poId = $this->createMoneyDocument('PO', 70, $counterpartyId, $cashboxId);
+        DB::table('z_document')->where('id', $poId)->update(['reestr' => (string) $receiptTypeId]);
+        Document::provodka((string) $poId, 'PO', (string) $this->companyId);
+
+        $roId = $this->createMoneyDocument('RO', 40, $counterpartyId, $cashboxId);
+        DB::table('z_document')->where('id', $roId)->update(['reestr' => (string) $noncashExpenseTypeId]);
+        Document::provodka((string) $roId, 'RO', (string) $this->companyId);
+
+        $cashFlow = Report::cashFlowStatement(
+            (string) $this->companyId,
+            '2026-06-01',
+            '2026-06-30'
+        );
+
+        $this->assertEqualsWithDelta(70, (float) $cashFlow['operatingInflows'], 0.001);
+        $this->assertEqualsWithDelta(0, (float) $cashFlow['operatingOutflows'], 0.001);
+        $this->assertEqualsWithDelta(70, (float) $cashFlow['netCashFlow'], 0.001);
+        $this->assertEqualsWithDelta(70, (float) $cashFlow['closingCashBalance'], 0.001);
+        $this->assertEqualsWithDelta(
+            (float) $cashFlow['closingCashBalance'],
+            (float) $cashFlow['calculatedClosingCashBalance'],
+            0.001
+        );
+    }
+
+    public function test_financial_pnl_does_not_duplicate_sales_for_multiple_price_rows(): void
+    {
+        DB::table('price')->insert([
+            [
+                'pnum' => $this->productId,
+                'firma' => $this->companyId,
+                'tgroup' => 'retail',
+                'pay' => 12,
+            ],
+            [
+                'pnum' => $this->productId,
+                'firma' => $this->companyId,
+                'tgroup' => 'wholesale',
+                'pay' => 8,
+            ],
+        ]);
+
+        $rnId = $this->createDocument('RN', 4, 25);
+        Document::provodka((string) $rnId, 'RN', (string) $this->companyId);
+
+        $pnl = Report::financialPnl(
+            (string) $this->companyId,
+            '2026-06-01',
+            '2026-06-30'
+        );
+
+        $this->assertEqualsWithDelta(100, (float) $pnl['revenueTotal'], 0.001);
+    }
+
     public function test_partial_payment_binding_keeps_dynamic_cash_account(): void
     {
         $counterpartyId = DB::table('users')->insertGetId([

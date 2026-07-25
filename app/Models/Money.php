@@ -105,7 +105,6 @@ class Money extends Model
 
         $reestrMap = DB::table('conf')
             ->where('type', 'reestr')
-            ->where('firma', $fid)
             ->orderBy('name')
             ->pluck('name', 'id')
             ->all();
