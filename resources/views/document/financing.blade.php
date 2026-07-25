@@ -48,7 +48,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-12">
                         <label class="form-label">Контрагент</label>
                         <div class="fin-client-search">
                             <div class="d-flex gap-1">
