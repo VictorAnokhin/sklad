@@ -202,8 +202,8 @@
             <div class="glass-card h-100 border-warning setting-card" data-bs-toggle="modal" data-bs-target="#modalReportRules">
                 <div class="card-body text-center">
                     <h5 class="card-title">📈 Правила отчетов</h5>
-                    <p class="card-text text-muted">Ключевые слова, счета, типы документов и fallback-значения</p>
-                    <span class="badge bg-warning text-dark" id="badge-report-rules">{{ $reportRulesCount ?? 0 }}</span>
+                    <p class="card-text text-muted">Документы и виды платежей для Cash Flow</p>
+                    <span class="badge bg-warning text-dark">3</span>
                 </div>
             </div>
         </div>
@@ -441,225 +441,45 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
             <div class="modal-body">
-                <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-                    <div class="text-muted small">Редактируйте правила классификации, которые используются для расчета отчетов.</div>
-                    <button type="button" class="btn btn-sm btn-primary" id="btn-report-rule-add">Добавить правило</button>
+                <div class="text-muted small mb-3">
+                    Отчет Cash Flow строится по проведенным денежным проводкам счетов 301 и 311. Вид деятельности в первую очередь берется из настройки «Виды платежей», поле «Вид деятельности». Если у вида платежа значение не задано, применяется правило по типу документа.
                 </div>
-
-                <div class="border rounded p-3 mb-3 bg-light" id="report-rule-form-area" style="display:none;">
-                    <form id="report-rule-form">
-                        <input type="hidden" id="report-rule-id">
-                        <div class="row g-3">
-                            <div class="col-md-3">
-                                <label class="form-label">Группа</label>
-                                <select class="form-select form-select-sm" id="report-rule-group" required>
-                                    <option value="unit_economics">Unit economics</option>
-                                    <option value="cash_flow">Cash flow</option>
-                                    <option value="balance_sheet">Balance sheet</option>
-                                    <option value="sales_lines">Sales lines</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Ключ правила</label>
-                                <input type="text" class="form-control form-control-sm" id="report-rule-key" placeholder="marketing_spend_keywords">
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Тип</label>
-                                <select class="form-select form-select-sm" id="report-rule-type" required>
-                                    <option value="keyword">keyword</option>
-                                    <option value="field_rule">field_rule</option>
-                                    <option value="fallback">fallback</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Оператор</label>
-                                <select class="form-select form-select-sm" id="report-rule-operator" required>
-                                    <option value="contains">contains</option>
-                                    <option value="starts_with">starts_with</option>
-                                    <option value="equals">equals</option>
-                                    <option value="fallback">fallback</option>
-                                    <option value="coalesce_order">coalesce_order</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Приоритет</label>
-                                <input type="number" class="form-control form-control-sm" id="report-rule-priority" value="100" min="0">
-                            </div>
-
-                            <div class="col-md-3">
-                                <label class="form-label">Таблица</label>
-                                <input type="text" class="form-control form-control-sm" id="report-rule-source-table" placeholder="z_document">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Поле</label>
-                                <input type="text" class="form-control form-control-sm" id="report-rule-source-field" placeholder="content">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Значение для поиска</label>
-                                <input type="text" class="form-control form-control-sm" id="report-rule-match-value" required placeholder="google">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Целевая категория</label>
-                                <input type="text" class="form-control form-control-sm" id="report-rule-target-value" placeholder="marketing_spend">
-                            </div>
-
-                            <div class="col-md-2">
-                                <label class="form-label">Тип документа</label>
-                                <input type="text" class="form-control form-control-sm" id="report-rule-document-type" placeholder="RO">
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Направление</label>
-                                <select class="form-select form-select-sm" id="report-rule-direction">
-                                    <option value="">—</option>
-                                    <option value="inflow">inflow</option>
-                                    <option value="outflow">outflow</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Область</label>
-                                <select class="form-select form-select-sm" id="report-rule-scope">
-                                    <option value="local">Текущий проект</option>
-                                    <option value="global">Глобально</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="report-rule-active" checked>
-                                    <label class="form-check-label" for="report-rule-active">Активно</label>
-                                </div>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end justify-content-end gap-2">
-                                <button type="submit" class="btn btn-sm btn-success">Сохранить</button>
-                                <button type="button" class="btn btn-sm btn-secondary" id="btn-report-rule-cancel">Отмена</button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-
                 <div class="table-responsive">
                     <table class="table table-sm align-middle report-rules-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Группа</th>
-                                <th>Ключ</th>
-                                <th>Тип</th>
-                                <th>Поле</th>
-                                <th>Значение</th>
-                                <th>Цель</th>
-                                <th>Док.</th>
-                                <th>Статус</th>
-                                <th class="text-end">Действия</th>
+                                <th>Вид деятельности</th>
+                                <th>Документы</th>
+                                <th>Движение денег</th>
+                                <th>Как попадает в отчет</th>
                             </tr>
                         </thead>
-                        <tbody id="report-rules-tbody">
-                            <tr><td colspan="10" class="text-center text-muted">Загрузка...</td></tr>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge bg-success">Операционная</span></td>
+                                <td><code>PO</code>, <code>CPO</code>, <code>RO</code>, <code>CRO</code>, <code>ZP</code>, <code>PPO</code>, <code>PRO</code></td>
+                                <td>Поступления от клиентов и продаж; выплаты зарплаты, аренды, налогов, поставщикам и прочие текущие платежи.</td>
+                                <td>Если «Вид платежа» документа = «Операционная» или если вид платежа не задан, но тип документа входит в этот список.</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-primary">Инвестиционная</span></td>
+                                <td><code>PP</code> и любые денежные документы с видом платежа «Инвестиционная»</td>
+                                <td>Покупка и продажа оборудования, активов, инвестиций, депозитных/инвестиционных операций.</td>
+                                <td>Если «Вид платежа» документа = «Инвестиционная»; для <code>PP</code> это fallback-правило.</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-secondary">Финансовая</span></td>
+                                <td>Любые денежные документы с видом платежа «Финансовая»; остальные денежные проводки без операционного или инвестиционного правила</td>
+                                <td>Кредиты, займы, дивиденды, взносы собственников, привлечение или возврат финансирования.</td>
+                                <td>Если «Вид платежа» документа = «Финансовая» или денежная проводка не распознана предыдущими правилами.</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
-                <p class="text-center text-muted" id="report-rules-empty" style="display:none;">Правила не найдены</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="modalReportRuleEdit" tabindex="-1" aria-labelledby="modalReportRuleEditLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content glass-card border-0">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalReportRuleEditLabel">Редактирование правила</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <form id="report-rule-edit-form">
-                <div class="modal-body">
-                    <input type="hidden" id="report-rule-edit-id">
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Группа</label>
-                            <select class="form-select form-select-sm" id="report-rule-edit-group" required>
-                                <option value="unit_economics">Unit economics</option>
-                                <option value="cash_flow">Cash flow</option>
-                                <option value="balance_sheet">Balance sheet</option>
-                                <option value="sales_lines">Sales lines</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Ключ правила</label>
-                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-key">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Тип</label>
-                            <select class="form-select form-select-sm" id="report-rule-edit-type" required>
-                                <option value="keyword">keyword</option>
-                                <option value="field_rule">field_rule</option>
-                                <option value="fallback">fallback</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Таблица</label>
-                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-source-table">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Поле</label>
-                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-source-field">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Оператор</label>
-                            <select class="form-select form-select-sm" id="report-rule-edit-operator" required>
-                                <option value="contains">contains</option>
-                                <option value="starts_with">starts_with</option>
-                                <option value="equals">equals</option>
-                                <option value="fallback">fallback</option>
-                                <option value="coalesce_order">coalesce_order</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Значение для поиска</label>
-                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-match-value" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Целевая категория</label>
-                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-target-value">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Тип документа</label>
-                            <input type="text" class="form-control form-control-sm" id="report-rule-edit-document-type">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Направление</label>
-                            <select class="form-select form-select-sm" id="report-rule-edit-direction">
-                                <option value="">—</option>
-                                <option value="inflow">inflow</option>
-                                <option value="outflow">outflow</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Область</label>
-                            <select class="form-select form-select-sm" id="report-rule-edit-scope">
-                                <option value="local">Текущий проект</option>
-                                <option value="global">Глобально</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Приоритет</label>
-                            <input type="number" class="form-control form-control-sm" id="report-rule-edit-priority" min="0">
-                        </div>
-                        <div class="col-md-12">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="report-rule-edit-active" checked>
-                                <label class="form-check-label" for="report-rule-edit-active">Активно</label>
-                            </div>
-                        </div>
-                    </div>
+                <div class="alert alert-info small mb-0">
+                    Для изменения классификации откройте <strong>Settings → Виды платежей</strong> и задайте «Вид деятельности» у нужного вида платежа. Это точнее, чем ключевые слова в примечании документа.
                 </div>
-                <div class="modal-footer justify-content-between">
-                    <button type="button" class="btn btn-sm btn-outline-danger" id="btn-report-rule-edit-delete">Удалить</button>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                        <button type="submit" class="btn btn-sm btn-success">Сохранить</button>
-                    </div>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
@@ -2178,18 +1998,11 @@
 
     .report-rules-table th,
     .report-rules-table td {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
         vertical-align: middle;
     }
 
-    .report-rules-table tbody tr.report-rule-row {
-        cursor: pointer;
-    }
-
-    .report-rules-table tbody tr.report-rule-row:hover {
-        background: rgba(251, 191, 36, 0.12);
+    .report-rules-table td {
+        white-space: normal;
     }
 
     .company-meta {
@@ -2520,7 +2333,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initFirmsCrud(csrf);
     initBannerCrud(csrf);
     initAccountsCrud(csrf);
-    initReportRulesCrud(csrf);
     initWalletLink(csrf);
     initProfileBalances();
 
@@ -3668,304 +3480,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             image.src = source;
             wrap.hidden = false;
-        }
-    }
-
-    function initReportRulesCrud(csrfToken) {
-        const modal = document.getElementById('modalReportRules');
-        const tbody = document.getElementById('report-rules-tbody');
-        const formArea = document.getElementById('report-rule-form-area');
-        const form = document.getElementById('report-rule-form');
-        const empty = document.getElementById('report-rules-empty');
-        const addBtn = document.getElementById('btn-report-rule-add');
-        const cancelBtn = document.getElementById('btn-report-rule-cancel');
-        const editModal = document.getElementById('modalReportRuleEdit');
-        const editBootstrapModal = editModal ? new bootstrap.Modal(editModal) : null;
-        const editForm = document.getElementById('report-rule-edit-form');
-        const editDeleteBtn = document.getElementById('btn-report-rule-edit-delete');
-
-        if (!modal || !tbody || !formArea || !form || !addBtn || !cancelBtn || !editModal || !editBootstrapModal || !editForm || !editDeleteBtn) {
-            return;
-        }
-
-        modal.addEventListener('show.bs.modal', () => {
-            hideReportRuleForm();
-            loadReportRules();
-        });
-
-        addBtn.addEventListener('click', () => {
-            fillReportRuleForm({
-                id: '',
-                is_global: false,
-                rule_group: 'unit_economics',
-                rule_key: 'marketing_spend_keywords',
-                rule_type: 'keyword',
-                source_table: 'z_document',
-                source_field: 'content',
-                operator: 'contains',
-                match_value: '',
-                target_value: 'marketing_spend',
-                document_type: 'RO',
-                direction: 'outflow',
-                priority: 100,
-                is_active: true,
-            });
-            showReportRuleForm();
-        });
-
-        cancelBtn.addEventListener('click', hideReportRuleForm);
-
-        tbody.addEventListener('click', (event) => {
-            const btn = event.target.closest('.report-rule-action');
-            if (btn) {
-                event.stopPropagation();
-                openReportRuleEdit(btn.dataset.id);
-                return;
-            }
-
-            const row = event.target.closest('.report-rule-row');
-            if (!row || !row.dataset.id) {
-                return;
-            }
-
-            openReportRuleEdit(row.dataset.id);
-        });
-
-        editForm.addEventListener('submit', (event) => {
-            event.preventDefault();
-            const id = valueOf('report-rule-edit-id');
-            if (!id) {
-                return;
-            }
-
-            saveReportRule(id, payloadFromPrefix('report-rule-edit'))
-                .then((ok) => {
-                    if (!ok) {
-                        return;
-                    }
-                    editBootstrapModal.hide();
-                    loadReportRules();
-                });
-        });
-
-        editDeleteBtn.addEventListener('click', () => {
-            const id = valueOf('report-rule-edit-id');
-            if (!id || !confirm('Удалить правило?')) {
-                return;
-            }
-
-            deleteReportRule(id)
-                .then((ok) => {
-                    if (!ok) {
-                        return;
-                    }
-                    editBootstrapModal.hide();
-                    loadReportRules();
-                });
-        });
-
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
-            const id = valueOf('report-rule-id');
-            saveReportRule(id, payloadFromPrefix('report-rule'))
-                .then((ok) => {
-                    if (!ok) {
-                        return;
-                    }
-                    hideReportRuleForm();
-                    loadReportRules();
-                });
-        });
-
-        function loadReportRules() {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Загрузка...</td></tr>';
-            fetch('/settings/report-rules')
-                .then((response) => response.json())
-                .then(renderReportRules)
-                .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Не удалось загрузить правила</td></tr>';
-                });
-        }
-
-        function renderReportRules(items) {
-            tbody.innerHTML = '';
-            if (!Array.isArray(items) || items.length === 0) {
-                empty.style.display = 'block';
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Правила не найдены</td></tr>';
-                updateReportRulesBadge(0);
-                return;
-            }
-
-            empty.style.display = 'none';
-            updateReportRulesBadge(items.length);
-            items.forEach((item) => {
-                const tr = document.createElement('tr');
-                tr.className = 'report-rule-row';
-                tr.dataset.id = item.id;
-                const status = item.is_active
-                    ? '<span class="badge bg-success">активно</span>'
-                    : '<span class="badge bg-secondary">выкл.</span>';
-                const scope = item.is_global
-                    ? '<span class="badge bg-info text-dark ms-1">global</span>'
-                    : '<span class="badge bg-light text-dark ms-1">project</span>';
-
-                tr.innerHTML = `
-                    <td title="${esc(item.id)}">${esc(item.id)}</td>
-                    <td title="${esc(item.rule_group)}">${esc(item.rule_group)}</td>
-                    <td title="${esc(item.rule_key)}">${esc(item.rule_key || '—')}</td>
-                    <td title="${esc(item.rule_type)}">${esc(item.rule_type)}</td>
-                    <td title="${esc([item.source_table, item.source_field].filter(Boolean).join('.'))}">${esc(item.source_field || '—')}</td>
-                    <td title="${esc(item.match_value)}">${esc(item.match_value)}</td>
-                    <td title="${esc(item.target_value)}">${esc(item.target_value || '—')}</td>
-                    <td title="${esc(item.document_type)}">${esc(item.document_type || '—')}</td>
-                    <td>${status}${scope}</td>
-                    <td class="text-end">
-                        <button type="button" class="btn btn-sm btn-outline-primary report-rule-action" data-id="${esc(item.id)}">Открыть</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function openReportRuleEdit(id) {
-            if (!id) {
-                return;
-            }
-
-            fetch(`/settings/report-rules/${encodeURIComponent(id)}`)
-                .then((response) => response.json())
-                .then((item) => {
-                    fillReportRuleFormFields('report-rule-edit', item);
-                    document.getElementById('modalReportRuleEditLabel').textContent = `Редактирование правила #${item.id}`;
-                    editBootstrapModal.show();
-                })
-                .catch(() => alert('Не удалось загрузить правило'));
-        }
-
-        function saveReportRule(id, payload) {
-            return fetch(id ? `/settings/report-rules/${encodeURIComponent(id)}` : '/settings/report-rules', {
-                method: id ? 'PUT' : 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-                body: JSON.stringify(payload),
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (!data.success) {
-                        alert(data.message || 'Не удалось сохранить правило');
-                        return false;
-                    }
-
-                    return true;
-                })
-                .catch(() => {
-                    alert('Не удалось сохранить правило');
-                    return false;
-                });
-        }
-
-        function deleteReportRule(id) {
-            return fetch(`/settings/report-rules/${encodeURIComponent(id)}`, {
-                method: 'DELETE',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (!data.success) {
-                        alert(data.message || 'Не удалось удалить правило');
-                        return false;
-                    }
-
-                    return true;
-                })
-                .catch(() => {
-                    alert('Не удалось удалить правило');
-                    return false;
-                });
-        }
-
-        function fillReportRuleForm(item) {
-            fillReportRuleFormFields('report-rule', item);
-        }
-
-        function fillReportRuleFormFields(prefix, item) {
-            setValue(`${prefix}-id`, item.id || '');
-            setValue(`${prefix}-group`, item.rule_group || 'unit_economics');
-            setValue(`${prefix}-key`, item.rule_key || '');
-            setValue(`${prefix}-type`, item.rule_type || 'keyword');
-            setValue(`${prefix}-source-table`, item.source_table || '');
-            setValue(`${prefix}-source-field`, item.source_field || '');
-            setValue(`${prefix}-operator`, item.operator || 'contains');
-            setValue(`${prefix}-match-value`, item.match_value || '');
-            setValue(`${prefix}-target-value`, item.target_value || '');
-            setValue(`${prefix}-document-type`, item.document_type || '');
-            setValue(`${prefix}-direction`, item.direction || '');
-            setValue(`${prefix}-scope`, item.is_global ? 'global' : 'local');
-            setValue(`${prefix}-priority`, item.priority ?? 100);
-            document.getElementById(`${prefix}-active`).checked = Boolean(item.is_active ?? true);
-        }
-
-        function payloadFromPrefix(prefix) {
-            return {
-                rule_group: valueOf(`${prefix}-group`),
-                rule_key: valueOf(`${prefix}-key`),
-                rule_type: valueOf(`${prefix}-type`),
-                source_table: valueOf(`${prefix}-source-table`),
-                source_field: valueOf(`${prefix}-source-field`),
-                operator: valueOf(`${prefix}-operator`),
-                match_value: valueOf(`${prefix}-match-value`),
-                target_value: valueOf(`${prefix}-target-value`),
-                document_type: valueOf(`${prefix}-document-type`),
-                direction: valueOf(`${prefix}-direction`),
-                priority: parseInt(valueOf(`${prefix}-priority`), 10) || 0,
-                is_active: document.getElementById(`${prefix}-active`).checked,
-                is_global: valueOf(`${prefix}-scope`) === 'global',
-            };
-        }
-
-        function showReportRuleForm() {
-            formArea.style.display = 'block';
-        }
-
-        function hideReportRuleForm() {
-            form.reset();
-            document.getElementById('report-rule-id').value = '';
-            document.getElementById('report-rule-active').checked = true;
-            formArea.style.display = 'none';
-        }
-
-        function updateReportRulesBadge(count) {
-            const badge = document.getElementById('badge-report-rules');
-            if (badge) {
-                badge.textContent = count;
-            }
-        }
-
-        function valueOf(id) {
-            return (document.getElementById(id)?.value || '').trim();
-        }
-
-        function setValue(id, value) {
-            const input = document.getElementById(id);
-            if (input) {
-                input.value = value;
-            }
-        }
-
-        function esc(value) {
-            return String(value ?? '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
         }
     }
 

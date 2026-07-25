@@ -135,14 +135,6 @@ class SettingsController extends Controller
                 ->when(Schema::hasColumn('accounts', 'project_id'), fn ($query) => $query->whereNull('project_id'))
                 ->count()
             : 0;
-        $reportRulesCount = Schema::hasTable('report_classification_rules')
-            ? (int) DB::table('report_classification_rules')
-                ->where(function ($query) use ($fid) {
-                    $query->whereNull('firma')
-                        ->orWhere('firma', $fid);
-                })
-                ->count()
-            : 0;
         $sitemapService = app(SitemapService::class);
         $sitemapInfo = [
             'public_url' => $sitemapService->getPublicUrl($fid !== '' ? (int) $fid : null),
@@ -183,7 +175,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'reportRulesCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)

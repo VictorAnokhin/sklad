@@ -152,40 +152,6 @@
             min-width: 0;
         }
 
-        .document-keyword-hints {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .document-keyword-hints__label {
-            color: #94a3b8;
-            font-size: 0.78rem;
-        }
-
-        .document-keyword-hints__list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-
-        .document-keyword-hint {
-            border: 1px solid rgba(251, 191, 36, 0.45);
-            border-radius: 999px;
-            background: rgba(251, 191, 36, 0.12);
-            color: #fbbf24;
-            padding: 3px 10px;
-            font-size: 0.78rem;
-            line-height: 1.3;
-            cursor: pointer;
-        }
-
-        .document-keyword-hint:hover {
-            background: rgba(251, 191, 36, 0.22);
-            border-color: rgba(251, 191, 36, 0.75);
-            color: #fde68a;
-        }
-
         .file-preview-container {
             display: flex;
             flex-wrap: wrap;
@@ -1250,23 +1216,6 @@
                         <div class="doc-form-row-single">
                             <label>Примечание</label>
                             <textarea name="content" id="documentContentInput" class="form-control text-white" rows="3" placeholder="Внесіть примітку до документа">{{ $document->content ?? '' }}</textarea>
-                            @if(($reportKeywordHints ?? collect())->isNotEmpty())
-                                <div class="document-keyword-hints mt-2" aria-label="Keywords для отчетов">
-                                    <div class="document-keyword-hints__label">Keywords для отчетов:</div>
-                                    <div class="document-keyword-hints__list">
-                                        @foreach($reportKeywordHints as $hint)
-                                            <button
-                                                type="button"
-                                                class="document-keyword-hint"
-                                                data-keyword="{{ $hint->keyword }}"
-                                                title="{{ trim(($hint->target ? $hint->target : $hint->group) . ($hint->document_type ? ' / ' . $hint->document_type : '')) }}"
-                                            >
-                                                {{ $hint->keyword }}
-                                            </button>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endif
                         </div>
                     @endif
 
@@ -3021,38 +2970,6 @@
                 console.log('✅ Document already loaded, initializing RA uploads immediately');
                 initRaUploads();
             }
-        })();
-
-        (() => {
-            const contentInput = document.getElementById('documentContentInput');
-            const keywordButtons = document.querySelectorAll('.document-keyword-hint');
-
-            if (!contentInput || keywordButtons.length === 0) {
-                return;
-            }
-
-            keywordButtons.forEach((button) => {
-                button.addEventListener('click', () => {
-                    const keyword = (button.dataset.keyword || '').trim();
-                    if (!keyword) {
-                        return;
-                    }
-
-                    const current = contentInput.value.trim();
-                    const exists = current
-                        .toLowerCase()
-                        .split(/\s+/)
-                        .includes(keyword.toLowerCase());
-
-                    if (exists) {
-                        contentInput.focus();
-                        return;
-                    }
-
-                    contentInput.value = current ? `${current} ${keyword}` : keyword;
-                    contentInput.focus();
-                });
-            });
         })();
 
         (() => {
