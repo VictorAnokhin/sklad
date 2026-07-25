@@ -9,14 +9,6 @@
 @endphp
 
 <div class="container py-4 financing-page" data-bs-theme="dark">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
-        <div>
-            <h1 class="h3 mb-1 text-light">Финансирование</h1>
-            <div class="text-muted">Кредиты, инвесторы, проценты и дивиденды с двойной записью.</div>
-        </div>
-        <a href="{{ route('settings.index') }}" class="btn btn-outline-light btn-sm">Виды платежей</a>
-    </div>
-
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif

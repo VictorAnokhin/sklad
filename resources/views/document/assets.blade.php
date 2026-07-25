@@ -9,14 +9,6 @@
 @endphp
 
 <div class="container py-4 asset-doc-page" data-bs-theme="dark">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
-        <div>
-            <h1 class="h3 mb-1 text-light">Активы</h1>
-            <div class="text-muted">Покупка, продажа, амортизация, обесценение и R&D с двойной записью.</div>
-        </div>
-        <a href="{{ route('settings.index') }}" class="btn btn-outline-light btn-sm">Типы активов</a>
-    </div>
-
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
