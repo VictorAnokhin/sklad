@@ -556,7 +556,7 @@ class Money extends Model
                 self::shiftUserBalance($fid, $targetClientId, $targetDelta, $currency);
             }
 
-            app(AccountingService::class)->createDocumentTransaction(
+            $ledgerTransaction = app(AccountingService::class)->createDocumentTransaction(
                 'z_document:money_order',
                 $id,
                 (string) ($doc->type ?? ''),
@@ -565,6 +565,12 @@ class Money extends Model
                 $fid,
                 $wasPosted
             );
+
+            if (in_array((string) ($doc->type ?? ''), ['PPO', 'PRO'], true) && $ledgerTransaction === null) {
+                throw new \RuntimeException(
+                    "Бухгалтерський регістр недоступний: {$doc->type} не може бути проведений без подвійного запису."
+                );
+            }
 
             DB::table('z_document')
                 ->where('id', $id)

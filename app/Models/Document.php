@@ -475,7 +475,7 @@ class Document extends Model
                 $wasPosted
             );
 
-            if (in_array($docType, ['PN', 'RN', 'PO', 'CPO', 'RO', 'CRO'], true) && $ledgerTransaction === null) {
+            if (in_array($docType, ['PN', 'RN', 'PO', 'CPO', 'RO', 'CRO', 'ZP'], true) && $ledgerTransaction === null) {
                 throw new \RuntimeException(
                     "Бухгалтерський регістр недоступний: {$docType} не може бути проведений без подвійного запису."
                 );

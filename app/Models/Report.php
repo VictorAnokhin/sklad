@@ -1663,12 +1663,11 @@ class Report extends Model
         $openingCashBalance = self::debitBalanceByPrefix(self::ledgerAccountBalances($fid, $dateBeforePeriod), '301');
         $closingCashBalance = self::debitBalanceByPrefix(self::ledgerAccountBalances($fid, $dateToUi), '301');
 
-        $operating = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'operating');
         $investingRows = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'investing');
         $financingRows = $cashMovements->filter(fn ($item) => self::cashFlowActivity($item) === 'financing');
 
         $operatingInflows = self::cashFlowOperatingInflows($fid, $dateFromUi, $dateToUi);
-        $operatingOutflows = (float) $operating->sum('credit');
+        $operatingOutflows = self::cashFlowOperatingOutflows($fid, $dateFromUi, $dateToUi);
         $investing = [
             'inflows' => (float) $investingRows->sum('debit'),
             'outflows' => (float) $investingRows->sum('credit'),
@@ -1676,7 +1675,7 @@ class Report extends Model
         $financing = [
             'inflows' => (float) $financingRows->sum('debit'),
             'outflows' => (float) $financingRows->sum('credit'),
-            'assumption' => 'Поступления от клиентов и продаж берутся по проведенным входящим денежным документам PO/CPO/PPO. Выплаты и прочие денежные потоки классифицируются по виду платежа документа: операционная, инвестиционная или финансовая деятельность.',
+            'assumption' => 'Операционные поступления и выплаты берутся по проведенным денежным документам PO/CPO/PPO и RO/CRO/PRO/ZP. Инвестиционные и финансовые потоки классифицируются по виду платежа документа: операционная, инвестиционная или финансовая деятельность.',
         ];
 
         $operatingNet = $operatingInflows - $operatingOutflows;
@@ -1780,6 +1779,16 @@ class Report extends Model
 
     private static function cashFlowOperatingInflows(string $fid, string $dateFromUi, string $dateToUi): float
     {
+        return self::cashFlowDocumentSum($fid, $dateFromUi, $dateToUi, ['PO', 'CPO', 'PPO']);
+    }
+
+    private static function cashFlowOperatingOutflows(string $fid, string $dateFromUi, string $dateToUi): float
+    {
+        return self::cashFlowDocumentSum($fid, $dateFromUi, $dateToUi, ['RO', 'CRO', 'PRO', 'ZP']);
+    }
+
+    private static function cashFlowDocumentSum(string $fid, string $dateFromUi, string $dateToUi, array $types): float
+    {
         $dateFromLegacy = Carbon::createFromFormat('Y-m-d', $dateFromUi)->format('d-m-Y');
         $dateToLegacy = Carbon::createFromFormat('Y-m-d', $dateToUi)->format('d-m-Y');
 
@@ -1790,7 +1799,7 @@ class Report extends Model
                     ->where('payment_type.firma', '=', $fid);
             })
             ->where('zd.firma', $fid)
-            ->whereIn('zd.type', ['PO', 'CPO', 'PPO'])
+            ->whereIn('zd.type', $types)
             ->where('zd.provodka', 1)
             ->whereRaw(
                 "STR_TO_DATE(zd.data, '%d-%m-%Y') BETWEEN STR_TO_DATE(?, '%d-%m-%Y') AND STR_TO_DATE(?, '%d-%m-%Y')",
