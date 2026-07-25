@@ -314,4 +314,72 @@ class SalaryStatementWorkflowTest extends TestCase
             'year' => '2026',
         ]), false);
     }
+
+    public function test_zv_list_shows_salary_document_with_inconsistent_statement_link(): void
+    {
+        $statementId = DB::table('z_document')->insertGetId([
+            'num' => '7',
+            'client1' => 0,
+            'client2' => 0,
+            'type' => 'ZV',
+            'summa' => 700,
+            'status' => 0,
+            'data' => '25-07-2026',
+            'data2' => '25-07-2026',
+            'time' => '12:00:00',
+            'firma' => $this->projectId,
+            'dt' => now()->timestamp,
+            'numz' => '7',
+            'typez' => 'ZV',
+            'docid' => 0,
+            'manager' => '',
+            'user' => '',
+            'content' => '',
+            'docum' => '',
+            'dostup' => 1,
+            'work' => '1',
+        ]);
+        $zpId = DB::table('z_document')->insertGetId([
+            'num' => '100',
+            'client1' => $this->userId,
+            'client2' => 0,
+            'type' => 'ZP',
+            'summa' => 700,
+            'status' => 0,
+            'data' => '25-07-2026',
+            'data2' => '25-07-2026',
+            'time' => '12:30:00',
+            'firma' => $this->projectId,
+            'dt' => now()->timestamp,
+            'numz' => '0',
+            'typez' => '',
+            'docid' => 0,
+            'manager' => '',
+            'user' => '',
+            'content' => '',
+            'docum' => '',
+            'dostup' => 1,
+            'work' => '1',
+        ]);
+        DB::table('salary_statement_lines')->insert([
+            'statement_document_id' => $statementId,
+            'employee_id' => $this->userId,
+            'project_id' => $this->projectId,
+            'salary_amount' => 700,
+            'zp_document_id' => $zpId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::query()->findOrFail($this->userId);
+        $response = $this->actingAs($user)->withSession([
+            'fid' => (string) $this->projectId,
+            'login' => (string) ($user->login ?? ''),
+            'work' => '1',
+            'year' => '2026',
+        ])->get(route('document.index', ['doc' => 'ZV', 'num' => 0]));
+
+        $response->assertOk();
+        $response->assertSee('ZP №100');
+    }
 }

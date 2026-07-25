@@ -1005,10 +1005,23 @@ class DocumentController extends Controller
                 $join->on('line.zp_document_id', '=', 'zp.id')
                     ->where('line.project_id', '=', $fid);
             })
+            ->leftJoin('z_document as statement', function ($join) use ($fid) {
+                $join->on('statement.id', '=', 'line.statement_document_id')
+                    ->where('statement.firma', '=', $fid)
+                    ->where('statement.type', '=', 'ZV');
+            })
             ->leftJoin('users as employee', 'employee.id', '=', 'zp.client1')
             ->where('zp.firma', $fid)
             ->where('zp.type', 'ZP')
-            ->whereNull('line.id')
+            ->where(function ($query) {
+                $query->whereNull('line.id')
+                    ->orWhereNull('statement.id')
+                    ->orWhereNull('zp.typez')
+                    ->orWhere('zp.typez', '<>', 'ZV')
+                    ->orWhereNull('zp.docid')
+                    ->orWhere('zp.docid', 0)
+                    ->orWhereColumn('zp.docid', '<>', 'line.statement_document_id');
+            })
             ->orderByDesc('zp.dt')
             ->orderByDesc('zp.id')
             ->get([
