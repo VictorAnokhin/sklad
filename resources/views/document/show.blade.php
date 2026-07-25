@@ -786,8 +786,19 @@
 
                     @if($doc === 'ZP')
                         <div class="doc-form-row-single">
-                            <label for="salaryStatementSelect">Платежная ведомость</label>
-                            <select name="salary_statement_id" id="salaryStatementSelect" class="form-select text-white"
+                            <label for="salaryStatementSearch">Платежная ведомость</label>
+                            <div class="position-relative">
+                                <input type="search" id="salaryStatementSearch" class="form-control text-white"
+                                    placeholder="Поиск по номеру, дате или сумме" autocomplete="off"
+                                    role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                    aria-controls="salaryStatementSearchResults"
+                                    {{ (int) ($document->provodka ?? 0) === 1 ? 'disabled' : '' }}>
+                                <div id="salaryStatementSearchResults"
+                                    class="list-group position-absolute start-0 end-0 shadow"
+                                    style="z-index: 1050; max-height: 260px; overflow-y: auto;"
+                                    role="listbox" hidden></div>
+                            </div>
+                            <select name="salary_statement_id" id="salaryStatementSelect" class="d-none"
                                 {{ (int) ($document->provodka ?? 0) === 1 ? 'disabled' : '' }}>
                                 <option value="">— Без ведомости —</option>
                                 @foreach(($salaryStatements ?? collect()) as $salaryStatement)
@@ -1466,17 +1477,124 @@
             const clientDetails = document.getElementById('selectedClientDetails');
             const documentSummaInput1 = document.getElementById('documentSummaInput');
             const salaryStatementSelect = document.getElementById('salaryStatementSelect');
+            const salaryStatementSearch = document.getElementById('salaryStatementSearch');
+            const salaryStatementResults = document.getElementById('salaryStatementSearchResults');
             const paymentTypeSelect = document.querySelector('select[name="reestr"]');
             const loanMarketValueInput = document.querySelector('[data-loan-market-value]');
             const loanLtvSelect = document.querySelector('[data-loan-ltv]');
             const loanAmountInput = document.querySelector('[data-loan-amount-input]');
             const teamOnlyClientSearch = @json($doc === 'ZP');
+            const salaryStatementOptions = salaryStatementSelect
+                ? Array.from(salaryStatementSelect.options).map((option) => ({
+                    value: option.value,
+                    label: option.textContent.replace(/\s+/g, ' ').trim(),
+                    paymentType: option.dataset.paymentType || '',
+                }))
+                : [];
+            let activeSalaryStatementResult = -1;
+
+            const hideSalaryStatementResults = () => {
+                if (!salaryStatementResults || !salaryStatementSearch) return;
+                salaryStatementResults.hidden = true;
+                salaryStatementSearch.setAttribute('aria-expanded', 'false');
+                activeSalaryStatementResult = -1;
+            };
+            const selectSalaryStatement = (option) => {
+                if (!salaryStatementSelect || !salaryStatementSearch) return;
+                salaryStatementSelect.value = option.value;
+                salaryStatementSearch.value = option.label;
+                salaryStatementSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                hideSalaryStatementResults();
+            };
+            const renderSalaryStatementResults = (queryOverride = null) => {
+                if (!salaryStatementResults || !salaryStatementSearch) return;
+                const query = String(queryOverride ?? salaryStatementSearch.value).trim().toLocaleLowerCase();
+                const matches = salaryStatementOptions
+                    .filter((option) => option.label.toLocaleLowerCase().includes(query))
+                    .slice(0, 30);
+
+                salaryStatementResults.innerHTML = '';
+                activeSalaryStatementResult = -1;
+                if (matches.length === 0) {
+                    const empty = document.createElement('div');
+                    empty.className = 'list-group-item text-muted';
+                    empty.textContent = 'Ведомости не найдены';
+                    salaryStatementResults.appendChild(empty);
+                } else {
+                    matches.forEach((option) => {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'list-group-item list-group-item-action';
+                        button.dataset.salaryStatementValue = option.value;
+                        button.setAttribute('role', 'option');
+                        button.textContent = option.label;
+                        button.addEventListener('mousedown', (event) => event.preventDefault());
+                        button.addEventListener('click', () => selectSalaryStatement(option));
+                        salaryStatementResults.appendChild(button);
+                    });
+                }
+                salaryStatementResults.hidden = false;
+                salaryStatementSearch.setAttribute('aria-expanded', 'true');
+            };
+            const syncSalaryStatementSearch = () => {
+                if (!salaryStatementSelect || !salaryStatementSearch) return;
+                const selected = salaryStatementOptions.find(
+                    (option) => option.value === salaryStatementSelect.value
+                );
+                salaryStatementSearch.value = selected?.label || '';
+            };
+
+            salaryStatementSearch?.addEventListener('focus', () => {
+                salaryStatementSearch.select();
+                renderSalaryStatementResults('');
+            });
+            salaryStatementSearch?.addEventListener('input', () => renderSalaryStatementResults());
+            salaryStatementSearch?.addEventListener('blur', () => {
+                window.setTimeout(() => {
+                    hideSalaryStatementResults();
+                    syncSalaryStatementSearch();
+                }, 100);
+            });
+            salaryStatementSearch?.addEventListener('keydown', (event) => {
+                if (!salaryStatementResults || salaryStatementResults.hidden) {
+                    if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        renderSalaryStatementResults();
+                    }
+                    return;
+                }
+
+                const resultButtons = Array.from(
+                    salaryStatementResults.querySelectorAll('[data-salary-statement-value]')
+                );
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    const direction = event.key === 'ArrowDown' ? 1 : -1;
+                    activeSalaryStatementResult = Math.max(
+                        0,
+                        Math.min(resultButtons.length - 1, activeSalaryStatementResult + direction)
+                    );
+                    resultButtons.forEach((button, index) => {
+                        button.classList.toggle('active', index === activeSalaryStatementResult);
+                        button.setAttribute('aria-selected', index === activeSalaryStatementResult ? 'true' : 'false');
+                    });
+                    resultButtons[activeSalaryStatementResult]?.scrollIntoView({ block: 'nearest' });
+                } else if (event.key === 'Enter' && activeSalaryStatementResult >= 0) {
+                    event.preventDefault();
+                    resultButtons[activeSalaryStatementResult]?.click();
+                } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    hideSalaryStatementResults();
+                }
+            });
             salaryStatementSelect?.addEventListener('change', () => {
                 const paymentTypeId = salaryStatementSelect.selectedOptions[0]?.dataset.paymentType || '';
                 if (paymentTypeId && paymentTypeSelect) {
                     paymentTypeSelect.value = paymentTypeId;
                 }
+                syncSalaryStatementSearch();
             });
+            syncSalaryStatementSearch();
             const formatClientName = (user) => [user.secondname || '', user.name || ''].filter(Boolean).join(' ').trim();
             const formatClientDetailsHtml = (user) => {
                 const regionPart = user.region ? user.region + ' | ' : '';

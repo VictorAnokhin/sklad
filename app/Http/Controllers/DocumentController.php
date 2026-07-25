@@ -1278,6 +1278,58 @@ class DocumentController extends Controller
                 return $line;
             })
             ->values();
+        $linkedDocuments = DB::table('z_document as zp')
+            ->leftJoin('salary_statement_lines as linked_line', function ($join) use ($statement) {
+                $join->on('linked_line.zp_document_id', '=', 'zp.id')
+                    ->where('linked_line.project_id', '=', $statement->firma);
+            })
+            ->leftJoin('users as employee', 'employee.id', '=', 'zp.client1')
+            ->where('zp.firma', $statement->firma)
+            ->where('zp.type', 'ZP')
+            ->where(function ($query) use ($statement) {
+                $query->where('linked_line.statement_document_id', $statement->id)
+                    ->orWhere(function ($parentQuery) use ($statement) {
+                        $parentQuery->where('zp.typez', 'ZV')
+                            ->where('zp.docid', $statement->id);
+                    });
+            })
+            ->orderBy('zp.data')
+            ->orderBy('zp.num')
+            ->get([
+                'zp.id',
+                'zp.num',
+                'zp.data',
+                'zp.summa',
+                'zp.provodka',
+                'employee.name',
+                'employee.secondname',
+                'employee.fathername',
+                'employee.orgname',
+            ])
+            ->unique('id')
+            ->map(function ($document) {
+                $employeeName = trim(implode(' ', array_filter([
+                    $document->secondname ?? '',
+                    $document->name ?? '',
+                    $document->fathername ?? '',
+                ]))) ?: trim((string) ($document->orgname ?? '')) ?: 'Сотрудник не выбран';
+
+                return [
+                    'id' => (int) $document->id,
+                    'num' => (string) $document->num,
+                    'data' => (string) $document->data,
+                    'summa' => round((float) $document->summa, 2),
+                    'posted' => (int) $document->provodka === 1,
+                    'employee_name' => $employeeName,
+                    'url' => route('document.show', [
+                        'doc' => 'ZP',
+                        'doc_id' => $document->id,
+                        'num' => $document->num,
+                        'year' => $this->documentYear((string) ($document->data ?? '')),
+                    ]),
+                ];
+            })
+            ->values();
 
         return [
             'id' => (int) $statement->id,
@@ -1287,6 +1339,7 @@ class DocumentController extends Controller
             'content' => (string) ($statement->content ?? ''),
             'summa' => round((float) $statement->summa, 2),
             'lines' => $lines,
+            'zp_documents' => $linkedDocuments,
         ];
     }
 

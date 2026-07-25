@@ -28,6 +28,10 @@
                             <input type="text" class="form-control" id="salaryStatementContent" maxlength="65535">
                         </div>
                     </div>
+                    <div class="mb-3" id="salaryStatementDocumentsBlock" hidden>
+                        <div class="form-label">Связанные документы ZP</div>
+                        <div class="d-flex flex-wrap gap-2" id="salaryStatementDocuments"></div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle">
                             <thead>
@@ -135,6 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const rowsElement = document.getElementById('salaryStatementRows');
     const emptyElement = document.getElementById('salaryStatementEmpty');
     const totalElement = document.getElementById('salaryStatementTotal');
+    const documentsBlock = document.getElementById('salaryStatementDocumentsBlock');
+    const documentsElement = document.getElementById('salaryStatementDocuments');
     const statementError = document.getElementById('salaryStatementError');
     const payoutError = document.getElementById('salaryPayoutError');
     let statement = null;
@@ -170,6 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('salaryStatementPaymentType').value = '';
         document.getElementById('salaryStatementContent').value = '';
         hideError(statementError);
+        renderLinkedDocuments([]);
         renderLines();
         statementModal.show();
     });
@@ -237,7 +244,21 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('salaryStatementDate').value = inputDate(data.data);
         document.getElementById('salaryStatementPaymentType').value = data.reestr || '';
         document.getElementById('salaryStatementContent').value = data.content || '';
+        renderLinkedDocuments(data.zp_documents || []);
         renderLines();
+    }
+
+    function renderLinkedDocuments(documents) {
+        documentsElement.innerHTML = '';
+        documentsBlock.hidden = documents.length === 0;
+        documents.forEach((salaryDocument) => {
+            const link = document.createElement('a');
+            link.href = salaryDocument.url;
+            link.className = `btn btn-sm ${salaryDocument.posted ? 'btn-outline-success' : 'btn-outline-warning'}`;
+            link.textContent = `Открыть ZP №${salaryDocument.num} · ${Number(salaryDocument.summa || 0).toFixed(2)} грн`;
+            link.title = `${salaryDocument.employee_name || ''} · ${salaryDocument.data || ''}`;
+            documentsElement.appendChild(link);
+        });
     }
 
     async function saveStatement() {
@@ -338,7 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td>
                     ${paid
-                        ? `<a href="${escapeHtml(line.zp_url || '#')}" class="btn btn-sm ${Number(line.zp_posted) === 1 ? 'btn-outline-success' : 'btn-outline-warning'}">ZP №${escapeHtml(line.zp_num || '')}</a>`
+                        ? `<a href="${escapeHtml(line.zp_url || '#')}" class="btn btn-sm ${Number(line.zp_posted) === 1 ? 'btn-outline-success' : 'btn-outline-warning'}">Открыть ZP №${escapeHtml(line.zp_num || '')}</a>`
                         : '<span class="text-muted">—</span>'}
                 </td>
                 <td>

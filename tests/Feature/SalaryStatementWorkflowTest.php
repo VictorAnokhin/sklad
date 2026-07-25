@@ -131,6 +131,14 @@ class SalaryStatementWorkflowTest extends TestCase
             'client1' => (string) $this->userId,
             'provodka' => 1,
         ]);
+        $statementResponse = $this->getJson(route('document.salaryStatements.show', ['id' => $statementId]));
+        $statementResponse->assertOk();
+        $statementResponse->assertJsonPath('zp_documents.0.id', $zpId);
+        $statementResponse->assertJsonPath('zp_documents.0.num', (string) DB::table('z_document')->where('id', $zpId)->value('num'));
+        $this->assertStringContainsString(
+            '/document/show',
+            (string) $statementResponse->json('zp_documents.0.url')
+        );
         $this->assertDatabaseHas('salary_statement_lines', [
             'id' => $lineId,
             'statement_document_id' => $statementId,
