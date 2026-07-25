@@ -12,6 +12,7 @@ $btnLabel = match($doc) {
 'PO' => \App\Models\Document::typeName('PO'),
 'RO' => \App\Models\Document::typeName('RO'),
 'ZP' => 'Выдать ЗП',
+'ZV' => 'Выдать ЗП',
 'PP' => \App\Models\Document::typeName('PP'),
 'PN' => \App\Models\Document::typeName('PN'),
 'RN' => \App\Models\Document::typeName('RN'),
@@ -43,6 +44,12 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
       <a href="{{ route('bank.loanDocs.index', ['action' => 'create']) }}" class="button top-action-create-btn">
         + Создать заявку
       </a>
+    </div>
+  @elseif($doc === 'ZV')
+    <div class="top-action-create">
+      <button type="button" class="button top-action-create-btn" data-zv-create data-doc="ZV">
+        + Выдать ЗП
+      </button>
     </div>
   @else
     <form action="{{ route($documentRoutes . '.save') }}" method="post" name="dataform" class="top-action-create">
@@ -91,7 +98,8 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
   <div class="txtbox-price-docs">
     <div class="order-card__header">
       <div class="numdoc-docs">
-        <a href="{{ $item['linkUrl'] }}" title="{{ __('document.open') }}">{{ $item['num'] }}</a>
+        <a href="{{ $item['linkUrl'] }}" title="{{ __('document.open') }}"
+          @if($doc === 'ZV') data-zv-open data-statement-id="{{ $item['id'] }}" @endif>{{ $item['num'] }}</a>
       </div>
       <div class="status-docs-icons--mobile">
         {!! $item['signalIcons'] !!}
@@ -102,7 +110,11 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
       </div>
     </div>
     <div class="captionbox-docs">
-      <a href="{{ $item['linkUrl'] }}" class="title">
+      <a href="{{ $item['linkUrl'] }}" class="title"
+        @if($doc === 'ZV') data-zv-open data-statement-id="{{ $item['id'] }}" @endif>
+        @if($doc === 'ZV')
+          <span class="compact-client-line compact-main">Платежная ведомость №{{ $item['num'] }}</span>
+        @endif
         <span class="compact-client-line compact-main">{!! $item['org'] !!}{{ $item['fullName'] }}</span>
         <span class="compact-client-line city">{{ $item['city'] }} {{ $item['poshta'] }}</span>
         @if(in_array($doc, ['PO', 'RO', 'PP', 'ZP']))
@@ -146,5 +158,13 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
 
   @endif
 </div>
+
+@if($doc === 'ZV')
+  @include('document.salary_statement_modal', [
+    'salaryEmployees' => $salaryEmployees ?? collect(),
+    'salaryCashboxes' => $salaryCashboxes ?? collect(),
+    'salaryPaymentTypes' => $salaryPaymentTypes ?? collect(),
+  ])
+@endif
 
 @endsection

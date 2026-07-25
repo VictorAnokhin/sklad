@@ -62,13 +62,14 @@ class Document extends Model
         $docFilter = !empty($fd['docSql']) ? $fd['docSql'] : '';
 
 
+        $userJoin = $doc === 'ZV' ? 'LEFT JOIN' : 'JOIN';
         if ($hasUserF) {
-            $base = "FROM {$table} d JOIN users u ON u.id = d.client1 ";
+            $base = "FROM {$table} d {$userJoin} users u ON u.id = d.client1 ";
             $base .= "WHERE d.firma = ? AND d.type = ? {$userFilter} {$docFilter}";
             $bp = [$fid, "{$doc}", ...$fd['params']];
         }
         else {
-            $base = "FROM {$table} d JOIN users u ON u.id = d.client1 ";
+            $base = "FROM {$table} d {$userJoin} users u ON u.id = d.client1 ";
             $base .= "WHERE d.firma = ? AND d.type LIKE ? {$docFilter}";
             $bp = [$fid, "%{$doc}%", ...$fd['params']];
         }
@@ -220,9 +221,11 @@ class Document extends Model
             $top = (int)($row->top ?? 0);
             $topImg = $top >= 5 ? "⭐" : "[{$top}]";
 
-            $linkUrl = route($routePrefix . '.show', [
-                'doc_id' => $row->id, 'num' => $row->num, 'year' => $year, 'doc' => $doc,
-            ]);
+            $linkUrl = $doc === 'ZV'
+                ? route($routePrefix . '.index', ['doc' => 'ZV', 'statement_id' => $row->id])
+                : route($routePrefix . '.show', [
+                    'doc_id' => $row->id, 'num' => $row->num, 'year' => $year, 'doc' => $doc,
+                ]);
 
             $data[] = [
                 'id' => $row->id,
