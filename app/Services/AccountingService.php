@@ -859,10 +859,12 @@ class AccountingService
             $parentId = $parent?->id;
         }
 
-        $account = Account::query()->firstOrCreate(
-            ['code' => $code],
-            ['name' => $name, 'type' => $type, 'parent_id' => $parentId]
-        );
+        $attributes = ['name' => $name, 'type' => $type, 'parent_id' => $parentId];
+        if (Schema::hasColumn('accounts', 'project_id')) {
+            $attributes['project_id'] = $this->projectIdFromAccountCode($code);
+        }
+
+        $account = Account::query()->firstOrCreate(['code' => $code], $attributes);
 
         $dirty = false;
         if ($account->name !== $name) {
@@ -877,11 +879,25 @@ class AccountingService
             $account->parent_id = $parentId;
             $dirty = true;
         }
+        $projectId = $this->projectIdFromAccountCode($code);
+        if (Schema::hasColumn('accounts', 'project_id') && $account->project_id !== $projectId) {
+            $account->project_id = $projectId;
+            $dirty = true;
+        }
         if ($dirty) {
             $account->save();
         }
 
         return $account;
+    }
+
+    private function projectIdFromAccountCode(string $code): ?int
+    {
+        if (! Schema::hasColumn('accounts', 'project_id') || ! preg_match('/^\d+\.(\d+)(?:\.|$)/', $code, $matches)) {
+            return null;
+        }
+
+        return (int) $matches[1] ?: null;
     }
 
     private function confName(string $type, string $id): string

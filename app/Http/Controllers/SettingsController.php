@@ -131,7 +131,9 @@ class SettingsController extends Controller
                 ->count()
             : 0;
         $accountsCount = Schema::hasTable('accounts')
-            ? (int) Account::query()->count()
+            ? (int) Account::query()
+                ->when(Schema::hasColumn('accounts', 'project_id'), fn ($query) => $query->whereNull('project_id'))
+                ->count()
             : 0;
         $reportRulesCount = Schema::hasTable('report_classification_rules')
             ? (int) DB::table('report_classification_rules')
@@ -860,9 +862,43 @@ class SettingsController extends Controller
         if (Schema::hasColumn('accounts', 'currency')) {
             $columns[] = 'accounts.currency';
         }
+        if (Schema::hasColumn('accounts', 'project_id')) {
+            $columns[] = 'accounts.project_id';
+        }
 
         $items = Account::query()
             ->leftJoin('accounts as parent', 'accounts.parent_id', '=', 'parent.id')
+            ->when(Schema::hasColumn('accounts', 'project_id'), fn ($query) => $query->whereNull('accounts.project_id'))
+            ->orderBy('accounts.code')
+            ->get($columns)
+            ->map(fn ($item) => $this->decorateAccountItem($item));
+
+        return response()->json($items);
+    }
+
+    public function analyticalAccountsIndex()
+    {
+        if (! Schema::hasTable('accounts') || ! Schema::hasColumn('accounts', 'project_id')) {
+            return response()->json([]);
+        }
+
+        $columns = [
+            'accounts.id',
+            'accounts.code',
+            'accounts.name',
+            'accounts.type',
+            'accounts.parent_id',
+            'accounts.project_id',
+            'parent.code as parent_code',
+            'parent.name as parent_name',
+        ];
+        if (Schema::hasColumn('accounts', 'currency')) {
+            $columns[] = 'accounts.currency';
+        }
+
+        $items = Account::query()
+            ->leftJoin('accounts as parent', 'accounts.parent_id', '=', 'parent.id')
+            ->where('accounts.project_id', (int) session('fid', 0))
             ->orderBy('accounts.code')
             ->get($columns)
             ->map(fn ($item) => $this->decorateAccountItem($item));
@@ -876,7 +912,7 @@ class SettingsController extends Controller
             return response()->json(['message' => 'Не знайдено'], 404);
         }
 
-        $item = Account::query()->find($id);
+        $item = $this->accessibleAccountQuery()->find($id);
         if (!$item) {
             return response()->json(['message' => 'Не знайдено'], 404);
         }
@@ -889,6 +925,7 @@ class SettingsController extends Controller
         $validated = $this->validateAccountRecord($request, [
             'code' => 'required|string|max:255|unique:accounts,code',
         ]);
+        $this->validateAccountParentScope($validated['parent_id'] ?? null, null);
 
         $account = Account::query()->create($validated);
 
@@ -897,7 +934,7 @@ class SettingsController extends Controller
 
     public function accountsUpdate(Request $request, $id)
     {
-        $account = Account::query()->find($id);
+        $account = $this->accessibleAccountQuery()->find($id);
         if (!$account) {
             return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
         }
@@ -905,6 +942,7 @@ class SettingsController extends Controller
         $validated = $this->validateAccountRecord($request, [
             'code' => 'required|string|max:255|unique:accounts,code,' . $account->id,
         ]);
+        $this->validateAccountParentScope($validated['parent_id'] ?? null, $account->project_id ?? null);
 
         if ((int) ($validated['parent_id'] ?? 0) === (int) $account->id) {
             return response()->json(['success' => false, 'message' => 'Рахунок не може бути батьківським сам для себе'], 422);
@@ -917,7 +955,7 @@ class SettingsController extends Controller
 
     public function accountsDestroy($id)
     {
-        $account = Account::query()->find($id);
+        $account = $this->accessibleAccountQuery()->find($id);
         if (!$account) {
             return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
         }
@@ -943,6 +981,31 @@ class SettingsController extends Controller
         $account->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    private function accessibleAccountQuery()
+    {
+        return Account::query()->when(
+            Schema::hasColumn('accounts', 'project_id'),
+            fn ($query) => $query->where(function ($scope) {
+                $scope->whereNull('project_id')
+                    ->orWhere('project_id', (int) session('fid', 0));
+            })
+        );
+    }
+
+    private function validateAccountParentScope(mixed $parentId, ?int $projectId): void
+    {
+        if (! $parentId || ! Schema::hasColumn('accounts', 'project_id')) {
+            return;
+        }
+
+        $parentProjectId = Account::query()->whereKey($parentId)->value('project_id');
+        if ($parentProjectId !== null && (int) $parentProjectId !== (int) $projectId) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'parent_id' => 'Родительский счет должен быть общим или относиться к текущему проекту.',
+            ]);
+        }
     }
 
     private function validateAccountRecord(Request $request, array $codeRule): array
@@ -1019,6 +1082,18 @@ class SettingsController extends Controller
             'debit_account_id' => 'nullable|integer|exists:accounts,id',
             'credit_account_id' => 'nullable|integer|exists:accounts,id',
         ]);
+
+        if (Schema::hasColumn('accounts', 'project_id')) {
+            $accountIds = collect($validated)
+                ->filter(fn ($value) => $value !== null)
+                ->map(fn ($value) => (int) $value)
+                ->values();
+            if ($accountIds->isNotEmpty() && Account::query()->whereIn('id', $accountIds)->whereNotNull('project_id')->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'account_id' => 'Вид платежа можно привязать только к общему счету.',
+                ]);
+            }
+        }
 
         $paymentType = DB::table('conf')
             ->where('id', $id)

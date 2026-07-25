@@ -22,17 +22,17 @@ class SharedAccountingSettingsTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_accounts_from_all_projects_are_returned_for_any_selected_project(): void
+    public function test_common_accounts_are_returned_for_any_selected_project(): void
     {
         $suffix = bin2hex(random_bytes(4));
         $first = Account::query()->create([
-            'code' => "301.101.{$suffix}",
+            'code' => "COMMON-101-{$suffix}",
             'name' => 'Shared account one',
             'type' => 'asset',
             'currency' => 'UAH',
         ]);
         $second = Account::query()->create([
-            'code' => "301.202.{$suffix}",
+            'code' => "COMMON-202-{$suffix}",
             'name' => 'Shared account two',
             'type' => 'asset',
             'currency' => 'UAH',
@@ -44,6 +44,36 @@ class SharedAccountingSettingsTest extends TestCase
 
         $this->assertTrue($items->contains('id', $first->id));
         $this->assertTrue($items->contains('id', $second->id));
+    }
+
+    public function test_analytical_accounts_are_scoped_to_selected_project(): void
+    {
+        $suffix = bin2hex(random_bytes(4));
+        $first = Account::query()->create([
+            'code' => "141.101.{$suffix}",
+            'name' => 'Project 101 analytical account',
+            'type' => 'asset',
+            'currency' => 'UAH',
+            'project_id' => 101,
+        ]);
+        $second = Account::query()->create([
+            'code' => "141.202.{$suffix}",
+            'name' => 'Project 202 analytical account',
+            'type' => 'asset',
+            'currency' => 'UAH',
+            'project_id' => 202,
+        ]);
+
+        session(['fid' => '101']);
+
+        $items = collect(app(SettingsController::class)->analyticalAccountsIndex()->getData(true));
+        $commonItems = collect(app(SettingsController::class)->accountsIndex()->getData(true));
+
+        $this->assertTrue($items->contains('id', $first->id));
+        $this->assertFalse($items->contains('id', $second->id));
+        $this->assertFalse($commonItems->contains('id', $first->id));
+        $this->assertFalse($commonItems->contains('id', $second->id));
+        $this->assertSame(404, app(SettingsController::class)->accountsShow($second->id)->getStatusCode());
     }
 
     public function test_payment_types_are_shared_by_settings_and_document_forms(): void

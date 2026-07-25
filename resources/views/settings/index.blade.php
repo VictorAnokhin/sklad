@@ -325,6 +325,13 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="analytical-accounts-tab" data-bs-toggle="tab"
+                            data-bs-target="#analytical-accounts-tab-pane" type="button" role="tab"
+                            aria-controls="analytical-accounts-tab-pane" aria-selected="false">
+                            {{ __('settings.accounts.analytics_heading') }}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="payment-bindings-tab" data-bs-toggle="tab"
                             data-bs-target="#payment-bindings-tab-pane" type="button" role="tab"
                             aria-controls="payment-bindings-tab-pane" aria-selected="false">
@@ -360,6 +367,35 @@
                             </table>
                         </div>
                         <p class="text-center text-muted" id="accounts-empty-msg" style="display:none">{{ __('settings.accounts.empty_accounts') }}</p>
+                    </div>
+
+                    <div class="tab-pane fade" id="analytical-accounts-tab-pane" role="tabpanel"
+                        aria-labelledby="analytical-accounts-tab" tabindex="0">
+                        <div class="small text-muted mb-3">{{ __('settings.accounts.analytics_help') }}</div>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm align-middle w-100 accounts-wide-table">
+                                <colgroup>
+                                    <col class="accounts-wide-table__first-column">
+                                    <col>
+                                    <col>
+                                    <col>
+                                    <col>
+                                    <col>
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th>{{ __('settings.accounts.th_code') }}</th>
+                                        <th>{{ __('settings.accounts.th_name') }}</th>
+                                        <th>{{ __('settings.accounts.th_type') }}</th>
+                                        <th>{{ __('settings.accounts.th_currency') }}</th>
+                                        <th>{{ __('settings.accounts.th_parent') }}</th>
+                                        <th class="text-end">{{ __('settings.common.actions') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="analytical-accounts-tbody"></tbody>
+                            </table>
+                        </div>
+                        <p class="text-center text-muted" id="analytical-accounts-empty-msg" style="display:none">{{ __('settings.accounts.empty_analytics') }}</p>
                     </div>
 
                     <div class="tab-pane fade" id="payment-bindings-tab-pane" role="tabpanel"
@@ -4691,6 +4727,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const form = document.getElementById('account-form');
         const tbody = document.getElementById('accounts-tbody');
         const emptyMsg = document.getElementById('accounts-empty-msg');
+        const analyticalTbody = document.getElementById('analytical-accounts-tbody');
+        const analyticalEmptyMsg = document.getElementById('analytical-accounts-empty-msg');
         const addBtn = document.getElementById('btn-account-add');
         const cancelBtn = document.getElementById('btn-account-cancel');
         const badge = document.getElementById('badge-accounts');
@@ -4700,18 +4738,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const bindingsEmptyMsg = document.getElementById('payment-bindings-empty-msg');
         const reloadBindingsBtn = document.getElementById('btn-payment-bindings-reload');
         const accountsTab = document.getElementById('accounts-tab');
+        const analyticalTab = document.getElementById('analytical-accounts-tab');
         const bindingsTab = document.getElementById('payment-bindings-tab');
 
-        if (!modal || !form || !tbody || !bindingsTbody || !addBtn || !cancelBtn) {
+        if (!modal || !form || !tbody || !analyticalTbody || !bindingsTbody || !addBtn || !cancelBtn) {
             return;
         }
 
         let accountsCache = [];
+        let analyticalAccountsCache = [];
         const accountCurrencyOptions = @json($accountCurrencies ?? collect(['UAH']));
 
         modal.addEventListener('show.bs.modal', () => {
             hideAccountForm();
+            addBtn.classList.toggle('d-none', !accountsTab?.classList.contains('active'));
             loadAccounts();
+            loadAnalyticalAccounts();
             loadBindings();
         });
 
@@ -4725,6 +4767,11 @@ document.addEventListener('DOMContentLoaded', () => {
         accountsTab?.addEventListener('shown.bs.tab', () => {
             addBtn.classList.remove('d-none');
         });
+        analyticalTab?.addEventListener('shown.bs.tab', () => {
+            hideAccountForm();
+            addBtn.classList.add('d-none');
+            loadAnalyticalAccounts();
+        });
         bindingsTab?.addEventListener('shown.bs.tab', () => {
             hideAccountForm();
             addBtn.classList.add('d-none');
@@ -4732,6 +4779,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         tbody.addEventListener('click', (e) => {
+            handleAccountAction(e);
+        });
+
+        analyticalTbody.addEventListener('click', (e) => {
+            handleAccountAction(e);
+        });
+
+        function handleAccountAction(e) {
             const btn = e.target.closest('.action-btn');
             if (!btn) return;
             const id = btn.dataset.id;
@@ -4741,7 +4796,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.dataset.action === 'delete') {
                 deleteAccount(id);
             }
-        });
+        }
 
         bindingsTbody.addEventListener('click', (e) => {
             const btn = e.target.closest('.binding-save-btn');
@@ -4786,6 +4841,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 hideAccountForm();
                 loadAccounts();
+                loadAnalyticalAccounts();
                 loadBindings();
             })
             .catch(() => alert(_ts('js.network_error')));
@@ -4796,12 +4852,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then((r) => r.json())
                 .then((items) => {
                     accountsCache = items || [];
-                    renderAccounts(accountsCache);
+                    renderAccounts(accountsCache, tbody, emptyMsg);
                     renderParentOptions(accountsCache);
                     badge.textContent = accountsCache.length;
                 })
                 .catch(() => {
                     tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${escapeHtml(_ts('js.load_error'))}</td></tr>`;
+                });
+        }
+
+        function loadAnalyticalAccounts() {
+            fetch('/settings/analytical-accounts')
+                .then((r) => r.json())
+                .then((items) => {
+                    analyticalAccountsCache = items || [];
+                    renderAccounts(analyticalAccountsCache, analyticalTbody, analyticalEmptyMsg);
+                })
+                .catch(() => {
+                    analyticalTbody.innerHTML = `<tr><td colspan="6" class="text-danger">${escapeHtml(_ts('js.load_error'))}</td></tr>`;
                 });
         }
 
@@ -4814,14 +4882,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         }
 
-        function renderAccounts(items) {
-            tbody.innerHTML = '';
+        function renderAccounts(items, targetTbody, targetEmptyMsg) {
+            targetTbody.innerHTML = '';
             if (!items.length) {
-                emptyMsg.style.display = 'block';
+                targetEmptyMsg.style.display = 'block';
                 return;
             }
 
-            emptyMsg.style.display = 'none';
+            targetEmptyMsg.style.display = 'none';
             items.forEach((item) => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -4835,7 +4903,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
                     </td>
                 `;
-                tbody.appendChild(tr);
+                targetTbody.appendChild(tr);
             });
         }
 
@@ -4923,6 +4991,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 loadAccounts();
+                loadAnalyticalAccounts();
                 loadBindings();
             })
             .catch(() => alert(_ts('js.network_error')));

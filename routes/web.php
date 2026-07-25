@@ -391,6 +391,7 @@ Route::middleware(['auth'])->group(function () {
             Route::put('/projects/{id}', [SettingsController::class , 'projectsUpdate'])->name('projects.update');
             Route::delete('/projects/{id}', [SettingsController::class , 'projectsDestroy'])->name('projects.destroy');
             Route::get('/accounts', [SettingsController::class , 'accountsIndex'])->name('accounts.index');
+            Route::get('/analytical-accounts', [SettingsController::class, 'analyticalAccountsIndex'])->name('accounts.analytical');
             Route::get('/accounts/{id}', [SettingsController::class , 'accountsShow'])->name('accounts.show');
             Route::post('/accounts', [SettingsController::class , 'accountsStore'])->name('accounts.store');
             Route::put('/accounts/{id}', [SettingsController::class , 'accountsUpdate'])->name('accounts.update');

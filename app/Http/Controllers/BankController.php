@@ -1953,15 +1953,22 @@ class BankController extends Controller
             $parentId = $parent?->id;
         }
 
+        $values = [
+            'name' => $name,
+            'type' => $type,
+            'parent_id' => $parentId,
+            'updated_at' => now(),
+            'created_at' => now(),
+        ];
+        if (Schema::hasColumn('accounts', 'project_id')) {
+            $values['project_id'] = preg_match('/^\d+\.(\d+)(?:\.|$)/', $code, $matches)
+                ? ((int) $matches[1] ?: null)
+                : null;
+        }
+
         DB::table('accounts')->updateOrInsert(
             ['code' => $code],
-            [
-                'name' => $name,
-                'type' => $type,
-                'parent_id' => $parentId,
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
+            $values
         );
 
         return DB::table('accounts')->where('code', $code)->first();

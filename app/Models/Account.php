@@ -6,7 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Account extends Model
 {
-    protected $fillable = ['code', 'name', 'type', 'currency', 'parent_id'];
+    protected $fillable = ['code', 'name', 'type', 'currency', 'parent_id', 'project_id'];
+    protected $casts = [
+        'project_id' => 'integer',
+    ];
 
     public function entries()
     {
