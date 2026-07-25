@@ -9,9 +9,11 @@ use Illuminate\Support\Facades\Schema;
 
 class RepairMoneyDocumentEntries extends Command
 {
-    protected $signature = 'accounting:repair-money-entries {--fid=} {--dry-run}';
+    private const MONEY_TYPES = ['PO', 'CPO', 'PPO', 'RO', 'CRO', 'PRO', 'ZP'];
 
-    protected $description = 'Create missing accounting entries for posted ZP/PPO/PRO money documents.';
+    protected $signature = 'accounting:repair-money-entries {--fid=} {--type=*} {--dry-run}';
+
+    protected $description = 'Create missing accounting entries for posted money documents.';
 
     public function handle(AccountingService $accounting): int
     {
@@ -27,8 +29,22 @@ class RepairMoneyDocumentEntries extends Command
         $missing = 0;
         $failed = 0;
 
+        $types = collect((array) $this->option('type'))
+            ->flatMap(fn ($value) => explode(',', (string) $value))
+            ->map(fn ($value) => strtoupper(trim($value)))
+            ->filter()
+            ->values()
+            ->all();
+        $types = $types === [] ? self::MONEY_TYPES : array_values(array_intersect($types, self::MONEY_TYPES));
+
+        if ($types === []) {
+            $this->error('No supported document types selected.');
+
+            return self::FAILURE;
+        }
+
         $query = DB::table('z_document')
-            ->whereIn('type', ['ZP', 'PPO', 'PRO'])
+            ->whereIn('type', $types)
             ->where('provodka', 1)
             ->orderBy('firma')
             ->orderBy('id');
@@ -39,17 +55,18 @@ class RepairMoneyDocumentEntries extends Command
 
         $query->chunkById(200, function ($documents) use ($accounting, $dryRun, &$created, &$missing, &$failed): void {
             foreach ($documents as $document) {
-                $referenceType = $this->referenceType((string) $document->type);
+                $referenceType = $this->primaryReferenceType((string) $document->type);
                 $referenceId = (string) $document->id;
                 $companyId = (int) $document->firma;
 
-                if ($this->hasLedgerEntries($referenceType, $referenceId, $companyId)) {
+                if ($this->hasLedgerEntries((string) $document->type, $referenceId, $companyId)) {
                     continue;
                 }
 
                 $missing++;
                 if ($dryRun) {
-                    $this->line("Missing entries: {$document->firma} {$document->type} #{$document->id}");
+                    $sum = number_format((float) ($document->summa ?? 0), 2, '.', ' ');
+                    $this->line("Missing entries: {$document->firma} {$document->type} #{$document->id} {$sum}");
                     continue;
                 }
 
@@ -79,19 +96,30 @@ class RepairMoneyDocumentEntries extends Command
         return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 
-    private function referenceType(string $documentType): string
+    private function primaryReferenceType(string $documentType): string
     {
         return in_array($documentType, ['PPO', 'PRO'], true)
             ? 'z_document:money_order'
             : "z_document:{$documentType}";
     }
 
-    private function hasLedgerEntries(string $referenceType, string $referenceId, int $companyId): bool
+    private function referenceTypes(string $documentType): array
+    {
+        $primary = $this->primaryReferenceType($documentType);
+
+        return array_values(array_unique([
+            $primary,
+            "z_document:{$documentType}",
+            'z_document:money_order',
+        ]));
+    }
+
+    private function hasLedgerEntries(string $documentType, string $referenceId, int $companyId): bool
     {
         return DB::table('transactions as t')
             ->join('entries as e', 'e.transaction_id', '=', 't.id')
             ->where('t.company_id', $companyId)
-            ->where('t.reference_type', $referenceType)
+            ->whereIn('t.reference_type', $this->referenceTypes($documentType))
             ->where('t.reference_id', $referenceId)
             ->exists();
     }
