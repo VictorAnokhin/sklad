@@ -55,7 +55,12 @@ class BusinessAssetController extends Controller
             ->orderBy('name')
             ->get();
 
-        $paymentTypes = Conf::paymentTypesForDocument($fid, 'ASSET');
+        $paymentTypes = Conf::query()
+            ->where('type', 'reestr')
+            ->where('vision', 'investing')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($item) => Conf::decoratePaymentType($item));
         $summary = [
             'active_assets' => $assets->whereNotIn('status', ['sold', 'disposed'])->count(),
             'current_value' => (float) $assets->whereNotIn('status', ['sold', 'disposed'])->sum('current_value'),
