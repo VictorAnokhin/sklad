@@ -1265,7 +1265,8 @@ class Report extends Model
         $income = array_merge($income, $assetEffects['income']);
         $cashExpenses = self::pnlPaymentTypeExpenses($fid, $dateFromUi, $dateToUi);
         $variableExpenses = $cashExpenses['variable'];
-        $fixedExpenses = array_merge($cashExpenses['fixed'], $assetEffects['expenses']);
+        $financingEffects = self::pnlFinancingOperationEffects($fid, $dateFromUi, $dateToUi);
+        $fixedExpenses = array_merge($cashExpenses['fixed'], $assetEffects['expenses'], $financingEffects['expenses']);
 
         $revenue = self::pnlTopLevelAmount($income);
         $variableTotal = array_sum(array_column($variableExpenses, 'amount'));
@@ -1484,6 +1485,41 @@ class Report extends Model
         }
 
         return ['income' => $income, 'expenses' => $expenses];
+    }
+
+    private static function pnlFinancingOperationEffects(string $fid, string $dateFromUi, string $dateToUi): array
+    {
+        if (! Schema::hasTable('financing_operations')) {
+            return ['expenses' => []];
+        }
+
+        $rows = DB::table('financing_operations as fo')
+            ->leftJoin('financing_agreements as fa', 'fa.id', '=', 'fo.financing_agreement_id')
+            ->where('fo.fid', (int) $fid)
+            ->where('fo.provodka', 1)
+            ->where('fo.operation_type', 'loan_interest_accrued')
+            ->whereBetween('fo.operation_date', [$dateFromUi, $dateToUi])
+            ->groupBy('fo.financing_agreement_id', 'fa.name')
+            ->get([
+                DB::raw("COALESCE(NULLIF(fa.name, ''), 'Без договора') as agreement_name"),
+                DB::raw('SUM(fo.amount) as amount'),
+            ]);
+
+        $expenses = [];
+        foreach ($rows as $row) {
+            $amount = round((float) ($row->amount ?? 0), 2);
+            if ($amount <= 0) {
+                continue;
+            }
+            $agreementName = trim((string) ($row->agreement_name ?? '')) ?: 'Без договора';
+            $expenses['fin-interest-' . md5($agreementName)] = [
+                'label' => 'Проценты по финансированию: ' . $agreementName,
+                'amount' => $amount,
+                'level' => 0,
+            ];
+        }
+
+        return ['expenses' => $expenses];
     }
 
     private static function pnlTopLevelAmount(array $items): float
@@ -1771,7 +1807,7 @@ class Report extends Model
         $financing = [
             'inflows' => (float) $financingRows->sum('debit'),
             'outflows' => (float) $financingRows->sum('credit'),
-            'assumption' => 'Все потоки рассчитываются по проводкам денежных счетов 301 и 311. Вид деятельности определяется видом платежа документа; внутренние переводы между денежными счетами не изменяют итоговый поток.',
+            'assumption' => 'Все потоки рассчитываются по проводкам денежных счетов 301 и 311. Вид деятельности определяется видом платежа документа или операции; внутренние переводы между денежными счетами не изменяют итоговый поток.',
         ];
 
         $operatingNet = $operatingInflows - $operatingOutflows;
@@ -1848,6 +1884,9 @@ class Report extends Model
         $documentType = strtoupper(trim((string) ($item->payment_document_type ?? '')));
         if ($documentType === 'ASSET' || $referenceType === 'asset_operation') {
             return 'investing';
+        }
+        if ($documentType === 'FIN' || $referenceType === 'financing_operation') {
+            return 'financing';
         }
 
         if (in_array($documentType, ['PO', 'CPO', 'RO', 'CRO', 'ZP', 'PPO', 'PRO'], true)) {
@@ -3133,8 +3172,13 @@ class Report extends Model
                     ->where('t.reference_type', '=', 'asset_operation')
                     ->where('ao.fid', '=', (int) $fid);
             })
+            ->leftJoin('financing_operations as fo', function ($join) use ($fid) {
+                $join->on('fo.id', '=', 't.reference_id')
+                    ->where('t.reference_type', '=', 'financing_operation')
+                    ->where('fo.fid', '=', (int) $fid);
+            })
             ->leftJoin('conf as payment_type', function ($join) {
-                $join->on('payment_type.id', '=', DB::raw('COALESCE(NULLIF(zd.reestr, \'\'), NULLIF(doc.reestr, \'\'), NULLIF(ao.payment_type_id, \'\'))'))
+                $join->on('payment_type.id', '=', DB::raw('COALESCE(NULLIF(zd.reestr, \'\'), NULLIF(doc.reestr, \'\'), NULLIF(ao.payment_type_id, \'\'), NULLIF(fo.payment_type_id, \'\'))'))
                     ->where('payment_type.type', '=', 'reestr');
             })
             ->where('e.company_id', (int) $fid)
@@ -3158,7 +3202,7 @@ class Report extends Model
                 'e.transaction_id',
                 't.reference_type',
                 't.reference_id',
-                DB::raw("COALESCE(zd.type, doc.type, CASE WHEN ao.id IS NOT NULL THEN 'ASSET' ELSE NULL END) as payment_document_type"),
+                DB::raw("COALESCE(zd.type, doc.type, CASE WHEN ao.id IS NOT NULL THEN 'ASSET' WHEN fo.id IS NOT NULL THEN 'FIN' ELSE NULL END) as payment_document_type"),
                 DB::raw("CASE WHEN payment_type.vision IN ('operating', 'investing', 'financing') THEN payment_type.vision ELSE NULL END as cash_flow_activity"),
                 'e.debit',
                 'e.credit',

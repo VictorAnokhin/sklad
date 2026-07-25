@@ -1083,6 +1083,10 @@
                                 <input class="form-check-input mt-0" type="checkbox" id="form-doc-asset" value="ASSET">
                                 <span>Активы</span>
                             </label>
+                            <label class="form-check-label d-flex align-items-center gap-2">
+                                <input class="form-check-input mt-0" type="checkbox" id="form-doc-fin" value="FIN">
+                                <span>Финансирование</span>
+                            </label>
                         </div>
                         <div class="form-text">Для яких документів доступний цей вид платежу.</div>
                     </div>
@@ -3560,6 +3564,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('form-doc-zp'),
             document.getElementById('form-doc-pro'),
             document.getElementById('form-doc-asset'),
+            document.getElementById('form-doc-fin'),
         ];
         const settingsDepositsUsePools = @json((bool) ($settingsDepositsUsePools ?? false));
 

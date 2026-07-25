@@ -158,6 +158,51 @@ class AccountingService
         ]);
     }
 
+    public function createFinancingOperationTransaction(
+        object $operation,
+        ?object $agreement,
+        string $fid,
+        bool $reverse = false
+    ): ?LedgerTransaction {
+        if (!$this->isAvailable()) {
+            return null;
+        }
+
+        $referenceType = 'financing_operation';
+        $referenceId = (string) ($operation->id ?? '');
+
+        if ($reverse) {
+            $original = $this->activeOriginalTransaction($referenceType, $referenceId, (int) $fid);
+            if ($original) {
+                return $this->reverseStoredTransaction($original, (object) [
+                    'data' => $operation->operation_date ?? now()->toDateString(),
+                ], "{$referenceType}:reversal");
+            }
+
+            return null;
+        }
+
+        $entries = $this->entriesForFinancingOperation($operation, $agreement, $fid);
+        if ($entries === []) {
+            return null;
+        }
+
+        $amount = round((float) collect($entries)->sum('debit'), 2);
+        $label = method_exists($operation, 'operationLabel')
+            ? $operation::operationLabel($operation->operation_type ?? '')
+            : 'Операция финансирования';
+        $agreementName = trim((string) ($agreement->name ?? ''));
+
+        return $this->createTransaction($entries, trim("{$label} {$agreementName}"), [
+            'date' => $this->normalizeDate((string) ($operation->operation_date ?? now()->toDateString())),
+            'company_id' => (int) $fid,
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
+            'amount' => $amount,
+            'amount_base' => $amount,
+        ]);
+    }
+
     private function activeOriginalTransaction(
         string $referenceType,
         string $referenceId,
@@ -742,6 +787,52 @@ class AccountingService
         };
     }
 
+    private function entriesForFinancingOperation(object $operation, ?object $agreement, string $fid): array
+    {
+        $type = (string) ($operation->operation_type ?? '');
+        $amount = round(abs((float) ($operation->amount ?? 0)), 2);
+        if ($amount <= 0 || !$agreement) {
+            return [];
+        }
+
+        $cashAccount = $this->cashAccount($fid, (string) ($operation->cash_account_id ?? ''));
+        $liabilityAccount = $this->financingLiabilityAccount($fid, $agreement);
+        $interestPayableAccount = $this->financingInterestPayableAccount($fid, $agreement);
+        $dividendsPayableAccount = $this->financingDividendsPayableAccount($fid, $agreement);
+
+        return match ($type) {
+            'loan_received' => [
+                ['account_id' => $cashAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $liabilityAccount->id, 'debit' => 0, 'credit' => $amount],
+            ],
+            'loan_principal_repaid' => [
+                ['account_id' => $liabilityAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $cashAccount->id, 'debit' => 0, 'credit' => $amount],
+            ],
+            'loan_interest_accrued' => [
+                ['account_id' => $this->financingInterestExpenseAccount($fid)->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $interestPayableAccount->id, 'debit' => 0, 'credit' => $amount],
+            ],
+            'loan_interest_paid' => [
+                ['account_id' => $interestPayableAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $cashAccount->id, 'debit' => 0, 'credit' => $amount],
+            ],
+            'equity_investment_received' => [
+                ['account_id' => $cashAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $this->financingEquityAccount($fid, $agreement)->id, 'debit' => 0, 'credit' => $amount],
+            ],
+            'dividend_accrued' => [
+                ['account_id' => $this->retainedEarningsAccount($fid)->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $dividendsPayableAccount->id, 'debit' => 0, 'credit' => $amount],
+            ],
+            'dividend_paid' => [
+                ['account_id' => $dividendsPayableAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $cashAccount->id, 'debit' => 0, 'credit' => $amount],
+            ],
+            default => [],
+        };
+    }
+
     private function projectMirrorCashbox(string $projectFid, string $sourceCompanyId): string
     {
         if (Schema::hasColumn('conf', 'is_default')) {
@@ -971,6 +1062,70 @@ class AccountingService
     private function rdExpenseAccount(string $fid): Account
     {
         return $this->ensureAccount("949.{$fid}.rd", "R&D расходы {$fid}", 'expense', '949');
+    }
+
+    private function financingLiabilityAccount(string $fid, object $agreement): Account
+    {
+        $agreementId = (int) ($agreement->id ?? 0) ?: 'new';
+        $agreementType = (string) ($agreement->agreement_type ?? 'bank_loan');
+        $parentCode = match ($agreementType) {
+            'convertible_loan' => '55',
+            'loan' => '60',
+            default => '601',
+        };
+
+        return $this->ensureAccount(
+            "{$parentCode}.{$fid}.{$agreementId}",
+            "Финансирование {$agreement->name}",
+            'liability',
+            $parentCode
+        );
+    }
+
+    private function financingInterestPayableAccount(string $fid, object $agreement): Account
+    {
+        $agreementId = (int) ($agreement->id ?? 0) ?: 'new';
+
+        return $this->ensureAccount(
+            "684.{$fid}.{$agreementId}",
+            "Проценты к оплате {$agreement->name}",
+            'liability',
+            '684'
+        );
+    }
+
+    private function financingDividendsPayableAccount(string $fid, object $agreement): Account
+    {
+        $agreementId = (int) ($agreement->id ?? 0) ?: 'new';
+
+        return $this->ensureAccount(
+            "671.{$fid}.{$agreementId}",
+            "Дивиденды к выплате {$agreement->name}",
+            'liability',
+            '671'
+        );
+    }
+
+    private function financingEquityAccount(string $fid, object $agreement): Account
+    {
+        $agreementId = (int) ($agreement->id ?? 0) ?: 'new';
+
+        return $this->ensureAccount(
+            "42.{$fid}.{$agreementId}",
+            "Капитал инвестора {$agreement->name}",
+            'equity',
+            '42'
+        );
+    }
+
+    private function retainedEarningsAccount(string $fid): Account
+    {
+        return $this->ensureAccount("44.{$fid}", "Нераспределенная прибыль {$fid}", 'equity', '44');
+    }
+
+    private function financingInterestExpenseAccount(string $fid): Account
+    {
+        return $this->ensureAccount("951.{$fid}", "Проценты по финансированию {$fid}", 'expense', '951');
     }
 
     private function userBalanceAccount(string $fid, string $userId, string $currency): Account
