@@ -655,6 +655,7 @@ class DocumentController extends Controller
         $salaryEmployees = collect();
         $salaryCashboxes = collect();
         $salaryPaymentTypes = collect();
+        $unassignedSalaryDocuments = collect();
         if ($doc === 'ZV') {
             $salaryEmployees = $this->salaryStatementEmployees((int) $fid);
             $salaryCashboxes = DB::table('conf')
@@ -664,6 +665,7 @@ class DocumentController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'currency']);
             $salaryPaymentTypes = ConfModel::paymentTypesForDocument($fid, 'ZP');
+            $unassignedSalaryDocuments = $this->unassignedSalaryDocuments((int) $fid);
         }
 
         // Attach clientInfo icons strip to each item
@@ -700,7 +702,7 @@ class DocumentController extends Controller
 
         return view($view, compact(
             'items', 'total_sum', 'rows', 'doc', 'pos', 'total', 'fd', 'fid', 'documentRoutePrefix',
-            'salaryEmployees', 'salaryCashboxes', 'salaryPaymentTypes'
+            'salaryEmployees', 'salaryCashboxes', 'salaryPaymentTypes', 'unassignedSalaryDocuments'
         ));
     }
 
@@ -741,6 +743,7 @@ class DocumentController extends Controller
                 'docid' => 0,
                 'manager' => session('login', ''),
                 'user' => session('login', ''),
+                'reestr' => (string) $validated['reestr'],
                 'content' => $validated['content'] ?? '',
                 'docum' => '',
                 'dostup' => 1,
@@ -784,6 +787,7 @@ class DocumentController extends Controller
             DB::table('z_document')->where('id', $id)->where('firma', $fid)->where('type', 'ZV')->update([
                 'data' => curdate($validated['data']),
                 'data2' => curdate($validated['data']),
+                'reestr' => (string) $validated['reestr'],
                 'content' => $validated['content'] ?? '',
             ]);
             $this->replaceSalaryStatementLines($id, $fid, $validated['employees']);
@@ -950,15 +954,204 @@ class DocumentController extends Controller
             ->values();
     }
 
+    private function defaultSalaryStatement(int $fid): ?object
+    {
+        if (! Schema::hasTable('salary_statement_lines')) {
+            return null;
+        }
+
+        return DB::table('z_document')
+            ->where('firma', $fid)
+            ->where('type', 'ZV')
+            ->where('provodka', 0)
+            ->orderByDesc('dt')
+            ->orderByDesc('id')
+            ->first(['id', 'num', 'reestr']);
+    }
+
+    private function availableSalaryStatements(int $fid, int $zpDocumentId)
+    {
+        $currentStatementId = (int) (
+            DB::table('salary_statement_lines')
+                ->where('zp_document_id', $zpDocumentId)
+                ->where('project_id', $fid)
+                ->value('statement_document_id')
+            ?? 0
+        );
+
+        return DB::table('z_document')
+            ->where('firma', $fid)
+            ->where('type', 'ZV')
+            ->where(function ($query) use ($currentStatementId) {
+                $query->where('provodka', 0);
+
+                if ($currentStatementId > 0) {
+                    $query->orWhere('id', $currentStatementId);
+                }
+            })
+            ->orderByDesc('dt')
+            ->orderByDesc('id')
+            ->get(['id', 'num', 'data', 'summa', 'reestr', 'provodka']);
+    }
+
+    private function unassignedSalaryDocuments(int $fid)
+    {
+        if (! Schema::hasTable('salary_statement_lines')) {
+            return collect();
+        }
+
+        return DB::table('z_document as zp')
+            ->leftJoin('salary_statement_lines as line', function ($join) use ($fid) {
+                $join->on('line.zp_document_id', '=', 'zp.id')
+                    ->where('line.project_id', '=', $fid);
+            })
+            ->leftJoin('users as employee', 'employee.id', '=', 'zp.client1')
+            ->where('zp.firma', $fid)
+            ->where('zp.type', 'ZP')
+            ->whereNull('line.id')
+            ->orderByDesc('zp.dt')
+            ->orderByDesc('zp.id')
+            ->get([
+                'zp.id',
+                'zp.num',
+                'zp.data',
+                'zp.summa',
+                'zp.provodka',
+                'employee.name',
+                'employee.secondname',
+                'employee.fathername',
+                'employee.orgname',
+            ])
+            ->map(function ($document) {
+                $document->employee_name = trim(implode(' ', array_filter([
+                    $document->secondname ?? '',
+                    $document->name ?? '',
+                    $document->fathername ?? '',
+                ]))) ?: trim((string) ($document->orgname ?? '')) ?: 'Сотрудник не выбран';
+
+                return $document;
+            });
+    }
+
+    private function syncSalaryStatementAssignment(int $zpDocumentId, int $fid, ?int $statementId): void
+    {
+        abort_unless(Schema::hasTable('salary_statement_lines'), 503, 'Сначала выполните миграции базы данных.');
+
+        $zpDocument = DB::table('z_document')
+            ->where('id', $zpDocumentId)
+            ->where('firma', $fid)
+            ->where('type', 'ZP')
+            ->lockForUpdate()
+            ->first();
+        abort_unless($zpDocument, 404);
+
+        if ((int) ($zpDocument->provodka ?? 0) === 1) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'salary_statement_id' => 'Проведенный документ ZP нельзя переносить между ведомостями.',
+            ]);
+        }
+
+        $existingLine = DB::table('salary_statement_lines')
+            ->where('zp_document_id', $zpDocumentId)
+            ->where('project_id', $fid)
+            ->lockForUpdate()
+            ->first();
+        $oldStatementId = (int) ($existingLine->statement_document_id ?? 0);
+
+        if ($statementId === null) {
+            if ($existingLine) {
+                DB::table('salary_statement_lines')->where('id', $existingLine->id)->delete();
+            }
+            DB::table('z_document')->where('id', $zpDocumentId)->update([
+                'docid' => 0,
+                'numz' => '0',
+                'typez' => '',
+            ]);
+
+            if ($oldStatementId > 0) {
+                $this->refreshSalaryStatementTotal($oldStatementId, $fid);
+            }
+
+            return;
+        }
+
+        $statement = DB::table('z_document')
+            ->where('id', $statementId)
+            ->where('firma', $fid)
+            ->where('type', 'ZV')
+            ->where('provodka', 0)
+            ->lockForUpdate()
+            ->first();
+        if (! $statement) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'salary_statement_id' => 'Выберите непроведенную платежную ведомость текущего проекта.',
+            ]);
+        }
+
+        $employeeId = (int) ($zpDocument->client1 ?? 0);
+        if ($employeeId <= 0) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'client1' => 'Сначала выберите сотрудника.',
+            ]);
+        }
+
+        $targetLine = DB::table('salary_statement_lines')
+            ->where('statement_document_id', $statementId)
+            ->where('project_id', $fid)
+            ->where('employee_id', $employeeId)
+            ->lockForUpdate()
+            ->first();
+        if ($targetLine?->zp_document_id && (int) $targetLine->zp_document_id !== $zpDocumentId) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'salary_statement_id' => 'В выбранной ведомости для этого сотрудника уже создан документ ZP.',
+            ]);
+        }
+
+        if ($existingLine && (! $targetLine || (int) $existingLine->id !== (int) $targetLine->id)) {
+            DB::table('salary_statement_lines')->where('id', $existingLine->id)->delete();
+        }
+
+        if ($targetLine) {
+            DB::table('salary_statement_lines')->where('id', $targetLine->id)->update([
+                'salary_amount' => round((float) $zpDocument->summa, 2),
+                'zp_document_id' => $zpDocumentId,
+                'updated_at' => now(),
+            ]);
+        } else {
+            DB::table('salary_statement_lines')->insert([
+                'statement_document_id' => $statementId,
+                'employee_id' => $employeeId,
+                'project_id' => $fid,
+                'salary_amount' => round((float) $zpDocument->summa, 2),
+                'zp_document_id' => $zpDocumentId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        DB::table('z_document')->where('id', $zpDocumentId)->update([
+            'docid' => $statementId,
+            'numz' => (string) $statement->num,
+            'typez' => 'ZV',
+        ]);
+
+        if ($oldStatementId > 0 && $oldStatementId !== $statementId) {
+            $this->refreshSalaryStatementTotal($oldStatementId, $fid);
+        }
+        $this->refreshSalaryStatementTotal($statementId, $fid);
+    }
+
     private function validateSalaryStatement(Request $request, int $fid): array
     {
         $validated = $request->validate([
             'data' => ['required', 'string', 'max:20'],
+            'reestr' => ['required', 'integer'],
             'content' => ['nullable', 'string', 'max:65535'],
             'employees' => ['required', 'array', 'min:1'],
             'employees.*.employee_id' => ['required', 'integer', 'distinct'],
             'employees.*.salary_amount' => ['required', 'numeric', 'min:0', 'max:9999999999.99'],
         ]);
+        $this->validateSalaryPaymentType((int) $validated['reestr']);
 
         $employeeIds = collect($validated['employees'])
             ->pluck('employee_id')
@@ -1077,6 +1270,7 @@ class DocumentController extends Controller
             'id' => (int) $statement->id,
             'num' => (string) $statement->num,
             'data' => (string) $statement->data,
+            'reestr' => (string) ($statement->reestr ?? ''),
             'content' => (string) ($statement->content ?? ''),
             'summa' => round((float) $statement->summa, 2),
             'lines' => $lines,
@@ -1096,8 +1290,13 @@ class DocumentController extends Controller
             ]);
         }
 
+        $this->validateSalaryPaymentType((int) $validated['reestr']);
+    }
+
+    private function validateSalaryPaymentType(int $paymentTypeId): void
+    {
         $paymentType = DB::table('conf')
-            ->where('id', $validated['reestr'])
+            ->where('id', $paymentTypeId)
             ->where('type', 'reestr')
             ->first();
         $paymentDocFlags = $paymentType ? ConfModel::paymentDocFlags($paymentType->doc ?? '') : [];
@@ -1648,13 +1847,30 @@ class DocumentController extends Controller
             ])
             : null;
         $reportKeywordHints = $this->reportKeywordHintsForDocument($fid, $doc);
+        $salaryStatements = collect();
+        $selectedSalaryStatementId = '';
+        if ($doc === 'ZP' && Schema::hasTable('salary_statement_lines')) {
+            $salaryStatements = $this->availableSalaryStatements((int) $fid, (int) $document->id);
+            $selectedSalaryStatementId = (string) (
+                DB::table('salary_statement_lines')
+                    ->where('zp_document_id', $document->id)
+                    ->where('project_id', $fid)
+                    ->value('statement_document_id')
+                ?? (
+                    (string) ($document->typez ?? '') === 'ZV'
+                        ? (int) ($document->docid ?? 0)
+                        : ''
+                )
+            );
+        }
 
         return view('document.show', compact(
             'document', 'lineItems', 'doc', 'year', 'client', 'confMap',
             'fid', 'relatedDocs', 'relatedIcons', 'oplataList', 'reestrList', 'statusList', 'skladsList',
             'documentIndexUrl', 'parentDocumentUrl', 'parentDocument', 'myCompanies', 'clientStatuses', 'clientGroups',
             'mappingTargetProjectId', 'documentRoutePrefix', 'loanMeta', 'loanCollateralOptions', 'loanRepaymentSchedule',
-            'loanRoUrl', 'loanRoIsIssued', 'isEducationProject', 'finishedProduct', 'reportKeywordHints'
+            'loanRoUrl', 'loanRoIsIssued', 'isEducationProject', 'finishedProduct', 'reportKeywordHints',
+            'salaryStatements', 'selectedSalaryStatementId'
         ));
     }
 
@@ -1878,6 +2094,19 @@ class DocumentController extends Controller
             $reestr = (string) (session('reestr', '') ?? '');
             $sklads = (string) (session('sklads', '') ?? '');
             $money = (string) (session('money', '') ?? '');
+            if ($docType === 'ZP') {
+                $defaultSalaryStatement = $this->defaultSalaryStatement((int) $fid);
+                if ($defaultSalaryStatement) {
+                    $numz = (string) $defaultSalaryStatement->num;
+                    $typez = 'ZV';
+                    $docid = (string) $defaultSalaryStatement->id;
+                    $reestr = (string) ($defaultSalaryStatement->reestr ?? $reestr);
+                } else {
+                    $numz = '0';
+                    $typez = '';
+                    $docid = '0';
+                }
+            }
 
             // Get next number — max+1 for this doc type & firma
             $num = Document::assignNextNum($docType, $fid, $year);
@@ -2040,8 +2269,21 @@ class DocumentController extends Controller
                     }
                 }
 
-                $this->docService->saveHead($request, $docId, $doc, $fid);
-                $this->docService->saveBody($request, $docId, $doc, $fid);
+                if ($doc === 'ZP') {
+                    DB::transaction(function () use ($request, $docId, $doc, $fid): void {
+                        $this->docService->saveHead($request, $docId, $doc, $fid);
+                        $this->syncSalaryStatementAssignment(
+                            (int) $docId,
+                            (int) $fid,
+                            $request->filled('salary_statement_id')
+                                ? (int) $request->input('salary_statement_id')
+                                : null
+                        );
+                    });
+                } else {
+                    $this->docService->saveHead($request, $docId, $doc, $fid);
+                    $this->docService->saveBody($request, $docId, $doc, $fid);
+                }
                 $this->ensureSourceParentOrder($doc, $docId, $fid);
                 $this->syncProjectMirrorDocuments($doc, $docId, $fid);
 
@@ -2097,6 +2339,8 @@ class DocumentController extends Controller
                 return $smsWarning === null
                     ? $redirect
                     : $redirect->with('warning', $smsWarning);
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                return redirect()->back()->withErrors($e->errors())->withInput();
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::error('Document save failed', [
                     'doc' => $doc,

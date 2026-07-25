@@ -14,7 +14,16 @@
                             <label class="form-label" for="salaryStatementDate">Дата</label>
                             <input type="date" class="form-control" id="salaryStatementDate" required>
                         </div>
-                        <div class="col-md-9">
+                        <div class="col-md-4">
+                            <label class="form-label" for="salaryStatementPaymentType">Вид платежа</label>
+                            <select class="form-select" id="salaryStatementPaymentType" required>
+                                <option value="">— Выберите вид платежа —</option>
+                                @foreach($salaryPaymentTypes as $paymentType)
+                                    <option value="{{ $paymentType->id }}">{{ $paymentType->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-5">
                             <label class="form-label" for="salaryStatementContent">Примечание</label>
                             <input type="text" class="form-control" id="salaryStatementContent" maxlength="65535">
                         </div>
@@ -116,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const csrfToken = @json(csrf_token());
     const initialEmployees = @json($salaryEmployees);
     const initialStatementId = @json((int) request()->query('statement_id', 0));
+    const salaryStatementsBaseUrl = @json(route('document.salaryStatements.store'));
     const statementModalElement = document.getElementById('salaryStatementModal');
     const payoutModalElement = document.getElementById('salaryPayoutModal');
     const statementModal = bootstrap.Modal.getOrCreateInstance(statementModalElement);
@@ -157,6 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('salaryStatementId').value = '';
         document.getElementById('salaryStatementTitle').textContent = 'Новая платежная ведомость';
         document.getElementById('salaryStatementDate').value = localDate();
+        document.getElementById('salaryStatementPaymentType').value = '';
         document.getElementById('salaryStatementContent').value = '';
         hideError(statementError);
         renderLines();
@@ -212,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadStatement(id) {
         hideError(statementError);
-        const response = await fetch(`/document/salary-statements/${id}`, { headers: { Accept: 'application/json' } });
+        const response = await fetch(`${salaryStatementsBaseUrl}/${id}`, { headers: { Accept: 'application/json' } });
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Не удалось открыть ведомость.');
         applyStatement(data);
@@ -224,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('salaryStatementId').value = data.id;
         document.getElementById('salaryStatementTitle').textContent = `Платежная ведомость №${data.num}`;
         document.getElementById('salaryStatementDate').value = inputDate(data.data);
+        document.getElementById('salaryStatementPaymentType').value = data.reestr || '';
         document.getElementById('salaryStatementContent').value = data.content || '';
         renderLines();
     }
@@ -231,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function saveStatement() {
         hideError(statementError);
         const payload = statementPayload();
-        const url = statement ? `/document/salary-statements/${statement.id}` : '/document/salary-statements';
+        const url = statement ? `${salaryStatementsBaseUrl}/${statement.id}` : salaryStatementsBaseUrl;
         const response = await fetch(url, {
             method: statement ? 'PUT' : 'POST',
             headers: jsonHeaders(),
@@ -250,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const line = lines.find((item) => String(item.employee_id) === String(employeeId));
         if (!line || line.zp_document_id) return;
         if (statement && line.id) {
-            const response = await fetch(`/document/salary-statements/${statement.id}/employees/${line.id}`, {
+            const response = await fetch(`${salaryStatementsBaseUrl}/${statement.id}/employees/${line.id}`, {
                 method: 'DELETE',
                 headers: jsonHeaders(),
             });
@@ -272,6 +284,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('salaryPayoutEmployee').value = line.employee_name;
         document.getElementById('salaryPayoutAmount').value = Number(line.salary_amount).toFixed(2);
         document.getElementById('salaryPayoutDate').value = document.getElementById('salaryStatementDate').value || localDate();
+        document.getElementById('salaryPayoutPaymentType').value =
+            document.getElementById('salaryStatementPaymentType').value;
         document.getElementById('salaryPayoutContent').value = `Выплата по ведомости ZV №${statement.num}`;
         hideError(payoutError);
         reopenStatementAfterPayout = true;
@@ -282,7 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function submitPayout() {
         hideError(payoutError);
         const lineId = document.getElementById('salaryPayoutLineId').value;
-        const response = await fetch(`/document/salary-statements/${statement.id}/employees/${lineId}/payout`, {
+        const response = await fetch(`${salaryStatementsBaseUrl}/${statement.id}/employees/${lineId}/payout`, {
             method: 'POST',
             headers: jsonHeaders(),
             body: JSON.stringify({
@@ -351,6 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function statementPayload() {
         return {
             data: document.getElementById('salaryStatementDate').value,
+            reestr: document.getElementById('salaryStatementPaymentType').value,
             content: document.getElementById('salaryStatementContent').value,
             employees: lines.map((line) => ({
                 employee_id: line.employee_id,

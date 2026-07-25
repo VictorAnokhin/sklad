@@ -145,13 +145,6 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/show', [DocumentController::class , 'show'])->name('show');
             Route::get('/print', [DocumentController::class , 'print'])->name('print');
             Route::post('/save', [DocumentController::class , 'save'])->name('save');
-            Route::get('/salary-statements/{id}', [DocumentController::class, 'salaryStatementShow'])->whereNumber('id')->name('salaryStatements.show');
-            Route::post('/salary-statements', [DocumentController::class, 'salaryStatementStore'])->name('salaryStatements.store');
-            Route::put('/salary-statements/{id}', [DocumentController::class, 'salaryStatementUpdate'])->whereNumber('id')->name('salaryStatements.update');
-            Route::delete('/salary-statements/{id}/employees/{lineId}', [DocumentController::class, 'salaryStatementEmployeeDestroy'])
-                ->whereNumber('id')->whereNumber('lineId')->name('salaryStatements.employees.destroy');
-            Route::post('/salary-statements/{id}/employees/{lineId}/payout', [DocumentController::class, 'salaryStatementPayout'])
-                ->whereNumber('id')->whereNumber('lineId')->name('salaryStatements.payout');
             Route::post('/delete', [DocumentController::class , 'destroy'])->name('destroy');
             Route::post('/provodka', [DocumentController::class , 'provodka'])->name('provodka');
             Route::post('/status', [DocumentController::class , 'bulkStatus'])->name('bulkStatus');
@@ -262,6 +255,13 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/show', [DocumentController::class , 'show'])->name('show');
             Route::get('/print', [DocumentController::class , 'print'])->name('print');
             Route::post('/save', [DocumentController::class , 'save'])->name('save');
+            Route::get('/salary-statements/{id}', [DocumentController::class, 'salaryStatementShow'])->whereNumber('id')->name('salaryStatements.show');
+            Route::post('/salary-statements', [DocumentController::class, 'salaryStatementStore'])->name('salaryStatements.store');
+            Route::put('/salary-statements/{id}', [DocumentController::class, 'salaryStatementUpdate'])->whereNumber('id')->name('salaryStatements.update');
+            Route::delete('/salary-statements/{id}/employees/{lineId}', [DocumentController::class, 'salaryStatementEmployeeDestroy'])
+                ->whereNumber('id')->whereNumber('lineId')->name('salaryStatements.employees.destroy');
+            Route::post('/salary-statements/{id}/employees/{lineId}/payout', [DocumentController::class, 'salaryStatementPayout'])
+                ->whereNumber('id')->whereNumber('lineId')->name('salaryStatements.payout');
             Route::post('/delete', [DocumentController::class , 'destroy'])->name('destroy');
             Route::post('/provodka', [DocumentController::class , 'provodka'])->name('provodka');
             Route::post('/status', [DocumentController::class , 'bulkStatus'])->name('bulkStatus');

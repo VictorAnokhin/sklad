@@ -784,6 +784,30 @@
                         </div>
                     @endif
 
+                    @if($doc === 'ZP')
+                        <div class="doc-form-row-single">
+                            <label for="salaryStatementSelect">Платежная ведомость</label>
+                            <select name="salary_statement_id" id="salaryStatementSelect" class="form-select text-white"
+                                {{ (int) ($document->provodka ?? 0) === 1 ? 'disabled' : '' }}>
+                                <option value="">— Без ведомости —</option>
+                                @foreach(($salaryStatements ?? collect()) as $salaryStatement)
+                                    <option value="{{ $salaryStatement->id }}"
+                                        data-payment-type="{{ $salaryStatement->reestr ?? '' }}"
+                                        {{ (string) old('salary_statement_id', $selectedSalaryStatementId ?? '') === (string) $salaryStatement->id ? 'selected' : '' }}>
+                                        ZV №{{ $salaryStatement->num }} от {{ $salaryStatement->data }}
+                                        — {{ number_format((float) $salaryStatement->summa, 2, '.', ' ') }} грн
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text text-muted">
+                                После сохранения непроведенный ZP будет перенесен в выбранную непроведенную ведомость.
+                            </div>
+                            @error('salary_statement_id')
+                                <div class="text-danger small mt-1 text-red">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    @endif
+
                     <!-- Row 2: Клієнт -->
                     @if(!in_array($doc, ['WO1', 'SP'], true))
                     <div class="doc-form-row-single">
@@ -1441,10 +1465,18 @@
             const client1Id = document.getElementById('client1_id');
             const clientDetails = document.getElementById('selectedClientDetails');
             const documentSummaInput1 = document.getElementById('documentSummaInput');
+            const salaryStatementSelect = document.getElementById('salaryStatementSelect');
+            const paymentTypeSelect = document.querySelector('select[name="reestr"]');
             const loanMarketValueInput = document.querySelector('[data-loan-market-value]');
             const loanLtvSelect = document.querySelector('[data-loan-ltv]');
             const loanAmountInput = document.querySelector('[data-loan-amount-input]');
             const teamOnlyClientSearch = @json($doc === 'ZP');
+            salaryStatementSelect?.addEventListener('change', () => {
+                const paymentTypeId = salaryStatementSelect.selectedOptions[0]?.dataset.paymentType || '';
+                if (paymentTypeId && paymentTypeSelect) {
+                    paymentTypeSelect.value = paymentTypeId;
+                }
+            });
             const formatClientName = (user) => [user.secondname || '', user.name || ''].filter(Boolean).join(' ').trim();
             const formatClientDetailsHtml = (user) => {
                 const regionPart = user.region ? user.region + ' | ' : '';
