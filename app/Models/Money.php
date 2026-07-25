@@ -566,7 +566,8 @@ class Money extends Model
                 $wasPosted
             );
 
-            if (in_array((string) ($doc->type ?? ''), ['PPO', 'PRO'], true) && $ledgerTransaction === null) {
+            $entriesCount = $ledgerTransaction?->entries?->count() ?? 0;
+            if (in_array((string) ($doc->type ?? ''), ['PPO', 'PRO'], true) && ($ledgerTransaction === null || $entriesCount < 2)) {
                 throw new \RuntimeException(
                     "Бухгалтерський регістр недоступний: {$doc->type} не може бути проведений без подвійного запису."
                 );

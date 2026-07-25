@@ -475,10 +475,8 @@ class Document extends Model
                 $wasPosted
             );
 
-            if (in_array($docType, ['PN', 'RN', 'PO', 'CPO', 'RO', 'CRO', 'ZP'], true) && $ledgerTransaction === null) {
-                throw new \RuntimeException(
-                    "Бухгалтерський регістр недоступний: {$docType} не може бути проведений без подвійного запису."
-                );
+            if (in_array($docType, ['PN', 'RN', 'PO', 'CPO', 'RO', 'CRO', 'ZP'], true)) {
+                self::assertLedgerEntriesCreated($ledgerTransaction, $docType);
             }
 
             $mirrorLedgerTransaction = null;
@@ -898,6 +896,16 @@ class Document extends Model
                 self::formatBalanceAmount($available),
                 self::formatBalanceAmount($amount)
             ));
+        }
+    }
+
+    private static function assertLedgerEntriesCreated($ledgerTransaction, string $docType): void
+    {
+        $entriesCount = $ledgerTransaction?->entries?->count() ?? 0;
+        if ($ledgerTransaction === null || $entriesCount < 2) {
+            throw new \RuntimeException(
+                "Бухгалтерський регістр недоступний: {$docType} не може бути проведений без подвійного запису."
+            );
         }
     }
 
