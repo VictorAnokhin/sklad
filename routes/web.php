@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BankController;
+use App\Http\Controllers\BusinessAssetController;
 use App\Http\Controllers\BlockchainMonitorController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardAgentChatController;
@@ -252,6 +253,11 @@ Route::middleware(['auth'])->group(function () {
     // ── Documents ─────────────────────────────────────────────────────────────
     Route::prefix('document')->name('document.')->group(function () {
             Route::get('/', [DocumentController::class , 'index'])->name('index');
+            Route::get('/assets', [BusinessAssetController::class, 'index'])->name('assets.index');
+            Route::post('/assets/operations', [BusinessAssetController::class, 'storeOperation'])->name('assets.operations.store');
+            Route::post('/assets/operations/{operation}/post', [BusinessAssetController::class, 'post'])->whereNumber('operation')->name('assets.operations.post');
+            Route::post('/assets/operations/{operation}/reverse', [BusinessAssetController::class, 'reverse'])->whereNumber('operation')->name('assets.operations.reverse');
+            Route::delete('/assets/operations/{operation}', [BusinessAssetController::class, 'destroy'])->whereNumber('operation')->name('assets.operations.destroy');
             Route::get('/show', [DocumentController::class , 'show'])->name('show');
             Route::get('/print', [DocumentController::class , 'print'])->name('print');
             Route::post('/save', [DocumentController::class , 'save'])->name('save');

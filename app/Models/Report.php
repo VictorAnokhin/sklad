@@ -1254,12 +1254,18 @@ class Report extends Model
     {
         $turnovers = self::ledgerAccountTurnovers($fid, $dateFromUi, $dateToUi);
         $income = self::pnlSalesCategoryIncome($fid, $dateFromUi, $dateToUi);
+        $assetEffects = self::pnlAssetOperationEffects($fid, $dateFromUi, $dateToUi);
         if (empty($income)) {
-            $income = self::pnlBucket($turnovers, fn ($item) => $item->type === 'income', fn ($item) => (float) $item->credit - (float) $item->debit);
+            $income = self::pnlBucket(
+                $turnovers,
+                fn ($item) => $item->type === 'income' && ! in_array(explode('.', (string) $item->code)[0] ?? '', ['742', '746'], true),
+                fn ($item) => (float) $item->credit - (float) $item->debit
+            );
         }
+        $income = array_merge($income, $assetEffects['income']);
         $cashExpenses = self::pnlPaymentTypeExpenses($fid, $dateFromUi, $dateToUi);
         $variableExpenses = $cashExpenses['variable'];
-        $fixedExpenses = $cashExpenses['fixed'];
+        $fixedExpenses = array_merge($cashExpenses['fixed'], $assetEffects['expenses']);
 
         $revenue = self::pnlTopLevelAmount($income);
         $variableTotal = array_sum(array_column($variableExpenses, 'amount'));
@@ -1366,10 +1372,9 @@ class Report extends Model
         $dateToLegacy = Carbon::createFromFormat('Y-m-d', $dateToUi)->format('d-m-Y');
 
         $items = DB::table('z_document as zd')
-            ->leftJoin('conf as r', function ($join) use ($fid) {
+            ->leftJoin('conf as r', function ($join) {
                 $join->on('zd.reestr', '=', 'r.id')
-                    ->where('r.type', '=', 'reestr')
-                    ->where('r.firma', '=', $fid);
+                    ->where('r.type', '=', 'reestr');
             })
             ->where('zd.firma', $fid)
             ->whereIn('zd.type', ['RO', 'CRO', 'ZP'])
@@ -1407,6 +1412,78 @@ class Report extends Model
         ksort($result['fixed']);
 
         return $result;
+    }
+
+    private static function pnlAssetOperationEffects(string $fid, string $dateFromUi, string $dateToUi): array
+    {
+        if (! Schema::hasTable('asset_operations')) {
+            return ['income' => [], 'expenses' => []];
+        }
+
+        $rows = DB::table('asset_operations as ao')
+            ->leftJoin('business_assets as ba', 'ba.id', '=', 'ao.business_asset_id')
+            ->where('ao.fid', (int) $fid)
+            ->where('ao.provodka', 1)
+            ->whereBetween('ao.operation_date', [$dateFromUi, $dateToUi])
+            ->orderBy('ao.id')
+            ->get([
+                'ao.operation_type',
+                'ao.amount',
+                'ao.carrying_amount',
+                DB::raw("COALESCE(NULLIF(ba.name, ''), 'Без актива') as asset_name"),
+            ]);
+
+        $income = [];
+        $expenses = [];
+        foreach ($rows as $row) {
+            $amount = round((float) ($row->amount ?? 0), 2);
+            $carryingAmount = round((float) ($row->carrying_amount ?? 0), 2);
+            $assetName = trim((string) ($row->asset_name ?? '')) ?: 'Без актива';
+            $type = (string) ($row->operation_type ?? '');
+
+            if ($type === 'sell') {
+                $profit = round($amount - $carryingAmount, 2);
+                if ($profit > 0) {
+                    $income['asset-sale-profit-' . md5($assetName)] = [
+                        'label' => 'Прибыль от продажи активов: ' . $assetName,
+                        'amount' => ($income['asset-sale-profit-' . md5($assetName)]['amount'] ?? 0) + $profit,
+                        'level' => 0,
+                    ];
+                } elseif ($profit < 0) {
+                    $expenses['asset-sale-loss-' . md5($assetName)] = [
+                        'label' => 'Убыток от продажи активов: ' . $assetName,
+                        'amount' => ($expenses['asset-sale-loss-' . md5($assetName)]['amount'] ?? 0) + abs($profit),
+                        'level' => 0,
+                    ];
+                }
+            } elseif ($type === 'depreciation') {
+                $expenses['asset-depreciation-' . md5($assetName)] = [
+                    'label' => 'Амортизация: ' . $assetName,
+                    'amount' => ($expenses['asset-depreciation-' . md5($assetName)]['amount'] ?? 0) + $amount,
+                    'level' => 0,
+                ];
+            } elseif ($type === 'impairment') {
+                $expenses['asset-impairment-' . md5($assetName)] = [
+                    'label' => 'Обесценение: ' . $assetName,
+                    'amount' => ($expenses['asset-impairment-' . md5($assetName)]['amount'] ?? 0) + $amount,
+                    'level' => 0,
+                ];
+            } elseif ($type === 'rd_expense') {
+                $expenses['asset-rd-expense'] = [
+                    'label' => 'R&D расходы',
+                    'amount' => ($expenses['asset-rd-expense']['amount'] ?? 0) + $amount,
+                    'level' => 0,
+                ];
+            } elseif ($type === 'revalue') {
+                $income['asset-revalue-' . md5($assetName)] = [
+                    'label' => 'Доход от переоценки активов: ' . $assetName,
+                    'amount' => ($income['asset-revalue-' . md5($assetName)]['amount'] ?? 0) + $amount,
+                    'level' => 0,
+                ];
+            }
+        }
+
+        return ['income' => $income, 'expenses' => $expenses];
     }
 
     private static function pnlTopLevelAmount(array $items): float
@@ -1620,6 +1697,7 @@ class Report extends Model
         $cashBalance = self::debitBalanceByPrefix($balances, '301');
         $depositBalance = self::debitBalanceByPrefix($balances, '311');
         $receivables = self::debitBalanceByPrefix($balances, '361');
+        $businessAssetsValue = self::businessAssetsValue($fid);
         $payables = self::creditBalanceByPrefix($balances, '631');
         $loans = (float) $balances
             ->filter(fn ($item) => $item->type === 'liability' && ! str_starts_with((string) $item->code, '631'))
@@ -1633,7 +1711,7 @@ class Report extends Model
                 ? (float) $item->credit - (float) $item->debit
                 : (float) $item->credit - (float) $item->debit);
 
-        $totalAssets = $inventoryValue + $cashBalance + $depositBalance + $receivables;
+        $totalAssets = $inventoryValue + $businessAssetsValue + $cashBalance + $depositBalance + $receivables;
         $totalLiabilities = $payables + $loans;
         $equity = $ledgerEquity + $retainedEarnings;
         $balanceDifference = $totalAssets - $totalLiabilities - $equity;
@@ -1643,6 +1721,7 @@ class Report extends Model
             'dateTo' => $dateToUi,
             'monthLabel' => self::periodLabel($dateFromUi, $dateToUi),
             'inventoryValue' => $inventoryValue,
+            'businessAssetsValue' => $businessAssetsValue,
             'cashBalance' => $cashBalance,
             'depositBalance' => $depositBalance,
             'receivables' => $receivables,
@@ -1653,6 +1732,18 @@ class Report extends Model
             'equity' => $equity,
             'balanceDifference' => $balanceDifference,
         ];
+    }
+
+    private static function businessAssetsValue(string $fid): float
+    {
+        if (! Schema::hasTable('business_assets')) {
+            return 0.0;
+        }
+
+        return (float) DB::table('business_assets')
+            ->where('fid', (int) $fid)
+            ->whereNotIn('status', ['sold', 'disposed'])
+            ->sum('current_value');
     }
 
     public static function cashFlowStatement(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
@@ -1755,6 +1846,10 @@ class Report extends Model
 
         $referenceType = (string) ($item->reference_type ?? '');
         $documentType = strtoupper(trim((string) ($item->payment_document_type ?? '')));
+        if ($documentType === 'ASSET' || $referenceType === 'asset_operation') {
+            return 'investing';
+        }
+
         if (in_array($documentType, ['PO', 'CPO', 'RO', 'CRO', 'ZP', 'PPO', 'PRO'], true)) {
             return 'operating';
         }
@@ -3033,10 +3128,14 @@ class Report extends Model
                     ->where('t.reference_type', 'like', 'document:%')
                     ->where('doc.firma', '=', $fid);
             })
-            ->leftJoin('conf as payment_type', function ($join) use ($fid) {
-                $join->on('payment_type.id', '=', DB::raw('COALESCE(NULLIF(zd.reestr, \'\'), NULLIF(doc.reestr, \'\'))'))
-                    ->where('payment_type.type', '=', 'reestr')
-                    ->where('payment_type.firma', '=', $fid);
+            ->leftJoin('asset_operations as ao', function ($join) use ($fid) {
+                $join->on('ao.id', '=', 't.reference_id')
+                    ->where('t.reference_type', '=', 'asset_operation')
+                    ->where('ao.fid', '=', (int) $fid);
+            })
+            ->leftJoin('conf as payment_type', function ($join) {
+                $join->on('payment_type.id', '=', DB::raw('COALESCE(NULLIF(zd.reestr, \'\'), NULLIF(doc.reestr, \'\'), NULLIF(ao.payment_type_id, \'\'))'))
+                    ->where('payment_type.type', '=', 'reestr');
             })
             ->where('e.company_id', (int) $fid)
             ->whereBetween('t.date', [$dateFrom, $dateTo]);
@@ -3059,7 +3158,7 @@ class Report extends Model
                 'e.transaction_id',
                 't.reference_type',
                 't.reference_id',
-                DB::raw('COALESCE(zd.type, doc.type) as payment_document_type'),
+                DB::raw("COALESCE(zd.type, doc.type, CASE WHEN ao.id IS NOT NULL THEN 'ASSET' ELSE NULL END) as payment_document_type"),
                 DB::raw("CASE WHEN payment_type.vision IN ('operating', 'investing', 'financing') THEN payment_type.vision ELSE NULL END as cash_flow_activity"),
                 'e.debit',
                 'e.credit',

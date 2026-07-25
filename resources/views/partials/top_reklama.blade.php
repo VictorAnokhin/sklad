@@ -207,6 +207,7 @@
         </a>
         <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
         <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">Трансферы</a>
+        <a class="header-nav-menu__link" href="{{ route('document.assets.index') }}">Активы</a>
         <a class="header-nav-menu__link" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
       </div>
 

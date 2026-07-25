@@ -205,6 +205,7 @@ class Conf extends Model
                 'DEPOSIT' => 'Депозиты',
                 'ZP' => 'Выдача зарплаты',
                 'PRO' => 'Личные средства',
+                'ASSET' => 'Активы',
                 default => $flag,
             };
         }
@@ -223,7 +224,7 @@ class Conf extends Model
             $docAliases = match ($docType) {
                 'PPO' => ['PPO', 'PO'],
                 'PRO' => ['PRO', 'RO'],
-                'PO', 'RO', 'DEPOSIT', 'ZP' => [$docType],
+                'PO', 'RO', 'DEPOSIT', 'ZP', 'ASSET' => [$docType],
                 default => [],
             };
 
@@ -246,7 +247,7 @@ class Conf extends Model
     public static function paymentDocFlags(string|array|null $doc): array
     {
         $rawFlags = is_array($doc) ? $doc : explode(',', (string) $doc);
-        $allowed = ['PO', 'RO', 'PPO', 'DEPOSIT', 'ZP', 'PRO'];
+        $allowed = ['PO', 'RO', 'PPO', 'DEPOSIT', 'ZP', 'PRO', 'ASSET'];
         $flags = [];
 
         foreach ($rawFlags as $flag) {
@@ -262,7 +263,7 @@ class Conf extends Model
     public static function normalizePaymentDocFlags(string|array|null $doc): string
     {
         $flags = self::paymentDocFlags($doc);
-        $order = ['PO', 'RO', 'PPO', 'DEPOSIT', 'ZP', 'PRO'];
+        $order = ['PO', 'RO', 'PPO', 'DEPOSIT', 'ZP', 'PRO', 'ASSET'];
 
         usort($flags, static function (string $left, string $right) use ($order): int {
             return array_search($left, $order, true) <=> array_search($right, $order, true);

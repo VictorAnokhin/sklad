@@ -51,6 +51,14 @@ class SettingsController extends Controller
         $reestrs = DB::table('conf')->where('type', 'reestr')->orderBy('name')->get()
             ->map(fn ($item) => Conf::decoratePaymentType($item));
 
+        $assetTypes = DB::table('conf')
+            ->where('type', 'asset_type')
+            ->where(function ($query) use ($fid) {
+                $query->where('firma', '0')->orWhere('firma', $fid);
+            })
+            ->orderBy('name')
+            ->get();
+
         // Client types — той самий набір, що Conf::tgroupsForFirma (форма товару / price)
         $tgroups = Conf::tgroupsForFirma($fid);
 
@@ -175,7 +183,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -353,7 +361,10 @@ class SettingsController extends Controller
 
         $items = DB::table('conf')
             ->where('type', $type)
-            ->when($type !== 'reestr', fn ($query) => $query->where('firma', $fid))
+            ->when(! in_array($type, ['reestr', 'asset_type'], true), fn ($query) => $query->where('firma', $fid))
+            ->when($type === 'asset_type', fn ($query) => $query->where(function ($builder) use ($fid) {
+                $builder->where('firma', '0')->orWhere('firma', $fid);
+            }))
             ->orderBy('name')
             ->get()
             ->map(fn ($item) => $this->decorateConfItem($item, $type));
@@ -439,7 +450,10 @@ class SettingsController extends Controller
         $item = DB::table('conf')
             ->where('id', $id)
             ->where('type', $type)
-            ->when($type !== 'reestr', fn ($query) => $query->where('firma', $fid))
+            ->when(! in_array($type, ['reestr', 'asset_type'], true), fn ($query) => $query->where('firma', $fid))
+            ->when($type === 'asset_type', fn ($query) => $query->where(function ($builder) use ($fid) {
+                $builder->where('firma', '0')->orWhere('firma', $fid);
+            }))
             ->first();
         if (!$item) return response()->json(['message' => 'Не знайдено'], 404);
         return response()->json($this->decorateConfItem($item, $type));
@@ -458,7 +472,7 @@ class SettingsController extends Controller
 
         $data = $this->validateConfRecord($request);
         $data['hide'] = '0';
-        $data['firma'] = (string) ($data['type'] ?? '') === 'reestr' ? 0 : $fid;
+        $data['firma'] = in_array((string) ($data['type'] ?? ''), ['reestr', 'asset_type'], true) ? 0 : $fid;
 
         $id = DB::table('conf')->insertGetId($data);
         $this->syncDefaultConfRecord((int) $id, $data);
@@ -481,11 +495,14 @@ class SettingsController extends Controller
         $exists = DB::table('conf')
             ->where('id', $id)
             ->where('type', $type)
-            ->when($type !== 'reestr', fn ($query) => $query->where('firma', $fid))
+            ->when(! in_array($type, ['reestr', 'asset_type'], true), fn ($query) => $query->where('firma', $fid))
+            ->when($type === 'asset_type', fn ($query) => $query->where(function ($builder) use ($fid) {
+                $builder->where('firma', '0')->orWhere('firma', $fid);
+            }))
             ->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
         $update = $this->validateConfRecord($request, $exists);
-        if ($type === 'reestr') {
+        if (in_array($type, ['reestr', 'asset_type'], true)) {
             $update['firma'] = 0;
         }
 
@@ -504,7 +521,7 @@ class SettingsController extends Controller
         $fid = session('fid', '');
         $exists = DB::table('conf')->where('id', $id)->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
-        if ((string) $exists->type !== 'reestr' && (string) $exists->firma !== (string) $fid) {
+        if (! in_array((string) $exists->type, ['reestr', 'asset_type'], true) && (string) $exists->firma !== (string) $fid) {
             return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
         }
 

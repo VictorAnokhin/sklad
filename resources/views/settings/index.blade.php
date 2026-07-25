@@ -47,6 +47,16 @@
         </div>
 
         <div class="col-md-4">
+            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="asset_type" data-title="🏗 Типы активов">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🏗 Типы активов</h5>
+                    <p class="card-text text-muted">Оборудование, недвижимость, ценные бумаги, криптоактивы и R&D</p>
+                    <span class="badge bg-warning text-dark" id="badge-asset_type">{{ count($assetTypes ?? []) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
             <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tgroup" data-title="👥 {{ __('settings.cards.client_type.modal_title') }}">
                 <div class="card-body text-center">
                     <h5 class="card-title">👥 {{ __('settings.cards.client_type.title') }}</h5>
@@ -1068,6 +1078,10 @@
                             <label class="form-check-label d-flex align-items-center gap-2">
                                 <input class="form-check-input mt-0" type="checkbox" id="form-doc-pro" value="PRO">
                                 <span>Личные средства (PRO)</span>
+                            </label>
+                            <label class="form-check-label d-flex align-items-center gap-2">
+                                <input class="form-check-input mt-0" type="checkbox" id="form-doc-asset" value="ASSET">
+                                <span>Активы</span>
                             </label>
                         </div>
                         <div class="form-text">Для яких документів доступний цей вид платежу.</div>
@@ -3545,6 +3559,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('form-doc-deposit'),
             document.getElementById('form-doc-zp'),
             document.getElementById('form-doc-pro'),
+            document.getElementById('form-doc-asset'),
         ];
         const settingsDepositsUsePools = @json((bool) ($settingsDepositsUsePools ?? false));
 

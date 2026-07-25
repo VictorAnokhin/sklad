@@ -113,6 +113,51 @@ class AccountingService
         ]);
     }
 
+    public function createAssetOperationTransaction(
+        object $operation,
+        ?object $asset,
+        string $fid,
+        bool $reverse = false
+    ): ?LedgerTransaction {
+        if (!$this->isAvailable()) {
+            return null;
+        }
+
+        $referenceType = 'asset_operation';
+        $referenceId = (string) ($operation->id ?? '');
+
+        if ($reverse) {
+            $original = $this->activeOriginalTransaction($referenceType, $referenceId, (int) $fid);
+            if ($original) {
+                return $this->reverseStoredTransaction($original, (object) [
+                    'data' => $operation->operation_date ?? now()->toDateString(),
+                ], "{$referenceType}:reversal");
+            }
+
+            return null;
+        }
+
+        $entries = $this->entriesForAssetOperation($operation, $asset, $fid);
+        if ($entries === []) {
+            return null;
+        }
+
+        $amount = round((float) collect($entries)->sum('debit'), 2);
+        $label = method_exists($operation, 'operationLabel')
+            ? $operation::operationLabel($operation->operation_type ?? '')
+            : 'Операция с активом';
+        $assetName = trim((string) ($asset->name ?? ''));
+
+        return $this->createTransaction($entries, trim("{$label} {$assetName}"), [
+            'date' => $this->normalizeDate((string) ($operation->operation_date ?? now()->toDateString())),
+            'company_id' => (int) $fid,
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
+            'amount' => $amount,
+            'amount_base' => $amount,
+        ]);
+    }
+
     private function activeOriginalTransaction(
         string $referenceType,
         string $referenceId,
@@ -649,6 +694,54 @@ class AccountingService
         };
     }
 
+    private function entriesForAssetOperation(object $operation, ?object $asset, string $fid): array
+    {
+        $type = (string) ($operation->operation_type ?? '');
+        $amount = round(abs((float) ($operation->amount ?? 0)), 2);
+        $carryingAmount = round(abs((float) ($operation->carrying_amount ?? 0)), 2);
+
+        if ($amount <= 0) {
+            return [];
+        }
+
+        $assetAccount = $asset ? $this->businessAssetAccount($fid, $asset) : null;
+        $cashAccount = $this->cashAccount($fid, (string) ($operation->cash_account_id ?? ''));
+
+        return match ($type) {
+            'purchase', 'rd_capitalize' => $assetAccount ? [
+                ['account_id' => $assetAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $cashAccount->id, 'debit' => 0, 'credit' => $amount],
+            ] : [],
+            'sell' => $assetAccount ? array_values(array_filter([
+                ['account_id' => $cashAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $this->assetDisposalIncomeAccount($fid)->id, 'debit' => 0, 'credit' => $amount],
+                $carryingAmount > 0
+                    ? ['account_id' => $this->assetDisposalCostAccount($fid)->id, 'debit' => $carryingAmount, 'credit' => 0]
+                    : null,
+                $carryingAmount > 0
+                    ? ['account_id' => $assetAccount->id, 'debit' => 0, 'credit' => $carryingAmount]
+                    : null,
+            ])) : [],
+            'depreciation' => $assetAccount ? [
+                ['account_id' => $this->assetDepreciationExpenseAccount($fid)->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $this->assetAccumulatedDepreciationAccount($fid, $asset)->id, 'debit' => 0, 'credit' => $amount],
+            ] : [],
+            'impairment' => $assetAccount ? [
+                ['account_id' => $this->assetImpairmentExpenseAccount($fid)->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $assetAccount->id, 'debit' => 0, 'credit' => $amount],
+            ] : [],
+            'revalue' => $assetAccount ? [
+                ['account_id' => $assetAccount->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $this->assetRevaluationIncomeAccount($fid)->id, 'debit' => 0, 'credit' => $amount],
+            ] : [],
+            'rd_expense' => [
+                ['account_id' => $this->rdExpenseAccount($fid)->id, 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $cashAccount->id, 'debit' => 0, 'credit' => $amount],
+            ],
+            default => [],
+        };
+    }
+
     private function projectMirrorCashbox(string $projectFid, string $sourceCompanyId): string
     {
         if (Schema::hasColumn('conf', 'is_default')) {
@@ -815,6 +908,69 @@ class AccountingService
     private function operatingExpenseAccount(string $fid): Account
     {
         return $this->ensureAccount("949.{$fid}", "Прочие операционные расходы {$fid}", 'expense', '949');
+    }
+
+    private function businessAssetAccount(string $fid, object $asset): Account
+    {
+        $assetId = (int) ($asset->id ?? 0) ?: 'new';
+        $assetType = (string) ($asset->type ?? 'equipment');
+        $parentCode = match ($assetType) {
+            'real_estate' => '103',
+            'securities' => '143',
+            'crypto' => '146',
+            'software_rd' => '125',
+            default => '104',
+        };
+
+        return $this->ensureAccount(
+            "{$parentCode}.{$fid}.{$assetId}",
+            "Актив {$asset->name}",
+            'asset',
+            $parentCode
+        );
+    }
+
+    private function assetAccumulatedDepreciationAccount(string $fid, object $asset): Account
+    {
+        $assetId = (int) ($asset->id ?? 0) ?: 'new';
+        $parentCode = (string) ($asset->type ?? '') === 'software_rd' ? '133' : '131';
+
+        return $this->ensureAccount(
+            "{$parentCode}.{$fid}.{$assetId}",
+            "Амортизация {$asset->name}",
+            'liability',
+            $parentCode
+        );
+    }
+
+    private function assetDisposalIncomeAccount(string $fid): Account
+    {
+        return $this->ensureAccount("742.{$fid}", "Доход от реализации активов {$fid}", 'income', '742');
+    }
+
+    private function assetRevaluationIncomeAccount(string $fid): Account
+    {
+        return $this->ensureAccount("746.{$fid}", "Доход от переоценки активов {$fid}", 'income', '746');
+    }
+
+    private function assetDisposalCostAccount(string $fid): Account
+    {
+        return $this->ensureAccount("972.{$fid}", "Себестоимость реализованных активов {$fid}", 'expense', '972');
+    }
+
+    private function assetImpairmentExpenseAccount(string $fid): Account
+    {
+        return $this->ensureAccount("975.{$fid}", "Обесценение активов {$fid}", 'expense', '975');
+    }
+
+    private function assetDepreciationExpenseAccount(string $fid): Account
+    {
+        return $this->ensureAccount("92.{$fid}.assets", "Амортизация активов {$fid}", 'expense', '92');
+    }
+
+    private function rdExpenseAccount(string $fid): Account
+    {
+        return $this->ensureAccount("949.{$fid}.rd", "R&D расходы {$fid}", 'expense', '949');
     }
 
     private function userBalanceAccount(string $fid, string $userId, string $currency): Account
