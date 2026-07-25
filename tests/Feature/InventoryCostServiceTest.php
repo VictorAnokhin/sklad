@@ -443,6 +443,54 @@ class InventoryCostServiceTest extends TestCase
         $this->assertEqualsWithDelta(100, $this->cashboxValue($cashboxId), 0.001);
     }
 
+    public function test_all_money_document_types_create_balanced_double_entries_when_posted(): void
+    {
+        $counterpartyId = DB::table('users')->insertGetId([
+            'name' => 'All money docs counterparty',
+            'email' => "all-money-docs-counterparty-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+        $ownerId = DB::table('users')->insertGetId([
+            'name' => 'All money docs owner',
+            'email' => "all-money-docs-owner-{$this->companyId}@example.test",
+            'password' => password_hash('test-password', PASSWORD_BCRYPT),
+            'firma' => (string) $this->companyId,
+        ]);
+        $cashboxId = DB::table('conf')->insertGetId([
+            'type' => 'oplata',
+            'firma' => (string) $this->companyId,
+            'name' => 'All money docs cashbox',
+            'value' => 10000,
+        ]);
+
+        foreach (['PO', 'CPO', 'RO', 'CRO', 'ZP'] as $index => $type) {
+            $amount = 20 + $index;
+            $documentId = $this->createMoneyDocument($type, $amount, $counterpartyId, $cashboxId);
+
+            Document::provodka((string) $documentId, $type, (string) $this->companyId);
+
+            $transaction = $this->documentTransaction($documentId, $type);
+            $this->assertNotNull($transaction, "{$type} did not create a ledger transaction");
+            $this->assertTransactionHasDoubleEntries((int) $transaction->id, $amount, $type);
+        }
+
+        foreach (['PPO', 'PRO'] as $index => $type) {
+            $amount = 30 + $index;
+            $documentId = $this->createMoneyDocument($type, $amount, $counterpartyId, $cashboxId);
+            DB::table('z_document')->where('id', $documentId)->update([
+                'client2' => (string) $ownerId,
+                'currency_from' => 'UAH',
+            ]);
+
+            Money::provodka($documentId, (string) $this->companyId);
+
+            $transaction = $this->moneyOrderTransaction($documentId);
+            $this->assertNotNull($transaction, "{$type} did not create a ledger transaction");
+            $this->assertTransactionHasDoubleEntries((int) $transaction->id, $amount, $type);
+        }
+    }
+
     public function test_profile_balance_exchange_uses_double_entry_and_exact_reversal(): void
     {
         $ownerId = DB::table('users')->insertGetId([
@@ -1359,6 +1407,16 @@ class InventoryCostServiceTest extends TestCase
             ->first();
     }
 
+    private function moneyOrderTransaction(int $documentId): ?object
+    {
+        return DB::table('transactions')
+            ->where('company_id', $this->companyId)
+            ->where('reference_type', 'z_document:money_order')
+            ->where('reference_id', (string) $documentId)
+            ->latest('id')
+            ->first();
+    }
+
     private function cashboxValue(int $cashboxId): float
     {
         return (float) DB::table('conf')->where('id', $cashboxId)->value('value');
@@ -1383,6 +1441,16 @@ class InventoryCostServiceTest extends TestCase
 
         $this->assertEqualsWithDelta($expectedTurnover, (float) $totals->debit, 0.001);
         $this->assertEqualsWithDelta($expectedTurnover, (float) $totals->credit, 0.001);
+    }
+
+    private function assertTransactionHasDoubleEntries(int $transactionId, float $expectedTurnover, string $documentType): void
+    {
+        $entriesCount = DB::table('entries')
+            ->where('transaction_id', $transactionId)
+            ->count();
+
+        $this->assertGreaterThanOrEqual(2, $entriesCount, "{$documentType} must have at least two entries");
+        $this->assertLedgerIsBalanced($transactionId, $expectedTurnover);
     }
 
     private function assertAccountEntry(
