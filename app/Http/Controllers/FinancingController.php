@@ -50,6 +50,9 @@ class FinancingController extends Controller
             ->get()
             ->map(fn ($item) => Conf::decoratePaymentType($item));
 
+        $clientStatuses = DB::table('conf')->where('type', 'tclient')->where('firma', $fid)->orderBy('name')->get();
+        $clientGroups = DB::table('conf')->where('type', 'usergroup')->where('firma', $fid)->orderBy('name')->get();
+
         $summary = [
             'principal_balance' => (float) $agreements->sum('principal_balance'),
             'accrued_interest' => (float) $agreements->sum('accrued_interest'),
@@ -63,6 +66,8 @@ class FinancingController extends Controller
             'operations',
             'cashAccounts',
             'paymentTypes',
+            'clientStatuses',
+            'clientGroups',
             'summary'
         ));
     }
@@ -73,6 +78,7 @@ class FinancingController extends Controller
         $validated = $request->validate([
             'agreement_type' => ['required', 'string', 'in:bank_loan,loan,convertible_loan,equity'],
             'name' => ['required', 'string', 'max:255'],
+            'counterparty_id' => ['nullable', 'integer'],
             'counterparty_name' => ['nullable', 'string', 'max:255'],
             'agreement_number' => ['nullable', 'string', 'max:120'],
             'agreement_date' => ['nullable', 'date'],
@@ -85,6 +91,7 @@ class FinancingController extends Controller
 
         FinancingAgreement::create([
             'fid' => (int) $fid,
+            'counterparty_id' => (int) ($validated['counterparty_id'] ?? 0) ?: null,
             'agreement_type' => $validated['agreement_type'],
             'name' => trim((string) $validated['name']),
             'counterparty_name' => trim((string) ($validated['counterparty_name'] ?? '')),

@@ -50,7 +50,16 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Контрагент</label>
-                        <input type="text" name="counterparty_name" class="form-control" value="{{ old('counterparty_name') }}" placeholder="Банк / инвестор">
+                        <div class="fin-client-search">
+                            <div class="d-flex gap-1">
+                                <input type="text" name="counterparty_name" class="form-control flex-grow-1" value="{{ old('counterparty_name') }}" placeholder="Поиск в users..." autocomplete="off" data-fin-client-search>
+                                <button type="button" class="btn btn-outline-secondary" data-fin-client-edit style="display:none;">Изменить</button>
+                                <button type="button" class="btn btn-outline-primary" data-fin-client-new>Новый</button>
+                            </div>
+                            <div class="list-group fin-client-search__results" data-fin-client-results></div>
+                            <input type="hidden" name="counterparty_id" data-fin-client-id value="{{ old('counterparty_id') }}">
+                            <div class="alert alert-warning py-1 mt-1 mb-0 fin-client-search__details" data-fin-client-details>Контрагент не выбран</div>
+                        </div>
                     </div>
                     <div class="col-12">
                         <label class="form-label">Название договора</label>
@@ -260,6 +269,74 @@
     </div>
 </div>
 
+<div class="modal fade" id="finClientModal" tabindex="-1" aria-labelledby="finClientModalLabel" aria-hidden="true" data-bs-theme="dark">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header">
+                <h5 class="modal-title" id="finClientModalLabel">Контрагент</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="finClientModalId" value="0">
+                <div class="row g-2">
+                    <div class="col-12">
+                        <label class="form-label small mb-1">Группа</label>
+                        <input type="text" class="form-control form-control-sm" id="finClientGroupName" list="finClientGroupList" autocomplete="off">
+                        <input type="hidden" id="finClientGroupId" value="">
+                        <datalist id="finClientGroupList">
+                            @foreach(($clientGroups ?? collect()) as $group)
+                                <option value="{{ $group->name }}" data-id="{{ $group->id }}"></option>
+                            @endforeach
+                        </datalist>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small mb-1">Организация</label>
+                        <input type="text" class="form-control form-control-sm" id="finClientOrgname">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">Фамилия</label>
+                        <input type="text" class="form-control form-control-sm" id="finClientSecondname">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">Имя</label>
+                        <input type="text" class="form-control form-control-sm" id="finClientName">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">Телефон</label>
+                        <input type="text" class="form-control form-control-sm" id="finClientPhone" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">Статус</label>
+                        <select class="form-select form-select-sm" id="finClientStatus">
+                            <option value="">Выберите статус</option>
+                            @foreach(($clientStatuses ?? collect()) as $status)
+                                <option value="{{ $status->id }}">{{ $status->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">Город</label>
+                        <input type="text" class="form-control form-control-sm" id="finClientCity">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">Область</label>
+                        <input type="text" class="form-control form-control-sm" id="finClientRegion">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small mb-1">Отделение НП</label>
+                        <input type="text" class="form-control form-control-sm" id="finClientPoshta">
+                    </div>
+                </div>
+                <div class="alert alert-danger mt-3 mb-0 py-2" id="finClientError" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-warning" id="finClientSaveBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
     .financing-page { color: #f6efe6; }
     .fin-panel,
@@ -293,5 +370,236 @@
         border-color: rgba(255, 255, 255, 0.18);
         color: #fff;
     }
+    .fin-client-search {
+        position: relative;
+    }
+    .fin-client-search__results {
+        display: none;
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 40px;
+        z-index: 1050;
+    }
+    .fin-client-search__details {
+        font-size: 0.85rem;
+    }
 </style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const searchInput = document.querySelector('[data-fin-client-search]');
+        const results = document.querySelector('[data-fin-client-results]');
+        const clientId = document.querySelector('[data-fin-client-id]');
+        const details = document.querySelector('[data-fin-client-details]');
+        const editBtn = document.querySelector('[data-fin-client-edit]');
+        const newBtn = document.querySelector('[data-fin-client-new]');
+        const modalEl = document.getElementById('finClientModal');
+        const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+        const saveBtn = document.getElementById('finClientSaveBtn');
+        const errorBox = document.getElementById('finClientError');
+        const fields = {
+            id: document.getElementById('finClientModalId'),
+            orgname: document.getElementById('finClientOrgname'),
+            secondname: document.getElementById('finClientSecondname'),
+            name: document.getElementById('finClientName'),
+            phone: document.getElementById('finClientPhone'),
+            status: document.getElementById('finClientStatus'),
+            city: document.getElementById('finClientCity'),
+            region: document.getElementById('finClientRegion'),
+            poshta: document.getElementById('finClientPoshta'),
+            groupName: document.getElementById('finClientGroupName'),
+            groupId: document.getElementById('finClientGroupId'),
+        };
+        const groupOptions = Array.from(document.querySelectorAll('#finClientGroupList option'));
+        let searchTimer = null;
+
+        if (!searchInput || !results || !clientId || !details || !modal) {
+            return;
+        }
+
+        const formatName = (user) => [user.secondname || '', user.name || ''].filter(Boolean).join(' ').trim();
+        const displayName = (user) => [user.orgname || '', formatName(user)].filter(Boolean).join(' ').trim() || `User #${user.id}`;
+        const detailsHtml = (user) => {
+            const region = user.region ? `${user.region} | ` : '';
+            const poshta = user.poshta ? ` | ${user.poshta}` : '';
+            const org = user.orgname ? `<strong>${user.orgname}</strong> | ` : '';
+            return `${org}${formatName(user)}<br><small>${user.phone || ''} | ${region}${user.city || ''}${poshta}</small>`;
+        };
+        const syncGroupId = () => {
+            const value = String(fields.groupName?.value || '').trim().toLowerCase();
+            const match = groupOptions.find((option) => String(option.value || '').trim().toLowerCase() === value);
+            if (fields.groupId) {
+                fields.groupId.value = match?.dataset.id || '';
+            }
+        };
+        const clearModal = () => {
+            Object.values(fields).forEach((field) => {
+                if (field) field.value = '';
+            });
+            if (fields.id) fields.id.value = '0';
+            if (errorBox) errorBox.style.display = 'none';
+        };
+        const fillModalFromSelected = () => {
+            fields.id.value = clientId.value || '0';
+            fields.orgname.value = clientId.dataset.orgname || '';
+            fields.secondname.value = clientId.dataset.secondname || '';
+            fields.name.value = clientId.dataset.name || '';
+            fields.phone.value = clientId.dataset.phone || '';
+            fields.status.value = clientId.dataset.status || '';
+            fields.city.value = clientId.dataset.city || '';
+            fields.region.value = clientId.dataset.region || '';
+            fields.poshta.value = clientId.dataset.poshta || '';
+            fields.groupName.value = clientId.dataset.usergroupName || '';
+            fields.groupId.value = clientId.dataset.usergroup || '';
+            if (errorBox) errorBox.style.display = 'none';
+        };
+        const selectUser = (user) => {
+            clientId.value = user.id || '';
+            clientId.dataset.orgname = user.orgname || '';
+            clientId.dataset.name = user.name || '';
+            clientId.dataset.secondname = user.secondname || '';
+            clientId.dataset.phone = user.phone || '';
+            clientId.dataset.city = user.city || '';
+            clientId.dataset.region = user.region || '';
+            clientId.dataset.poshta = user.poshta || '';
+            clientId.dataset.status = user.idstatus || '';
+            clientId.dataset.usergroup = user.usergroup || '';
+            clientId.dataset.usergroupName = user.usergroup_name || '';
+            searchInput.value = displayName(user);
+            details.className = 'alert alert-secondary py-1 mt-1 mb-0 fin-client-search__details';
+            details.innerHTML = detailsHtml(user);
+            if (editBtn) editBtn.style.display = 'inline-block';
+            results.style.display = 'none';
+        };
+        const performSearch = () => {
+            const q = searchInput.value.trim();
+            if (q.length < 2) {
+                results.style.display = 'none';
+                return;
+            }
+
+            fetch("{{ route('client.search') }}?" + new URLSearchParams({ q }).toString())
+                .then((response) => response.json())
+                .then((items) => {
+                    results.innerHTML = '';
+                    if (!Array.isArray(items) || items.length === 0) {
+                        results.innerHTML = '<div class="list-group-item text-dark bg-white">Ничего не найдено</div>';
+                    } else {
+                        items.forEach((user) => {
+                            const item = document.createElement('a');
+                            item.href = '#';
+                            item.className = 'list-group-item list-group-item-action bg-white text-dark';
+                            item.innerHTML = detailsHtml(user);
+                            item.addEventListener('click', (event) => {
+                                event.preventDefault();
+                                selectUser(user);
+                            });
+                            results.appendChild(item);
+                        });
+                    }
+                    results.style.display = 'block';
+                })
+                .catch(() => {
+                    results.style.display = 'none';
+                });
+        };
+
+        searchInput.addEventListener('input', () => {
+            clientId.value = '';
+            if (editBtn) editBtn.style.display = 'none';
+            details.className = 'alert alert-warning py-1 mt-1 mb-0 fin-client-search__details';
+            details.textContent = 'Контрагент не выбран';
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(performSearch, 300);
+        });
+        searchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performSearch();
+            }
+        });
+        document.addEventListener('click', (event) => {
+            if (!searchInput.contains(event.target) && !results.contains(event.target)) {
+                results.style.display = 'none';
+            }
+        });
+        fields.groupName?.addEventListener('change', syncGroupId);
+        fields.phone?.addEventListener('input', () => {
+            const digits = fields.phone.value.replace(/\D/g, '').slice(0, 12);
+            fields.phone.value = digits ? `+${digits}` : '';
+        });
+        newBtn?.addEventListener('click', () => {
+            clearModal();
+            modal.show();
+        });
+        editBtn?.addEventListener('click', () => {
+            if (!clientId.value) {
+                return;
+            }
+            fillModalFromSelected();
+            modal.show();
+        });
+        saveBtn?.addEventListener('click', () => {
+            syncGroupId();
+            const payload = {
+                id: fields.id.value || '0',
+                orgname: fields.orgname.value.trim(),
+                secondname: fields.secondname.value.trim(),
+                name: fields.name.value.trim(),
+                phone: fields.phone.value.trim(),
+                city: fields.city.value.trim(),
+                region: fields.region.value.trim(),
+                poshta: fields.poshta.value.trim(),
+                idstatus: fields.status.value,
+                usergroup: fields.groupId.value,
+                usergroup_name: fields.groupName.value.trim(),
+            };
+
+            if (!payload.name && !payload.secondname && !payload.phone) {
+                errorBox.textContent = 'Заполните хотя бы одно поле: имя, фамилия или телефон';
+                errorBox.style.display = 'block';
+                return;
+            }
+            if (!payload.idstatus) {
+                errorBox.textContent = 'Выберите статус контрагента';
+                errorBox.style.display = 'block';
+                return;
+            }
+            errorBox.style.display = 'none';
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Сохраняем...';
+
+            fetch("{{ route('client.quickStore') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                },
+                body: JSON.stringify(payload),
+            })
+                .then(async (response) => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Не удалось сохранить контрагента');
+                    }
+                    return data;
+                })
+                .then((user) => {
+                    selectUser(user);
+                    modal.hide();
+                    clearModal();
+                })
+                .catch((error) => {
+                    errorBox.textContent = error.message;
+                    errorBox.style.display = 'block';
+                })
+                .finally(() => {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Сохранить';
+                });
+        });
+    });
+</script>
 @endsection

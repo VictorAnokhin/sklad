@@ -13,6 +13,7 @@ return new class extends Migration
             Schema::create('financing_agreements', function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('fid')->index();
+                $table->unsignedBigInteger('counterparty_id')->nullable()->index();
                 $table->string('agreement_type', 40)->default('bank_loan')->index();
                 $table->string('name');
                 $table->string('counterparty_name')->nullable();

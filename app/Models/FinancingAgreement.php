@@ -8,6 +8,7 @@ class FinancingAgreement extends Model
 {
     protected $fillable = [
         'fid',
+        'counterparty_id',
         'agreement_type',
         'name',
         'counterparty_name',
@@ -28,6 +29,7 @@ class FinancingAgreement extends Model
 
     protected $casts = [
         'fid' => 'integer',
+        'counterparty_id' => 'integer',
         'agreement_date' => 'date',
         'maturity_date' => 'date',
         'principal_amount' => 'decimal:2',
