@@ -1734,35 +1734,76 @@ class Report extends Model
         $depositBalance = self::debitBalanceByPrefix($balances, '311');
         $receivables = self::debitBalanceByPrefix($balances, '361');
         $businessAssetsValue = self::businessAssetsValue($fid);
+        $businessAssetRows = self::businessAssetRowsByType($fid);
         $payables = self::creditBalanceByPrefix($balances, '631');
+        $payrollPayables = self::creditBalanceByAccountPrefixes($balances, ['661']);
+        $taxPayables = self::creditBalanceByAccountPrefixes($balances, ['641']);
+        $currentLoanBalance = self::creditBalanceByAccountPrefixes($balances, ['60', '601']);
+        $interestPayables = self::creditBalanceByAccountPrefixes($balances, ['684']);
+        $dividendPayables = self::creditBalanceByAccountPrefixes($balances, ['671']);
+        $longTermLoanBalance = self::creditBalanceByAccountPrefixes($balances, ['50', '501', '55']);
         $loans = (float) $balances
             ->filter(fn ($item) => $item->type === 'liability' && ! str_starts_with((string) $item->code, '631'))
             ->sum(fn ($item) => max((float) $item->credit - (float) $item->debit, 0));
         $ledgerEquity = (float) $balances
             ->where('type', 'equity')
             ->sum(fn ($item) => (float) $item->credit - (float) $item->debit);
+        $registeredCapital = self::creditBalanceByAccountPrefixes($balances, ['40']);
+        $additionalCapital = self::creditBalanceByAccountPrefixes($balances, ['42']);
+        $ledgerRetainedEarnings = self::creditBalanceByAccountPrefixes($balances, ['44']);
         $retainedEarnings = (float) $balances
             ->filter(fn ($item) => in_array($item->type, ['income', 'expense'], true))
             ->sum(fn ($item) => $item->type === 'income'
                 ? (float) $item->credit - (float) $item->debit
                 : (float) $item->credit - (float) $item->debit);
 
+        $currentAssets = $inventoryValue + $cashBalance + $depositBalance + $receivables;
         $totalAssets = $inventoryValue + $businessAssetsValue + $cashBalance + $depositBalance + $receivables;
         $totalLiabilities = $payables + $loans;
+        $knownLiabilities = $payables
+            + $payrollPayables
+            + $taxPayables
+            + $currentLoanBalance
+            + $interestPayables
+            + $dividendPayables
+            + $longTermLoanBalance;
+        $otherLiabilities = $totalLiabilities - $knownLiabilities;
+        $currentLiabilities = $payables
+            + $payrollPayables
+            + $taxPayables
+            + $currentLoanBalance
+            + $interestPayables
+            + $dividendPayables;
         $equity = $ledgerEquity + $retainedEarnings;
+        $totalRetainedEarnings = $ledgerRetainedEarnings + $retainedEarnings;
+        $otherEquity = $equity - $registeredCapital - $additionalCapital - $totalRetainedEarnings;
         $balanceDifference = $totalAssets - $totalLiabilities - $equity;
 
         return [
             'dateFrom' => $dateFromUi,
             'dateTo' => $dateToUi,
             'monthLabel' => self::periodLabel($dateFromUi, $dateToUi),
+            'currentAssets' => $currentAssets,
             'inventoryValue' => $inventoryValue,
             'businessAssetsValue' => $businessAssetsValue,
+            'businessAssetRows' => $businessAssetRows,
             'cashBalance' => $cashBalance,
             'depositBalance' => $depositBalance,
             'receivables' => $receivables,
+            'currentLiabilities' => $currentLiabilities,
             'payables' => $payables,
+            'payrollPayables' => $payrollPayables,
+            'taxPayables' => $taxPayables,
+            'currentLoanBalance' => $currentLoanBalance,
+            'interestPayables' => $interestPayables,
+            'dividendPayables' => $dividendPayables,
+            'longTermLoanBalance' => $longTermLoanBalance,
+            'otherLiabilities' => $otherLiabilities,
             'loans' => $loans,
+            'registeredCapital' => $registeredCapital,
+            'additionalCapital' => $additionalCapital,
+            'totalRetainedEarnings' => $totalRetainedEarnings,
+            'otherEquity' => $otherEquity,
             'totalAssets' => $totalAssets,
             'totalLiabilities' => $totalLiabilities,
             'equity' => $equity,
@@ -1780,6 +1821,34 @@ class Report extends Model
             ->where('fid', (int) $fid)
             ->whereNotIn('status', ['sold', 'disposed'])
             ->sum('current_value');
+    }
+
+    private static function businessAssetRowsByType(string $fid): array
+    {
+        if (! Schema::hasTable('business_assets')) {
+            return [];
+        }
+
+        $labels = [
+            'equipment' => 'Основные средства',
+            'real_estate' => 'Недвижимость',
+            'securities' => 'Финансовые вложения',
+            'crypto' => 'Криптоактивы',
+            'software_rd' => 'Нематериальные активы / R&D',
+        ];
+
+        return DB::table('business_assets')
+            ->where('fid', (int) $fid)
+            ->whereNotIn('status', ['sold', 'disposed'])
+            ->select('type', DB::raw('SUM(current_value) as value'))
+            ->groupBy('type')
+            ->orderBy('type')
+            ->get()
+            ->map(fn ($row) => [
+                'label' => $labels[(string) $row->type] ?? ((string) $row->type ?: 'Прочие необоротные активы'),
+                'value' => (float) $row->value,
+            ])
+            ->all();
     }
 
     public static function cashFlowStatement(string $fid, string $dateFromInput = '', string $dateToInput = ''): array
@@ -3246,5 +3315,25 @@ class Report extends Model
         return (float) $balances
             ->filter(fn ($item) => str_starts_with((string) $item->code, $prefix))
             ->sum(fn ($item) => (float) $item->credit - (float) $item->debit);
+    }
+
+    private static function creditBalanceByAccountPrefixes($balances, array $prefixes): float
+    {
+        return (float) $balances
+            ->filter(fn ($item) => self::accountCodeMatchesAnyPrefix((string) $item->code, $prefixes))
+            ->sum(fn ($item) => max((float) $item->credit - (float) $item->debit, 0));
+    }
+
+    private static function accountCodeMatchesAnyPrefix(string $code, array $prefixes): bool
+    {
+        foreach ($prefixes as $prefix) {
+            $prefix = (string) $prefix;
+
+            if ($code === $prefix || str_starts_with($code, "{$prefix}.")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

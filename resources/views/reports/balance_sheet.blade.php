@@ -37,11 +37,15 @@
                     <h4 class="card-title mb-3 text-light">Активи @include('reports.hint', ['text' => 'Ліва частина балансу: ресурси, які належать бізнесу або мають принести гроші.'])</h4>
                     <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                         <tbody>
-                            <tr><td>Товари / запаси @include('reports.hint', ['text' => 'Вартість товарних залишків за методом середньозваженої собівартості.'])</td><td class="text-end fw-semibold">{{ number_format((float) $inventoryValue, 2, '.', ' ') }}</td></tr>
-                            <tr><td>Необоротные активы @include('reports.hint', ['text' => 'Оборудование, недвижимость, финансовые активы, криптоактивы и капитализированный R&D по остаточной или текущей стоимости.'])</td><td class="text-end fw-semibold">{{ number_format((float) ($businessAssetsValue ?? 0), 2, '.', ' ') }}</td></tr>
-                            <tr><td>Гроші @include('reports.hint', ['text' => 'Поточний залишок у касах або грошових рахунках.'])</td><td class="text-end fw-semibold">{{ number_format((float) $cashBalance, 2, '.', ' ') }}</td></tr>
-                            <tr><td>Депозити @include('reports.hint', ['text' => 'Кошти, розміщені у депозитах або депозитних інструментах.'])</td><td class="text-end fw-semibold">{{ number_format((float) $depositBalance, 2, '.', ' ') }}</td></tr>
-                            <tr><td>Дебіторка @include('reports.hint', ['text' => 'Сума, яку клієнти або контрагенти мають сплатити бізнесу.'])</td><td class="text-end fw-semibold">{{ number_format((float) $receivables, 2, '.', ' ') }}</td></tr>
+                            <tr><td><strong>Оборотные активы @include('reports.hint', ['text' => 'Активы, которые обычно превращаются в деньги или используются в операционном цикле: запасы, деньги, депозиты и дебиторка.'])</strong></td><td class="text-end"><strong>{{ number_format((float) ($currentAssets ?? 0), 2, '.', ' ') }}</strong></td></tr>
+                            <tr><td class="ps-4">Товари / запаси @include('reports.hint', ['text' => 'Вартість товарних залишків за методом середньозваженої собівартості.'])</td><td class="text-end fw-semibold">{{ number_format((float) $inventoryValue, 2, '.', ' ') }}</td></tr>
+                            <tr><td class="ps-4">Гроші @include('reports.hint', ['text' => 'Поточний залишок у касах або грошових рахунках.'])</td><td class="text-end fw-semibold">{{ number_format((float) $cashBalance, 2, '.', ' ') }}</td></tr>
+                            <tr><td class="ps-4">Депозити @include('reports.hint', ['text' => 'Кошти, розміщені у депозитах або депозитних інструментах.'])</td><td class="text-end fw-semibold">{{ number_format((float) $depositBalance, 2, '.', ' ') }}</td></tr>
+                            <tr><td class="ps-4">Дебіторка @include('reports.hint', ['text' => 'Сума, яку клієнти або контрагенти мають сплатити бізнесу.'])</td><td class="text-end fw-semibold">{{ number_format((float) $receivables, 2, '.', ' ') }}</td></tr>
+                            <tr><td><strong>Необоротные активы @include('reports.hint', ['text' => 'Оборудование, недвижимость, финансовые активы, криптоактивы и капитализированный R&D по остаточной или текущей стоимости.'])</strong></td><td class="text-end"><strong>{{ number_format((float) ($businessAssetsValue ?? 0), 2, '.', ' ') }}</strong></td></tr>
+                            @foreach(($businessAssetRows ?? []) as $assetRow)
+                                <tr><td class="ps-4">{{ $assetRow['label'] }}</td><td class="text-end fw-semibold">{{ number_format((float) $assetRow['value'], 2, '.', ' ') }}</td></tr>
+                            @endforeach
                             <tr class="table-light"><td><strong>Разом активи @include('reports.hint', ['text' => 'Сума всіх активів: запаси + необоротные активы + гроші + депозити + дебіторка.'])</strong></td><td class="text-end"><strong>{{ number_format((float) $totalAssets, 2, '.', ' ') }}</strong></td></tr>
                         </tbody>
                     </table>
@@ -55,10 +59,24 @@
                     <h4 class="card-title mb-3 text-light">Зобов’язання і капітал @include('reports.hint', ['text' => 'Права частина балансу: за рахунок чого профінансовані активи — борги і власний капітал.'])</h4>
                     <table class="table table-sm table-dark table-hover align-middle mb-0 bg-transparent">
                         <tbody>
-                            <tr><td>Кредиторка @include('reports.hint', ['text' => 'Сума, яку бізнес має сплатити постачальникам або іншим контрагентам.'])</td><td class="text-end fw-semibold">{{ number_format((float) $payables, 2, '.', ' ') }}</td></tr>
-                            <tr><td>Кредити / фінансування @include('reports.hint', ['text' => 'Залучені кошти: кредити, позики або інше зовнішнє фінансування.'])</td><td class="text-end fw-semibold">{{ number_format((float) $loans, 2, '.', ' ') }}</td></tr>
+                            <tr><td><strong>Краткосрочные обязательства @include('reports.hint', ['text' => 'Задолженность, которую нужно закрыть в ближайшем операционном цикле: поставщики, налоги, зарплата, проценты и краткосрочные кредиты.'])</strong></td><td class="text-end"><strong>{{ number_format((float) ($currentLiabilities ?? 0), 2, '.', ' ') }}</strong></td></tr>
+                            <tr><td class="ps-4">Кредиторка @include('reports.hint', ['text' => 'Сума, яку бізнес має сплатити постачальникам або іншим контрагентам.'])</td><td class="text-end fw-semibold">{{ number_format((float) $payables, 2, '.', ' ') }}</td></tr>
+                            <tr><td class="ps-4">Задолженность по налогам</td><td class="text-end fw-semibold">{{ number_format((float) ($taxPayables ?? 0), 2, '.', ' ') }}</td></tr>
+                            <tr><td class="ps-4">Задолженность по ФОТ</td><td class="text-end fw-semibold">{{ number_format((float) ($payrollPayables ?? 0), 2, '.', ' ') }}</td></tr>
+                            <tr><td class="ps-4">Текущие кредиты и займы</td><td class="text-end fw-semibold">{{ number_format((float) ($currentLoanBalance ?? 0), 2, '.', ' ') }}</td></tr>
+                            <tr><td class="ps-4">Проценты и дивиденды к выплате</td><td class="text-end fw-semibold">{{ number_format((float) (($interestPayables ?? 0) + ($dividendPayables ?? 0)), 2, '.', ' ') }}</td></tr>
+                            <tr><td><strong>Долгосрочные кредиты и займы @include('reports.hint', ['text' => 'Долгосрочное финансирование и прочие долгосрочные обязательства.'])</strong></td><td class="text-end"><strong>{{ number_format((float) ($longTermLoanBalance ?? 0), 2, '.', ' ') }}</strong></td></tr>
+                            @if(abs((float) ($otherLiabilities ?? 0)) > 0.01)
+                                <tr><td class="ps-4">Прочие обязательства</td><td class="text-end fw-semibold">{{ number_format((float) $otherLiabilities, 2, '.', ' ') }}</td></tr>
+                            @endif
                             <tr class="table-light"><td><strong>Разом зобов’язання @include('reports.hint', ['text' => 'Кредиторка плюс кредити/фінансування.'])</strong></td><td class="text-end"><strong>{{ number_format((float) $totalLiabilities, 2, '.', ' ') }}</strong></td></tr>
-                            <tr><td>Капітал @include('reports.hint', ['text' => 'Власний капітал бізнесу: активи мінус зобов’язання.'])</td><td class="text-end fw-semibold {{ $equity >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $equity, 2, '.', ' ') }}</td></tr>
+                            <tr><td><strong>Капітал @include('reports.hint', ['text' => 'Власний капітал бізнесу: активи мінус зобов’язання.'])</strong></td><td class="text-end"><strong class="{{ $equity >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format((float) $equity, 2, '.', ' ') }}</strong></td></tr>
+                            <tr><td class="ps-4">Зарегистрированный капитал</td><td class="text-end fw-semibold">{{ number_format((float) ($registeredCapital ?? 0), 2, '.', ' ') }}</td></tr>
+                            <tr><td class="ps-4">Дополнительный капитал</td><td class="text-end fw-semibold">{{ number_format((float) ($additionalCapital ?? 0), 2, '.', ' ') }}</td></tr>
+                            <tr><td class="ps-4">Накопленная прибыль</td><td class="text-end fw-semibold">{{ number_format((float) ($totalRetainedEarnings ?? 0), 2, '.', ' ') }}</td></tr>
+                            @if(abs((float) ($otherEquity ?? 0)) > 0.01)
+                                <tr><td class="ps-4">Прочий капитал</td><td class="text-end fw-semibold">{{ number_format((float) $otherEquity, 2, '.', ' ') }}</td></tr>
+                            @endif
                             <tr class="table-light"><td><strong>Разом пасиви @include('reports.hint', ['text' => 'Зобов’язання плюс капітал. У балансі ця сума має дорівнювати активам.'])</strong></td><td class="text-end"><strong>{{ number_format((float) ($totalLiabilities + $equity), 2, '.', ' ') }}</strong></td></tr>
                         </tbody>
                     </table>
