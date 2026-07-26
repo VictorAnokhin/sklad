@@ -36,8 +36,8 @@
                         <table class="table table-hover align-middle">
                             <thead>
                                 <tr>
-                                    <th>Сотрудник</th>
-                                    <th style="width:110px">Размер зарплаты</th>
+                                    <th style="width:45%">Сотрудник</th>
+                                    <th style="width:170px">Размер зарплаты</th>
                                     <th style="width:120px">Документ ZP</th>
                                     <th style="width:86px">Выплата</th>
                                     <th class="text-end" style="width:70px"></th>
