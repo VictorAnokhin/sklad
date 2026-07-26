@@ -271,6 +271,8 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/salary-statements/{id}', [DocumentController::class, 'salaryStatementShow'])->whereNumber('id')->name('salaryStatements.show');
             Route::post('/salary-statements', [DocumentController::class, 'salaryStatementStore'])->name('salaryStatements.store');
             Route::put('/salary-statements/{id}', [DocumentController::class, 'salaryStatementUpdate'])->whereNumber('id')->name('salaryStatements.update');
+            Route::delete('/salary-statements/{id}', [DocumentController::class, 'salaryStatementDestroy'])
+                ->whereNumber('id')->name('salaryStatements.destroy');
             Route::delete('/salary-statements/{id}/employees/{lineId}', [DocumentController::class, 'salaryStatementEmployeeDestroy'])
                 ->whereNumber('id')->whereNumber('lineId')->name('salaryStatements.employees.destroy');
             Route::post('/salary-statements/{id}/employees/{lineId}/payout', [DocumentController::class, 'salaryStatementPayout'])

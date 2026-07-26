@@ -800,6 +800,43 @@ class DocumentController extends Controller
         ]);
     }
 
+    public function salaryStatementDestroy(int $id)
+    {
+        abort_unless(Schema::hasTable('salary_statement_lines'), 503, 'Сначала выполните миграции базы данных.');
+
+        $fid = (int) session('fid', 0);
+        $statement = $this->salaryStatement($id, $fid);
+        abort_unless($statement, 404);
+
+        if ((int) ($statement->provodka ?? 0) === 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Проведенную ведомость удалить нельзя. Сначала снимите проводку.',
+            ], 422);
+        }
+
+        $hasPayouts = DB::table('salary_statement_lines')
+            ->where('statement_document_id', $id)
+            ->whereNotNull('zp_document_id')
+            ->exists();
+
+        if ($hasPayouts) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Нельзя удалить ведомость, пока в ней есть документы ZP.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($id, $fid): void {
+            DB::table('salary_statement_lines')->where('statement_document_id', $id)->where('project_id', $fid)->delete();
+            DB::table('z_document')->where('id', $id)->where('firma', $fid)->where('type', 'ZV')->delete();
+        });
+
+        session(['num' => '0', 'doc_id' => '0']);
+
+        return response()->json(['success' => true]);
+    }
+
     public function salaryStatementEmployeeDestroy(int $id, int $lineId)
     {
         abort_unless(Schema::hasTable('salary_statement_lines'), 503, 'Сначала выполните миграции базы данных.');

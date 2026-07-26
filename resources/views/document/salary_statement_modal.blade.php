@@ -37,9 +37,9 @@
                             <thead>
                                 <tr>
                                     <th>Сотрудник</th>
-                                    <th style="width:220px">Размер зарплаты</th>
-                                    <th style="width:170px">Документ ZP</th>
-                                    <th style="width:120px">Выплата</th>
+                                    <th style="width:110px">Размер зарплаты</th>
+                                    <th style="width:120px">Документ ZP</th>
+                                    <th style="width:86px">Выплата</th>
                                     <th class="text-end" style="width:70px"></th>
                                 </tr>
                             </thead>
@@ -59,6 +59,7 @@
                     <div class="alert alert-danger mt-3 mb-0" id="salaryStatementError" hidden></div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger me-auto" id="salaryStatementDelete" hidden>Удалить</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
                     <button type="submit" class="btn btn-success">Сохранить ведомость</button>
                 </div>
@@ -143,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const documentsElement = document.getElementById('salaryStatementDocuments');
     const statementError = document.getElementById('salaryStatementError');
     const payoutError = document.getElementById('salaryPayoutError');
+    const deleteStatementButton = document.getElementById('salaryStatementDelete');
     let statement = null;
     let lines = [];
     let reopenStatementAfterPayout = false;
@@ -175,6 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('salaryStatementDate').value = localDate();
         document.getElementById('salaryStatementPaymentType').value = '';
         document.getElementById('salaryStatementContent').value = '';
+        if (deleteStatementButton) {
+            deleteStatementButton.hidden = true;
+        }
         hideError(statementError);
         renderLinkedDocuments([]);
         renderLines();
@@ -223,6 +228,10 @@ document.addEventListener('DOMContentLoaded', () => {
         await saveStatement();
     });
 
+    deleteStatementButton?.addEventListener('click', async () => {
+        await deleteStatement();
+    });
+
     payoutForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         await submitPayout();
@@ -244,6 +253,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('salaryStatementDate').value = inputDate(data.data);
         document.getElementById('salaryStatementPaymentType').value = data.reestr || '';
         document.getElementById('salaryStatementContent').value = data.content || '';
+        if (deleteStatementButton) {
+            deleteStatementButton.hidden = false;
+        }
         renderLinkedDocuments(data.zp_documents || []);
         renderLines();
     }
@@ -277,6 +289,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         applyStatement(data.statement);
         listChanged = true;
+    }
+
+    async function deleteStatement() {
+        if (!statement) return;
+        hideError(statementError);
+        if (!window.confirm(`Удалить платежную ведомость №${statement.num}?`)) {
+            return;
+        }
+
+        const response = await fetch(`${salaryStatementsBaseUrl}/${statement.id}`, {
+            method: 'DELETE',
+            headers: jsonHeaders(),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            showError(statementError, validationMessage(data));
+            return;
+        }
+
+        listChanged = true;
+        statement = null;
+        statementModal.hide();
     }
 
     async function removeLine(employeeId) {
@@ -359,13 +393,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td>
                     ${paid
-                        ? `<a href="${escapeHtml(line.zp_url || '#')}" class="btn btn-sm ${Number(line.zp_posted) === 1 ? 'btn-outline-success' : 'btn-outline-warning'}">Открыть ZP №${escapeHtml(line.zp_num || '')}</a>`
+                        ? `<a href="${escapeHtml(line.zp_url || '#')}" class="btn btn-sm ${Number(line.zp_posted) === 1 ? 'btn-outline-success' : 'btn-outline-warning'}">ZP №${escapeHtml(line.zp_num || '')}</a>`
                         : '<span class="text-muted">—</span>'}
                 </td>
                 <td>
                     <button type="button" class="btn btn-sm btn-success" data-payout-line
                         data-employee-id="${line.employee_id}" ${!statement || paid || Number(line.salary_amount) <= 0 ? 'disabled' : ''}>
-                        Выдать
+                        Выпл.
                     </button>
                 </td>
                 <td class="text-end">
