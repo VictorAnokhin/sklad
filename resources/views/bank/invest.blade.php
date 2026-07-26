@@ -7,22 +7,50 @@
 @section('content')
 @php
     $formatMoney = static fn ($value): string => number_format((float) $value, 2, '.', ' ');
+    $formatQuantity = static fn ($value): string => number_format((float) $value, 8, '.', ' ');
     $assetTypeLabels = [
         'token' => 'Токен',
         'nft' => 'NFT',
         'pool' => 'Пул',
         'defi' => 'DeFi',
     ];
+    $operationBuyTotal = collect($investOperationRows ?? [])->where('direction', 'account_to_asset')->sum('value_usd');
+    $operationSellTotal = collect($investOperationRows ?? [])->where('direction', 'asset_to_account')->sum('value_usd');
+    $operationRevaluationTotal = collect($investOperationRows ?? [])->where('direction', 'revaluation')->sum('value_usd');
+    $operationNetTotal = (float) $operationBuyTotal - (float) $operationSellTotal + (float) $operationRevaluationTotal;
 @endphp
 
 <div class="bank-page bank-invest-page" data-bank-invest-page>
     @include('bank.partials.invest_nav')
 
+    <section class="bank-grid bank-grid--summary">
+        <div class="bank-panel bank-panel--accent">
+            <div class="bank-label">Чистое изменение</div>
+            <div class="bank-value {{ $operationNetTotal >= 0 ? 'text-success' : 'text-danger' }}">{{ $operationNetTotal >= 0 ? '+' : '' }}{{ $formatMoney($operationNetTotal) }}</div>
+            <div class="bank-meta">Покупки минус продажи плюс переоценка.</div>
+        </div>
+        <div class="bank-panel">
+            <div class="bank-label">Покупки</div>
+            <div class="bank-value text-success">{{ $formatMoney($operationBuyTotal) }}</div>
+            <div class="bank-meta">Счет → актив.</div>
+        </div>
+        <div class="bank-panel">
+            <div class="bank-label">Продажи</div>
+            <div class="bank-value text-danger">{{ $formatMoney($operationSellTotal) }}</div>
+            <div class="bank-meta">Актив → счет.</div>
+        </div>
+        <div class="bank-panel">
+            <div class="bank-label">Переоценка</div>
+            <div class="bank-value {{ $operationRevaluationTotal >= 0 ? 'text-success' : 'text-danger' }}">{{ $operationRevaluationTotal >= 0 ? '+' : '' }}{{ $formatMoney($operationRevaluationTotal) }}</div>
+            <div class="bank-meta">Изменение стоимости без движения денег.</div>
+        </div>
+    </section>
+
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
             <div>
                 <div class="bank-label">Операции</div>
-                <div class="bank-meta">Список операций без группировки по активам.</div>
+                <div class="bank-meta">Журнал движений по активам: покупка, продажа, переоценка и статус проводки.</div>
             </div>
             <div class="bank-table-header__actions">
                 <div class="bank-meta">{{ $investOperations->count() }} операций</div>
@@ -35,11 +63,12 @@
                     <tr>
                         <th class="bank-table__num">№</th>
                         <th>Дата</th>
-                        <th>Операция</th>
+                        <th>Движение</th>
                         <th>Актив</th>
-                        <th>Счет</th>
-                        <th class="text-end">Сумма</th>
-                        <th>Проводка</th>
+                        <th class="text-end">Количество</th>
+                        <th class="text-end">Цена</th>
+                        <th class="text-end">Изменение</th>
+                        <th>Счет / проводка</th>
                         <th>Комментарий</th>
                     </tr>
                 </thead>
@@ -49,6 +78,13 @@
                             $directionClass = $movement['direction'] === 'revaluation'
                                 ? 'bank-pill--warning'
                                 : ($movement['direction'] === 'asset_to_account' ? 'bank-pill--currency' : 'bank-pill--company');
+                            $movementValue = (float) $movement['value_usd'];
+                            $valueSign = $movement['direction'] === 'asset_to_account' || $movementValue < 0 ? '-' : '+';
+                            $valueClass = $movement['direction'] === 'asset_to_account' || $movementValue < 0 ? 'text-danger' : 'text-success';
+                            $movementPrice = (float) ($movement['price_usd'] ?? 0);
+                            if ($movementPrice <= 0 && (float) $movement['quantity'] > 0) {
+                                $movementPrice = abs((float) $movement['value_usd']) / (float) $movement['quantity'];
+                            }
                             $movementJson = json_encode($movement, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
                         @endphp
                         <tr class="bank-table-row--clickable"
@@ -66,17 +102,27 @@
                                 <strong>{{ $movement['asset_label'] }}</strong>
                                 <div class="bank-meta">{{ $assetTypeLabels[$movement['asset_type']] ?? $movement['asset_type'] }}</div>
                             </td>
-                            <td>{{ $movement['account_label'] }}</td>
-                            <td class="text-end fw-semibold">{{ $formatMoney($movement['value_usd']) }} USD</td>
+                            <td class="text-end bank-mono">
+                                {{ (float) $movement['quantity'] > 0 ? $formatQuantity($movement['quantity']) : '—' }}
+                            </td>
+                            <td class="text-end">
+                                {{ $movementPrice > 0 ? $formatMoney($movementPrice) : '—' }}
+                                <div class="bank-meta">{{ $movement['currency'] }}</div>
+                            </td>
+                            <td class="text-end">
+                                <div class="fw-semibold {{ $valueClass }}">{{ $valueSign }}{{ $formatMoney(abs($movementValue)) }} USD</div>
+                                <div class="bank-meta">{{ $movement['direction'] === 'revaluation' ? 'дельта стоимости' : 'движение позиции' }}</div>
+                            </td>
                             <td>
+                                <div>{{ $movement['direction'] === 'revaluation' ? 'Без движения счета' : $movement['account_label'] }}</div>
                                 <span class="bank-status {{ $movement['status'] === 'posted' ? '' : 'bank-status--pending' }}">{{ $movement['status'] }}</span>
-                                <div class="bank-meta">{{ $movement['ledger_transaction_id'] > 0 ? 'TX #' . $movement['ledger_transaction_id'] : 'проводки нет' }}</div>
+                                <span class="bank-meta">{{ $movement['ledger_transaction_id'] > 0 ? 'TX #' . $movement['ledger_transaction_id'] : 'проводки нет' }}</span>
                             </td>
                             <td class="bank-meta">{{ $movement['note'] !== '' ? $movement['note'] : '—' }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">Операции пока не созданы.</td>
+                            <td colspan="9" class="text-center text-muted py-4">Операции пока не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -140,6 +186,17 @@
                             <input type="text" name="currency" value="USD" maxlength="20" required data-invest-operation-currency aria-label="Валюта">
                         </span>
                         <small class="bank-field-hint" data-invest-operation-amount-hint>Сумма будет списана со счета и отражена на активе.</small>
+                    </label>
+
+                    <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="quantity">
+                        <span>Количество</span>
+                        <input type="number" name="quantity" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-quantity>
+                    </label>
+
+                    <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="price">
+                        <span>Цена за единицу, USD</span>
+                        <input type="number" name="price_usd" min="0" step="0.00000001" inputmode="decimal" data-invest-operation-price>
+                        <small class="bank-field-hint">Если указать количество и цену, стоимость операции будет рассчитана как количество × цена.</small>
                     </label>
 
                     <label class="bank-form-field bank-invest-operation-field" data-invest-operation-field="comment">
@@ -299,7 +356,7 @@
 
     .bank-invest-page .bank-operation-table {
         table-layout: fixed;
-        min-width: 870px;
+        min-width: 1120px;
     }
 
     .bank-invest-page .bank-operation-table th,
@@ -315,15 +372,17 @@
     .bank-invest-page .bank-operation-table th:nth-child(3),
     .bank-invest-page .bank-operation-table td:nth-child(3) { width: 118px; }
     .bank-invest-page .bank-operation-table th:nth-child(4),
-    .bank-invest-page .bank-operation-table td:nth-child(4) { width: 190px; }
+    .bank-invest-page .bank-operation-table td:nth-child(4) { width: 210px; }
     .bank-invest-page .bank-operation-table th:nth-child(5),
-    .bank-invest-page .bank-operation-table td:nth-child(5) { width: 160px; }
+    .bank-invest-page .bank-operation-table td:nth-child(5) { width: 120px; }
     .bank-invest-page .bank-operation-table th:nth-child(6),
-    .bank-invest-page .bank-operation-table td:nth-child(6) { width: 118px; }
+    .bank-invest-page .bank-operation-table td:nth-child(6) { width: 110px; }
     .bank-invest-page .bank-operation-table th:nth-child(7),
-    .bank-invest-page .bank-operation-table td:nth-child(7) { width: 110px; }
+    .bank-invest-page .bank-operation-table td:nth-child(7) { width: 132px; }
     .bank-invest-page .bank-operation-table th:nth-child(8),
-    .bank-invest-page .bank-operation-table td:nth-child(8) { width: 136px; }
+    .bank-invest-page .bank-operation-table td:nth-child(8) { width: 170px; }
+    .bank-invest-page .bank-operation-table th:nth-child(9),
+    .bank-invest-page .bank-operation-table td:nth-child(9) { width: 164px; }
 </style>
 @endsection
 
@@ -383,6 +442,8 @@
         const asset = root.querySelector('[data-invest-operation-asset]');
         const currency = root.querySelector('[data-invest-operation-currency]');
         const amount = root.querySelector('[data-invest-operation-amount]');
+        const quantity = root.querySelector('[data-invest-operation-quantity]');
+        const price = root.querySelector('[data-invest-operation-price]');
         const amountLabel = root.querySelector('[data-invest-operation-amount-label]');
         const amountHint = root.querySelector('[data-invest-operation-amount-hint]');
         const valueSectionTitle = root.querySelector('[data-invest-operation-value-section-title]');
@@ -397,8 +458,27 @@
             account: root.querySelector('[data-invest-operation-field="account"]'),
             asset: root.querySelector('[data-invest-operation-field="asset"]'),
             amount: root.querySelector('[data-invest-operation-field="amount"]'),
+            quantity: root.querySelector('[data-invest-operation-field="quantity"]'),
+            price: root.querySelector('[data-invest-operation-field="price"]'),
             comment: root.querySelector('[data-invest-operation-field="comment"]'),
         };
+
+        function parseDecimal(value) {
+            const normalized = String(value || '').replace(/\s/g, '').replace(',', '.');
+            const number = Number.parseFloat(normalized);
+            return Number.isFinite(number) ? number : 0;
+        }
+
+        function syncAmountFromQuantityPrice() {
+            if (!amount || !quantity || !price || direction?.value === 'revaluation') {
+                return;
+            }
+            const quantityValue = parseDecimal(quantity.value);
+            const priceValue = parseDecimal(price.value);
+            if (quantityValue > 0 && priceValue > 0) {
+                amount.value = (quantityValue * priceValue).toFixed(8).replace(/\.?0+$/, '');
+            }
+        }
 
         function syncCurrencyFromAccount() {
             if (!account || !currency || direction?.value === 'revaluation') {
@@ -456,11 +536,18 @@
                         : 'Дт Инвестиционный актив · Кт Операционный счет. Остаток операционного счета уменьшится.';
             }
 
+            if (operationFields.quantity) {
+                operationFields.quantity.hidden = nextDirection === 'revaluation';
+            }
+            if (operationFields.price) {
+                operationFields.price.hidden = nextDirection === 'revaluation';
+            }
+
             const fieldOrder = nextDirection === 'asset_to_account'
-                ? ['date', 'asset', 'account', 'amount', 'comment']
+                ? ['date', 'asset', 'account', 'quantity', 'price', 'amount', 'comment']
                 : nextDirection === 'revaluation'
                     ? ['date', 'asset', 'amount', 'comment']
-                    : ['date', 'account', 'asset', 'amount', 'comment'];
+                    : ['date', 'account', 'asset', 'quantity', 'price', 'amount', 'comment'];
 
             Object.values(operationFields).forEach((field) => {
                 if (field) {
@@ -478,7 +565,7 @@
         }
 
         function setReadOnly(readOnly) {
-            [account, asset, currency, amount, operatedAt, note, postLedger].forEach((field) => {
+            [account, asset, currency, amount, quantity, price, operatedAt, note, postLedger].forEach((field) => {
                 if (field) {
                     field.disabled = readOnly;
                 }
@@ -574,6 +661,8 @@
                 syncCurrencyFromAccount();
             }
             if (amount) amount.value = movement.amount || movement.value_usd || '';
+            if (quantity) quantity.value = movement.quantity || '';
+            if (price) price.value = movement.price_usd || '';
             if (operatedAt) operatedAt.value = formatDateTimeLocal(movement.date || '');
             if (note) note.value = movement.note || '';
             if (title) title.textContent = `Редактировать движение #${movement.id}`;
@@ -603,6 +692,8 @@
         });
 
         account?.addEventListener('change', syncCurrencyFromAccount);
+        quantity?.addEventListener('input', syncAmountFromQuantityPrice);
+        price?.addEventListener('input', syncAmountFromQuantityPrice);
 
         submit?.addEventListener('click', () => {
             if (!form) return;

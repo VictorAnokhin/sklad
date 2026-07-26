@@ -786,10 +786,12 @@ class BankController extends Controller
     {
         $project = $this->bankProject();
         $fixedAssetRows = $this->manualInvestmentAssetRows((int) $project->id);
+        $assetValueChartRows = $this->assetValueChartRows((int) $project->id, $fixedAssetRows);
 
         return view('bank.assets', [
             'project' => $project,
             'fixedAssetRows' => $fixedAssetRows,
+            'assetValueChartRows' => $assetValueChartRows,
             'summary' => [
                 'assets' => $fixedAssetRows->count(),
                 'tokens' => $fixedAssetRows->where('asset_type', 'token')->count(),
@@ -3720,6 +3722,91 @@ class BankController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function assetValueChartRows(int $projectId, $assetRows)
+    {
+        $assetsByKey = $assetRows->keyBy('asset_key');
+        if ($assetsByKey->isEmpty()) {
+            return collect();
+        }
+
+        $operations = Schema::hasTable('bank_invest_operations')
+            ? DB::table('bank_invest_operations')
+                ->where('project_id', $projectId)
+                ->whereIn('asset_key', $assetsByKey->keys()->all())
+                ->orderBy('operated_at')
+                ->orderBy('id')
+                ->get(['id', 'asset_key', 'direction', 'value_usd', 'operated_at', 'created_at'])
+            : collect();
+
+        $operationsByAsset = $operations->groupBy('asset_key');
+
+        return $assetsByKey
+            ->map(function ($asset, string $assetKey) use ($operationsByAsset) {
+                $balance = 0.0;
+                $points = $operationsByAsset
+                    ->get($assetKey, collect())
+                    ->map(function ($operation) use (&$balance) {
+                        $balance += $this->investOperationAssetValueDelta(
+                            (string) $operation->direction,
+                            (float) $operation->value_usd
+                        );
+
+                        return [
+                            'date' => $this->chartDate((string) ($operation->operated_at ?: $operation->created_at)),
+                            'label' => $this->chartDateLabel((string) ($operation->operated_at ?: $operation->created_at)),
+                            'value' => round(max(0, $balance), 2),
+                            'operation_id' => (int) $operation->id,
+                            'direction' => (string) $operation->direction,
+                        ];
+                    })
+                    ->values();
+
+                if ($points->isEmpty() && abs((float) $asset->value_usd) > 0.000001) {
+                    $date = (string) ($asset->created_on ?: now()->toDateString());
+                    $points = collect([[
+                        'date' => $this->chartDate($date),
+                        'label' => $this->chartDateLabel($date),
+                        'value' => round((float) $asset->value_usd, 2),
+                        'operation_id' => null,
+                        'direction' => 'manual',
+                    ]]);
+                }
+
+                $values = $points->pluck('value')->map(fn ($value) => (float) $value);
+
+                return [
+                    'asset_key' => $assetKey,
+                    'asset_type' => (string) $asset->asset_type,
+                    'name' => (string) $asset->name,
+                    'currency' => (string) $asset->currency,
+                    'current_value' => round((float) $asset->value_usd, 2),
+                    'min_value' => $values->isNotEmpty() ? round((float) $values->min(), 2) : 0.0,
+                    'max_value' => $values->isNotEmpty() ? round((float) $values->max(), 2) : 0.0,
+                    'points' => $points->all(),
+                ];
+            })
+            ->filter(fn ($row) => $row['points'] !== [])
+            ->values();
+    }
+
+    private function chartDate(string $date): string
+    {
+        try {
+            return Carbon::parse($date)->toDateString();
+        } catch (\Throwable) {
+            return now()->toDateString();
+        }
+    }
+
+    private function chartDateLabel(string $date): string
+    {
+        try {
+            return Carbon::parse($date)->format('d.m.Y');
+        } catch (\Throwable) {
+            return now()->format('d.m.Y');
+        }
     }
 
     private function normalizeTrackedAssetType(string $assetType): string
