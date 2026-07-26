@@ -44,62 +44,6 @@
         </div>
     </section>
 
-    <section class="bank-panel bank-asset-chart-panel" data-asset-value-chart>
-        <div class="bank-table-header">
-            <div>
-                <div class="bank-label">График стоимости</div>
-                <div class="bank-meta">Изменение стоимости выбранного актива по операциям покупки, продажи и переоценки.</div>
-            </div>
-            <label class="bank-asset-chart-select">
-                <span>Актив</span>
-                <select data-asset-chart-select>
-                    @forelse(($assetValueChartRows ?? collect()) as $assetChart)
-                        <option value="{{ $assetChart['asset_key'] }}">{{ $assetChart['name'] }} · {{ $assetTypeLabels[$assetChart['asset_type']] ?? $assetChart['asset_type'] }}</option>
-                    @empty
-                        <option value="">Нет данных</option>
-                    @endforelse
-                </select>
-            </label>
-        </div>
-        <div class="bank-asset-chart-summary">
-            <div>
-                <div class="bank-label">Текущая стоимость</div>
-                <div class="bank-value" data-asset-chart-current>—</div>
-            </div>
-            <div>
-                <div class="bank-label">Минимум</div>
-                <div class="bank-value" data-asset-chart-min>—</div>
-            </div>
-            <div>
-                <div class="bank-label">Максимум</div>
-                <div class="bank-value" data-asset-chart-max>—</div>
-            </div>
-        </div>
-        <div class="bank-asset-chart-canvas">
-            <svg viewBox="0 0 720 240" role="img" aria-label="График стоимости актива" preserveAspectRatio="none">
-                <line x1="42" y1="18" x2="42" y2="205" class="bank-asset-chart-axis" />
-                <line x1="42" y1="205" x2="700" y2="205" class="bank-asset-chart-axis" />
-                <polyline points="" class="bank-asset-chart-line" data-asset-chart-line />
-                <g data-asset-chart-points></g>
-            </svg>
-            <div class="bank-asset-chart-empty" data-asset-chart-empty hidden>Недостаточно точек для графика.</div>
-        </div>
-        <div class="table-responsive bank-table-scroll bank-asset-chart-history">
-            <table class="table table-dark table-hover table-sm align-middle bank-table">
-                <thead>
-                    <tr>
-                        <th>Дата</th>
-                        <th>Операция</th>
-                        <th class="text-end">Стоимость после операции</th>
-                    </tr>
-                </thead>
-                <tbody data-asset-chart-history>
-                    <tr><td colspan="3" class="text-center text-muted py-3">Нет данных.</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
             <div>
@@ -116,8 +60,7 @@
                 <colgroup>
                     <col class="bank-assets-table__col-num">
                     <col class="bank-assets-table__col-type">
-                    <col class="bank-assets-table__col-date">
-                    <col class="bank-assets-table__col-address">
+                    <col class="bank-assets-table__col-spark">
                     <col class="bank-assets-table__col-name">
                     <col class="bank-assets-table__col-number">
                     <col class="bank-assets-table__col-price">
@@ -130,8 +73,7 @@
                     <tr>
                         <th class="bank-table__num">№</th>
                         <th class="bank-assets-table__type">Тип</th>
-                        <th class="bank-assets-table__date">Дата</th>
-                        <th class="bank-assets-table__address">Адрес объекта</th>
+                        <th class="bank-assets-table__spark">График</th>
                         <th class="bank-assets-table__name">Наименование</th>
                         <th class="text-end bank-assets-table__number">Количество</th>
                         <th class="text-end bank-assets-table__price">Цена</th>
@@ -155,9 +97,26 @@
                             $assetChangePercent = abs($firstAssetValue) > 0.000001 ? ($assetChange / $firstAssetValue) * 100 : 0.0;
                             $assetChangeClass = $assetChange > 0.000001 ? 'text-success' : ($assetChange < -0.000001 ? 'text-danger' : 'text-muted');
                             $assetChangeSign = $assetChange > 0.000001 ? '+' : '';
+                            $sparkValues = $assetPoints->pluck('value')->map(fn ($value) => (float) $value)->values();
+                            $sparkMin = $sparkValues->isNotEmpty() ? (float) $sparkValues->min() : 0.0;
+                            $sparkMax = $sparkValues->isNotEmpty() ? (float) $sparkValues->max() : 0.0;
+                            $sparkRange = max($sparkMax - $sparkMin, 1.0);
+                            $sparkWidth = 88;
+                            $sparkHeight = 28;
+                            $sparkPointRows = $sparkValues->map(function ($value, $index) use ($sparkValues, $sparkMin, $sparkRange, $sparkWidth, $sparkHeight) {
+                                $x = $sparkValues->count() > 1 ? ($sparkWidth / max($sparkValues->count() - 1, 1)) * $index : $sparkWidth;
+                                $y = $sparkHeight - (((float) $value - $sparkMin) / $sparkRange * ($sparkHeight - 4)) - 2;
+                                return number_format($x, 2, '.', '') . ',' . number_format($y, 2, '.', '');
+                            });
+                            if ($sparkPointRows->count() === 1) {
+                                $onlyPoint = explode(',', (string) $sparkPointRows->first());
+                                $sparkPointRows = collect(['0.00,' . ($onlyPoint[1] ?? '14.00'), $sparkWidth . '.00,' . ($onlyPoint[1] ?? '14.00')]);
+                            }
+                            $sparkPoints = $sparkPointRows->implode(' ');
                         @endphp
                         <tr class="bank-table-row--clickable"
                             data-invest-asset-edit
+                            data-asset-key="{{ $asset->asset_key }}"
                             data-action="{{ $asset->update_action }}"
                             data-asset-type="{{ $asset->asset_type }}"
                             data-asset-address="{{ $asset->object_address }}"
@@ -167,8 +126,15 @@
                             data-asset-created-on="{{ $asset->created_on }}">
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td class="bank-assets-table__type"><span class="bank-pill {{ $asset->asset_type === 'pool' ? 'bank-pill--company' : 'bank-pill--currency' }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }}</span></td>
-                            <td class="bank-assets-table__date">{{ $asset->created_on !== '' ? $asset->created_on : '—' }}</td>
-                            <td class="bank-mono bank-assets-table__address" title="{{ $asset->object_address }}">{{ $asset->object_short }}</td>
+                            <td class="bank-assets-table__spark">
+                                @if($sparkPoints !== '')
+                                    <svg class="bank-asset-sparkline" viewBox="0 0 88 28" preserveAspectRatio="none" aria-label="Миниграфик стоимости">
+                                        <polyline points="{{ $sparkPoints }}" />
+                                    </svg>
+                                @else
+                                    <span class="bank-meta">—</span>
+                                @endif
+                            </td>
                             <td class="bank-assets-table__name">
                                 <strong>{{ $asset->name }}</strong>
                                 <div class="bank-meta">{{ $asset->currency }}</div>
@@ -200,7 +166,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11" class="text-center text-muted py-4">Введенные активы пока не созданы.</td>
+                            <td colspan="10" class="text-center text-muted py-4">Введенные активы пока не созданы.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -219,6 +185,51 @@
                 </div>
                 <button type="button" class="bank-modal__close" data-invest-asset-close aria-label="Закрыть">×</button>
             </div>
+            <section class="bank-asset-chart-panel bank-asset-chart-panel--modal" data-asset-value-chart>
+                <div class="bank-table-header">
+                    <div>
+                        <div class="bank-label">График стоимости</div>
+                        <div class="bank-meta">История стоимости по операциям покупки, продажи и переоценки.</div>
+                    </div>
+                </div>
+                <div class="bank-asset-chart-summary">
+                    <div>
+                        <div class="bank-label">Текущая стоимость</div>
+                        <div class="bank-value" data-asset-chart-current>—</div>
+                    </div>
+                    <div>
+                        <div class="bank-label">Минимум</div>
+                        <div class="bank-value" data-asset-chart-min>—</div>
+                    </div>
+                    <div>
+                        <div class="bank-label">Максимум</div>
+                        <div class="bank-value" data-asset-chart-max>—</div>
+                    </div>
+                </div>
+                <div class="bank-asset-chart-canvas">
+                    <svg viewBox="0 0 720 240" role="img" aria-label="График стоимости актива" preserveAspectRatio="none">
+                        <line x1="42" y1="18" x2="42" y2="205" class="bank-asset-chart-axis" />
+                        <line x1="42" y1="205" x2="700" y2="205" class="bank-asset-chart-axis" />
+                        <polyline points="" class="bank-asset-chart-line" data-asset-chart-line />
+                        <g data-asset-chart-points></g>
+                    </svg>
+                    <div class="bank-asset-chart-empty" data-asset-chart-empty hidden>Недостаточно точек для графика.</div>
+                </div>
+                <div class="table-responsive bank-table-scroll bank-asset-chart-history">
+                    <table class="table table-dark table-hover table-sm align-middle bank-table">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Операция</th>
+                                <th class="text-end">Стоимость после операции</th>
+                            </tr>
+                        </thead>
+                        <tbody data-asset-chart-history>
+                            <tr><td colspan="3" class="text-center text-muted py-3">Нет данных.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
             <form method="POST" action="{{ route('bank.invest-assets.store') }}" class="bank-requisites-form" data-invest-asset-form>
                 @csrf
                 <input type="hidden" name="_method" value="PUT" data-invest-asset-method disabled>
@@ -266,30 +277,15 @@
 
 <style>
     .bank-asset-chart-panel {
-        margin-bottom: 18px;
+        margin-bottom: 14px;
     }
 
-    .bank-asset-chart-select {
-        display: grid;
-        gap: 5px;
-        min-width: min(360px, 100%);
-        color: rgba(226, 232, 240, 0.8);
-        font-size: 12px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-    }
-
-    .bank-asset-chart-select select {
-        min-height: 38px;
-        border: 1px solid rgba(148, 163, 184, 0.22);
+    .bank-asset-chart-panel--modal {
+        margin: 0 0 14px;
+        padding: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.14);
         border-radius: 8px;
-        background: rgba(15, 23, 42, 0.82);
-        color: #e2e8f0;
-        padding: 0 10px;
-        text-transform: none;
-        letter-spacing: 0;
-        font-weight: 700;
+        background: rgba(2, 6, 23, 0.18);
     }
 
     .bank-asset-chart-summary {
@@ -308,7 +304,7 @@
 
     .bank-asset-chart-canvas {
         position: relative;
-        height: 260px;
+        height: 220px;
         border: 1px solid rgba(148, 163, 184, 0.16);
         border-radius: 8px;
         background: linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(2, 6, 23, 0.42));
@@ -355,7 +351,7 @@
 
     .bank-assets-table {
         table-layout: fixed;
-        min-width: 1510px;
+        min-width: 1088px;
     }
 
     .bank-assets-table th,
@@ -370,20 +366,18 @@
     .bank-assets-table .bank-table__num { width: 48px; }
     .bank-assets-table__col-type,
     .bank-assets-table__type { width: 60px; }
-    .bank-assets-table__col-date,
-    .bank-assets-table__date { width: 120px; }
-    .bank-assets-table__col-address,
-    .bank-assets-table__address { width: 160px; }
+    .bank-assets-table__col-spark,
+    .bank-assets-table__spark { width: 104px; }
     .bank-assets-table__col-name,
-    .bank-assets-table__name { width: 340px; }
+    .bank-assets-table__name { width: 230px; }
     .bank-assets-table__col-number,
-    .bank-assets-table__number { width: 130px; }
+    .bank-assets-table__number { width: 108px; }
     .bank-assets-table__col-price,
-    .bank-assets-table__price { width: 120px; }
+    .bank-assets-table__price { width: 96px; }
     .bank-assets-table__col-money,
-    .bank-assets-table__money { width: 130px; }
+    .bank-assets-table__money { width: 104px; }
     .bank-assets-table__col-change,
-    .bank-assets-table__change { width: 130px; }
+    .bank-assets-table__change { width: 108px; }
     .bank-assets-table__col-percent,
     .bank-assets-table__percent { width: 70px; }
     .bank-assets-table__col-actions,
@@ -393,6 +387,20 @@
     .bank-assets-table__money .bank-meta {
         margin-top: 2px;
         line-height: 1.15;
+    }
+
+    .bank-asset-sparkline {
+        display: block;
+        width: 88px;
+        height: 28px;
+    }
+
+    .bank-asset-sparkline polyline {
+        fill: none;
+        stroke: #38bdf8;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
     }
 
     .bank-assets-delete-form {
@@ -444,6 +452,7 @@
         const value = root.querySelector('[data-invest-asset-value]');
         const priceReference = root.querySelector('[data-invest-asset-price-reference]');
         const storeAction = form ? form.action : '';
+        let renderAssetChart = () => {};
 
         function parseDecimal(input) {
             const normalized = String(input || '').replace(/\s/g, '').replace(',', '.');
@@ -477,7 +486,6 @@
 
             const rows = @json(($assetValueChartRows ?? collect())->values());
             const byKey = new Map(rows.map((row) => [row.asset_key, row]));
-            const select = chartRoot.querySelector('[data-asset-chart-select]');
             const line = chartRoot.querySelector('[data-asset-chart-line]');
             const pointsLayer = chartRoot.querySelector('[data-asset-chart-points]');
             const empty = chartRoot.querySelector('[data-asset-chart-empty]');
@@ -498,7 +506,7 @@
             })[direction] || direction || 'Операция';
 
             const render = (assetKey) => {
-                const row = byKey.get(assetKey) || rows[0];
+                const row = assetKey ? byKey.get(assetKey) : null;
                 const chartPoints = row?.points || [];
                 if (current) current.textContent = row ? formatMoney(row.current_value) : '—';
                 if (min) min.textContent = row ? formatMoney(row.min_value) : '—';
@@ -541,8 +549,8 @@
                 }
             };
 
-            select?.addEventListener('change', () => render(select.value));
-            render(select?.value || '');
+            renderAssetChart = render;
+            render('');
         }
 
         [quantity, value].forEach((field) => field?.addEventListener('input', syncReferencePrice));
@@ -570,6 +578,7 @@
                     createdOn.value = new Date().toISOString().slice(0, 10);
                 }
                 syncReferencePrice();
+                renderAssetChart('');
                 if (modal) {
                     modal.hidden = false;
                 }
@@ -605,6 +614,7 @@
                     value.value = row.dataset.assetValue || '';
                 }
                 syncReferencePrice();
+                renderAssetChart(row.dataset.assetKey || '');
                 if (title) {
                     title.textContent = 'Редактировать актив';
                 }
