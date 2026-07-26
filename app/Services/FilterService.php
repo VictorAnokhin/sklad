@@ -126,6 +126,7 @@ class FilterService
         $userSql = '';
         $docSql = '';
         $params = [];
+        $documentDateSql = "CAST(CONCAT(SUBSTRING(d.data, 7, 4), SUBSTRING(d.data, 4, 2), SUBSTRING(d.data, 1, 2)) AS UNSIGNED)";
 
         // ── User / client columns ─────────────────────────────────────────────
         $userParts = [];
@@ -161,16 +162,26 @@ class FilterService
         if (!empty($fdata1)) {
             $ts = nextdate($fdata1);
             if ($ts) {
-                $docSql .= ' AND d.dt >= ?';
-                $params[] = $ts;
+                if ($doc === 'ZV') {
+                    $docSql .= " AND {$documentDateSql} >= ?";
+                    $params[] = (int) str_replace('-', '', $fdata1);
+                } else {
+                    $docSql .= ' AND d.dt >= ?';
+                    $params[] = $ts;
+                }
 
             }
         }
         if (!empty($fdata2)) {
             $ts = nextdate($fdata2);
             if ($ts) {
-                $docSql .= ' AND d.dt <= ?';
-                $params[] = $ts + 86399;
+                if ($doc === 'ZV') {
+                    $docSql .= " AND {$documentDateSql} <= ?";
+                    $params[] = (int) str_replace('-', '', $fdata2);
+                } else {
+                    $docSql .= ' AND d.dt <= ?';
+                    $params[] = $ts + 86399;
+                }
             }
         }
         if (!empty($fMoneyWay)) {
