@@ -12,6 +12,7 @@ use App\Http\Controllers\AiToolController;
 use App\Http\Controllers\AiVoiceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Av8SwapOrderController;
+use App\Http\Controllers\BankController;
 use App\Http\Controllers\BackendAgentChatController;
 use App\Http\Controllers\BannerCarouselController;
 use App\Http\Controllers\ComplianceController;
@@ -225,6 +226,7 @@ Route::middleware(['api', 'throttle:30,1'])->prefix('projects/manager-ai')->grou
 });
 Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
 Route::get('/offices', [SettingsController::class, 'officesPublicIndex']);
+Route::get('/bank/cash-accounts', [BankController::class, 'publicExchangeCashAccounts']);
 Route::get('/settings/currencies', [SettingsController::class, 'publicCurrencies']);
 Route::get('/settings/faq', [SettingsController::class, 'publicFaq']);
 Route::get('/wallet/tokens', [WalletController::class, 'tokens']);

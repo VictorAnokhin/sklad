@@ -179,6 +179,10 @@
                                                 <option value="{{ $currency }}">{{ $currency }}</option>
                                             @endforeach
                                         </select>
+                                        <label class="form-check d-inline-flex align-items-center gap-2 mb-0">
+                                            <input class="form-check-input mt-0" type="checkbox" name="exchange_enabled" value="1">
+                                            <span>Обмен</span>
+                                        </label>
                                         <button type="submit" class="btn btn-sm btn-primary">+ Добавить счёт</button>
                                     </form>
                                 </td>
@@ -196,9 +200,15 @@
                                             data-account-name="{{ $account->label }}"
                                             data-account-currency="{{ $account->currency }}"
                                             data-account-balance="{{ number_format((float) $account->balance, 2, '.', ' ') }}"
+                                            data-account-balance-raw="{{ (float) $account->balance }}"
                                             data-account-doc="{{ $account->doc }}"
-                                            data-account-address="{{ $account->color }}">
+                                            data-account-address="{{ $account->color }}"
+                                            data-account-exchange-enabled="{{ $account->exchange_enabled ? '1' : '0' }}"
+                                            data-account-update-url="{{ route('bank.project-accounts.update', ['project' => $projectRow->id, 'account' => $account->id]) }}">
                                             {{ $account->label }}
+                                            @if($account->exchange_enabled)
+                                                <span class="bank-pill bank-pill--currency ms-2">Обмен</span>
+                                            @endif
                                         </button>
                                     </td>
                                     <td><span class="bank-pill bank-pill--currency">{{ $account->currency }}</span></td>
@@ -321,19 +331,21 @@
                 </div>
                 <button type="button" class="bank-modal__close" data-bank-requisites-close aria-label="Закрыть">×</button>
             </div>
-            <form class="bank-requisites-form">
+            <form class="bank-requisites-form" method="POST" data-bank-requisites-form>
+                @csrf
+                @method('PUT')
                 <div class="bank-form-grid">
                     <label>
                         <span>Компания</span>
-                        <input type="text" data-bank-requisites-project autocomplete="organization">
+                        <input type="text" data-bank-requisites-project autocomplete="organization" readonly>
                     </label>
                     <label>
-                        <span>Счет обслуживания</span>
-                        <input type="text" data-bank-requisites-account readonly>
+                        <span>Название счета</span>
+                        <input type="text" name="name" data-bank-requisites-account required>
                     </label>
                     <label>
                         <span>IBAN / номер счета</span>
-                        <input type="text" placeholder="UA00 000000 000000000000000000000" autocomplete="off">
+                        <input type="text" name="address" data-bank-requisites-address placeholder="UA00 000000 000000000000000000000" autocomplete="off">
                     </label>
                     <label>
                         <span>Банк</span>
@@ -349,20 +361,28 @@
                     </label>
                     <label>
                         <span>Валюта учета</span>
-                        <input type="text" data-bank-requisites-currency readonly>
+                        <select name="currency" data-bank-requisites-currency required>
+                            @foreach(['UAH', 'USD', 'EUR', 'USDC', 'USDT', 'AV8', 'SUI'] as $currency)
+                                <option value="{{ $currency }}">{{ $currency }}</option>
+                            @endforeach
+                        </select>
                     </label>
                     <label>
                         <span>Текущий баланс</span>
-                        <input type="text" data-bank-requisites-balance readonly>
+                        <input type="number" step="0.01" name="amount" data-bank-requisites-balance>
                     </label>
                 </div>
+                <label class="bank-form-full d-flex align-items-center gap-2">
+                    <input type="checkbox" name="exchange_enabled" value="1" data-bank-requisites-exchange>
+                    <span>Обмен</span>
+                </label>
                 <label class="bank-form-full">
                     <span>Назначение / комментарий</span>
                     <textarea rows="3" placeholder="Условия обслуживания, лимиты, назначение счета"></textarea>
                 </label>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-bank-requisites-close>Отмена</button>
-                    <button type="button" class="btn btn-primary" data-bank-requisites-close>Готово</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
                 </div>
             </form>
         </div>
@@ -415,21 +435,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const requisitesModal = root.querySelector('[data-bank-requisites-modal]');
+    const requisitesForm = root.querySelector('[data-bank-requisites-form]');
     const requisitesContext = root.querySelector('[data-bank-requisites-context]');
     const requisitesProject = root.querySelector('[data-bank-requisites-project]');
     const requisitesAccount = root.querySelector('[data-bank-requisites-account]');
     const requisitesCurrency = root.querySelector('[data-bank-requisites-currency]');
     const requisitesBalance = root.querySelector('[data-bank-requisites-balance]');
+    const requisitesAddress = root.querySelector('[data-bank-requisites-address]');
+    const requisitesExchange = root.querySelector('[data-bank-requisites-exchange]');
 
     root.querySelectorAll('[data-bank-requisites-open]').forEach((button) => {
         button.addEventListener('click', (event) => {
             event.stopPropagation();
             if (!requisitesModal) return;
 
+            if (requisitesForm) {
+                requisitesForm.action = button.dataset.accountUpdateUrl || '';
+            }
             requisitesProject.value = button.dataset.projectName || '';
             requisitesAccount.value = button.dataset.accountName || '';
             requisitesCurrency.value = button.dataset.accountCurrency || '';
-            requisitesBalance.value = button.dataset.accountBalance || '';
+            requisitesBalance.value = button.dataset.accountBalanceRaw || '0';
+            if (requisitesAddress) {
+                requisitesAddress.value = button.dataset.accountAddress || '';
+            }
+            if (requisitesExchange) {
+                requisitesExchange.checked = button.dataset.accountExchangeEnabled === '1';
+            }
             requisitesContext.textContent = [
                 button.dataset.accountName || '',
                 button.dataset.accountCurrency || '',

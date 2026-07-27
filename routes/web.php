@@ -127,6 +127,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/cash-accounts/projects/{project}/accounts', [BankController::class, 'storeProjectAccount'])
             ->whereNumber('project')
             ->name('project-accounts.store');
+        Route::put('/cash-accounts/projects/{project}/accounts/{account}', [BankController::class, 'updateProjectAccount'])
+            ->whereNumber('project')
+            ->whereNumber('account')
+            ->name('project-accounts.update');
         Route::delete('/cash-accounts/projects/{project}/accounts/{account}', [BankController::class, 'destroyProjectAccount'])
             ->whereNumber('project')
             ->whereNumber('account')

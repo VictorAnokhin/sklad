@@ -76,10 +76,12 @@ class BankController extends Controller
         $payload = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'currency' => ['required', 'string', 'max:20'],
+            'exchange_enabled' => ['nullable', 'boolean'],
         ]);
         $currency = $this->normalizeCurrencyCode($payload['currency']);
 
-        DB::table('conf')->insert([
+        $columns = Schema::getColumnListing('conf');
+        $values = [
             'type' => 'oplata',
             'name' => trim($payload['name']),
             'firma' => $project,
@@ -87,9 +89,62 @@ class BankController extends Controller
             'value' => 0,
             'status' => 1,
             'vision' => '1',
-        ]);
+        ];
+
+        if (in_array('htmlkeys', $columns, true)) {
+            $values['htmlkeys'] = json_encode([
+                'exchange_enabled' => $request->boolean('exchange_enabled'),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        DB::table('conf')->insert($values);
 
         return redirect()->route('bank.cash-accounts')->with('success', 'Счёт проекта добавлен.');
+    }
+
+    public function updateProjectAccount(Request $request, int $project, int $account): RedirectResponse
+    {
+        $bankProject = $this->bankProject();
+        $this->assertProjectInBankScope($project, $bankProject);
+        abort_unless(Schema::hasTable('conf'), 404);
+
+        $payload = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'currency' => ['required', 'string', 'max:20'],
+            'amount' => ['nullable', 'numeric'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'exchange_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $columns = Schema::getColumnListing('conf');
+        $accountRow = DB::table('conf')
+            ->where('id', $account)
+            ->where('firma', $project)
+            ->where('type', 'oplata')
+            ->first();
+        abort_unless($accountRow, 404);
+
+        $values = [
+            'name' => trim((string) $payload['name']),
+            'currency' => $this->normalizeCurrencyCode($payload['currency']),
+        ];
+
+        if (array_key_exists('amount', $payload)) {
+            $values['value'] = (float) ($payload['amount'] ?? 0);
+        }
+        if (in_array('color', $columns, true)) {
+            $values['color'] = trim((string) ($payload['address'] ?? ''));
+        }
+        if (in_array('htmlkeys', $columns, true)) {
+            $values['htmlkeys'] = json_encode(array_merge(
+                $this->cashAccountMeta($accountRow),
+                ['exchange_enabled' => $request->boolean('exchange_enabled')]
+            ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        DB::table('conf')->where('id', $account)->update($values);
+
+        return redirect()->route('bank.cash-accounts')->with('success', 'Счёт проекта сохранён.');
     }
 
     public function storeOperationalAccount(Request $request): RedirectResponse
@@ -103,6 +158,7 @@ class BankController extends Controller
             'currency' => ['required', 'string', 'max:20'],
             'amount' => ['nullable', 'numeric', 'min:0'],
             'google_auth' => ['nullable', 'string', 'max:255'],
+            'exchange_enabled' => ['nullable', 'boolean'],
         ]);
 
         $columns = Schema::getColumnListing('conf');
@@ -121,6 +177,11 @@ class BankController extends Controller
         }
         if (in_array('google_map', $columns, true)) {
             $values['google_map'] = trim((string) ($payload['google_auth'] ?? ''));
+        }
+        if (in_array('htmlkeys', $columns, true)) {
+            $values['htmlkeys'] = json_encode([
+                'exchange_enabled' => $request->boolean('exchange_enabled'),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
         DB::table('conf')->insert($values);
@@ -141,6 +202,7 @@ class BankController extends Controller
             'currency' => ['required', 'string', 'max:20'],
             'amount' => ['required', 'numeric', 'min:0'],
             'google_auth' => ['nullable', 'string', 'max:255'],
+            'exchange_enabled' => ['nullable', 'boolean'],
         ]);
 
         $columns = Schema::getColumnListing('conf');
@@ -162,10 +224,18 @@ class BankController extends Controller
             ->where('type', 'oplata')
             ->where('firma', (string) $project->id);
 
-        if (! $query->exists()) {
+        $accountRow = $query->first();
+        if (! $accountRow) {
             return redirect()
                 ->route($this->operationalAccountReturnRoute($request))
                 ->with('error', 'Операционный счёт не найден.');
+        }
+
+        if (in_array('htmlkeys', $columns, true)) {
+            $values['htmlkeys'] = json_encode(array_merge(
+                $this->cashAccountMeta($accountRow),
+                ['exchange_enabled' => $request->boolean('exchange_enabled')]
+            ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
         $query->update($values);
@@ -173,6 +243,30 @@ class BankController extends Controller
         return redirect()
             ->route($this->operationalAccountReturnRoute($request))
             ->with('success', 'Операционный счёт сохранён.');
+    }
+
+    public function publicExchangeCashAccounts(Request $request)
+    {
+        abort_unless(Schema::hasTable('conf'), 404);
+
+        $fid = (string) $request->query('fid', config('app.fid', '12'));
+        $items = DB::table('conf')
+            ->where('type', 'oplata')
+            ->where('firma', $fid)
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($account) => $this->normalizeCashAccount($account))
+            ->filter(fn ($account) => (bool) ($account->exchange_enabled ?? false))
+            ->map(fn ($account) => [
+                'id' => (int) $account->id,
+                'name' => $account->label,
+                'currency' => $account->currency,
+                'balance' => (float) $account->balance,
+                'description' => $account->color,
+            ])
+            ->values();
+
+        return response()->json(['data' => $items]);
     }
 
     public function destroyOperationalAccount(Request $request, int $account): RedirectResponse
@@ -5559,6 +5653,7 @@ class BankController extends Controller
 
     private function normalizeCashAccount(object $account): object
     {
+        $meta = $this->cashAccountMeta($account);
         $account->balance = (float) ($account->value ?? 0);
         $account->currency = trim((string) ($account->currency ?? '')) ?: $this->currencyFromName((string) ($account->name ?? ''));
         $account->label = trim((string) ($account->name ?? '')) ?: 'Касса #' . (string) ($account->id ?? '');
@@ -5566,8 +5661,16 @@ class BankController extends Controller
         $account->account_type = in_array($account->doc, ['bank', 'personal'], true) ? $account->doc : 'bank';
         $account->account_type_label = $account->account_type === 'personal' ? 'Личный' : 'Банк';
         $account->color = trim((string) ($account->color ?? ''));
+        $account->exchange_enabled = (bool) ($meta['exchange_enabled'] ?? false);
 
         return $account;
+    }
+
+    private function cashAccountMeta(object $account): array
+    {
+        $decoded = json_decode((string) ($account->htmlkeys ?? ''), true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     private function clientAccounts(string $fid, $cashAccounts)
