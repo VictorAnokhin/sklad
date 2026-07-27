@@ -78,6 +78,8 @@ class SettingsController extends Controller
         // Валюты — conf where type='currency'
         $currencies = DB::table('conf')->where('type', 'currency')->where('firma', $fid)->orderBy('name')->get();
         $accountCurrencies = $this->currencyCodesForAccounts();
+        $currentProjectType = strtolower(trim((string) (Project::query()->where('id', (int) $fid)->value('project_type') ?? '')));
+        $currencyExchangeSettings = $this->currencyExchangeSettingsForFirma((string) $fid);
 
         // FAQ — conf where type='faq'
         $faqs = DB::table('conf')->where('type', 'faq')->where('firma', $fid)->orderBy('name')->get();
@@ -183,7 +185,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -391,7 +393,53 @@ class SettingsController extends Controller
             ->filter(fn ($item) => $item['code'] !== '')
             ->values();
 
-        return response()->json(['data' => $items]);
+        return response()->json([
+            'data' => $items,
+            'exchange_settings' => $this->currencyExchangeSettingsForFirma($fid),
+        ]);
+    }
+
+    public function currencyExchangeSettings()
+    {
+        return response()->json([
+            'data' => $this->currencyExchangeSettingsForFirma((string) session('fid', '')),
+        ]);
+    }
+
+    public function updateCurrencyExchangeSettings(Request $request)
+    {
+        $validated = $request->validate([
+            'usd_uah_rate' => ['required', 'numeric', 'min:0.000001', 'max:100000'],
+            'income_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $fid = (string) session('fid', '');
+        $settings = [
+            'usd_uah_rate' => round((float) $validated['usd_uah_rate'], 6),
+            'income_percent' => round((float) ($validated['income_percent'] ?? 0), 4),
+        ];
+
+        foreach ($settings as $key => $value) {
+            DB::table('conf')->updateOrInsert(
+                [
+                    'firma' => $fid,
+                    'type' => 'currency_exchange',
+                    'name' => $key,
+                ],
+                [
+                    'color' => '',
+                    'status' => '1',
+                    'vision' => '1',
+                    'constanta' => (string) $value,
+                    'descript' => $key === 'usd_uah_rate' ? 'Курс обмена USD/UAH' : 'Процент дохода при обмене',
+                ]
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->currencyExchangeSettingsForFirma($fid),
+        ]);
     }
 
     public function publicFaq(Request $request)
@@ -2977,6 +3025,31 @@ class SettingsController extends Controller
         $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
 
         return $currency !== '' ? substr($currency, 0, 10) : 'UAH';
+    }
+
+    private function currencyExchangeSettingsForFirma(string $fid): array
+    {
+        $defaults = [
+            'usd_uah_rate' => 41.666667,
+            'income_percent' => 0.0,
+        ];
+
+        $rows = DB::table('conf')
+            ->where('type', 'currency_exchange')
+            ->where('firma', $fid)
+            ->pluck('constanta', 'name');
+
+        return [
+            'usd_uah_rate' => $this->decimalSettingValue($rows['usd_uah_rate'] ?? null, $defaults['usd_uah_rate']),
+            'income_percent' => $this->decimalSettingValue($rows['income_percent'] ?? null, $defaults['income_percent']),
+        ];
+    }
+
+    private function decimalSettingValue(mixed $value, float $default): float
+    {
+        $normalized = str_replace(',', '.', trim((string) $value));
+
+        return is_numeric($normalized) ? (float) $normalized : $default;
     }
 
     private function currencyCodesForFirma(mixed $fid): \Illuminate\Support\Collection

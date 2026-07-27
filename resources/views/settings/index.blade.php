@@ -951,6 +951,17 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
             </div>
 
+            <div class="modal-body pb-0" id="currency-tabs-area" style="display:none;">
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button type="button" class="nav-link active" id="currency-tab-directory">Справочник</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button type="button" class="nav-link" id="currency-tab-exchange">Обмен</button>
+                    </li>
+                </ul>
+            </div>
+
             <div class="modal-body" id="conf-form-area" style="display:none">
                 <form id="crud-form">
                     <input type="hidden" id="form-id" value="">
@@ -1161,6 +1172,25 @@
                     <tbody id="crud-tbody"></tbody>
                 </table>
                 <p class="text-center text-muted" id="empty-msg" style="display:none">Немає записів</p>
+            </div>
+
+            <div class="modal-body" id="currency-exchange-area" style="display:none;">
+                <form id="currency-exchange-form" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="currency-exchange-usd-uah-rate" class="form-label">Курс обмена USD/UAH</label>
+                        <input type="number" step="0.000001" min="0.000001" class="form-control" id="currency-exchange-usd-uah-rate" required>
+                        <div class="form-text">Сколько UAH соответствует 1 USD.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="currency-exchange-income-percent" class="form-label">Процент дохода</label>
+                        <input type="number" step="0.0001" min="0" max="100" class="form-control" id="currency-exchange-income-percent">
+                        <div class="form-text">Используется как спред в форме обмена AV8.</div>
+                    </div>
+                    <div class="col-12 d-flex align-items-center gap-3">
+                        <button type="submit" class="btn btn-success">💾 Зберегти</button>
+                        <span class="small text-muted" id="currency-exchange-status"></span>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -3513,6 +3543,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const addBtn = document.getElementById('btn-add');
         const cancelBtn = document.getElementById('btn-cancel');
         const deleteBtn = document.getElementById('btn-delete');
+        const currencyTabsArea = document.getElementById('currency-tabs-area');
+        const currencyTabDirectory = document.getElementById('currency-tab-directory');
+        const currencyTabExchange = document.getElementById('currency-tab-exchange');
+        const currencyExchangeArea = document.getElementById('currency-exchange-area');
+        const currencyExchangeForm = document.getElementById('currency-exchange-form');
+        const currencyExchangeUsdUahRate = document.getElementById('currency-exchange-usd-uah-rate');
+        const currencyExchangeIncomePercent = document.getElementById('currency-exchange-income-percent');
+        const currencyExchangeStatus = document.getElementById('currency-exchange-status');
         const colorPicker = document.getElementById('form-color-picker');
         const colorRow = document.getElementById('form-color-row');
         const colorLabel = document.getElementById('form-color-label');
@@ -3567,10 +3605,12 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('form-doc-fin'),
         ];
         const settingsDepositsUsePools = @json((bool) ($settingsDepositsUsePools ?? false));
+        const isBankProject = @json(($currentProjectType ?? '') === 'bank');
 
         let currentType = '';
         let currencyOptions = @json(($currencies ?? collect())->pluck('name')->values());
         let poolDepositItems = new Map();
+        let currentCurrencyTab = 'directory';
 
         fotoFileInput?.addEventListener('change', () => {
             updateImagePreview(fotoFileInput, 'form-foto-preview', 'form-foto-preview-wrap');
@@ -3580,6 +3620,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = e.relatedTarget;
             currentType = btn.dataset.type;
             document.getElementById('modalCrudLabel').textContent = btn.dataset.title;
+            currentCurrencyTab = 'directory';
+            configureCurrencyTabs();
             addBtn.style.display = isPoolDepositMode() ? 'none' : '';
             configureStatusField();
             hideForm();
@@ -3589,8 +3631,28 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.addEventListener('hidden.bs.modal', () => {
             hideForm();
             currentType = '';
+            currentCurrencyTab = 'directory';
+            configureCurrencyTabs();
             addBtn.style.display = '';
             configureStatusField();
+        });
+
+        currencyTabDirectory?.addEventListener('click', () => {
+            currentCurrencyTab = 'directory';
+            configureCurrencyTabs();
+            hideForm();
+        });
+
+        currencyTabExchange?.addEventListener('click', () => {
+            currentCurrencyTab = 'exchange';
+            configureCurrencyTabs();
+            hideForm();
+            loadCurrencyExchangeSettings();
+        });
+
+        currencyExchangeForm?.addEventListener('submit', (event) => {
+            event.preventDefault();
+            saveCurrencyExchangeSettings();
         });
 
         addBtn.addEventListener('click', () => {
@@ -3982,16 +4044,101 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         }
 
+        function configureCurrencyTabs() {
+            const hasCurrencyExchangeTabs = currentType === 'currency' && isBankProject;
+            if (currencyTabsArea) {
+                currencyTabsArea.style.display = hasCurrencyExchangeTabs ? '' : 'none';
+            }
+            if (!hasCurrencyExchangeTabs) {
+                currentCurrencyTab = 'directory';
+            }
+            currencyTabDirectory?.classList.toggle('active', currentCurrencyTab === 'directory');
+            currencyTabExchange?.classList.toggle('active', currentCurrencyTab === 'exchange');
+            if (currencyExchangeArea) {
+                currencyExchangeArea.style.display = hasCurrencyExchangeTabs && currentCurrencyTab === 'exchange' ? 'block' : 'none';
+            }
+            if (listArea) {
+                listArea.style.display = currentCurrencyTab === 'exchange' ? 'none' : 'block';
+            }
+            if (addBtn) {
+                addBtn.style.display = currentCurrencyTab === 'exchange' || isPoolDepositMode() ? 'none' : '';
+            }
+        }
+
+        function loadCurrencyExchangeSettings() {
+            if (!currencyExchangeUsdUahRate || !currencyExchangeIncomePercent || !currencyExchangeStatus) {
+                return;
+            }
+
+            currencyExchangeStatus.textContent = 'Загрузка...';
+            fetch('/settings/api/currency-exchange-settings', {
+                headers: { 'Accept': 'application/json' },
+            })
+                .then((response) => response.json())
+                .then((payload) => {
+                    const data = payload.data || {};
+                    currencyExchangeUsdUahRate.value = data.usd_uah_rate ?? '41.666667';
+                    currencyExchangeIncomePercent.value = data.income_percent ?? '0';
+                    currencyExchangeStatus.textContent = '';
+                })
+                .catch(() => {
+                    currencyExchangeStatus.textContent = _ts('js.load_error');
+                });
+        }
+
+        function saveCurrencyExchangeSettings() {
+            if (!currencyExchangeUsdUahRate || !currencyExchangeIncomePercent || !currencyExchangeStatus) {
+                return;
+            }
+
+            currencyExchangeStatus.textContent = 'Сохранение...';
+            fetch('/settings/api/currency-exchange-settings', {
+                method: 'PUT',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({
+                    usd_uah_rate: currencyExchangeUsdUahRate.value,
+                    income_percent: currencyExchangeIncomePercent.value || 0,
+                }),
+            })
+                .then((response) => response.json())
+                .then((payload) => {
+                    if (!payload.success) {
+                        currencyExchangeStatus.textContent = payload.message || _ts('js.error_generic');
+                        return;
+                    }
+                    const data = payload.data || {};
+                    currencyExchangeUsdUahRate.value = data.usd_uah_rate ?? currencyExchangeUsdUahRate.value;
+                    currencyExchangeIncomePercent.value = data.income_percent ?? currencyExchangeIncomePercent.value;
+                    currencyExchangeStatus.textContent = 'Настройки сохранены';
+                })
+                .catch(() => {
+                    currencyExchangeStatus.textContent = _ts('js.network_error');
+                });
+        }
+
         function showForm() {
+            currentCurrencyTab = 'directory';
+            configureCurrencyTabs();
             formArea.style.display = 'block';
             listArea.style.display = 'none';
+            if (currencyExchangeArea) {
+                currencyExchangeArea.style.display = 'none';
+            }
             deleteBtn.style.display = document.getElementById('form-id').value && !isPoolDepositMode() ? '' : 'none';
         }
 
         function hideForm() {
             formArea.style.display = 'none';
-            listArea.style.display = 'block';
+            listArea.style.display = currentCurrencyTab === 'exchange' ? 'none' : 'block';
+            if (currencyExchangeArea) {
+                currencyExchangeArea.style.display = currentCurrencyTab === 'exchange' && currentType === 'currency' && isBankProject ? 'block' : 'none';
+            }
             deleteBtn.style.display = 'none';
+            configureCurrencyTabs();
         }
 
         function configureStatusField() {

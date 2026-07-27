@@ -461,6 +461,8 @@ Route::middleware(['auth'])->group(function () {
 
             // Async API
             Route::get('/api/web3-token-search', [SettingsController::class, 'web3TokenSearch'])->name('api.web3-token-search');
+            Route::get('/api/currency-exchange-settings', [SettingsController::class, 'currencyExchangeSettings'])->name('api.currency-exchange-settings.show');
+            Route::put('/api/currency-exchange-settings', [SettingsController::class, 'updateCurrencyExchangeSettings'])->name('api.currency-exchange-settings.update');
             Route::get('/api/{type}', [SettingsController::class , 'apiIndex'])->name('api.index');
             Route::get('/api/{type}/{id}', [SettingsController::class , 'apiShow'])->name('api.show');
             Route::post('/api', [SettingsController::class , 'apiStore'])->name('api.store');
