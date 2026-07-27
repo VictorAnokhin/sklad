@@ -540,9 +540,11 @@ class BankController extends Controller
 
         try {
             DB::transaction(function () use ($project, $projectIds, $depositId, $accountId, $amount, $direction, $payload): void {
-                [$deposit, $account, $accountCurrency] = $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
-                $documentProjectId = (int) ($deposit->firma ?? $project->id);
                 $postLedger = (bool) ($payload['post_ledger'] ?? false);
+                [$deposit, $account, $accountCurrency] = $postLedger
+                    ? $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction)
+                    : $this->depositTransferParties($projectIds, $depositId, $accountId);
+                $documentProjectId = (int) ($deposit->firma ?? $project->id);
                 $documentId = $this->createDepositTransferDocument(
                     (string) $documentProjectId,
                     $depositId,
@@ -587,29 +589,32 @@ class BankController extends Controller
                 $oldAccountId = (int) $this->depositTransferAccountId($document, $oldDirection);
                 $oldDepositId = (int) $document->money;
                 $oldAmount = round((float) $document->summa, 2);
+                $wasPosted = (int) ($document->provodka ?? 0) === 1;
 
                 $depositId = (int) $payload['deposit_id'];
                 $accountId = (int) $payload['operational_account_id'];
                 $amount = round((float) $payload['amount'], 2);
                 $direction = (string) $payload['direction'];
+                $postLedger = (bool) ($payload['post_ledger'] ?? false);
                 if ($oldAccountId > 0) {
-                    $this->reverseDepositTransferBalances($project, $projectIds, $oldDepositId, $oldAccountId, $oldAmount, $oldDirection);
-                    [$deposit, $account, $currency] = $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+                    if ($wasPosted) {
+                        $this->reverseDepositTransferBalances($project, $projectIds, $oldDepositId, $oldAccountId, $oldAmount, $oldDirection);
+                    }
+                    [$deposit, $account, $currency] = $postLedger
+                        ? $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction)
+                        : $this->depositTransferParties($projectIds, $depositId, $accountId);
                 } else {
-                    [$deposit, $account, $currency] = $this->applyLegacyDepositTransferUpdate(
-                        $projectIds,
-                        $oldDepositId,
-                        $oldAmount,
-                        $oldDirection,
-                        $depositId,
-                        $accountId,
-                        $amount,
-                        $direction
-                    );
+                    if ($wasPosted) {
+                        $this->reverseLegacyDepositTransferBalance($projectIds, $oldDepositId, $oldAmount, $oldDirection);
+                    }
+                    [$deposit, $account, $currency] = $postLedger
+                        ? $this->applyDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction)
+                        : $this->depositTransferParties($projectIds, $depositId, $accountId);
                 }
 
-                $this->reverseDepositTransferLedger($documentProjectId, (int) $document->id);
-                $postLedger = (bool) ($payload['post_ledger'] ?? false);
+                if ($wasPosted) {
+                    $this->reverseDepositTransferLedger($documentProjectId, (int) $document->id);
+                }
                 $this->updateDepositTransferDocument(
                     (int) $document->id,
                     (string) $documentProjectId,
@@ -651,13 +656,16 @@ class BankController extends Controller
                 $accountId = (int) $this->depositTransferAccountId($document, $direction);
                 $depositId = (int) $document->money;
                 $amount = round((float) $document->summa, 2);
+                $wasPosted = (int) ($document->provodka ?? 0) === 1;
 
-                if ($accountId > 0) {
-                    $this->reverseDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
-                } else {
-                    $this->reverseLegacyDepositTransferBalance($projectIds, $depositId, $amount, $direction);
+                if ($wasPosted) {
+                    if ($accountId > 0) {
+                        $this->reverseDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+                    } else {
+                        $this->reverseLegacyDepositTransferBalance($projectIds, $depositId, $amount, $direction);
+                    }
+                    $this->reverseDepositTransferLedger((int) $document->firma, (int) $document->id);
                 }
-                $this->reverseDepositTransferLedger((int) $document->firma, (int) $document->id);
 
                 DB::table('z_document')->where('id', (int) $document->id)->update([
                     'status' => '-1',
@@ -688,6 +696,16 @@ class BankController extends Controller
                     throw new \RuntimeException('У трансфера нет активной проводки для отмены.');
                 }
 
+                $direction = (string) $document->docum === 'withdraw' ? 'deposit_to_account' : 'account_to_deposit';
+                $accountId = (int) $this->depositTransferAccountId($document, $direction);
+                $depositId = (int) $document->money;
+                $amount = round((float) $document->summa, 2);
+
+                if ($accountId > 0) {
+                    $this->reverseDepositTransferBalances($project, $projectIds, $depositId, $accountId, $amount, $direction);
+                } else {
+                    $this->reverseLegacyDepositTransferBalance($projectIds, $depositId, $amount, $direction);
+                }
                 $this->reverseDepositTransferLedger((int) $document->firma, (int) $document->id);
 
                 DB::table('z_document')->where('id', (int) $document->id)->update([
@@ -4822,7 +4840,7 @@ class BankController extends Controller
         return $query->first();
     }
 
-    private function applyDepositTransferBalances(object $project, array $projectIds, int $depositId, int $accountId, float $amount, string $direction): array
+    private function depositTransferParties(array $projectIds, int $depositId, int $accountId): array
     {
         $deposit = DB::table('conf')
             ->where('id', $depositId)
@@ -4847,6 +4865,13 @@ class BankController extends Controller
         if ($depositCurrency !== $accountCurrency) {
             throw new \RuntimeException("Валюта депозита {$depositCurrency} не совпадает с валютой счета {$accountCurrency}.");
         }
+
+        return [$deposit, $account, $accountCurrency];
+    }
+
+    private function applyDepositTransferBalances(object $project, array $projectIds, int $depositId, int $accountId, float $amount, string $direction): array
+    {
+        [$deposit, $account, $accountCurrency] = $this->depositTransferParties($projectIds, $depositId, $accountId);
 
         $accountBalance = round((float) ($account->value ?? 0), 2);
         $depositBalance = round((float) ($deposit->value ?? 0), 2);
