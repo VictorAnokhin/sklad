@@ -269,6 +269,38 @@ class BankController extends Controller
         return response()->json(['data' => $items]);
     }
 
+    public function publicExchangeAssets(Request $request)
+    {
+        abort_unless(Schema::hasTable('bank_tracked_assets'), 404);
+
+        $fid = (int) $request->query('fid', config('app.fid', '12'));
+        $items = DB::table('bank_tracked_assets')
+            ->where('project_id', $fid)
+            ->whereIn('asset_type', ['token', 'pool'])
+            ->where('hidden', false)
+            ->when(
+                Schema::hasColumn('bank_tracked_assets', 'exchange_enabled'),
+                fn ($query) => $query->where('exchange_enabled', true),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
+            ->orderBy('asset_type')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($asset) => [
+                'id' => (int) $asset->id,
+                'type' => (string) ($asset->asset_type ?? 'token'),
+                'name' => trim((string) ($asset->name ?? '')) ?: 'Актив',
+                'symbol' => trim((string) ($asset->symbol ?? '')) ?: ((string) ($asset->asset_type ?? '') === 'pool' ? 'POOL' : 'TOKEN'),
+                'quantity' => $asset->last_balance !== null ? (float) $asset->last_balance : 0.0,
+                'price_usd' => $asset->last_price_usd !== null ? (float) $asset->last_price_usd : 0.0,
+                'value_usd' => $asset->last_value_usd !== null ? (float) $asset->last_value_usd : 0.0,
+                'address' => (string) ($asset->asset_address ?? ''),
+            ])
+            ->values();
+
+        return response()->json(['data' => $items]);
+    }
+
     public function destroyOperationalAccount(Request $request, int $account): RedirectResponse
     {
         $project = $this->bankProject();
@@ -1939,6 +1971,7 @@ class BankController extends Controller
             'price_usd' => ['nullable', 'numeric', 'min:0'],
             'value_usd' => ['nullable', 'numeric', 'min:0'],
             'created_on' => ['nullable', 'date'],
+            'exchange_enabled' => ['nullable', 'boolean'],
         ]);
 
         $quantity = $request->filled('quantity') ? (float) $payload['quantity'] : 0.0;
@@ -1968,6 +2001,7 @@ class BankController extends Controller
                 'quantity' => $quantity,
                 'price_usd' => $priceUsd,
                 'value_usd' => $valueUsd,
+                'exchange_enabled' => $request->boolean('exchange_enabled'),
             ]),
             'sync_status' => 'manual',
             'sync_error' => null,
@@ -1979,6 +2013,9 @@ class BankController extends Controller
             $values['created_on'] = $request->filled('created_on')
                 ? Carbon::parse((string) $payload['created_on'])->toDateString()
                 : $now->toDateString();
+        }
+        if (Schema::hasColumn('bank_tracked_assets', 'exchange_enabled')) {
+            $values['exchange_enabled'] = $request->boolean('exchange_enabled');
         }
         foreach ([
             'adapter' => 'manual',
@@ -3829,6 +3866,7 @@ class BankController extends Controller
                     'price_usd' => $asset->last_price_usd !== null ? (float) $asset->last_price_usd : 0.0,
                     'value_usd' => $asset->last_value_usd !== null ? (float) $asset->last_value_usd : 0.0,
                     'created_on' => (string) ($asset->created_on ?? ''),
+                    'exchange_enabled' => (bool) ($asset->exchange_enabled ?? false),
                     'source' => 'bank_tracked_assets',
                     'status' => (string) ($asset->sync_status ?? 'manual'),
                 ];

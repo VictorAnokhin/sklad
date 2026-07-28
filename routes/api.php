@@ -227,6 +227,7 @@ Route::middleware(['api', 'throttle:30,1'])->prefix('projects/manager-ai')->grou
 Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
 Route::get('/offices', [SettingsController::class, 'officesPublicIndex']);
 Route::get('/bank/cash-accounts', [BankController::class, 'publicExchangeCashAccounts']);
+Route::get('/bank/assets', [BankController::class, 'publicExchangeAssets']);
 Route::get('/settings/currencies', [SettingsController::class, 'publicCurrencies']);
 Route::get('/settings/faq', [SettingsController::class, 'publicFaq']);
 Route::get('/wallet/tokens', [WalletController::class, 'tokens']);

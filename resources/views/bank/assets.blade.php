@@ -123,7 +123,8 @@
                             data-asset-name="{{ $asset->name }}"
                             data-asset-quantity="{{ number_format((float) $asset->quantity, 8, '.', '') }}"
                             data-asset-value="{{ number_format((float) $asset->value_usd, 8, '.', '') }}"
-                            data-asset-created-on="{{ $asset->created_on }}">
+                            data-asset-created-on="{{ $asset->created_on }}"
+                            data-asset-exchange-enabled="{{ $asset->exchange_enabled ? '1' : '0' }}">
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td class="bank-assets-table__type"><span class="bank-pill {{ $asset->asset_type === 'pool' ? 'bank-pill--company' : 'bank-pill--currency' }}">{{ $assetTypeLabels[$asset->asset_type] ?? $asset->asset_type }}</span></td>
                             <td class="bank-assets-table__spark">
@@ -261,6 +262,13 @@
                         <span>Стоимость</span>
                         <input type="text" name="value_usd" inputmode="numeric" data-terminal-amount data-invest-asset-value>
                         <small class="bank-field-hint" data-invest-asset-price-reference>Цена: —</small>
+                    </label>
+                    <label>
+                        <span>Обмен</span>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" name="exchange_enabled" value="1" data-invest-asset-exchange-input>
+                            <span class="form-check-label">Доступен в swap</span>
+                        </div>
                     </label>
                 </div>
                 <div class="bank-modal__actions">
@@ -450,6 +458,7 @@
         const createdOn = root.querySelector('[data-invest-asset-created-on]');
         const quantity = root.querySelector('[data-invest-asset-quantity]');
         const value = root.querySelector('[data-invest-asset-value]');
+        const exchangeEnabled = root.querySelector('[data-invest-asset-exchange-input]');
         const priceReference = root.querySelector('[data-invest-asset-price-reference]');
         const storeAction = form ? form.action : '';
         let renderAssetChart = () => {};
@@ -577,6 +586,9 @@
                 if (createdOn) {
                     createdOn.value = new Date().toISOString().slice(0, 10);
                 }
+                if (exchangeEnabled) {
+                    exchangeEnabled.checked = false;
+                }
                 syncReferencePrice();
                 renderAssetChart('');
                 if (modal) {
@@ -612,6 +624,9 @@
                 }
                 if (value) {
                     value.value = row.dataset.assetValue || '';
+                }
+                if (exchangeEnabled) {
+                    exchangeEnabled.checked = row.dataset.assetExchangeEnabled === '1';
                 }
                 syncReferencePrice();
                 renderAssetChart(row.dataset.assetKey || '');
