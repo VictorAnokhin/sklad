@@ -203,6 +203,8 @@
                                             data-account-balance-raw="{{ (float) $account->balance }}"
                                             data-account-doc="{{ $account->doc }}"
                                             data-account-address="{{ $account->color }}"
+                                            data-account-bank-name="{{ $account->bank_name }}"
+                                            data-account-bank-code="{{ $account->bank_code }}"
                                             data-account-company-name="{{ $account->company_name }}"
                                             data-account-company-code="{{ $account->company_code }}"
                                             data-account-payment-purpose="{{ $account->payment_purpose }}"
@@ -352,11 +354,11 @@
                     </label>
                     <label>
                         <span>Банк</span>
-                        <input type="text" placeholder="Название банка" autocomplete="off">
+                        <input type="text" name="bank_name" data-bank-requisites-bank-name placeholder="Название банка" autocomplete="off">
                     </label>
                     <label>
                         <span>МФО / BIC / SWIFT</span>
-                        <input type="text" placeholder="Код банка" autocomplete="off">
+                        <input type="text" name="bank_code" data-bank-requisites-bank-code placeholder="Код банка" autocomplete="off">
                     </label>
                     <label>
                         <span>Название компании</span>
@@ -449,6 +451,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const requisitesCurrency = root.querySelector('[data-bank-requisites-currency]');
     const requisitesBalance = root.querySelector('[data-bank-requisites-balance]');
     const requisitesAddress = root.querySelector('[data-bank-requisites-address]');
+    const requisitesBankName = root.querySelector('[data-bank-requisites-bank-name]');
+    const requisitesBankCode = root.querySelector('[data-bank-requisites-bank-code]');
     const requisitesCompanyName = root.querySelector('[data-bank-requisites-company-name]');
     const requisitesCompanyCode = root.querySelector('[data-bank-requisites-company-code]');
     const requisitesPaymentPurpose = root.querySelector('[data-bank-requisites-payment-purpose]');
@@ -468,6 +472,12 @@ document.addEventListener('DOMContentLoaded', () => {
             requisitesBalance.value = button.dataset.accountBalanceRaw || '0';
             if (requisitesAddress) {
                 requisitesAddress.value = button.dataset.accountAddress || '';
+            }
+            if (requisitesBankName) {
+                requisitesBankName.value = button.dataset.accountBankName || '';
+            }
+            if (requisitesBankCode) {
+                requisitesBankCode.value = button.dataset.accountBankCode || '';
             }
             if (requisitesCompanyName) {
                 requisitesCompanyName.value = button.dataset.accountCompanyName || button.dataset.projectName || '';

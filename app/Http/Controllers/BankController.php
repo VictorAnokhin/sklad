@@ -113,6 +113,8 @@ class BankController extends Controller
             'currency' => ['required', 'string', 'max:20'],
             'amount' => ['nullable', 'numeric'],
             'address' => ['nullable', 'string', 'max:255'],
+            'bank_name' => ['nullable', 'string', 'max:255'],
+            'bank_code' => ['nullable', 'string', 'max:80'],
             'company_name' => ['nullable', 'string', 'max:255'],
             'company_code' => ['nullable', 'string', 'max:80'],
             'payment_purpose' => ['nullable', 'string', 'max:1000'],
@@ -142,6 +144,8 @@ class BankController extends Controller
             $values['htmlkeys'] = json_encode(array_merge(
                 $this->cashAccountMeta($accountRow),
                 [
+                    'bank_name' => trim((string) ($payload['bank_name'] ?? '')),
+                    'bank_code' => trim((string) ($payload['bank_code'] ?? '')),
                     'company_name' => trim((string) ($payload['company_name'] ?? '')),
                     'company_code' => trim((string) ($payload['company_code'] ?? '')),
                     'payment_purpose' => trim((string) ($payload['payment_purpose'] ?? '')),
@@ -5711,6 +5715,8 @@ class BankController extends Controller
         $account->account_type = in_array($account->doc, ['bank', 'personal'], true) ? $account->doc : 'bank';
         $account->account_type_label = $account->account_type === 'personal' ? 'Личный' : 'Банк';
         $account->color = trim((string) ($account->color ?? ''));
+        $account->bank_name = trim((string) ($meta['bank_name'] ?? ''));
+        $account->bank_code = trim((string) ($meta['bank_code'] ?? ''));
         $account->company_name = trim((string) ($meta['company_name'] ?? ''));
         $account->company_code = trim((string) ($meta['company_code'] ?? ''));
         $account->payment_purpose = trim((string) ($meta['payment_purpose'] ?? ''));
