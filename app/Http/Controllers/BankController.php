@@ -113,6 +113,9 @@ class BankController extends Controller
             'currency' => ['required', 'string', 'max:20'],
             'amount' => ['nullable', 'numeric'],
             'address' => ['nullable', 'string', 'max:255'],
+            'company_name' => ['nullable', 'string', 'max:255'],
+            'company_code' => ['nullable', 'string', 'max:80'],
+            'payment_purpose' => ['nullable', 'string', 'max:1000'],
             'exchange_enabled' => ['nullable', 'boolean'],
         ]);
 
@@ -138,7 +141,12 @@ class BankController extends Controller
         if (in_array('htmlkeys', $columns, true)) {
             $values['htmlkeys'] = json_encode(array_merge(
                 $this->cashAccountMeta($accountRow),
-                ['exchange_enabled' => $request->boolean('exchange_enabled')]
+                [
+                    'company_name' => trim((string) ($payload['company_name'] ?? '')),
+                    'company_code' => trim((string) ($payload['company_code'] ?? '')),
+                    'payment_purpose' => trim((string) ($payload['payment_purpose'] ?? '')),
+                    'exchange_enabled' => $request->boolean('exchange_enabled'),
+                ]
             ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
@@ -263,6 +271,10 @@ class BankController extends Controller
                 'currency' => $account->currency,
                 'balance' => (float) $account->balance,
                 'description' => $account->color,
+                'company_name' => $account->company_name,
+                'company_code' => $account->company_code,
+                'iban' => $account->color,
+                'payment_purpose' => $account->payment_purpose,
             ])
             ->values();
 
@@ -5699,6 +5711,9 @@ class BankController extends Controller
         $account->account_type = in_array($account->doc, ['bank', 'personal'], true) ? $account->doc : 'bank';
         $account->account_type_label = $account->account_type === 'personal' ? 'Личный' : 'Банк';
         $account->color = trim((string) ($account->color ?? ''));
+        $account->company_name = trim((string) ($meta['company_name'] ?? ''));
+        $account->company_code = trim((string) ($meta['company_code'] ?? ''));
+        $account->payment_purpose = trim((string) ($meta['payment_purpose'] ?? ''));
         $account->exchange_enabled = (bool) ($meta['exchange_enabled'] ?? false);
 
         return $account;

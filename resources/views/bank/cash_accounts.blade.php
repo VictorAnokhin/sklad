@@ -203,6 +203,9 @@
                                             data-account-balance-raw="{{ (float) $account->balance }}"
                                             data-account-doc="{{ $account->doc }}"
                                             data-account-address="{{ $account->color }}"
+                                            data-account-company-name="{{ $account->company_name }}"
+                                            data-account-company-code="{{ $account->company_code }}"
+                                            data-account-payment-purpose="{{ $account->payment_purpose }}"
                                             data-account-exchange-enabled="{{ $account->exchange_enabled ? '1' : '0' }}"
                                             data-account-update-url="{{ route('bank.project-accounts.update', ['project' => $projectRow->id, 'account' => $account->id]) }}">
                                             {{ $account->label }}
@@ -356,8 +359,12 @@
                         <input type="text" placeholder="Код банка" autocomplete="off">
                     </label>
                     <label>
+                        <span>Название компании</span>
+                        <input type="text" name="company_name" data-bank-requisites-company-name placeholder="ООО Компания" autocomplete="organization">
+                    </label>
+                    <label>
                         <span>ЕДРПОУ / ИНН</span>
-                        <input type="text" placeholder="Код компании" autocomplete="off">
+                        <input type="text" name="company_code" data-bank-requisites-company-code placeholder="Код компании" autocomplete="off">
                     </label>
                     <label>
                         <span>Валюта учета</span>
@@ -378,7 +385,7 @@
                 </label>
                 <label class="bank-form-full">
                     <span>Назначение / комментарий</span>
-                    <textarea rows="3" placeholder="Условия обслуживания, лимиты, назначение счета"></textarea>
+                    <textarea rows="3" name="payment_purpose" data-bank-requisites-payment-purpose placeholder="Условия обслуживания, лимиты, назначение счета"></textarea>
                 </label>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-bank-requisites-close>Отмена</button>
@@ -442,6 +449,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const requisitesCurrency = root.querySelector('[data-bank-requisites-currency]');
     const requisitesBalance = root.querySelector('[data-bank-requisites-balance]');
     const requisitesAddress = root.querySelector('[data-bank-requisites-address]');
+    const requisitesCompanyName = root.querySelector('[data-bank-requisites-company-name]');
+    const requisitesCompanyCode = root.querySelector('[data-bank-requisites-company-code]');
+    const requisitesPaymentPurpose = root.querySelector('[data-bank-requisites-payment-purpose]');
     const requisitesExchange = root.querySelector('[data-bank-requisites-exchange]');
 
     root.querySelectorAll('[data-bank-requisites-open]').forEach((button) => {
@@ -458,6 +468,15 @@ document.addEventListener('DOMContentLoaded', () => {
             requisitesBalance.value = button.dataset.accountBalanceRaw || '0';
             if (requisitesAddress) {
                 requisitesAddress.value = button.dataset.accountAddress || '';
+            }
+            if (requisitesCompanyName) {
+                requisitesCompanyName.value = button.dataset.accountCompanyName || button.dataset.projectName || '';
+            }
+            if (requisitesCompanyCode) {
+                requisitesCompanyCode.value = button.dataset.accountCompanyCode || '';
+            }
+            if (requisitesPaymentPurpose) {
+                requisitesPaymentPurpose.value = button.dataset.accountPaymentPurpose || '';
             }
             if (requisitesExchange) {
                 requisitesExchange.checked = button.dataset.accountExchangeEnabled === '1';
