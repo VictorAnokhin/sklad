@@ -1363,7 +1363,7 @@ class EducationController extends Controller
                 $filename = basename($path);
                 $name = pathinfo($filename, PATHINFO_FILENAME);
                 $alt = trim((string) data_get($metadata, $filename . '.alt', $name));
-                $url = '/storage/' . ltrim($path, '/');
+                $url = MediaUrl::image($path) ?: '/storage/' . ltrim($path, '/');
 
                 return [
                     'file' => $filename,
