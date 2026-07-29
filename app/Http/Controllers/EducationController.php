@@ -27,6 +27,7 @@ class EducationController extends Controller
     private const EDUCATION_LANGUAGES = ['ru', 'ua', 'en', 'es', 'fr'];
     private const MATERIAL_IMAGES_DIRECTORY = 'files/education/materials';
     private const MATERIAL_IMAGES_METADATA = 'files/education/materials/.metadata.json';
+    private const MATERIAL_IMAGES_PUBLIC_BASE_URL = 'https://av8capital.space';
 
     public function ensureCourseOrder(Request $request, AcademyCoursePaymentService $payments): JsonResponse
     {
@@ -1363,7 +1364,7 @@ class EducationController extends Controller
                 $filename = basename($path);
                 $name = pathinfo($filename, PATHINFO_FILENAME);
                 $alt = trim((string) data_get($metadata, $filename . '.alt', $name));
-                $url = MediaUrl::image($path) ?: '/storage/' . ltrim($path, '/');
+                $url = rtrim(self::MATERIAL_IMAGES_PUBLIC_BASE_URL, '/') . '/storage/' . ltrim($path, '/');
 
                 return [
                     'file' => $filename,
