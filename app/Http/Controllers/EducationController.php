@@ -18,11 +18,15 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class EducationController extends Controller
 {
     private const EDUCATION_LANGUAGES = ['ru', 'ua', 'en', 'es', 'fr'];
+    private const MATERIAL_IMAGES_DIRECTORY = 'files/education/materials';
+    private const MATERIAL_IMAGES_METADATA = 'files/education/materials/.metadata.json';
 
     public function ensureCourseOrder(Request $request, AcademyCoursePaymentService $payments): JsonResponse
     {
@@ -768,6 +772,66 @@ class EducationController extends Controller
         ]);
     }
 
+    public function materials()
+    {
+        $this->educationProject();
+
+        return view('education.materials', [
+            'materials' => $this->educationMaterialImages(),
+            'storageDirectory' => self::MATERIAL_IMAGES_DIRECTORY,
+        ]);
+    }
+
+    public function storeMaterialImage(Request $request)
+    {
+        $this->educationProject();
+
+        $validated = $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+            'alt' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $uploadedFile = $validated['image'];
+        $originalName = pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_FILENAME);
+        $safeName = Str::slug($originalName) ?: 'material';
+        $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'jpg');
+        $filename = $safeName . '_' . now()->format('YmdHis') . '_' . Str::random(8) . '.' . $extension;
+
+        $uploadedFile->storeAs(self::MATERIAL_IMAGES_DIRECTORY, $filename, 'public');
+
+        $alt = trim((string) ($validated['alt'] ?? ''));
+        if ($alt !== '') {
+            $metadata = $this->educationMaterialImagesMetadata();
+            $metadata[$filename] = ['alt' => $alt];
+            $this->saveEducationMaterialImagesMetadata($metadata);
+        }
+
+        return redirect()->route('education.material-files.index')->with('success', 'Фото загружено.');
+    }
+
+    public function destroyMaterialImage(Request $request)
+    {
+        $this->educationProject();
+
+        $validated = $request->validate([
+            'file' => ['required', 'string', 'max:255'],
+        ]);
+
+        $filename = basename($validated['file']);
+        $path = self::MATERIAL_IMAGES_DIRECTORY . '/' . $filename;
+        abort_if($filename === '' || !Storage::disk('public')->exists($path), 404);
+
+        Storage::disk('public')->delete($path);
+
+        $metadata = $this->educationMaterialImagesMetadata();
+        if (array_key_exists($filename, $metadata)) {
+            unset($metadata[$filename]);
+            $this->saveEducationMaterialImagesMetadata($metadata);
+        }
+
+        return redirect()->route('education.material-files.index')->with('success', 'Фото удалено.');
+    }
+
     public function storeMaterial(Request $request)
     {
         $project = $this->educationProject();
@@ -1280,6 +1344,60 @@ class EducationController extends Controller
         abort_unless($project && strtolower(trim((string) $project->project_type)) === 'education', 403);
 
         return $project;
+    }
+
+    private function educationMaterialImages(): array
+    {
+        if (!Storage::disk('public')->exists(self::MATERIAL_IMAGES_DIRECTORY)) {
+            Storage::disk('public')->makeDirectory(self::MATERIAL_IMAGES_DIRECTORY);
+        }
+
+        $metadata = $this->educationMaterialImagesMetadata();
+
+        return collect(Storage::disk('public')->files(self::MATERIAL_IMAGES_DIRECTORY))
+            ->filter(function (string $path): bool {
+                return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'webp', 'gif'], true);
+            })
+            ->sortDesc()
+            ->map(function (string $path) use ($metadata): array {
+                $filename = basename($path);
+                $name = pathinfo($filename, PATHINFO_FILENAME);
+                $alt = trim((string) data_get($metadata, $filename . '.alt', $name));
+                $url = '/storage/' . ltrim($path, '/');
+
+                return [
+                    'file' => $filename,
+                    'name' => $name,
+                    'alt' => $alt,
+                    'path' => $path,
+                    'url' => $url,
+                    'hint' => '<figure>' . PHP_EOL
+                        . '  <img src="' . e($url) . '" alt="' . e($alt) . '">' . PHP_EOL
+                        . '  <figcaption>' . e($alt) . '</figcaption>' . PHP_EOL
+                        . '</figure>',
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function educationMaterialImagesMetadata(): array
+    {
+        if (!Storage::disk('public')->exists(self::MATERIAL_IMAGES_METADATA)) {
+            return [];
+        }
+
+        $payload = json_decode((string) Storage::disk('public')->get(self::MATERIAL_IMAGES_METADATA), true);
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    private function saveEducationMaterialImagesMetadata(array $metadata): void
+    {
+        Storage::disk('public')->put(
+            self::MATERIAL_IMAGES_METADATA,
+            json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
     }
 
     private function educationSchemaReady(): bool
