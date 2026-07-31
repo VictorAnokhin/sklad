@@ -489,6 +489,15 @@ class SettingsController extends Controller
         $limit = max(1, min(50, (int) $request->query('limit', 20)));
         $ignoreFirma = $this->shouldIgnoreCityFirma($request, 'city');
         $fid = session('fid', '');
+        $id = $this->normalizeOptionalInteger($request->query('id'));
+
+        if ($id !== null) {
+            $city = $this->regionCityFind($fid, $id, $ignoreFirma);
+
+            return response()->json([
+                'items' => $city ? [$this->serializeRegionCityWithRegion($city, $ignoreFirma)] : [],
+            ]);
+        }
 
         $items = Filter::query()
             ->where('keyfield', 'city')

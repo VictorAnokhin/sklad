@@ -3636,8 +3636,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         officeCitySearchInput?.addEventListener('change', () => {
-            const selected = officeCityOptionsMap.get(officeCitySearchInput.value);
-            officeCityIdInput.value = selected ? selected.id : '';
+            applyOfficeCitySelectionFromInput();
+        });
+
+        officeCitySearchInput?.addEventListener('blur', () => {
+            applyOfficeCitySelectionFromInput();
         });
 
         modal.addEventListener('show.bs.modal', (e) => {
@@ -4017,7 +4020,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     setCostType(item.constanta ?? '1');
                     setCashFlowActivity(item.cash_flow_activity || item.vision || 'operating');
                     phoneInput.value = item.phone || '';
-                    setOfficeCity(item.city_id || '', item.city_label || item.city?.label || '');
+                    setOfficeCityFromItem(item);
                     addressInput.value = item.address || '';
                     googleMapInput.value = item.google_map || '';
                     descriptionInput.value = item.description || item.descript || '';
@@ -4320,6 +4323,38 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        function setOfficeCityFromItem(item) {
+            const cityId = item.city_id || item.city?.id || '';
+            const label = item.city_label || item.city?.label || '';
+            setOfficeCity(cityId, label);
+
+            if (cityId && !label) {
+                fetch(`/settings/api/office-city-search?id=${encodeURIComponent(cityId)}&ignore_firma=1`, {
+                    headers: { 'Accept': 'application/json' },
+                })
+                    .then((response) => response.json())
+                    .then((payload) => {
+                        const city = Array.isArray(payload.items) ? payload.items[0] : null;
+                        if (!city) {
+                            return;
+                        }
+                        const cityLabel = city.label || city.val || city.valru || city.valen || `#${city.id}`;
+                        setOfficeCity(city.id, cityLabel);
+                    })
+                    .catch(() => {});
+            }
+        }
+
+        function applyOfficeCitySelectionFromInput() {
+            if (!officeCitySearchInput || !officeCityIdInput) {
+                return;
+            }
+
+            const value = officeCitySearchInput.value.trim();
+            const selected = officeCityOptionsMap.get(value);
+            officeCityIdInput.value = selected ? selected.id : '';
+        }
+
         function scheduleOfficeCitySearch(query) {
             window.clearTimeout(officeCitySearchTimer);
             officeCitySearchTimer = window.setTimeout(() => searchOfficeCities(query), 250);
@@ -4364,6 +4399,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('status', payload.status);
             formData.append('vision', payload.vision);
             formData.append('is_default', payload.is_default || 0);
+            applyOfficeCitySelectionFromInput();
             formData.append('phone', phoneInput.value.trim());
             formData.append('city_id', officeCityIdInput.value.trim());
             formData.append('address', addressInput.value.trim());
