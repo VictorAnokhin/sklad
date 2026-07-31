@@ -1127,8 +1127,10 @@
                             <div class="col-md-6 mb-3">
                                 <label for="form-office-city-search" class="form-label">Город</label>
                                 <input type="hidden" id="form-office-city-id">
-                                <input type="text" class="form-control" id="form-office-city-search" list="office-city-options" placeholder="Начните вводить город">
-                                <datalist id="office-city-options"></datalist>
+                                <div class="client-location-suggest">
+                                    <input type="text" class="form-control" id="form-office-city-search" placeholder="Начните вводить город" autocomplete="off">
+                                    <div class="client-location-suggest__list" id="office-city-suggest"></div>
+                                </div>
                                 <div class="form-text">Выберите город из справочника городов.</div>
                             </div>
                             <div class="col-md-6 mb-3">
@@ -2245,6 +2247,48 @@
 
     .project-holding-item:hover {
         background: #f3f4f6;
+    }
+
+    .client-location-suggest {
+        position: relative;
+    }
+
+    .client-location-suggest__list {
+        display: none;
+        position: absolute;
+        z-index: 1065;
+        top: 100%;
+        left: 0;
+        right: 0;
+        max-height: 220px;
+        overflow-y: auto;
+        margin-top: 2px;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        border-radius: 8px;
+        background: #111827;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .client-location-suggest__item {
+        display: block;
+        width: 100%;
+        border: 0;
+        padding: 7px 10px;
+        background: transparent;
+        color: #f8fafc;
+        text-align: left;
+        font-size: 0.9rem;
+    }
+
+    .client-location-suggest__item:hover,
+    .client-location-suggest__item:focus {
+        background: rgba(59, 130, 246, 0.25);
+        outline: 0;
+    }
+
+    .client-location-suggest__region {
+        color: #cbd5e1;
+        font-style: italic;
     }
 
     .project-holding-delete {
@@ -3594,7 +3638,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const phoneInput = document.getElementById('form-phone');
         const officeCityIdInput = document.getElementById('form-office-city-id');
         const officeCitySearchInput = document.getElementById('form-office-city-search');
-        const officeCityOptions = document.getElementById('office-city-options');
+        const officeCitySuggest = document.getElementById('office-city-suggest');
         const addressInput = document.getElementById('form-address');
         const googleMapInput = document.getElementById('form-google-map');
         const fotoExistingInput = document.getElementById('form-foto-existing');
@@ -3624,23 +3668,35 @@ document.addEventListener('DOMContentLoaded', () => {
         let poolDepositItems = new Map();
         let currentCurrencyTab = 'directory';
         let officeCitySearchTimer = null;
-        let officeCityOptionsMap = new Map();
+        let officeCitySelectedLabel = '';
 
         fotoFileInput?.addEventListener('change', () => {
             updateImagePreview(fotoFileInput, 'form-foto-preview', 'form-foto-preview-wrap');
         });
 
         officeCitySearchInput?.addEventListener('input', () => {
-            officeCityIdInput.value = '';
+            if (officeCitySearchInput.value.trim() !== officeCitySelectedLabel) {
+                officeCityIdInput.value = '';
+            }
             scheduleOfficeCitySearch(officeCitySearchInput.value);
         });
 
-        officeCitySearchInput?.addEventListener('change', () => {
-            applyOfficeCitySelectionFromInput();
+        officeCitySearchInput?.addEventListener('focus', () => {
+            scheduleOfficeCitySearch(officeCitySearchInput.value);
         });
 
         officeCitySearchInput?.addEventListener('blur', () => {
-            applyOfficeCitySelectionFromInput();
+            window.setTimeout(hideOfficeCitySuggest, 150);
+        });
+
+        officeCitySuggest?.addEventListener('mousedown', (event) => {
+            const button = event.target.closest('.client-location-suggest__item');
+            if (!button) {
+                return;
+            }
+            event.preventDefault();
+            setOfficeCity(button.dataset.cityId || '', button.dataset.cityLabel || '');
+            hideOfficeCitySuggest();
         });
 
         modal.addEventListener('show.bs.modal', (e) => {
@@ -3662,6 +3718,7 @@ document.addEventListener('DOMContentLoaded', () => {
             configureCurrencyTabs();
             addBtn.style.display = '';
             configureStatusField();
+            hideOfficeCitySuggest();
         });
 
         currencyTabDirectory?.addEventListener('click', () => {
@@ -4308,24 +4365,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function setOfficeCity(id, label) {
+            const normalizedLabel = label || '';
+            window.clearTimeout(officeCitySearchTimer);
             if (officeCityIdInput) {
                 officeCityIdInput.value = id ? String(id) : '';
             }
             if (officeCitySearchInput) {
-                officeCitySearchInput.value = label || '';
+                officeCitySearchInput.value = normalizedLabel;
             }
-            if (officeCityOptions) {
-                officeCityOptions.innerHTML = '';
-            }
-            officeCityOptionsMap = new Map();
-            if (id && label) {
-                officeCityOptionsMap.set(label, { id: String(id), label });
-            }
+            officeCitySelectedLabel = normalizedLabel;
+            hideOfficeCitySuggest();
         }
 
         function setOfficeCityFromItem(item) {
             const cityId = item.city_id || item.city?.id || '';
-            const label = item.city_label || item.city?.label || '';
+            const label = officeCityDisplayName(item.city) || item.city_label || '';
             setOfficeCity(cityId, label);
 
             if (cityId && !label) {
@@ -4338,21 +4392,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!city) {
                             return;
                         }
-                        const cityLabel = city.label || city.val || city.valru || city.valen || `#${city.id}`;
+                        const cityLabel = officeCityDisplayName(city) || city.label || `#${city.id}`;
                         setOfficeCity(city.id, cityLabel);
                     })
                     .catch(() => {});
             }
         }
 
-        function applyOfficeCitySelectionFromInput() {
-            if (!officeCitySearchInput || !officeCityIdInput) {
-                return;
-            }
-
-            const value = officeCitySearchInput.value.trim();
-            const selected = officeCityOptionsMap.get(value);
-            officeCityIdInput.value = selected ? selected.id : '';
+        function officeCityDisplayName(city) {
+            return city?.val || city?.valru || city?.valen || '';
         }
 
         function scheduleOfficeCitySearch(query) {
@@ -4361,14 +4409,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function searchOfficeCities(query) {
-            if (!officeCityOptions) {
+            if (!officeCitySuggest) {
                 return;
             }
 
             const text = String(query || '').trim();
+            if (officeCityIdInput.value.trim() && text === officeCitySelectedLabel) {
+                hideOfficeCitySuggest();
+                return;
+            }
             if (text.length < 2) {
-                officeCityOptions.innerHTML = '';
-                officeCityOptionsMap = new Map();
+                hideOfficeCitySuggest();
                 return;
             }
 
@@ -4377,18 +4428,50 @@ document.addEventListener('DOMContentLoaded', () => {
             })
                 .then((response) => response.json())
                 .then((payload) => {
+                    if ((officeCitySearchInput?.value.trim() || '') !== text) {
+                        return;
+                    }
                     const items = Array.isArray(payload.items) ? payload.items : [];
-                    officeCityOptionsMap = new Map();
-                    officeCityOptions.innerHTML = items.map((city) => {
-                        const label = city.label || city.val || city.valru || city.valen || `#${city.id}`;
-                        officeCityOptionsMap.set(label, { id: String(city.id), label });
-                        return `<option value="${escapeHtml(label)}"></option>`;
-                    }).join('');
+                    if (items.length === 0 && officeCityIdInput.value.trim()) {
+                        return;
+                    }
+                    renderOfficeCitySuggest(items);
                 })
                 .catch(() => {
-                    officeCityOptions.innerHTML = '';
-                    officeCityOptionsMap = new Map();
+                    hideOfficeCitySuggest();
                 });
+        }
+
+        function renderOfficeCitySuggest(items) {
+            if (!officeCitySuggest) {
+                return;
+            }
+            officeCitySuggest.innerHTML = '';
+            items.forEach((city) => {
+                const name = officeCityDisplayName(city) || `#${city.id}`;
+                const regionName = city.region_name || '';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'client-location-suggest__item';
+                button.dataset.cityId = city.id || '';
+                button.dataset.cityLabel = name;
+                button.append(document.createTextNode(name));
+                if (regionName) {
+                    const region = document.createElement('span');
+                    region.className = 'client-location-suggest__region';
+                    region.textContent = ` — ${regionName}`;
+                    button.append(region);
+                }
+                officeCitySuggest.appendChild(button);
+            });
+            officeCitySuggest.style.display = items.length ? 'block' : 'none';
+        }
+
+        function hideOfficeCitySuggest() {
+            if (officeCitySuggest) {
+                officeCitySuggest.innerHTML = '';
+                officeCitySuggest.style.display = 'none';
+            }
         }
 
         function submitOfficeForm(id, payload) {
@@ -4399,7 +4482,6 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('status', payload.status);
             formData.append('vision', payload.vision);
             formData.append('is_default', payload.is_default || 0);
-            applyOfficeCitySelectionFromInput();
             if (officeCitySearchInput.value.trim() && !officeCityIdInput.value.trim()) {
                 return Promise.resolve({
                     json: () => Promise.resolve({
