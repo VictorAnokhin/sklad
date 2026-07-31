@@ -1967,7 +1967,7 @@ class SettingsController extends Controller
                     $item->google_map = trim((string) ($item->descript3 ?? ''));
                 }
                 $item->foto_preview = MediaUrl::image((string) ($item->foto ?? ''));
-                $cityId = property_exists($item, 'city_id') ? (int) ($item->city_id ?? 0) : 0;
+                $cityId = $this->officeCityIdFromItem($item);
                 $item->city_id = $cityId > 0 ? $cityId : null;
                 $item->city = $cityId > 0 ? $this->officeCityPayload($cityId) : null;
                 $item->city_label = $item->city['label'] ?? '';
@@ -2917,14 +2917,17 @@ class SettingsController extends Controller
                 $data['address'] = trim((string) ($validated['address'] ?? ''));
             }
 
+            $cityId = $this->normalizeOptionalInteger($validated['city_id'] ?? null);
+            if ($cityId !== null && ! $this->regionCityFind(session('fid', ''), $cityId, true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'city_id' => 'Выберите город из справочника городов.',
+                ]);
+            }
+
             if (Schema::hasColumn('conf', 'city_id')) {
-                $cityId = $this->normalizeOptionalInteger($validated['city_id'] ?? null);
-                if ($cityId !== null && ! $this->regionCityFind(session('fid', ''), $cityId, true)) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'city_id' => 'Выберите город из справочника городов.',
-                    ]);
-                }
                 $data['city_id'] = $cityId;
+            } elseif (Schema::hasColumn('conf', 'descript4')) {
+                $data['descript4'] = $cityId ? (string) $cityId : '';
             }
 
             if (Schema::hasColumn('conf', 'google_map')) {
@@ -3050,7 +3053,7 @@ class SettingsController extends Controller
 
         if ($type === 'sklads') {
             $item->foto_preview = MediaUrl::image((string) ($item->foto ?? ''));
-            $cityId = property_exists($item, 'city_id') ? (int) ($item->city_id ?? 0) : 0;
+            $cityId = $this->officeCityIdFromItem($item);
             $item->city_id = $cityId > 0 ? $cityId : null;
             $item->city = $cityId > 0 ? $this->officeCityPayload($cityId) : null;
             $item->city_label = $item->city['label'] ?? '';
@@ -3941,6 +3944,16 @@ class SettingsController extends Controller
         $city = $this->regionCityFind(session('fid', ''), $cityId, true);
 
         return $city ? $this->serializeRegionCityWithRegion($city, true) : null;
+    }
+
+    private function officeCityIdFromItem(object $item): int
+    {
+        $cityId = property_exists($item, 'city_id') ? (int) ($item->city_id ?? 0) : 0;
+        if ($cityId > 0) {
+            return $cityId;
+        }
+
+        return property_exists($item, 'descript4') ? (int) ($item->descript4 ?? 0) : 0;
     }
 
     private function normalizeOptionalInteger($value): ?int

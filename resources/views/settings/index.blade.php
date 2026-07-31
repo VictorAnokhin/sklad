@@ -4400,6 +4400,14 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('vision', payload.vision);
             formData.append('is_default', payload.is_default || 0);
             applyOfficeCitySelectionFromInput();
+            if (officeCitySearchInput.value.trim() && !officeCityIdInput.value.trim()) {
+                return Promise.resolve({
+                    json: () => Promise.resolve({
+                        success: false,
+                        message: 'Выберите город из списка подсказок.',
+                    }),
+                });
+            }
             formData.append('phone', phoneInput.value.trim());
             formData.append('city_id', officeCityIdInput.value.trim());
             formData.append('address', addressInput.value.trim());
