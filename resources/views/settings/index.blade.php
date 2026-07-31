@@ -1125,6 +1125,13 @@
                                 <input type="text" class="form-control" id="form-phone" placeholder="+380...">
                             </div>
                             <div class="col-md-6 mb-3">
+                                <label for="form-office-city-search" class="form-label">Город</label>
+                                <input type="hidden" id="form-office-city-id">
+                                <input type="text" class="form-control" id="form-office-city-search" list="office-city-options" placeholder="Начните вводить город">
+                                <datalist id="office-city-options"></datalist>
+                                <div class="form-text">Выберите город из справочника городов.</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
                                 <label for="form-address" class="form-label">Адреса</label>
                                 <input type="text" class="form-control" id="form-address" placeholder="Місто, вулиця, офіс">
                             </div>
@@ -1162,6 +1169,7 @@
                             <th id="crud-default-column" class="conf-default-col" style="display:none;">Default</th>
                             <th id="crud-status-column" class="conf-status-col">Статус</th>
                             <th id="crud-phone-column" class="conf-phone-col" style="display:none;">Телефон</th>
+                            <th id="crud-city-column" class="conf-city-col" style="display:none;">Город</th>
                             <th id="crud-address-column" class="conf-address-col" style="display:none;">Адреса</th>
                             <th id="crud-doc-column" class="conf-doc-col" style="display:none;">Документ</th>
                             <th id="crud-cost-type-column" class="conf-cost-type-col" style="display:none;">Тип затрат</th>
@@ -3584,6 +3592,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const cashFlowActivityColumn = document.getElementById('crud-cash-flow-activity-column');
         const officeFields = document.getElementById('form-office-fields');
         const phoneInput = document.getElementById('form-phone');
+        const officeCityIdInput = document.getElementById('form-office-city-id');
+        const officeCitySearchInput = document.getElementById('form-office-city-search');
+        const officeCityOptions = document.getElementById('office-city-options');
         const addressInput = document.getElementById('form-address');
         const googleMapInput = document.getElementById('form-google-map');
         const fotoExistingInput = document.getElementById('form-foto-existing');
@@ -3593,6 +3604,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const descriptionColumn = document.getElementById('crud-description-column');
         const nameColumn = document.querySelector('#modalCrud thead .conf-name-col');
         const phoneColumn = document.getElementById('crud-phone-column');
+        const cityColumn = document.getElementById('crud-city-column');
         const addressColumn = document.getElementById('crud-address-column');
         const docCheckboxes = [
             document.getElementById('form-doc-po'),
@@ -3611,9 +3623,21 @@ document.addEventListener('DOMContentLoaded', () => {
         let currencyOptions = @json(($currencies ?? collect())->pluck('name')->values());
         let poolDepositItems = new Map();
         let currentCurrencyTab = 'directory';
+        let officeCitySearchTimer = null;
+        let officeCityOptionsMap = new Map();
 
         fotoFileInput?.addEventListener('change', () => {
             updateImagePreview(fotoFileInput, 'form-foto-preview', 'form-foto-preview-wrap');
+        });
+
+        officeCitySearchInput?.addEventListener('input', () => {
+            officeCityIdInput.value = '';
+            scheduleOfficeCitySearch(officeCitySearchInput.value);
+        });
+
+        officeCitySearchInput?.addEventListener('change', () => {
+            const selected = officeCityOptionsMap.get(officeCitySearchInput.value);
+            officeCityIdInput.value = selected ? selected.id : '';
         });
 
         modal.addEventListener('show.bs.modal', (e) => {
@@ -3865,6 +3889,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const addressHtml = currentType === 'sklads'
                     ? escapeHtml(item.address || '—')
                     : '';
+                const cityHtml = currentType === 'sklads'
+                    ? escapeHtml(item.city_label || '—')
+                    : '';
                 const currencyHtml = currentType === 'oplata' || currentType === 'deposit'
                     ? `<span class="badge bg-info text-dark">${escapeHtml(item.currency || defaultCurrencyCode())}</span>`
                     : '';
@@ -3908,6 +3935,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${currentType === 'currency' ? `<td class="conf-description-col" title="${descriptionHtml}">${descriptionHtml}</td>` : ''}
                     ${currentType === 'sklads' || currentType === 'oplata' ? `<td class="conf-default-col">${defaultHtml}</td>` : ''}
                     <td class="conf-status-col">${statusLabel}</td>
+                    ${currentType === 'sklads' ? `<td class="conf-city-col" title="${escapeHtml(item.city_label || '')}">${cityHtml}</td>` : ''}
                     ${currentType === 'sklads' ? `<td class="conf-address-col" title="${escapeHtml(item.address || '')}">${addressHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td class="conf-doc-col">${docHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td class="conf-cost-type-col">${costTypeHtml}</td>` : ''}
@@ -3989,6 +4017,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     setCostType(item.constanta ?? '1');
                     setCashFlowActivity(item.cash_flow_activity || item.vision || 'operating');
                     phoneInput.value = item.phone || '';
+                    setOfficeCity(item.city_id || '', item.city_label || item.city?.label || '');
                     addressInput.value = item.address || '';
                     googleMapInput.value = item.google_map || '';
                     descriptionInput.value = item.description || item.descript || '';
@@ -4186,6 +4215,7 @@ document.addEventListener('DOMContentLoaded', () => {
             colorColumn.textContent = isFaq ? 'Вопрос' : 'Колір';
             phoneColumn.style.display = 'none';
             addressColumn.style.display = isOffice ? '' : 'none';
+            if (cityColumn) cityColumn.style.display = isOffice ? '' : 'none';
             populateCurrencySelect(currencySelect.value || defaultCurrencyCode());
 
             if (currentType === 'tgroup') {
@@ -4274,6 +4304,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 .join(',');
         }
 
+        function setOfficeCity(id, label) {
+            if (officeCityIdInput) {
+                officeCityIdInput.value = id ? String(id) : '';
+            }
+            if (officeCitySearchInput) {
+                officeCitySearchInput.value = label || '';
+            }
+            if (officeCityOptions) {
+                officeCityOptions.innerHTML = '';
+            }
+            officeCityOptionsMap = new Map();
+            if (id && label) {
+                officeCityOptionsMap.set(label, { id: String(id), label });
+            }
+        }
+
+        function scheduleOfficeCitySearch(query) {
+            window.clearTimeout(officeCitySearchTimer);
+            officeCitySearchTimer = window.setTimeout(() => searchOfficeCities(query), 250);
+        }
+
+        function searchOfficeCities(query) {
+            if (!officeCityOptions) {
+                return;
+            }
+
+            const text = String(query || '').trim();
+            if (text.length < 2) {
+                officeCityOptions.innerHTML = '';
+                officeCityOptionsMap = new Map();
+                return;
+            }
+
+            fetch(`/settings/api/office-city-search?q=${encodeURIComponent(text)}&ignore_firma=1`, {
+                headers: { 'Accept': 'application/json' },
+            })
+                .then((response) => response.json())
+                .then((payload) => {
+                    const items = Array.isArray(payload.items) ? payload.items : [];
+                    officeCityOptionsMap = new Map();
+                    officeCityOptions.innerHTML = items.map((city) => {
+                        const label = city.label || city.val || city.valru || city.valen || `#${city.id}`;
+                        officeCityOptionsMap.set(label, { id: String(city.id), label });
+                        return `<option value="${escapeHtml(label)}"></option>`;
+                    }).join('');
+                })
+                .catch(() => {
+                    officeCityOptions.innerHTML = '';
+                    officeCityOptionsMap = new Map();
+                });
+        }
+
         function submitOfficeForm(id, payload) {
             const formData = new FormData();
             formData.append('type', payload.type);
@@ -4283,6 +4365,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('vision', payload.vision);
             formData.append('is_default', payload.is_default || 0);
             formData.append('phone', phoneInput.value.trim());
+            formData.append('city_id', officeCityIdInput.value.trim());
             formData.append('address', addressInput.value.trim());
             formData.append('google_map', googleMapInput.value.trim());
             formData.append('foto', fotoExistingInput.value.trim());
@@ -4308,6 +4391,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function resetOfficeFields() {
             phoneInput.value = '';
+            setOfficeCity('', '');
             addressInput.value = '';
             googleMapInput.value = '';
             fotoExistingInput.value = '';
@@ -4323,7 +4407,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return 6;
             }
             if (currentType === 'sklads') {
-                return 6;
+                return 7;
             }
             if (currentType === 'reestr') {
                 count += 3;

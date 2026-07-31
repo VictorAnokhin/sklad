@@ -479,6 +479,38 @@ class SettingsController extends Controller
         return response()->json(['data' => $items]);
     }
 
+    public function officeCitySearch(Request $request)
+    {
+        if (!Schema::hasTable('filter')) {
+            return response()->json(['items' => []]);
+        }
+
+        $queryText = trim((string) $request->query('q', ''));
+        $limit = max(1, min(50, (int) $request->query('limit', 20)));
+        $ignoreFirma = $this->shouldIgnoreCityFirma($request, 'city');
+        $fid = session('fid', '');
+
+        $items = Filter::query()
+            ->where('keyfield', 'city')
+            ->when($queryText !== '', function ($query) use ($queryText) {
+                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $queryText) . '%';
+                $query->where(function ($nested) use ($like) {
+                    $nested->where('val', 'like', $like)
+                        ->orWhere('valru', 'like', $like)
+                        ->orWhere('valen', 'like', $like);
+                });
+            })
+            ->orderBy('val')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get()
+            ->filter(fn ($city) => $this->fieldRegionFind($fid, $city->idkeyfield, $ignoreFirma) !== null)
+            ->map(fn ($city) => $this->serializeRegionCityWithRegion($city, $ignoreFirma))
+            ->values();
+
+        return response()->json(['items' => $items]);
+    }
+
     /**
      * GET /settings/api/{type}/{id}
      * Return a single conf record.
@@ -1926,6 +1958,10 @@ class SettingsController extends Controller
                     $item->google_map = trim((string) ($item->descript3 ?? ''));
                 }
                 $item->foto_preview = MediaUrl::image((string) ($item->foto ?? ''));
+                $cityId = property_exists($item, 'city_id') ? (int) ($item->city_id ?? 0) : 0;
+                $item->city_id = $cityId > 0 ? $cityId : null;
+                $item->city = $cityId > 0 ? $this->officeCityPayload($cityId) : null;
+                $item->city_label = $item->city['label'] ?? '';
 
                 return $item;
             })
@@ -2544,6 +2580,18 @@ class SettingsController extends Controller
         ];
     }
 
+    private function serializeRegionCityWithRegion(object $row, bool $ignoreFirma = false): array
+    {
+        $city = $this->serializeRegionCity($row);
+        $region = $this->fieldRegionFind(session('fid', ''), $city['region_id'], $ignoreFirma);
+        $regionLabel = $region ? $this->fieldDisplayName($region) : '';
+        $cityLabel = $city['val'] !== '' ? $city['val'] : ($city['valru'] !== '' ? $city['valru'] : $city['valen']);
+        $city['region_name'] = $regionLabel;
+        $city['label'] = trim($cityLabel . ($regionLabel !== '' ? ' — ' . $regionLabel : ''));
+
+        return $city;
+    }
+
     private function catalogFieldLabelPath($byId, int $id): string
     {
         $segments = [];
@@ -2743,6 +2791,7 @@ class SettingsController extends Controller
             'description' => 'nullable|string|max:65535',
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:255',
+            'city_id' => 'nullable|integer|min:1',
             'google_map' => 'nullable|string|max:65535',
             'foto' => 'nullable|string|max:255',
             'foto_file' => 'nullable|image|max:4096',
@@ -2857,6 +2906,16 @@ class SettingsController extends Controller
 
             if (Schema::hasColumn('conf', 'address')) {
                 $data['address'] = trim((string) ($validated['address'] ?? ''));
+            }
+
+            if (Schema::hasColumn('conf', 'city_id')) {
+                $cityId = $this->normalizeOptionalInteger($validated['city_id'] ?? null);
+                if ($cityId !== null && ! $this->regionCityFind(session('fid', ''), $cityId, true)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'city_id' => 'Выберите город из справочника городов.',
+                    ]);
+                }
+                $data['city_id'] = $cityId;
             }
 
             if (Schema::hasColumn('conf', 'google_map')) {
@@ -2982,6 +3041,10 @@ class SettingsController extends Controller
 
         if ($type === 'sklads') {
             $item->foto_preview = MediaUrl::image((string) ($item->foto ?? ''));
+            $cityId = property_exists($item, 'city_id') ? (int) ($item->city_id ?? 0) : 0;
+            $item->city_id = $cityId > 0 ? $cityId : null;
+            $item->city = $cityId > 0 ? $this->officeCityPayload($cityId) : null;
+            $item->city_label = $item->city['label'] ?? '';
         }
 
         if (in_array($type, ['currency', 'faq'], true)) {
@@ -3852,6 +3915,23 @@ class SettingsController extends Controller
             'visible' => (string) (property_exists($item, 'visible') ? ($item->visible ?? '1') : '1'),
             'firstpage' => (string) (property_exists($item, 'firstpage') ? ($item->firstpage ?? '0') : '0'),
         ];
+    }
+
+    private function fieldDisplayName(object $item): string
+    {
+        $ua = property_exists($item, 'valua') ? trim((string) ($item->valua ?? '')) : '';
+        $ru = trim((string) ($item->val ?? ''));
+        $legacyRu = property_exists($item, 'valru') ? trim((string) ($item->valru ?? '')) : '';
+        $en = property_exists($item, 'valen') ? trim((string) ($item->valen ?? '')) : '';
+
+        return $ua !== '' ? $ua : ($ru !== '' ? $ru : ($legacyRu !== '' ? $legacyRu : $en));
+    }
+
+    private function officeCityPayload(int $cityId): ?array
+    {
+        $city = $this->regionCityFind(session('fid', ''), $cityId, true);
+
+        return $city ? $this->serializeRegionCityWithRegion($city, true) : null;
     }
 
     private function normalizeOptionalInteger($value): ?int
