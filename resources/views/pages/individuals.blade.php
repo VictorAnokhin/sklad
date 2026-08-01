@@ -96,7 +96,7 @@
     </div>
 
     <div class="mt-4 pt-4 text-center" style="border-top: 1px solid rgba(255,255,255,0.05);">
-        <a href="{{ route('register') }}" class="btn btn-animated" style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #111; font-weight: 700; font-size: 1.1rem; padding: 0.85rem 3rem; border-radius: 8px; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);">Создать аккаунт</a>
+        <a href="{{ route('about') }}" class="btn btn-animated" style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #111; font-weight: 700; font-size: 1.1rem; padding: 0.85rem 3rem; border-radius: 8px; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);">Присоедениться</a>
     </div>
 </div>
 @endsection

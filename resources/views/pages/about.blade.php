@@ -21,6 +21,48 @@
         background: rgba(255,255,255,0.03);
         border-left: 4px solid #fbbf24;
     }
+    .about-step-card {
+        position: relative;
+        display: grid;
+        grid-template-columns: 110px minmax(0, 1fr);
+        gap: 1.5rem;
+        align-items: start;
+        overflow: hidden;
+    }
+    .about-step-number {
+        font-size: clamp(4.5rem, 11vw, 7.5rem);
+        line-height: 0.86;
+        font-weight: 900;
+        letter-spacing: -0.08em;
+        color: transparent;
+        -webkit-text-stroke: 1px rgba(251, 191, 36, 0.85);
+        text-shadow: 0 0 28px rgba(251, 191, 36, 0.26);
+    }
+    .about-step-content {
+        position: relative;
+        z-index: 1;
+    }
+    .about-step-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-top: 1rem;
+        color: #fbbf24;
+        font-weight: 700;
+        text-decoration: none;
+    }
+    .about-step-link:hover {
+        color: #fde68a;
+    }
+    @media (max-width: 640px) {
+        .about-step-card {
+            grid-template-columns: 1fr;
+            gap: 0.8rem;
+        }
+        .about-step-number {
+            font-size: 4rem;
+        }
+    }
     @keyframes fadeInScale {
         from { opacity: 0; transform: scale(0.97) translateY(10px); }
         to { opacity: 1; transform: scale(1) translateY(0); }
@@ -44,48 +86,57 @@
 <div class="glass-card animated-card" style="padding: 2.5rem; max-width: 1000px; margin: 0 auto; border-radius: 16px;">
     <img src="{{ asset('images/about_hero_1776457354755.png') }}" class="hero-image" alt="About AV8">
 
-    <h2 class="mb-4" style="color: #fbbf24; font-weight: 700; border-bottom: 1px solid rgba(251, 191, 36, 0.2); padding-bottom: 1rem;">
-        О платформе AV8 Capital
-    </h2>
-    
     <p class="mb-5 text-white" style="font-size: 1.15rem; line-height: 1.6; opacity: 0.9;">
         AV8 Capital — это больше, чем инструмент для ведения бизнеса или удобный кошелек. Это комплексная экосистема, объединяющая передовые финансовые технологии, профессиональный управленческий учет и реальные инструменты для заработка на глобальных рынках.
     </p>
 
     <div class="row mt-4">
         <div class="col-12 mb-4">
-            <div class="hover-feature">
-                <h4 style="color: #fff; font-size: 1.3rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                    <span style="color: #fbbf24; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #fbbf24; box-shadow: 0 0 10px #fbbf24;"></span>
-                    Управленческий и финансовый учет
-                </h4>
-                <p style="color: rgba(255, 255, 255, 0.75); font-size: 1.05rem; line-height: 1.7;">
-                    Мы предоставляем полноформатную ERP-инфраструктуру для прозрачного учета всех процессов вашей деятельности. Вы получаете возможность детально анализировать финансовые потоки, контролировать кассы и расчетные счета, формировать отчеты о прибылях и убытках (P&L, Cash Flow), балансовые отчеты и глубокую аналитику. Встроенный учет товаров автоматически связывает закупки и продажи, исключая любые расхождения в документации.
-                </p>
+            <div class="hover-feature about-step-card">
+                <div class="about-step-number">01</div>
+                <div class="about-step-content">
+                    <h4 style="color: #fff; font-size: 1.3rem; margin-bottom: 1rem;">Начать с тестирования и обучения</h4>
+                    <p style="color: rgba(255, 255, 255, 0.75); font-size: 1.05rem; line-height: 1.7;">
+                        Первый шаг — понять себя, свои сильные стороны, отношение к риску и готовность принимать финансовые решения. После тестирования пользователь может перейти к обучению в Академии AV8, закрыть пробелы в знаниях и двигаться дальше уже осознанно.
+                    </p>
+                    <a href="https://av8.fund/know-yourself" target="_blank" rel="noreferrer" class="about-step-link">Перейти к тестам и обучению →</a>
+                </div>
             </div>
         </div>
 
         <div class="col-12 mb-4">
-            <div class="hover-feature">
-                <h4 style="color: #fff; font-size: 1.3rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                    <span style="color: #fbbf24; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #fbbf24; box-shadow: 0 0 10px #fbbf24;"></span>
-                    Маркетплейс и электронная коммерция
-                </h4>
-                <p style="color: rgba(255, 255, 255, 0.75); font-size: 1.05rem; line-height: 1.7;">
-                    Развивайте новые каналы сбыта: инструменты системы позволяют легко выгружать и размещать вашу продукцию и услуги для онлайн-продаж. Вы можете выставлять свои товары на нашем централизованном маркетплейсе, повышая узнаваемость бренда, или бесшовно интегрировать ассортимент на свой личный сайт. При этом управление ценами, остатками и статусами заказов происходит в едином удобном окне кабинета.
-                </p>
+            <div class="hover-feature about-step-card">
+                <div class="about-step-number">02</div>
+                <div class="about-step-content">
+                    <h4 style="color: #fff; font-size: 1.3rem; margin-bottom: 1rem;">Управленческий и финансовый учет</h4>
+                    <p style="color: rgba(255, 255, 255, 0.75); font-size: 1.05rem; line-height: 1.7;">
+                        Мы предоставляем полноформатную ERP-инфраструктуру для прозрачного учета всех процессов деятельности. Вы получаете детальный анализ финансовых потоков, контроль касс и расчетных счетов, отчеты P&L, Cash Flow, баланс, складской учет и аналитику для решений без догадок.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 mb-4">
+            <div class="hover-feature about-step-card">
+                <div class="about-step-number">03</div>
+                <div class="about-step-content">
+                    <h4 style="color: #fff; font-size: 1.3rem; margin-bottom: 1rem;">Маркетплейс и электронная коммерция</h4>
+                    <p style="color: rgba(255, 255, 255, 0.75); font-size: 1.05rem; line-height: 1.7;">
+                        Развивайте каналы сбыта: инструменты системы позволяют размещать продукцию и услуги для онлайн-продаж, управлять ассортиментом, ценами, остатками и заказами в одном окне. Маркетплейс помогает проверить спрос и вывести бизнес к реальным клиентам.
+                    </p>
+                </div>
             </div>
         </div>
 
         <div class="col-12 mb-2">
-            <div class="hover-feature">
-                <h4 style="color: #fff; font-size: 1.3rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                    <span style="color: #fbbf24; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #fbbf24; box-shadow: 0 0 10px #fbbf24;"></span>
-                    Инвестиционная деятельность
-                </h4>
-                <p style="color: rgba(255, 255, 255, 0.75); font-size: 1.05rem; line-height: 1.7;">
-                    Капитализируйте свои свободные средства. С помощью платформы пользователи получают прямой доступ к уникальным инвестиционным продуктам. Мы предлагаем возможность участвовать вместе с инвестиционными пулами нашей компании в профильных сделках и получать доход на традиционном фондовом рынке, а также на высоколиквидном рынке криптовалют. Интеграция Web3-кошельков гарантирует абсолютную безопасность и прозрачность начислений.
-                </p>
+            <div class="hover-feature about-step-card">
+                <div class="about-step-number">04</div>
+                <div class="about-step-content">
+                    <h4 style="color: #fff; font-size: 1.3rem; margin-bottom: 1rem;">Инвестиционная деятельность</h4>
+                    <p style="color: rgba(255, 255, 255, 0.75); font-size: 1.05rem; line-height: 1.7;">
+                        Когда учет и продажи дают понятный денежный поток, свободные средства можно превращать в капитал. Платформа открывает доступ к инвестиционным направлениям, пулам, цифровым активам и прозрачной логике участия, где пользователь видит правила, риски и движение средств.
+                    </p>
+                </div>
             </div>
         </div>
     </div>
