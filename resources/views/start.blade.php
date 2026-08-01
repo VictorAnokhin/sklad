@@ -179,10 +179,10 @@
     display: flex;
     justify-content: center;
     padding: 0.85rem;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(226, 232, 240, 0.95);
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.025);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
   }
 
   .google-signin-slot {
