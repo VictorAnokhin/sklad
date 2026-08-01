@@ -1,7 +1,7 @@
 @extends('home')
 
 @section('title')
-Вхід в систему
+Авторизація
 @endsection
 
 @section('content')
@@ -12,8 +12,6 @@
     @endif
 
     <div class="login-card-head">
-      <span class="login-eyebrow">AV8 Capital</span>
-      <h1>Вхід в систему</h1>
       <p>Авторизуйтесь через Google або використайте email і пароль.</p>
     </div>
 
@@ -144,20 +142,6 @@
   .login-card-head {
     margin-bottom: 1.25rem;
     text-align: center;
-  }
-
-  .login-eyebrow {
-    display: inline-flex;
-    margin-bottom: 0.65rem;
-    border: 1px solid rgba(45, 212, 191, 0.26);
-    border-radius: 999px;
-    background: rgba(45, 212, 191, 0.1);
-    padding: 0.35rem 0.75rem;
-    color: #8ff5e5;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
   }
 
   .login-card-head h1 {
