@@ -19,11 +19,6 @@
 
     @if(!empty($googleClientId))
     <div class="login-google-panel">
-      <div class="login-google-icon" aria-hidden="true">G</div>
-      <div class="login-google-copy">
-        <h2>Вхід через Google</h2>
-        <p>Швидкий доступ до особистого кабінету.</p>
-      </div>
       <div id="google-signin-button" class="google-signin-slot"></div>
       <form id="google-login-form" action="{{ route('login.google') }}" method="post" style="display:none">
         @csrf
@@ -181,48 +176,19 @@
   }
 
   .login-google-panel {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.85rem;
-    align-items: center;
-    padding: 1rem;
-    border: 1px solid rgba(45, 212, 191, 0.22);
-    border-radius: 22px;
-    background:
-      radial-gradient(circle at top left, rgba(45, 212, 191, 0.18), transparent 42%),
-      rgba(255, 255, 255, 0.045);
-    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
-  }
-
-  .login-google-icon {
-    display: grid;
-    width: 48px;
-    height: 48px;
-    place-items: center;
-    border-radius: 16px;
-    background: #fff;
-    color: #1f2937;
-    font-size: 1.35rem;
-    font-weight: 800;
-  }
-
-  .login-google-copy h2 {
-    margin: 0;
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 700;
-  }
-
-  .login-google-copy p {
-    margin: 0.25rem 0 0;
-    color: rgba(255, 255, 255, 0.62);
-    font-size: 0.84rem;
+    display: flex;
+    justify-content: center;
+    padding: 0.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.025);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
   .google-signin-slot {
-    grid-column: 1 / -1;
     display: flex;
     justify-content: center;
+    width: 100%;
     min-height: 44px;
   }
 
@@ -309,15 +275,6 @@
 
     .login-card {
       padding: 1rem;
-    }
-
-    .login-google-panel {
-      grid-template-columns: 1fr;
-      text-align: center;
-    }
-
-    .login-google-icon {
-      margin: 0 auto;
     }
 
     .login-register-row {
