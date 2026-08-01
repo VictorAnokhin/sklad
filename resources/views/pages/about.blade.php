@@ -29,6 +29,10 @@
         align-items: start;
         overflow: hidden;
     }
+    .about-step-card:hover {
+        transform: none;
+        border-left: 1px solid rgba(251, 191, 36, 0.35);
+    }
     .about-step-number {
         font-size: clamp(4.5rem, 11vw, 7.5rem);
         line-height: 0.86;
@@ -37,6 +41,12 @@
         color: transparent;
         -webkit-text-stroke: 1px rgba(251, 191, 36, 0.85);
         text-shadow: 0 0 28px rgba(251, 191, 36, 0.26);
+        transition: color 0.25s ease, text-shadow 0.25s ease, -webkit-text-stroke-color 0.25s ease;
+    }
+    .about-step-card:hover .about-step-number {
+        color: rgba(251, 191, 36, 0.12);
+        -webkit-text-stroke-color: #fbbf24;
+        text-shadow: 0 0 18px rgba(251, 191, 36, 0.52), 0 0 46px rgba(251, 191, 36, 0.24);
     }
     .about-step-content {
         position: relative;
