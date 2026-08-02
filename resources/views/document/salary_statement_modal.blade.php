@@ -186,10 +186,17 @@
             border: 0;
         }
 
+        .salary-statement-table tbody td:not(.salary-statement-row-actions) {
+            display: grid;
+            grid-template-columns: minmax(112px, 32%) minmax(0, 1fr);
+            align-items: center;
+            column-gap: 12px;
+        }
+
         .salary-statement-table tbody td::before {
             content: attr(data-label);
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 0;
             color: #94a3b8;
             font-size: .74rem;
             font-weight: 600;
@@ -197,9 +204,26 @@
             text-transform: uppercase;
         }
 
+        .salary-statement-cell-value,
+        .salary-statement-table .input-group {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .salary-statement-table .input-group .form-control {
+            min-width: 0;
+            width: 1%;
+            flex: 1 1 auto;
+        }
+
+        .salary-statement-table .btn {
+            width: 100%;
+            white-space: normal;
+        }
+
         .salary-statement-table td.salary-statement-row-actions {
             display: flex;
-            justify-content: flex-end;
+            justify-content: stretch;
             padding-top: 4px;
         }
 
@@ -487,27 +511,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td data-label="Сотрудник">
-                    <div class="fw-semibold">${escapeHtml(line.employee_name || '')}</div>
-                    <div class="small text-muted">${escapeHtml(line.email || '')}</div>
+                    <div class="salary-statement-cell-value">
+                        <div class="fw-semibold">${escapeHtml(line.employee_name || '')}</div>
+                        <div class="small text-muted">${escapeHtml(line.email || '')}</div>
+                    </div>
                 </td>
                 <td data-label="Размер зарплаты">
-                    <div class="input-group">
-                        <input type="number" min="0" step="0.01" class="form-control"
-                            data-salary-input data-employee-id="${line.employee_id}"
-                            value="${Number(line.salary_amount || 0).toFixed(2)}" ${paid ? 'disabled' : ''}>
-                        <span class="input-group-text">грн</span>
+                    <div class="salary-statement-cell-value">
+                        <div class="input-group">
+                            <input type="number" min="0" step="0.01" class="form-control"
+                                data-salary-input data-employee-id="${line.employee_id}"
+                                value="${Number(line.salary_amount || 0).toFixed(2)}" ${paid ? 'disabled' : ''}>
+                            <span class="input-group-text">грн</span>
+                        </div>
                     </div>
                 </td>
                 <td data-label="Документ ZP">
-                    ${paid
-                        ? `<a href="${escapeHtml(line.zp_url || '#')}" class="btn btn-sm ${Number(line.zp_posted) === 1 ? 'btn-outline-success' : 'btn-outline-warning'}">ZP №${escapeHtml(line.zp_num || '')}</a>`
-                        : '<span class="text-muted">—</span>'}
+                    <div class="salary-statement-cell-value">
+                        ${paid
+                            ? `<a href="${escapeHtml(line.zp_url || '#')}" class="btn btn-sm ${Number(line.zp_posted) === 1 ? 'btn-outline-success' : 'btn-outline-warning'}">ZP №${escapeHtml(line.zp_num || '')}</a>`
+                            : '<span class="text-muted">—</span>'}
+                    </div>
                 </td>
                 <td data-label="Выплата">
-                    <button type="button" class="btn btn-sm btn-success" data-payout-line
-                        data-employee-id="${line.employee_id}" ${!statement || paid || Number(line.salary_amount) <= 0 ? 'disabled' : ''}>
-                        Выпл.
-                    </button>
+                    <div class="salary-statement-cell-value">
+                        <button type="button" class="btn btn-sm btn-success" data-payout-line
+                            data-employee-id="${line.employee_id}" ${!statement || paid || Number(line.salary_amount) <= 0 ? 'disabled' : ''}>
+                            Выпл.
+                        </button>
+                    </div>
                 </td>
                 <td class="text-end salary-statement-row-actions">
                     <button type="button" class="btn btn-sm btn-outline-danger" data-remove-line
