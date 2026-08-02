@@ -356,6 +356,12 @@
         font-weight: 600;
     }
 
+    .course-pagination svg {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+    }
+
     .course-pagination .page-link:hover,
     .course-pagination .page-link:focus {
         border-color: rgba(255, 193, 7, .72);
@@ -401,6 +407,12 @@
             min-width: 36px;
             height: 36px;
             padding: .35rem .55rem;
+        }
+
+        .course-pagination svg {
+            width: 14px;
+            height: 14px;
+            flex-basis: 14px;
         }
     }
 
