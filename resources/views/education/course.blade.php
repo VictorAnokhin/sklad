@@ -35,135 +35,316 @@
         ];
         $openCategoryId = (string) session('open_category_id', session('education_course_open_category_id', ''));
         $categoryGroups = $categoryGroups ?? collect();
+        $courseDetailTopic = $courseDetailTopic ?? null;
+        $courseList = $courseList ?? collect();
+        $selectedCategoryId = (string) ($selectedCategoryId ?? request('category', ''));
+        $selectedCategoryGroup = $categoryGroups->firstWhere('key', $selectedCategoryId);
+        $currentListTitle = $selectedCategoryId === ''
+            ? 'Новые курсы'
+            : ($selectedCategoryGroup['title'] ?? 'Курсы категории');
     @endphp
 
-    <ul class="nav nav-tabs border-secondary mb-4" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active bg-dark text-warning border-secondary" id="lessons-tab" data-bs-toggle="tab"
-                    data-bs-target="#lessons-pane" type="button" role="tab" aria-controls="lessons-pane"
-                    aria-selected="true">
-                Уроки
-            </button>
-        </li>
-    </ul>
+    <div class="education-course-layout">
+        <aside class="education-course-sidebar">
+            <div class="education-course-menu">
+                <a href="{{ route('education.course') }}"
+                   class="education-course-menu-item {{ !$courseDetailTopic && $selectedCategoryId === '' ? 'is-active' : '' }}">
+                    <span>Новые курсы</span>
+                    <span class="badge rounded-pill text-bg-secondary">5</span>
+                </a>
+                @foreach($categoryGroups as $categoryGroup)
+                    @php
+                        $categoryKey = (string) $categoryGroup['key'];
+                        $isActiveCategory = $selectedCategoryId === $categoryKey;
+                    @endphp
+                    <a href="{{ route('education.course', ['category' => $categoryKey]) }}"
+                       class="education-course-menu-item {{ $isActiveCategory ? 'is-active' : '' }}">
+                        <span>{{ $categoryGroup['title'] }}</span>
+                        <span class="badge rounded-pill text-bg-secondary">{{ $categoryGroup['topics']->count() }}</span>
+                    </a>
+                @endforeach
+            </div>
+        </aside>
 
-    <div class="tab-content">
-        <div class="tab-pane fade show active" id="lessons-pane" role="tabpanel" aria-labelledby="lessons-tab" tabindex="0">
-            @if($categoryGroups->isNotEmpty())
-                <div class="accordion" id="course-category-accordion">
-                    @foreach($categoryGroups as $categoryGroup)
-                        @php
-                            $categoryKey = $categoryGroup['key'];
-                            $categoryHeadingId = 'course-category-' . $categoryKey . '-heading';
-                            $categoryBodyId = 'course-category-' . $categoryKey . '-body';
-                            $isOpenCategory = $openCategoryId !== ''
-                                ? $openCategoryId === $categoryKey
-                                : $loop->first;
-                        @endphp
-                        <div class="accordion-item bg-dark border-secondary text-light">
-                            <h2 class="accordion-header" id="{{ $categoryHeadingId }}">
-                                <button class="accordion-button bg-dark text-light {{ $isOpenCategory ? '' : 'collapsed' }}" type="button"
-                                        data-bs-toggle="collapse" data-bs-target="#{{ $categoryBodyId }}"
-                                        aria-expanded="{{ $isOpenCategory ? 'true' : 'false' }}" aria-controls="{{ $categoryBodyId }}">
-                                    <span class="me-3 fw-semibold">{{ $categoryGroup['title'] }}</span>
-                                    <span class="badge text-bg-secondary">{{ $categoryGroup['topics']->count() }} курс(ов)</span>
-                                </button>
-                            </h2>
-                            <div id="{{ $categoryBodyId }}" class="accordion-collapse collapse {{ $isOpenCategory ? 'show' : '' }}"
-                                 data-category-id="{{ $categoryKey }}" aria-labelledby="{{ $categoryHeadingId }}" data-bs-parent="#course-category-accordion">
-                                <div class="accordion-body">
-                                    @forelse($categoryGroup['topics'] as $topic)
-                                        @php
-                                            $progress = $topic->relationLoaded('studentProgress') ? $topic->getRelation('studentProgress') : null;
-                                            $accordionId = 'course-lessons-' . $topic->id;
-                                            $requiredRating = (int) $topic->position;
-                                        @endphp
-
-                                        <div class="accordion mb-3" id="course-accordion-{{ $topic->id }}">
-                                            <div class="accordion-item bg-dark border-secondary text-light">
-                                                <h2 class="accordion-header" id="{{ $accordionId }}-heading">
-                                                    <button class="accordion-button collapsed bg-dark text-light" type="button"
-                                                            data-bs-toggle="collapse" data-bs-target="#{{ $accordionId }}-body"
-                                                            aria-expanded="false" aria-controls="{{ $accordionId }}-body">
-                                                        <span class="me-3 fw-semibold">{{ $topic->title }}</span>
-                                                        <span class="badge text-bg-warning me-2">Рейтинг {{ $requiredRating }}</span>
-                                                        <span class="badge text-bg-secondary">{{ $topic->materials->count() }} урок(ов)</span>
-                                                    </button>
-                                                </h2>
-                                                <div id="{{ $accordionId }}-body" class="accordion-collapse collapse" data-topic-id="{{ $topic->id }}"
-                                                     aria-labelledby="{{ $accordionId }}-heading">
-                                                    <div class="accordion-body">
-                                                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
-                                                            <div>
-                                                                @if($progress)
-                                                                    <div class="small text-secondary">
-                                                                        Успешных попыток: {{ $progress->passed_attempts }} · неуспешных: {{ $progress->failed_attempts }}
-                                                                    </div>
-                                                                @endif
-                                                            </div>
-                                                            <div class="d-flex gap-2">
-                                                                <button type="button" class="btn btn-sm btn-outline-light edit-topic-button"
-                                                                        data-topic-id="{{ $topic->id }}" data-category-id="{{ $categoryKey }}">
-                                                                    Изменить курс
-                                                                </button>
-                                                                <button type="button" class="btn btn-sm btn-warning create-material-button"
-                                                                        data-topic-id="{{ $topic->id }}" data-category-id="{{ $categoryKey }}">
-                                                                    Добавить урок
-                                                                </button>
-                                                            </div>
-                                                        </div>
-
-                                                        @if($topic->materials->isNotEmpty())
-                                                            <div class="table-responsive">
-                                                                <table class="table table-dark table-hover align-middle mb-0">
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th style="width: 72px;">№</th>
-                                                                            <th class="w-50">Наименование</th>
-                                                                            <th>Рейтинг</th>
-                                                                            <th>Тип</th>
-                                                                            <th>Версия</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        @foreach($topic->materials as $topicMaterial)
-                                                                            <tr class="lesson-row" role="button" tabindex="0"
-                                                                                data-material-id="{{ $topicMaterial->id }}" data-category-id="{{ $categoryKey }}">
-                                                                                <td>{{ $loop->iteration }}</td>
-                                                                                <td>
-                                                                                    <div class="fw-semibold">{{ $topicMaterial->title ?: 'Урок #' . $topicMaterial->id }}</div>
-                                                                                </td>
-                                                                                <td>{{ (int) ($topicMaterial->rating ?? $topic->position ?? 0) }}</td>
-                                                                                <td>{{ $contentTypeLabels[$topicMaterial->content_type] ?? $topicMaterial->content_type }}</td>
-                                                                                <td>v{{ $topicMaterial->version }}</td>
-                                                                            </tr>
-                                                                        @endforeach
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        @else
-                                                            <div class="alert alert-secondary mb-0">В этом курсе пока нет уроков.</div>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @empty
-                                        <div class="alert alert-secondary mb-0">В этой категории пока нет курсов.</div>
-                                    @endforelse
-                                </div>
-                            </div>
+        <section class="education-course-main">
+            @if($courseDetailTopic)
+                @php
+                    $detailCategoryKey = $courseDetailTopic->category_id ? (string) $courseDetailTopic->category_id : 'none';
+                    $detailProgress = $courseDetailTopic->relationLoaded('studentProgress') ? $courseDetailTopic->getRelation('studentProgress') : null;
+                @endphp
+                <div class="course-detail-card">
+                    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-4">
+                        <div>
+                            <a href="{{ route('education.course', ['category' => $detailCategoryKey]) }}" class="small text-warning text-decoration-none">
+                                ← К списку курсов
+                            </a>
+                            <h1 class="h3 mt-3 mb-2">{{ $courseDetailTopic->title }}</h1>
+                            @if($courseDetailTopic->description)
+                                <div class="text-secondary">{{ $courseDetailTopic->description }}</div>
+                            @endif
                         </div>
-                    @endforeach
+                        <div class="course-detail-actions">
+                            <button type="button" class="btn btn-outline-light edit-topic-button"
+                                    data-topic-id="{{ $courseDetailTopic->id }}" data-category-id="{{ $detailCategoryKey }}">
+                                Изменить курс
+                            </button>
+                            <button type="button" class="btn btn-warning create-material-button"
+                                    data-topic-id="{{ $courseDetailTopic->id }}" data-category-id="{{ $detailCategoryKey }}">
+                                Добавить урок
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="course-detail-metrics mb-4">
+                        <div>
+                            <span>Рейтинг</span>
+                            <strong>{{ (int) $courseDetailTopic->position }}</strong>
+                        </div>
+                        <div>
+                            <span>Стоимость</span>
+                            <strong>{{ rtrim(rtrim(number_format((float) ($courseDetailTopic->cost_av8 ?? 0), 6, '.', ' '), '0'), '.') }} AV8</strong>
+                        </div>
+                        <div>
+                            <span>Уроков</span>
+                            <strong>{{ $courseDetailTopic->materials->count() }}</strong>
+                        </div>
+                        @if($detailProgress)
+                            <div>
+                                <span>Попытки</span>
+                                <strong>{{ $detailProgress->passed_attempts }} / {{ $detailProgress->failed_attempts }}</strong>
+                            </div>
+                        @endif
+                    </div>
+
+                    @if($courseDetailTopic->materials->isNotEmpty())
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 72px;">№</th>
+                                        <th>Урок</th>
+                                        <th style="width: 120px;">Рейтинг</th>
+                                        <th style="width: 180px;">Тип</th>
+                                        <th style="width: 96px;">Версия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($courseDetailTopic->materials as $topicMaterial)
+                                        <tr class="lesson-row" role="button" tabindex="0"
+                                            data-material-id="{{ $topicMaterial->id }}" data-category-id="{{ $detailCategoryKey }}">
+                                            <td>{{ $loop->iteration }}</td>
+                                            <td>
+                                                <div class="fw-semibold">{{ $topicMaterial->title ?: 'Урок #' . $topicMaterial->id }}</div>
+                                            </td>
+                                            <td>{{ (int) ($topicMaterial->rating ?? $courseDetailTopic->position ?? 0) }}</td>
+                                            <td>{{ $contentTypeLabels[$topicMaterial->content_type] ?? $topicMaterial->content_type }}</td>
+                                            <td>v{{ $topicMaterial->version }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <div class="alert alert-secondary mb-0">В этом курсе пока нет уроков.</div>
+                    @endif
                 </div>
             @else
-                <div class="alert alert-info">Курсы ещё не добавлены.</div>
+                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
+                    <div>
+                        <h1 class="h3 mb-1">{{ $currentListTitle }}</h1>
+                        <div class="text-secondary small">Показано по 5 курсов.</div>
+                    </div>
+                </div>
+
+                @if($courseList->count())
+                    <div class="course-list">
+                        @foreach($courseList as $topic)
+                            @php
+                                $topicCategoryKey = $topic->category_id ? (string) $topic->category_id : 'none';
+                            @endphp
+                            <article class="course-list-card">
+                                <div class="course-list-card-body">
+                                    <div>
+                                        <div class="small text-secondary mb-2">{{ $topic->category?->title ?? 'Без категории' }}</div>
+                                        <h2 class="h5 mb-2">
+                                            <a href="{{ route('education.course.show', ['topic' => $topic->id]) }}" class="text-light text-decoration-none">
+                                                {{ $topic->title }}
+                                            </a>
+                                        </h2>
+                                        @if($topic->description)
+                                            <div class="course-list-description text-secondary">{{ $topic->description }}</div>
+                                        @endif
+                                    </div>
+                                    <div class="course-list-meta">
+                                        <span>Рейтинг {{ (int) $topic->position }}</span>
+                                        <span>{{ $topic->materials->count() }} урок(ов)</span>
+                                        <span>{{ rtrim(rtrim(number_format((float) ($topic->cost_av8 ?? 0), 6, '.', ' '), '0'), '.') }} AV8</span>
+                                    </div>
+                                </div>
+                                <div class="course-list-actions">
+                                    <a href="{{ route('education.course.show', ['topic' => $topic->id]) }}" class="btn btn-sm btn-warning">
+                                        Открыть
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-light edit-topic-button"
+                                            data-topic-id="{{ $topic->id }}" data-category-id="{{ $topicCategoryKey }}">
+                                        Изменить
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning create-material-button"
+                                            data-topic-id="{{ $topic->id }}" data-category-id="{{ $topicCategoryKey }}">
+                                        Урок
+                                    </button>
+                                </div>
+                            </article>
+                        @endforeach
+                    </div>
+
+                    @if(method_exists($courseList, 'links'))
+                        <div class="mt-4">
+                            {{ $courseList->links() }}
+                        </div>
+                    @endif
+                @else
+                    <div class="alert alert-info">Курсы ещё не добавлены.</div>
+                @endif
             @endif
-        </div>
+        </section>
     </div>
 </div>
 
 <style>
+    .education-course-layout {
+        display: grid;
+        grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+        gap: 24px;
+        align-items: start;
+    }
+
+    .education-course-sidebar {
+        position: sticky;
+        top: 86px;
+    }
+
+    .education-course-menu,
+    .course-detail-card,
+    .course-list-card {
+        background: #111827;
+        border: 1px solid rgba(148, 163, 184, .35);
+        border-radius: 14px;
+    }
+
+    .education-course-menu {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .education-course-menu-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        color: #d7dee9;
+        text-decoration: none;
+    }
+
+    .education-course-menu-item:hover,
+    .education-course-menu-item.is-active {
+        background: rgba(255, 193, 7, .14);
+        color: #ffc107;
+    }
+
+    .course-list {
+        display: grid;
+        gap: 14px;
+    }
+
+    .course-list-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        padding: 18px;
+    }
+
+    .course-list-card-body {
+        display: grid;
+        gap: 14px;
+        min-width: 0;
+    }
+
+    .course-list-description {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .course-list-meta,
+    .course-detail-metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .course-list-meta span,
+    .course-detail-metrics > div {
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: 10px;
+        padding: 8px 10px;
+        color: #cbd5e1;
+        background: rgba(15, 23, 42, .85);
+    }
+
+    .course-detail-metrics > div {
+        min-width: 132px;
+    }
+
+    .course-detail-metrics span {
+        display: block;
+        color: #94a3b8;
+        font-size: .78rem;
+    }
+
+    .course-detail-metrics strong {
+        display: block;
+        color: #fff;
+        font-size: 1rem;
+        margin-top: 2px;
+    }
+
+    .course-list-actions,
+    .course-detail-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-content: start;
+        justify-content: flex-end;
+    }
+
+    .course-detail-card {
+        padding: 22px;
+    }
+
+    @media (max-width: 991.98px) {
+        .education-course-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .education-course-sidebar {
+            position: static;
+        }
+
+        .course-list-card {
+            grid-template-columns: 1fr;
+        }
+
+        .course-list-actions,
+        .course-detail-actions {
+            justify-content: flex-start;
+        }
+    }
+
     #topic-title-tabs .nav-link.active,
     #topic-description-tabs .nav-link.active,
     #material-title-tabs .nav-link.active,

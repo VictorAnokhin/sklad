@@ -676,13 +676,14 @@ class EducationController extends Controller
         ]);
     }
 
-    public function course(EducationMaterialResolver $resolver)
+    public function course(Request $request, EducationMaterialResolver $resolver)
     {
         $project = $this->educationProject();
         if (!$this->educationSchemaReady()) {
             return view('education.course', [
                 'project' => $project,
                 'topics' => collect(),
+                'courseList' => collect(),
                 'materialEditorItems' => [],
                 'topicEditorItems' => [],
                 'migrationRequired' => true,
@@ -692,6 +693,58 @@ class EducationController extends Controller
             ]);
         }
 
+        $payload = $this->educationCoursePayload($project, $resolver);
+        $selectedCategoryId = trim((string) $request->query('category', ''));
+        $courseListQuery = EducationTopic::query()
+            ->where('project_id', $project->id)
+            ->where('is_active', true)
+            ->with(['category', 'materials' => fn ($query) => $query
+                ->where('is_active', true)
+                ->orderBy('rating')
+                ->orderBy('level')
+                ->orderByRaw('CAST(version AS DECIMAL(10,2))')]);
+
+        if ($selectedCategoryId !== '') {
+            if ($selectedCategoryId === 'none') {
+                $courseListQuery->whereNull('category_id');
+            } elseif (ctype_digit($selectedCategoryId)) {
+                $courseListQuery->where('category_id', (int) $selectedCategoryId);
+            }
+
+            $courseListQuery->orderBy('position')->orderBy('id');
+        } else {
+            $courseListQuery->orderByDesc('created_at')->orderByDesc('id');
+        }
+
+        return view('education.course', $payload + [
+            'project' => $project,
+            'courseList' => $courseListQuery->paginate(5)->withQueryString(),
+            'selectedCategoryId' => $selectedCategoryId,
+            'courseDetailTopic' => null,
+            'migrationRequired' => false,
+        ]);
+    }
+
+    public function courseShow(int $topic, EducationMaterialResolver $resolver)
+    {
+        $project = $this->educationProject();
+        abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
+
+        $payload = $this->educationCoursePayload($project, $resolver);
+        $courseDetailTopic = $payload['topics']->firstWhere('id', $topic);
+        abort_unless($courseDetailTopic, 404);
+
+        return view('education.course', $payload + [
+            'project' => $project,
+            'courseList' => collect(),
+            'selectedCategoryId' => $courseDetailTopic->category_id ? (string) $courseDetailTopic->category_id : 'none',
+            'courseDetailTopic' => $courseDetailTopic,
+            'migrationRequired' => false,
+        ]);
+    }
+
+    private function educationCoursePayload(Project $project, EducationMaterialResolver $resolver): array
+    {
         $userId = (int) Auth::id();
 
         $topics = EducationTopic::query()
@@ -761,16 +814,14 @@ class EducationController extends Controller
 
         $categories = $this->educationCategories((int) $project->id, EducationCategory::CONTEXT_COURSE);
 
-        return view('education.course', [
-            'project' => $project,
+        return [
             'topics' => $topics,
             'materialEditorItems' => $materialEditorItems,
             'topicEditorItems' => $topicEditorItems,
             'categories' => $categories,
             'categoryGroups' => $this->educationCategoryGroups($categories, $topics, 'topics'),
             'categoryEditorItems' => $this->categoryEditorItems($categories),
-            'migrationRequired' => false,
-        ]);
+        ];
     }
 
     public function materials()

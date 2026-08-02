@@ -216,9 +216,79 @@
             font-size: 1.15rem;
         }
 
+        .salary-statement-table-wrap {
+            overflow: visible;
+        }
+
+        .salary-statement-table,
+        .salary-statement-table thead,
+        .salary-statement-table tbody,
+        .salary-statement-table tfoot,
+        .salary-statement-table tr,
+        .salary-statement-table td {
+            display: block;
+            width: 100%;
+        }
+
         .salary-statement-table {
-            min-width: 700px;
+            min-width: 0;
+            border-collapse: separate;
+            border-spacing: 0 10px;
             font-size: .875rem;
+        }
+
+        .salary-statement-table thead {
+            display: none;
+        }
+
+        .salary-statement-table tbody tr {
+            padding: 10px;
+            border: 1px solid rgba(148, 163, 184, .28);
+            border-radius: 12px;
+            background: rgba(15, 23, 42, .82);
+        }
+
+        .salary-statement-table td {
+            padding: 8px 0;
+            border: 0;
+        }
+
+        .salary-statement-table tbody td::before {
+            content: attr(data-label);
+            display: block;
+            margin-bottom: 5px;
+            color: #94a3b8;
+            font-size: .74rem;
+            font-weight: 600;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+        }
+
+        .salary-statement-table td.salary-statement-row-actions {
+            display: flex;
+            justify-content: flex-end;
+            padding-top: 4px;
+        }
+
+        .salary-statement-table td.salary-statement-row-actions::before {
+            display: none;
+        }
+
+        .salary-statement-table tfoot tr {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 4px;
+            padding: 10px;
+            border-radius: 12px;
+            background: rgba(255, 193, 7, .12);
+        }
+
+        .salary-statement-table tfoot td {
+            padding: 0;
+        }
+
+        .salary-statement-table tfoot td[colspan] {
+            display: none;
         }
 
         .salary-statement-table .form-control,
@@ -472,11 +542,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const paid = Boolean(line.zp_document_id);
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>
+                <td data-label="Сотрудник">
                     <div class="fw-semibold">${escapeHtml(line.employee_name || '')}</div>
                     <div class="small text-muted">${escapeHtml(line.email || '')}</div>
                 </td>
-                <td>
+                <td data-label="Размер зарплаты">
                     <div class="input-group">
                         <input type="number" min="0" step="0.01" class="form-control"
                             data-salary-input data-employee-id="${line.employee_id}"
@@ -484,18 +554,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="input-group-text">грн</span>
                     </div>
                 </td>
-                <td>
+                <td data-label="Документ ZP">
                     ${paid
                         ? `<a href="${escapeHtml(line.zp_url || '#')}" class="btn btn-sm ${Number(line.zp_posted) === 1 ? 'btn-outline-success' : 'btn-outline-warning'}">ZP №${escapeHtml(line.zp_num || '')}</a>`
                         : '<span class="text-muted">—</span>'}
                 </td>
-                <td>
+                <td data-label="Выплата">
                     <button type="button" class="btn btn-sm btn-success" data-payout-line
                         data-employee-id="${line.employee_id}" ${!statement || paid || Number(line.salary_amount) <= 0 ? 'disabled' : ''}>
                         Выпл.
                     </button>
                 </td>
-                <td class="text-end">
+                <td class="text-end salary-statement-row-actions">
                     <button type="button" class="btn btn-sm btn-outline-danger" data-remove-line
                         data-employee-id="${line.employee_id}" ${paid ? 'disabled' : ''} title="Удалить сотрудника">×</button>
                 </td>
