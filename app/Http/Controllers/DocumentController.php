@@ -706,13 +706,48 @@ class DocumentController extends Controller
         ));
     }
 
-    public function salaryStatementShow(int $id)
+    public function salaryStatementCreate()
+    {
+        abort_unless(Schema::hasTable('salary_statement_lines'), 503, 'Сначала выполните миграции базы данных.');
+
+        return $this->salaryStatementEditorView(0);
+    }
+
+    public function salaryStatementShow(Request $request, int $id)
     {
         abort_unless(Schema::hasTable('salary_statement_lines'), 503, 'Сначала выполните миграции базы данных.');
         $statement = $this->salaryStatement($id, (int) session('fid', 0));
         abort_unless($statement, 404);
 
+        if (! $request->expectsJson()) {
+            return $this->salaryStatementEditorView($id);
+        }
+
         return response()->json($this->salaryStatementPayload($statement));
+    }
+
+    private function salaryStatementEditorView(int $statementId)
+    {
+        $fid = (int) session('fid', 0);
+        if ($statementId > 0) {
+            abort_unless($this->salaryStatement($statementId, $fid), 404);
+        }
+
+        $salaryEmployees = $this->salaryStatementEmployees($fid);
+        $salaryCashboxes = DB::table('conf')
+            ->where('type', 'oplata')
+            ->where('firma', $fid)
+            ->where('vision', '1')
+            ->orderBy('name')
+            ->get(['id', 'name', 'currency']);
+        $salaryPaymentTypes = ConfModel::paymentTypesForDocument($fid, 'ZP');
+
+        return view('document.salary_statement_page', [
+            'initialStatementId' => $statementId,
+            'salaryEmployees' => $salaryEmployees,
+            'salaryCashboxes' => $salaryCashboxes,
+            'salaryPaymentTypes' => $salaryPaymentTypes,
+        ]);
     }
 
     public function salaryStatementStore(Request $request)

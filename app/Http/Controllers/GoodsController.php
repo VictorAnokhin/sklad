@@ -155,6 +155,7 @@ class GoodsController extends Controller
                 $nested->where('comp.firma', $fid)
                     ->orWhere('comp.constanta', 1);
             })
+            ->where('comp.web', '1')
             ->where(function ($outer) use ($qOk, $q, $filterGroups) {
                 if ($qOk) {
                     $outer->where(function ($query) use ($q) {
@@ -164,6 +165,9 @@ class GoodsController extends Controller
                             ->orWhere('d.description', 'LIKE', "%{$q}%")
                             ->orWhere('d.description_ua', 'LIKE', "%{$q}%")
                             ->orWhere('d.description_en', 'LIKE', "%{$q}%")
+                            ->orWhere('comp.nickname', 'LIKE', "%{$q}%")
+                            ->orWhere('comp.namedoc', 'LIKE', "%{$q}%")
+                            ->orWhere('comp.name', 'LIKE', "%{$q}%")
                             ->orWhere('comp.htmlkeyspop', 'LIKE', "%{$q}%");
                     });
                 }
@@ -589,7 +593,7 @@ class GoodsController extends Controller
 
     public function getBySection(Request $request, $id)
     {
-        $limit = (int) $request->input('limit', 20);
+        $limit = max(1, min((int) $request->input('limit', 200), 200));
         $offset = (int) $request->input('offset', 0);
         $hitOnly = $request->boolean('hit');
         $htmlkeyspopRaw = trim((string) $request->input('htmlkeyspop', ''));

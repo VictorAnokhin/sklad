@@ -47,9 +47,9 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
     </div>
   @elseif($doc === 'ZV')
     <div class="top-action-create">
-      <button type="button" class="button top-action-create-btn" data-zv-create data-doc="ZV">
+      <a href="{{ route('document.salaryStatements.create') }}" class="button top-action-create-btn">
         + Выдать ЗП
-      </button>
+      </a>
     </div>
   @else
     <form action="{{ route($documentRoutes . '.save') }}" method="post" name="dataform" class="top-action-create">
@@ -139,8 +139,7 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
   <div class="txtbox-price-docs">
     <div class="order-card__header">
       <div class="numdoc-docs">
-        <a href="{{ $item['linkUrl'] }}" title="{{ __('document.open') }}"
-          @if($doc === 'ZV') data-zv-open data-statement-id="{{ $item['id'] }}" @endif>{{ $item['num'] }}</a>
+        <a href="{{ $doc === 'ZV' ? route('document.salaryStatements.show', ['id' => $item['id']]) : $item['linkUrl'] }}" title="{{ __('document.open') }}">{{ $item['num'] }}</a>
       </div>
       <div class="status-docs-icons--mobile">
         {!! $item['signalIcons'] !!}
@@ -151,8 +150,7 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
       </div>
     </div>
     <div class="captionbox-docs">
-      <a href="{{ $item['linkUrl'] }}" class="title"
-        @if($doc === 'ZV') data-zv-open data-statement-id="{{ $item['id'] }}" @endif>
+      <a href="{{ $doc === 'ZV' ? route('document.salaryStatements.show', ['id' => $item['id']]) : $item['linkUrl'] }}" class="title">
         @if($doc === 'ZV')
           <span class="compact-client-line compact-main">Платежная ведомость №{{ $item['num'] }}</span>
         @endif
@@ -199,13 +197,5 @@ default => __('document.create_new', ['name' => \App\Models\Document::typeName($
 
   @endif
 </div>
-
-@if($doc === 'ZV')
-  @include('document.salary_statement_modal', [
-    'salaryEmployees' => $salaryEmployees ?? collect(),
-    'salaryCashboxes' => $salaryCashboxes ?? collect(),
-    'salaryPaymentTypes' => $salaryPaymentTypes ?? collect(),
-  ])
-@endif
 
 @endsection
