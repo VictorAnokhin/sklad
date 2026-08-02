@@ -199,7 +199,7 @@
                     </div>
 
                     @if(method_exists($courseList, 'links'))
-                        <div class="mt-4">
+                        <div class="course-pagination mt-4">
                             {{ $courseList->links() }}
                         </div>
                     @endif
@@ -326,6 +326,55 @@
         padding: 22px;
     }
 
+    .course-pagination {
+        display: flex;
+        justify-content: center;
+    }
+
+    .course-pagination nav {
+        width: 100%;
+    }
+
+    .course-pagination .pagination {
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 0;
+        flex-wrap: wrap;
+    }
+
+    .course-pagination .page-link {
+        min-width: 40px;
+        height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(148, 163, 184, .32);
+        border-radius: 10px !important;
+        background: #111827;
+        color: #d7dee9;
+        box-shadow: none;
+        font-weight: 600;
+    }
+
+    .course-pagination .page-link:hover,
+    .course-pagination .page-link:focus {
+        border-color: rgba(255, 193, 7, .72);
+        background: rgba(255, 193, 7, .13);
+        color: #ffc107;
+    }
+
+    .course-pagination .page-item.active .page-link {
+        border-color: #ffc107;
+        background: #ffc107;
+        color: #111827;
+    }
+
+    .course-pagination .page-item.disabled .page-link {
+        border-color: rgba(148, 163, 184, .18);
+        background: rgba(15, 23, 42, .65);
+        color: rgba(203, 213, 225, .45);
+    }
+
     @media (max-width: 991.98px) {
         .education-course-layout {
             grid-template-columns: 1fr;
@@ -342,6 +391,16 @@
         .course-list-actions,
         .course-detail-actions {
             justify-content: flex-start;
+        }
+
+        .course-pagination .pagination {
+            gap: 6px;
+        }
+
+        .course-pagination .page-link {
+            min-width: 36px;
+            height: 36px;
+            padding: .35rem .55rem;
         }
     }
 
