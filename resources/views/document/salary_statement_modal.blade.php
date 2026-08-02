@@ -186,17 +186,10 @@
             border: 0;
         }
 
-        .salary-statement-table tbody td:not(.salary-statement-row-actions) {
-            display: grid;
-            grid-template-columns: minmax(112px, 32%) minmax(0, 1fr);
-            align-items: center;
-            column-gap: 12px;
-        }
-
         .salary-statement-table tbody td::before {
             content: attr(data-label);
             display: block;
-            margin-bottom: 0;
+            margin-bottom: 7px;
             color: #94a3b8;
             font-size: .74rem;
             font-weight: 600;
@@ -210,21 +203,31 @@
             min-width: 0;
         }
 
+        .salary-statement-table .input-group {
+            display: flex;
+        }
+
         .salary-statement-table .input-group .form-control {
             min-width: 0;
-            width: 1%;
-            flex: 1 1 auto;
+            width: 100% !important;
+            flex: 1 1 0%;
         }
 
         .salary-statement-table .btn {
+            display: block;
             width: 100%;
             white-space: normal;
         }
 
         .salary-statement-table td.salary-statement-row-actions {
             display: flex;
-            justify-content: stretch;
+            justify-content: flex-end;
             padding-top: 4px;
+        }
+
+        .salary-statement-table td.salary-statement-row-actions .btn {
+            width: 100%;
+            max-width: 120px;
         }
 
         .salary-statement-table td.salary-statement-row-actions::before {
