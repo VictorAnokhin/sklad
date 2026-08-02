@@ -175,6 +175,8 @@
         }
 
         .salary-statement-table tbody tr {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
             padding: 10px;
             border: 1px solid rgba(148, 163, 184, .28);
             border-radius: 12px;
@@ -182,6 +184,9 @@
         }
 
         .salary-statement-table td {
+            display: block !important;
+            width: 100% !important;
+            max-width: none !important;
             padding: 8px 0;
             border: 0;
         }
@@ -199,23 +204,34 @@
 
         .salary-statement-cell-value,
         .salary-statement-table .input-group {
+            display: block;
             width: 100%;
+            max-width: none;
             min-width: 0;
         }
 
         .salary-statement-table .input-group {
             display: flex;
+            flex-wrap: nowrap;
         }
 
-        .salary-statement-table .input-group .form-control {
+        .salary-statement-table .input-group .form-control,
+        .salary-statement-table .salary-statement-amount-input {
             min-width: 0;
             width: 100% !important;
-            flex: 1 1 0%;
+            max-width: none !important;
+            flex: 1 1 auto !important;
         }
 
-        .salary-statement-table .btn {
+        .salary-statement-table .input-group .input-group-text {
+            flex: 0 0 auto;
+        }
+
+        .salary-statement-table .btn,
+        .salary-statement-table .salary-statement-full-action {
             display: block;
-            width: 100%;
+            width: 100% !important;
+            max-width: none !important;
             white-space: normal;
         }
 
@@ -226,7 +242,7 @@
         }
 
         .salary-statement-table td.salary-statement-row-actions .btn {
-            width: 100%;
+            width: 100% !important;
             max-width: 120px;
         }
 
@@ -522,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td data-label="Размер зарплаты">
                     <div class="salary-statement-cell-value">
                         <div class="input-group">
-                            <input type="number" min="0" step="0.01" class="form-control"
+                            <input type="number" min="0" step="0.01" class="form-control salary-statement-amount-input"
                                 data-salary-input data-employee-id="${line.employee_id}"
                                 value="${Number(line.salary_amount || 0).toFixed(2)}" ${paid ? 'disabled' : ''}>
                             <span class="input-group-text">грн</span>
@@ -532,13 +548,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td data-label="Документ ZP">
                     <div class="salary-statement-cell-value">
                         ${paid
-                            ? `<a href="${escapeHtml(line.zp_url || '#')}" class="btn btn-sm ${Number(line.zp_posted) === 1 ? 'btn-outline-success' : 'btn-outline-warning'}">ZP №${escapeHtml(line.zp_num || '')}</a>`
+                            ? `<a href="${escapeHtml(line.zp_url || '#')}" class="btn btn-sm salary-statement-full-action ${Number(line.zp_posted) === 1 ? 'btn-outline-success' : 'btn-outline-warning'}">ZP №${escapeHtml(line.zp_num || '')}</a>`
                             : '<span class="text-muted">—</span>'}
                     </div>
                 </td>
                 <td data-label="Выплата">
                     <div class="salary-statement-cell-value">
-                        <button type="button" class="btn btn-sm btn-success" data-payout-line
+                        <button type="button" class="btn btn-sm btn-success salary-statement-full-action" data-payout-line
                             data-employee-id="${line.employee_id}" ${!statement || paid || Number(line.salary_amount) <= 0 ? 'disabled' : ''}>
                             Выпл.
                         </button>
