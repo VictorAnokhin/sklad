@@ -16,5 +16,6 @@ class EducationUtility extends Model
         'module_key' => 'string',
         'icon' => 'string',
         'icon_path' => 'string',
+        'schema_json' => 'array',
     ];
 }

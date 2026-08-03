@@ -11,6 +11,8 @@
     $utilityDescriptionTranslations = $investmentUtility['description_translations'] ?? [];
     $capitalUtilityTitleTranslations = $capitalUtility['title_translations'] ?? [];
     $capitalUtilityDescriptionTranslations = $capitalUtility['description_translations'] ?? [];
+    $investmentUtilitySchemaJson = json_encode($investmentUtility['schema_json'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $capitalUtilitySchemaJson = json_encode($capitalUtility['schema_json'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 @endphp
 <div class="education-utilities-page">
     @if(session('success'))
@@ -199,6 +201,10 @@
                                 <div class="mt-3">
                                     <label class="form-label" for="capitalUtilityDescriptionRu">Описание</label>
                                     <textarea class="form-control" id="capitalUtilityDescriptionRu" name="description_translations[ru]" rows="5" style="resize:vertical;">{{ $capitalUtilityDescriptionTranslations['ru'] ?? '' }}</textarea>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="form-label" for="capitalUtilitySchemaJson">JSON-схема утилиты</label>
+                                    <textarea class="form-control font-monospace" id="capitalUtilitySchemaJson" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ $capitalUtilitySchemaJson }}</textarea>
                                 </div>
                                 <div class="capital-efficiency-actions">
                                     <button type="submit" class="btn btn-warning">Сохранить</button>
@@ -411,6 +417,10 @@
                                             <textarea class="form-control" id="investmentUtilityDescriptionFr" name="description_translations[fr]" rows="5" style="resize:vertical;">{{ $utilityDescriptionTranslations['fr'] ?? '' }}</textarea>
                                         </div>
                                     </div>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="form-label" for="investmentUtilitySchemaJson">JSON-схема утилиты</label>
+                                    <textarea class="form-control font-monospace" id="investmentUtilitySchemaJson" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ $investmentUtilitySchemaJson }}</textarea>
                                 </div>
                                 <div class="capital-efficiency-actions">
                                     <button type="submit" class="btn btn-warning">Сохранить</button>

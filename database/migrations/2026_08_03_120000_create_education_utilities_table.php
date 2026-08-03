@@ -16,9 +16,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('project_id')->constrained('project')->cascadeOnDelete();
             $table->string('slug', 120);
-            $table->string('module_key', 120)->default('investment_simulation');
+            $table->string('module_key', 120)->default('calculator_builder');
             $table->string('icon', 80)->default('calculator');
             $table->string('icon_path')->nullable();
+            $table->json('schema_json')->nullable();
             $table->string('title')->nullable();
             $table->json('title_translations')->nullable();
             $table->text('description')->nullable();

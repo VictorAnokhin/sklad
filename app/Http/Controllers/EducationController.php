@@ -882,6 +882,9 @@ class EducationController extends Controller
                 ->value('icon_path') ?? '');
             $payload['icon_path'] = $this->storeUtilityIcon($request, $utility, $existingIconPath);
         }
+        if (Schema::hasColumn('education_utilities', 'schema_json')) {
+            $payload['schema_json'] = $validated['schema_json'] ?: $defaults['schema_json'];
+        }
 
         EducationUtility::query()->updateOrCreate(
             [
@@ -911,6 +914,7 @@ class EducationController extends Controller
                     'module_key' => $utility['module_key'],
                     'icon' => $utility['icon'],
                     'icon_url' => $utility['icon_url'],
+                    'schema_json' => $utility['schema_json'],
                     'title' => $this->localizedText($utility['title_translations'], $lang, $utility['title']),
                     'description' => $this->localizedText($utility['description_translations'], $lang, $utility['description']),
                     'description_translations' => $utility['description_translations'],
@@ -1500,10 +1504,11 @@ class EducationController extends Controller
             self::INVESTMENT_SIMULATION_UTILITY_SLUG => [
                 'project_id' => $project->id,
                 'slug' => self::INVESTMENT_SIMULATION_UTILITY_SLUG,
-                'module_key' => 'investment_simulation',
+                'module_key' => 'calculator_builder',
                 'icon' => 'calculator',
                 'icon_path' => null,
                 'icon_url' => null,
+                'schema_json' => $this->investmentSimulationUtilitySchema(),
                 'title' => 'Моделирование инвестиционного вложения',
                 'title_translations' => [
                     'ru' => 'Моделирование инвестиционного вложения',
@@ -1527,10 +1532,11 @@ class EducationController extends Controller
             self::CAPITAL_EFFICIENCY_UTILITY_SLUG => [
                 'project_id' => $project->id,
                 'slug' => self::CAPITAL_EFFICIENCY_UTILITY_SLUG,
-                'module_key' => 'capital_efficiency',
+                'module_key' => 'calculator_builder',
                 'icon' => 'chart',
                 'icon_path' => null,
                 'icon_url' => null,
+                'schema_json' => $this->capitalEfficiencyUtilitySchema(),
                 'title' => 'Оценка эффективности капиталовложений',
                 'title_translations' => [
                     'ru' => 'Оценка эффективности капиталовложений',
@@ -1550,6 +1556,112 @@ class EducationController extends Controller
                 'position' => 0,
                 'cost_av8' => '0.000000',
                 'is_active' => true,
+            ],
+        ];
+    }
+
+    private function investmentSimulationUtilitySchema(): array
+    {
+        return [
+            'version' => '1.0',
+            'title' => 'Моделирование инвестиционного вложения',
+            'inputs' => [
+                ['key' => 'initialAmount', 'label' => 'Стартовая сумма, EUR', 'type' => 'number', 'default' => 10000, 'step' => 100],
+                ['key' => 'annualRate', 'label' => 'Процент, % годовых', 'type' => 'number', 'default' => 12, 'step' => 0.01],
+                ['key' => 'years', 'label' => 'Срок, лет', 'type' => 'number', 'default' => 5, 'step' => 1],
+                ['key' => 'contribution', 'label' => 'Пополнение, EUR', 'type' => 'number', 'default' => 500, 'step' => 100],
+                [
+                    'key' => 'frequency',
+                    'label' => 'Частота пополнения',
+                    'type' => 'select',
+                    'default' => 'monthly',
+                    'options' => [
+                        ['value' => 'monthly', 'label' => 'Ежемесячно'],
+                        ['value' => 'quarterly', 'label' => 'Ежеквартально'],
+                        ['value' => 'yearly', 'label' => 'Ежегодно'],
+                        ['value' => 'none', 'label' => 'Без пополнений'],
+                    ],
+                ],
+                [
+                    'key' => 'interestMode',
+                    'label' => 'Начисление процентов',
+                    'type' => 'select',
+                    'default' => 'compound',
+                    'options' => [
+                        ['value' => 'compound', 'label' => 'Сложный процент'],
+                        ['value' => 'simple', 'label' => 'Без сложного процента'],
+                    ],
+                ],
+            ],
+            'calculations' => [
+                ['key' => 'paymentsPerYear', 'label' => 'Пополнений в год', 'formula' => 'frequency_monthly * 12 + frequency_quarterly * 4 + frequency_yearly'],
+                ['key' => 'periods', 'label' => 'Периодов начисления', 'formula' => 'years * 12'],
+                ['key' => 'monthlyRate', 'label' => 'Месячная ставка', 'formula' => 'annualRate / 100 / 12'],
+                ['key' => 'totalContributions', 'label' => 'Пополнения', 'formula' => 'contribution * paymentsPerYear * years', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'totalInvested', 'label' => 'Вложено всего', 'formula' => 'initialAmount + totalContributions', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'finalCompound', 'label' => 'Итоговая сумма', 'formula' => 'fv(initialAmount, monthlyRate, periods, contribution, frequency)', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'finalSimple', 'label' => 'Итоговая сумма без сложного процента', 'formula' => 'totalInvested + totalInvested * annualRate / 100 * years', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'finalAmount', 'label' => 'Итоговая сумма', 'formula' => 'interestMode_compound * finalCompound + interestMode_simple * finalSimple', 'format' => 'currency', 'currency' => 'EUR', 'primary' => true],
+                ['key' => 'income', 'label' => 'Доход', 'formula' => 'finalAmount - totalInvested', 'format' => 'currency', 'currency' => 'EUR', 'primary' => true],
+            ],
+            'tables' => [
+                [
+                    'key' => 'yearly',
+                    'label' => 'Расчет по годам',
+                    'rows' => 'years',
+                    'columns' => [
+                        ['label' => 'Год', 'formula' => 'row'],
+                        ['label' => 'Вложено', 'formula' => 'initialAmount + contribution * paymentsPerYear * row', 'format' => 'currency', 'currency' => 'EUR'],
+                        ['label' => 'Итоговая сумма', 'formula' => 'interestMode_compound * fv(initialAmount, monthlyRate, row * 12, contribution, frequency) + interestMode_simple * (initialAmount + contribution * paymentsPerYear * row + (initialAmount + contribution * paymentsPerYear * row) * annualRate / 100 * row)', 'format' => 'currency', 'currency' => 'EUR'],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    private function capitalEfficiencyUtilitySchema(): array
+    {
+        return [
+            'version' => '1.0',
+            'title' => 'Оценка эффективности капиталовложений',
+            'inputs' => [
+                ['key' => 'initialInvestment', 'label' => 'Первоначальные инвестиции, EUR', 'type' => 'number', 'default' => 45000000, 'step' => 1000],
+                ['key' => 'discountRate', 'label' => 'Ставка дисконтирования, %', 'type' => 'number', 'default' => 14, 'step' => 0.01],
+                ['key' => 'cashFlow1', 'label' => 'Денежный поток, год 1', 'type' => 'number', 'default' => 14000000, 'step' => 1000],
+                ['key' => 'cashFlow2', 'label' => 'Денежный поток, год 2', 'type' => 'number', 'default' => 16000000, 'step' => 1000],
+                ['key' => 'cashFlow3', 'label' => 'Денежный поток, год 3', 'type' => 'number', 'default' => 18000000, 'step' => 1000],
+                ['key' => 'cashFlow4', 'label' => 'Денежный поток, год 4', 'type' => 'number', 'default' => 15000000, 'step' => 1000],
+                ['key' => 'cashFlow5', 'label' => 'Денежный поток, год 5', 'type' => 'number', 'default' => 12000000, 'step' => 1000],
+                ['key' => 'fixedCosts', 'label' => 'Постоянные расходы, EUR', 'type' => 'number', 'default' => 9000000, 'step' => 1000],
+                ['key' => 'variableCosts', 'label' => 'Переменные расходы, EUR', 'type' => 'number', 'default' => 7500000, 'step' => 1000],
+                ['key' => 'totalRevenue', 'label' => 'Общий доход, EUR', 'type' => 'number', 'default' => 22500000, 'step' => 1000],
+            ],
+            'calculations' => [
+                ['key' => 'rate', 'label' => 'Ставка', 'formula' => 'discountRate / 100'],
+                ['key' => 'pv1', 'label' => 'PV год 1', 'formula' => 'cashFlow1 / pow(1 + rate, 1)', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'pv2', 'label' => 'PV год 2', 'formula' => 'cashFlow2 / pow(1 + rate, 2)', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'pv3', 'label' => 'PV год 3', 'formula' => 'cashFlow3 / pow(1 + rate, 3)', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'pv4', 'label' => 'PV год 4', 'formula' => 'cashFlow4 / pow(1 + rate, 4)', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'pv5', 'label' => 'PV год 5', 'formula' => 'cashFlow5 / pow(1 + rate, 5)', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'discountedTotal', 'label' => 'Дисконтированный доход', 'formula' => 'pv1 + pv2 + pv3 + pv4 + pv5', 'format' => 'currency', 'currency' => 'EUR'],
+                ['key' => 'npv', 'label' => 'NPV', 'formula' => 'discountedTotal - initialInvestment', 'format' => 'currency', 'currency' => 'EUR', 'primary' => true],
+                ['key' => 'irrValue', 'label' => 'IRR', 'formula' => 'irr(initialInvestment, cashFlow1, cashFlow2, cashFlow3, cashFlow4, cashFlow5)', 'format' => 'percent', 'primary' => true],
+                ['key' => 'pi', 'label' => 'PI', 'formula' => 'discountedTotal / initialInvestment', 'format' => 'number', 'precision' => 3, 'primary' => true],
+                ['key' => 'payback', 'label' => 'PP', 'formula' => 'payback(initialInvestment, cashFlow1, cashFlow2, cashFlow3, cashFlow4, cashFlow5)', 'format' => 'years', 'primary' => true],
+                ['key' => 'bep', 'label' => 'BEP', 'formula' => 'fixedCosts / (totalRevenue - variableCosts) * totalRevenue', 'format' => 'currency', 'currency' => 'EUR', 'primary' => true],
+                ['key' => 'safetyMargin', 'label' => 'Запас прочности', 'formula' => '(totalRevenue - bep) / totalRevenue', 'format' => 'percent', 'primary' => true],
+            ],
+            'tables' => [
+                [
+                    'key' => 'discountedFlows',
+                    'label' => 'Дисконтированные потоки',
+                    'rows' => 5,
+                    'columns' => [
+                        ['label' => 'Год', 'formula' => 'row'],
+                        ['label' => 'Денежный поток', 'formula' => 'pick(row, cashFlow1, cashFlow2, cashFlow3, cashFlow4, cashFlow5)', 'format' => 'currency', 'currency' => 'EUR'],
+                        ['label' => 'PV', 'formula' => 'pick(row, pv1, pv2, pv3, pv4, pv5)', 'format' => 'currency', 'currency' => 'EUR'],
+                    ],
+                ],
             ],
         ];
     }
@@ -1589,6 +1701,7 @@ class EducationController extends Controller
             'icon' => Schema::hasColumn('education_utilities', 'icon') ? (string) ($utility->icon ?: $defaults['icon']) : $defaults['icon'],
             'icon_path' => Schema::hasColumn('education_utilities', 'icon_path') ? ($utility->icon_path ?: null) : null,
             'icon_url' => Schema::hasColumn('education_utilities', 'icon_path') ? $this->publicStorageUrl($utility->icon_path) : null,
+            'schema_json' => Schema::hasColumn('education_utilities', 'schema_json') ? ($utility->schema_json ?: $defaults['schema_json']) : $defaults['schema_json'],
             'title' => (string) ($utility->title ?: $defaults['title']),
             'title_translations' => array_replace($defaults['title_translations'], $utility->title_translations ?? []),
             'description' => (string) ($utility->description ?: $defaults['description']),
@@ -1794,6 +1907,7 @@ class EducationController extends Controller
             'position' => ['nullable', 'integer', 'min:0'],
             'cost_av8' => ['nullable', 'numeric', 'min:0'],
             'icon_file' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'schema_json' => ['nullable', 'string'],
         ]);
 
         $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
@@ -1812,6 +1926,14 @@ class EducationController extends Controller
         }
         $validated['position'] = (int) ($validated['position'] ?? 0);
         $validated['cost_av8'] = number_format((float) ($validated['cost_av8'] ?? 0), 6, '.', '');
+        $schemaJson = trim((string) ($validated['schema_json'] ?? ''));
+        if ($schemaJson !== '') {
+            $decodedSchema = json_decode($schemaJson, true);
+            abort_unless(is_array($decodedSchema) && json_last_error() === JSON_ERROR_NONE, 422, 'JSON-схема утилиты заполнена с ошибкой.');
+            $validated['schema_json'] = $decodedSchema;
+        } else {
+            $validated['schema_json'] = null;
+        }
 
         return $validated;
     }
