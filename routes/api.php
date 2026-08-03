@@ -92,6 +92,7 @@ Route::middleware(['api', 'throttle:120,1'])->post('/v1/widget/handshake', [Widg
 Route::middleware(['api', 'throttle:60,1'])->group(function () {
     Route::get('/education/tests/first', [EducationController::class, 'publicFirstTest']);
     Route::post('/education/tests/first/submit', [EducationController::class, 'publicSubmitFirstTest']);
+    Route::get('/education/utilities', [EducationController::class, 'publicUtilities']);
     Route::get('/education/course', [EducationController::class, 'publicCourse']);
     Route::get('/education/course/material/{material}/tests', [EducationController::class, 'publicCourseMaterialTests'])
         ->whereNumber('material');

@@ -843,6 +843,38 @@ class EducationController extends Controller
         ]);
     }
 
+    public function publicUtilities(Request $request): JsonResponse
+    {
+        $lang = strtolower((string) $request->query('lang', 'ru'));
+        $descriptions = [
+            'ru' => 'Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения. Результат выводится в таблице по годам.',
+            'ua' => 'Фінансова модель для розрахунку майбутньої вартості вкладення: стартова сума, строк, відсоток, простий або складний відсоток і регулярні поповнення. Результат виводиться в таблиці за роками.',
+            'en' => 'A financial model for estimating the future value of an investment: initial amount, term, annual rate, simple or compound interest, and recurring contributions. Results are shown in a yearly table.',
+            'es' => 'Modelo financiero para estimar el valor futuro de una inversión: importe inicial, plazo, tasa anual, interés simple o compuesto y aportes recurrentes. El resultado se muestra en una tabla anual.',
+            'fr' => 'Modèle financier pour estimer la valeur future d’un investissement : montant initial, durée, taux annuel, intérêt simple ou composé et versements réguliers. Le résultat est affiché dans un tableau annuel.',
+        ];
+
+        return response()->json([
+            'utilities' => [
+                [
+                    'id' => 'investment-simulation',
+                    'title' => match ($lang) {
+                        'ua' => 'Моделювання інвестиційного вкладення',
+                        'en' => 'Investment simulation',
+                        'es' => 'Simulación de inversión',
+                        'fr' => 'Simulation d’investissement',
+                        default => 'Моделирование инвестиционного вложения',
+                    },
+                    'description' => $descriptions[$lang] ?? $descriptions['ru'],
+                    'description_translations' => $descriptions,
+                    'rating' => 0,
+                    'cost_av8' => '0',
+                    'url' => route('education.utilities'),
+                ],
+            ],
+        ]);
+    }
+
     public function storeMaterialImage(Request $request)
     {
         $this->educationProject();

@@ -129,82 +129,183 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
             <div class="modal-body">
-                <form id="investmentSimulationForm" class="capital-efficiency-form">
-                    <section class="capital-efficiency-section">
-                        <h3>Параметры вложения</h3>
-                        <div class="row g-3">
-                            <div class="col-12 col-md-4">
-                                <label class="form-label" for="simulationInitialAmount">Стартовая сумма, EUR</label>
-                                <input class="form-control" id="simulationInitialAmount" type="number" min="0" step="100" value="10000">
+                <ul class="nav nav-tabs border-secondary mb-3" id="investment-utility-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active bg-dark text-warning border-secondary" id="investment-calculation-tab"
+                                data-bs-toggle="tab" data-bs-target="#investment-calculation-pane" type="button"
+                                role="tab" aria-controls="investment-calculation-pane" aria-selected="true">
+                            Расчет
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link bg-dark text-light border-secondary" id="investment-settings-tab"
+                                data-bs-toggle="tab" data-bs-target="#investment-settings-pane" type="button"
+                                role="tab" aria-controls="investment-settings-pane" aria-selected="false">
+                            Настройки
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="investment-calculation-pane" role="tabpanel"
+                         aria-labelledby="investment-calculation-tab" tabindex="0">
+                        <form id="investmentSimulationForm" class="capital-efficiency-form">
+                            <section class="capital-efficiency-section">
+                                <h3>Параметры вложения</h3>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label" for="simulationInitialAmount">Стартовая сумма, EUR</label>
+                                        <input class="form-control" id="simulationInitialAmount" type="number" min="0" step="100" value="10000">
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label" for="simulationAnnualRate">Процент, % годовых</label>
+                                        <input class="form-control" id="simulationAnnualRate" type="number" min="0" step="0.01" value="12">
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label" for="simulationYears">Срок, лет</label>
+                                        <input class="form-control" id="simulationYears" type="number" min="1" max="50" step="1" value="5">
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label" for="simulationContribution">Пополнение, EUR</label>
+                                        <input class="form-control" id="simulationContribution" type="number" min="0" step="100" value="500">
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label" for="simulationContributionFrequency">Частота пополнения</label>
+                                        <select class="form-select" id="simulationContributionFrequency">
+                                            <option value="monthly" selected>Ежемесячно</option>
+                                            <option value="quarterly">Ежеквартально</option>
+                                            <option value="yearly">Ежегодно</option>
+                                            <option value="none">Без пополнений</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label" for="simulationInterestMode">Начисление процентов</label>
+                                        <select class="form-select" id="simulationInterestMode">
+                                            <option value="compound" selected>Сложный процент</option>
+                                            <option value="simple">Без сложного процента</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <div class="capital-efficiency-actions">
+                                <button type="button" class="btn btn-warning" id="calculateInvestmentSimulation">Рассчитать</button>
+                                <button type="reset" class="btn btn-outline-secondary">Сбросить</button>
                             </div>
-                            <div class="col-12 col-md-4">
-                                <label class="form-label" for="simulationAnnualRate">Процент, % годовых</label>
-                                <input class="form-control" id="simulationAnnualRate" type="number" min="0" step="0.01" value="12">
+                        </form>
+
+                        <div class="capital-results investment-simulation-summary" aria-live="polite">
+                            <div class="capital-result-card">
+                                <span>Итоговая сумма</span>
+                                <strong id="simulationFinalBalance">—</strong>
+                                <small>Капитал на конец срока</small>
                             </div>
-                            <div class="col-12 col-md-4">
-                                <label class="form-label" for="simulationYears">Срок, лет</label>
-                                <input class="form-control" id="simulationYears" type="number" min="1" max="50" step="1" value="5">
+                            <div class="capital-result-card">
+                                <span>Вложено всего</span>
+                                <strong id="simulationTotalInvested">—</strong>
+                                <small>Старт + пополнения</small>
                             </div>
-                            <div class="col-12 col-md-4">
-                                <label class="form-label" for="simulationContribution">Пополнение, EUR</label>
-                                <input class="form-control" id="simulationContribution" type="number" min="0" step="100" value="500">
-                            </div>
-                            <div class="col-12 col-md-4">
-                                <label class="form-label" for="simulationContributionFrequency">Частота пополнения</label>
-                                <select class="form-select" id="simulationContributionFrequency">
-                                    <option value="monthly" selected>Ежемесячно</option>
-                                    <option value="quarterly">Ежеквартально</option>
-                                    <option value="yearly">Ежегодно</option>
-                                    <option value="none">Без пополнений</option>
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-4">
-                                <label class="form-label" for="simulationInterestMode">Начисление процентов</label>
-                                <select class="form-select" id="simulationInterestMode">
-                                    <option value="compound" selected>Сложный процент</option>
-                                    <option value="simple">Без сложного процента</option>
-                                </select>
+                            <div class="capital-result-card">
+                                <span>Доход</span>
+                                <strong id="simulationTotalInterest">—</strong>
+                                <small>Начисленные проценты</small>
                             </div>
                         </div>
-                    </section>
 
-                    <div class="capital-efficiency-actions">
-                        <button type="button" class="btn btn-warning" id="calculateInvestmentSimulation">Рассчитать</button>
-                        <button type="reset" class="btn btn-outline-secondary">Сбросить</button>
+                        <div class="investment-simulation-table-wrap">
+                            <table class="table table-dark table-sm table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Период</th>
+                                        <th class="text-end">Начало периода</th>
+                                        <th class="text-end">Пополнения</th>
+                                        <th class="text-end">Проценты</th>
+                                        <th class="text-end">Конец периода</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="investmentSimulationRows"></tbody>
+                            </table>
+                        </div>
                     </div>
-                </form>
 
-                <div class="capital-results investment-simulation-summary" aria-live="polite">
-                    <div class="capital-result-card">
-                        <span>Итоговая сумма</span>
-                        <strong id="simulationFinalBalance">—</strong>
-                        <small>Капитал на конец срока</small>
+                    <div class="tab-pane fade" id="investment-settings-pane" role="tabpanel"
+                         aria-labelledby="investment-settings-tab" tabindex="0">
+                        <section class="capital-efficiency-section">
+                            <h3>Настройки доступа</h3>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label" for="investmentUtilityRating">Рейтинг</label>
+                                    <input class="form-control" id="investmentUtilityRating" name="rating" type="number" min="0" value="0">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label" for="investmentUtilityCostAv8">Оплата, AV8</label>
+                                    <input class="form-control" id="investmentUtilityCostAv8" name="cost_av8" type="number" min="0" step="0.000001" value="0">
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <label class="form-label">Описание</label>
+                                <ul class="nav nav-tabs border-secondary mb-2" id="investment-utility-description-tabs" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-ua-tab"
+                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-ua-pane" type="button"
+                                                role="tab" aria-controls="investment-utility-description-ua-pane" aria-selected="false">
+                                            UA
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active bg-dark text-warning border-secondary" id="investment-utility-description-ru-tab"
+                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-ru-pane" type="button"
+                                                role="tab" aria-controls="investment-utility-description-ru-pane" aria-selected="true">
+                                            RU
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-en-tab"
+                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-en-pane" type="button"
+                                                role="tab" aria-controls="investment-utility-description-en-pane" aria-selected="false">
+                                            EN
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-es-tab"
+                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-es-pane" type="button"
+                                                role="tab" aria-controls="investment-utility-description-es-pane" aria-selected="false">
+                                            ES
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-fr-tab"
+                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-fr-pane" type="button"
+                                                role="tab" aria-controls="investment-utility-description-fr-pane" aria-selected="false">
+                                            FR
+                                        </button>
+                                    </li>
+                                </ul>
+                                <div class="tab-content border border-secondary rounded-bottom p-2">
+                                    <div class="tab-pane fade" id="investment-utility-description-ua-pane" role="tabpanel"
+                                         aria-labelledby="investment-utility-description-ua-tab" tabindex="0">
+                                        <textarea class="form-control" id="investmentUtilityDescriptionUa" name="description_translations[ua]" rows="5" style="resize:vertical;">Фінансова модель для розрахунку майбутньої вартості вкладення: стартова сума, строк, відсоток, простий або складний відсоток і регулярні поповнення.</textarea>
+                                    </div>
+                                    <div class="tab-pane fade show active" id="investment-utility-description-ru-pane" role="tabpanel"
+                                         aria-labelledby="investment-utility-description-ru-tab" tabindex="0">
+                                        <textarea class="form-control" id="investmentUtilityDescriptionRu" name="description_translations[ru]" rows="5" style="resize:vertical;">Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения.</textarea>
+                                    </div>
+                                    <div class="tab-pane fade" id="investment-utility-description-en-pane" role="tabpanel"
+                                         aria-labelledby="investment-utility-description-en-tab" tabindex="0">
+                                        <textarea class="form-control" id="investmentUtilityDescriptionEn" name="description_translations[en]" rows="5" style="resize:vertical;">A financial model for estimating the future value of an investment: initial amount, term, annual rate, simple or compound interest, and recurring contributions.</textarea>
+                                    </div>
+                                    <div class="tab-pane fade" id="investment-utility-description-es-pane" role="tabpanel"
+                                         aria-labelledby="investment-utility-description-es-tab" tabindex="0">
+                                        <textarea class="form-control" id="investmentUtilityDescriptionEs" name="description_translations[es]" rows="5" style="resize:vertical;">Modelo financiero para estimar el valor futuro de una inversión: importe inicial, plazo, tasa anual, interés simple o compuesto y aportes recurrentes.</textarea>
+                                    </div>
+                                    <div class="tab-pane fade" id="investment-utility-description-fr-pane" role="tabpanel"
+                                         aria-labelledby="investment-utility-description-fr-tab" tabindex="0">
+                                        <textarea class="form-control" id="investmentUtilityDescriptionFr" name="description_translations[fr]" rows="5" style="resize:vertical;">Modèle financier pour estimer la valeur future d’un investissement : montant initial, durée, taux annuel, intérêt simple ou composé et versements réguliers.</textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
                     </div>
-                    <div class="capital-result-card">
-                        <span>Вложено всего</span>
-                        <strong id="simulationTotalInvested">—</strong>
-                        <small>Старт + пополнения</small>
-                    </div>
-                    <div class="capital-result-card">
-                        <span>Доход</span>
-                        <strong id="simulationTotalInterest">—</strong>
-                        <small>Начисленные проценты</small>
-                    </div>
-                </div>
-
-                <div class="investment-simulation-table-wrap">
-                    <table class="table table-dark table-sm table-hover align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th>Период</th>
-                                <th class="text-end">Начало периода</th>
-                                <th class="text-end">Пополнения</th>
-                                <th class="text-end">Проценты</th>
-                                <th class="text-end">Конец периода</th>
-                            </tr>
-                        </thead>
-                        <tbody id="investmentSimulationRows"></tbody>
-                    </table>
                 </div>
             </div>
         </div>
@@ -234,6 +335,12 @@
         flex-wrap: wrap;
         justify-content: flex-end;
         gap: 10px;
+    }
+
+    #investment-utility-tabs .nav-link.active,
+    #investment-utility-description-tabs .nav-link.active {
+        color: #ffc107 !important;
+        border-bottom-color: #ffc107 !important;
     }
 
     .capital-efficiency-grid {
