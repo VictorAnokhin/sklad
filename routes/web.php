@@ -92,6 +92,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/materials', [EducationController::class, 'materials'])->name('material-files.index');
         Route::post('/materials', [EducationController::class, 'storeMaterialImage'])->name('material-files.store');
         Route::delete('/materials', [EducationController::class, 'destroyMaterialImage'])->name('material-files.destroy');
+        Route::get('/utilities', [EducationController::class, 'utilities'])->name('utilities');
         Route::get('/tests', [EducationController::class, 'tests'])->name('tests');
         Route::post('/tests', [EducationController::class, 'storeTest'])->name('tests.store');
         Route::put('/tests/{test}', [EducationController::class, 'updateTest'])

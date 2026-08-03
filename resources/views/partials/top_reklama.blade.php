@@ -258,6 +258,7 @@
       <div class="header-nav-menu__grid">
         <a class="header-nav-menu__link" href="{{ route('education.course') }}">Курс обучения</a>
         <a class="header-nav-menu__link" href="{{ route('education.material-files.index') }}">Материалы</a>
+        <a class="header-nav-menu__link" href="{{ route('education.utilities') }}">Утилиты</a>
         <a class="header-nav-menu__link" href="{{ route('education.tests') }}">Тесты</a>
         <a class="header-nav-menu__link" href="{{ route('education.know-yourself') }}">Узнай себя</a>
       </div>

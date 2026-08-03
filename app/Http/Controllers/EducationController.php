@@ -834,6 +834,15 @@ class EducationController extends Controller
         ]);
     }
 
+    public function utilities()
+    {
+        $project = $this->educationProject();
+
+        return view('education.utilities', [
+            'project' => $project,
+        ]);
+    }
+
     public function storeMaterialImage(Request $request)
     {
         $this->educationProject();
