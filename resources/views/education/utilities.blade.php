@@ -60,16 +60,12 @@
                                     <input class="form-control" id="fixedCosts" type="number" min="0" step="1000" value="9000000">
                                 </div>
                                 <div class="col-12 col-md-6">
-                                    <label class="form-label" for="currentVolume">Текущий объем, упаковок/мес.</label>
-                                    <input class="form-control" id="currentVolume" type="number" min="0" step="100" value="75000">
+                                    <label class="form-label" for="variableCosts">Переменные расходы, EUR</label>
+                                    <input class="form-control" id="variableCosts" type="number" min="0" step="1000" value="7500000">
                                 </div>
                                 <div class="col-12 col-md-6">
-                                    <label class="form-label" for="unitPrice">Цена обработки упаковки, EUR</label>
-                                    <input class="form-control" id="unitPrice" type="number" min="0" step="0.01" value="300">
-                                </div>
-                                <div class="col-12 col-md-6">
-                                    <label class="form-label" for="unitVariableCost">Переменные расходы на упаковку, EUR</label>
-                                    <input class="form-control" id="unitVariableCost" type="number" min="0" step="0.01" value="100">
+                                    <label class="form-label" for="totalRevenue">Общий доход, EUR</label>
+                                    <input class="form-control" id="totalRevenue" type="number" min="0" step="1000" value="22500000">
                                 </div>
                             </div>
                         </section>
@@ -303,18 +299,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const rate = numberValue('discountRate') / 100;
         const flows = cashFlows();
         const fixedCosts = numberValue('fixedCosts');
-        const currentVolume = numberValue('currentVolume');
-        const unitPrice = numberValue('unitPrice');
-        const unitVariableCost = numberValue('unitVariableCost');
+        const variableCosts = numberValue('variableCosts');
+        const totalRevenue = numberValue('totalRevenue');
         const discounted = discountedIncome(rate, flows);
         const npvValue = discounted - investment;
         const irrValue = irr(investment, flows);
         const paybackValue = payback(investment, flows);
         const profitabilityIndex = investment > 0 ? discounted / investment : 0;
-        const contributionMargin = unitPrice - unitVariableCost;
-        const bepUnits = contributionMargin > 0 ? fixedCosts / contributionMargin : null;
-        const safetyMargin = bepUnits !== null && currentVolume > 0
-            ? (currentVolume - bepUnits) / currentVolume * 100
+        const contributionMargin = totalRevenue - variableCosts;
+        const bepRevenue = contributionMargin > 0 ? (fixedCosts / contributionMargin) * totalRevenue : null;
+        const safetyMargin = bepRevenue !== null && totalRevenue > 0
+            ? (totalRevenue - bepRevenue) / totalRevenue * 100
             : null;
 
         document.getElementById('resultNpv').textContent = formatter.format(npvValue);
@@ -323,9 +318,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `${paybackValue.years} г. ${paybackValue.months} мес.`
             : 'не окупается';
         document.getElementById('resultPi').textContent = profitabilityIndex.toFixed(3);
-        document.getElementById('resultBep').textContent = bepUnits === null
+        document.getElementById('resultBep').textContent = bepRevenue === null
             ? '—'
-            : `${Math.ceil(bepUnits).toLocaleString('ru-RU')} уп./мес.`;
+            : formatter.format(bepRevenue);
         document.getElementById('resultSafetyMargin').textContent = safetyMargin === null
             ? '—'
             : `${safetyMargin.toFixed(1)}%`;
@@ -338,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <p><strong>Дисконтированный доход:</strong> ${formatter.format(discounted)}.</p>
             <p><strong>NPV:</strong> ${formatter.format(discounted)} - ${formatter.format(investment)} = ${formatter.format(npvValue)}.</p>
             <p><strong>PI:</strong> на каждый вложенный евро проект возвращает ${profitabilityIndex.toFixed(2)} евро дисконтированной отдачи.</p>
-            <p><strong>BEP:</strong> постоянные расходы ${formatter.format(fixedCosts)} / маржа ${formatter.format(contributionMargin)} = ${bepUnits === null ? '—' : Math.ceil(bepUnits).toLocaleString('ru-RU')} упаковок в месяц.</p>
+            <p><strong>BEP:</strong> ${formatter.format(fixedCosts)} / (${formatter.format(totalRevenue)} - ${formatter.format(variableCosts)}) * ${formatter.format(totalRevenue)} = ${bepRevenue === null ? '—' : formatter.format(bepRevenue)}.</p>
             <p>${verdict}</p>
         `;
     }
