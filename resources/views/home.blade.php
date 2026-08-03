@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title')</title>
     <link href="{{ asset('css/dark-theme.css') }}" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
@@ -53,7 +53,31 @@
             min-width: 240px;
         }
 
-        @media (max-width: 991.98px) {
+        @media (max-width: 1199.98px) {
+            html,
+            body,
+            .align_center,
+            .wrapper,
+            .main {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+
+            body {
+                overflow-x: hidden;
+            }
+
+            .wrapper {
+                margin: 0 !important;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+
+            .main {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+
             .modal .modal-dialog,
             .modal .modal-dialog.modal-lg,
             .modal .modal-dialog.modal-xl,
