@@ -54,30 +54,6 @@
         }
 
         @media (max-width: 1199.98px) {
-            html,
-            body,
-            .align_center,
-            .wrapper,
-            .main {
-                width: 100% !important;
-                max-width: 100% !important;
-            }
-
-            body {
-                overflow-x: hidden;
-            }
-
-            .wrapper {
-                margin: 0 !important;
-                padding-left: 0 !important;
-                padding-right: 0 !important;
-            }
-
-            .main {
-                padding-left: 0 !important;
-                padding-right: 0 !important;
-            }
-
             .modal .modal-dialog,
             .modal .modal-dialog.modal-lg,
             .modal .modal-dialog.modal-xl,
