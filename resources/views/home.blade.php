@@ -63,6 +63,39 @@
                 min-width: 0;
                 justify-content: flex-start;
             }
+
+            .modal .modal-dialog,
+            .modal .modal-dialog.modal-lg,
+            .modal .modal-dialog.modal-xl,
+            .modal .modal-dialog.modal-sm,
+            .modal .modal-dialog.modal-fullscreen,
+            .modal .modal-dialog.modal-fullscreen-sm-down {
+                width: 95vw !important;
+                max-width: 95vw !important;
+                height: 95dvh !important;
+                max-height: 95dvh !important;
+                margin: 2.5dvh auto !important;
+            }
+
+            .modal .modal-dialog-centered {
+                min-height: 95dvh !important;
+            }
+
+            .modal .modal-content {
+                height: 100% !important;
+                max-height: 95dvh !important;
+                overflow: hidden;
+                border-radius: 12px;
+            }
+
+            .modal .modal-body {
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .modal .modal-dialog-scrollable .modal-content {
+                max-height: 95dvh !important;
+            }
         }
     </style>
 
