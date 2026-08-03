@@ -53,17 +53,7 @@
             min-width: 240px;
         }
 
-        @media (max-width: 768px) {
-            .page-heading {
-                align-items: flex-start;
-            }
-
-            .page-heading__actions {
-                width: 100%;
-                min-width: 0;
-                justify-content: flex-start;
-            }
-
+        @media (max-width: 991.98px) {
             .modal .modal-dialog,
             .modal .modal-dialog.modal-lg,
             .modal .modal-dialog.modal-xl,
@@ -95,6 +85,18 @@
 
             .modal .modal-dialog-scrollable .modal-content {
                 max-height: 95dvh !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .page-heading {
+                align-items: flex-start;
+            }
+
+            .page-heading__actions {
+                width: 100%;
+                min-width: 0;
+                justify-content: flex-start;
             }
         }
     </style>
