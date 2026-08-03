@@ -19,6 +19,9 @@ return new class extends Migration
             if (!Schema::hasColumn('education_utilities', 'icon')) {
                 $table->string('icon', 80)->default('calculator')->after('module_key');
             }
+            if (!Schema::hasColumn('education_utilities', 'icon_path')) {
+                $table->string('icon_path')->nullable()->after('icon');
+            }
         });
     }
 
@@ -29,6 +32,9 @@ return new class extends Migration
         }
 
         Schema::table('education_utilities', function (Blueprint $table) {
+            if (Schema::hasColumn('education_utilities', 'icon_path')) {
+                $table->dropColumn('icon_path');
+            }
             if (Schema::hasColumn('education_utilities', 'icon')) {
                 $table->dropColumn('icon');
             }

@@ -34,7 +34,13 @@
                     $utilityIcon = ($utility['icon'] ?? '') === 'chart' ? '↗' : '∑';
                 @endphp
                 <button type="button" class="education-utility-app" data-bs-toggle="modal" data-bs-target="{{ $modalTarget }}">
-                    <span class="education-utility-app__icon">{{ $utilityIcon }}</span>
+                    <span class="education-utility-app__icon">
+                        @if(!empty($utility['icon_url']))
+                            <img src="{{ $utility['icon_url'] }}" alt="{{ $utility['title'] ?? 'Утилита' }}">
+                        @else
+                            {{ $utilityIcon }}
+                        @endif
+                    </span>
                     <span class="education-utility-app__title">{{ $utility['title'] ?? 'Утилита' }}</span>
                     <span class="education-utility-app__meta">
                         Рейтинг {{ (int) ($utility['position'] ?? 0) }} · {{ number_format((float) ($utility['cost_av8'] ?? 0), 2, '.', ' ') }} AV8
@@ -161,7 +167,7 @@
                     </div>
                     <div class="tab-pane fade" id="capital-settings-pane" role="tabpanel"
                          aria-labelledby="capital-settings-tab" tabindex="0">
-                        <form method="POST" action="{{ route('education.utilities.update', ['utility' => $capitalUtility['slug'] ?? 'capital-efficiency']) }}">
+                        <form method="POST" action="{{ route('education.utilities.update', ['utility' => $capitalUtility['slug'] ?? 'capital-efficiency']) }}" enctype="multipart/form-data">
                             @csrf
                             @method('PUT')
                             <input type="hidden" name="title_translations[ua]" value="{{ $capitalUtilityTitleTranslations['ua'] ?? 'Оцінка ефективності капіталовкладень' }}">
@@ -179,6 +185,15 @@
                                     <div class="col-12 col-md-6">
                                         <label class="form-label" for="capitalUtilityCostAv8">Оплата, AV8</label>
                                         <input class="form-control" id="capitalUtilityCostAv8" name="cost_av8" type="number" min="0" step="0.000001" value="{{ $capitalUtility['cost_av8'] ?? '0' }}">
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="form-label" for="capitalUtilityIconFile">Иконка утилиты, JPG/PNG</label>
+                                    <div class="education-utility-icon-upload">
+                                        @if(!empty($capitalUtility['icon_url']))
+                                            <img src="{{ $capitalUtility['icon_url'] }}" alt="{{ $capitalUtility['title'] ?? 'Иконка утилиты' }}">
+                                        @endif
+                                        <input class="form-control" id="capitalUtilityIconFile" name="icon_file" type="file" accept="image/png,image/jpeg,image/webp">
                                     </div>
                                 </div>
                                 <div class="mt-3">
@@ -306,7 +321,7 @@
 
                     <div class="tab-pane fade" id="investment-settings-pane" role="tabpanel"
                          aria-labelledby="investment-settings-tab" tabindex="0">
-                        <form method="POST" action="{{ route('education.utilities.update', ['utility' => $investmentUtility['slug'] ?? 'investment-simulation']) }}">
+                        <form method="POST" action="{{ route('education.utilities.update', ['utility' => $investmentUtility['slug'] ?? 'investment-simulation']) }}" enctype="multipart/form-data">
                             @csrf
                             @method('PUT')
                             <input type="hidden" name="title_translations[ua]" value="{{ $utilityTitleTranslations['ua'] ?? 'Моделювання інвестиційного вкладення' }}">
@@ -324,6 +339,15 @@
                                     <div class="col-12 col-md-6">
                                         <label class="form-label" for="investmentUtilityCostAv8">Оплата, AV8</label>
                                         <input class="form-control" id="investmentUtilityCostAv8" name="cost_av8" type="number" min="0" step="0.000001" value="{{ $investmentUtility['cost_av8'] ?? '0' }}">
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="form-label" for="investmentUtilityIconFile">Иконка утилиты, JPG/PNG</label>
+                                    <div class="education-utility-icon-upload">
+                                        @if(!empty($investmentUtility['icon_url']))
+                                            <img src="{{ $investmentUtility['icon_url'] }}" alt="{{ $investmentUtility['title'] ?? 'Иконка утилиты' }}">
+                                        @endif
+                                        <input class="form-control" id="investmentUtilityIconFile" name="icon_file" type="file" accept="image/png,image/jpeg,image/webp">
                                     </div>
                                 </div>
                                 <div class="mt-3">
@@ -460,6 +484,13 @@
         background: linear-gradient(135deg, #fde68a, #f59e0b);
         font-size: 28px;
         font-weight: 800;
+        overflow: hidden;
+    }
+
+    .education-utility-app__icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
 
     .education-utility-app__title {
@@ -471,6 +502,22 @@
     .education-utility-app__meta {
         color: #94a3b8;
         font-size: .78rem;
+    }
+
+    .education-utility-icon-upload {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .education-utility-icon-upload img {
+        width: 64px;
+        height: 64px;
+        flex: 0 0 auto;
+        border: 1px solid rgba(250, 204, 21, .35);
+        border-radius: 16px;
+        object-fit: cover;
+        background: rgba(15, 23, 42, .9);
     }
 
     #investment-utility-tabs .nav-link.active,

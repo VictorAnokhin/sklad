@@ -15,5 +15,6 @@ class EducationUtility extends Model
         'cost_av8' => 'decimal:6',
         'module_key' => 'string',
         'icon' => 'string',
+        'icon_path' => 'string',
     ];
 }

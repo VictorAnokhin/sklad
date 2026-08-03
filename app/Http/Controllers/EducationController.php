@@ -31,6 +31,7 @@ class EducationController extends Controller
     private const MATERIAL_IMAGES_DIRECTORY = 'files/education/materials';
     private const MATERIAL_IMAGES_METADATA = 'files/education/materials/.metadata.json';
     private const MATERIAL_IMAGES_PUBLIC_BASE_URL = 'https://av8capital.space';
+    private const UTILITY_ICONS_DIRECTORY = 'files/education/utilities';
 
     public function ensureCourseOrder(Request $request, AcademyCoursePaymentService $payments): JsonResponse
     {
@@ -874,6 +875,13 @@ class EducationController extends Controller
         if (Schema::hasColumn('education_utilities', 'icon')) {
             $payload['icon'] = $defaults['icon'];
         }
+        if (Schema::hasColumn('education_utilities', 'icon_path')) {
+            $existingIconPath = (string) (EducationUtility::query()
+                ->where('project_id', $project->id)
+                ->where('slug', $utility)
+                ->value('icon_path') ?? '');
+            $payload['icon_path'] = $this->storeUtilityIcon($request, $utility, $existingIconPath);
+        }
 
         EducationUtility::query()->updateOrCreate(
             [
@@ -902,6 +910,7 @@ class EducationController extends Controller
                     'id' => $utility['slug'],
                     'module_key' => $utility['module_key'],
                     'icon' => $utility['icon'],
+                    'icon_url' => $utility['icon_url'],
                     'title' => $this->localizedText($utility['title_translations'], $lang, $utility['title']),
                     'description' => $this->localizedText($utility['description_translations'], $lang, $utility['description']),
                     'description_translations' => $utility['description_translations'],
@@ -1493,6 +1502,8 @@ class EducationController extends Controller
                 'slug' => self::INVESTMENT_SIMULATION_UTILITY_SLUG,
                 'module_key' => 'investment_simulation',
                 'icon' => 'calculator',
+                'icon_path' => null,
+                'icon_url' => null,
                 'title' => 'Моделирование инвестиционного вложения',
                 'title_translations' => [
                     'ru' => 'Моделирование инвестиционного вложения',
@@ -1518,6 +1529,8 @@ class EducationController extends Controller
                 'slug' => self::CAPITAL_EFFICIENCY_UTILITY_SLUG,
                 'module_key' => 'capital_efficiency',
                 'icon' => 'chart',
+                'icon_path' => null,
+                'icon_url' => null,
                 'title' => 'Оценка эффективности капиталовложений',
                 'title_translations' => [
                     'ru' => 'Оценка эффективности капиталовложений',
@@ -1574,6 +1587,8 @@ class EducationController extends Controller
             'slug' => (string) $utility->slug,
             'module_key' => Schema::hasColumn('education_utilities', 'module_key') ? (string) ($utility->module_key ?: $defaults['module_key']) : $defaults['module_key'],
             'icon' => Schema::hasColumn('education_utilities', 'icon') ? (string) ($utility->icon ?: $defaults['icon']) : $defaults['icon'],
+            'icon_path' => Schema::hasColumn('education_utilities', 'icon_path') ? ($utility->icon_path ?: null) : null,
+            'icon_url' => Schema::hasColumn('education_utilities', 'icon_path') ? $this->publicStorageUrl($utility->icon_path) : null,
             'title' => (string) ($utility->title ?: $defaults['title']),
             'title_translations' => array_replace($defaults['title_translations'], $utility->title_translations ?? []),
             'description' => (string) ($utility->description ?: $defaults['description']),
@@ -1582,6 +1597,33 @@ class EducationController extends Controller
             'cost_av8' => (string) ($utility->cost_av8 ?? '0'),
             'is_active' => (bool) $utility->is_active,
         ];
+    }
+
+    private function publicStorageUrl(?string $path): ?string
+    {
+        $path = trim((string) $path);
+        if ($path === '') {
+            return null;
+        }
+
+        return '/storage/' . ltrim($path, '/');
+    }
+
+    private function storeUtilityIcon(Request $request, string $slug, ?string $currentPath): ?string
+    {
+        if (!$request->hasFile('icon_file')) {
+            return $currentPath ?: null;
+        }
+
+        $uploadedFile = $request->file('icon_file');
+        if (!$uploadedFile || !$uploadedFile->isValid()) {
+            return $currentPath ?: null;
+        }
+
+        $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: $uploadedFile->extension() ?: 'png');
+        $filename = Str::slug($slug) . '_' . now()->format('YmdHis') . '_' . Str::random(8) . '.' . $extension;
+
+        return $uploadedFile->storeAs(self::UTILITY_ICONS_DIRECTORY, $filename, 'public');
     }
 
     private function educationUtilitySettings(Project $project, string $slug): array
@@ -1751,6 +1793,7 @@ class EducationController extends Controller
             'description_translations' => ['nullable'],
             'position' => ['nullable', 'integer', 'min:0'],
             'cost_av8' => ['nullable', 'numeric', 'min:0'],
+            'icon_file' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 
         $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);

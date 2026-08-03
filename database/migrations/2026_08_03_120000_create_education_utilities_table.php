@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('slug', 120);
             $table->string('module_key', 120)->default('investment_simulation');
             $table->string('icon', 80)->default('calculator');
+            $table->string('icon_path')->nullable();
             $table->string('title')->nullable();
             $table->json('title_translations')->nullable();
             $table->text('description')->nullable();
