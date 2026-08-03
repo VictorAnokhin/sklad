@@ -557,7 +557,7 @@
 
     .education-utilities-actions {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
         width: 100%;
     }
@@ -746,7 +746,6 @@
     }
 
     @media (max-width: 991.98px) {
-        .education-utilities-card,
         .capital-efficiency-grid,
         .capital-results {
             grid-template-columns: 1fr;
@@ -756,12 +755,22 @@
             display: grid;
         }
 
+        .education-utilities-actions {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .capital-flow-grid {
             grid-template-columns: 1fr;
         }
 
         .capital-efficiency-actions {
             display: grid;
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .education-utilities-actions {
             grid-template-columns: 1fr;
         }
     }
