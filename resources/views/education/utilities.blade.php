@@ -12,9 +12,14 @@
                 Расчеты для оценки инвестиционных проектов: NPV, IRR, срок окупаемости, PI и точка безубыточности.
             </p>
         </div>
-        <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#capitalEfficiencyModal">
-            Оценка эффективности капиталовложений
-        </button>
+        <div class="education-utilities-actions">
+            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#capitalEfficiencyModal">
+                Оценка эффективности капиталовложений
+            </button>
+            <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#investmentSimulationModal">
+                Моделирование инвестиционного вложения
+            </button>
+        </div>
     </div>
 </div>
 
@@ -115,6 +120,96 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="investmentSimulationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h2 class="modal-title fs-5">Моделирование инвестиционного вложения</h2>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <form id="investmentSimulationForm" class="capital-efficiency-form">
+                    <section class="capital-efficiency-section">
+                        <h3>Параметры вложения</h3>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="simulationInitialAmount">Стартовая сумма, EUR</label>
+                                <input class="form-control" id="simulationInitialAmount" type="number" min="0" step="100" value="10000">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="simulationAnnualRate">Процент, % годовых</label>
+                                <input class="form-control" id="simulationAnnualRate" type="number" min="0" step="0.01" value="12">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="simulationYears">Срок, лет</label>
+                                <input class="form-control" id="simulationYears" type="number" min="1" max="50" step="1" value="5">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="simulationContribution">Пополнение, EUR</label>
+                                <input class="form-control" id="simulationContribution" type="number" min="0" step="100" value="500">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="simulationContributionFrequency">Частота пополнения</label>
+                                <select class="form-select" id="simulationContributionFrequency">
+                                    <option value="monthly" selected>Ежемесячно</option>
+                                    <option value="quarterly">Ежеквартально</option>
+                                    <option value="yearly">Ежегодно</option>
+                                    <option value="none">Без пополнений</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="simulationInterestMode">Начисление процентов</label>
+                                <select class="form-select" id="simulationInterestMode">
+                                    <option value="compound" selected>Сложный процент</option>
+                                    <option value="simple">Без сложного процента</option>
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="capital-efficiency-actions">
+                        <button type="button" class="btn btn-warning" id="calculateInvestmentSimulation">Рассчитать</button>
+                        <button type="reset" class="btn btn-outline-secondary">Сбросить</button>
+                    </div>
+                </form>
+
+                <div class="capital-results investment-simulation-summary" aria-live="polite">
+                    <div class="capital-result-card">
+                        <span>Итоговая сумма</span>
+                        <strong id="simulationFinalBalance">—</strong>
+                        <small>Капитал на конец срока</small>
+                    </div>
+                    <div class="capital-result-card">
+                        <span>Вложено всего</span>
+                        <strong id="simulationTotalInvested">—</strong>
+                        <small>Старт + пополнения</small>
+                    </div>
+                    <div class="capital-result-card">
+                        <span>Доход</span>
+                        <strong id="simulationTotalInterest">—</strong>
+                        <small>Начисленные проценты</small>
+                    </div>
+                </div>
+
+                <div class="investment-simulation-table-wrap">
+                    <table class="table table-dark table-sm table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Период</th>
+                                <th class="text-end">Начало периода</th>
+                                <th class="text-end">Пополнения</th>
+                                <th class="text-end">Проценты</th>
+                                <th class="text-end">Конец периода</th>
+                            </tr>
+                        </thead>
+                        <tbody id="investmentSimulationRows"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -132,6 +227,13 @@
         border: 1px solid rgba(148, 163, 184, .32);
         border-radius: 14px;
         background: #111827;
+    }
+
+    .education-utilities-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 10px;
     }
 
     .capital-efficiency-grid {
@@ -210,6 +312,17 @@
         margin-bottom: 8px;
     }
 
+    .investment-simulation-table-wrap {
+        margin-top: 18px;
+        border: 1px solid rgba(148, 163, 184, .28);
+        border-radius: 12px;
+        overflow-x: auto;
+    }
+
+    .investment-simulation-table-wrap table {
+        min-width: 720px;
+    }
+
     @media (max-width: 991.98px) {
         .education-utilities-card,
         .capital-efficiency-grid,
@@ -219,6 +332,11 @@
 
         .education-utilities-card {
             display: grid;
+        }
+
+        .education-utilities-actions {
+            display: grid;
+            justify-content: stretch;
         }
 
         .capital-flow-grid {
@@ -341,6 +459,87 @@ document.addEventListener('DOMContentLoaded', () => {
     calculateButton.addEventListener('click', render);
     form.addEventListener('reset', () => setTimeout(render, 0));
     render();
+
+    const simulationForm = document.getElementById('investmentSimulationForm');
+    const simulationButton = document.getElementById('calculateInvestmentSimulation');
+    const simulationRows = document.getElementById('investmentSimulationRows');
+
+    function contributionInterval(frequency) {
+        return {
+            monthly: 1,
+            quarterly: 3,
+            yearly: 12,
+        }[frequency] || 0;
+    }
+
+    function shouldAddContribution(month, interval) {
+        return interval > 0 && (month - 1) % interval === 0;
+    }
+
+    function renderInvestmentSimulation() {
+        const initialAmount = numberValue('simulationInitialAmount');
+        const annualRate = numberValue('simulationAnnualRate') / 100;
+        const years = Math.max(1, Math.min(50, Math.round(numberValue('simulationYears'))));
+        const contribution = numberValue('simulationContribution');
+        const frequency = document.getElementById('simulationContributionFrequency').value;
+        const interestMode = document.getElementById('simulationInterestMode').value;
+        const interval = contributionInterval(frequency);
+        const monthlyRate = annualRate / 12;
+        const rows = [];
+
+        let balance = initialAmount;
+        let principal = initialAmount;
+        let totalInvested = initialAmount;
+        let totalInterest = 0;
+
+        for (let year = 1; year <= years; year += 1) {
+            const yearStartBalance = balance;
+            let yearContributions = 0;
+            let yearInterest = 0;
+
+            for (let monthInYear = 1; monthInYear <= 12; monthInYear += 1) {
+                const absoluteMonth = (year - 1) * 12 + monthInYear;
+                if (shouldAddContribution(absoluteMonth, interval)) {
+                    principal += contribution;
+                    balance += contribution;
+                    yearContributions += contribution;
+                    totalInvested += contribution;
+                }
+
+                const interestBase = interestMode === 'compound' ? balance : principal;
+                const interest = interestBase * monthlyRate;
+                yearInterest += interest;
+                totalInterest += interest;
+                balance += interest;
+            }
+
+            rows.push({
+                year,
+                start: yearStartBalance,
+                contributions: yearContributions,
+                interest: yearInterest,
+                end: balance,
+            });
+        }
+
+        document.getElementById('simulationFinalBalance').textContent = formatter.format(balance);
+        document.getElementById('simulationTotalInvested').textContent = formatter.format(totalInvested);
+        document.getElementById('simulationTotalInterest').textContent = formatter.format(totalInterest);
+
+        simulationRows.innerHTML = rows.map((row) => `
+            <tr>
+                <td>Год ${row.year}</td>
+                <td class="text-end">${formatter.format(row.start)}</td>
+                <td class="text-end">${formatter.format(row.contributions)}</td>
+                <td class="text-end">${formatter.format(row.interest)}</td>
+                <td class="text-end fw-semibold">${formatter.format(row.end)}</td>
+            </tr>
+        `).join('');
+    }
+
+    simulationButton.addEventListener('click', renderInvestmentSimulation);
+    simulationForm.addEventListener('reset', () => setTimeout(renderInvestmentSimulation, 0));
+    renderInvestmentSimulation();
 });
 </script>
 @endpush
