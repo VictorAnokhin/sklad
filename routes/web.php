@@ -93,6 +93,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/materials', [EducationController::class, 'storeMaterialImage'])->name('material-files.store');
         Route::delete('/materials', [EducationController::class, 'destroyMaterialImage'])->name('material-files.destroy');
         Route::get('/utilities', [EducationController::class, 'utilities'])->name('utilities');
+        Route::post('/utilities', [EducationController::class, 'storeUtility'])->name('utilities.store');
         Route::put('/utilities/{utility}', [EducationController::class, 'updateUtility'])
             ->where('utility', '[A-Za-z0-9\\-_]+')->name('utilities.update');
         Route::get('/tests', [EducationController::class, 'tests'])->name('tests');

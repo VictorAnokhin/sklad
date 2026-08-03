@@ -22,17 +22,21 @@
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
     <div class="education-utilities-card">
-        <div>
-            <div class="text-secondary small mb-1">{{ $project->name }}</div>
-            <h2 class="h4 mb-2">Финансовые инструменты обучения</h2>
-            <p class="text-secondary mb-0">
-                Расчеты для оценки инвестиционных проектов: NPV, IRR, срок окупаемости, PI и точка безубыточности.
-            </p>
-        </div>
         <div class="education-utilities-actions">
+            <button type="button" class="education-utility-app education-utility-app--add" data-bs-toggle="modal" data-bs-target="#addUtilityModal">
+                <span class="education-utility-app__icon">+</span>
+                <span class="education-utility-app__title">Добавить</span>
+                <span class="education-utility-app__meta">Новая утилита</span>
+            </button>
             @foreach($utilities as $utility)
                 @php
-                    $modalTarget = ($utility['slug'] ?? '') === 'capital-efficiency' ? '#capitalEfficiencyModal' : '#investmentSimulationModal';
+                    $utilitySlug = $utility['slug'] ?? '';
+                    $utilityModalSlug = preg_replace('/[^A-Za-z0-9\-_]/', '-', $utilitySlug);
+                    $modalTarget = $utilitySlug === 'capital-efficiency'
+                        ? '#capitalEfficiencyModal'
+                        : ($utilitySlug === 'investment-simulation'
+                            ? '#investmentSimulationModal'
+                            : '#utilitySettingsModal-' . $utilityModalSlug);
                     $utilityIcon = ($utility['icon'] ?? '') === 'chart' ? '↗' : '∑';
                 @endphp
                 <button type="button" class="education-utility-app" data-bs-toggle="modal" data-bs-target="{{ $modalTarget }}">
@@ -49,6 +53,43 @@
                     </span>
                 </button>
             @endforeach
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addUtilityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h2 class="modal-title fs-5">Добавить утилиту</h2>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <form method="POST" action="{{ route('education.utilities.store') }}">
+                @csrf
+                <div class="modal-body">
+                    <section class="capital-efficiency-section">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label" for="newUtilityTitle">Название</label>
+                                <input class="form-control" id="newUtilityTitle" name="title" type="text" required placeholder="Например: Расчет доходности проекта">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="newUtilitySlug">Код утилиты</label>
+                                <input class="form-control" id="newUtilitySlug" name="slug" type="text" placeholder="project-yield">
+                                <div class="form-text text-secondary">Можно оставить пустым, код будет создан из названия.</div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="newUtilityDescription">Описание</label>
+                                <textarea class="form-control" id="newUtilityDescription" name="description" rows="4" style="resize:vertical;" placeholder="Кратко опишите назначение утилиты"></textarea>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-warning">Добавить</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -433,6 +474,72 @@
         </div>
     </div>
 </div>
+
+@foreach($utilities as $utility)
+    @php
+        $utilitySlug = $utility['slug'] ?? '';
+        if (in_array($utilitySlug, ['capital-efficiency', 'investment-simulation'], true)) {
+            continue;
+        }
+        $utilityModalSlug = preg_replace('/[^A-Za-z0-9\-_]/', '-', $utilitySlug);
+        $customTitleTranslations = $utility['title_translations'] ?? [];
+        $customDescriptionTranslations = $utility['description_translations'] ?? [];
+        $customSchemaJson = json_encode($utility['schema_json'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    @endphp
+    <div class="modal fade" id="utilitySettingsModal-{{ $utilityModalSlug }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content bg-dark text-light border-secondary">
+                <div class="modal-header border-secondary">
+                    <h2 class="modal-title fs-5">{{ $utility['title'] ?? 'Утилита' }}</h2>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="{{ route('education.utilities.update', ['utility' => $utilitySlug]) }}" enctype="multipart/form-data">
+                        @csrf
+                        @method('PUT')
+                        <section class="capital-efficiency-section">
+                            <h3>Настройки утилиты</h3>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label" for="customUtilityTitleRu-{{ $utilityModalSlug }}">Название</label>
+                                    <input class="form-control" id="customUtilityTitleRu-{{ $utilityModalSlug }}" name="title_translations[ru]" type="text" value="{{ $customTitleTranslations['ru'] ?? ($utility['title'] ?? '') }}">
+                                </div>
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label" for="customUtilityRating-{{ $utilityModalSlug }}">Рейтинг</label>
+                                    <input class="form-control" id="customUtilityRating-{{ $utilityModalSlug }}" name="position" type="number" min="0" value="{{ (int) ($utility['position'] ?? 0) }}">
+                                </div>
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label" for="customUtilityCostAv8-{{ $utilityModalSlug }}">Оплата, AV8</label>
+                                    <input class="form-control" id="customUtilityCostAv8-{{ $utilityModalSlug }}" name="cost_av8" type="number" min="0" step="0.000001" value="{{ $utility['cost_av8'] ?? '0' }}">
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <label class="form-label" for="customUtilityIconFile-{{ $utilityModalSlug }}">Иконка утилиты, JPG/PNG</label>
+                                <div class="education-utility-icon-upload">
+                                    @if(!empty($utility['icon_url']))
+                                        <img src="{{ $utility['icon_url'] }}" alt="{{ $utility['title'] ?? 'Иконка утилиты' }}">
+                                    @endif
+                                    <input class="form-control" id="customUtilityIconFile-{{ $utilityModalSlug }}" name="icon_file" type="file" accept="image/png,image/jpeg,image/webp">
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <label class="form-label" for="customUtilityDescriptionRu-{{ $utilityModalSlug }}">Описание</label>
+                                <textarea class="form-control" id="customUtilityDescriptionRu-{{ $utilityModalSlug }}" name="description_translations[ru]" rows="5" style="resize:vertical;">{{ $customDescriptionTranslations['ru'] ?? ($utility['description'] ?? '') }}</textarea>
+                            </div>
+                            <div class="mt-3">
+                                <label class="form-label" for="customUtilitySchemaJson-{{ $utilityModalSlug }}">JSON-схема утилиты</label>
+                                <textarea class="form-control font-monospace" id="customUtilitySchemaJson-{{ $utilityModalSlug }}" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ $customSchemaJson }}</textarea>
+                            </div>
+                            <div class="capital-efficiency-actions">
+                                <button type="submit" class="btn btn-warning">Сохранить</button>
+                            </div>
+                        </section>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+@endforeach
 @endsection
 
 @push('scripts')
@@ -442,10 +549,6 @@
     }
 
     .education-utilities-card {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 18px;
         padding: 22px;
         border: 1px solid rgba(148, 163, 184, .32);
         border-radius: 14px;
@@ -456,7 +559,7 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
         gap: 12px;
-        min-width: min(520px, 100%);
+        width: 100%;
     }
 
     .education-utility-app {
@@ -484,6 +587,20 @@
             rgba(15, 23, 42, .98);
     }
 
+    .education-utility-app--add {
+        border-color: rgba(34, 197, 94, .46);
+        background:
+            radial-gradient(circle at top, rgba(34, 197, 94, .22), transparent 44%),
+            rgba(15, 23, 42, .96);
+    }
+
+    .education-utility-app--add:hover {
+        border-color: rgba(34, 197, 94, .78);
+        background:
+            radial-gradient(circle at top, rgba(34, 197, 94, .32), transparent 44%),
+            rgba(15, 23, 42, .98);
+    }
+
     .education-utility-app__icon {
         display: grid;
         width: 56px;
@@ -495,6 +612,11 @@
         font-size: 28px;
         font-weight: 800;
         overflow: hidden;
+    }
+
+    .education-utility-app--add .education-utility-app__icon {
+        color: #ecfdf5;
+        background: linear-gradient(135deg, #22c55e, #0f766e);
     }
 
     .education-utility-app__icon img {
@@ -632,11 +754,6 @@
 
         .education-utilities-card {
             display: grid;
-        }
-
-        .education-utilities-actions {
-            display: grid;
-            justify-content: stretch;
         }
 
         .capital-flow-grid {

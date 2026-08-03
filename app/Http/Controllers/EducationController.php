@@ -855,7 +855,11 @@ class EducationController extends Controller
     {
         $project = $this->educationProject();
         abort_unless(Schema::hasTable('education_utilities'), 503, 'Таблица настроек утилит ещё не создана. Выполните миграции Laravel.');
-        abort_unless(array_key_exists($utility, $this->defaultEducationUtilities($project)), 404);
+        abort_unless(
+            array_key_exists($utility, $this->defaultEducationUtilities($project))
+                || EducationUtility::query()->where('project_id', $project->id)->where('slug', $utility)->exists(),
+            404
+        );
 
         $validated = $this->validateUtility($request);
         $defaults = $this->defaultEducationUtilitySettings($project, $utility);
@@ -895,6 +899,60 @@ class EducationController extends Controller
         );
 
         return redirect()->route('education.utilities')->with('success', 'Настройки утилиты сохранены.');
+    }
+
+    public function storeUtility(Request $request)
+    {
+        $project = $this->educationProject();
+        abort_unless(Schema::hasTable('education_utilities'), 503, 'Таблица настроек утилит ещё не создана. Выполните миграции Laravel.');
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:120', 'regex:/^[A-Za-z0-9\\-_]+$/'],
+            'description' => ['nullable', 'string'],
+        ]);
+
+        $slug = Str::slug((string) ($validated['slug'] ?: $validated['title'])) ?: 'utility';
+        $baseSlug = $slug;
+        $index = 2;
+        while (
+            array_key_exists($slug, $this->defaultEducationUtilities($project))
+            || EducationUtility::query()->where('project_id', $project->id)->where('slug', $slug)->exists()
+        ) {
+            $slug = $baseSlug . '-' . $index;
+            $index += 1;
+        }
+
+        $title = trim((string) $validated['title']);
+        $description = trim((string) ($validated['description'] ?? ''));
+        if ($description === '') {
+            $description = 'Пользовательская утилита на базе JSON-схемы calculator_builder.';
+        }
+
+        $payload = [
+            'project_id' => $project->id,
+            'slug' => $slug,
+            'title' => $title,
+            'title_translations' => ['ru' => $title],
+            'description' => $description,
+            'description_translations' => ['ru' => $description],
+            'position' => 0,
+            'cost_av8' => '0.000000',
+            'is_active' => true,
+        ];
+        if (Schema::hasColumn('education_utilities', 'module_key')) {
+            $payload['module_key'] = 'calculator_builder';
+        }
+        if (Schema::hasColumn('education_utilities', 'icon')) {
+            $payload['icon'] = 'calculator';
+        }
+        if (Schema::hasColumn('education_utilities', 'schema_json')) {
+            $payload['schema_json'] = $this->blankCalculatorUtilitySchema($title);
+        }
+
+        EducationUtility::query()->create($payload);
+
+        return redirect()->route('education.utilities')->with('success', 'Утилита добавлена.');
     }
 
     public function publicUtilities(Request $request): JsonResponse
@@ -1495,7 +1553,29 @@ class EducationController extends Controller
     {
         $defaults = $this->defaultEducationUtilities($project);
 
-        return $defaults[$slug] ?? $defaults[self::INVESTMENT_SIMULATION_UTILITY_SLUG];
+        if (isset($defaults[$slug])) {
+            return $defaults[$slug];
+        }
+
+        $title = Str::headline(str_replace(['-', '_'], ' ', $slug));
+        $description = 'Пользовательская утилита на базе JSON-схемы calculator_builder.';
+
+        return [
+            'project_id' => $project->id,
+            'slug' => $slug,
+            'module_key' => 'calculator_builder',
+            'icon' => 'calculator',
+            'icon_path' => null,
+            'icon_url' => null,
+            'schema_json' => $this->blankCalculatorUtilitySchema($title),
+            'title' => $title,
+            'title_translations' => ['ru' => $title],
+            'description' => $description,
+            'description_translations' => ['ru' => $description],
+            'position' => 0,
+            'cost_av8' => '0.000000',
+            'is_active' => true,
+        ];
     }
 
     private function defaultEducationUtilities(Project $project): array
@@ -1666,6 +1746,34 @@ class EducationController extends Controller
         ];
     }
 
+    private function blankCalculatorUtilitySchema(string $title): array
+    {
+        return [
+            'version' => '1.0',
+            'title' => $title,
+            'inputs' => [
+                ['key' => 'amount', 'label' => 'Сумма', 'type' => 'number', 'default' => 1000, 'step' => 100],
+                ['key' => 'rate', 'label' => 'Процент, %', 'type' => 'number', 'default' => 10, 'step' => 0.01],
+                ['key' => 'years', 'label' => 'Срок, лет', 'type' => 'number', 'default' => 3, 'step' => 1],
+            ],
+            'calculations' => [
+                ['key' => 'result', 'label' => 'Итог', 'formula' => 'amount * pow(1 + rate / 100, years)', 'format' => 'currency', 'currency' => 'EUR', 'primary' => true],
+                ['key' => 'income', 'label' => 'Доход', 'formula' => 'result - amount', 'format' => 'currency', 'currency' => 'EUR', 'primary' => true],
+            ],
+            'tables' => [
+                [
+                    'key' => 'yearly',
+                    'label' => 'Расчет по годам',
+                    'rows' => 'years',
+                    'columns' => [
+                        ['label' => 'Год', 'formula' => 'row'],
+                        ['label' => 'Сумма', 'formula' => 'amount * pow(1 + rate / 100, row)', 'format' => 'currency', 'currency' => 'EUR'],
+                    ],
+                ],
+            ],
+        ];
+    }
+
     private function educationUtilityLibrary(Project $project): array
     {
         $defaults = $this->defaultEducationUtilities($project);
@@ -1680,6 +1788,13 @@ class EducationController extends Controller
 
         return collect($defaults)
             ->map(fn (array $default, string $slug): array => $this->mergeEducationUtilitySettings($project, $default, $stored->get($slug)))
+            ->concat($stored
+                ->reject(fn (EducationUtility $utility): bool => array_key_exists((string) $utility->slug, $defaults))
+                ->map(fn (EducationUtility $utility): array => $this->mergeEducationUtilitySettings(
+                    $project,
+                    $this->defaultEducationUtilitySettings($project, (string) $utility->slug),
+                    $utility
+                )))
             ->sortBy([
                 ['position', 'asc'],
                 ['title', 'asc'],
