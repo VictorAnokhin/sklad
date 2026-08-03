@@ -245,7 +245,10 @@
                                 </div>
                                 <div class="mt-3">
                                     <label class="form-label" for="capitalUtilitySchemaJson">JSON-схема утилиты</label>
-                                    <textarea class="form-control font-monospace" id="capitalUtilitySchemaJson" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ $capitalUtilitySchemaJson }}</textarea>
+                                    <textarea class="form-control font-monospace" id="capitalUtilitySchemaJson" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ old('schema_json', $capitalUtilitySchemaJson) }}</textarea>
+                                    @error('schema_json')
+                                        <div class="text-danger small mt-2">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="capital-efficiency-actions">
                                     <button type="submit" class="btn btn-warning">Сохранить</button>
@@ -461,7 +464,10 @@
                                 </div>
                                 <div class="mt-3">
                                     <label class="form-label" for="investmentUtilitySchemaJson">JSON-схема утилиты</label>
-                                    <textarea class="form-control font-monospace" id="investmentUtilitySchemaJson" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ $investmentUtilitySchemaJson }}</textarea>
+                                    <textarea class="form-control font-monospace" id="investmentUtilitySchemaJson" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ old('schema_json', $investmentUtilitySchemaJson) }}</textarea>
+                                    @error('schema_json')
+                                        <div class="text-danger small mt-2">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="capital-efficiency-actions">
                                     <button type="submit" class="btn btn-warning">Сохранить</button>
@@ -528,7 +534,10 @@
                             </div>
                             <div class="mt-3">
                                 <label class="form-label" for="customUtilitySchemaJson-{{ $utilityModalSlug }}">JSON-схема утилиты</label>
-                                <textarea class="form-control font-monospace" id="customUtilitySchemaJson-{{ $utilityModalSlug }}" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ $customSchemaJson }}</textarea>
+                                <textarea class="form-control font-monospace" id="customUtilitySchemaJson-{{ $utilityModalSlug }}" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ old('schema_json', $customSchemaJson) }}</textarea>
+                                @error('schema_json')
+                                    <div class="text-danger small mt-2">{{ $message }}</div>
+                                @enderror
                             </div>
                         </section>
                     </form>

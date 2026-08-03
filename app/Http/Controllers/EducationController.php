@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class EducationController extends Controller
 {
@@ -2098,9 +2099,11 @@ class EducationController extends Controller
         $validated['description_translations'] = $this->translationMap($validated['description_translations'] ?? null);
         $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
         $validated['description'] = $this->fallbackTranslationValue($validated['description_translations'], $validated['description'] ?? '');
-        abort_if($validated['description'] === '', 422, 'Заполните описание утилиты хотя бы на одном языке.');
         if ($validated['title'] === '') {
             $validated['title'] = 'Моделирование инвестиционного вложения';
+        }
+        if ($validated['description'] === '') {
+            $validated['description'] = 'Пользовательская утилита на базе JSON-схемы calculator_builder.';
         }
         if ($validated['title_translations'] === []) {
             $validated['title_translations'] = ['ru' => $validated['title']];
@@ -2112,8 +2115,20 @@ class EducationController extends Controller
         $validated['cost_av8'] = number_format((float) ($validated['cost_av8'] ?? 0), 6, '.', '');
         $schemaJson = trim((string) ($validated['schema_json'] ?? ''));
         if ($schemaJson !== '') {
-            $decodedSchema = json_decode($schemaJson, true);
-            abort_unless(is_array($decodedSchema) && json_last_error() === JSON_ERROR_NONE, 422, 'JSON-схема утилиты заполнена с ошибкой.');
+            try {
+                $decodedSchema = json_decode($schemaJson, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException $exception) {
+                throw ValidationException::withMessages([
+                    'schema_json' => 'JSON-схема утилиты заполнена с ошибкой: ' . $exception->getMessage(),
+                ]);
+            }
+
+            if (!is_array($decodedSchema)) {
+                throw ValidationException::withMessages([
+                    'schema_json' => 'JSON-схема утилиты должна быть объектом или массивом.',
+                ]);
+            }
+
             $validated['schema_json'] = $decodedSchema;
         } else {
             $validated['schema_json'] = null;
