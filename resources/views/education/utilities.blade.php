@@ -3,7 +3,18 @@
 @section('title', 'Утилиты')
 
 @section('content')
+@php
+    $investmentUtility = $investmentUtility ?? [];
+    $utilityTitleTranslations = $investmentUtility['title_translations'] ?? [];
+    $utilityDescriptionTranslations = $investmentUtility['description_translations'] ?? [];
+@endphp
 <div class="education-utilities-page">
+    @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+    @if($errors->any())
+        <div class="alert alert-danger">{{ $errors->first() }}</div>
+    @endif
     <div class="education-utilities-card">
         <div>
             <div class="text-secondary small mb-1">{{ $project->name }}</div>
@@ -230,81 +241,93 @@
 
                     <div class="tab-pane fade" id="investment-settings-pane" role="tabpanel"
                          aria-labelledby="investment-settings-tab" tabindex="0">
-                        <section class="capital-efficiency-section">
-                            <h3>Настройки доступа</h3>
-                            <div class="row g-3">
-                                <div class="col-12 col-md-6">
-                                    <label class="form-label" for="investmentUtilityRating">Рейтинг</label>
-                                    <input class="form-control" id="investmentUtilityRating" name="rating" type="number" min="0" value="0">
-                                </div>
-                                <div class="col-12 col-md-6">
-                                    <label class="form-label" for="investmentUtilityCostAv8">Оплата, AV8</label>
-                                    <input class="form-control" id="investmentUtilityCostAv8" name="cost_av8" type="number" min="0" step="0.000001" value="0">
-                                </div>
-                            </div>
-                            <div class="mt-3">
-                                <label class="form-label">Описание</label>
-                                <ul class="nav nav-tabs border-secondary mb-2" id="investment-utility-description-tabs" role="tablist">
-                                    <li class="nav-item" role="presentation">
-                                        <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-ua-tab"
-                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-ua-pane" type="button"
-                                                role="tab" aria-controls="investment-utility-description-ua-pane" aria-selected="false">
-                                            UA
-                                        </button>
-                                    </li>
-                                    <li class="nav-item" role="presentation">
-                                        <button class="nav-link active bg-dark text-warning border-secondary" id="investment-utility-description-ru-tab"
-                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-ru-pane" type="button"
-                                                role="tab" aria-controls="investment-utility-description-ru-pane" aria-selected="true">
-                                            RU
-                                        </button>
-                                    </li>
-                                    <li class="nav-item" role="presentation">
-                                        <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-en-tab"
-                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-en-pane" type="button"
-                                                role="tab" aria-controls="investment-utility-description-en-pane" aria-selected="false">
-                                            EN
-                                        </button>
-                                    </li>
-                                    <li class="nav-item" role="presentation">
-                                        <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-es-tab"
-                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-es-pane" type="button"
-                                                role="tab" aria-controls="investment-utility-description-es-pane" aria-selected="false">
-                                            ES
-                                        </button>
-                                    </li>
-                                    <li class="nav-item" role="presentation">
-                                        <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-fr-tab"
-                                                data-bs-toggle="tab" data-bs-target="#investment-utility-description-fr-pane" type="button"
-                                                role="tab" aria-controls="investment-utility-description-fr-pane" aria-selected="false">
-                                            FR
-                                        </button>
-                                    </li>
-                                </ul>
-                                <div class="tab-content border border-secondary rounded-bottom p-2">
-                                    <div class="tab-pane fade" id="investment-utility-description-ua-pane" role="tabpanel"
-                                         aria-labelledby="investment-utility-description-ua-tab" tabindex="0">
-                                        <textarea class="form-control" id="investmentUtilityDescriptionUa" name="description_translations[ua]" rows="5" style="resize:vertical;">Фінансова модель для розрахунку майбутньої вартості вкладення: стартова сума, строк, відсоток, простий або складний відсоток і регулярні поповнення.</textarea>
+                        <form method="POST" action="{{ route('education.utilities.update', ['utility' => $investmentUtility['slug'] ?? 'investment-simulation']) }}">
+                            @csrf
+                            @method('PUT')
+                            <input type="hidden" name="title_translations[ua]" value="{{ $utilityTitleTranslations['ua'] ?? 'Моделювання інвестиційного вкладення' }}">
+                            <input type="hidden" name="title_translations[ru]" value="{{ $utilityTitleTranslations['ru'] ?? 'Моделирование инвестиционного вложения' }}">
+                            <input type="hidden" name="title_translations[en]" value="{{ $utilityTitleTranslations['en'] ?? 'Investment simulation' }}">
+                            <input type="hidden" name="title_translations[es]" value="{{ $utilityTitleTranslations['es'] ?? 'Simulación de inversión' }}">
+                            <input type="hidden" name="title_translations[fr]" value="{{ $utilityTitleTranslations['fr'] ?? 'Simulation d’investissement' }}">
+                            <section class="capital-efficiency-section">
+                                <h3>Настройки доступа</h3>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label" for="investmentUtilityRating">Рейтинг</label>
+                                        <input class="form-control" id="investmentUtilityRating" name="position" type="number" min="0" value="{{ (int) ($investmentUtility['position'] ?? 0) }}">
                                     </div>
-                                    <div class="tab-pane fade show active" id="investment-utility-description-ru-pane" role="tabpanel"
-                                         aria-labelledby="investment-utility-description-ru-tab" tabindex="0">
-                                        <textarea class="form-control" id="investmentUtilityDescriptionRu" name="description_translations[ru]" rows="5" style="resize:vertical;">Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения.</textarea>
-                                    </div>
-                                    <div class="tab-pane fade" id="investment-utility-description-en-pane" role="tabpanel"
-                                         aria-labelledby="investment-utility-description-en-tab" tabindex="0">
-                                        <textarea class="form-control" id="investmentUtilityDescriptionEn" name="description_translations[en]" rows="5" style="resize:vertical;">A financial model for estimating the future value of an investment: initial amount, term, annual rate, simple or compound interest, and recurring contributions.</textarea>
-                                    </div>
-                                    <div class="tab-pane fade" id="investment-utility-description-es-pane" role="tabpanel"
-                                         aria-labelledby="investment-utility-description-es-tab" tabindex="0">
-                                        <textarea class="form-control" id="investmentUtilityDescriptionEs" name="description_translations[es]" rows="5" style="resize:vertical;">Modelo financiero para estimar el valor futuro de una inversión: importe inicial, plazo, tasa anual, interés simple o compuesto y aportes recurrentes.</textarea>
-                                    </div>
-                                    <div class="tab-pane fade" id="investment-utility-description-fr-pane" role="tabpanel"
-                                         aria-labelledby="investment-utility-description-fr-tab" tabindex="0">
-                                        <textarea class="form-control" id="investmentUtilityDescriptionFr" name="description_translations[fr]" rows="5" style="resize:vertical;">Modèle financier pour estimer la valeur future d’un investissement : montant initial, durée, taux annuel, intérêt simple ou composé et versements réguliers.</textarea>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label" for="investmentUtilityCostAv8">Оплата, AV8</label>
+                                        <input class="form-control" id="investmentUtilityCostAv8" name="cost_av8" type="number" min="0" step="0.000001" value="{{ $investmentUtility['cost_av8'] ?? '0' }}">
                                     </div>
                                 </div>
-                            </div>
-                        </section>
+                                <div class="mt-3">
+                                    <label class="form-label">Описание</label>
+                                    <ul class="nav nav-tabs border-secondary mb-2" id="investment-utility-description-tabs" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-ua-tab"
+                                                    data-bs-toggle="tab" data-bs-target="#investment-utility-description-ua-pane" type="button"
+                                                    role="tab" aria-controls="investment-utility-description-ua-pane" aria-selected="false">
+                                                UA
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active bg-dark text-warning border-secondary" id="investment-utility-description-ru-tab"
+                                                    data-bs-toggle="tab" data-bs-target="#investment-utility-description-ru-pane" type="button"
+                                                    role="tab" aria-controls="investment-utility-description-ru-pane" aria-selected="true">
+                                                RU
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-en-tab"
+                                                    data-bs-toggle="tab" data-bs-target="#investment-utility-description-en-pane" type="button"
+                                                    role="tab" aria-controls="investment-utility-description-en-pane" aria-selected="false">
+                                                EN
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-es-tab"
+                                                    data-bs-toggle="tab" data-bs-target="#investment-utility-description-es-pane" type="button"
+                                                    role="tab" aria-controls="investment-utility-description-es-pane" aria-selected="false">
+                                                ES
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link bg-dark text-light border-secondary" id="investment-utility-description-fr-tab"
+                                                    data-bs-toggle="tab" data-bs-target="#investment-utility-description-fr-pane" type="button"
+                                                    role="tab" aria-controls="investment-utility-description-fr-pane" aria-selected="false">
+                                                FR
+                                            </button>
+                                        </li>
+                                    </ul>
+                                    <div class="tab-content border border-secondary rounded-bottom p-2">
+                                        <div class="tab-pane fade" id="investment-utility-description-ua-pane" role="tabpanel"
+                                             aria-labelledby="investment-utility-description-ua-tab" tabindex="0">
+                                            <textarea class="form-control" id="investmentUtilityDescriptionUa" name="description_translations[ua]" rows="5" style="resize:vertical;">{{ $utilityDescriptionTranslations['ua'] ?? '' }}</textarea>
+                                        </div>
+                                        <div class="tab-pane fade show active" id="investment-utility-description-ru-pane" role="tabpanel"
+                                             aria-labelledby="investment-utility-description-ru-tab" tabindex="0">
+                                            <textarea class="form-control" id="investmentUtilityDescriptionRu" name="description_translations[ru]" rows="5" style="resize:vertical;">{{ $utilityDescriptionTranslations['ru'] ?? '' }}</textarea>
+                                        </div>
+                                        <div class="tab-pane fade" id="investment-utility-description-en-pane" role="tabpanel"
+                                             aria-labelledby="investment-utility-description-en-tab" tabindex="0">
+                                            <textarea class="form-control" id="investmentUtilityDescriptionEn" name="description_translations[en]" rows="5" style="resize:vertical;">{{ $utilityDescriptionTranslations['en'] ?? '' }}</textarea>
+                                        </div>
+                                        <div class="tab-pane fade" id="investment-utility-description-es-pane" role="tabpanel"
+                                             aria-labelledby="investment-utility-description-es-tab" tabindex="0">
+                                            <textarea class="form-control" id="investmentUtilityDescriptionEs" name="description_translations[es]" rows="5" style="resize:vertical;">{{ $utilityDescriptionTranslations['es'] ?? '' }}</textarea>
+                                        </div>
+                                        <div class="tab-pane fade" id="investment-utility-description-fr-pane" role="tabpanel"
+                                             aria-labelledby="investment-utility-description-fr-tab" tabindex="0">
+                                            <textarea class="form-control" id="investmentUtilityDescriptionFr" name="description_translations[fr]" rows="5" style="resize:vertical;">{{ $utilityDescriptionTranslations['fr'] ?? '' }}</textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="capital-efficiency-actions">
+                                    <button type="submit" class="btn btn-warning">Сохранить</button>
+                                </div>
+                            </section>
+                        </form>
                     </div>
                 </div>
             </div>

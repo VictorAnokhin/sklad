@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EducationCategory;
 use App\Models\EducationProgress;
 use App\Models\EducationTopic;
+use App\Models\EducationUtility;
 use App\Models\EducationalMaterial;
 use App\Models\QuestTest;
 use App\Models\QuestTestAttempt;
@@ -25,6 +26,7 @@ use Illuminate\Validation\Rule;
 class EducationController extends Controller
 {
     private const EDUCATION_LANGUAGES = ['ru', 'ua', 'en', 'es', 'fr'];
+    private const INVESTMENT_SIMULATION_UTILITY_SLUG = 'investment-simulation';
     private const MATERIAL_IMAGES_DIRECTORY = 'files/education/materials';
     private const MATERIAL_IMAGES_METADATA = 'files/education/materials/.metadata.json';
     private const MATERIAL_IMAGES_PUBLIC_BASE_URL = 'https://av8capital.space';
@@ -837,38 +839,60 @@ class EducationController extends Controller
     public function utilities()
     {
         $project = $this->educationProject();
+        $investmentUtility = $this->educationUtilitySettings($project, self::INVESTMENT_SIMULATION_UTILITY_SLUG);
 
         return view('education.utilities', [
             'project' => $project,
+            'investmentUtility' => $investmentUtility,
         ]);
+    }
+
+    public function updateUtility(Request $request, string $utility)
+    {
+        $project = $this->educationProject();
+        abort_unless(Schema::hasTable('education_utilities'), 503, 'Таблица настроек утилит ещё не создана. Выполните миграции Laravel.');
+        abort_unless($utility === self::INVESTMENT_SIMULATION_UTILITY_SLUG, 404);
+
+        $validated = $this->validateUtility($request);
+
+        EducationUtility::query()->updateOrCreate(
+            [
+                'project_id' => $project->id,
+                'slug' => $utility,
+            ],
+            [
+                'title' => $validated['title'],
+                'title_translations' => $validated['title_translations'],
+                'description' => $validated['description'],
+                'description_translations' => $validated['description_translations'],
+                'position' => $validated['position'],
+                'cost_av8' => $validated['cost_av8'],
+                'is_active' => true,
+            ]
+        );
+
+        return redirect()->route('education.utilities')->with('success', 'Настройки утилиты сохранены.');
     }
 
     public function publicUtilities(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+            'lang' => ['nullable', 'in:ua,ru,en,es,fr'],
+        ]);
+        $project = Project::query()->findOrFail((int) $validated['fid']);
         $lang = strtolower((string) $request->query('lang', 'ru'));
-        $descriptions = [
-            'ru' => 'Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения. Результат выводится в таблице по годам.',
-            'ua' => 'Фінансова модель для розрахунку майбутньої вартості вкладення: стартова сума, строк, відсоток, простий або складний відсоток і регулярні поповнення. Результат виводиться в таблиці за роками.',
-            'en' => 'A financial model for estimating the future value of an investment: initial amount, term, annual rate, simple or compound interest, and recurring contributions. Results are shown in a yearly table.',
-            'es' => 'Modelo financiero para estimar el valor futuro de una inversión: importe inicial, plazo, tasa anual, interés simple o compuesto y aportes recurrentes. El resultado se muestra en una tabla anual.',
-            'fr' => 'Modèle financier pour estimer la valeur future d’un investissement : montant initial, durée, taux annuel, intérêt simple ou composé et versements réguliers. Le résultat est affiché dans un tableau annuel.',
-        ];
+        $utility = $this->educationUtilitySettings($project, self::INVESTMENT_SIMULATION_UTILITY_SLUG);
 
         return response()->json([
             'utilities' => [
                 [
-                    'id' => 'investment-simulation',
-                    'title' => match ($lang) {
-                        'ua' => 'Моделювання інвестиційного вкладення',
-                        'en' => 'Investment simulation',
-                        'es' => 'Simulación de inversión',
-                        'fr' => 'Simulation d’investissement',
-                        default => 'Моделирование инвестиционного вложения',
-                    },
-                    'description' => $descriptions[$lang] ?? $descriptions['ru'],
-                    'description_translations' => $descriptions,
-                    'rating' => 0,
-                    'cost_av8' => '0',
+                    'id' => $utility['slug'],
+                    'title' => $this->localizedText($utility['title_translations'], $lang, $utility['title']),
+                    'description' => $this->localizedText($utility['description_translations'], $lang, $utility['description']),
+                    'description_translations' => $utility['description_translations'],
+                    'rating' => $utility['position'],
+                    'cost_av8' => $utility['cost_av8'],
                     'url' => route('education.utilities'),
                 ],
             ],
@@ -1439,6 +1463,62 @@ class EducationController extends Controller
         return $project;
     }
 
+    private function defaultEducationUtilitySettings(Project $project, string $slug): array
+    {
+        return [
+            'project_id' => $project->id,
+            'slug' => $slug,
+            'title' => 'Моделирование инвестиционного вложения',
+            'title_translations' => [
+                'ru' => 'Моделирование инвестиционного вложения',
+                'ua' => 'Моделювання інвестиційного вкладення',
+                'en' => 'Investment simulation',
+                'es' => 'Simulación de inversión',
+                'fr' => 'Simulation d’investissement',
+            ],
+            'description' => 'Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения. Результат выводится в таблице по годам.',
+            'description_translations' => [
+                'ru' => 'Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения. Результат выводится в таблице по годам.',
+                'ua' => 'Фінансова модель для розрахунку майбутньої вартості вкладення: стартова сума, строк, відсоток, простий або складний відсоток і регулярні поповнення. Результат виводиться в таблиці за роками.',
+                'en' => 'A financial model for estimating the future value of an investment: initial amount, term, annual rate, simple or compound interest, and recurring contributions. Results are shown in a yearly table.',
+                'es' => 'Modelo financiero para estimar el valor futuro de una inversión: importe inicial, plazo, tasa anual, interés simple o compuesto y aportes recurrentes. El resultado se muestra en una tabla anual.',
+                'fr' => 'Modèle financier pour estimer la valeur future d’un investissement : montant initial, durée, taux annuel, intérêt simple ou composé et versements réguliers. Le résultat est affiché dans un tableau annuel.',
+            ],
+            'position' => 0,
+            'cost_av8' => '0.000000',
+            'is_active' => true,
+        ];
+    }
+
+    private function educationUtilitySettings(Project $project, string $slug): array
+    {
+        $defaults = $this->defaultEducationUtilitySettings($project, $slug);
+        if (!Schema::hasTable('education_utilities')) {
+            return $defaults;
+        }
+
+        $utility = EducationUtility::query()
+            ->where('project_id', $project->id)
+            ->where('slug', $slug)
+            ->first();
+
+        if (!$utility) {
+            return $defaults;
+        }
+
+        return [
+            'project_id' => $project->id,
+            'slug' => (string) $utility->slug,
+            'title' => (string) ($utility->title ?: $defaults['title']),
+            'title_translations' => array_replace($defaults['title_translations'], $utility->title_translations ?? []),
+            'description' => (string) ($utility->description ?: $defaults['description']),
+            'description_translations' => array_replace($defaults['description_translations'], $utility->description_translations ?? []),
+            'position' => (int) ($utility->position ?? 0),
+            'cost_av8' => (string) ($utility->cost_av8 ?? '0'),
+            'is_active' => (bool) $utility->is_active,
+        ];
+    }
+
     private function educationMaterialImages(): array
     {
         if (!Storage::disk('public')->exists(self::MATERIAL_IMAGES_DIRECTORY)) {
@@ -1578,6 +1658,37 @@ class EducationController extends Controller
             $validated['category_id'] ?? null,
             EducationCategory::CONTEXT_COURSE
         );
+
+        return $validated;
+    }
+
+    private function validateUtility(Request $request): array
+    {
+        $validated = $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'title_translations' => ['nullable'],
+            'description' => ['nullable', 'string'],
+            'description_translations' => ['nullable'],
+            'position' => ['nullable', 'integer', 'min:0'],
+            'cost_av8' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
+        $validated['description_translations'] = $this->translationMap($validated['description_translations'] ?? null);
+        $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
+        $validated['description'] = $this->fallbackTranslationValue($validated['description_translations'], $validated['description'] ?? '');
+        abort_if($validated['description'] === '', 422, 'Заполните описание утилиты хотя бы на одном языке.');
+        if ($validated['title'] === '') {
+            $validated['title'] = 'Моделирование инвестиционного вложения';
+        }
+        if ($validated['title_translations'] === []) {
+            $validated['title_translations'] = ['ru' => $validated['title']];
+        }
+        if ($validated['description_translations'] === []) {
+            $validated['description_translations'] = ['ru' => $validated['description']];
+        }
+        $validated['position'] = (int) ($validated['position'] ?? 0);
+        $validated['cost_av8'] = number_format((float) ($validated['cost_av8'] ?? 0), 6, '.', '');
 
         return $validated;
     }
