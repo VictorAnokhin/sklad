@@ -955,6 +955,27 @@ class EducationController extends Controller
         return redirect()->route('education.utilities')->with('success', 'Утилита добавлена.');
     }
 
+    public function destroyUtility(string $utility)
+    {
+        $project = $this->educationProject();
+        abort_unless(Schema::hasTable('education_utilities'), 503, 'Таблица настроек утилит ещё не создана. Выполните миграции Laravel.');
+        abort_if(array_key_exists($utility, $this->defaultEducationUtilities($project)), 403, 'Базовую утилиту удалить нельзя.');
+
+        $record = EducationUtility::query()
+            ->where('project_id', $project->id)
+            ->where('slug', $utility)
+            ->firstOrFail();
+
+        $iconPath = Schema::hasColumn('education_utilities', 'icon_path') ? (string) ($record->icon_path ?? '') : '';
+        if ($iconPath !== '') {
+            Storage::disk('public')->delete($iconPath);
+        }
+
+        $record->delete();
+
+        return redirect()->route('education.utilities')->with('success', 'Утилита удалена.');
+    }
+
     public function publicUtilities(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -965,7 +986,7 @@ class EducationController extends Controller
         $lang = strtolower((string) $request->query('lang', 'ru'));
 
         return response()->json([
-            'utilities' => collect($this->educationUtilityLibrary($project))
+            'utilities' => collect($this->publicEducationUtilityLibrary($project))
                 ->filter(fn (array $utility): bool => (bool) ($utility['is_active'] ?? true))
                 ->map(fn (array $utility): array => [
                     'id' => $utility['slug'],
@@ -1795,6 +1816,54 @@ class EducationController extends Controller
                     $this->defaultEducationUtilitySettings($project, (string) $utility->slug),
                     $utility
                 )))
+            ->sortBy([
+                ['position', 'asc'],
+                ['title', 'asc'],
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function publicEducationUtilityLibrary(Project $project): array
+    {
+        $utilities = collect($this->educationUtilityLibrary($project));
+        if (!Schema::hasTable('education_utilities')) {
+            return $utilities->values()->all();
+        }
+
+        $knownSlugs = $utilities
+            ->pluck('slug')
+            ->map(fn ($slug): string => (string) $slug)
+            ->all();
+
+        $educationProjectIds = Project::query()
+            ->whereRaw('LOWER(TRIM(project_type)) = ?', ['education'])
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        if ($educationProjectIds === []) {
+            return $utilities->values()->all();
+        }
+
+        $customUtilities = EducationUtility::query()
+            ->whereIn('project_id', $educationProjectIds)
+            ->whereNotIn('slug', array_keys($this->defaultEducationUtilities($project)))
+            ->whereNotIn('slug', $knownSlugs)
+            ->orderBy('position')
+            ->orderBy('title')
+            ->get()
+            ->unique('slug')
+            ->map(function (EducationUtility $utility) use ($project): array {
+                return $this->mergeEducationUtilitySettings(
+                    $project,
+                    $this->defaultEducationUtilitySettings($project, (string) $utility->slug),
+                    $utility
+                );
+            });
+
+        return $utilities
+            ->concat($customUtilities)
             ->sortBy([
                 ['position', 'asc'],
                 ['title', 'asc'],

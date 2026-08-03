@@ -96,6 +96,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/utilities', [EducationController::class, 'storeUtility'])->name('utilities.store');
         Route::put('/utilities/{utility}', [EducationController::class, 'updateUtility'])
             ->where('utility', '[A-Za-z0-9\\-_]+')->name('utilities.update');
+        Route::delete('/utilities/{utility}', [EducationController::class, 'destroyUtility'])
+            ->where('utility', '[A-Za-z0-9\\-_]+')->name('utilities.destroy');
         Route::get('/tests', [EducationController::class, 'tests'])->name('tests');
         Route::post('/tests', [EducationController::class, 'storeTest'])->name('tests.store');
         Route::put('/tests/{test}', [EducationController::class, 'updateTest'])

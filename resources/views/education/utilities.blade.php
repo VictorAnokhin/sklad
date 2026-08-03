@@ -494,7 +494,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
                 <div class="modal-body">
-                    <form method="POST" action="{{ route('education.utilities.update', ['utility' => $utilitySlug]) }}" enctype="multipart/form-data">
+                    <form id="customUtilityUpdateForm-{{ $utilityModalSlug }}" method="POST" action="{{ route('education.utilities.update', ['utility' => $utilitySlug]) }}" enctype="multipart/form-data">
                         @csrf
                         @method('PUT')
                         <section class="capital-efficiency-section">
@@ -530,11 +530,24 @@
                                 <label class="form-label" for="customUtilitySchemaJson-{{ $utilityModalSlug }}">JSON-схема утилиты</label>
                                 <textarea class="form-control font-monospace" id="customUtilitySchemaJson-{{ $utilityModalSlug }}" name="schema_json" rows="14" spellcheck="false" style="resize:vertical;">{{ $customSchemaJson }}</textarea>
                             </div>
-                            <div class="capital-efficiency-actions">
-                                <button type="submit" class="btn btn-warning">Сохранить</button>
-                            </div>
                         </section>
                     </form>
+                    <form id="customUtilityDeleteForm-{{ $utilityModalSlug }}" method="POST" action="{{ route('education.utilities.destroy', ['utility' => $utilitySlug]) }}">
+                        @csrf
+                        @method('DELETE')
+                    </form>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button
+                        type="submit"
+                        form="customUtilityDeleteForm-{{ $utilityModalSlug }}"
+                        class="btn btn-outline-danger"
+                        onclick="return confirm('Удалить утилиту {{ addslashes($utility['title'] ?? 'Утилита') }}?')"
+                    >
+                        Удалить
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" form="customUtilityUpdateForm-{{ $utilityModalSlug }}" class="btn btn-warning">Сохранить</button>
                 </div>
             </div>
         </div>
