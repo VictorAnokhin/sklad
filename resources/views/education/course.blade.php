@@ -424,6 +424,19 @@
         border-color: #ffc107 !important;
         color: #111 !important;
     }
+
+    #topic-modal form,
+    #material-modal form {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        height: 100%;
+    }
+
+    #topic-modal .modal-body,
+    #material-modal .modal-body {
+        min-height: 0;
+    }
 </style>
 
 <div class="modal fade" id="topic-modal" tabindex="-1" aria-hidden="true">
@@ -604,10 +617,10 @@
                 <h2 class="modal-title fs-5" id="material-modal-title">Создать материал</h2>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
-            <form id="material-form" method="POST" action="{{ route('education.materials.store') }}" style="display:flex; flex-direction:column; min-height:0; max-height:calc(100vh - 3.5rem);">
+            <form id="material-form" method="POST" action="{{ route('education.materials.store') }}">
                 @csrf
                 <input type="hidden" name="_method" id="material-method" value="POST">
-                <div class="modal-body" style="overflow-y:auto; min-height:0; max-height:calc(100vh - 12rem);">
+                <div class="modal-body">
                     <div class="mb-3" id="topic-select-wrap">
                         <label class="form-label" for="material-topic-id">Курс</label>
                         <select class="form-select" id="material-topic-id" name="topic_id" required>
