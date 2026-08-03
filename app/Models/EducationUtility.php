@@ -13,5 +13,7 @@ class EducationUtility extends Model
         'title_translations' => 'array',
         'description_translations' => 'array',
         'cost_av8' => 'decimal:6',
+        'module_key' => 'string',
+        'icon' => 'string',
     ];
 }

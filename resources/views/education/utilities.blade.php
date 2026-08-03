@@ -5,8 +5,12 @@
 @section('content')
 @php
     $investmentUtility = $investmentUtility ?? [];
+    $utilities = $utilities ?? [$investmentUtility];
+    $capitalUtility = collect($utilities)->firstWhere('slug', 'capital-efficiency') ?? [];
     $utilityTitleTranslations = $investmentUtility['title_translations'] ?? [];
     $utilityDescriptionTranslations = $investmentUtility['description_translations'] ?? [];
+    $capitalUtilityTitleTranslations = $capitalUtility['title_translations'] ?? [];
+    $capitalUtilityDescriptionTranslations = $capitalUtility['description_translations'] ?? [];
 @endphp
 <div class="education-utilities-page">
     @if(session('success'))
@@ -24,12 +28,19 @@
             </p>
         </div>
         <div class="education-utilities-actions">
-            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#capitalEfficiencyModal">
-                Оценка эффективности капиталовложений
-            </button>
-            <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#investmentSimulationModal">
-                Моделирование инвестиционного вложения
-            </button>
+            @foreach($utilities as $utility)
+                @php
+                    $modalTarget = ($utility['slug'] ?? '') === 'capital-efficiency' ? '#capitalEfficiencyModal' : '#investmentSimulationModal';
+                    $utilityIcon = ($utility['icon'] ?? '') === 'chart' ? '↗' : '∑';
+                @endphp
+                <button type="button" class="education-utility-app" data-bs-toggle="modal" data-bs-target="{{ $modalTarget }}">
+                    <span class="education-utility-app__icon">{{ $utilityIcon }}</span>
+                    <span class="education-utility-app__title">{{ $utility['title'] ?? 'Утилита' }}</span>
+                    <span class="education-utility-app__meta">
+                        Рейтинг {{ (int) ($utility['position'] ?? 0) }} · {{ number_format((float) ($utility['cost_av8'] ?? 0), 2, '.', ' ') }} AV8
+                    </span>
+                </button>
+            @endforeach
         </div>
     </div>
 </div>
@@ -42,6 +53,26 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
             <div class="modal-body">
+                <ul class="nav nav-tabs border-secondary mb-3" id="capital-utility-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active bg-dark text-warning border-secondary" id="capital-calculation-tab"
+                                data-bs-toggle="tab" data-bs-target="#capital-calculation-pane" type="button"
+                                role="tab" aria-controls="capital-calculation-pane" aria-selected="true">
+                            Расчет
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link bg-dark text-light border-secondary" id="capital-settings-tab"
+                                data-bs-toggle="tab" data-bs-target="#capital-settings-pane" type="button"
+                                role="tab" aria-controls="capital-settings-pane" aria-selected="false">
+                            Настройки
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="capital-calculation-pane" role="tabpanel"
+                         aria-labelledby="capital-calculation-tab" tabindex="0">
                 <form id="capitalEfficiencyForm" class="capital-efficiency-form">
                     <div class="capital-efficiency-grid">
                         <section class="capital-efficiency-section">
@@ -127,6 +158,40 @@
                 </div>
 
                 <div class="capital-explanation" id="capitalExplanation"></div>
+                    </div>
+                    <div class="tab-pane fade" id="capital-settings-pane" role="tabpanel"
+                         aria-labelledby="capital-settings-tab" tabindex="0">
+                        <form method="POST" action="{{ route('education.utilities.update', ['utility' => $capitalUtility['slug'] ?? 'capital-efficiency']) }}">
+                            @csrf
+                            @method('PUT')
+                            <input type="hidden" name="title_translations[ua]" value="{{ $capitalUtilityTitleTranslations['ua'] ?? 'Оцінка ефективності капіталовкладень' }}">
+                            <input type="hidden" name="title_translations[ru]" value="{{ $capitalUtilityTitleTranslations['ru'] ?? 'Оценка эффективности капиталовложений' }}">
+                            <input type="hidden" name="title_translations[en]" value="{{ $capitalUtilityTitleTranslations['en'] ?? 'Capital efficiency assessment' }}">
+                            <input type="hidden" name="title_translations[es]" value="{{ $capitalUtilityTitleTranslations['es'] ?? 'Evaluación de eficiencia de capital' }}">
+                            <input type="hidden" name="title_translations[fr]" value="{{ $capitalUtilityTitleTranslations['fr'] ?? 'Évaluation de l’efficacité du capital' }}">
+                            <section class="capital-efficiency-section">
+                                <h3>Настройки доступа</h3>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label" for="capitalUtilityRating">Рейтинг</label>
+                                        <input class="form-control" id="capitalUtilityRating" name="position" type="number" min="0" value="{{ (int) ($capitalUtility['position'] ?? 0) }}">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label" for="capitalUtilityCostAv8">Оплата, AV8</label>
+                                        <input class="form-control" id="capitalUtilityCostAv8" name="cost_av8" type="number" min="0" step="0.000001" value="{{ $capitalUtility['cost_av8'] ?? '0' }}">
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="form-label" for="capitalUtilityDescriptionRu">Описание</label>
+                                    <textarea class="form-control" id="capitalUtilityDescriptionRu" name="description_translations[ru]" rows="5" style="resize:vertical;">{{ $capitalUtilityDescriptionTranslations['ru'] ?? '' }}</textarea>
+                                </div>
+                                <div class="capital-efficiency-actions">
+                                    <button type="submit" class="btn btn-warning">Сохранить</button>
+                                </div>
+                            </section>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -354,10 +419,58 @@
     }
 
     .education-utilities-actions {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: 10px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 12px;
+        min-width: min(520px, 100%);
+    }
+
+    .education-utility-app {
+        display: grid;
+        justify-items: center;
+        gap: 8px;
+        min-height: 150px;
+        padding: 16px 12px;
+        border: 1px solid rgba(250, 204, 21, .32);
+        border-radius: 18px;
+        color: #f8fafc;
+        background:
+            radial-gradient(circle at top, rgba(250, 204, 21, .18), transparent 42%),
+            rgba(15, 23, 42, .96);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 16px 36px rgba(0,0,0,.22);
+        text-align: center;
+        transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+
+    .education-utility-app:hover {
+        transform: translateY(-2px);
+        border-color: rgba(250, 204, 21, .68);
+        background:
+            radial-gradient(circle at top, rgba(250, 204, 21, .26), transparent 44%),
+            rgba(15, 23, 42, .98);
+    }
+
+    .education-utility-app__icon {
+        display: grid;
+        width: 56px;
+        height: 56px;
+        place-items: center;
+        border-radius: 16px;
+        color: #111827;
+        background: linear-gradient(135deg, #fde68a, #f59e0b);
+        font-size: 28px;
+        font-weight: 800;
+    }
+
+    .education-utility-app__title {
+        font-size: .94rem;
+        font-weight: 700;
+        line-height: 1.25;
+    }
+
+    .education-utility-app__meta {
+        color: #94a3b8;
+        font-size: .78rem;
     }
 
     #investment-utility-tabs .nav-link.active,

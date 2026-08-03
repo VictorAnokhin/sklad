@@ -27,6 +27,7 @@ class EducationController extends Controller
 {
     private const EDUCATION_LANGUAGES = ['ru', 'ua', 'en', 'es', 'fr'];
     private const INVESTMENT_SIMULATION_UTILITY_SLUG = 'investment-simulation';
+    private const CAPITAL_EFFICIENCY_UTILITY_SLUG = 'capital-efficiency';
     private const MATERIAL_IMAGES_DIRECTORY = 'files/education/materials';
     private const MATERIAL_IMAGES_METADATA = 'files/education/materials/.metadata.json';
     private const MATERIAL_IMAGES_PUBLIC_BASE_URL = 'https://av8capital.space';
@@ -840,10 +841,12 @@ class EducationController extends Controller
     {
         $project = $this->educationProject();
         $investmentUtility = $this->educationUtilitySettings($project, self::INVESTMENT_SIMULATION_UTILITY_SLUG);
+        $utilities = $this->educationUtilityLibrary($project);
 
         return view('education.utilities', [
             'project' => $project,
             'investmentUtility' => $investmentUtility,
+            'utilities' => $utilities,
         ]);
     }
 
@@ -851,24 +854,33 @@ class EducationController extends Controller
     {
         $project = $this->educationProject();
         abort_unless(Schema::hasTable('education_utilities'), 503, 'Таблица настроек утилит ещё не создана. Выполните миграции Laravel.');
-        abort_unless($utility === self::INVESTMENT_SIMULATION_UTILITY_SLUG, 404);
+        abort_unless(array_key_exists($utility, $this->defaultEducationUtilities($project)), 404);
 
         $validated = $this->validateUtility($request);
+        $defaults = $this->defaultEducationUtilitySettings($project, $utility);
+
+        $payload = [
+            'title' => $validated['title'],
+            'title_translations' => $validated['title_translations'],
+            'description' => $validated['description'],
+            'description_translations' => $validated['description_translations'],
+            'position' => $validated['position'],
+            'cost_av8' => $validated['cost_av8'],
+            'is_active' => true,
+        ];
+        if (Schema::hasColumn('education_utilities', 'module_key')) {
+            $payload['module_key'] = $defaults['module_key'];
+        }
+        if (Schema::hasColumn('education_utilities', 'icon')) {
+            $payload['icon'] = $defaults['icon'];
+        }
 
         EducationUtility::query()->updateOrCreate(
             [
                 'project_id' => $project->id,
                 'slug' => $utility,
             ],
-            [
-                'title' => $validated['title'],
-                'title_translations' => $validated['title_translations'],
-                'description' => $validated['description'],
-                'description_translations' => $validated['description_translations'],
-                'position' => $validated['position'],
-                'cost_av8' => $validated['cost_av8'],
-                'is_active' => true,
-            ]
+            $payload
         );
 
         return redirect()->route('education.utilities')->with('success', 'Настройки утилиты сохранены.');
@@ -882,20 +894,23 @@ class EducationController extends Controller
         ]);
         $project = Project::query()->findOrFail((int) $validated['fid']);
         $lang = strtolower((string) $request->query('lang', 'ru'));
-        $utility = $this->educationUtilitySettings($project, self::INVESTMENT_SIMULATION_UTILITY_SLUG);
 
         return response()->json([
-            'utilities' => [
-                [
+            'utilities' => collect($this->educationUtilityLibrary($project))
+                ->filter(fn (array $utility): bool => (bool) ($utility['is_active'] ?? true))
+                ->map(fn (array $utility): array => [
                     'id' => $utility['slug'],
+                    'module_key' => $utility['module_key'],
+                    'icon' => $utility['icon'],
                     'title' => $this->localizedText($utility['title_translations'], $lang, $utility['title']),
                     'description' => $this->localizedText($utility['description_translations'], $lang, $utility['description']),
                     'description_translations' => $utility['description_translations'],
                     'rating' => $utility['position'],
                     'cost_av8' => $utility['cost_av8'],
                     'url' => route('education.utilities'),
-                ],
-            ],
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -1465,28 +1480,107 @@ class EducationController extends Controller
 
     private function defaultEducationUtilitySettings(Project $project, string $slug): array
     {
+        $defaults = $this->defaultEducationUtilities($project);
+
+        return $defaults[$slug] ?? $defaults[self::INVESTMENT_SIMULATION_UTILITY_SLUG];
+    }
+
+    private function defaultEducationUtilities(Project $project): array
+    {
+        return [
+            self::INVESTMENT_SIMULATION_UTILITY_SLUG => [
+                'project_id' => $project->id,
+                'slug' => self::INVESTMENT_SIMULATION_UTILITY_SLUG,
+                'module_key' => 'investment_simulation',
+                'icon' => 'calculator',
+                'title' => 'Моделирование инвестиционного вложения',
+                'title_translations' => [
+                    'ru' => 'Моделирование инвестиционного вложения',
+                    'ua' => 'Моделювання інвестиційного вкладення',
+                    'en' => 'Investment simulation',
+                    'es' => 'Simulación de inversión',
+                    'fr' => 'Simulation d’investissement',
+                ],
+                'description' => 'Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения. Результат выводится в таблице по годам.',
+                'description_translations' => [
+                    'ru' => 'Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения. Результат выводится в таблице по годам.',
+                    'ua' => 'Фінансова модель для розрахунку майбутньої вартості вкладення: стартова сума, строк, відсоток, простий або складний відсоток і регулярні поповнення. Результат виводиться в таблиці за роками.',
+                    'en' => 'A financial model for estimating the future value of an investment: initial amount, term, annual rate, simple or compound interest, and recurring contributions. Results are shown in a yearly table.',
+                    'es' => 'Modelo financiero para estimar el valor futuro de una inversión: importe inicial, plazo, tasa anual, interés simple o compuesto y aportes recurrentes. El resultado se muestra en una tabla anual.',
+                    'fr' => 'Modèle financier pour estimer la valeur future d’un investissement : montant initial, durée, taux annuel, intérêt simple ou composé et versements réguliers. Le résultat est affiché dans un tableau annuel.',
+                ],
+                'position' => 0,
+                'cost_av8' => '0.000000',
+                'is_active' => true,
+            ],
+            self::CAPITAL_EFFICIENCY_UTILITY_SLUG => [
+                'project_id' => $project->id,
+                'slug' => self::CAPITAL_EFFICIENCY_UTILITY_SLUG,
+                'module_key' => 'capital_efficiency',
+                'icon' => 'chart',
+                'title' => 'Оценка эффективности капиталовложений',
+                'title_translations' => [
+                    'ru' => 'Оценка эффективности капиталовложений',
+                    'ua' => 'Оцінка ефективності капіталовкладень',
+                    'en' => 'Capital efficiency assessment',
+                    'es' => 'Evaluación de eficiencia de capital',
+                    'fr' => 'Évaluation de l’efficacité du capital',
+                ],
+                'description' => 'Расчет NPV, IRR, срока окупаемости, PI и точки безубыточности для инвестиционного проекта.',
+                'description_translations' => [
+                    'ru' => 'Расчет NPV, IRR, срока окупаемости, PI и точки безубыточности для инвестиционного проекта.',
+                    'ua' => 'Розрахунок NPV, IRR, строку окупності, PI та точки беззбитковості для інвестиційного проєкту.',
+                    'en' => 'Calculate NPV, IRR, payback period, PI, and break-even point for an investment project.',
+                    'es' => 'Calcula NPV, IRR, periodo de recuperación, PI y punto de equilibrio para un proyecto de inversión.',
+                    'fr' => 'Calculez la NPV, l’IRR, le délai de récupération, le PI et le seuil de rentabilité d’un projet d’investissement.',
+                ],
+                'position' => 0,
+                'cost_av8' => '0.000000',
+                'is_active' => true,
+            ],
+        ];
+    }
+
+    private function educationUtilityLibrary(Project $project): array
+    {
+        $defaults = $this->defaultEducationUtilities($project);
+        if (!Schema::hasTable('education_utilities')) {
+            return array_values($defaults);
+        }
+
+        $stored = EducationUtility::query()
+            ->where('project_id', $project->id)
+            ->get()
+            ->keyBy('slug');
+
+        return collect($defaults)
+            ->map(fn (array $default, string $slug): array => $this->mergeEducationUtilitySettings($project, $default, $stored->get($slug)))
+            ->sortBy([
+                ['position', 'asc'],
+                ['title', 'asc'],
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function mergeEducationUtilitySettings(Project $project, array $defaults, ?EducationUtility $utility): array
+    {
+        if (!$utility) {
+            return $defaults;
+        }
+
         return [
             'project_id' => $project->id,
-            'slug' => $slug,
-            'title' => 'Моделирование инвестиционного вложения',
-            'title_translations' => [
-                'ru' => 'Моделирование инвестиционного вложения',
-                'ua' => 'Моделювання інвестиційного вкладення',
-                'en' => 'Investment simulation',
-                'es' => 'Simulación de inversión',
-                'fr' => 'Simulation d’investissement',
-            ],
-            'description' => 'Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения. Результат выводится в таблице по годам.',
-            'description_translations' => [
-                'ru' => 'Финансовая модель для расчета будущей стоимости вложения: стартовая сумма, срок, процент, простой или сложный процент и регулярные пополнения. Результат выводится в таблице по годам.',
-                'ua' => 'Фінансова модель для розрахунку майбутньої вартості вкладення: стартова сума, строк, відсоток, простий або складний відсоток і регулярні поповнення. Результат виводиться в таблиці за роками.',
-                'en' => 'A financial model for estimating the future value of an investment: initial amount, term, annual rate, simple or compound interest, and recurring contributions. Results are shown in a yearly table.',
-                'es' => 'Modelo financiero para estimar el valor futuro de una inversión: importe inicial, plazo, tasa anual, interés simple o compuesto y aportes recurrentes. El resultado se muestra en una tabla anual.',
-                'fr' => 'Modèle financier pour estimer la valeur future d’un investissement : montant initial, durée, taux annuel, intérêt simple ou composé et versements réguliers. Le résultat est affiché dans un tableau annuel.',
-            ],
-            'position' => 0,
-            'cost_av8' => '0.000000',
-            'is_active' => true,
+            'slug' => (string) $utility->slug,
+            'module_key' => Schema::hasColumn('education_utilities', 'module_key') ? (string) ($utility->module_key ?: $defaults['module_key']) : $defaults['module_key'],
+            'icon' => Schema::hasColumn('education_utilities', 'icon') ? (string) ($utility->icon ?: $defaults['icon']) : $defaults['icon'],
+            'title' => (string) ($utility->title ?: $defaults['title']),
+            'title_translations' => array_replace($defaults['title_translations'], $utility->title_translations ?? []),
+            'description' => (string) ($utility->description ?: $defaults['description']),
+            'description_translations' => array_replace($defaults['description_translations'], $utility->description_translations ?? []),
+            'position' => (int) ($utility->position ?? 0),
+            'cost_av8' => (string) ($utility->cost_av8 ?? '0'),
+            'is_active' => (bool) $utility->is_active,
         ];
     }
 
@@ -1502,21 +1596,7 @@ class EducationController extends Controller
             ->where('slug', $slug)
             ->first();
 
-        if (!$utility) {
-            return $defaults;
-        }
-
-        return [
-            'project_id' => $project->id,
-            'slug' => (string) $utility->slug,
-            'title' => (string) ($utility->title ?: $defaults['title']),
-            'title_translations' => array_replace($defaults['title_translations'], $utility->title_translations ?? []),
-            'description' => (string) ($utility->description ?: $defaults['description']),
-            'description_translations' => array_replace($defaults['description_translations'], $utility->description_translations ?? []),
-            'position' => (int) ($utility->position ?? 0),
-            'cost_av8' => (string) ($utility->cost_av8 ?? '0'),
-            'is_active' => (bool) $utility->is_active,
-        ];
+        return $this->mergeEducationUtilitySettings($project, $defaults, $utility);
     }
 
     private function educationMaterialImages(): array
