@@ -887,17 +887,33 @@ class EducationController extends Controller
                 ->value('icon_path') ?? '');
             $payload['icon_path'] = $this->storeUtilityIcon($request, $utility, $existingIconPath);
         }
-        if (Schema::hasColumn('education_utilities', 'schema_json') && array_key_exists('schema_json', $validated)) {
+        $hasSubmittedSchemaJson = array_key_exists('schema_json', $validated);
+        if ($hasSubmittedSchemaJson && !Schema::hasColumn('education_utilities', 'schema_json')) {
+            throw ValidationException::withMessages([
+                'schema_json' => 'Колонка schema_json отсутствует в таблице education_utilities. Выполните миграции Laravel на сервере.',
+            ]);
+        }
+        if ($hasSubmittedSchemaJson) {
             $payload['schema_json'] = $validated['schema_json'];
         }
 
-        EducationUtility::query()->updateOrCreate(
+        $savedUtility = EducationUtility::query()->updateOrCreate(
             [
                 'project_id' => $project->id,
                 'slug' => $utility,
             ],
             $payload
         );
+
+        if ($hasSubmittedSchemaJson) {
+            $savedUtility->refresh();
+            $savedSchemaJson = $savedUtility->schema_json;
+            if ($savedSchemaJson != $validated['schema_json']) {
+                throw ValidationException::withMessages([
+                    'schema_json' => 'JSON-схема не была сохранена в БД. Проверьте тип/миграцию колонки education_utilities.schema_json.',
+                ]);
+            }
+        }
 
         return redirect()->route('education.utilities')->with('success', 'Настройки утилиты сохранены.');
     }
