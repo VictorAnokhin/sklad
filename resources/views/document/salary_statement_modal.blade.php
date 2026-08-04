@@ -126,9 +126,57 @@
 
 @push('scripts')
 <style>
+    #salaryPayoutModal .modal-content {
+        display: flex;
+        flex-direction: column;
+        height: 80vh;
+        max-height: 80vh;
+        overflow: hidden;
+    }
+
+    #salaryPayoutForm {
+        display: flex;
+        flex: 1 1 auto;
+        min-height: 0;
+        flex-direction: column;
+    }
+
+    #salaryPayoutModal .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #salaryPayoutModal .modal-footer {
+        flex: 0 0 auto;
+        padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem));
+    }
+
     @media (max-width: 768px) {
         #salaryStatementModal .modal-dialog {
             margin: .5rem;
+        }
+
+        #salaryPayoutModal .modal-dialog {
+            margin: .5rem;
+        }
+
+        #salaryPayoutModal .modal-content {
+            height: 80vh;
+            max-height: 80vh;
+        }
+
+        #salaryPayoutModal .modal-footer {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            padding-bottom: max(1.75rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+        }
+
+        #salaryPayoutModal .modal-footer .btn {
+            width: 100%;
         }
 
         #salaryStatementModal .modal-body {
