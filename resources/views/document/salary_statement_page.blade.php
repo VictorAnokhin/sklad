@@ -207,11 +207,12 @@
     }
 
     #salaryPayoutModal .modal-content {
-        max-height: calc(100vh - 2rem);
+        height: 80vh;
+        max-height: 80vh;
     }
 
     #salaryPayoutModal .modal-body {
-        max-height: calc(100vh - 10rem);
+        max-height: calc(80vh - 8rem);
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
     }
@@ -377,11 +378,12 @@
         }
 
         #salaryPayoutModal .modal-content {
-            max-height: calc(100vh - 1rem);
+            height: 80vh;
+            max-height: 80vh;
         }
 
         #salaryPayoutModal .modal-body {
-            max-height: calc(100vh - 8.5rem);
+            max-height: calc(80vh - 7.5rem);
         }
     }
 </style>
