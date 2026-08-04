@@ -887,8 +887,8 @@ class EducationController extends Controller
                 ->value('icon_path') ?? '');
             $payload['icon_path'] = $this->storeUtilityIcon($request, $utility, $existingIconPath);
         }
-        if (Schema::hasColumn('education_utilities', 'schema_json')) {
-            $payload['schema_json'] = $validated['schema_json'] ?: $defaults['schema_json'];
+        if (Schema::hasColumn('education_utilities', 'schema_json') && array_key_exists('schema_json', $validated)) {
+            $payload['schema_json'] = $validated['schema_json'];
         }
 
         EducationUtility::query()->updateOrCreate(
@@ -2131,7 +2131,7 @@ class EducationController extends Controller
 
             $validated['schema_json'] = $decodedSchema;
         } else {
-            $validated['schema_json'] = null;
+            unset($validated['schema_json']);
         }
 
         return $validated;
