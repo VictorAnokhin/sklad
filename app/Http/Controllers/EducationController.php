@@ -170,6 +170,7 @@ class EducationController extends Controller
                 });
         }
 
+        $utilityInstalls = $this->installedEducationUtilitySlugs($projectId, (int) $user->id);
         $latestProfileAttempt = $testAttempts->first(fn (array $attempt): bool => is_array($attempt['profile']));
 
         return response()->json([
@@ -179,6 +180,14 @@ class EducationController extends Controller
                 'tests' => $testAttempts->values(),
                 'course_orders' => $courseOrders->values(),
                 'course_payments' => $coursePayments->values(),
+                'installed_utilities' => $utilityInstalls->values(),
+                'utility_installs' => $utilityInstalls
+                    ->map(fn (string $utilitySlug): array => [
+                        'id' => $utilitySlug,
+                        'utility_id' => $utilitySlug,
+                        'utility_slug' => $utilitySlug,
+                    ])
+                    ->values(),
             ],
         ]);
     }
@@ -457,6 +466,54 @@ class EducationController extends Controller
             ->merge($orderedCourseIds)
             ->unique()
             ->values();
+    }
+
+    private function installedEducationUtilitySlugs(int $projectId, int $userId)
+    {
+        if (!Schema::hasTable('education_user_utilities')) {
+            return collect();
+        }
+
+        return DB::table('education_user_utilities')
+            ->where('project_id', $projectId)
+            ->where('user_id', $userId)
+            ->orderByDesc('installed_at')
+            ->orderByDesc('id')
+            ->pluck('utility_slug')
+            ->map(fn ($slug): string => (string) $slug)
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    private function paidEducationUtilitySlugs(int $projectId, int $userId)
+    {
+        if (!Schema::hasTable('z_document')) {
+            return collect();
+        }
+
+        return DB::table('z_document')
+            ->where('firma', (string) $projectId)
+            ->where('type', 'PO')
+            ->where('client1', (string) $userId)
+            ->where('provodka', 1)
+            ->pluck('typeproduct')
+            ->map(fn ($typeProduct): string => strtolower(trim((string) $typeProduct)))
+            ->filter(fn (string $typeProduct): bool => Str::startsWith($typeProduct, 'utility:'))
+            ->map(fn (string $typeProduct): string => substr($typeProduct, strlen('utility:')))
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    private function publicUtilityBySlug(Project $project, string $utility): array
+    {
+        $utilitySettings = collect($this->publicEducationUtilityLibrary($project))
+            ->first(fn (array $settings): bool => (string) ($settings['slug'] ?? '') === $utility);
+
+        abort_unless($utilitySettings, 404, 'Утилита не найдена.');
+
+        return $utilitySettings;
     }
 
     private function assertCoursePaymentAccess(EducationTopic $course): void
@@ -1020,6 +1077,79 @@ class EducationController extends Controller
                 ])
                 ->values()
                 ->all(),
+        ]);
+    }
+
+    public function installUtilityForUser(Request $request, string $utility): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+        ]);
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless(Schema::hasTable('education_user_utilities'), 503, 'Таблица подключенных утилит ещё не создана. Выполните миграции Laravel.');
+
+        $project = Project::query()->findOrFail((int) $validated['fid']);
+        $utilitySettings = $this->publicUtilityBySlug($project, $utility);
+        abort_unless((bool) ($utilitySettings['is_active'] ?? true), 404);
+
+        $educationRating = Schema::hasColumn('users', 'education_rating')
+            ? (int) DB::table('users')->where('id', $user->id)->value('education_rating')
+            : 0;
+        abort_if((int) ($utilitySettings['position'] ?? 0) > $educationRating, 403, 'Недостаточно рейтинга для подключения утилиты.');
+
+        $requiresPayment = (float) ($utilitySettings['cost_av8'] ?? 0) > 0;
+        abort_if(
+            $requiresPayment && !$this->paidEducationUtilitySlugs((int) $project->id, (int) $user->id)->contains($utility),
+            403,
+            'Утилита не оплачена.'
+        );
+
+        $now = now();
+        $existing = DB::table('education_user_utilities')
+            ->where('user_id', $user->id)
+            ->where('project_id', $project->id)
+            ->where('utility_slug', $utility)
+            ->first();
+
+        if ($existing) {
+            DB::table('education_user_utilities')
+                ->where('id', $existing->id)
+                ->update(['updated_at' => $now]);
+        } else {
+            DB::table('education_user_utilities')->insert([
+                'user_id' => $user->id,
+                'project_id' => $project->id,
+                'utility_slug' => $utility,
+                'installed_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        return response()->json([
+            'installed_utilities' => $this->installedEducationUtilitySlugs((int) $project->id, (int) $user->id)->values(),
+        ]);
+    }
+
+    public function destroyUserUtility(Request $request, string $utility): JsonResponse
+    {
+        $validated = $request->validate([
+            'fid' => ['required', 'integer', 'min:1'],
+        ]);
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless(Schema::hasTable('education_user_utilities'), 503, 'Таблица подключенных утилит ещё не создана. Выполните миграции Laravel.');
+
+        $project = Project::query()->findOrFail((int) $validated['fid']);
+        DB::table('education_user_utilities')
+            ->where('user_id', $user->id)
+            ->where('project_id', $project->id)
+            ->where('utility_slug', $utility)
+            ->delete();
+
+        return response()->json([
+            'installed_utilities' => $this->installedEducationUtilitySlugs((int) $project->id, (int) $user->id)->values(),
         ]);
     }
 
