@@ -206,6 +206,16 @@
         margin-right: auto;
     }
 
+    #salaryPayoutModal .modal-content {
+        max-height: calc(100vh - 2rem);
+    }
+
+    #salaryPayoutModal .modal-body {
+        max-height: calc(100vh - 10rem);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
     @media (max-width: 768px) {
         .salary-statement-card {
             padding: 10px;
@@ -364,6 +374,14 @@
 
         #salaryPayoutModal .modal-dialog {
             margin: .5rem;
+        }
+
+        #salaryPayoutModal .modal-content {
+            max-height: calc(100vh - 1rem);
+        }
+
+        #salaryPayoutModal .modal-body {
+            max-height: calc(100vh - 8.5rem);
         }
     }
 </style>
