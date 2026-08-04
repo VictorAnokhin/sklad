@@ -13,8 +13,17 @@ return new class extends Migration
         }
 
         Schema::table('education_utilities', function (Blueprint $table) {
+            if (!Schema::hasColumn('education_utilities', 'module_key')) {
+                $table->string('module_key', 120)->default('calculator_builder');
+            }
+            if (!Schema::hasColumn('education_utilities', 'icon')) {
+                $table->string('icon', 80)->default('calculator');
+            }
+            if (!Schema::hasColumn('education_utilities', 'icon_path')) {
+                $table->string('icon_path')->nullable();
+            }
             if (!Schema::hasColumn('education_utilities', 'schema_json')) {
-                $table->json('schema_json')->nullable()->after('icon_path');
+                $table->json('schema_json')->nullable();
             }
         });
     }
