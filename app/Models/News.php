@@ -59,15 +59,23 @@ class News extends Model
         ];
     }
 
-    public static function findForView(int $id, string $fid, ?string $locale = 'ru'): ?object
+    public static function findForView(int|string $identifier, string $fid, ?string $locale = 'ru'): ?object
     {
-        $item = DB::table('news')
-            ->where('id', $id)
+        $query = DB::table('news')
             ->where(function ($query) use ($fid) {
                 $query->where('firma', (int) $fid)
                     ->orWhere('firma', 0);
-            })
-            ->first();
+            });
+
+        if (is_numeric($identifier)) {
+            $query->where('id', (int) $identifier);
+        } elseif (Schema::hasColumn('news', 'url')) {
+            $query->where('url', self::normalizeSlug((string) $identifier));
+        } else {
+            return null;
+        }
+
+        $item = $query->first();
 
         return $item ? self::decorateItem($item, $locale) : null;
     }
@@ -103,6 +111,7 @@ class News extends Model
             'article' => 0,
             'tags' => '',
             'htmlkeys' => '',
+            'url' => '',
         ];
     }
 
@@ -115,6 +124,12 @@ class News extends Model
             if (array_key_exists($field, $payload) && $payload[$field] === null) {
                 $payload[$field] = '';
             }
+        }
+
+        if (in_array('url', $columns, true) && ($id <= 0 || array_key_exists('url', $payload))) {
+            $rawUrl = trim((string) ($payload['url'] ?? ''));
+            $sourceTitle = (string) ($payload['title'] ?? '');
+            $payload['url'] = self::uniqueUrl($rawUrl, $sourceTitle, (int) $fid, $id);
         }
 
         if ($id > 0) {
@@ -140,6 +155,55 @@ class News extends Model
             ->where('id', $id)
             ->where('firma', (int) $fid)
             ->delete();
+    }
+
+    public static function normalizeSlug(string $value): string
+    {
+        $value = self::transliterate($value);
+        $value = mb_strtolower($value, 'UTF-8');
+        $value = preg_replace('/[^a-z0-9]+/u', '-', $value) ?? '';
+        $value = trim($value, '-');
+
+        return $value;
+    }
+
+    private static function uniqueUrl(string $url, string $title, int $fid, int $currentId = 0): string
+    {
+        $base = self::normalizeSlug($url !== '' ? $url : $title);
+        if ($base === '') {
+            $base = 'article';
+        }
+
+        $candidate = $base;
+        $suffix = 2;
+
+        while (DB::table('news')
+            ->where('firma', $fid)
+            ->where('url', $candidate)
+            ->when($currentId > 0, fn ($query) => $query->where('id', '!=', $currentId))
+            ->exists()) {
+            $candidate = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $candidate;
+    }
+
+    private static function transliterate(string $value): string
+    {
+        $map = [
+            'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd', 'е' => 'e', 'ё' => 'e',
+            'ж' => 'zh', 'з' => 'z', 'и' => 'i', 'й' => 'i', 'к' => 'k', 'л' => 'l', 'м' => 'm',
+            'н' => 'n', 'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't', 'у' => 'u',
+            'ф' => 'f', 'х' => 'h', 'ц' => 'c', 'ч' => 'ch', 'ш' => 'sh', 'щ' => 'sch',
+            'ъ' => '', 'ы' => 'y', 'ь' => '', 'э' => 'e', 'ю' => 'yu', 'я' => 'ya',
+            'є' => 'ye', 'і' => 'i', 'ї' => 'yi', 'ґ' => 'g',
+        ];
+
+        return strtr($value, $map + array_combine(
+            array_map('mb_strtoupper', array_keys($map)),
+            array_map('ucfirst', array_values($map)),
+        ));
     }
 
     public static function decorateTitle(object $item): string

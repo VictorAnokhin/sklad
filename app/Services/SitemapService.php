@@ -291,7 +291,10 @@ class SitemapService
             $xml = '';
             foreach ($query->orderByDesc('id')->get() as $item) {
                 $lastMod = $this->resolveLastMod($item->updated_at ?? null, $item->dt ?? null);
-                $xml .= $this->formatUrl($baseUrl . rtrim($routePrefix, '/') . '/' . $item->id, '0.8', 'weekly', $lastMod);
+                $identifier = Schema::hasColumn('news', 'url') && trim((string) ($item->url ?? '')) !== ''
+                    ? trim((string) $item->url)
+                    : (string) $item->id;
+                $xml .= $this->formatUrl($baseUrl . rtrim($routePrefix, '/') . '/' . $identifier, '0.8', 'weekly', $lastMod);
             }
 
             return $xml;

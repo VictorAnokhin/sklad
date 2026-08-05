@@ -29,11 +29,11 @@ class NewsController extends Controller
         ]);
     }
 
-    public function apiShow(Request $request, int $id)
+    public function apiShow(Request $request, string $identifier)
     {
         $fid = (string) $request->input('fid', session('fid', '2'));
         $locale = $this->resolveApiLocale($request);
-        $item = News::findForView($id, $fid, $locale);
+        $item = News::findForView($identifier, $fid, $locale);
 
         if (!$item) {
             return response()->json(['message' => 'Новину не знайдено'], 404);
@@ -64,6 +64,7 @@ class NewsController extends Controller
             'title' => (string) ($validated['title'] ?? ''),
             'title_ua' => (string) ($validated['title_ua'] ?? ''),
             'title_en' => (string) ($validated['title_en'] ?? ''),
+            'url' => (string) ($validated['url'] ?? ''),
             'kratko' => (string) ($validated['kratko'] ?? ''),
             'kratko_ua' => (string) ($validated['kratko_ua'] ?? ''),
             'kratko_en' => (string) ($validated['kratko_en'] ?? ''),
@@ -120,6 +121,7 @@ class NewsController extends Controller
             'title' => (string) ($validated['title'] ?? ''),
             'title_ua' => (string) ($validated['title_ua'] ?? ''),
             'title_en' => (string) ($validated['title_en'] ?? ''),
+            'url' => (string) ($validated['url'] ?? ''),
             'kratko' => (string) ($validated['kratko'] ?? ''),
             'kratko_ua' => (string) ($validated['kratko_ua'] ?? ''),
             'kratko_en' => (string) ($validated['kratko_en'] ?? ''),
@@ -253,6 +255,7 @@ class NewsController extends Controller
             'title' => $titleRu,
             'title_ua' => $titleUa,
             'title_en' => $titleEn,
+            'url' => (string) $request->input('url', ''),
             'kratko' => (string) $request->input('kratko', ''),
             'kratko_ua' => (string) $request->input('kratko_ua', ''),
             'kratko_en' => (string) $request->input('kratko_en', ''),
@@ -298,6 +301,7 @@ class NewsController extends Controller
             'title' => ['nullable', 'string', 'max:1000', 'required_without_all:title_ua,title_en'],
             'title_ua' => ['nullable', 'string', 'max:1000'],
             'title_en' => ['nullable', 'string', 'max:1000'],
+            'url' => ['nullable', 'string', 'max:255'],
             'kratko' => ['nullable', 'string', 'max:10000'],
             'kratko_ua' => ['nullable', 'string', 'max:10000'],
             'kratko_en' => ['nullable', 'string', 'max:10000'],

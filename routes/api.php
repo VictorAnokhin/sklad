@@ -221,8 +221,8 @@ Route::get('/cities', [GoodsController::class, 'getCities']);
 Route::get('/news', [NewsController::class, 'apiIndex']);
 Route::middleware(['throttle:20,1'])->post('/news/agent', [NewsController::class, 'apiStoreBySecret']);
 Route::middleware('auth:sanctum')->post('/news', [NewsController::class, 'apiStore']);
-Route::middleware('auth:sanctum')->post('/news/{id}/publish', [NewsController::class, 'apiPublish']);
-Route::get('/news/{id}', [NewsController::class, 'apiShow']);
+Route::middleware('auth:sanctum')->post('/news/{id}/publish', [NewsController::class, 'apiPublish'])->whereNumber('id');
+Route::get('/news/{identifier}', [NewsController::class, 'apiShow']);
 Route::get('/banners', [BannerCarouselController::class, 'apiIndex']);
 Route::middleware(['api', 'throttle:30,1'])->prefix('projects/manager-ai')->group(function () {
     Route::get('/', [SettingsController::class, 'managerAiProjectsIndex']);

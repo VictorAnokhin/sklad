@@ -17,6 +17,7 @@ return new class extends Migration
             $table->text('title')->nullable();
             $table->text('title_ua')->nullable();
             $table->text('title_en')->nullable();
+            $table->string('url', 255)->default('');
             $table->text('kratko')->nullable();
             $table->text('kratko_ua')->nullable();
             $table->text('kratko_en')->nullable();
@@ -43,6 +44,7 @@ return new class extends Migration
             $table->string('top', 5)->default('');
 
             $table->index('firma');
+            $table->index(['firma', 'url']);
             $table->index('author');
         });
     }

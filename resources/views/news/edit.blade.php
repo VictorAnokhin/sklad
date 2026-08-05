@@ -54,6 +54,22 @@
         </div>
 
         <div class="mb-4">
+            <label class="form-label">Людиночитний URL (`url`)</label>
+            <div class="input-group">
+                <span class="input-group-text">/articles/</span>
+                <input
+                    type="text"
+                    name="url"
+                    class="form-control"
+                    value="{{ old('url', $item->url ?? '') }}"
+                    placeholder="finansovyi-plan"
+                    maxlength="255"
+                >
+            </div>
+            <div class="form-text">Якщо залишити поле порожнім, URL автоматично сформується транслітом із назви RU.</div>
+        </div>
+
+        <div class="mb-4">
             <label class="form-label">Завантажити фото</label>
             <input type="file" name="foto_upload" class="form-control @error('foto_upload') is-invalid @enderror" accept="image/*">
             @error('foto_upload')

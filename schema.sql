@@ -272,6 +272,7 @@ CREATE TABLE `news` (
   `title` text NOT NULL,
   `title_ua` text NOT NULL,
   `title_en` text NOT NULL,
+  `url` varchar(255) NOT NULL DEFAULT '',
   `kratko` text NOT NULL,
   `kratko_ua` text NOT NULL,
   `kratko_en` text NOT NULL,
@@ -296,7 +297,8 @@ CREATE TABLE `news` (
   `article` tinyint(1) NOT NULL,
   `author` int NOT NULL,
   `top` varchar(5) NOT NULL,
-  UNIQUE KEY `id` (`id`)
+  UNIQUE KEY `id` (`id`),
+  KEY `news_firma_url_index` (`firma`,`url`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
 DROP TABLE IF EXISTS `oplata`;
 CREATE TABLE `oplata` (
