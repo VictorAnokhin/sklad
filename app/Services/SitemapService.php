@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\EducationUtility;
 use App\Models\Field;
 use App\Models\Goods;
 use App\Models\News;
@@ -15,6 +16,41 @@ use Illuminate\Support\Facades\Schema;
 
 class SitemapService
 {
+    private const AUTOAGENT_STATIC_PAGES = [
+        '',
+        '/automarket',
+        '/goods',
+        '/service',
+        '/delivery',
+        '/about',
+        '/news',
+        '/privacy',
+        '/refund-policy',
+    ];
+
+    private const AV8_STATIC_PAGES = [
+        '',
+        '/about',
+        '/articles',
+        '/bridge',
+        '/swap',
+        '/mint',
+        '/invest',
+        '/portfolio',
+        '/nft',
+        '/fund-accounts',
+        '/fund-basket',
+        '/know-yourself',
+        '/academy',
+        '/models',
+        '/business-digitization',
+        '/whitepaper',
+        '/privacy-policy',
+        '/terms-of-service',
+        '/public-offer',
+        '/kyc-aml',
+    ];
+
     public function generate(?int $fid = null): array
     {
         $project = $this->resolveProject($fid);
@@ -84,17 +120,24 @@ class SitemapService
     {
         $project = $this->resolveProject($fid);
         $baseUrl = $this->resolveFrontendBaseUrl($project);
+        $isAv8Fund = $this->isAv8FundProject($project, $baseUrl);
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . PHP_EOL;
         $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . PHP_EOL;
 
-        foreach (['', '/automarket', '/goods', '/service', '/delivery', '/about', '/news', '/privacy', '/refund-policy'] as $page) {
+        foreach ($this->staticPagesForProject($isAv8Fund) as $page) {
             $xml .= $this->formatUrl($baseUrl . $page, '1.0', 'daily');
         }
 
-        $xml .= $this->appendNewsUrls($baseUrl, $project?->id);
-        $xml .= $this->appendCatalogSectionUrls($baseUrl, $project?->id);
-        $xml .= $this->appendGoodsUrls($baseUrl, $project?->id);
+        if ($isAv8Fund) {
+            $xml .= $this->appendNewsUrls($baseUrl, $project?->id, '/articles');
+            $xml .= $this->appendEducationUtilityUrls($baseUrl, $project?->id);
+        } else {
+            $xml .= $this->appendNewsUrls($baseUrl, $project?->id);
+            $xml .= $this->appendCatalogSectionUrls($baseUrl, $project?->id);
+            $xml .= $this->appendGoodsUrls($baseUrl, $project?->id);
+        }
+
         $xml .= '</urlset>' . PHP_EOL;
 
         return $xml;
@@ -130,6 +173,20 @@ class SitemapService
         }
 
         return rtrim((string) config('app.url'), '/');
+    }
+
+    private function staticPagesForProject(bool $isAv8Fund): array
+    {
+        return $isAv8Fund ? self::AV8_STATIC_PAGES : self::AUTOAGENT_STATIC_PAGES;
+    }
+
+    private function isAv8FundProject(?Project $project, string $baseUrl): bool
+    {
+        $host = strtolower((string) (parse_url($baseUrl, PHP_URL_HOST) ?: ''));
+
+        return (int) ($project?->id ?? 0) === 12
+            || $host === 'av8.fund'
+            || str_ends_with($host, '.av8.fund');
     }
 
     private function resolveProjectByHost(string $host): ?Project
@@ -212,7 +269,7 @@ class SitemapService
         return (bool) filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME);
     }
 
-    private function appendNewsUrls(string $baseUrl, ?int $fid = null): string
+    private function appendNewsUrls(string $baseUrl, ?int $fid = null, string $routePrefix = '/news'): string
     {
         if (!class_exists(News::class) || !Schema::hasTable('news')) {
             return '';
@@ -234,7 +291,7 @@ class SitemapService
             $xml = '';
             foreach ($query->orderByDesc('id')->get() as $item) {
                 $lastMod = $this->resolveLastMod($item->updated_at ?? null, $item->dt ?? null);
-                $xml .= $this->formatUrl($baseUrl . '/news/' . $item->id, '0.8', 'weekly', $lastMod);
+                $xml .= $this->formatUrl($baseUrl . rtrim($routePrefix, '/') . '/' . $item->id, '0.8', 'weekly', $lastMod);
             }
 
             return $xml;
@@ -336,6 +393,55 @@ class SitemapService
             ]);
         } catch (\Throwable $e) {
             Log::warning('Skipping sitemap goods URLs because an unexpected error occurred.', [
+                'error' => $e->getMessage(),
+                'fid' => $fid,
+            ]);
+        }
+
+        return '';
+    }
+
+    private function appendEducationUtilityUrls(string $baseUrl, ?int $fid = null): string
+    {
+        if (!class_exists(EducationUtility::class) || !Schema::hasTable('education_utilities')) {
+            return '';
+        }
+
+        try {
+            $query = EducationUtility::query();
+
+            if ($fid !== null && Schema::hasColumn('education_utilities', 'project_id')) {
+                $query->where('project_id', $fid);
+            }
+
+            if (Schema::hasColumn('education_utilities', 'is_active')) {
+                $query->where('is_active', true);
+            }
+
+            $select = ['slug'];
+            if (Schema::hasColumn('education_utilities', 'updated_at')) {
+                $select[] = 'updated_at';
+            }
+
+            $xml = '';
+            foreach ($query->select($select)->orderBy('position')->orderBy('id')->get() as $item) {
+                $slug = trim((string) ($item->slug ?? ''));
+                if ($slug === '') {
+                    continue;
+                }
+
+                $lastMod = $this->resolveLastMod($item->updated_at ?? null, null);
+                $xml .= $this->formatUrl($baseUrl . '/models/' . rawurlencode($slug), '0.8', 'weekly', $lastMod);
+            }
+
+            return $xml;
+        } catch (QueryException $e) {
+            Log::warning('Skipping sitemap education utility URLs because the query failed.', [
+                'error' => $e->getMessage(),
+                'fid' => $fid,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Skipping sitemap education utility URLs because an unexpected error occurred.', [
                 'error' => $e->getMessage(),
                 'fid' => $fid,
             ]);
