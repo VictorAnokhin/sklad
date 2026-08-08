@@ -221,11 +221,14 @@
                             $changeClass = str_starts_with($change, '-')
                                 ? 'text-danger'
                                 : ($change !== '' && $change !== '0' && $change !== '0%' ? 'text-success' : 'text-muted');
+                            $latestChange = $stockChanges[(int) $stock->id] ?? ['date' => '', 'fields' => []];
+                            $changedFields = $latestChange['fields'] ?? [];
+                            $isChanged = fn (array|string $fields) => collect((array) $fields)->intersect($changedFields)->isNotEmpty();
                         @endphp
                         <tr>
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
-                            <td><span class="bank-pill bank-pill--currency">{{ $stock->ticker }}</span></td>
-                            <td>
+                            <td class="{{ $isChanged('ticker') ? 'bank-stock-cell--changed' : '' }}"><span class="bank-pill bank-pill--currency">{{ $stock->ticker }}</span></td>
+                            <td class="{{ $isChanged(['company', 'sector', 'industry', 'country']) ? 'bank-stock-cell--changed' : '' }}">
                                 <strong class="bank-stock-company">{{ $stock->company }}</strong>
                                 <div class="bank-meta bank-stock-company-meta">
                                     {{ $stock->sector ?: '—' }}
@@ -239,12 +242,15 @@
                                 @if((int) $stock->project_id === 0)
                                     <div class="bank-meta">Пример</div>
                                 @endif
+                                @if(($latestChange['date'] ?? '') && $changedFields !== [])
+                                    <div class="bank-stock-change-note">Изм. {{ $latestChange['date'] }}</div>
+                                @endif
                             </td>
-                            <td class="text-end bank-mono">{{ $stock->market ?: '—' }}</td>
-                            <td class="text-end bank-mono">{{ $stock->pe ?: '—' }}</td>
-                            <td class="text-end bank-mono">{{ $stock->price ?: '—' }}</td>
-                            <td class="text-end bank-mono {{ $changeClass }}">{{ $change ?: '—' }}</td>
-                            <td class="text-end bank-mono">{{ $stock->volume ?: '—' }}</td>
+                            <td class="text-end bank-mono {{ $isChanged(['market', 'market_cap']) ? 'bank-stock-cell--changed' : '' }}">{{ $stock->market ?: '—' }}</td>
+                            <td class="text-end bank-mono {{ $isChanged('pe') ? 'bank-stock-cell--changed' : '' }}">{{ $stock->pe ?: '—' }}</td>
+                            <td class="text-end bank-mono {{ $isChanged('price') ? 'bank-stock-cell--changed' : '' }}">{{ $stock->price ?: '—' }}</td>
+                            <td class="text-end bank-mono {{ $changeClass }} {{ $isChanged('change_percent') ? 'bank-stock-cell--changed' : '' }}">{{ $change ?: '—' }}</td>
+                            <td class="text-end bank-mono {{ $isChanged('volume') ? 'bank-stock-cell--changed' : '' }}">{{ $stock->volume ?: '—' }}</td>
                             <td class="text-end">
                                 <div class="bank-stock-actions">
                                     <button type="button"
@@ -257,6 +263,9 @@
                                         <button type="button"
                                                 data-stock-edit
                                                 data-stock-update-url="{{ route('bank.stock-analysis.update', $stock->id) }}"
+                                                data-stock-pull-url="{{ route('bank.stock-analysis.adapter.pull', $stock->id) }}"
+                                                data-stock-adapter-url="{{ route('bank.stock-analysis.adapter.update', $stock->id) }}"
+                                                data-stock-snapshot-date="{{ $latestChange['date'] ?: now()->toDateString() }}"
                                                 data-stock-json="{{ base64_encode(json_encode($stock, JSON_UNESCAPED_UNICODE)) }}">
                                             Редактировать
                                         </button>
@@ -298,6 +307,25 @@
                   data-stock-store-url="{{ route('bank.stock-analysis.store') }}">
                 @csrf
                 <input type="hidden" name="_method" value="POST" data-stock-form-method>
+                <textarea name="adapter_config" data-stock-adapter-config-field hidden>{{ old('adapter_config') }}</textarea>
+                <div class="bank-stock-adapter-row">
+                    <label>
+                        <span>Дата</span>
+                        <input type="date" name="snapshot_date" value="{{ old('snapshot_date', now()->toDateString()) }}" data-stock-snapshot-date-field>
+                    </label>
+                    <label>
+                        <span>Адаптер</span>
+                        <select name="adapter" data-stock-adapter-select>
+                            <option value="manual">Manual</option>
+                            <option value="finviz_elite">Finviz Elite API</option>
+                            <option value="fmp">Financial Modeling Prep</option>
+                            <option value="finnhub">Finnhub</option>
+                        </select>
+                    </label>
+                    <button type="button" class="btn btn-sm btn-outline-light" data-stock-pull disabled>Подтянуть данные</button>
+                    <button type="button" class="btn btn-sm btn-outline-light" data-stock-adapter-settings disabled>Настройки адаптера</button>
+                    <div class="bank-meta" data-stock-pull-status></div>
+                </div>
                 <div class="bank-stock-form-section">
                     <div class="bank-label">Таблица</div>
                     <div class="bank-form-grid">
@@ -349,6 +377,40 @@
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-stock-close>Отмена</button>
                     <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="bank-modal" data-stock-adapter-modal hidden>
+        <div class="bank-modal__backdrop" data-stock-adapter-close></div>
+        <div class="bank-modal__dialog bank-stock-adapter-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="stockAdapterModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Адаптер</div>
+                    <h2 id="stockAdapterModalTitle">Настройки адаптера</h2>
+                    <div class="bank-meta">Настройки сохраняются для текущей акции и используются при подтягивании данных.</div>
+                </div>
+                <button type="button" class="bank-modal__close" data-stock-adapter-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="POST" class="bank-requisites-form" data-stock-adapter-form>
+                @csrf
+                <label>
+                    <span>Адаптер</span>
+                    <select name="adapter" data-stock-adapter-modal-select>
+                        <option value="manual">Manual</option>
+                        <option value="finviz_elite">Finviz Elite API</option>
+                        <option value="fmp">Financial Modeling Prep</option>
+                        <option value="finnhub">Finnhub</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Adapter config JSON</span>
+                    <textarea name="adapter_config" data-stock-adapter-modal-config rows="8" placeholder='{"api_key":"...","base_url":"..."}'></textarea>
+                </label>
+                <div class="bank-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-stock-adapter-close>Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить настройки</button>
                 </div>
             </form>
         </div>
@@ -443,6 +505,18 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .bank-stock-cell--changed {
+        background: rgba(251, 191, 36, 0.12) !important;
+        box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.22);
+    }
+
+    .bank-stock-change-note {
+        margin-top: 3px;
+        color: #fbbf24;
+        font-size: 0.68rem;
+        font-weight: 700;
     }
 
     .bank-stock-actions {
@@ -544,6 +618,91 @@
         font-size: 0.84rem;
     }
 
+    .bank-stock-modal__dialog input[type="date"] {
+        min-height: 34px;
+        padding: 7px 9px;
+        border: 1px solid rgba(148, 163, 184, 0.26);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.72);
+        color: #f8fafc;
+        font-size: 0.84rem;
+    }
+
+    .bank-stock-modal__dialog select,
+    .bank-stock-adapter-modal__dialog select,
+    .bank-stock-adapter-modal__dialog textarea {
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.26);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.72);
+        color: #f8fafc;
+    }
+
+    .bank-stock-modal__dialog select {
+        min-height: 34px;
+        padding: 7px 9px;
+        font-size: 0.84rem;
+    }
+
+    .bank-stock-adapter-row {
+        display: grid;
+        grid-template-columns: 148px minmax(180px, 1fr) auto auto;
+        gap: 8px;
+        align-items: end;
+        padding: 10px 0;
+        border-top: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    .bank-stock-adapter-row label {
+        display: grid;
+        gap: 4px;
+        margin: 0;
+    }
+
+    .bank-stock-adapter-row label span,
+    .bank-stock-adapter-modal__dialog label span {
+        color: rgba(148, 163, 184, 0.9);
+        font-size: 0.74rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .bank-stock-adapter-row .bank-meta {
+        grid-column: 1 / -1;
+        min-height: 18px;
+        margin: 0;
+    }
+
+    .bank-stock-adapter-modal__dialog {
+        width: min(560px, calc(100vw - 28px));
+        max-height: calc(100vh - 28px);
+        overflow: auto;
+    }
+
+    .bank-stock-adapter-modal__dialog .bank-requisites-form {
+        display: grid;
+        gap: 12px;
+        padding: 0 16px 16px;
+    }
+
+    .bank-stock-adapter-modal__dialog label {
+        display: grid;
+        gap: 5px;
+        margin: 0;
+    }
+
+    .bank-stock-adapter-modal__dialog select,
+    .bank-stock-adapter-modal__dialog textarea {
+        padding: 8px 10px;
+        font-size: 0.86rem;
+    }
+
+    .bank-stock-adapter-modal__dialog textarea {
+        min-height: 160px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
     .bank-stock-form-section {
         padding: 9px 0;
         border-top: 1px solid rgba(148, 163, 184, 0.14);
@@ -610,6 +769,11 @@
             gap: 7px;
         }
 
+        .bank-stock-adapter-row {
+            grid-template-columns: 1fr;
+            align-items: stretch;
+        }
+
         .bank-stock-form-section {
             padding: 8px 0;
         }
@@ -660,8 +824,22 @@
         const methodInput = root.querySelector('[data-stock-form-method]');
         const modalTitle = root.querySelector('[data-stock-modal-title]');
         const tickerInput = modal?.querySelector('input[name="ticker"]');
+        const snapshotDateField = root.querySelector('[data-stock-snapshot-date-field]');
+        const adapterSelect = root.querySelector('[data-stock-adapter-select]');
+        const adapterConfigField = root.querySelector('[data-stock-adapter-config-field]');
+        const pullButton = root.querySelector('[data-stock-pull]');
+        const adapterSettingsButton = root.querySelector('[data-stock-adapter-settings]');
+        const pullStatus = root.querySelector('[data-stock-pull-status]');
+        const adapterModal = root.querySelector('[data-stock-adapter-modal]');
+        const adapterModalForm = root.querySelector('[data-stock-adapter-form]');
+        const adapterModalSelect = root.querySelector('[data-stock-adapter-modal-select]');
+        const adapterModalConfig = root.querySelector('[data-stock-adapter-modal-config]');
+        const adapterCloseButtons = root.querySelectorAll('[data-stock-adapter-close]');
         const menuToggles = root.querySelectorAll('[data-stock-menu-toggle]');
         const editButtons = root.querySelectorAll('[data-stock-edit]');
+        let currentPullUrl = '';
+        let currentAdapterUrl = '';
+        let currentSnapshotDate = '';
 
         if (modal && !modal.hidden) {
             document.body.style.overflow = 'hidden';
@@ -707,16 +885,42 @@
                 modalTitle.textContent = mode === 'edit' ? 'Редактировать акцию' : 'Добавить акцию';
             }
 
-            form.querySelectorAll('input[name]:not([name="_token"]):not([name="_method"])').forEach((input) => {
+            form.querySelectorAll('input[name]:not([name="_token"]):not([name="_method"]), select[name], textarea[name]').forEach((input) => {
                 input.value = stock ? (stock[input.name] ?? '') : '';
             });
+            if (adapterSelect) {
+                adapterSelect.value = stock?.adapter || 'manual';
+            }
+            if (adapterConfigField) {
+                adapterConfigField.value = stock?.adapter_config || '';
+            }
+            if (snapshotDateField) {
+                snapshotDateField.value = mode === 'edit'
+                    ? (stock?.snapshot_date || currentSnapshotDate || new Date().toISOString().slice(0, 10))
+                    : new Date().toISOString().slice(0, 10);
+            }
+            if (pullStatus) {
+                pullStatus.textContent = '';
+            }
+            if (pullButton) {
+                pullButton.disabled = mode !== 'edit' || !currentPullUrl;
+            }
+            if (adapterSettingsButton) {
+                adapterSettingsButton.disabled = mode !== 'edit' || !currentAdapterUrl;
+            }
         };
 
-        const openModal = (mode = 'create', stock = null, updateUrl = '') => {
+        const openModal = (mode = 'create', stock = null, updateUrl = '', pullUrl = '', adapterUrl = '', snapshotDate = '') => {
+            currentPullUrl = pullUrl;
+            currentAdapterUrl = adapterUrl;
+            currentSnapshotDate = snapshotDate;
             setFormMode(mode === 'edit' ? 'edit' : 'create', stock, updateUrl);
             modal.hidden = false;
             document.body.style.overflow = 'hidden';
             setTimeout(() => tickerInput?.focus(), 0);
+            if (mode === 'edit' && pullButton && currentPullUrl) {
+                setTimeout(() => pullButton.click(), 0);
+            }
         };
         const closeModal = () => {
             modal.hidden = true;
@@ -757,8 +961,93 @@
                 }
 
                 closeMenus();
-                openModal('edit', stock, button.dataset.stockUpdateUrl || '');
+                openModal(
+                    'edit',
+                    stock,
+                    button.dataset.stockUpdateUrl || '',
+                    button.dataset.stockPullUrl || '',
+                    button.dataset.stockAdapterUrl || '',
+                    button.dataset.stockSnapshotDate || ''
+                );
             });
+        });
+        const fillStockForm = (data) => {
+            Object.entries(data || {}).forEach(([key, value]) => {
+                const field = form?.elements?.[key];
+                if (field && key !== '_token' && key !== '_method') {
+                    field.value = value ?? '';
+                }
+            });
+        };
+        pullButton?.addEventListener('click', async () => {
+            if (!currentPullUrl || !form || !adapterSelect) {
+                return;
+            }
+
+            pullButton.disabled = true;
+            if (pullStatus) {
+                pullStatus.textContent = 'Подтягиваем данные...';
+            }
+
+            try {
+                const response = await fetch(currentPullUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': form.querySelector('input[name="_token"]')?.value || '',
+                    },
+                    body: JSON.stringify({
+                        adapter: adapterSelect.value,
+                        adapter_config: adapterConfigField?.value || '',
+                        snapshot_date: snapshotDateField?.value || '',
+                    }),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Не удалось подтянуть данные.');
+                }
+
+                fillStockForm(result.data || {});
+                if (pullStatus) {
+                    pullStatus.textContent = result.message || 'Данные подтянуты. Нажмите Сохранить, чтобы записать snapshot на выбранную дату.';
+                }
+            } catch (error) {
+                if (pullStatus) {
+                    pullStatus.textContent = error instanceof Error ? error.message : 'Ошибка подтягивания данных.';
+                }
+            } finally {
+                pullButton.disabled = false;
+            }
+        });
+        const openAdapterModal = () => {
+            if (!adapterModal || !adapterModalForm || !currentAdapterUrl) {
+                return;
+            }
+
+            adapterModalForm.action = currentAdapterUrl;
+            if (adapterModalSelect && adapterSelect) {
+                adapterModalSelect.value = adapterSelect.value || 'manual';
+            }
+            if (adapterModalConfig && adapterConfigField) {
+                adapterModalConfig.value = adapterConfigField.value || '';
+            }
+            adapterModal.hidden = false;
+            document.body.style.overflow = 'hidden';
+        };
+        const closeAdapterModal = () => {
+            if (!adapterModal) {
+                return;
+            }
+            adapterModal.hidden = true;
+            document.body.style.overflow = modal && !modal.hidden ? 'hidden' : '';
+        };
+        adapterSettingsButton?.addEventListener('click', openAdapterModal);
+        adapterCloseButtons.forEach((button) => button.addEventListener('click', closeAdapterModal));
+        adapterModal?.addEventListener('click', (event) => {
+            if (event.target === adapterModal) {
+                closeAdapterModal();
+            }
         });
         root.querySelectorAll('[data-stock-delete-form]').forEach((deleteForm) => {
             deleteForm.addEventListener('submit', (event) => {

@@ -9,6 +9,7 @@ use App\Services\BlockchainAssetAdapterService;
 use App\Support\HoldingScope;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -979,6 +980,7 @@ class BankController extends Controller
         return view('bank.stock_analysis', [
             'project' => $project,
             'stocks' => $stocks,
+            'stockChanges' => $this->latestStockSnapshotChanges($stocks->pluck('id')->map(fn ($id) => (int) $id)->all()),
             'stockFilterOptions' => [
                 'sector' => $allStocks->pluck('sector')->filter()->unique()->sort()->values(),
                 'industry' => $allStocks->pluck('industry')->filter()->unique()->sort()->values(),
@@ -1000,35 +1002,57 @@ class BankController extends Controller
         $project = $this->bankProject();
         abort_unless(Schema::hasTable('bank_stock_analyses'), 404);
 
-        $payload = $this->stockAnalysisPayload($request);
-        $ticker = strtoupper(trim((string) $payload['ticker']));
+        $payload = $this->normalizeStockAnalysisPayload($this->stockAnalysisPayload($request));
+        $snapshotDate = (string) $payload['snapshot_date'];
+        $stockPayload = $this->stockAnalysisTablePayload($payload);
+        $ticker = strtoupper(trim((string) $stockPayload['ticker']));
         $now = now();
         $key = [
             'project_id' => (int) $project->id,
             'ticker' => $ticker,
         ];
-        $values = array_merge($payload, [
+        $values = array_merge($stockPayload, [
             'ticker' => $ticker,
             'updated_at' => $now,
         ]);
 
         if (DB::table('bank_stock_analyses')->where($key)->exists()) {
+            $previous = DB::table('bank_stock_analyses')->where($key)->first();
             DB::table('bank_stock_analyses')->where($key)->update($values);
+            $stockRow = DB::table('bank_stock_analyses')->where($key)->first();
+            if ($stockRow) {
+                $this->recordStockAnalysisSnapshot($stockRow, $stockPayload, $this->changedStockFields($previous, $stockPayload), $snapshotDate);
+            }
         } else {
-            DB::table('bank_stock_analyses')->insert($key + $values + ['created_at' => $now]);
+            $stockId = DB::table('bank_stock_analyses')->insertGetId($key + $values + ['created_at' => $now]);
+            $stockRow = DB::table('bank_stock_analyses')->where('id', $stockId)->first();
+            if ($stockRow) {
+                $this->recordStockAnalysisSnapshot($stockRow, $stockPayload, array_keys($stockPayload), $snapshotDate);
+            }
         }
 
         return redirect()->route('bank.stock-analysis')->with('success', 'Акция добавлена в анализ.');
     }
 
-    public function showStockAnalysis(int $stock): View
+    public function showStockAnalysis(Request $request, int $stock): View
     {
         $project = $this->bankProject();
         $stockRow = $this->stockAnalysisRow((int) $project->id, $stock);
+        $snapshots = $this->stockAnalysisSnapshots($stockRow);
+        $selectedDate = trim((string) $request->query('date', ''));
+        $selectedSnapshot = $selectedDate !== ''
+            ? $snapshots->firstWhere('snapshot_date', $selectedDate)
+            : $snapshots->last();
+        $selectedPayload = $selectedSnapshot
+            ? (json_decode((string) $selectedSnapshot->payload, true) ?: [])
+            : $this->stockPayloadFromRow($stockRow);
 
         return view('bank.stock_analysis_show', [
             'project' => $project,
             'stock' => $stockRow,
+            'snapshots' => $snapshots,
+            'selectedSnapshot' => $selectedSnapshot,
+            'selectedPayload' => $selectedPayload,
         ]);
     }
 
@@ -1037,13 +1061,15 @@ class BankController extends Controller
         $project = $this->bankProject();
         $stockRow = $this->stockAnalysisRow((int) $project->id, $stock);
 
-        $payload = $this->stockAnalysisPayload($request);
-        $payload['ticker'] = strtoupper(trim((string) $payload['ticker']));
-        $payload['updated_at'] = now();
+        $payload = $this->normalizeStockAnalysisPayload($this->stockAnalysisPayload($request));
+        $snapshotDate = (string) $payload['snapshot_date'];
+        $stockPayload = $this->stockAnalysisTablePayload($payload);
+        $stockPayload['ticker'] = strtoupper(trim((string) $stockPayload['ticker']));
+        $stockPayload['updated_at'] = now();
 
         $duplicateExists = DB::table('bank_stock_analyses')
             ->where('project_id', (int) $stockRow->project_id)
-            ->where('ticker', $payload['ticker'])
+            ->where('ticker', $stockPayload['ticker'])
             ->where('id', '<>', $stock)
             ->exists();
 
@@ -1053,9 +1079,89 @@ class BankController extends Controller
             ]);
         }
 
-        DB::table('bank_stock_analyses')->where('id', $stock)->update($payload);
+        DB::table('bank_stock_analyses')->where('id', $stock)->update($stockPayload);
+        $updatedRow = DB::table('bank_stock_analyses')->where('id', $stock)->first();
+        if ($updatedRow) {
+            $this->recordStockAnalysisSnapshot($updatedRow, $stockPayload, $this->changedStockFields($stockRow, $stockPayload), $snapshotDate);
+        }
 
         return redirect()->route('bank.stock-analysis')->with('success', 'Акция обновлена.');
+    }
+
+    public function pullStockAnalysisAdapter(Request $request, int $stock): JsonResponse
+    {
+        $project = $this->bankProject();
+        $stockRow = $this->stockAnalysisRow((int) $project->id, $stock);
+        $payload = $request->validate([
+            'adapter' => ['nullable', 'string', Rule::in(['manual', 'finviz_elite', 'fmp', 'finnhub'])],
+            'adapter_config' => ['nullable', 'json', 'max:4000'],
+            'snapshot_date' => ['nullable', 'date'],
+        ]);
+
+        $adapter = (string) ($payload['adapter'] ?? $stockRow->adapter ?? 'manual');
+        $snapshotDate = trim((string) ($payload['snapshot_date'] ?? '')) ?: now()->toDateString();
+        $data = $this->stockPayloadFromRow($stockRow);
+        $data['snapshot_date'] = $snapshotDate;
+        $status = 'manual_snapshot';
+        $message = 'Данные подтянуты из текущей сохраненной строки.';
+
+        if ($adapter !== 'manual') {
+            $status = 'adapter_not_connected';
+            $message = 'Для внешнего адаптера сохраните настройки доступа. Реальный запрос к API подключается в адаптере провайдера.';
+        }
+
+        return response()->json([
+            'success' => true,
+            'adapter' => $adapter,
+            'status' => $status,
+            'message' => $message,
+            'data' => $data,
+        ]);
+    }
+
+    private function normalizeStockAnalysisPayload(array $payload): array
+    {
+        $payload['snapshot_date'] = trim((string) ($payload['snapshot_date'] ?? '')) ?: now()->toDateString();
+        $payload['adapter'] = trim((string) ($payload['adapter'] ?? '')) ?: 'manual';
+        $payload['adapter_config'] = trim((string) ($payload['adapter_config'] ?? ''));
+        if ($payload['adapter_config'] === '') {
+            $payload['adapter_config'] = null;
+        }
+
+        return $payload;
+    }
+
+    private function stockAnalysisTablePayload(array $payload): array
+    {
+        return array_intersect_key($payload, array_flip($this->stockAnalysisFields()));
+    }
+
+    public function updateStockAnalysisAdapter(Request $request, int $stock): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $stockRow = $this->stockAnalysisRow((int) $project->id, $stock);
+        $payload = $request->validate([
+            'adapter' => ['required', 'string', Rule::in(['manual', 'finviz_elite', 'fmp', 'finnhub'])],
+            'adapter_config' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        $adapterConfig = trim((string) ($payload['adapter_config'] ?? ''));
+        if ($adapterConfig !== '') {
+            json_decode($adapterConfig, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw ValidationException::withMessages([
+                    'adapter_config' => 'Настройки адаптера должны быть валидным JSON.',
+                ]);
+            }
+        }
+
+        DB::table('bank_stock_analyses')->where('id', (int) $stockRow->id)->update([
+            'adapter' => $payload['adapter'],
+            'adapter_config' => $adapterConfig !== '' ? $adapterConfig : null,
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->route('bank.stock-analysis')->with('success', 'Настройки адаптера акции сохранены.');
     }
 
     public function destroyStockAnalysis(int $stock): RedirectResponse
@@ -1063,6 +1169,9 @@ class BankController extends Controller
         $project = $this->bankProject();
         $this->stockAnalysisRow((int) $project->id, $stock);
 
+        if (Schema::hasTable('bank_stock_analysis_snapshots')) {
+            DB::table('bank_stock_analysis_snapshots')->where('stock_analysis_id', $stock)->delete();
+        }
         DB::table('bank_stock_analyses')->where('id', $stock)->delete();
 
         return redirect()->route('bank.stock-analysis')->with('success', 'Акция удалена.');
@@ -2158,6 +2267,9 @@ class BankController extends Controller
         return $request->validate([
             'company' => ['required', 'string', 'max:255'],
             'ticker' => ['required', 'string', 'max:20'],
+            'snapshot_date' => ['nullable', 'date'],
+            'adapter' => ['nullable', 'string', Rule::in(['manual', 'finviz_elite', 'fmp', 'finnhub'])],
+            'adapter_config' => ['nullable', 'string', 'max:4000'],
             'sector' => ['nullable', 'string', 'max:160'],
             'industry' => ['nullable', 'string', 'max:190'],
             'country' => ['nullable', 'string', 'max:120'],
@@ -2206,6 +2318,160 @@ class BankController extends Controller
             'sales_qq' => ['nullable', 'string', 'max:80'],
             'earnings' => ['nullable', 'string', 'max:120'],
         ]);
+    }
+
+    private function stockAnalysisFields(): array
+    {
+        return [
+            'company',
+            'ticker',
+            'adapter',
+            'adapter_config',
+            'sector',
+            'industry',
+            'country',
+            'market',
+            'pe',
+            'price',
+            'change_percent',
+            'volume',
+            'market_cap',
+            'enterprise_value',
+            'income',
+            'sales',
+            'book_per_share',
+            'cash_per_share',
+            'dividend_est',
+            'dividend_ttm',
+            'dividend_ex_date',
+            'dividend_growth_3_5y',
+            'payout',
+            'employees',
+            'ipo',
+            'forward_pe',
+            'peg',
+            'ps',
+            'pb',
+            'pc',
+            'pfcf',
+            'ev_ebitda',
+            'ev_sales',
+            'quick_ratio',
+            'current_ratio',
+            'debt_eq',
+            'lt_debt_eq',
+            'option_short',
+            'eps_ttm',
+            'eps_next_y_value',
+            'eps_next_q',
+            'eps_this_y_growth',
+            'eps_next_y_growth',
+            'eps_next_5y_growth',
+            'eps_past_3_5y',
+            'sales_past_3_5y',
+            'eps_yy_ttm',
+            'sales_yy_ttm',
+            'eps_qq',
+            'sales_qq',
+            'earnings',
+        ];
+    }
+
+    private function stockPayloadFromRow(object $row): array
+    {
+        $payload = [];
+        foreach ($this->stockAnalysisFields() as $field) {
+            $payload[$field] = (string) ($row->{$field} ?? '');
+        }
+
+        return $payload;
+    }
+
+    private function changedStockFields(?object $previous, array $payload): array
+    {
+        if (! $previous) {
+            return array_values(array_filter(array_keys($payload), fn ($field) => ! in_array($field, ['adapter_config'], true)));
+        }
+
+        return collect($this->stockAnalysisFields())
+            ->filter(function (string $field) use ($previous, $payload): bool {
+                if (! array_key_exists($field, $payload)) {
+                    return false;
+                }
+
+                return trim((string) ($previous->{$field} ?? '')) !== trim((string) ($payload[$field] ?? ''));
+            })
+            ->values()
+            ->all();
+    }
+
+    private function recordStockAnalysisSnapshot(object $stockRow, array $payload, array $changedFields, ?string $snapshotDate = null): void
+    {
+        if (! Schema::hasTable('bank_stock_analysis_snapshots')) {
+            return;
+        }
+
+        $snapshotPayload = array_merge($this->stockPayloadFromRow($stockRow), $payload);
+        $now = now();
+        $snapshotDate = trim((string) $snapshotDate) ?: $now->toDateString();
+        $key = [
+            'stock_analysis_id' => (int) $stockRow->id,
+            'snapshot_date' => $snapshotDate,
+        ];
+        $values = [
+            'project_id' => (int) ($stockRow->project_id ?? 0),
+            'ticker' => strtoupper(trim((string) ($snapshotPayload['ticker'] ?? $stockRow->ticker ?? ''))),
+            'adapter' => (string) ($snapshotPayload['adapter'] ?? $stockRow->adapter ?? 'manual'),
+            'price' => (string) ($snapshotPayload['price'] ?? ''),
+            'change_percent' => (string) ($snapshotPayload['change_percent'] ?? ''),
+            'volume' => (string) ($snapshotPayload['volume'] ?? ''),
+            'payload' => json_encode($snapshotPayload, JSON_UNESCAPED_UNICODE),
+            'changed_fields' => json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE),
+            'updated_at' => $now,
+        ];
+
+        if (DB::table('bank_stock_analysis_snapshots')->where($key)->exists()) {
+            DB::table('bank_stock_analysis_snapshots')->where($key)->update($values);
+        } else {
+            DB::table('bank_stock_analysis_snapshots')->insert($key + $values + ['created_at' => $now]);
+        }
+    }
+
+    private function latestStockSnapshotChanges(array $stockIds): array
+    {
+        if ($stockIds === [] || ! Schema::hasTable('bank_stock_analysis_snapshots')) {
+            return [];
+        }
+
+        return DB::table('bank_stock_analysis_snapshots')
+            ->whereIn('stock_analysis_id', $stockIds)
+            ->orderByDesc('snapshot_date')
+            ->orderByDesc('id')
+            ->get(['stock_analysis_id', 'snapshot_date', 'changed_fields'])
+            ->unique('stock_analysis_id')
+            ->mapWithKeys(function ($snapshot): array {
+                $fields = json_decode((string) ($snapshot->changed_fields ?? '[]'), true);
+                return [
+                    (int) $snapshot->stock_analysis_id => [
+                        'date' => (string) $snapshot->snapshot_date,
+                        'fields' => is_array($fields) ? $fields : [],
+                    ],
+                ];
+            })
+            ->all();
+    }
+
+    private function stockAnalysisSnapshots(object $stockRow)
+    {
+        if (! Schema::hasTable('bank_stock_analysis_snapshots')) {
+            return collect();
+        }
+
+        return DB::table('bank_stock_analysis_snapshots')
+            ->where('stock_analysis_id', (int) $stockRow->id)
+            ->orderBy('snapshot_date')
+            ->orderBy('id')
+            ->get();
     }
 
     private function createInvestOperationLedger(

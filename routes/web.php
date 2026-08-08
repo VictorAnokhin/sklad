@@ -203,6 +203,12 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/stock-analysis/{stock}', [BankController::class, 'updateStockAnalysis'])
             ->whereNumber('stock')
             ->name('stock-analysis.update');
+        Route::post('/stock-analysis/{stock}/adapter/pull', [BankController::class, 'pullStockAnalysisAdapter'])
+            ->whereNumber('stock')
+            ->name('stock-analysis.adapter.pull');
+        Route::post('/stock-analysis/{stock}/adapter', [BankController::class, 'updateStockAnalysisAdapter'])
+            ->whereNumber('stock')
+            ->name('stock-analysis.adapter.update');
         Route::delete('/stock-analysis/{stock}', [BankController::class, 'destroyStockAnalysis'])
             ->whereNumber('stock')
             ->name('stock-analysis.destroy');

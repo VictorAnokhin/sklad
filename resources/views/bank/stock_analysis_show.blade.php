@@ -6,89 +6,132 @@
 
 @section('content')
 @php
-    $change = trim((string) ($stock->change_percent ?? ''));
+    $value = fn (string $field) => (string) ($selectedPayload[$field] ?? $stock->{$field} ?? '');
+    $change = trim($value('change_percent'));
     $changeClass = str_starts_with($change, '-')
         ? 'is-negative'
         : ($change !== '' && $change !== '0' && $change !== '0%' ? 'is-positive' : 'is-neutral');
     $identity = array_filter([
-        trim((string) ($stock->sector ?? '')),
-        trim((string) ($stock->industry ?? '')),
-        trim((string) ($stock->country ?? '')),
+        trim($value('sector')),
+        trim($value('industry')),
+        trim($value('country')),
     ]);
+    $snapshotData = ($snapshots ?? collect())->map(function ($snapshot) {
+        $payload = json_decode((string) ($snapshot->payload ?? '{}'), true);
+        $payload = is_array($payload) ? $payload : [];
+        return [
+            'date' => (string) $snapshot->snapshot_date,
+            'price' => (string) ($payload['price'] ?? $snapshot->price ?? ''),
+            'change_percent' => (string) ($payload['change_percent'] ?? $snapshot->change_percent ?? ''),
+            'volume' => (string) ($payload['volume'] ?? $snapshot->volume ?? ''),
+            'payload' => $payload,
+            'changed_fields' => json_decode((string) ($snapshot->changed_fields ?? '[]'), true) ?: [],
+        ];
+    })->values();
+    if ($snapshotData->isEmpty()) {
+        $snapshotData = collect([[
+            'date' => now()->toDateString(),
+            'price' => $value('price'),
+            'change_percent' => $change,
+            'volume' => $value('volume'),
+            'payload' => $selectedPayload,
+            'changed_fields' => [],
+        ]]);
+    }
+    $numericPrices = $snapshotData
+        ->map(fn ($point) => (float) preg_replace('/[^0-9.\-]/', '', (string) ($point['price'] ?? '')))
+        ->filter(fn ($price) => $price > 0)
+        ->values();
+    $minPrice = $numericPrices->isNotEmpty() ? (float) $numericPrices->min() : 0.0;
+    $maxPrice = $numericPrices->isNotEmpty() ? (float) $numericPrices->max() : 1.0;
+    if (abs($maxPrice - $minPrice) < 0.0001) {
+        $minPrice = max(0, $minPrice - 1);
+        $maxPrice += 1;
+    }
+    $chartPoints = $snapshotData->map(function ($point, $index) use ($snapshotData, $minPrice, $maxPrice) {
+        $count = max(1, $snapshotData->count() - 1);
+        $price = (float) preg_replace('/[^0-9.\-]/', '', (string) ($point['price'] ?? ''));
+        $x = 24 + (($index / $count) * 712);
+        $y = 252 - ((max($minPrice, min($maxPrice, $price)) - $minPrice) / ($maxPrice - $minPrice) * 204);
+
+        return $point + ['x' => round($x, 2), 'y' => round($y, 2)];
+    })->values();
+    $linePath = $chartPoints->map(fn ($point, $index) => ($index === 0 ? 'M' : 'L') . $point['x'] . ' ' . $point['y'])->implode(' ');
+    $areaPath = $linePath !== '' ? $linePath . ' L736 280 L24 280 Z' : '';
     $quoteCards = [
-        ['Price', $stock->price],
+        ['Price', $value('price')],
         ['Change', $change ?: '—'],
-        ['Volume', $stock->volume],
-        ['Market Cap', $stock->market_cap ?: $stock->market],
-        ['P/E', $stock->pe],
-        ['Dividend', $stock->dividend_est ?: $stock->dividend_ttm],
+        ['Volume', $value('volume')],
+        ['Market Cap', $value('market_cap') ?: $value('market')],
+        ['P/E', $value('pe')],
+        ['Dividend', $value('dividend_est') ?: $value('dividend_ttm')],
     ];
     $snapshotRows = [
         [
             ['Index', '—'],
-            ['Market Cap', $stock->market_cap ?: $stock->market],
-            ['Income', $stock->income],
-            ['Sales', $stock->sales],
+            ['Market Cap', $value('market_cap') ?: $value('market')],
+            ['Income', $value('income')],
+            ['Sales', $value('sales')],
         ],
         [
-            ['Book/sh', $stock->book_per_share],
-            ['Cash/sh', $stock->cash_per_share],
-            ['Dividend Est.', $stock->dividend_est],
-            ['Dividend TTM', $stock->dividend_ttm],
+            ['Book/sh', $value('book_per_share')],
+            ['Cash/sh', $value('cash_per_share')],
+            ['Dividend Est.', $value('dividend_est')],
+            ['Dividend TTM', $value('dividend_ttm')],
         ],
         [
-            ['Dividend Ex-Date', $stock->dividend_ex_date],
-            ['Dividend Gr. 3/5Y', $stock->dividend_growth_3_5y],
-            ['Payout', $stock->payout],
-            ['Employees', $stock->employees],
+            ['Dividend Ex-Date', $value('dividend_ex_date')],
+            ['Dividend Gr. 3/5Y', $value('dividend_growth_3_5y')],
+            ['Payout', $value('payout')],
+            ['Employees', $value('employees')],
         ],
         [
-            ['P/E', $stock->pe],
-            ['Forward P/E', $stock->forward_pe],
-            ['PEG', $stock->peg],
-            ['P/S', $stock->ps],
+            ['P/E', $value('pe')],
+            ['Forward P/E', $value('forward_pe')],
+            ['PEG', $value('peg')],
+            ['P/S', $value('ps')],
         ],
         [
-            ['P/B', $stock->pb],
-            ['P/C', $stock->pc],
-            ['P/FCF', $stock->pfcf],
-            ['EV/EBITDA', $stock->ev_ebitda],
+            ['P/B', $value('pb')],
+            ['P/C', $value('pc')],
+            ['P/FCF', $value('pfcf')],
+            ['EV/EBITDA', $value('ev_ebitda')],
         ],
         [
-            ['EV/Sales', $stock->ev_sales],
-            ['Enterprise Value', $stock->enterprise_value],
-            ['Quick Ratio', $stock->quick_ratio],
-            ['Current Ratio', $stock->current_ratio],
+            ['EV/Sales', $value('ev_sales')],
+            ['Enterprise Value', $value('enterprise_value')],
+            ['Quick Ratio', $value('quick_ratio')],
+            ['Current Ratio', $value('current_ratio')],
         ],
         [
-            ['Debt/Eq', $stock->debt_eq],
-            ['LT Debt/Eq', $stock->lt_debt_eq],
-            ['Option/Short', $stock->option_short],
-            ['IPO', $stock->ipo],
+            ['Debt/Eq', $value('debt_eq')],
+            ['LT Debt/Eq', $value('lt_debt_eq')],
+            ['Option/Short', $value('option_short')],
+            ['IPO', $value('ipo')],
         ],
         [
-            ['EPS (ttm)', $stock->eps_ttm],
-            ['EPS next Y', $stock->eps_next_y_value],
-            ['EPS next Q', $stock->eps_next_q],
-            ['Earnings', $stock->earnings],
+            ['EPS (ttm)', $value('eps_ttm')],
+            ['EPS next Y', $value('eps_next_y_value')],
+            ['EPS next Q', $value('eps_next_q')],
+            ['Earnings', $value('earnings')],
         ],
         [
-            ['EPS this Y', $stock->eps_this_y_growth],
-            ['EPS next Y %', $stock->eps_next_y_growth],
-            ['EPS next 5Y', $stock->eps_next_5y_growth],
-            ['EPS past 3/5Y', $stock->eps_past_3_5y],
+            ['EPS this Y', $value('eps_this_y_growth')],
+            ['EPS next Y %', $value('eps_next_y_growth')],
+            ['EPS next 5Y', $value('eps_next_5y_growth')],
+            ['EPS past 3/5Y', $value('eps_past_3_5y')],
         ],
         [
-            ['Sales past 3/5Y', $stock->sales_past_3_5y],
-            ['EPS Y/Y TTM', $stock->eps_yy_ttm],
-            ['Sales Y/Y TTM', $stock->sales_yy_ttm],
-            ['EPS Q/Q', $stock->eps_qq],
+            ['Sales past 3/5Y', $value('sales_past_3_5y')],
+            ['EPS Y/Y TTM', $value('eps_yy_ttm')],
+            ['Sales Y/Y TTM', $value('sales_yy_ttm')],
+            ['EPS Q/Q', $value('eps_qq')],
         ],
         [
-            ['Sales Q/Q', $stock->sales_qq],
-            ['Price', $stock->price],
+            ['Sales Q/Q', $value('sales_qq')],
+            ['Price', $value('price')],
             ['Change', $change ?: '—'],
-            ['Volume', $stock->volume],
+            ['Volume', $value('volume')],
         ],
     ];
 @endphp
@@ -99,7 +142,7 @@
     <section class="bank-stock-detail-header">
         <div>
             <div class="bank-stock-detail-kicker">Анализ акции</div>
-            <h1>{{ $stock->ticker }} <span>{{ $stock->company }}</span></h1>
+            <h1>{{ $value('ticker') }} <span>{{ $value('company') }}</span></h1>
             <div class="bank-stock-detail-meta">{{ $identity ? implode(' · ', $identity) : 'Sector / Industry / Country не указаны' }}</div>
         </div>
         <a class="btn btn-sm btn-outline-light" href="{{ route('bank.stock-analysis') }}">Назад к акциям</a>
@@ -119,7 +162,7 @@
             <div class="bank-stock-chart-toolbar">
                 <div>
                     <span>Chart</span>
-                    <strong>{{ $stock->ticker }}</strong>
+                    <strong>{{ $value('ticker') }}</strong>
                 </div>
                 <div class="bank-stock-chart-tabs">
                     <span>1D</span>
@@ -142,13 +185,23 @@
                         <line x1="0" y1="180" x2="760" y2="180"/>
                         <line x1="0" y1="240" x2="760" y2="240"/>
                     </g>
-                    <path class="area" d="M0 220 L70 205 L145 212 L220 180 L310 188 L390 142 L470 158 L550 106 L635 118 L760 74 L760 300 L0 300 Z"/>
-                    <path class="line" d="M0 220 L70 205 L145 212 L220 180 L310 188 L390 142 L470 158 L550 106 L635 118 L760 74"/>
+                    <path class="area" d="{{ $areaPath }}"/>
+                    <path class="line" d="{{ $linePath }}"/>
+                    @foreach($chartPoints as $point)
+                        <g class="bank-stock-chart-point {{ ($selectedSnapshot?->snapshot_date ?? '') === $point['date'] ? 'is-active' : '' }}"
+                           data-stock-snapshot-date="{{ $point['date'] }}"
+                           role="button"
+                           tabindex="0"
+                           aria-label="Показать данные на {{ $point['date'] }}">
+                            <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="6"/>
+                        </g>
+                    @endforeach
                 </svg>
             </div>
             <div class="bank-stock-chart-foot">
-                <span>Price {{ $stock->price ?: '—' }}</span>
-                <span>Volume {{ $stock->volume ?: '—' }}</span>
+                <span data-stock-chart-date>Date {{ $selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '—' }}</span>
+                <span data-stock-chart-price>Price {{ $value('price') ?: '—' }}</span>
+                <span data-stock-chart-volume>Volume {{ $value('volume') ?: '—' }}</span>
                 <span>Change {{ $change ?: '—' }}</span>
             </div>
         </div>
@@ -156,27 +209,27 @@
         <aside class="bank-stock-profile-panel">
             <div class="bank-stock-profile-row">
                 <span>Company</span>
-                <strong>{{ $stock->company ?: '—' }}</strong>
+                <strong>{{ $value('company') ?: '—' }}</strong>
             </div>
             <div class="bank-stock-profile-row">
                 <span>Sector</span>
-                <strong>{{ $stock->sector ?: '—' }}</strong>
+                <strong>{{ $value('sector') ?: '—' }}</strong>
             </div>
             <div class="bank-stock-profile-row">
                 <span>Industry</span>
-                <strong>{{ $stock->industry ?: '—' }}</strong>
+                <strong>{{ $value('industry') ?: '—' }}</strong>
             </div>
             <div class="bank-stock-profile-row">
                 <span>Country</span>
-                <strong>{{ $stock->country ?: '—' }}</strong>
+                <strong>{{ $value('country') ?: '—' }}</strong>
             </div>
             <div class="bank-stock-profile-row">
                 <span>IPO</span>
-                <strong>{{ $stock->ipo ?: '—' }}</strong>
+                <strong>{{ $value('ipo') ?: '—' }}</strong>
             </div>
             <div class="bank-stock-profile-row">
                 <span>Employees</span>
-                <strong>{{ $stock->employees ?: '—' }}</strong>
+                <strong>{{ $value('employees') ?: '—' }}</strong>
             </div>
         </aside>
     </section>
@@ -184,7 +237,7 @@
     <section class="bank-stock-snapshot">
         <div class="bank-stock-snapshot-title">
             <span>Snapshot</span>
-            <strong>{{ $stock->ticker }} fundamentals</strong>
+            <strong><span data-stock-snapshot-title-date>{{ $selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? now()->toDateString() }}</span> · {{ $value('ticker') }} fundamentals</strong>
         </div>
         <div class="bank-stock-snapshot-scroll">
             <table class="bank-stock-snapshot-table">
@@ -193,7 +246,7 @@
                         <tr>
                             @foreach($row as [$label, $value])
                                 <th>{{ $label }}</th>
-                                <td class="{{ $label === 'Change' ? $changeClass : '' }}">{{ $value ?: '—' }}</td>
+                                <td class="{{ $label === 'Change' ? $changeClass : '' }}" data-stock-snapshot-value="{{ $label }}">{{ $value ?: '—' }}</td>
                             @endforeach
                         </tr>
                     @endforeach
@@ -389,6 +442,24 @@
         stroke-linejoin: round;
     }
 
+    .bank-stock-chart-point {
+        cursor: pointer;
+        outline: none;
+    }
+
+    .bank-stock-chart-point circle {
+        fill: #0f172a;
+        stroke: #fbbf24;
+        stroke-width: 3;
+        transition: r 0.16s ease, fill 0.16s ease;
+    }
+
+    .bank-stock-chart-point:hover circle,
+    .bank-stock-chart-point.is-active circle {
+        r: 8;
+        fill: #fbbf24;
+    }
+
     .bank-stock-chart-foot {
         margin-top: 8px;
         color: rgba(203, 213, 225, 0.74);
@@ -518,4 +589,93 @@
         }
     }
 </style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const snapshots = @json($snapshotData);
+        const fieldByLabel = {
+            'Market Cap': 'market_cap',
+            'Income': 'income',
+            'Sales': 'sales',
+            'Book/sh': 'book_per_share',
+            'Cash/sh': 'cash_per_share',
+            'Dividend Est.': 'dividend_est',
+            'Dividend TTM': 'dividend_ttm',
+            'Dividend Ex-Date': 'dividend_ex_date',
+            'Dividend Gr. 3/5Y': 'dividend_growth_3_5y',
+            'Payout': 'payout',
+            'Employees': 'employees',
+            'P/E': 'pe',
+            'Forward P/E': 'forward_pe',
+            'PEG': 'peg',
+            'P/S': 'ps',
+            'P/B': 'pb',
+            'P/C': 'pc',
+            'P/FCF': 'pfcf',
+            'EV/EBITDA': 'ev_ebitda',
+            'EV/Sales': 'ev_sales',
+            'Enterprise Value': 'enterprise_value',
+            'Quick Ratio': 'quick_ratio',
+            'Current Ratio': 'current_ratio',
+            'Debt/Eq': 'debt_eq',
+            'LT Debt/Eq': 'lt_debt_eq',
+            'Option/Short': 'option_short',
+            'IPO': 'ipo',
+            'EPS (ttm)': 'eps_ttm',
+            'EPS next Y': 'eps_next_y_value',
+            'EPS next Q': 'eps_next_q',
+            'Earnings': 'earnings',
+            'EPS this Y': 'eps_this_y_growth',
+            'EPS next Y %': 'eps_next_y_growth',
+            'EPS next 5Y': 'eps_next_5y_growth',
+            'EPS past 3/5Y': 'eps_past_3_5y',
+            'Sales past 3/5Y': 'sales_past_3_5y',
+            'EPS Y/Y TTM': 'eps_yy_ttm',
+            'Sales Y/Y TTM': 'sales_yy_ttm',
+            'EPS Q/Q': 'eps_qq',
+            'Sales Q/Q': 'sales_qq',
+            'Price': 'price',
+            'Change': 'change_percent',
+            'Volume': 'volume',
+        };
+
+        const setSnapshot = (date) => {
+            const snapshot = snapshots.find((item) => item.date === date);
+            if (!snapshot) return;
+
+            const payload = snapshot.payload || {};
+            document.querySelectorAll('[data-stock-snapshot-value]').forEach((cell) => {
+                const label = cell.dataset.stockSnapshotValue || '';
+                const field = fieldByLabel[label];
+                const value = field ? (payload[field] || '—') : '—';
+                cell.textContent = value || '—';
+                cell.classList.toggle('is-negative', label === 'Change' && String(value).startsWith('-'));
+                cell.classList.toggle('is-positive', label === 'Change' && value && !String(value).startsWith('-') && value !== '0' && value !== '0%');
+            });
+
+            const titleDate = document.querySelector('[data-stock-snapshot-title-date]');
+            if (titleDate) titleDate.textContent = date;
+            const chartDate = document.querySelector('[data-stock-chart-date]');
+            if (chartDate) chartDate.textContent = `Date ${date}`;
+            const chartPrice = document.querySelector('[data-stock-chart-price]');
+            if (chartPrice) chartPrice.textContent = `Price ${payload.price || '—'}`;
+            const chartVolume = document.querySelector('[data-stock-chart-volume]');
+            if (chartVolume) chartVolume.textContent = `Volume ${payload.volume || '—'}`;
+
+            document.querySelectorAll('[data-stock-snapshot-date]').forEach((point) => {
+                point.classList.toggle('is-active', point.dataset.stockSnapshotDate === date);
+            });
+        };
+
+        document.querySelectorAll('[data-stock-snapshot-date]').forEach((point) => {
+            point.addEventListener('click', () => setSnapshot(point.dataset.stockSnapshotDate || ''));
+            point.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setSnapshot(point.dataset.stockSnapshotDate || '');
+                }
+            });
+        });
+    });
+</script>
 @endsection
