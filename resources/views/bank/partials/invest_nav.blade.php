@@ -1,5 +1,5 @@
 <nav class="bank-nav" aria-label="Инвестиции и активы">
     <a href="{{ route('bank.invest') }}" class="{{ request()->routeIs('bank.invest*') ? 'is-active' : '' }}">Инвестиции</a>
     <a href="{{ route('bank.assets') }}" class="{{ request()->routeIs('bank.assets*') ? 'is-active' : '' }}">Активы</a>
-    <a href="{{ route('bank.stock-analysis') }}" class="{{ request()->routeIs('bank.stock-analysis*') ? 'is-active' : '' }}">Анализ Акций</a>
+    <a href="{{ route('bank.stock-analysis') }}" class="{{ request()->routeIs('bank.stock-analysis*') ? 'is-active' : '' }}">Акции</a>
 </nav>

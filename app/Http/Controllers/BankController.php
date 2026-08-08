@@ -961,14 +961,31 @@ class BankController extends Controller
         ]);
     }
 
-    public function stockAnalysis(): View
+    public function stockAnalysis(Request $request): View
     {
         $project = $this->bankProject();
-        $stocks = $this->stockAnalysisRows((int) $project->id);
+        $allStocks = $this->stockAnalysisRows((int) $project->id);
+        $filters = [
+            'sector' => trim((string) $request->query('sector', '')),
+            'industry' => trim((string) $request->query('industry', '')),
+            'country' => trim((string) $request->query('country', '')),
+        ];
+        $stocks = $allStocks
+            ->when($filters['sector'] !== '', fn ($rows) => $rows->where('sector', $filters['sector']))
+            ->when($filters['industry'] !== '', fn ($rows) => $rows->where('industry', $filters['industry']))
+            ->when($filters['country'] !== '', fn ($rows) => $rows->where('country', $filters['country']))
+            ->values();
 
         return view('bank.stock_analysis', [
             'project' => $project,
             'stocks' => $stocks,
+            'stockFilterOptions' => [
+                'sector' => $allStocks->pluck('sector')->filter()->unique()->sort()->values(),
+                'industry' => $allStocks->pluck('industry')->filter()->unique()->sort()->values(),
+                'country' => $allStocks->pluck('country')->filter()->unique()->sort()->values(),
+            ],
+            'stockFilters' => $filters,
+            'stockFiltersActive' => collect($filters)->filter()->isNotEmpty(),
             'summary' => [
                 'stocks' => $stocks->count(),
                 'countries' => $stocks->pluck('country')->filter()->unique()->count(),
@@ -1002,6 +1019,53 @@ class BankController extends Controller
         }
 
         return redirect()->route('bank.stock-analysis')->with('success', 'Акция добавлена в анализ.');
+    }
+
+    public function showStockAnalysis(int $stock): View
+    {
+        $project = $this->bankProject();
+        $stockRow = $this->stockAnalysisRow((int) $project->id, $stock);
+
+        return view('bank.stock_analysis_show', [
+            'project' => $project,
+            'stock' => $stockRow,
+        ]);
+    }
+
+    public function updateStockAnalysis(Request $request, int $stock): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $stockRow = $this->stockAnalysisRow((int) $project->id, $stock);
+
+        $payload = $this->stockAnalysisPayload($request);
+        $payload['ticker'] = strtoupper(trim((string) $payload['ticker']));
+        $payload['updated_at'] = now();
+
+        $duplicateExists = DB::table('bank_stock_analyses')
+            ->where('project_id', (int) $stockRow->project_id)
+            ->where('ticker', $payload['ticker'])
+            ->where('id', '<>', $stock)
+            ->exists();
+
+        if ($duplicateExists) {
+            throw ValidationException::withMessages([
+                'ticker' => 'Акция с таким тикером уже есть.',
+            ]);
+        }
+
+        DB::table('bank_stock_analyses')->where('id', $stock)->update($payload);
+
+        return redirect()->route('bank.stock-analysis')->with('success', 'Акция обновлена.');
+    }
+
+    public function destroyStockAnalysis(int $stock): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $this->stockAnalysisRow((int) $project->id, $stock);
+
+        DB::table('bank_stock_analyses')->where('id', $stock)->delete();
+
+        return redirect()->route('bank.stock-analysis')->with('success', 'Акция удалена.');
     }
 
     public function poolMovements(): View
@@ -4945,6 +5009,20 @@ class BankController extends Controller
             ->get()
             ->unique(fn ($stock) => strtoupper((string) $stock->ticker))
             ->values();
+    }
+
+    private function stockAnalysisRow(int $projectId, int $stockId): object
+    {
+        abort_unless(Schema::hasTable('bank_stock_analyses'), 404);
+
+        $stock = DB::table('bank_stock_analyses')
+            ->where('id', $stockId)
+            ->whereIn('project_id', [0, $projectId])
+            ->first();
+
+        abort_unless($stock, 404);
+
+        return $stock;
     }
 
     private function bankOperationalAccounts(string $projectId)

@@ -1,7 +1,7 @@
 @extends('home')
 
 @section('title')
-Анализ Акций
+Акции
 @endsection
 
 @section('content')
@@ -17,6 +17,11 @@
         ['price', 'Price', '86.55', false],
         ['change_percent', 'Change %', '-0.35%', false],
         ['volume', 'Volume', '75,988', false],
+    ];
+    $searchableFields = [
+        'sector' => $stockFilterOptions['sector'] ?? collect(),
+        'industry' => $stockFilterOptions['industry'] ?? collect(),
+        'country' => $stockFilterOptions['country'] ?? collect(),
     ];
     $metricGroups = [
         'Оценка и баланс' => [
@@ -81,6 +86,88 @@
         <div class="alert alert-danger">Проверьте поля формы и попробуйте снова.</div>
     @endif
 
+    <div class="ttable top-action-bar bank-stock-filter-bar">
+        <div class="top-action-filter">
+            <div style="position:relative;margin-top:13px">
+                <div onclick="stockFilterToggle()"
+                     class="{{ !empty($stockFiltersActive) ? 'button_submit_start' : 'button_submit_start0' }}"
+                     style="width:70px;height:70px;margin-top:-3px;cursor:pointer; background: linear-gradient(135deg, #fbbf24, #f59e0b); border: none; border-radius: 16px; box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); transition: all 0.3s ease; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <img src="/img/icon-category.png" alt="Фильтр" style="width:32px;filter: brightness(0);">
+                    <span style="font-size: 0.7rem; font-weight: 600; color: #000; margin-top: 4px;">Фильтр</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="stockFilterModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:9999; justify-content:center; align-items:center;">
+        <div class="glass-card" style="width:700px; max-width:90vw; max-height:80vh; overflow-y:auto; position:relative; margin:0 auto; padding:24px;">
+            <div onclick="stockFilterToggle()" style="position:absolute; top:12px; right:16px; cursor:pointer; font-size:1.5rem; color:var(--muted-foreground); transition:color 0.2s; z-index:10;">✕</div>
+
+            <h3 style="margin:0 0 16px 0; color:var(--foreground); font-family:var(--header); font-size:1.25rem;">🔍 Фильтр акций</h3>
+
+            <form action="{{ route('bank.stock-analysis') }}" method="get" name="stockfilterform">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div>
+                        <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Sector</label>
+                        <input type="text"
+                               name="sector"
+                               list="stock-filter-sector-options"
+                               autocomplete="off"
+                               placeholder="Выберите или введите сектор"
+                               value="{{ $stockFilters['sector'] ?? '' }}"
+                               style="width:100%; padding:8px 12px; font-size:0.9rem;">
+                        <datalist id="stock-filter-sector-options">
+                            @foreach(($stockFilterOptions['sector'] ?? collect()) as $option)
+                                <option value="{{ $option }}"></option>
+                            @endforeach
+                        </datalist>
+                    </div>
+
+                    <div>
+                        <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Industry</label>
+                        <input type="text"
+                               name="industry"
+                               list="stock-filter-industry-options"
+                               autocomplete="off"
+                               placeholder="Выберите или введите индустрию"
+                               value="{{ $stockFilters['industry'] ?? '' }}"
+                               style="width:100%; padding:8px 12px; font-size:0.9rem;">
+                        <datalist id="stock-filter-industry-options">
+                            @foreach(($stockFilterOptions['industry'] ?? collect()) as $option)
+                                <option value="{{ $option }}"></option>
+                            @endforeach
+                        </datalist>
+                    </div>
+
+                    <div>
+                        <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Country</label>
+                        <input type="text"
+                               name="country"
+                               list="stock-filter-country-options"
+                               autocomplete="off"
+                               placeholder="Выберите или введите страну"
+                               value="{{ $stockFilters['country'] ?? '' }}"
+                               style="width:100%; padding:8px 12px; font-size:0.9rem;">
+                        <datalist id="stock-filter-country-options">
+                            @foreach(($stockFilterOptions['country'] ?? collect()) as $option)
+                                <option value="{{ $option }}"></option>
+                            @endforeach
+                        </datalist>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" style="flex: 1; padding: 10px 16px; background: linear-gradient(135deg, #fbbf24, #f59e0b); border: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); color: #000; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <span>🔍</span> Найти
+                    </button>
+                    <a href="{{ route('bank.stock-analysis') }}" style="flex: 1; padding: 10px 16px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: var(--foreground); font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration:none;">
+                        <span>✕</span> Сбросить
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <section class="bank-grid bank-grid--summary">
         <div class="bank-panel bank-panel--accent">
             <div class="bank-label">Акций</div>
@@ -107,7 +194,7 @@
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
             <div>
-                <div class="bank-label">Анализ Акций</div>
+                <div class="bank-label">Акции</div>
                 <div class="bank-meta">Фундаментальные показатели и рыночная сводка по тикерам.</div>
             </div>
             <button type="button" class="btn btn-sm btn-primary" data-stock-open>Добавить акцию</button>
@@ -127,6 +214,7 @@
                         <th class="text-end">Price</th>
                         <th class="text-end">Change %</th>
                         <th class="text-end">Volume</th>
+                        <th class="text-end" aria-label="Действия"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -154,10 +242,34 @@
                             <td class="text-end bank-mono">{{ $stock->price ?: '—' }}</td>
                             <td class="text-end bank-mono {{ $changeClass }}">{{ $change ?: '—' }}</td>
                             <td class="text-end bank-mono">{{ $stock->volume ?: '—' }}</td>
+                            <td class="text-end">
+                                <div class="bank-stock-actions">
+                                    <button type="button"
+                                            class="bank-stock-actions__trigger"
+                                            data-stock-menu-toggle
+                                            aria-label="Открыть меню акции {{ $stock->ticker }}">
+                                        ⋮
+                                    </button>
+                                    <div class="bank-stock-actions__menu" data-stock-menu hidden>
+                                        <button type="button"
+                                                data-stock-edit
+                                                data-stock-update-url="{{ route('bank.stock-analysis.update', $stock->id) }}"
+                                                data-stock='{{ e(json_encode($stock, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE)) }}'>
+                                            Редактировать
+                                        </button>
+                                        <a href="{{ route('bank.stock-analysis.show', $stock->id) }}">Анализ</a>
+                                        <form method="POST" action="{{ route('bank.stock-analysis.destroy', $stock->id) }}" data-stock-delete-form>
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit">Удалить</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11" class="text-center text-muted py-4">Акции пока не добавлены.</td>
+                            <td colspan="12" class="text-center text-muted py-4">Акции пока не добавлены.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -170,26 +282,48 @@
         <div class="bank-modal__dialog bank-stock-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="stockModalTitle">
             <div class="bank-modal__header">
                 <div>
-                    <div class="bank-label">Анализ Акций</div>
-                    <h2 id="stockModalTitle">Добавить акцию</h2>
+                    <div class="bank-label">Акция</div>
+                    <h2 id="stockModalTitle" data-stock-modal-title>Добавить акцию</h2>
                     <div class="bank-meta">Сохранение тикера и фундаментальных показателей для банковского проекта.</div>
                 </div>
                 <button type="button" class="bank-modal__close" data-stock-close aria-label="Закрыть">×</button>
             </div>
-            <form method="POST" action="{{ route('bank.stock-analysis.store') }}" class="bank-requisites-form">
+            <form method="POST"
+                  action="{{ route('bank.stock-analysis.store') }}"
+                  class="bank-requisites-form"
+                  data-stock-form
+                  data-stock-store-url="{{ route('bank.stock-analysis.store') }}">
                 @csrf
+                <input type="hidden" name="_method" value="POST" data-stock-form-method>
                 <div class="bank-stock-form-section">
                     <div class="bank-label">Таблица</div>
                     <div class="bank-form-grid">
                         @foreach($baseFields as [$name, $label, $placeholder, $required])
+                            @php
+                                $maxLength = match ($name) {
+                                    'ticker' => 20,
+                                    'sector' => 160,
+                                    'industry' => 190,
+                                    'country' => 120,
+                                    default => 255,
+                                };
+                            @endphp
                             <label>
                                 <span>{{ $label }}</span>
                                 <input type="text"
                                        name="{{ $name }}"
                                        value="{{ old($name) }}"
-                                       maxlength="{{ $name === 'ticker' ? 20 : 255 }}"
+                                       maxlength="{{ $maxLength }}"
                                        placeholder="{{ $placeholder }}"
+                                       @if(isset($searchableFields[$name])) list="stock-{{ $name }}-options" autocomplete="off" @endif
                                        {{ $required ? 'required' : '' }}>
+                                @if(isset($searchableFields[$name]))
+                                    <datalist id="stock-{{ $name }}-options">
+                                        @foreach($searchableFields[$name] as $option)
+                                            <option value="{{ $option }}"></option>
+                                        @endforeach
+                                    </datalist>
+                                @endif
                             </label>
                         @endforeach
                     </div>
@@ -230,9 +364,62 @@
         min-width: 1280px;
     }
 
+    .bank-stock-filter-bar {
+        margin-bottom: 16px;
+    }
+
     .bank-stock-table th,
     .bank-stock-table td {
         white-space: nowrap;
+    }
+
+    .bank-stock-actions {
+        position: relative;
+        display: inline-flex;
+        justify-content: flex-end;
+    }
+
+    .bank-stock-actions__trigger {
+        width: 32px;
+        height: 32px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.72);
+        color: #e5e7eb;
+        font-size: 20px;
+        line-height: 1;
+    }
+
+    .bank-stock-actions__menu {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        z-index: 20;
+        min-width: 156px;
+        padding: 6px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: #0f172a;
+        box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
+    }
+
+    .bank-stock-actions__menu a,
+    .bank-stock-actions__menu button {
+        display: block;
+        width: 100%;
+        padding: 8px 10px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: #e5e7eb;
+        text-align: left;
+        text-decoration: none;
+        font-size: 0.9rem;
+    }
+
+    .bank-stock-actions__menu a:hover,
+    .bank-stock-actions__menu button:hover {
+        background: rgba(59, 130, 246, 0.18);
     }
 
     .bank-stock-table th:nth-child(3),
@@ -269,22 +456,74 @@
 
 @push('scripts')
 <script>
+    function stockFilterToggle() {
+        const modal = document.getElementById('stockFilterModal');
+        if (!modal) {
+            return;
+        }
+
+        if (modal.style.display === 'none' || modal.style.display === '') {
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        } else {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const root = document.querySelector('[data-bank-stock-page]');
         if (!root) {
             return;
         }
 
+        const filterModal = document.getElementById('stockFilterModal');
+        filterModal?.addEventListener('click', (event) => {
+            if (event.target === filterModal) {
+                stockFilterToggle();
+            }
+        });
+
         const modal = root.querySelector('[data-stock-modal]');
         const openButton = root.querySelector('[data-stock-open]');
         const closeButtons = root.querySelectorAll('[data-stock-close]');
+        const form = root.querySelector('[data-stock-form]');
+        const methodInput = root.querySelector('[data-stock-form-method]');
+        const modalTitle = root.querySelector('[data-stock-modal-title]');
         const tickerInput = modal?.querySelector('input[name="ticker"]');
+        const menuToggles = root.querySelectorAll('[data-stock-menu-toggle]');
+        const editButtons = root.querySelectorAll('[data-stock-edit]');
 
         if (modal && !modal.hidden) {
             document.body.style.overflow = 'hidden';
         }
 
-        const openModal = () => {
+        const closeMenus = (exceptMenu = null) => {
+            root.querySelectorAll('[data-stock-menu]').forEach((menu) => {
+                if (menu !== exceptMenu) {
+                    menu.hidden = true;
+                }
+            });
+        };
+
+        const setFormMode = (mode, stock = null, updateUrl = '') => {
+            if (!form || !methodInput) {
+                return;
+            }
+
+            form.action = mode === 'edit' ? updateUrl : form.dataset.stockStoreUrl;
+            methodInput.value = mode === 'edit' ? 'PUT' : 'POST';
+            if (modalTitle) {
+                modalTitle.textContent = mode === 'edit' ? 'Редактировать акцию' : 'Добавить акцию';
+            }
+
+            form.querySelectorAll('input[name]:not([name="_token"]):not([name="_method"])').forEach((input) => {
+                input.value = stock ? (stock[input.name] ?? '') : '';
+            });
+        };
+
+        const openModal = (mode = 'create', stock = null, updateUrl = '') => {
+            setFormMode(mode === 'edit' ? 'edit' : 'create', stock, updateUrl);
             modal.hidden = false;
             document.body.style.overflow = 'hidden';
             setTimeout(() => tickerInput?.focus(), 0);
@@ -294,11 +533,45 @@
             document.body.style.overflow = '';
         };
 
-        openButton?.addEventListener('click', openModal);
+        openButton?.addEventListener('click', () => openModal('create'));
         closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+        menuToggles.forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const menu = button.closest('.bank-stock-actions')?.querySelector('[data-stock-menu]');
+                if (!menu) {
+                    return;
+                }
+
+                const shouldOpen = menu.hidden;
+                closeMenus(menu);
+                menu.hidden = !shouldOpen;
+            });
+        });
+        editButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const stock = JSON.parse(button.dataset.stock || '{}');
+                closeMenus();
+                openModal('edit', stock, button.dataset.stockUpdateUrl || '');
+            });
+        });
+        root.querySelectorAll('[data-stock-delete-form]').forEach((deleteForm) => {
+            deleteForm.addEventListener('submit', (event) => {
+                if (!window.confirm('Удалить акцию из анализа?')) {
+                    event.preventDefault();
+                }
+            });
+        });
+        document.addEventListener('click', () => closeMenus());
         document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && filterModal && filterModal.style.display === 'flex') {
+                stockFilterToggle();
+            }
             if (event.key === 'Escape' && modal && !modal.hidden) {
                 closeModal();
+            }
+            if (event.key === 'Escape') {
+                closeMenus();
             }
         });
     });
