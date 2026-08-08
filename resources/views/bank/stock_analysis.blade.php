@@ -837,6 +837,16 @@
         const adapterCloseButtons = root.querySelectorAll('[data-stock-adapter-close]');
         const menuToggles = root.querySelectorAll('[data-stock-menu-toggle]');
         const editButtons = root.querySelectorAll('[data-stock-edit]');
+        const defaultAdapterConfigs = {
+            finnhub: {
+                api_key: 'd9rgeupr01qkdnrf0lmgd9rgeupr01qkdnrf0ln0',
+                base_url: 'https://finnhub.io/api/v1',
+            },
+            fmp: {
+                api_key: '0vDr9hgPu8RskbzxMVGJXBPi9eG0F6jo',
+                base_url: 'https://financialmodelingprep.com/api/v3',
+            },
+        };
         let currentPullUrl = '';
         let currentAdapterUrl = '';
         let currentSnapshotDate = '';
@@ -910,11 +920,22 @@
             }
         };
 
+        const ensureAdapterConfig = (adapter, force = false) => {
+            if (!adapterConfigField || !defaultAdapterConfigs[adapter]) {
+                return;
+            }
+
+            if (force || !adapterConfigField.value.trim()) {
+                adapterConfigField.value = JSON.stringify(defaultAdapterConfigs[adapter], null, 2);
+            }
+        };
+
         const openModal = (mode = 'create', stock = null, updateUrl = '', pullUrl = '', adapterUrl = '', snapshotDate = '') => {
             currentPullUrl = pullUrl;
             currentAdapterUrl = adapterUrl;
             currentSnapshotDate = snapshotDate;
             setFormMode(mode === 'edit' ? 'edit' : 'create', stock, updateUrl);
+            ensureAdapterConfig(adapterSelect?.value || 'manual');
             modal.hidden = false;
             document.body.style.overflow = 'hidden';
             setTimeout(() => tickerInput?.focus(), 0);
@@ -1001,6 +1022,7 @@
                         adapter: adapterSelect.value,
                         adapter_config: adapterConfigField?.value || '',
                         snapshot_date: snapshotDateField?.value || '',
+                        ticker: form.elements?.ticker?.value || '',
                     }),
                 });
                 const result = await response.json();
@@ -1030,6 +1052,7 @@
                 adapterModalSelect.value = adapterSelect.value || 'manual';
             }
             if (adapterModalConfig && adapterConfigField) {
+                ensureAdapterConfig(adapterModalSelect?.value || 'manual');
                 adapterModalConfig.value = adapterConfigField.value || '';
             }
             adapterModal.hidden = false;
@@ -1043,6 +1066,14 @@
             document.body.style.overflow = modal && !modal.hidden ? 'hidden' : '';
         };
         adapterSettingsButton?.addEventListener('click', openAdapterModal);
+        adapterSelect?.addEventListener('change', () => {
+            ensureAdapterConfig(adapterSelect.value);
+        });
+        adapterModalSelect?.addEventListener('change', () => {
+            if (adapterModalConfig && defaultAdapterConfigs[adapterModalSelect.value] && !adapterModalConfig.value.trim()) {
+                adapterModalConfig.value = JSON.stringify(defaultAdapterConfigs[adapterModalSelect.value], null, 2);
+            }
+        });
         adapterCloseButtons.forEach((button) => button.addEventListener('click', closeAdapterModal));
         adapterModal?.addEventListener('click', (event) => {
             if (event.target === adapterModal) {

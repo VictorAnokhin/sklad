@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +22,8 @@ use Illuminate\View\View;
 class BankController extends Controller
 {
     private const DEPOSIT_TRANSFER_ACCOUNT_FID = '12';
+    private const DEFAULT_FINNHUB_API_KEY = 'd9rgeupr01qkdnrf0lmgd9rgeupr01qkdnrf0ln0';
+    private const DEFAULT_FMP_API_KEY = '0vDr9hgPu8RskbzxMVGJXBPi9eG0F6jo';
 
     private const EXCHANGE_ORDER_STATUSES = [
         'new' => 'Новая',
@@ -1096,16 +1099,41 @@ class BankController extends Controller
             'adapter' => ['nullable', 'string', Rule::in(['manual', 'finviz_elite', 'fmp', 'finnhub'])],
             'adapter_config' => ['nullable', 'json', 'max:4000'],
             'snapshot_date' => ['nullable', 'date'],
+            'ticker' => ['nullable', 'string', 'max:20'],
         ]);
 
         $adapter = (string) ($payload['adapter'] ?? $stockRow->adapter ?? 'manual');
+        $ticker = strtoupper(trim((string) ($payload['ticker'] ?? $stockRow->ticker ?? '')));
         $snapshotDate = trim((string) ($payload['snapshot_date'] ?? '')) ?: now()->toDateString();
         $data = $this->stockPayloadFromRow($stockRow);
+        $data['ticker'] = $ticker;
         $data['snapshot_date'] = $snapshotDate;
         $status = 'manual_snapshot';
         $message = 'Данные подтянуты из текущей сохраненной строки.';
 
-        if ($adapter !== 'manual') {
+        if ($adapter === 'finnhub') {
+            $config = $this->stockAdapterConfig((string) ($payload['adapter_config'] ?? $stockRow->adapter_config ?? ''), $adapter);
+            try {
+                $result = $this->pullFinnhubStockData($ticker, $config);
+            } catch (ValidationException $exception) {
+                throw $exception;
+            } catch (\Throwable $exception) {
+                return response()->json([
+                    'success' => false,
+                    'adapter' => $adapter,
+                    'status' => 'adapter_error',
+                    'message' => 'Не удалось получить данные Finnhub: ' . $exception->getMessage(),
+                    'data' => $data,
+                ], 422);
+            }
+            $data = array_merge($data, $result['data'], [
+                'adapter' => 'finnhub',
+                'adapter_config' => json_encode($config, JSON_UNESCAPED_UNICODE),
+                'snapshot_date' => $snapshotDate,
+            ]);
+            $status = 'adapter_synced';
+            $message = $result['message'];
+        } elseif ($adapter !== 'manual') {
             $status = 'adapter_not_connected';
             $message = 'Для внешнего адаптера сохраните настройки доступа. Реальный запрос к API подключается в адаптере провайдера.';
         }
@@ -1134,6 +1162,125 @@ class BankController extends Controller
     private function stockAnalysisTablePayload(array $payload): array
     {
         return array_intersect_key($payload, array_flip($this->stockAnalysisFields()));
+    }
+
+    private function stockAdapterConfig(?string $configJson, string $adapter): array
+    {
+        $config = [];
+        $configJson = trim((string) $configJson);
+        if ($configJson !== '') {
+            $decoded = json_decode($configJson, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $config = $decoded;
+            }
+        }
+
+        if ($adapter === 'finnhub') {
+            $config['api_key'] = trim((string) ($config['api_key'] ?? '')) ?: self::DEFAULT_FINNHUB_API_KEY;
+            $config['base_url'] = rtrim((string) ($config['base_url'] ?? 'https://finnhub.io/api/v1'), '/');
+        } elseif ($adapter === 'fmp') {
+            $config['api_key'] = trim((string) ($config['api_key'] ?? '')) ?: self::DEFAULT_FMP_API_KEY;
+            $config['base_url'] = rtrim((string) ($config['base_url'] ?? 'https://financialmodelingprep.com/api/v3'), '/');
+        }
+
+        return $config;
+    }
+
+    private function pullFinnhubStockData(string $ticker, array $config): array
+    {
+        if ($ticker === '') {
+            throw ValidationException::withMessages([
+                'ticker' => 'Укажите тикер для обновления данных Finnhub.',
+            ]);
+        }
+
+        $apiKey = trim((string) ($config['api_key'] ?? ''));
+        if ($apiKey === '') {
+            throw ValidationException::withMessages([
+                'adapter_config' => 'Для Finnhub укажите api_key в настройках адаптера.',
+            ]);
+        }
+
+        $request = Http::baseUrl(rtrim((string) ($config['base_url'] ?? 'https://finnhub.io/api/v1'), '/'))
+            ->acceptJson()
+            ->withHeaders(['X-Finnhub-Token' => $apiKey])
+            ->timeout(15)
+            ->connectTimeout(8);
+
+        $quoteResponse = $request->get('quote', ['symbol' => $ticker]);
+        $profileResponse = $request->get('stock/profile2', ['symbol' => $ticker]);
+        $metricResponse = $request->get('stock/metric', ['symbol' => $ticker, 'metric' => 'all']);
+
+        if ($quoteResponse->failed()) {
+            throw ValidationException::withMessages([
+                'adapter' => 'Finnhub quote вернул ошибку: HTTP ' . $quoteResponse->status(),
+            ]);
+        }
+
+        $quote = $quoteResponse->json() ?: [];
+        $profile = $profileResponse->successful() ? ($profileResponse->json() ?: []) : [];
+        $metricsPayload = $metricResponse->successful() ? ($metricResponse->json() ?: []) : [];
+        $metrics = is_array($metricsPayload['metric'] ?? null) ? $metricsPayload['metric'] : [];
+
+        $data = [
+            'ticker' => strtoupper((string) ($profile['ticker'] ?? $ticker)),
+            'company' => (string) ($profile['name'] ?? ''),
+            'sector' => (string) ($profile['finnhubIndustry'] ?? ''),
+            'industry' => (string) ($profile['finnhubIndustry'] ?? ''),
+            'country' => (string) ($profile['country'] ?? ''),
+            'market' => $this->formatStockMarketCap($profile['marketCapitalization'] ?? null),
+            'market_cap' => $this->formatStockMarketCap($profile['marketCapitalization'] ?? null),
+            'price' => $this->formatStockNumber($quote['c'] ?? null),
+            'change_percent' => $this->formatStockPercent($quote['dp'] ?? null),
+            'ipo' => (string) ($profile['ipo'] ?? ''),
+            'pe' => $this->formatStockNumber($metrics['peBasicExclExtraTTM'] ?? null),
+            'pb' => $this->formatStockNumber($metrics['pbAnnual'] ?? $metrics['pbQuarterly'] ?? null),
+            'ps' => $this->formatStockNumber($metrics['psTTM'] ?? null),
+            'pc' => $this->formatStockNumber($metrics['pcfShareTTM'] ?? null),
+            'pfcf' => $this->formatStockNumber($metrics['pfcfShareTTM'] ?? null),
+            'quick_ratio' => $this->formatStockNumber($metrics['quickRatioAnnual'] ?? null),
+            'current_ratio' => $this->formatStockNumber($metrics['currentRatioAnnual'] ?? null),
+            'debt_eq' => $this->formatStockNumber($metrics['totalDebt/totalEquityAnnual'] ?? null),
+            'eps_ttm' => $this->formatStockNumber($metrics['epsBasicExclExtraItemsTTM'] ?? null),
+            'dividend_ttm' => $this->formatStockPercent($metrics['dividendYieldIndicatedAnnual'] ?? null),
+        ];
+
+        $data = array_filter($data, fn ($value) => trim((string) $value) !== '');
+
+        return [
+            'message' => 'Данные Finnhub подтянуты по тикеру ' . $ticker . '. Нажмите Сохранить, чтобы записать snapshot на выбранную дату.',
+            'data' => $data,
+        ];
+    }
+
+    private function formatStockNumber(mixed $value, int $precision = 2): string
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return '';
+        }
+
+        return rtrim(rtrim(number_format((float) $value, $precision, '.', ''), '0'), '.');
+    }
+
+    private function formatStockPercent(mixed $value): string
+    {
+        $number = $this->formatStockNumber($value);
+
+        return $number !== '' ? $number . '%' : '';
+    }
+
+    private function formatStockMarketCap(mixed $marketCapMillions): string
+    {
+        if ($marketCapMillions === null || $marketCapMillions === '' || ! is_numeric($marketCapMillions)) {
+            return '';
+        }
+
+        $billions = (float) $marketCapMillions / 1000;
+        if ($billions >= 1000) {
+            return $this->formatStockNumber($billions / 1000) . 'T';
+        }
+
+        return $this->formatStockNumber($billions) . 'B';
     }
 
     public function updateStockAnalysisAdapter(Request $request, int $stock): RedirectResponse
