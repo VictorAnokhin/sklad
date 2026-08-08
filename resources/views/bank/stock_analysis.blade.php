@@ -23,7 +23,7 @@
         'industry' => $stockFilterOptions['industry'] ?? collect(),
         'country' => $stockFilterOptions['country'] ?? collect(),
     ];
-    $metricGroups = [
+    $defaultMetricGroups = [
         'Оценка и баланс' => [
             ['market_cap', 'Market Cap', '374.54B'],
             ['enterprise_value', 'Enterprise Value', '403.87B'],
@@ -74,6 +74,7 @@
             ['earnings', 'Earnings', 'Jul 28 BMO'],
         ],
     ];
+    $metricGroups = $stockFormParameterGroups ?? $defaultMetricGroups;
 @endphp
 
 <div class="bank-page bank-stock-page" data-bank-stock-page>
@@ -203,7 +204,10 @@
                 <div class="bank-label">Акции</div>
                 <div class="bank-meta">Фундаментальные показатели и рыночная сводка по тикерам.</div>
             </div>
-            <button type="button" class="btn btn-sm btn-primary" data-stock-open>Добавить акцию</button>
+            <div class="bank-stock-table-header-actions">
+                <a class="btn btn-sm btn-outline-light" href="{{ route('bank.stock-analysis.parameters') }}">Параметры</a>
+                <button type="button" class="btn btn-sm btn-primary" data-stock-open>Добавить акцию</button>
+            </div>
         </div>
         <div class="bank-stock-table-wrap">
             <table class="table table-dark table-hover table-sm align-middle bank-table bank-stock-table">
@@ -384,7 +388,7 @@
                             @foreach($fields as [$name, $label, $placeholder])
                                 <label>
                                     <span>{{ $label }}</span>
-                                    <input type="text" name="{{ $name }}" value="{{ old($name) }}" placeholder="{{ $placeholder }}">
+                                    <input type="text" name="{{ $name }}" value="{{ old($name) }}" placeholder="{{ Str::limit($placeholder, 90) }}">
                                 </label>
                             @endforeach
                         </div>
@@ -444,6 +448,14 @@
 
     .bank-stock-filter-bar {
         margin-bottom: 16px;
+    }
+
+    .bank-stock-table-header-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
 
     .bank-stock-filter-field {

@@ -980,11 +980,13 @@ class BankController extends Controller
             ->when($filters['country'] !== '', fn ($rows) => $rows->where('country', $filters['country']))
             ->values();
         $tableMultipliers = $this->stockAnalysisTableMultipliers((int) $project->id);
+        $multipliers = $this->stockAnalysisMultipliersForView((int) $project->id);
 
         return view('bank.stock_analysis', [
             'project' => $project,
             'stocks' => $stocks,
             'stockTableMultipliers' => $this->stockAnalysisTableMultiplierValues($stocks, $tableMultipliers),
+            'stockFormParameterGroups' => $this->stockAnalysisFormParameterGroups($multipliers),
             'stockChanges' => $this->latestStockSnapshotChanges($stocks->pluck('id')->map(fn ($id) => (int) $id)->all()),
             'stockFilterOptions' => [
                 'sector' => $allStocks->pluck('sector')->filter()->unique()->sort()->values(),
@@ -1058,6 +1060,16 @@ class BankController extends Controller
             'snapshots' => $snapshots,
             'selectedSnapshot' => $selectedSnapshot,
             'selectedPayload' => $selectedPayload,
+            'multipliers' => $this->stockAnalysisMultipliersForView((int) $project->id),
+        ]);
+    }
+
+    public function stockAnalysisParameters(): View
+    {
+        $project = $this->bankProject();
+
+        return view('bank.stock_analysis_parameters', [
+            'project' => $project,
             'multipliers' => $this->stockAnalysisMultipliersForView((int) $project->id),
         ]);
     }
@@ -5815,6 +5827,56 @@ class BankController extends Controller
         }
 
         return $result;
+    }
+
+    private function stockAnalysisFormParameterGroups($multipliers): array
+    {
+        $blockLabels = [
+            'cheapness' => 'Блок 1. Оценка цены',
+            'debt' => 'Блок 2. Долги',
+            'efficiency' => 'Блок 3. Эффективность',
+            'growth' => 'Блок 4. Рост и дивиденды',
+        ];
+        $editableFields = collect($this->stockAnalysisFields())
+            ->reject(fn (string $field) => in_array($field, [
+                'company',
+                'ticker',
+                'adapter',
+                'adapter_config',
+                'sector',
+                'industry',
+                'country',
+                'market',
+                'price',
+                'change_percent',
+                'volume',
+            ], true))
+            ->flip();
+
+        return collect($blockLabels)
+            ->mapWithKeys(fn (string $label, string $block) => [
+                $label => collect($multipliers)
+                    ->filter(function ($multiplier) use ($block, $editableFields): bool {
+                        $formula = trim((string) ($multiplier->formula ?? ''));
+
+                        return (string) ($multiplier->block ?? 'cheapness') === $block
+                            && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $formula)
+                            && $editableFields->has($formula);
+                    })
+                    ->sortBy([
+                        ['sort_order', 'asc'],
+                        ['id', 'asc'],
+                    ])
+                    ->map(fn ($multiplier) => [
+                        trim((string) ($multiplier->formula ?? '')),
+                        trim((string) ($multiplier->name ?? 'Параметр')),
+                        trim((string) ($multiplier->description ?? '')),
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->filter(fn (array $fields) => $fields !== [])
+            ->all();
     }
 
     private function calculateStockAnalysisFormula(string $formula, array $payload): ?float
