@@ -28,6 +28,15 @@ return new class extends Migration
                 if (! Schema::hasColumn('bank_stock_analyses', 'last_synced_at')) {
                     $table->timestamp('last_synced_at')->nullable()->after('sync_error');
                 }
+                if (! Schema::hasColumn('bank_stock_analyses', 'net_debt_ebitda')) {
+                    $table->string('net_debt_ebitda', 80)->nullable()->after('current_ratio');
+                }
+                if (! Schema::hasColumn('bank_stock_analyses', 'roe')) {
+                    $table->string('roe', 80)->nullable()->after('net_debt_ebitda');
+                }
+                if (! Schema::hasColumn('bank_stock_analyses', 'roic')) {
+                    $table->string('roic', 80)->nullable()->after('roe');
+                }
             });
         }
 
@@ -57,7 +66,7 @@ return new class extends Migration
 
         if (Schema::hasTable('bank_stock_analyses')) {
             Schema::table('bank_stock_analyses', function (Blueprint $table) {
-                foreach (['last_synced_at', 'sync_error', 'sync_status', 'last_payload', 'adapter_config', 'adapter'] as $column) {
+                foreach (['roic', 'roe', 'net_debt_ebitda', 'last_synced_at', 'sync_error', 'sync_status', 'last_payload', 'adapter_config', 'adapter'] as $column) {
                     if (Schema::hasColumn('bank_stock_analyses', $column)) {
                         $table->dropColumn($column);
                     }

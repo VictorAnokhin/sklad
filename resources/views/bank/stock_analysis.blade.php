@@ -308,6 +308,9 @@
                 @csrf
                 <input type="hidden" name="_method" value="POST" data-stock-form-method>
                 <textarea name="adapter_config" data-stock-adapter-config-field hidden>{{ old('adapter_config') }}</textarea>
+                <input type="hidden" name="net_debt_ebitda" value="{{ old('net_debt_ebitda') }}">
+                <input type="hidden" name="roe" value="{{ old('roe') }}">
+                <input type="hidden" name="roic" value="{{ old('roic') }}">
                 <div class="bank-stock-adapter-row">
                     <label>
                         <span>Дата</span>

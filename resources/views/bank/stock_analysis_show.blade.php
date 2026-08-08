@@ -239,19 +239,73 @@
             <span>Snapshot</span>
             <strong><span data-stock-snapshot-title-date>{{ $selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? now()->toDateString() }}</span> · {{ $stockValue('ticker') }} fundamentals</strong>
         </div>
-        <div class="bank-stock-snapshot-scroll">
-            <table class="bank-stock-snapshot-table">
-                <tbody>
-                    @foreach($snapshotRows as $row)
-                        <tr>
-                            @foreach($row as [$label, $rowValue])
-                                <th>{{ $label }}</th>
-                                <td class="{{ $label === 'Change' ? $changeClass : '' }}" data-stock-snapshot-value="{{ $label }}">{{ $rowValue ?: '—' }}</td>
-                            @endforeach
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+        <div class="bank-stock-snapshot-tabs" role="tablist" aria-label="Snapshot views">
+            <button type="button" class="is-active" data-stock-tab="parameters" role="tab" aria-selected="true">Параметры</button>
+            <button type="button" data-stock-tab="analysis" role="tab" aria-selected="false">Анализ</button>
+        </div>
+        <div data-stock-tab-panel="parameters">
+            <div class="bank-stock-snapshot-scroll">
+                <table class="bank-stock-snapshot-table">
+                    <tbody>
+                        @foreach($snapshotRows as $row)
+                            <tr>
+                                @foreach($row as [$label, $rowValue])
+                                    <th>{{ $label }}</th>
+                                    <td class="{{ $label === 'Change' ? $changeClass : '' }}" data-stock-snapshot-value="{{ $label }}">{{ $rowValue ?: '—' }}</td>
+                                @endforeach
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div data-stock-tab-panel="analysis" hidden>
+            <div class="bank-stock-analysis-view">
+                <div class="bank-stock-analysis-note">
+                    <strong>Методика</strong>
+                    <span>Мультипликаторы нельзя оценивать в вакууме. Для точного вывода нужны средние по отрасли и главные конкуренты; если таких данных нет в snapshot, вывод ниже использует только базовые ориентиры.</span>
+                </div>
+                <div class="bank-stock-analysis-grid" data-stock-analysis-results></div>
+                <div class="bank-stock-analysis-cheatsheet">
+                    <div class="bank-stock-analysis-heading">Сводная таблица-шпаргалка</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Метрика</th>
+                                <th>Здоровая норма</th>
+                                <th>Красный флаг</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>P/E</td>
+                                <td>Ниже среднеотраслевого при хорошем росте</td>
+                                <td>Экстремально высокий без оправданного роста</td>
+                            </tr>
+                            <tr>
+                                <td>Net Debt / EBITDA</td>
+                                <td>До 2.0-2.5</td>
+                                <td>Выше 3.5</td>
+                            </tr>
+                            <tr>
+                                <td>ROE</td>
+                                <td>Выше 15%</td>
+                                <td>Ниже 5% или отрицательный</td>
+                            </tr>
+                            <tr>
+                                <td>Current Ratio</td>
+                                <td>Выше 1.5</td>
+                                <td>Ниже 1.0</td>
+                            </tr>
+                            <tr>
+                                <td>Dividend Payout</td>
+                                <td>40%-60% от прибыли</td>
+                                <td>Выше 100%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </section>
 </div>
@@ -494,6 +548,32 @@
         padding: 12px;
     }
 
+    .bank-stock-snapshot-tabs {
+        display: inline-flex;
+        gap: 4px;
+        margin-top: 10px;
+        padding: 3px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 8px;
+        background: rgba(2, 6, 23, 0.28);
+    }
+
+    .bank-stock-snapshot-tabs button {
+        min-width: 96px;
+        padding: 6px 10px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: rgba(203, 213, 225, 0.74);
+        font-size: 0.78rem;
+        font-weight: 800;
+    }
+
+    .bank-stock-snapshot-tabs button.is-active {
+        background: rgba(251, 191, 36, 0.18);
+        color: #fbbf24;
+    }
+
     .bank-stock-snapshot-scroll {
         margin-top: 10px;
         overflow-x: auto;
@@ -528,6 +608,149 @@
         text-align: right;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         overflow-wrap: anywhere;
+    }
+
+    .bank-stock-analysis-view {
+        display: grid;
+        gap: 12px;
+        margin-top: 12px;
+    }
+
+    .bank-stock-analysis-note,
+    .bank-stock-analysis-block,
+    .bank-stock-analysis-cheatsheet {
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 8px;
+        background: rgba(2, 6, 23, 0.28);
+    }
+
+    .bank-stock-analysis-note {
+        display: grid;
+        gap: 4px;
+        padding: 10px 12px;
+        color: rgba(203, 213, 225, 0.82);
+        font-size: 0.82rem;
+        line-height: 1.45;
+    }
+
+    .bank-stock-analysis-note strong,
+    .bank-stock-analysis-heading {
+        color: #f8fafc;
+        font-size: 0.9rem;
+        font-weight: 800;
+    }
+
+    .bank-stock-analysis-grid {
+        display: grid;
+        gap: 10px;
+    }
+
+    .bank-stock-analysis-block {
+        padding: 12px;
+    }
+
+    .bank-stock-analysis-block h3 {
+        margin: 0 0 8px;
+        color: #f8fafc;
+        font-size: 1rem;
+        line-height: 1.25;
+    }
+
+    .bank-stock-analysis-items {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .bank-stock-analysis-item {
+        display: grid;
+        gap: 5px;
+        padding: 9px;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.55);
+    }
+
+    .bank-stock-analysis-item__top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .bank-stock-analysis-item__top strong {
+        color: #f8fafc;
+        font-size: 0.84rem;
+    }
+
+    .bank-stock-analysis-value {
+        color: #fbbf24;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 0.82rem;
+        font-weight: 800;
+    }
+
+    .bank-stock-analysis-verdict {
+        width: fit-content;
+        padding: 3px 7px;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .bank-stock-analysis-verdict.is-good {
+        background: rgba(34, 197, 94, 0.16);
+        color: #22c55e;
+    }
+
+    .bank-stock-analysis-verdict.is-watch {
+        background: rgba(251, 191, 36, 0.16);
+        color: #fbbf24;
+    }
+
+    .bank-stock-analysis-verdict.is-risk {
+        background: rgba(244, 63, 94, 0.16);
+        color: #f43f5e;
+    }
+
+    .bank-stock-analysis-verdict.is-missing {
+        background: rgba(148, 163, 184, 0.14);
+        color: rgba(203, 213, 225, 0.82);
+    }
+
+    .bank-stock-analysis-text {
+        color: rgba(203, 213, 225, 0.82);
+        font-size: 0.78rem;
+        line-height: 1.4;
+    }
+
+    .bank-stock-analysis-cheatsheet {
+        padding: 12px;
+        overflow-x: auto;
+    }
+
+    .bank-stock-analysis-cheatsheet table {
+        width: 100%;
+        min-width: 720px;
+        margin-top: 8px;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+    }
+
+    .bank-stock-analysis-cheatsheet th,
+    .bank-stock-analysis-cheatsheet td {
+        padding: 7px 8px;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        color: rgba(226, 232, 240, 0.88);
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .bank-stock-analysis-cheatsheet th {
+        background: rgba(15, 23, 42, 0.84);
+        color: rgba(148, 163, 184, 0.96);
+        font-weight: 900;
     }
 
     @media (max-width: 900px) {
@@ -587,12 +810,18 @@
             min-width: 620px;
             font-size: 0.74rem;
         }
+
+        .bank-stock-analysis-items {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const snapshots = @json($snapshotData);
+        const initialSnapshotDate = @json($selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '');
+        const analysisResults = document.querySelector('[data-stock-analysis-results]');
         const fieldByLabel = {
             'Market Cap': 'market_cap',
             'Income': 'income',
@@ -638,6 +867,151 @@
             'Change': 'change_percent',
             'Volume': 'volume',
         };
+        const escapeHtml = (value) => String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+        const parseMetric = (value) => {
+            const normalized = String(value || '').replace(/,/g, '').replace(/%/g, '').trim();
+            const number = Number.parseFloat(normalized.replace(/[^0-9.\-]/g, ''));
+
+            return Number.isFinite(number) ? number : null;
+        };
+        const verdict = (state, label, text) => ({ state, label, text });
+        const missing = (text = 'В snapshot нет данных для расчета. Подтяните этот показатель через адаптер или внесите вручную.') => verdict('missing', 'Нет данных', text);
+        const metricValue = (payload, field) => {
+            const raw = payload?.[field] || '';
+            const number = parseMetric(raw);
+
+            return { raw, number };
+        };
+        const metricItem = (title, rawValue, result) => `
+            <div class="bank-stock-analysis-item">
+                <div class="bank-stock-analysis-item__top">
+                    <strong>${escapeHtml(title)}</strong>
+                    <span class="bank-stock-analysis-value">${escapeHtml(rawValue || '—')}</span>
+                </div>
+                <span class="bank-stock-analysis-verdict is-${result.state}">${escapeHtml(result.label)}</span>
+                <div class="bank-stock-analysis-text">${escapeHtml(result.text)}</div>
+            </div>
+        `;
+        const renderAnalysisBlock = (title, items) => `
+            <section class="bank-stock-analysis-block">
+                <h3>${escapeHtml(title)}</h3>
+                <div class="bank-stock-analysis-items">${items.join('')}</div>
+            </section>
+        `;
+        const renderAnalysis = (payload = {}) => {
+            if (!analysisResults) return;
+
+            const pe = metricValue(payload, 'pe');
+            const evEbitda = metricValue(payload, 'ev_ebitda');
+            const ps = metricValue(payload, 'ps');
+            const pb = metricValue(payload, 'pb');
+            const netDebtEbitda = metricValue(payload, 'net_debt_ebitda');
+            const currentRatio = metricValue(payload, 'current_ratio');
+            const roe = metricValue(payload, 'roe');
+            const roic = metricValue(payload, 'roic');
+            const salesGrowth = metricValue(payload, 'sales_past_3_5y');
+            const epsGrowth = metricValue(payload, 'eps_past_3_5y');
+            const payout = metricValue(payload, 'payout');
+
+            const peVerdict = pe.number === null
+                ? missing('P/E нужен для первичной оценки дешевизны. Сравнение с отраслью и конкурентами в snapshot отсутствует.')
+                : pe.number < 0
+                    ? verdict('risk', 'Риск', 'Отрицательный P/E означает убыток; обычная оценка окупаемости через прибыль неприменима.')
+                    : pe.number <= 15
+                        ? verdict('watch', 'Дешево?', 'P/E ниже типичных широких ориентиров, но требуется проверить рост, качество бизнеса, отраслевую норму и конкурентов.')
+                        : pe.number <= 30
+                            ? verdict('watch', 'Нейтрально', 'P/E умеренный. Без отраслевого среднего и истории компании вывод о дешевизне неполный.')
+                            : verdict('risk', 'Дорого', 'Высокий P/E требует сильного роста прибыли; без подтверждения это может быть переплата.');
+            const evEbitdaVerdict = evEbitda.number === null
+                ? missing('EV/EBITDA отсутствует. Для оценки всего бизнеса с учетом долга нужно подтянуть EBITDA/EV.')
+                : evEbitda.number <= 12
+                    ? verdict('good', 'Норма', 'EV/EBITDA в зоне, которая часто выглядит привлекательной для стабильных компаний; сектор может менять ориентир.')
+                    : evEbitda.number <= 18
+                        ? verdict('watch', 'Выше нормы', 'Мультипликатор выше базового ориентира 10-12, нужна проверка роста и отраслевой премии.')
+                        : verdict('risk', 'Риск цены', 'Высокий EV/EBITDA без сильного роста и качества бизнеса может указывать на переплату.');
+            const psVerdict = ps.number === null
+                ? missing('P/S отсутствует. Метрика важна для компаний, где прибыль временно искажена или низкая.')
+                : ps.number <= 3
+                    ? verdict('good', 'Сдержанно', 'P/S выглядит умеренно, но нужно сравнение с маржинальностью и отраслью.')
+                    : ps.number <= 8
+                        ? verdict('watch', 'Премия', 'Инвестор платит заметную цену за каждый доллар продаж; нужна высокая маржа или рост.')
+                        : verdict('risk', 'Дорого', 'Очень высокий P/S требует сильного роста и высокой будущей прибыльности.');
+            const pbVerdict = pb.number === null
+                ? missing('P/B отсутствует. Для банков, финансов и капиталоемких компаний эта метрика особенно важна.')
+                : pb.number < 1
+                    ? verdict('watch', 'Ниже баланса', 'Акция торгуется ниже балансовой стоимости, но нужно проверить скрытые убытки и качество активов.')
+                    : pb.number <= 3
+                        ? verdict('good', 'Норма', 'P/B выглядит умеренно для многих секторов; для asset-light бизнеса нормальный уровень может быть выше.')
+                        : verdict('watch', 'Премия', 'Высокий P/B требует высокой ROE/ROIC и устойчивого конкурентного преимущества.');
+
+            const debtVerdict = netDebtEbitda.number === null
+                ? missing('Net Debt / EBITDA пока не сохраняется в snapshot. Для долговой безопасности нужен чистый долг и EBITDA.')
+                : netDebtEbitda.number <= 2.5
+                    ? verdict('good', 'Безопасно', 'Долговая нагрузка в базовой безопасной зоне до 2.0-2.5.')
+                    : netDebtEbitda.number <= 3.5
+                        ? verdict('watch', 'Контроль', 'Долг повышенный; стоит проверить ставки, сроки погашения и стабильность cash flow.')
+                        : verdict('risk', 'Высокий риск', 'Выше 3.5 - зона повышенного риска, особенно в кризис и при высоких ставках.');
+            const currentRatioVerdict = currentRatio.number === null
+                ? missing('Current Ratio отсутствует. Нужны краткосрочные активы и обязательства.')
+                : currentRatio.number >= 1.5
+                    ? verdict('good', 'Ликвидно', 'Коэффициент выше 1.5, краткосрочная платежеспособность выглядит приемлемо.')
+                    : currentRatio.number >= 1
+                        ? verdict('watch', 'Тонко', 'Выше 1.0, но ниже комфортного ориентира 1.5-2.0.')
+                        : verdict('risk', 'Риск кассы', 'Ниже 1.0 - возможен кассовый разрыв или нехватка оборотного капитала.');
+
+            const roeVerdict = roe.number === null
+                ? missing('ROE не заполнен. Для оценки эффективности менеджмента нужен return on equity.')
+                : roe.number >= 15
+                    ? verdict('good', 'Сильный', 'ROE выше 15% указывает на эффективное использование капитала акционеров.')
+                    : roe.number >= 5
+                        ? verdict('watch', 'Средне', 'ROE положительный, но ниже ориентира сильного бизнеса.')
+                        : verdict('risk', 'Слабый', 'ROE ниже 5% или отрицательный - тревожный сигнал эффективности.');
+            const roicVerdict = roic.number === null
+                ? missing('ROIC не заполнен. Для вывода нужно сравнить ROIC со стоимостью капитала WACC.')
+                : roic.number >= 10
+                    ? verdict('good', 'Создает стоимость', 'ROIC выглядит сильным; финальный вывод требует сравнения с WACC.')
+                    : roic.number >= 5
+                        ? verdict('watch', 'Погранично', 'ROIC положительный, но запас к стоимости капитала может быть небольшим.')
+                        : verdict('risk', 'Слабый', 'Низкий ROIC может означать, что бизнес плохо конвертирует капитал в прибыль.');
+
+            const growthText = [salesGrowth.raw ? `Выручка 3/5Y: ${salesGrowth.raw}.` : '', epsGrowth.raw ? `EPS 3/5Y: ${epsGrowth.raw}.` : ''].filter(Boolean).join(' ');
+            const growthVerdict = growthText
+                ? verdict('watch', 'Проверить', `${growthText} Для устойчивой компании желательно видеть рост хотя бы на уровне инфляции и экономики; точный вывод требует сравнения с сектором.`)
+                : missing('Нет CAGR выручки/прибыли за 3-5 лет. Без динамики роста мультипликаторы могут вводить в заблуждение.');
+            const payoutVerdict = payout.number === null
+                ? missing('Dividend Payout отсутствует. Для дивидендного риска нужна доля прибыли, направляемая на выплаты.')
+                : payout.number >= 40 && payout.number <= 60
+                    ? verdict('good', 'Здорово', 'Payout в ориентире 40-60%, дивиденды выглядят сбалансированными.')
+                    : payout.number <= 90
+                        ? verdict('watch', 'Допустимо', 'Payout вне идеального диапазона, но ниже критической зоны 90-100%.')
+                        : verdict('risk', 'Риск дивидендов', 'Payout около или выше 100% означает риск выплаты дивидендов в долг.');
+
+            analysisResults.innerHTML = [
+                renderAnalysisBlock('Блок 1. Оценка дешевизны и справедливости цены', [
+                    metricItem('P/E', pe.raw, peVerdict),
+                    metricItem('EV/EBITDA', evEbitda.raw, evEbitdaVerdict),
+                    metricItem('P/S', ps.raw, psVerdict),
+                    metricItem('P/B', pb.raw, pbVerdict),
+                ]),
+                renderAnalysisBlock('Блок 2. Финансовая безопасность и долги', [
+                    metricItem('Net Debt / EBITDA', netDebtEbitda.raw, debtVerdict),
+                    metricItem('Current Ratio', currentRatio.raw, currentRatioVerdict),
+                ]),
+                renderAnalysisBlock('Блок 3. Эффективность бизнеса и менеджмента', [
+                    metricItem('ROE', roe.raw, roeVerdict),
+                    metricItem('ROIC', roic.raw, roicVerdict),
+                ]),
+                renderAnalysisBlock('Блок 4. Темпы роста и дивиденды', [
+                    metricItem('CAGR выручки и прибыли 3-5Y', growthText || '', growthVerdict),
+                    metricItem('Dividend Payout Ratio', payout.raw, payoutVerdict),
+                ]),
+            ].join('');
+        };
 
         const setSnapshot = (date) => {
             const snapshot = snapshots.find((item) => item.date === date);
@@ -661,6 +1035,7 @@
             if (chartPrice) chartPrice.textContent = `Price ${payload.price || '—'}`;
             const chartVolume = document.querySelector('[data-stock-chart-volume]');
             if (chartVolume) chartVolume.textContent = `Volume ${payload.volume || '—'}`;
+            renderAnalysis(payload);
 
             document.querySelectorAll('[data-stock-snapshot-date]').forEach((point) => {
                 point.classList.toggle('is-active', point.dataset.stockSnapshotDate === date);
@@ -676,6 +1051,21 @@
                 }
             });
         });
+        document.querySelectorAll('[data-stock-tab]').forEach((tab) => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.stockTab || 'parameters';
+                document.querySelectorAll('[data-stock-tab]').forEach((button) => {
+                    const active = button.dataset.stockTab === target;
+                    button.classList.toggle('is-active', active);
+                    button.setAttribute('aria-selected', active ? 'true' : 'false');
+                });
+                document.querySelectorAll('[data-stock-tab-panel]').forEach((panel) => {
+                    panel.hidden = panel.dataset.stockTabPanel !== target;
+                });
+            });
+        });
+        const initialSnapshot = snapshots.find((item) => item.date === initialSnapshotDate) || snapshots[snapshots.length - 1];
+        renderAnalysis(initialSnapshot?.payload || {});
     });
 </script>
 @endsection
