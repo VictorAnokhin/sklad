@@ -199,16 +199,13 @@
             </div>
             <button type="button" class="btn btn-sm btn-primary" data-stock-open>Добавить акцию</button>
         </div>
-        <div class="table-responsive bank-table-scroll">
+        <div class="bank-stock-table-wrap">
             <table class="table table-dark table-hover table-sm align-middle bank-table bank-stock-table">
                 <thead>
                     <tr>
                         <th class="bank-table__num">No.</th>
                         <th>Ticker</th>
                         <th>Company</th>
-                        <th>Sector</th>
-                        <th>Industry</th>
-                        <th>Country</th>
                         <th class="text-end">Market</th>
                         <th class="text-end">P/E</th>
                         <th class="text-end">Price</th>
@@ -229,14 +226,20 @@
                             <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
                             <td><span class="bank-pill bank-pill--currency">{{ $stock->ticker }}</span></td>
                             <td>
-                                <strong>{{ $stock->company }}</strong>
+                                <strong class="bank-stock-company">{{ $stock->company }}</strong>
+                                <div class="bank-meta bank-stock-company-meta">
+                                    {{ $stock->sector ?: '—' }}
+                                    @if($stock->industry)
+                                        · {{ $stock->industry }}
+                                    @endif
+                                    @if($stock->country)
+                                        · {{ $stock->country }}
+                                    @endif
+                                </div>
                                 @if((int) $stock->project_id === 0)
                                     <div class="bank-meta">Пример</div>
                                 @endif
                             </td>
-                            <td>{{ $stock->sector ?: '—' }}</td>
-                            <td>{{ $stock->industry ?: '—' }}</td>
-                            <td>{{ $stock->country ?: '—' }}</td>
                             <td class="text-end bank-mono">{{ $stock->market ?: '—' }}</td>
                             <td class="text-end bank-mono">{{ $stock->pe ?: '—' }}</td>
                             <td class="text-end bank-mono">{{ $stock->price ?: '—' }}</td>
@@ -269,7 +272,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="12" class="text-center text-muted py-4">Акции пока не добавлены.</td>
+                            <td colspan="9" class="text-center text-muted py-4">Акции пока не добавлены.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -360,16 +363,85 @@
         overflow-wrap: anywhere;
     }
 
-    .bank-stock-table {
-        min-width: 1280px;
-    }
-
     .bank-stock-filter-bar {
         margin-bottom: 16px;
     }
 
+    .bank-stock-page .bank-table-panel {
+        overflow: visible;
+    }
+
+    .bank-stock-table-wrap {
+        overflow: visible;
+    }
+
+    .bank-stock-table {
+        width: 100%;
+        table-layout: fixed;
+        font-size: 0.78rem;
+    }
+
     .bank-stock-table th,
     .bank-stock-table td {
+        padding: 0.42rem 0.35rem;
+        vertical-align: middle;
+    }
+
+    .bank-stock-table th:not(:last-child),
+    .bank-stock-table td:not(:last-child) {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .bank-stock-table .bank-table__num {
+        width: 42px;
+    }
+
+    .bank-stock-table th:nth-child(2),
+    .bank-stock-table td:nth-child(2) {
+        width: 84px;
+    }
+
+    .bank-stock-table th:nth-child(3),
+    .bank-stock-table td:nth-child(3) {
+        width: 30%;
+    }
+
+    .bank-stock-table th:nth-child(4),
+    .bank-stock-table td:nth-child(4),
+    .bank-stock-table th:nth-child(6),
+    .bank-stock-table td:nth-child(6),
+    .bank-stock-table th:nth-child(7),
+    .bank-stock-table td:nth-child(7) {
+        width: 82px;
+    }
+
+    .bank-stock-table th:nth-child(5),
+    .bank-stock-table td:nth-child(5) {
+        width: 62px;
+    }
+
+    .bank-stock-table th:nth-child(8),
+    .bank-stock-table td:nth-child(8) {
+        width: 88px;
+    }
+
+    .bank-stock-table th:nth-child(9),
+    .bank-stock-table td:nth-child(9) {
+        width: 44px;
+        overflow: visible;
+    }
+
+    .bank-stock-company {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bank-stock-company-meta {
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
     }
 
@@ -388,6 +460,7 @@
         color: #e5e7eb;
         font-size: 20px;
         line-height: 1;
+        padding: 0;
     }
 
     .bank-stock-actions__menu {
@@ -422,13 +495,6 @@
         background: rgba(59, 130, 246, 0.18);
     }
 
-    .bank-stock-table th:nth-child(3),
-    .bank-stock-table td:nth-child(3),
-    .bank-stock-table th:nth-child(5),
-    .bank-stock-table td:nth-child(5) {
-        min-width: 220px;
-    }
-
     .bank-stock-modal__dialog {
         width: min(1120px, calc(100vw - 32px));
         max-height: calc(100vh - 48px);
@@ -449,6 +515,24 @@
         .bank-table-header {
             align-items: flex-start;
             flex-direction: column;
+        }
+
+        .bank-stock-table {
+            font-size: 0.74rem;
+        }
+
+        .bank-stock-table th:nth-child(1),
+        .bank-stock-table td:nth-child(1),
+        .bank-stock-table th:nth-child(4),
+        .bank-stock-table td:nth-child(4),
+        .bank-stock-table th:nth-child(8),
+        .bank-stock-table td:nth-child(8) {
+            display: none;
+        }
+
+        .bank-stock-table th:nth-child(3),
+        .bank-stock-table td:nth-child(3) {
+            width: 42%;
         }
     }
 </style>
