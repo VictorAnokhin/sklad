@@ -88,7 +88,7 @@
                 <article class="bank-stock-parameter-card bank-stock-parameter-add-card">
                     <button type="button"
                             data-stock-parameter-create
-                            data-stock-parameter-group="{{ $groupName }}"
+                            data-stock-parameter-group-name="{{ $groupName }}"
                             aria-label="Добавить параметр в группу {{ $groupName }}">+</button>
                 </article>
             </div>
@@ -483,7 +483,7 @@
         const closeButtons = root.querySelectorAll('[data-stock-parameter-close]');
         const labelInput = root.querySelector('[data-stock-parameter-label]');
         const fieldInput = root.querySelector('[data-stock-parameter-field]');
-        const groupInput = root.querySelector('[data-stock-parameter-group]');
+        const groupInput = root.querySelector('input[data-stock-parameter-group]');
         const descriptionInput = root.querySelector('[data-stock-parameter-description]');
         const settingsInput = root.querySelector('[data-stock-parameter-settings]');
         const groupOptions = root.querySelector('[data-stock-group-options]');
@@ -522,7 +522,7 @@
         });
         root.querySelectorAll('[data-stock-parameter-create]').forEach((button) => {
             button.addEventListener('click', () => {
-                openModal('create', null, button.dataset.stockParameterGroup || 'Основные');
+                openModal('create', null, button.dataset.stockParameterGroupName || 'Основные');
             });
         });
 
