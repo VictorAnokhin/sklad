@@ -316,9 +316,10 @@
 
     .bank-stock-parameter-delete {
         left: 7px;
-        border: 0;
-        background: transparent;
-        color: #fbbf24;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: #fbbf24 !important;
     }
 
     .bank-stock-parameter-delete button,
@@ -335,14 +336,18 @@
         width: 26px;
         height: 26px;
         padding: 0;
-        color: #fbbf24;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: #fbbf24 !important;
         font-size: 1.05rem;
         font-weight: 800;
     }
 
     .bank-stock-parameter-delete button:hover {
-        background: transparent;
-        color: #fbbf24;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: #fbbf24 !important;
     }
 
     .bank-stock-parameter-menu {
