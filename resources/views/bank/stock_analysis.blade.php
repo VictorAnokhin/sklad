@@ -213,7 +213,7 @@
                         <th>Ticker</th>
                         <th>Company</th>
                         <th class="text-end">Market</th>
-                        <th class="text-end">P/E</th>
+                        <th class="text-end">Параметры</th>
                         <th class="text-end">Price</th>
                         <th class="text-end">Change %</th>
                         <th class="text-end">Volume</th>
@@ -248,18 +248,21 @@
                                 @if((int) $stock->project_id === 0)
                                     <div class="bank-meta">Пример</div>
                                 @endif
+                            </td>
+                            <td class="text-end bank-mono {{ $isChanged(['market', 'market_cap']) ? 'bank-stock-cell--changed' : '' }}">{{ $stock->market ?: '—' }}</td>
+                            <td class="text-end bank-mono bank-stock-params-cell {{ $isChanged('pe') ? 'bank-stock-cell--changed' : '' }}">
+                                @if(!empty($stockTableMultipliers[(int) $stock->id] ?? []))
+                                    {{ implode(', ', $stockTableMultipliers[(int) $stock->id]) }}
+                                @else
+                                    P/E: {{ $stock->pe ?: '—' }}
+                                @endif
+                            </td>
+                            <td class="text-end bank-mono {{ $isChanged('price') ? 'bank-stock-cell--changed' : '' }}">
+                                {{ $stock->price ?: '—' }}
                                 @if(($latestChange['date'] ?? '') && $changedFields !== [])
                                     <div class="bank-stock-change-note">Изм. {{ $latestChange['date'] }}</div>
                                 @endif
-                                @if(!empty($stockTableMultipliers[(int) $stock->id] ?? []))
-                                    <div class="bank-stock-table-multipliers">
-                                        {{ implode(', ', $stockTableMultipliers[(int) $stock->id]) }}
-                                    </div>
-                                @endif
                             </td>
-                            <td class="text-end bank-mono {{ $isChanged(['market', 'market_cap']) ? 'bank-stock-cell--changed' : '' }}">{{ $stock->market ?: '—' }}</td>
-                            <td class="text-end bank-mono {{ $isChanged('pe') ? 'bank-stock-cell--changed' : '' }}">{{ $stock->pe ?: '—' }}</td>
-                            <td class="text-end bank-mono {{ $isChanged('price') ? 'bank-stock-cell--changed' : '' }}">{{ $stock->price ?: '—' }}</td>
                             <td class="text-end bank-mono {{ $changeClass }} {{ $isChanged('change_percent') ? 'bank-stock-cell--changed' : '' }}">{{ $change ?: '—' }}</td>
                             <td class="text-end bank-mono {{ $isChanged('volume') ? 'bank-stock-cell--changed' : '' }}">{{ $stock->volume ?: '—' }}</td>
                             <td class="text-end">
@@ -528,7 +531,7 @@
 
     .bank-stock-table th:nth-child(3),
     .bank-stock-table td:nth-child(3) {
-        width: 30%;
+        width: 26%;
     }
 
     .bank-stock-table th:nth-child(4),
@@ -542,7 +545,9 @@
 
     .bank-stock-table th:nth-child(5),
     .bank-stock-table td:nth-child(5) {
-        width: 62px;
+        width: 130px;
+        overflow: visible;
+        white-space: normal;
     }
 
     .bank-stock-table th:nth-child(8),
@@ -581,8 +586,7 @@
         font-weight: 700;
     }
 
-    .bank-stock-table-multipliers {
-        margin-top: 4px;
+    .bank-stock-params-cell {
         color: rgba(226, 232, 240, 0.86);
         font-size: 0.72rem;
         line-height: 1.35;
