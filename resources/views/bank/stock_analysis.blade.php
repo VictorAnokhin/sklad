@@ -464,10 +464,8 @@
     }
 
     .bank-stock-actions__menu {
-        position: absolute;
-        top: calc(100% + 6px);
-        right: 0;
-        z-index: 20;
+        position: fixed;
+        z-index: 10020;
         min-width: 156px;
         padding: 6px;
         border: 1px solid rgba(148, 163, 184, 0.22);
@@ -586,8 +584,29 @@
             root.querySelectorAll('[data-stock-menu]').forEach((menu) => {
                 if (menu !== exceptMenu) {
                     menu.hidden = true;
+                    menu.style.top = '';
+                    menu.style.left = '';
                 }
             });
+        };
+
+        const positionMenu = (button, menu) => {
+            menu.hidden = false;
+
+            const buttonRect = button.getBoundingClientRect();
+            const menuRect = menu.getBoundingClientRect();
+            const viewportPadding = 8;
+            const preferredTop = buttonRect.bottom + 6;
+            const top = preferredTop + menuRect.height <= window.innerHeight - viewportPadding
+                ? preferredTop
+                : Math.max(viewportPadding, buttonRect.top - menuRect.height - 6);
+            const left = Math.max(
+                viewportPadding,
+                Math.min(window.innerWidth - menuRect.width - viewportPadding, buttonRect.right - menuRect.width)
+            );
+
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
         };
 
         const setFormMode = (mode, stock = null, updateUrl = '') => {
@@ -629,7 +648,13 @@
 
                 const shouldOpen = menu.hidden;
                 closeMenus(menu);
-                menu.hidden = !shouldOpen;
+                if (shouldOpen) {
+                    positionMenu(button, menu);
+                } else {
+                    menu.hidden = true;
+                    menu.style.top = '';
+                    menu.style.left = '';
+                }
             });
         });
         editButtons.forEach((button) => {
@@ -647,6 +672,8 @@
             });
         });
         document.addEventListener('click', () => closeMenus());
+        window.addEventListener('resize', () => closeMenus());
+        window.addEventListener('scroll', () => closeMenus(), true);
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && filterModal && filterModal.style.display === 'flex') {
                 stockFilterToggle();
