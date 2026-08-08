@@ -434,10 +434,16 @@
         width: 30px;
         text-align: center;
         color: #f43f5e;
+        background: transparent;
     }
 
-    .bank-stock-parameter-group-option > button:hover {
+    .bank-stock-parameter-group-option > button:first-child:hover {
         background: rgba(251, 191, 36, 0.14);
+    }
+
+    .bank-stock-parameter-group-option > button:last-child:not(:first-child):hover {
+        background: transparent;
+        color: #fbbf24;
     }
 
     .bank-stock-parameter-empty {
