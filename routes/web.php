@@ -197,6 +197,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/assets', [BankController::class, 'assets'])->name('assets');
         Route::get('/stock-analysis', [BankController::class, 'stockAnalysis'])->name('stock-analysis');
         Route::post('/stock-analysis', [BankController::class, 'storeStockAnalysis'])->name('stock-analysis.store');
+        Route::post('/stock-analysis/multipliers', [BankController::class, 'storeStockAnalysisMultiplier'])
+            ->name('stock-analysis.multipliers.store');
+        Route::put('/stock-analysis/multipliers/{multiplier}', [BankController::class, 'updateStockAnalysisMultiplier'])
+            ->whereNumber('multiplier')
+            ->name('stock-analysis.multipliers.update');
+        Route::delete('/stock-analysis/multipliers/{multiplier}', [BankController::class, 'destroyStockAnalysisMultiplier'])
+            ->whereNumber('multiplier')
+            ->name('stock-analysis.multipliers.destroy');
         Route::get('/stock-analysis/{stock}', [BankController::class, 'showStockAnalysis'])
             ->whereNumber('stock')
             ->name('stock-analysis.show');

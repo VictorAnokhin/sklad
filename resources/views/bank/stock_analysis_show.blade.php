@@ -265,6 +265,59 @@
                     <strong>Методика</strong>
                     <span>Мультипликаторы нельзя оценивать в вакууме. Для точного вывода нужны средние по отрасли и главные конкуренты; если таких данных нет в snapshot, вывод ниже использует только базовые ориентиры.</span>
                 </div>
+                <div class="bank-stock-multipliers">
+                    <div class="bank-stock-analysis-heading">Настраиваемые мультипликаторы</div>
+                    <div class="bank-stock-multiplier-values" data-stock-multiplier-values></div>
+                    <form class="bank-stock-multiplier-form" method="POST" action="{{ route('bank.stock-analysis.multipliers.store') }}">
+                        @csrf
+                        <input type="hidden" name="sort_order" value="{{ (($multipliers ?? collect())->max('sort_order') ?? 0) + 10 }}">
+                        <label>
+                            <span>Название</span>
+                            <input type="text" name="name" placeholder="Например, Gross Margin" required>
+                        </label>
+                        <label>
+                            <span>Формула</span>
+                            <input type="text" name="formula" placeholder="gross_profit / sales * 100" required>
+                        </label>
+                        <label class="bank-stock-multiplier-form__description">
+                            <span>Описание</span>
+                            <textarea name="description" rows="2" placeholder="Что понимать под высоким, низким или нормальным значением"></textarea>
+                        </label>
+                        <button type="submit" class="btn btn-sm btn-primary">Добавить</button>
+                    </form>
+                    <div class="bank-stock-multiplier-editor">
+                        @foreach(($multipliers ?? collect()) as $multiplier)
+                            <form method="POST" action="{{ route('bank.stock-analysis.multipliers.update', $multiplier->id) }}">
+                                @csrf
+                                @method('PUT')
+                                <input type="hidden" name="sort_order" value="{{ (int) ($multiplier->sort_order ?? 0) }}">
+                                <label>
+                                    <span>Название</span>
+                                    <input type="text" name="name" value="{{ $multiplier->name }}" required>
+                                </label>
+                                <label>
+                                    <span>Формула</span>
+                                    <input type="text" name="formula" value="{{ $multiplier->formula }}" required>
+                                </label>
+                                <label class="bank-stock-multiplier-editor__description">
+                                    <span>Описание</span>
+                                    <textarea name="description" rows="2">{{ $multiplier->description }}</textarea>
+                                </label>
+                                <div class="bank-stock-multiplier-editor__actions">
+                                    <button type="submit" class="btn btn-sm btn-outline-light">Сохранить</button>
+                                </div>
+                            </form>
+                            <form method="POST"
+                                  action="{{ route('bank.stock-analysis.multipliers.destroy', $multiplier->id) }}"
+                                  class="bank-stock-multiplier-delete"
+                                  data-stock-multiplier-delete>
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                            </form>
+                        @endforeach
+                    </div>
+                </div>
                 <div class="bank-stock-analysis-grid" data-stock-analysis-results></div>
                 <div class="bank-stock-analysis-cheatsheet">
                     <div class="bank-stock-analysis-heading">Сводная таблица-шпаргалка</div>
@@ -618,6 +671,7 @@
 
     .bank-stock-analysis-note,
     .bank-stock-analysis-block,
+    .bank-stock-multipliers,
     .bank-stock-analysis-cheatsheet {
         border: 1px solid rgba(148, 163, 184, 0.16);
         border-radius: 8px;
@@ -643,6 +697,112 @@
     .bank-stock-analysis-grid {
         display: grid;
         gap: 10px;
+    }
+
+    .bank-stock-multipliers {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .bank-stock-multiplier-values {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .bank-stock-multiplier-value {
+        display: grid;
+        gap: 5px;
+        padding: 9px;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.55);
+    }
+
+    .bank-stock-multiplier-value strong {
+        color: #f8fafc;
+        font-size: 0.84rem;
+    }
+
+    .bank-stock-multiplier-value code {
+        color: rgba(203, 213, 225, 0.72);
+        font-size: 0.72rem;
+        white-space: normal;
+    }
+
+    .bank-stock-multiplier-value span {
+        color: #fbbf24;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 0.9rem;
+        font-weight: 900;
+    }
+
+    .bank-stock-multiplier-value p {
+        margin: 0;
+        color: rgba(203, 213, 225, 0.82);
+        font-size: 0.76rem;
+        line-height: 1.4;
+    }
+
+    .bank-stock-multiplier-form,
+    .bank-stock-multiplier-editor form:not(.bank-stock-multiplier-delete) {
+        display: grid;
+        grid-template-columns: minmax(130px, 0.8fr) minmax(180px, 1fr) minmax(220px, 1.4fr) auto;
+        gap: 8px;
+        align-items: end;
+    }
+
+    .bank-stock-multiplier-form label,
+    .bank-stock-multiplier-editor label {
+        display: grid;
+        gap: 4px;
+        margin: 0;
+    }
+
+    .bank-stock-multiplier-form label span,
+    .bank-stock-multiplier-editor label span {
+        color: rgba(148, 163, 184, 0.9);
+        font-size: 0.7rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .bank-stock-multiplier-form input,
+    .bank-stock-multiplier-form textarea,
+    .bank-stock-multiplier-editor input,
+    .bank-stock-multiplier-editor textarea {
+        width: 100%;
+        min-height: 34px;
+        padding: 7px 9px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.72);
+        color: #f8fafc;
+        font-size: 0.82rem;
+    }
+
+    .bank-stock-multiplier-form textarea,
+    .bank-stock-multiplier-editor textarea {
+        resize: vertical;
+    }
+
+    .bank-stock-multiplier-editor {
+        display: grid;
+        gap: 8px;
+    }
+
+    .bank-stock-multiplier-editor form:not(.bank-stock-multiplier-delete) {
+        padding: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.38);
+    }
+
+    .bank-stock-multiplier-delete {
+        justify-self: end;
+        margin-top: -48px;
+        margin-right: 8px;
     }
 
     .bank-stock-analysis-block {
@@ -811,8 +971,19 @@
             font-size: 0.74rem;
         }
 
+        .bank-stock-multiplier-values,
         .bank-stock-analysis-items {
             grid-template-columns: 1fr;
+        }
+
+        .bank-stock-multiplier-form,
+        .bank-stock-multiplier-editor form:not(.bank-stock-multiplier-delete) {
+            grid-template-columns: 1fr;
+        }
+
+        .bank-stock-multiplier-delete {
+            justify-self: stretch;
+            margin: -4px 8px 8px;
         }
     }
 </style>
@@ -820,8 +991,10 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const snapshots = @json($snapshotData);
+        const multipliers = @json(($multipliers ?? collect())->values());
         const initialSnapshotDate = @json($selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '');
         const analysisResults = document.querySelector('[data-stock-analysis-results]');
+        const multiplierValues = document.querySelector('[data-stock-multiplier-values]');
         const fieldByLabel = {
             'Market Cap': 'market_cap',
             'Income': 'income',
@@ -875,9 +1048,54 @@
             .replace(/'/g, '&#039;');
         const parseMetric = (value) => {
             const normalized = String(value || '').replace(/,/g, '').replace(/%/g, '').trim();
+            const suffix = normalized.match(/[tmbk]$/i)?.[0]?.toLowerCase() || '';
             const number = Number.parseFloat(normalized.replace(/[^0-9.\-]/g, ''));
 
-            return Number.isFinite(number) ? number : null;
+            if (!Number.isFinite(number)) return null;
+            if (suffix === 't') return number * 1_000_000_000_000;
+            if (suffix === 'b') return number * 1_000_000_000;
+            if (suffix === 'm') return number * 1_000_000;
+            if (suffix === 'k') return number * 1_000;
+
+            return number;
+        };
+        const formatFormulaValue = (value) => {
+            if (!Number.isFinite(value)) return '—';
+            if (Math.abs(value) >= 1000) return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+            return Number(value.toFixed(4)).toString();
+        };
+        const calculateFormula = (formula, payload = {}) => {
+            const expression = String(formula || '').replace(/[A-Za-z_][A-Za-z0-9_]*/g, (field) => {
+                const value = parseMetric(payload[field]);
+                return value === null ? '0' : String(value);
+            });
+
+            if (!/^[0-9+\-*/().\s]+$/.test(expression)) {
+                return null;
+            }
+
+            try {
+                const value = Function(`"use strict"; return (${expression});`)();
+                return Number.isFinite(value) ? value : null;
+            } catch (error) {
+                return null;
+            }
+        };
+        const renderMultipliers = (payload = {}) => {
+            if (!multiplierValues) return;
+
+            multiplierValues.innerHTML = multipliers.map((multiplier) => {
+                const value = calculateFormula(multiplier.formula, payload);
+
+                return `
+                    <div class="bank-stock-multiplier-value">
+                        <strong>${escapeHtml(multiplier.name)}</strong>
+                        <span>${escapeHtml(formatFormulaValue(value))}</span>
+                        <code>${escapeHtml(multiplier.formula)}</code>
+                        <p>${escapeHtml(multiplier.description || 'Описание не заполнено.')}</p>
+                    </div>
+                `;
+            }).join('');
         };
         const verdict = (state, label, text) => ({ state, label, text });
         const missing = (text = 'В snapshot нет данных для расчета. Подтяните этот показатель через адаптер или внесите вручную.') => verdict('missing', 'Нет данных', text);
@@ -1036,6 +1254,7 @@
             const chartVolume = document.querySelector('[data-stock-chart-volume]');
             if (chartVolume) chartVolume.textContent = `Volume ${payload.volume || '—'}`;
             renderAnalysis(payload);
+            renderMultipliers(payload);
 
             document.querySelectorAll('[data-stock-snapshot-date]').forEach((point) => {
                 point.classList.toggle('is-active', point.dataset.stockSnapshotDate === date);
@@ -1066,6 +1285,14 @@
         });
         const initialSnapshot = snapshots.find((item) => item.date === initialSnapshotDate) || snapshots[snapshots.length - 1];
         renderAnalysis(initialSnapshot?.payload || {});
+        renderMultipliers(initialSnapshot?.payload || {});
+        document.querySelectorAll('[data-stock-multiplier-delete]').forEach((form) => {
+            form.addEventListener('submit', (event) => {
+                if (!window.confirm('Удалить мультипликатор?')) {
+                    event.preventDefault();
+                }
+            });
+        });
     });
 </script>
 @endsection

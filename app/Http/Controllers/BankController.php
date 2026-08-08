@@ -1056,7 +1056,45 @@ class BankController extends Controller
             'snapshots' => $snapshots,
             'selectedSnapshot' => $selectedSnapshot,
             'selectedPayload' => $selectedPayload,
+            'multipliers' => $this->stockAnalysisMultipliers((int) $project->id),
         ]);
+    }
+
+    public function storeStockAnalysisMultiplier(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_stock_analysis_multipliers'), 404);
+
+        $payload = $this->stockAnalysisMultiplierPayload($request);
+        DB::table('bank_stock_analysis_multipliers')->insert($payload + [
+            'project_id' => (int) $project->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return back()->with('success', 'Мультипликатор добавлен.');
+    }
+
+    public function updateStockAnalysisMultiplier(Request $request, int $multiplier): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $row = $this->stockAnalysisMultiplierRow((int) $project->id, $multiplier);
+        $payload = $this->stockAnalysisMultiplierPayload($request);
+
+        DB::table('bank_stock_analysis_multipliers')->where('id', (int) $row->id)->update($payload + [
+            'updated_at' => now(),
+        ]);
+
+        return back()->with('success', 'Мультипликатор обновлен.');
+    }
+
+    public function destroyStockAnalysisMultiplier(int $multiplier): RedirectResponse
+    {
+        $project = $this->bankProject();
+        $row = $this->stockAnalysisMultiplierRow((int) $project->id, $multiplier);
+        DB::table('bank_stock_analysis_multipliers')->where('id', (int) $row->id)->delete();
+
+        return back()->with('success', 'Мультипликатор удален.');
     }
 
     public function updateStockAnalysis(Request $request, int $stock): RedirectResponse
@@ -5623,6 +5661,118 @@ class BankController extends Controller
         abort_unless($stock, 404);
 
         return $stock;
+    }
+
+    private function stockAnalysisMultiplierPayload(Request $request): array
+    {
+        $payload = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'formula' => ['required', 'string', 'max:500'],
+            'description' => ['nullable', 'string', 'max:4000'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:100000'],
+        ]);
+
+        return [
+            'name' => trim((string) $payload['name']),
+            'formula' => trim((string) $payload['formula']),
+            'description' => trim((string) ($payload['description'] ?? '')),
+            'sort_order' => (int) ($payload['sort_order'] ?? 0),
+        ];
+    }
+
+    private function stockAnalysisMultiplierRow(int $projectId, int $multiplierId): object
+    {
+        abort_unless(Schema::hasTable('bank_stock_analysis_multipliers'), 404);
+
+        $row = DB::table('bank_stock_analysis_multipliers')
+            ->where('id', $multiplierId)
+            ->where('project_id', $projectId)
+            ->first();
+
+        abort_unless($row, 404);
+
+        return $row;
+    }
+
+    private function stockAnalysisMultipliers(int $projectId)
+    {
+        if (! Schema::hasTable('bank_stock_analysis_multipliers')) {
+            return collect($this->defaultStockAnalysisMultipliers())->map(fn ($row) => (object) $row);
+        }
+
+        if (! DB::table('bank_stock_analysis_multipliers')->where('project_id', $projectId)->exists()) {
+            $now = now();
+            DB::table('bank_stock_analysis_multipliers')->insert(array_map(
+                fn (array $row) => $row + ['project_id' => $projectId, 'created_at' => $now, 'updated_at' => $now],
+                $this->defaultStockAnalysisMultipliers()
+            ));
+        }
+
+        return DB::table('bank_stock_analysis_multipliers')
+            ->where('project_id', $projectId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+    }
+
+    private function defaultStockAnalysisMultipliers(): array
+    {
+        return [
+            [
+                'name' => 'P/E',
+                'formula' => 'pe',
+                'description' => 'Цена к прибыли. Сравнивайте с историей компании, средним по отрасли и конкурентами; низкое значение может быть ловушкой стоимости.',
+                'sort_order' => 10,
+            ],
+            [
+                'name' => 'EV/EBITDA',
+                'formula' => 'ev_ebitda',
+                'description' => 'Стоимость предприятия к EBITDA. Учитывает долг; для стабильных компаний ориентир до 10-12 часто выглядит привлекательным, но зависит от сектора.',
+                'sort_order' => 20,
+            ],
+            [
+                'name' => 'P/S',
+                'formula' => 'ps',
+                'description' => 'Цена к выручке. Полезно для компаний с временно низкой прибылью; показывает цену каждого доллара продаж.',
+                'sort_order' => 30,
+            ],
+            [
+                'name' => 'P/B',
+                'formula' => 'pb',
+                'description' => 'Цена к балансовой стоимости. Особенно важно для банков, финансов и капиталоемких компаний.',
+                'sort_order' => 40,
+            ],
+            [
+                'name' => 'Net Debt / EBITDA',
+                'formula' => 'net_debt_ebitda',
+                'description' => 'Показывает, за сколько лет бизнес может закрыть чистый долг операционной прибылью. До 2.0-2.5 обычно безопаснее, выше 3.5 - риск.',
+                'sort_order' => 50,
+            ],
+            [
+                'name' => 'Current Ratio',
+                'formula' => 'current_ratio',
+                'description' => 'Краткосрочные активы к краткосрочным обязательствам. Значение выше 1.5 обычно комфортнее, ниже 1.0 - риск кассового разрыва.',
+                'sort_order' => 60,
+            ],
+            [
+                'name' => 'ROE',
+                'formula' => 'roe',
+                'description' => 'Рентабельность собственного капитала. Стабильно выше 15% часто говорит об эффективности бизнеса и менеджмента.',
+                'sort_order' => 70,
+            ],
+            [
+                'name' => 'ROIC',
+                'formula' => 'roic',
+                'description' => 'Рентабельность инвестированного капитала. Важно сравнивать со стоимостью капитала WACC.',
+                'sort_order' => 80,
+            ],
+            [
+                'name' => 'Dividend Payout',
+                'formula' => 'payout',
+                'description' => 'Доля прибыли, направляемая на дивиденды. Ориентир 40-60%; выше 90-100% повышает риск отмены выплат.',
+                'sort_order' => 90,
+            ],
+        ];
     }
 
     private function bankOperationalAccounts(string $projectId)
