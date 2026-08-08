@@ -331,6 +331,20 @@
         cursor: pointer;
     }
 
+    .bank-stock-parameter-delete button {
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        color: #fbbf24;
+        font-size: 1.05rem;
+        font-weight: 800;
+    }
+
+    .bank-stock-parameter-delete button:hover {
+        background: transparent;
+        color: #fbbf24;
+    }
+
     .bank-stock-parameter-menu {
         right: 7px;
         border: 1px solid rgba(148, 163, 184, 0.22);
