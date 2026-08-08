@@ -980,13 +980,13 @@ class BankController extends Controller
             ->when($filters['country'] !== '', fn ($rows) => $rows->where('country', $filters['country']))
             ->values();
         $tableMultipliers = $this->stockAnalysisTableMultipliers((int) $project->id);
-        $multipliers = $this->stockAnalysisMultipliersForView((int) $project->id);
+        $parameters = $this->stockAnalysisParametersForView((int) $project->id);
 
         return view('bank.stock_analysis', [
             'project' => $project,
             'stocks' => $stocks,
             'stockTableMultipliers' => $this->stockAnalysisTableMultiplierValues($stocks, $tableMultipliers),
-            'stockFormParameterGroups' => $this->stockAnalysisFormParameterGroups($multipliers),
+            'stockFormParameterGroups' => $this->stockAnalysisFormParameterGroups($parameters),
             'stockChanges' => $this->latestStockSnapshotChanges($stocks->pluck('id')->map(fn ($id) => (int) $id)->all()),
             'stockFilterOptions' => [
                 'sector' => $allStocks->pluck('sector')->filter()->unique()->sort()->values(),
@@ -1070,8 +1070,35 @@ class BankController extends Controller
 
         return view('bank.stock_analysis_parameters', [
             'project' => $project,
-            'multipliers' => $this->stockAnalysisMultipliersForView((int) $project->id),
+            'parameters' => $this->stockAnalysisParametersForView((int) $project->id),
         ]);
+    }
+
+    public function updateStockAnalysisParameter(Request $request, int $parameter): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_stock_analysis_parameters'), 404);
+
+        $row = DB::table('bank_stock_analysis_parameters')
+            ->where('id', $parameter)
+            ->where('project_id', (int) $project->id)
+            ->first();
+        abort_unless($row, 404);
+
+        $payload = $request->validate([
+            'description' => ['nullable', 'string', 'max:4000'],
+            'settings' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        DB::table('bank_stock_analysis_parameters')
+            ->where('id', (int) $row->id)
+            ->update([
+                'description' => trim((string) ($payload['description'] ?? '')),
+                'settings' => trim((string) ($payload['settings'] ?? '')),
+                'updated_at' => now(),
+            ]);
+
+        return redirect()->route('bank.stock-analysis.parameters')->with('success', 'Параметр сохранен.');
     }
 
     public function storeStockAnalysisMultiplier(Request $request): RedirectResponse
@@ -5829,14 +5856,92 @@ class BankController extends Controller
         return $result;
     }
 
-    private function stockAnalysisFormParameterGroups($multipliers): array
+    private function stockAnalysisParametersForView(int $projectId)
     {
-        $blockLabels = [
-            'cheapness' => 'Блок 1. Оценка цены',
-            'debt' => 'Блок 2. Долги',
-            'efficiency' => 'Блок 3. Эффективность',
-            'growth' => 'Блок 4. Рост и дивиденды',
+        if (! Schema::hasTable('bank_stock_analysis_parameters')) {
+            return collect($this->defaultStockAnalysisParameters())
+                ->values()
+                ->map(fn ($row, $index) => (object) (['id' => $index + 1] + $row));
+        }
+
+        if (! DB::table('bank_stock_analysis_parameters')->where('project_id', $projectId)->exists()) {
+            $now = now();
+            DB::table('bank_stock_analysis_parameters')->insert(array_map(
+                fn (array $row) => $row + ['project_id' => $projectId, 'created_at' => $now, 'updated_at' => $now],
+                $this->defaultStockAnalysisParameters()
+            ));
+        }
+
+        return DB::table('bank_stock_analysis_parameters')
+            ->where('project_id', $projectId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+    }
+
+    private function defaultStockAnalysisParameters(): array
+    {
+        $labels = [
+            'index' => 'Index',
+            'market_cap' => 'Market Cap',
+            'income' => 'Income',
+            'sales' => 'Sales',
+            'book_per_share' => 'Book/sh',
+            'cash_per_share' => 'Cash/sh',
+            'dividend_est' => 'Dividend Est.',
+            'dividend_ttm' => 'Dividend TTM',
+            'dividend_ex_date' => 'Dividend Ex-Date',
+            'dividend_growth_3_5y' => 'Dividend Gr. 3/5Y',
+            'payout' => 'Payout',
+            'employees' => 'Employees',
+            'pe' => 'P/E',
+            'forward_pe' => 'Forward P/E',
+            'peg' => 'PEG',
+            'ps' => 'P/S',
+            'pb' => 'P/B',
+            'pc' => 'P/C',
+            'pfcf' => 'P/FCF',
+            'ev_ebitda' => 'EV/EBITDA',
+            'ev_sales' => 'EV/Sales',
+            'enterprise_value' => 'Enterprise Value',
+            'quick_ratio' => 'Quick Ratio',
+            'current_ratio' => 'Current Ratio',
+            'debt_eq' => 'Debt/Eq',
+            'lt_debt_eq' => 'LT Debt/Eq',
+            'option_short' => 'Option/Short',
+            'ipo' => 'IPO',
+            'eps_ttm' => 'EPS (ttm)',
+            'eps_next_y_value' => 'EPS next Y',
+            'eps_next_q' => 'EPS next Q',
+            'earnings' => 'Earnings',
+            'eps_this_y_growth' => 'EPS this Y',
+            'eps_next_y_growth' => 'EPS next Y %',
+            'eps_next_5y_growth' => 'EPS next 5Y',
+            'eps_past_3_5y' => 'EPS past 3/5Y',
+            'sales_past_3_5y' => 'Sales past 3/5Y',
+            'eps_yy_ttm' => 'EPS Y/Y TTM',
+            'sales_yy_ttm' => 'Sales Y/Y TTM',
+            'eps_qq' => 'EPS Q/Q',
+            'sales_qq' => 'Sales Q/Q',
+            'price' => 'Price',
+            'change_percent' => 'Change',
+            'volume' => 'Volume',
         ];
+
+        return collect($labels)
+            ->map(fn (string $label, string $fieldKey) => [
+                'field_key' => $fieldKey,
+                'label' => $label,
+                'description' => '',
+                'settings' => '',
+                'sort_order' => array_search($fieldKey, array_keys($labels), true) * 10,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function stockAnalysisFormParameterGroups($parameters): array
+    {
         $editableFields = collect($this->stockAnalysisFields())
             ->reject(fn (string $field) => in_array($field, [
                 'company',
@@ -5852,31 +5957,26 @@ class BankController extends Controller
                 'volume',
             ], true))
             ->flip();
+        $fields = collect($parameters)
+            ->filter(function ($parameter) use ($editableFields): bool {
+                $fieldKey = trim((string) ($parameter->field_key ?? ''));
 
-        return collect($blockLabels)
-            ->mapWithKeys(fn (string $label, string $block) => [
-                $label => collect($multipliers)
-                    ->filter(function ($multiplier) use ($block, $editableFields): bool {
-                        $formula = trim((string) ($multiplier->formula ?? ''));
-
-                        return (string) ($multiplier->block ?? 'cheapness') === $block
-                            && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $formula)
-                            && $editableFields->has($formula);
-                    })
-                    ->sortBy([
-                        ['sort_order', 'asc'],
-                        ['id', 'asc'],
-                    ])
-                    ->map(fn ($multiplier) => [
-                        trim((string) ($multiplier->formula ?? '')),
-                        trim((string) ($multiplier->name ?? 'Параметр')),
-                        trim((string) ($multiplier->description ?? '')),
-                    ])
-                    ->values()
-                    ->all(),
+                return preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $fieldKey)
+                    && $editableFields->has($fieldKey);
+            })
+            ->sortBy([
+                ['sort_order', 'asc'],
+                ['id', 'asc'],
             ])
-            ->filter(fn (array $fields) => $fields !== [])
+            ->map(fn ($parameter) => [
+                trim((string) ($parameter->field_key ?? '')),
+                trim((string) ($parameter->label ?? 'Параметр')),
+                trim((string) ($parameter->description ?? '')),
+            ])
+            ->values()
             ->all();
+
+        return $fields === [] ? [] : ['Параметры snapshot' => $fields];
     }
 
     private function calculateStockAnalysisFormula(string $formula, array $payload): ?float

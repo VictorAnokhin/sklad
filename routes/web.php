@@ -199,6 +199,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/stock-analysis', [BankController::class, 'storeStockAnalysis'])->name('stock-analysis.store');
         Route::get('/stock-analysis/parameters', [BankController::class, 'stockAnalysisParameters'])
             ->name('stock-analysis.parameters');
+        Route::put('/stock-analysis/parameters/{parameter}', [BankController::class, 'updateStockAnalysisParameter'])
+            ->whereNumber('parameter')
+            ->name('stock-analysis.parameters.update');
         Route::post('/stock-analysis/multipliers', [BankController::class, 'storeStockAnalysisMultiplier'])
             ->name('stock-analysis.multipliers.store');
         Route::put('/stock-analysis/multipliers/{multiplier}', [BankController::class, 'updateStockAnalysisMultiplier'])
