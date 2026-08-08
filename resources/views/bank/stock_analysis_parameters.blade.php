@@ -247,6 +247,7 @@
         border-radius: 8px;
         background: rgba(2, 6, 23, 0.28);
         overflow: hidden;
+        text-align: center;
     }
 
     .bank-stock-parameter-card strong {
