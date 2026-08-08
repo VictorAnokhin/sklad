@@ -257,7 +257,7 @@
                                         <button type="button"
                                                 data-stock-edit
                                                 data-stock-update-url="{{ route('bank.stock-analysis.update', $stock->id) }}"
-                                                data-stock='{{ e(json_encode($stock, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE)) }}'>
+                                                data-stock-json="{{ base64_encode(json_encode($stock, JSON_UNESCAPED_UNICODE)) }}">
                                             Редактировать
                                         </button>
                                         <a href="{{ route('bank.stock-analysis.show', $stock->id) }}">Анализ</a>
@@ -658,8 +658,17 @@
             });
         });
         editButtons.forEach((button) => {
-            button.addEventListener('click', () => {
-                const stock = JSON.parse(button.dataset.stock || '{}');
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                let stock = {};
+                try {
+                    stock = JSON.parse(atob(button.dataset.stockJson || 'e30='));
+                } catch (error) {
+                    console.error('Stock edit payload parse failed:', error);
+                }
+
                 closeMenus();
                 openModal('edit', stock, button.dataset.stockUpdateUrl || '');
             });
