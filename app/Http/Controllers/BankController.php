@@ -1056,7 +1056,7 @@ class BankController extends Controller
             'snapshots' => $snapshots,
             'selectedSnapshot' => $selectedSnapshot,
             'selectedPayload' => $selectedPayload,
-            'multipliers' => $this->stockAnalysisMultipliers((int) $project->id),
+            'multipliers' => $this->stockAnalysisMultipliersForView((int) $project->id),
         ]);
     }
 
@@ -5715,6 +5715,19 @@ class BankController extends Controller
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+    }
+
+    private function stockAnalysisMultipliersForView(int $projectId)
+    {
+        try {
+            return $this->stockAnalysisMultipliers($projectId);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return collect($this->defaultStockAnalysisMultipliers())
+                ->values()
+                ->map(fn ($row, $index) => (object) (['id' => $index + 1] + $row));
+        }
     }
 
     private function defaultStockAnalysisMultipliers(): array
