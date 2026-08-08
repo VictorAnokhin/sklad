@@ -278,13 +278,6 @@
                     <strong>Методика</strong>
                     <span>Мультипликаторы нельзя оценивать в вакууме. Для точного вывода нужны средние по отрасли и главные конкуренты; если таких данных нет в snapshot, вывод ниже использует только базовые ориентиры.</span>
                 </div>
-                <div class="bank-stock-multipliers">
-                    <div class="bank-stock-multipliers__header">
-                        <div class="bank-stock-analysis-heading">Настраиваемые мультипликаторы</div>
-                        <button type="button" class="btn btn-sm btn-primary" data-stock-multiplier-add>Добавить</button>
-                    </div>
-                    <div class="bank-stock-multiplier-values" data-stock-multiplier-values></div>
-                </div>
                 <div class="bank-stock-analysis-grid" data-stock-analysis-results></div>
                 <div class="bank-stock-analysis-cheatsheet">
                     <div class="bank-stock-analysis-heading">Сводная таблица-шпаргалка</div>
@@ -673,7 +666,6 @@
 
     .bank-stock-analysis-note,
     .bank-stock-analysis-block,
-    .bank-stock-multipliers,
     .bank-stock-analysis-cheatsheet {
         border: 1px solid rgba(148, 163, 184, 0.16);
         border-radius: 8px;
@@ -699,67 +691,6 @@
     .bank-stock-analysis-grid {
         display: grid;
         gap: 10px;
-    }
-
-    .bank-stock-multipliers {
-        display: grid;
-        gap: 10px;
-        padding: 12px;
-    }
-
-    .bank-stock-multipliers__header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-    }
-
-    .bank-stock-multiplier-values {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 8px;
-    }
-
-    .bank-stock-multiplier-value {
-        position: relative;
-        display: grid;
-        gap: 5px;
-        padding: 9px;
-        border: 1px solid rgba(148, 163, 184, 0.12);
-        border-radius: 8px;
-        background: rgba(15, 23, 42, 0.55);
-    }
-
-    .bank-stock-multiplier-value__header {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 8px;
-    }
-
-    .bank-stock-multiplier-value strong {
-        color: #f8fafc;
-        font-size: 0.84rem;
-    }
-
-    .bank-stock-multiplier-value code {
-        color: rgba(203, 213, 225, 0.72);
-        font-size: 0.72rem;
-        white-space: normal;
-    }
-
-    .bank-stock-multiplier-value span {
-        color: #fbbf24;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-        font-size: 0.9rem;
-        font-weight: 900;
-    }
-
-    .bank-stock-multiplier-value p {
-        margin: 0;
-        color: rgba(203, 213, 225, 0.82);
-        font-size: 0.76rem;
-        line-height: 1.4;
     }
 
     .bank-stock-multiplier-menu-trigger {
@@ -894,10 +825,18 @@
     }
 
     .bank-stock-analysis-value {
+        display: block;
         color: #fbbf24;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         font-size: 0.82rem;
         font-weight: 800;
+    }
+
+    .bank-stock-analysis-formula {
+        color: rgba(203, 213, 225, 0.72);
+        font-size: 0.72rem;
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
 
     .bank-stock-analysis-verdict {
@@ -932,6 +871,13 @@
     .bank-stock-analysis-text {
         color: rgba(203, 213, 225, 0.82);
         font-size: 0.78rem;
+        line-height: 1.4;
+    }
+
+    .bank-stock-analysis-description {
+        margin: 0;
+        color: rgba(203, 213, 225, 0.72);
+        font-size: 0.76rem;
         line-height: 1.4;
     }
 
@@ -1021,7 +967,6 @@
             font-size: 0.74rem;
         }
 
-        .bank-stock-multiplier-values,
         .bank-stock-analysis-items {
             grid-template-columns: 1fr;
         }
@@ -1041,8 +986,6 @@
         const multiplierStoreUrl = @json(url('/bank/stock-analysis/multipliers'));
         const nextMultiplierSortOrder = @json($nextMultiplierSortOrder);
         const analysisResults = document.querySelector('[data-stock-analysis-results]');
-        const multiplierValues = document.querySelector('[data-stock-multiplier-values]');
-        const multiplierAddButton = document.querySelector('[data-stock-multiplier-add]');
         const multiplierModal = document.querySelector('[data-stock-multiplier-modal]');
         const multiplierForm = document.querySelector('[data-stock-multiplier-form]');
         const multiplierMethodInput = document.querySelector('[data-stock-multiplier-method]');
@@ -1151,37 +1094,7 @@
                 return null;
             }
         };
-        const renderMultipliers = (payload = {}) => {
-            if (!multiplierValues) return;
-
-            multiplierValues.innerHTML = multipliers.map((multiplier) => {
-                const value = calculateFormula(multiplier.formula, payload);
-
-                return `
-                    <div class="bank-stock-multiplier-value" data-stock-multiplier-id="${multiplier.id}">
-                        <div class="bank-stock-multiplier-value__header">
-                            <strong>${escapeHtml(multiplier.name)}</strong>
-                            <button type="button"
-                                    class="bank-stock-multiplier-menu-trigger"
-                                    data-stock-multiplier-menu-toggle
-                                    data-stock-multiplier-id="${multiplier.id}"
-                                    aria-label="Открыть меню мультипликатора ${escapeHtml(multiplier.name)}">⋮</button>
-                        </div>
-                        <span>${escapeHtml(formatFormulaValue(value))}</span>
-                        <code>${escapeHtml(multiplier.formula)}</code>
-                        <p>${escapeHtml(multiplier.description || 'Описание не заполнено.')}</p>
-                        <div class="bank-stock-multiplier-menu" data-stock-multiplier-menu hidden>
-                            <button type="button" data-stock-multiplier-edit data-stock-multiplier-id="${multiplier.id}">Изменить</button>
-                            <form method="POST" action="${escapeHtml(multiplier.delete_url)}" data-stock-multiplier-delete>
-                                <input type="hidden" name="_token" value="${escapeHtml(csrfToken)}">
-                                <input type="hidden" name="_method" value="DELETE">
-                                <button type="submit">Удалить</button>
-                            </form>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        };
+        const multiplierBySortOrder = new Map(multipliers.map((multiplier) => [Number(multiplier.sort_order || 0), multiplier]));
         const closeMultiplierMenus = (exceptMenu = null) => {
             document.querySelectorAll('[data-stock-multiplier-menu]').forEach((menu) => {
                 if (menu !== exceptMenu) {
@@ -1237,16 +1150,38 @@
 
             return { raw, number };
         };
-        const metricItem = (title, rawValue, result) => `
-            <div class="bank-stock-analysis-item">
+        const metricItem = (sortOrder, fallbackTitle, result, payload = {}) => {
+            const multiplier = multiplierBySortOrder.get(Number(sortOrder));
+            if (!multiplier) return '';
+
+            const formulaValue = calculateFormula(multiplier.formula, payload);
+
+            return `
+            <div class="bank-stock-analysis-item" data-stock-multiplier-card data-stock-multiplier-id="${multiplier.id}">
                 <div class="bank-stock-analysis-item__top">
-                    <strong>${escapeHtml(title)}</strong>
-                    <span class="bank-stock-analysis-value">${escapeHtml(displayValue(rawValue))}</span>
+                    <strong>${escapeHtml(multiplier.name || fallbackTitle)}</strong>
+                    <button type="button"
+                            class="bank-stock-multiplier-menu-trigger"
+                            data-stock-multiplier-menu-toggle
+                            data-stock-multiplier-id="${multiplier.id}"
+                            aria-label="Открыть меню параметра ${escapeHtml(multiplier.name || fallbackTitle)}">⋮</button>
                 </div>
+                <span class="bank-stock-analysis-value">${escapeHtml(formatFormulaValue(formulaValue))}</span>
+                <code class="bank-stock-analysis-formula">${escapeHtml(multiplier.formula || '')}</code>
                 <span class="bank-stock-analysis-verdict is-${result.state}">${escapeHtml(result.label)}</span>
                 <div class="bank-stock-analysis-text">${escapeHtml(result.text)}</div>
+                <p class="bank-stock-analysis-description">${escapeHtml(multiplier.description || 'Описание не заполнено.')}</p>
+                <div class="bank-stock-multiplier-menu" data-stock-multiplier-menu hidden>
+                    <button type="button" data-stock-multiplier-edit data-stock-multiplier-id="${multiplier.id}">Изменить</button>
+                    <form method="POST" action="${escapeHtml(multiplier.delete_url)}" data-stock-multiplier-delete>
+                        <input type="hidden" name="_token" value="${escapeHtml(csrfToken)}">
+                        <input type="hidden" name="_method" value="DELETE">
+                        <button type="submit">Удалить</button>
+                    </form>
+                </div>
             </div>
         `;
+        };
         const renderAnalysisBlock = (title, items) => `
             <section class="bank-stock-analysis-block">
                 <h3>${escapeHtml(title)}</h3>
@@ -1264,8 +1199,6 @@
             const currentRatio = metricValue(payload, 'current_ratio');
             const roe = metricValue(payload, 'roe');
             const roic = metricValue(payload, 'roic');
-            const salesGrowth = metricValue(payload, 'sales_past_3_5y');
-            const epsGrowth = metricValue(payload, 'eps_past_3_5y');
             const payout = metricValue(payload, 'payout');
 
             const peVerdict = pe.number === null
@@ -1329,10 +1262,6 @@
                         ? verdict('watch', 'Погранично', 'ROIC положительный, но запас к стоимости капитала может быть небольшим.')
                         : verdict('risk', 'Слабый', 'Низкий ROIC может означать, что бизнес плохо конвертирует капитал в прибыль.');
 
-            const growthText = [salesGrowth.raw ? `Выручка 3/5Y: ${salesGrowth.raw}.` : '', epsGrowth.raw ? `EPS 3/5Y: ${epsGrowth.raw}.` : ''].filter(Boolean).join(' ');
-            const growthVerdict = growthText
-                ? verdict('watch', 'Проверить', `${growthText} Для устойчивой компании желательно видеть рост хотя бы на уровне инфляции и экономики; точный вывод требует сравнения с сектором.`)
-                : missing('Нет CAGR выручки/прибыли за 3-5 лет. Без динамики роста мультипликаторы могут вводить в заблуждение.');
             const payoutVerdict = payout.number === null
                 ? missing('Dividend Payout отсутствует. Для дивидендного риска нужна доля прибыли, направляемая на выплаты.')
                 : payout.number >= 40 && payout.number <= 60
@@ -1343,23 +1272,22 @@
 
             analysisResults.innerHTML = [
                 renderAnalysisBlock('Блок 1. Оценка дешевизны и справедливости цены', [
-                    metricItem('P/E', pe.raw, peVerdict),
-                    metricItem('EV/EBITDA', evEbitda.raw, evEbitdaVerdict),
-                    metricItem('P/S', ps.raw, psVerdict),
-                    metricItem('P/B', pb.raw, pbVerdict),
-                ]),
+                    metricItem(10, 'P/E', peVerdict, payload),
+                    metricItem(20, 'EV/EBITDA', evEbitdaVerdict, payload),
+                    metricItem(30, 'P/S', psVerdict, payload),
+                    metricItem(40, 'P/B', pbVerdict, payload),
+                ].filter(Boolean)),
                 renderAnalysisBlock('Блок 2. Финансовая безопасность и долги', [
-                    metricItem('Net Debt / EBITDA', netDebtEbitda.raw, debtVerdict),
-                    metricItem('Current Ratio', currentRatio.raw, currentRatioVerdict),
-                ]),
+                    metricItem(50, 'Net Debt / EBITDA', debtVerdict, payload),
+                    metricItem(60, 'Current Ratio', currentRatioVerdict, payload),
+                ].filter(Boolean)),
                 renderAnalysisBlock('Блок 3. Эффективность бизнеса и менеджмента', [
-                    metricItem('ROE', roe.raw, roeVerdict),
-                    metricItem('ROIC', roic.raw, roicVerdict),
-                ]),
+                    metricItem(70, 'ROE', roeVerdict, payload),
+                    metricItem(80, 'ROIC', roicVerdict, payload),
+                ].filter(Boolean)),
                 renderAnalysisBlock('Блок 4. Темпы роста и дивиденды', [
-                    metricItem('CAGR выручки и прибыли 3-5Y', growthText || '', growthVerdict),
-                    metricItem('Dividend Payout Ratio', payout.raw, payoutVerdict),
-                ]),
+                    metricItem(90, 'Dividend Payout Ratio', payoutVerdict, payload),
+                ].filter(Boolean)),
             ].join('');
         };
 
@@ -1386,7 +1314,6 @@
             const chartVolume = document.querySelector('[data-stock-chart-volume]');
             if (chartVolume) chartVolume.textContent = `Volume ${displayValue(payload.volume)}`;
             renderAnalysis(payload);
-            renderMultipliers(payload);
 
             document.querySelectorAll('[data-stock-snapshot-date]').forEach((point) => {
                 point.classList.toggle('is-active', point.dataset.stockSnapshotDate === date);
@@ -1417,12 +1344,11 @@
         });
         const initialSnapshot = snapshots.find((item) => item.date === initialSnapshotDate) || snapshots[snapshots.length - 1];
         renderAnalysis(initialSnapshot?.payload || {});
-        renderMultipliers(initialSnapshot?.payload || {});
-        multiplierValues?.addEventListener('click', (event) => {
+        analysisResults?.addEventListener('click', (event) => {
             const menuToggle = event.target.closest('[data-stock-multiplier-menu-toggle]');
             if (menuToggle) {
                 event.stopPropagation();
-                const menu = menuToggle.closest('.bank-stock-multiplier-value')?.querySelector('[data-stock-multiplier-menu]');
+                const menu = menuToggle.closest('[data-stock-multiplier-card]')?.querySelector('[data-stock-multiplier-menu]');
                 if (!menu) return;
 
                 const shouldOpen = menu.hidden;
@@ -1446,7 +1372,7 @@
                 openMultiplierModal('edit', multiplier);
             }
         });
-        multiplierValues?.addEventListener('submit', (event) => {
+        analysisResults?.addEventListener('submit', (event) => {
             if (event.target.matches('[data-stock-multiplier-delete]')) {
                 if (!window.confirm('Удалить мультипликатор?')) {
                     event.preventDefault();
@@ -1454,7 +1380,6 @@
             }
         });
         multiplierCloseButtons.forEach((button) => button.addEventListener('click', closeMultiplierModal));
-        multiplierAddButton?.addEventListener('click', () => openMultiplierModal('create'));
         multiplierModal?.addEventListener('click', (event) => {
             if (event.target === multiplierModal) {
                 closeMultiplierModal();
