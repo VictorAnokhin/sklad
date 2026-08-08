@@ -632,9 +632,15 @@
         justify-content: center;
         flex: 0 0 auto;
         width: 17px;
+        min-width: 17px;
+        max-width: 17px;
         height: 17px;
+        min-height: 17px;
+        max-height: 17px;
+        padding: 0;
         border: 1px solid rgba(251, 191, 36, 0.42);
         border-radius: 50%;
+        box-sizing: border-box;
         background: rgba(251, 191, 36, 0.12);
         color: #fbbf24;
         font-size: 0.68rem;
@@ -667,8 +673,6 @@
         pointer-events: none;
     }
 
-    .bank-stock-form-info:hover > span,
-    .bank-stock-form-info:focus > span,
     .bank-stock-form-info.is-open > span {
         opacity: 1;
         visibility: visible;
