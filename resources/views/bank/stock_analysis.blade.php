@@ -494,19 +494,78 @@
     }
 
     .bank-stock-modal__dialog {
-        width: min(1120px, calc(100vw - 32px));
-        max-height: calc(100vh - 48px);
+        width: min(760px, calc(100vw - 28px));
+        max-height: min(760px, calc(100vh - 28px));
         overflow: auto;
     }
 
+    .bank-stock-modal__dialog .bank-modal__header {
+        padding: 14px 16px 10px;
+        gap: 12px;
+    }
+
+    .bank-stock-modal__dialog .bank-label {
+        margin-bottom: 4px;
+        font-size: 0.7rem;
+    }
+
+    .bank-stock-modal__dialog h2 {
+        margin: 0;
+        font-size: 1.15rem;
+        line-height: 1.2;
+    }
+
+    .bank-stock-modal__dialog .bank-meta {
+        margin-top: 4px;
+        font-size: 0.76rem;
+        line-height: 1.25;
+    }
+
+    .bank-stock-modal__dialog .bank-requisites-form {
+        padding: 0 16px 14px;
+    }
+
+    .bank-stock-modal__dialog .bank-form-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 8px 10px;
+    }
+
+    .bank-stock-modal__dialog .bank-form-grid label {
+        gap: 4px;
+    }
+
+    .bank-stock-modal__dialog .bank-form-grid label span {
+        font-size: 0.74rem;
+    }
+
+    .bank-stock-modal__dialog input[type="text"] {
+        min-height: 34px;
+        padding: 7px 9px;
+        font-size: 0.84rem;
+    }
+
     .bank-stock-form-section {
-        padding: 14px 0;
+        padding: 9px 0;
         border-top: 1px solid rgba(148, 163, 184, 0.14);
     }
 
     .bank-stock-form-section:first-child {
         border-top: 0;
         padding-top: 0;
+    }
+
+    .bank-stock-modal__dialog .bank-modal__actions {
+        position: sticky;
+        bottom: 0;
+        margin-top: 10px;
+        padding-top: 10px;
+        background: rgba(15, 23, 42, 0.96);
+    }
+
+    .bank-stock-modal__dialog .bank-modal__actions .btn {
+        min-height: 34px;
+        padding: 6px 12px;
+        font-size: 0.86rem;
     }
 
     @media (max-width: 760px) {
@@ -531,6 +590,34 @@
         .bank-stock-table th:nth-child(3),
         .bank-stock-table td:nth-child(3) {
             width: 42%;
+        }
+
+        .bank-stock-modal__dialog {
+            width: min(430px, calc(100vw - 18px));
+            max-height: calc(100vh - 18px);
+        }
+
+        .bank-stock-modal__dialog .bank-modal__header {
+            padding: 12px 12px 8px;
+        }
+
+        .bank-stock-modal__dialog .bank-requisites-form {
+            padding: 0 12px 12px;
+        }
+
+        .bank-stock-modal__dialog .bank-form-grid {
+            grid-template-columns: 1fr;
+            gap: 7px;
+        }
+
+        .bank-stock-form-section {
+            padding: 8px 0;
+        }
+
+        .bank-stock-modal__dialog .bank-modal__actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
         }
     }
 </style>
