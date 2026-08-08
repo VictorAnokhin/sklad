@@ -844,7 +844,7 @@
             },
             fmp: {
                 api_key: '0vDr9hgPu8RskbzxMVGJXBPi9eG0F6jo',
-                base_url: 'https://financialmodelingprep.com/api/v3',
+                base_url: 'https://financialmodelingprep.com/stable',
             },
         };
         let currentPullUrl = '';
@@ -931,6 +931,9 @@
                 return;
             }
 
+            if (adapter === 'fmp' && adapterConfigField.value.includes('financialmodelingprep.com/api/v3')) {
+                adapterConfigField.value = adapterConfigField.value.replace('https://financialmodelingprep.com/api/v3', 'https://financialmodelingprep.com/stable');
+            }
             const currentDefaultAdapter = defaultAdapterByConfig(adapterConfigField.value);
             if (force || !adapterConfigField.value.trim() || (currentDefaultAdapter && currentDefaultAdapter !== adapter)) {
                 adapterConfigField.value = adapterConfigString(adapter);
@@ -1081,6 +1084,9 @@
                 return;
             }
 
+            if (adapterModalSelect.value === 'fmp' && adapterModalConfig.value.includes('financialmodelingprep.com/api/v3')) {
+                adapterModalConfig.value = adapterModalConfig.value.replace('https://financialmodelingprep.com/api/v3', 'https://financialmodelingprep.com/stable');
+            }
             const currentDefaultAdapter = defaultAdapterByConfig(adapterModalConfig.value);
             if (!adapterModalConfig.value.trim() || (currentDefaultAdapter && currentDefaultAdapter !== adapterModalSelect.value)) {
                 adapterModalConfig.value = adapterConfigString(adapterModalSelect.value);

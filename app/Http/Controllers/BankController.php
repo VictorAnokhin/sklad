@@ -1111,7 +1111,29 @@ class BankController extends Controller
         $status = 'manual_snapshot';
         $message = 'Данные подтянуты из текущей сохраненной строки.';
 
-        if ($adapter === 'finnhub') {
+        if ($adapter === 'fmp') {
+            $config = $this->stockAdapterConfig((string) ($payload['adapter_config'] ?? $stockRow->adapter_config ?? ''), $adapter);
+            try {
+                $result = $this->pullFmpStockData($ticker, $snapshotDate, $config);
+            } catch (ValidationException $exception) {
+                throw $exception;
+            } catch (\Throwable $exception) {
+                return response()->json([
+                    'success' => false,
+                    'adapter' => $adapter,
+                    'status' => 'adapter_error',
+                    'message' => 'Не удалось получить данные Financial Modeling Prep: ' . $exception->getMessage(),
+                    'data' => $data,
+                ], 422);
+            }
+            $data = array_merge($data, $result['data'], [
+                'adapter' => 'fmp',
+                'adapter_config' => json_encode($config, JSON_UNESCAPED_UNICODE),
+                'snapshot_date' => $snapshotDate,
+            ]);
+            $status = 'adapter_synced';
+            $message = $result['message'];
+        } elseif ($adapter === 'finnhub') {
             $config = $this->stockAdapterConfig((string) ($payload['adapter_config'] ?? $stockRow->adapter_config ?? ''), $adapter);
             try {
                 $result = $this->pullFinnhubStockData($ticker, $config);
@@ -1180,10 +1202,137 @@ class BankController extends Controller
             $config['base_url'] = rtrim((string) ($config['base_url'] ?? 'https://finnhub.io/api/v1'), '/');
         } elseif ($adapter === 'fmp') {
             $config['api_key'] = trim((string) ($config['api_key'] ?? '')) ?: self::DEFAULT_FMP_API_KEY;
-            $config['base_url'] = rtrim((string) ($config['base_url'] ?? 'https://financialmodelingprep.com/api/v3'), '/');
+            $config['base_url'] = rtrim((string) ($config['base_url'] ?? 'https://financialmodelingprep.com/stable'), '/');
+            if (str_contains($config['base_url'], 'financialmodelingprep.com/api/v3')) {
+                $config['base_url'] = 'https://financialmodelingprep.com/stable';
+            }
         }
 
         return $config;
+    }
+
+    private function pullFmpStockData(string $ticker, string $snapshotDate, array $config): array
+    {
+        if ($ticker === '') {
+            throw ValidationException::withMessages([
+                'ticker' => 'Укажите тикер для обновления данных Financial Modeling Prep.',
+            ]);
+        }
+
+        $apiKey = trim((string) ($config['api_key'] ?? ''));
+        if ($apiKey === '') {
+            throw ValidationException::withMessages([
+                'adapter_config' => 'Для Financial Modeling Prep укажите api_key в настройках адаптера.',
+            ]);
+        }
+
+        $request = Http::baseUrl(rtrim((string) ($config['base_url'] ?? 'https://financialmodelingprep.com/stable'), '/'))
+            ->acceptJson()
+            ->timeout(20)
+            ->connectTimeout(8);
+        $auth = ['apikey' => $apiKey];
+        $historicalResponse = $request->get('historical-price-eod/full', $auth + [
+            'symbol' => $ticker,
+            'from' => $snapshotDate,
+            'to' => $snapshotDate,
+        ]);
+        $profileResponse = $request->get('profile', $auth + [
+            'symbol' => $ticker,
+        ]);
+        $metricsResponse = $request->get('key-metrics', $auth + [
+            'symbol' => $ticker,
+            'period' => 'annual',
+            'limit' => 5,
+        ]);
+        $ratiosResponse = $request->get('ratios', $auth + [
+            'symbol' => $ticker,
+            'period' => 'annual',
+            'limit' => 5,
+        ]);
+        $incomeResponse = $request->get('income-statement', $auth + [
+            'symbol' => $ticker,
+            'period' => 'annual',
+            'limit' => 5,
+        ]);
+
+        if ($historicalResponse->failed()) {
+            throw ValidationException::withMessages([
+                'adapter' => 'FMP historical-price-eod/full вернул ошибку: HTTP ' . $historicalResponse->status(),
+            ]);
+        }
+
+        $historicalPayload = $historicalResponse->json() ?: [];
+        $historicalRows = array_is_list($historicalPayload) ? $historicalPayload : ($historicalPayload['historical'] ?? []);
+        $historical = collect($historicalRows)->first();
+        if (! is_array($historical)) {
+            throw ValidationException::withMessages([
+                'snapshot_date' => 'FMP не вернул историческую цену для ' . $ticker . ' на дату ' . $snapshotDate . '. Проверьте, что это торговый день.',
+            ]);
+        }
+
+        $profilePayload = $profileResponse->successful() ? ($profileResponse->json() ?: []) : [];
+        $profile = is_array($profilePayload[0] ?? null) ? $profilePayload[0] : [];
+        $metrics = $metricsResponse->successful()
+            ? $this->stockFmpClosestReport($metricsResponse->json() ?: [], $snapshotDate)
+            : [];
+        $ratios = $ratiosResponse->successful()
+            ? $this->stockFmpClosestReport($ratiosResponse->json() ?: [], $snapshotDate)
+            : [];
+        $income = $incomeResponse->successful()
+            ? $this->stockFmpClosestReport($incomeResponse->json() ?: [], $snapshotDate)
+            : [];
+
+        $data = [
+            'ticker' => strtoupper((string) ($profile['symbol'] ?? $ticker)),
+            'company' => (string) ($profile['companyName'] ?? ''),
+            'sector' => (string) ($profile['sector'] ?? ''),
+            'industry' => (string) ($profile['industry'] ?? ''),
+            'country' => (string) ($profile['country'] ?? ''),
+            'market' => $this->formatStockMarketCapFromValue($profile['marketCap'] ?? $profile['mktCap'] ?? $metrics['marketCap'] ?? null),
+            'market_cap' => $this->formatStockMarketCapFromValue($profile['marketCap'] ?? $profile['mktCap'] ?? $metrics['marketCap'] ?? null),
+            'price' => $this->formatStockNumber($historical['close'] ?? null),
+            'change_percent' => $this->formatStockPercent($historical['changePercent'] ?? null),
+            'volume' => $this->formatStockInteger($historical['volume'] ?? null),
+            'enterprise_value' => $this->formatStockMarketCapFromValue($metrics['enterpriseValue'] ?? null),
+            'income' => $this->formatStockMarketCapFromValue($income['netIncome'] ?? null),
+            'sales' => $this->formatStockMarketCapFromValue($income['revenue'] ?? null),
+            'book_per_share' => $this->formatStockNumber($ratios['bookValuePerShare'] ?? null),
+            'cash_per_share' => $this->formatStockNumber($ratios['cashPerShare'] ?? null),
+            'dividend_ttm' => $this->formatStockPercent($ratios['dividendYieldPercentage'] ?? (($ratios['dividendYield'] ?? null) !== null
+                ? (float) $ratios['dividendYield'] * 100
+                : null)),
+            'payout' => $this->formatStockPercent(($ratios['dividendPayoutRatio'] ?? null) !== null
+                ? (float) $ratios['dividendPayoutRatio'] * 100
+                : null),
+            'employees' => $this->formatStockInteger($profile['fullTimeEmployees'] ?? null),
+            'ipo' => (string) ($profile['ipoDate'] ?? ''),
+            'pe' => $this->formatStockNumber($ratios['priceToEarningsRatio'] ?? null),
+            'pb' => $this->formatStockNumber($ratios['priceToBookRatio'] ?? null),
+            'ps' => $this->formatStockNumber($ratios['priceToSalesRatio'] ?? null),
+            'pc' => $this->formatStockNumber($ratios['priceToOperatingCashFlowRatio'] ?? null),
+            'pfcf' => $this->formatStockNumber($ratios['priceToFreeCashFlowRatio'] ?? null),
+            'ev_ebitda' => $this->formatStockNumber($metrics['evToEBITDA'] ?? $ratios['enterpriseValueMultiple'] ?? null),
+            'ev_sales' => $this->formatStockNumber($metrics['evToSales'] ?? null),
+            'quick_ratio' => $this->formatStockNumber($ratios['quickRatio'] ?? null),
+            'current_ratio' => $this->formatStockNumber($ratios['currentRatio'] ?? $metrics['currentRatio'] ?? null),
+            'debt_eq' => $this->formatStockNumber($ratios['debtToEquityRatio'] ?? $ratios['debtEquityRatio'] ?? $metrics['debtToEquity'] ?? null),
+            'eps_ttm' => $this->formatStockNumber($income['eps'] ?? $income['epsDiluted'] ?? null),
+        ];
+
+        $data = array_filter($data, fn ($value) => trim((string) $value) !== '');
+
+        return [
+            'message' => 'Данные FMP подтянуты по тикеру ' . $ticker . ' на дату ' . $snapshotDate . '. Нажмите Сохранить, чтобы записать snapshot.',
+            'data' => $data,
+        ];
+    }
+
+    private function stockFmpClosestReport(array $rows, string $snapshotDate): array
+    {
+        return collect($rows)
+            ->filter(fn ($row) => is_array($row) && (string) ($row['date'] ?? '') !== '' && (string) $row['date'] <= $snapshotDate)
+            ->sortByDesc(fn ($row) => (string) ($row['date'] ?? ''))
+            ->first() ?: [];
     }
 
     private function pullFinnhubStockData(string $ticker, array $config): array
@@ -1269,6 +1418,15 @@ class BankController extends Controller
         return $number !== '' ? $number . '%' : '';
     }
 
+    private function formatStockInteger(mixed $value): string
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return '';
+        }
+
+        return number_format((float) $value, 0, '.', ',');
+    }
+
     private function formatStockMarketCap(mixed $marketCapMillions): string
     {
         if ($marketCapMillions === null || $marketCapMillions === '' || ! is_numeric($marketCapMillions)) {
@@ -1281,6 +1439,26 @@ class BankController extends Controller
         }
 
         return $this->formatStockNumber($billions) . 'B';
+    }
+
+    private function formatStockMarketCapFromValue(mixed $value): string
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return '';
+        }
+
+        $absolute = abs((float) $value);
+        if ($absolute >= 1_000_000_000_000) {
+            return $this->formatStockNumber((float) $value / 1_000_000_000_000) . 'T';
+        }
+        if ($absolute >= 1_000_000_000) {
+            return $this->formatStockNumber((float) $value / 1_000_000_000) . 'B';
+        }
+        if ($absolute >= 1_000_000) {
+            return $this->formatStockNumber((float) $value / 1_000_000) . 'M';
+        }
+
+        return $this->formatStockNumber($value);
     }
 
     public function updateStockAnalysisAdapter(Request $request, int $stock): RedirectResponse
