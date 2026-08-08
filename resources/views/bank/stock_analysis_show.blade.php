@@ -1028,12 +1028,12 @@
             'formula' => (string) $multiplier->formula,
             'description' => (string) ($multiplier->description ?? ''),
             'sort_order' => (int) ($multiplier->sort_order ?? 0),
-            'update_url' => route('bank.stock-analysis.multipliers.update', $multiplier->id),
-            'delete_url' => route('bank.stock-analysis.multipliers.destroy', $multiplier->id),
+            'update_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
+            'delete_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
         ])->values());
         const initialSnapshotDate = @json($selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '');
         const csrfToken = @json(csrf_token());
-        const multiplierStoreUrl = @json(route('bank.stock-analysis.multipliers.store'));
+        const multiplierStoreUrl = @json(url('/bank/stock-analysis/multipliers'));
         const nextMultiplierSortOrder = @json((int) ((($multipliers ?? collect())->max('sort_order') ?? 0) + 10));
         const analysisResults = document.querySelector('[data-stock-analysis-results]');
         const multiplierValues = document.querySelector('[data-stock-multiplier-values]');
