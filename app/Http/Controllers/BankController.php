@@ -1086,6 +1086,17 @@ class BankController extends Controller
         abort_unless($row, 404);
 
         $payload = $request->validate([
+            'label' => ['required', 'string', 'max:160'],
+            'field_key' => [
+                'required',
+                'string',
+                'max:120',
+                'regex:/^[A-Za-z_][A-Za-z0-9_]*$/',
+                Rule::unique('bank_stock_analysis_parameters', 'field_key')
+                    ->where(fn ($query) => $query->where('project_id', (int) $project->id))
+                    ->ignore((int) $row->id),
+            ],
+            'group_name' => ['nullable', 'string', 'max:160'],
             'description' => ['nullable', 'string', 'max:4000'],
             'settings' => ['nullable', 'string', 'max:4000'],
         ]);
@@ -1093,12 +1104,51 @@ class BankController extends Controller
         DB::table('bank_stock_analysis_parameters')
             ->where('id', (int) $row->id)
             ->update([
+                'label' => trim((string) $payload['label']),
+                'field_key' => trim((string) $payload['field_key']),
+                'group_name' => trim((string) ($payload['group_name'] ?? '')) ?: 'Основные',
                 'description' => trim((string) ($payload['description'] ?? '')),
                 'settings' => trim((string) ($payload['settings'] ?? '')),
                 'updated_at' => now(),
             ]);
 
         return redirect()->route('bank.stock-analysis.parameters')->with('success', 'Параметр сохранен.');
+    }
+
+    public function destroyStockAnalysisParameter(int $parameter): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_stock_analysis_parameters'), 404);
+
+        DB::table('bank_stock_analysis_parameters')
+            ->where('id', $parameter)
+            ->where('project_id', (int) $project->id)
+            ->delete();
+
+        return redirect()->route('bank.stock-analysis.parameters')->with('success', 'Параметр удален.');
+    }
+
+    public function destroyStockAnalysisParameterGroup(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_stock_analysis_parameters'), 404);
+
+        $payload = $request->validate([
+            'group_name' => ['required', 'string', 'max:160'],
+        ]);
+        $groupName = trim((string) $payload['group_name']);
+
+        if ($groupName !== '' && $groupName !== 'Основные') {
+            DB::table('bank_stock_analysis_parameters')
+                ->where('project_id', (int) $project->id)
+                ->where('group_name', $groupName)
+                ->update([
+                    'group_name' => 'Основные',
+                    'updated_at' => now(),
+                ]);
+        }
+
+        return redirect()->route('bank.stock-analysis.parameters')->with('success', 'Группа удалена.');
     }
 
     public function storeStockAnalysisMultiplier(Request $request): RedirectResponse
@@ -5866,8 +5916,15 @@ class BankController extends Controller
 
         if (! DB::table('bank_stock_analysis_parameters')->where('project_id', $projectId)->exists()) {
             $now = now();
+            $hasGroupColumn = Schema::hasColumn('bank_stock_analysis_parameters', 'group_name');
             DB::table('bank_stock_analysis_parameters')->insert(array_map(
-                fn (array $row) => $row + ['project_id' => $projectId, 'created_at' => $now, 'updated_at' => $now],
+                function (array $row) use ($projectId, $now, $hasGroupColumn) {
+                    if (! $hasGroupColumn) {
+                        unset($row['group_name']);
+                    }
+
+                    return $row + ['project_id' => $projectId, 'created_at' => $now, 'updated_at' => $now];
+                },
                 $this->defaultStockAnalysisParameters()
             ));
         }
@@ -5932,12 +5989,25 @@ class BankController extends Controller
             ->map(fn (string $label, string $fieldKey) => [
                 'field_key' => $fieldKey,
                 'label' => $label,
+                'group_name' => $this->defaultStockAnalysisParameterGroup($fieldKey),
                 'description' => '',
                 'settings' => '',
                 'sort_order' => array_search($fieldKey, array_keys($labels), true) * 10,
             ])
             ->values()
             ->all();
+    }
+
+    private function defaultStockAnalysisParameterGroup(string $fieldKey): string
+    {
+        return match (true) {
+            in_array($fieldKey, ['market_cap', 'enterprise_value', 'income', 'sales', 'book_per_share', 'cash_per_share'], true) => 'Оценка и баланс',
+            in_array($fieldKey, ['dividend_est', 'dividend_ttm', 'dividend_ex_date', 'dividend_growth_3_5y', 'payout'], true) => 'Дивиденды',
+            in_array($fieldKey, ['pe', 'forward_pe', 'peg', 'ps', 'pb', 'pc', 'pfcf', 'ev_ebitda', 'ev_sales'], true) => 'Мультипликаторы',
+            in_array($fieldKey, ['quick_ratio', 'current_ratio', 'debt_eq', 'lt_debt_eq', 'option_short'], true) => 'Ликвидность и долг',
+            in_array($fieldKey, ['eps_ttm', 'eps_next_y_value', 'eps_next_q', 'eps_this_y_growth', 'eps_next_y_growth', 'eps_next_5y_growth', 'eps_past_3_5y', 'sales_past_3_5y', 'eps_yy_ttm', 'sales_yy_ttm', 'eps_qq', 'sales_qq', 'earnings'], true) => 'EPS и продажи',
+            default => 'Основные',
+        };
     }
 
     private function stockAnalysisFormParameterGroups($parameters): array

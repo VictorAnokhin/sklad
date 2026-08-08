@@ -202,6 +202,11 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/stock-analysis/parameters/{parameter}', [BankController::class, 'updateStockAnalysisParameter'])
             ->whereNumber('parameter')
             ->name('stock-analysis.parameters.update');
+        Route::delete('/stock-analysis/parameters/{parameter}', [BankController::class, 'destroyStockAnalysisParameter'])
+            ->whereNumber('parameter')
+            ->name('stock-analysis.parameters.destroy');
+        Route::delete('/stock-analysis/parameter-groups', [BankController::class, 'destroyStockAnalysisParameterGroup'])
+            ->name('stock-analysis.parameter-groups.destroy');
         Route::post('/stock-analysis/multipliers', [BankController::class, 'storeStockAnalysisMultiplier'])
             ->name('stock-analysis.multipliers.store');
         Route::put('/stock-analysis/multipliers/{multiplier}', [BankController::class, 'updateStockAnalysisMultiplier'])
