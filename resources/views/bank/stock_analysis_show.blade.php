@@ -74,6 +74,7 @@
             'formula' => (string) $multiplier->formula,
             'description' => (string) ($multiplier->description ?? ''),
             'block' => (string) ($multiplier->block ?? ''),
+            'table_visible' => (bool) ($multiplier->table_visible ?? false),
             'sort_order' => (int) ($multiplier->sort_order ?? 0),
             'update_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
             'delete_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
@@ -358,6 +359,10 @@
                 <label>
                     <span>Описание</span>
                     <textarea name="description" rows="5" data-stock-multiplier-description></textarea>
+                </label>
+                <label class="bank-stock-multiplier-check">
+                    <input type="checkbox" name="table_visible" value="1" data-stock-multiplier-table-visible>
+                    <span>Таблица</span>
                 </label>
                 <div class="bank-modal__actions">
                     <button type="button" class="btn btn-secondary" data-stock-multiplier-close>Отмена</button>
@@ -767,6 +772,18 @@
         text-transform: uppercase;
     }
 
+    .bank-stock-multiplier-modal-form .bank-stock-multiplier-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+    }
+
+    .bank-stock-multiplier-modal-form .bank-stock-multiplier-check input {
+        width: 16px;
+        min-height: 16px;
+    }
+
     .bank-stock-multiplier-modal-form input,
     .bank-stock-multiplier-modal-form select,
     .bank-stock-multiplier-modal-form textarea {
@@ -1035,6 +1052,7 @@
         const multiplierDescriptionInput = document.querySelector('[data-stock-multiplier-description]');
         const multiplierSortOrderInput = document.querySelector('[data-stock-multiplier-sort-order]');
         const multiplierBlockSelect = document.querySelector('[data-stock-multiplier-block]');
+        const multiplierTableVisibleInput = document.querySelector('[data-stock-multiplier-table-visible]');
         const fieldByLabel = {
             'Market Cap': 'market_cap',
             'Income': 'income',
@@ -1203,6 +1221,7 @@
             if (multiplierFormulaInput) multiplierFormulaInput.value = isEdit ? (multiplier.formula || '') : '';
             if (multiplierDescriptionInput) multiplierDescriptionInput.value = isEdit ? (multiplier.description || '') : '';
             if (multiplierBlockSelect) multiplierBlockSelect.value = selectedBlock;
+            if (multiplierTableVisibleInput) multiplierTableVisibleInput.checked = isEdit ? Boolean(multiplier.table_visible) : false;
             if (multiplierSortOrderInput) {
                 multiplierSortOrderInput.value = isEdit ? (multiplier.sort_order || 0) : nextSortOrderForBlock(selectedBlock);
             }

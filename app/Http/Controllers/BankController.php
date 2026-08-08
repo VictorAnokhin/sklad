@@ -979,10 +979,12 @@ class BankController extends Controller
             ->when($filters['industry'] !== '', fn ($rows) => $rows->where('industry', $filters['industry']))
             ->when($filters['country'] !== '', fn ($rows) => $rows->where('country', $filters['country']))
             ->values();
+        $tableMultipliers = $this->stockAnalysisTableMultipliers((int) $project->id);
 
         return view('bank.stock_analysis', [
             'project' => $project,
             'stocks' => $stocks,
+            'stockTableMultipliers' => $this->stockAnalysisTableMultiplierValues($stocks, $tableMultipliers),
             'stockChanges' => $this->latestStockSnapshotChanges($stocks->pluck('id')->map(fn ($id) => (int) $id)->all()),
             'stockFilterOptions' => [
                 'sector' => $allStocks->pluck('sector')->filter()->unique()->sort()->values(),
@@ -5670,6 +5672,7 @@ class BankController extends Controller
             'formula' => ['required', 'string', 'max:500'],
             'description' => ['nullable', 'string', 'max:4000'],
             'block' => ['nullable', 'string', 'in:cheapness,debt,efficiency,growth'],
+            'table_visible' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:100000'],
         ]);
 
@@ -5682,6 +5685,9 @@ class BankController extends Controller
 
         if (Schema::hasColumn('bank_stock_analysis_multipliers', 'block')) {
             $result['block'] = (string) ($payload['block'] ?? $this->stockAnalysisBlockBySortOrder((int) ($payload['sort_order'] ?? 0)));
+        }
+        if (Schema::hasColumn('bank_stock_analysis_multipliers', 'table_visible')) {
+            $result['table_visible'] = (bool) ($payload['table_visible'] ?? false);
         }
 
         return $result;
@@ -5741,10 +5747,14 @@ class BankController extends Controller
         if (! DB::table('bank_stock_analysis_multipliers')->where('project_id', $projectId)->exists()) {
             $now = now();
             $hasBlockColumn = Schema::hasColumn('bank_stock_analysis_multipliers', 'block');
+            $hasTableVisibleColumn = Schema::hasColumn('bank_stock_analysis_multipliers', 'table_visible');
             DB::table('bank_stock_analysis_multipliers')->insert(array_map(
-                function (array $row) use ($projectId, $now, $hasBlockColumn) {
+                function (array $row) use ($projectId, $now, $hasBlockColumn, $hasTableVisibleColumn) {
                     if (! $hasBlockColumn) {
                         unset($row['block']);
+                    }
+                    if (! $hasTableVisibleColumn) {
+                        unset($row['table_visible']);
                     }
 
                     return $row + ['project_id' => $projectId, 'created_at' => $now, 'updated_at' => $now];
@@ -5773,6 +5783,101 @@ class BankController extends Controller
         }
     }
 
+    private function stockAnalysisTableMultipliers(int $projectId)
+    {
+        return $this->stockAnalysisMultipliersForView($projectId)
+            ->filter(fn ($multiplier) => (bool) ($multiplier->table_visible ?? false))
+            ->sortBy([
+                ['sort_order', 'asc'],
+                ['id', 'asc'],
+            ])
+            ->values();
+    }
+
+    private function stockAnalysisTableMultiplierValues($stocks, $multipliers): array
+    {
+        $result = [];
+
+        foreach ($stocks as $stock) {
+            $payload = $this->stockPayloadFromRow($stock);
+            $values = [];
+
+            foreach ($multipliers as $multiplier) {
+                $value = $this->calculateStockAnalysisFormula((string) ($multiplier->formula ?? ''), $payload);
+                if ($value === null) {
+                    continue;
+                }
+
+                $values[] = trim((string) ($multiplier->name ?? '')) . ': ' . $this->formatStockFormulaResult($value);
+            }
+
+            $result[(int) $stock->id] = $values;
+        }
+
+        return $result;
+    }
+
+    private function calculateStockAnalysisFormula(string $formula, array $payload): ?float
+    {
+        $hasMissingField = false;
+        $expression = preg_replace_callback('/[A-Za-z_][A-Za-z0-9_]*/', function (array $match) use ($payload, &$hasMissingField): string {
+            $field = $match[0];
+            if (! array_key_exists($field, $payload) || trim((string) $payload[$field]) === '') {
+                $hasMissingField = true;
+                return '0';
+            }
+
+            $value = $this->parseStockFormulaNumber((string) $payload[$field]);
+            if ($value === null) {
+                $hasMissingField = true;
+                return '0';
+            }
+
+            return (string) $value;
+        }, $formula);
+
+        if ($hasMissingField || ! is_string($expression) || ! preg_match('/^[0-9+\-*\/().\s]+$/', $expression)) {
+            return null;
+        }
+
+        try {
+            $result = eval('return (' . $expression . ');');
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return is_numeric($result) && is_finite((float) $result) ? (float) $result : null;
+    }
+
+    private function parseStockFormulaNumber(string $value): ?float
+    {
+        $normalized = trim(str_replace([',', '%'], '', $value));
+        $suffix = strtolower(substr($normalized, -1));
+        $number = preg_replace('/[^0-9.\-]/', '', $normalized);
+
+        if ($number === '' || ! is_numeric($number)) {
+            return null;
+        }
+
+        $result = (float) $number;
+        return match ($suffix) {
+            't' => $result * 1_000_000_000_000,
+            'b' => $result * 1_000_000_000,
+            'm' => $result * 1_000_000,
+            'k' => $result * 1_000,
+            default => $result,
+        };
+    }
+
+    private function formatStockFormulaResult(float $value): string
+    {
+        if (abs($value) >= 1000) {
+            return rtrim(rtrim(number_format($value, 2, '.', ','), '0'), '.');
+        }
+
+        return rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
+    }
+
     private function defaultStockAnalysisMultipliers(): array
     {
         return [
@@ -5781,6 +5886,7 @@ class BankController extends Controller
                 'formula' => 'pe',
                 'description' => 'Цена к прибыли. Сравнивайте с историей компании, средним по отрасли и конкурентами; низкое значение может быть ловушкой стоимости.',
                 'block' => 'cheapness',
+                'table_visible' => true,
                 'sort_order' => 10,
             ],
             [
@@ -5788,6 +5894,7 @@ class BankController extends Controller
                 'formula' => 'ev_ebitda',
                 'description' => 'Стоимость предприятия к EBITDA. Учитывает долг; для стабильных компаний ориентир до 10-12 часто выглядит привлекательным, но зависит от сектора.',
                 'block' => 'cheapness',
+                'table_visible' => false,
                 'sort_order' => 20,
             ],
             [
@@ -5795,6 +5902,7 @@ class BankController extends Controller
                 'formula' => 'ps',
                 'description' => 'Цена к выручке. Полезно для компаний с временно низкой прибылью; показывает цену каждого доллара продаж.',
                 'block' => 'cheapness',
+                'table_visible' => false,
                 'sort_order' => 30,
             ],
             [
@@ -5802,6 +5910,7 @@ class BankController extends Controller
                 'formula' => 'pb',
                 'description' => 'Цена к балансовой стоимости. Особенно важно для банков, финансов и капиталоемких компаний.',
                 'block' => 'cheapness',
+                'table_visible' => false,
                 'sort_order' => 40,
             ],
             [
@@ -5809,6 +5918,7 @@ class BankController extends Controller
                 'formula' => 'net_debt_ebitda',
                 'description' => 'Показывает, за сколько лет бизнес может закрыть чистый долг операционной прибылью. До 2.0-2.5 обычно безопаснее, выше 3.5 - риск.',
                 'block' => 'debt',
+                'table_visible' => false,
                 'sort_order' => 50,
             ],
             [
@@ -5816,6 +5926,7 @@ class BankController extends Controller
                 'formula' => 'current_ratio',
                 'description' => 'Краткосрочные активы к краткосрочным обязательствам. Значение выше 1.5 обычно комфортнее, ниже 1.0 - риск кассового разрыва.',
                 'block' => 'debt',
+                'table_visible' => false,
                 'sort_order' => 60,
             ],
             [
@@ -5823,6 +5934,7 @@ class BankController extends Controller
                 'formula' => 'roe',
                 'description' => 'Рентабельность собственного капитала. Стабильно выше 15% часто говорит об эффективности бизнеса и менеджмента.',
                 'block' => 'efficiency',
+                'table_visible' => false,
                 'sort_order' => 70,
             ],
             [
@@ -5830,6 +5942,7 @@ class BankController extends Controller
                 'formula' => 'roic',
                 'description' => 'Рентабельность инвестированного капитала. Важно сравнивать со стоимостью капитала WACC.',
                 'block' => 'efficiency',
+                'table_visible' => false,
                 'sort_order' => 80,
             ],
             [
@@ -5837,6 +5950,7 @@ class BankController extends Controller
                 'formula' => 'payout',
                 'description' => 'Доля прибыли, направляемая на дивиденды. Ориентир 40-60%; выше 90-100% повышает риск отмены выплат.',
                 'block' => 'growth',
+                'table_visible' => false,
                 'sort_order' => 90,
             ],
         ];

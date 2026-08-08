@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('formula', 500);
             $table->text('description')->nullable();
             $table->string('block', 40)->default('cheapness')->index();
+            $table->boolean('table_visible')->default(false)->index();
             $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
         });

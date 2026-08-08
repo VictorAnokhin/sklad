@@ -100,7 +100,7 @@
     </div>
 
     <div id="stockFilterModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:9999; justify-content:center; align-items:center;">
-        <div class="glass-card" style="width:700px; max-width:90vw; max-height:80vh; overflow-y:auto; position:relative; margin:0 auto; padding:24px;">
+        <div class="glass-card" style="width:700px; max-width:90vw; max-height:80vh; overflow:visible; position:relative; margin:0 auto; padding:24px;">
             <div onclick="stockFilterToggle()" style="position:absolute; top:12px; right:16px; cursor:pointer; font-size:1.5rem; color:var(--muted-foreground); transition:color 0.2s; z-index:10;">✕</div>
 
             <h3 style="margin:0 0 16px 0; color:var(--foreground); font-family:var(--header); font-size:1.25rem;">🔍 Фильтр акций</h3>
@@ -109,50 +109,56 @@
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                     <div>
                         <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Sector</label>
-                        <input type="text"
-                               name="sector"
-                               list="stock-filter-sector-options"
-                               autocomplete="off"
-                               placeholder="Выберите или введите сектор"
-                               value="{{ $stockFilters['sector'] ?? '' }}"
-                               style="width:100%; padding:8px 12px; font-size:0.9rem;">
-                        <datalist id="stock-filter-sector-options">
-                            @foreach(($stockFilterOptions['sector'] ?? collect()) as $option)
-                                <option value="{{ $option }}"></option>
-                            @endforeach
-                        </datalist>
+                        <div class="bank-stock-filter-field" data-stock-filter-combobox>
+                            <input type="text"
+                                   name="sector"
+                                   autocomplete="off"
+                                   placeholder="Выберите или введите сектор"
+                                   value="{{ $stockFilters['sector'] ?? '' }}"
+                                   data-stock-filter-input
+                                   style="width:100%; padding:8px 12px; font-size:0.9rem;">
+                            <div class="bank-stock-filter-options" data-stock-filter-options hidden>
+                                @foreach(($stockFilterOptions['sector'] ?? collect()) as $option)
+                                    <button type="button" data-stock-filter-option data-value="{{ $option }}">{{ $option }}</button>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
 
                     <div>
                         <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Industry</label>
-                        <input type="text"
-                               name="industry"
-                               list="stock-filter-industry-options"
-                               autocomplete="off"
-                               placeholder="Выберите или введите индустрию"
-                               value="{{ $stockFilters['industry'] ?? '' }}"
-                               style="width:100%; padding:8px 12px; font-size:0.9rem;">
-                        <datalist id="stock-filter-industry-options">
-                            @foreach(($stockFilterOptions['industry'] ?? collect()) as $option)
-                                <option value="{{ $option }}"></option>
-                            @endforeach
-                        </datalist>
+                        <div class="bank-stock-filter-field" data-stock-filter-combobox>
+                            <input type="text"
+                                   name="industry"
+                                   autocomplete="off"
+                                   placeholder="Выберите или введите индустрию"
+                                   value="{{ $stockFilters['industry'] ?? '' }}"
+                                   data-stock-filter-input
+                                   style="width:100%; padding:8px 12px; font-size:0.9rem;">
+                            <div class="bank-stock-filter-options" data-stock-filter-options hidden>
+                                @foreach(($stockFilterOptions['industry'] ?? collect()) as $option)
+                                    <button type="button" data-stock-filter-option data-value="{{ $option }}">{{ $option }}</button>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
 
                     <div>
                         <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Country</label>
-                        <input type="text"
-                               name="country"
-                               list="stock-filter-country-options"
-                               autocomplete="off"
-                               placeholder="Выберите или введите страну"
-                               value="{{ $stockFilters['country'] ?? '' }}"
-                               style="width:100%; padding:8px 12px; font-size:0.9rem;">
-                        <datalist id="stock-filter-country-options">
-                            @foreach(($stockFilterOptions['country'] ?? collect()) as $option)
-                                <option value="{{ $option }}"></option>
-                            @endforeach
-                        </datalist>
+                        <div class="bank-stock-filter-field" data-stock-filter-combobox>
+                            <input type="text"
+                                   name="country"
+                                   autocomplete="off"
+                                   placeholder="Выберите или введите страну"
+                                   value="{{ $stockFilters['country'] ?? '' }}"
+                                   data-stock-filter-input
+                                   style="width:100%; padding:8px 12px; font-size:0.9rem;">
+                            <div class="bank-stock-filter-options" data-stock-filter-options hidden>
+                                @foreach(($stockFilterOptions['country'] ?? collect()) as $option)
+                                    <button type="button" data-stock-filter-option data-value="{{ $option }}">{{ $option }}</button>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -244,6 +250,11 @@
                                 @endif
                                 @if(($latestChange['date'] ?? '') && $changedFields !== [])
                                     <div class="bank-stock-change-note">Изм. {{ $latestChange['date'] }}</div>
+                                @endif
+                                @if(!empty($stockTableMultipliers[(int) $stock->id] ?? []))
+                                    <div class="bank-stock-table-multipliers">
+                                        {{ implode(', ', $stockTableMultipliers[(int) $stock->id]) }}
+                                    </div>
                                 @endif
                             </td>
                             <td class="text-end bank-mono {{ $isChanged(['market', 'market_cap']) ? 'bank-stock-cell--changed' : '' }}">{{ $stock->market ?: '—' }}</td>
@@ -432,6 +443,54 @@
         margin-bottom: 16px;
     }
 
+    .bank-stock-filter-field {
+        position: relative;
+    }
+
+    .bank-stock-filter-options {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        z-index: 10001;
+        max-height: 180px;
+        overflow-y: auto;
+        padding: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        background: #101827;
+        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+    }
+
+    .bank-stock-filter-options[hidden] {
+        display: none;
+    }
+
+    .bank-stock-filter-options button {
+        display: block;
+        width: 100%;
+        min-height: 34px;
+        padding: 7px 10px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--foreground);
+        font: inherit;
+        font-size: 0.88rem;
+        text-align: left;
+        cursor: pointer;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bank-stock-filter-options button:hover,
+    .bank-stock-filter-options button:focus {
+        outline: none;
+        background: rgba(251, 191, 36, 0.14);
+        color: #fbbf24;
+    }
+
     .bank-stock-page .bank-table-panel {
         overflow: visible;
     }
@@ -520,6 +579,14 @@
         color: #fbbf24;
         font-size: 0.68rem;
         font-weight: 700;
+    }
+
+    .bank-stock-table-multipliers {
+        margin-top: 4px;
+        color: rgba(226, 232, 240, 0.86);
+        font-size: 0.72rem;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
     }
 
     .bank-stock-actions {
@@ -820,6 +887,58 @@
             }
         });
 
+        const closeFilterOptionLists = (exceptList = null) => {
+            root.querySelectorAll('[data-stock-filter-options]').forEach((list) => {
+                if (list !== exceptList) {
+                    list.hidden = true;
+                }
+            });
+        };
+
+        root.querySelectorAll('[data-stock-filter-combobox]').forEach((combobox) => {
+            const input = combobox.querySelector('[data-stock-filter-input]');
+            const list = combobox.querySelector('[data-stock-filter-options]');
+            const options = Array.from(combobox.querySelectorAll('[data-stock-filter-option]'));
+
+            if (!input || !list) {
+                return;
+            }
+
+            const showMatchingOptions = () => {
+                const search = input.value.trim().toLowerCase();
+                let visibleCount = 0;
+
+                options.forEach((option) => {
+                    const value = (option.dataset.value || option.textContent || '').toLowerCase();
+                    const visible = !search || value.includes(search);
+                    option.hidden = !visible;
+                    if (visible) {
+                        visibleCount += 1;
+                    }
+                });
+
+                list.hidden = visibleCount === 0;
+            };
+
+            input.addEventListener('focus', () => {
+                closeFilterOptionLists(list);
+                showMatchingOptions();
+            });
+            input.addEventListener('click', () => {
+                closeFilterOptionLists(list);
+                showMatchingOptions();
+            });
+            input.addEventListener('input', showMatchingOptions);
+
+            options.forEach((option) => {
+                option.addEventListener('click', () => {
+                    input.value = option.dataset.value || option.textContent.trim();
+                    list.hidden = true;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            });
+        });
+
         const modal = root.querySelector('[data-stock-modal]');
         const openButton = root.querySelector('[data-stock-open]');
         const closeButtons = root.querySelectorAll('[data-stock-close]');
@@ -1108,7 +1227,12 @@
                 }
             });
         });
-        document.addEventListener('click', () => closeMenus());
+        document.addEventListener('click', (event) => {
+            closeMenus();
+            if (!event.target.closest('[data-stock-filter-combobox]')) {
+                closeFilterOptionLists();
+            }
+        });
         window.addEventListener('resize', () => closeMenus());
         window.addEventListener('scroll', () => closeMenus(), true);
         document.addEventListener('keydown', (event) => {
@@ -1120,6 +1244,7 @@
             }
             if (event.key === 'Escape') {
                 closeMenus();
+                closeFilterOptionLists();
             }
         });
     });
