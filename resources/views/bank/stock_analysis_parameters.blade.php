@@ -19,14 +19,14 @@
     }
     $parametersByGroup = $parameters->groupBy(fn ($parameter) => trim((string) ($parameter->group_name ?? '')) ?: 'Основные');
     $groups = $parameterGroups->mapWithKeys(fn ($group) => [
-        (string) $group->name => $parametersByGroup->get((string) $group->name, collect())->values(),
+        trim((string) $group->name) ?: 'Основные' => $parametersByGroup->get(trim((string) $group->name) ?: 'Основные', collect())->values(),
     ]);
-    $groupNames = $parameterGroups->pluck('name')->map(fn ($name) => (string) $name)->values();
+    $groupNames = $parameterGroups->pluck('name')->map(fn ($name) => trim((string) $name) ?: 'Основные')->unique()->values();
     $parameterData = $parameters->map(fn ($parameter) => [
         'id' => (int) $parameter->id,
         'label' => (string) $parameter->label,
         'field_key' => (string) $parameter->field_key,
-        'group_name' => (string) ($parameter->group_name ?? 'Основные'),
+        'group_name' => trim((string) ($parameter->group_name ?? '')) ?: 'Основные',
         'description' => (string) ($parameter->description ?? ''),
         'settings' => (string) ($parameter->settings ?? ''),
         'update_url' => route('bank.stock-analysis.parameters.update', $parameter->id),

@@ -1070,6 +1070,7 @@ class BankController extends Controller
     public function stockAnalysisParameters(): View
     {
         $project = $this->bankProject();
+        $this->normalizeStockAnalysisParameterGroups((int) $project->id);
         $parameters = $this->stockAnalysisParametersForView((int) $project->id);
 
         return view('bank.stock_analysis_parameters', [
@@ -5993,6 +5994,23 @@ class BankController extends Controller
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
+    }
+
+    private function normalizeStockAnalysisParameterGroups(int $projectId): void
+    {
+        if (! Schema::hasTable('bank_stock_analysis_parameters') || ! Schema::hasColumn('bank_stock_analysis_parameters', 'group_name')) {
+            return;
+        }
+
+        DB::table('bank_stock_analysis_parameters')
+            ->where('project_id', $projectId)
+            ->where(function ($query): void {
+                $query->whereNull('group_name')->orWhere('group_name', '');
+            })
+            ->update([
+                'group_name' => 'Основные',
+                'updated_at' => now(),
+            ]);
     }
 
     private function ensureStockAnalysisParameterGroup(int $projectId, string $groupName): void
