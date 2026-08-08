@@ -1098,8 +1098,10 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+        const isBlank = (value) => value === null || value === undefined || value === '';
+        const displayValue = (value) => isBlank(value) ? '—' : String(value);
         const parseMetric = (value) => {
-            const normalized = String(value || '').replace(/,/g, '').replace(/%/g, '').trim();
+            const normalized = String(value ?? '').replace(/,/g, '').replace(/%/g, '').trim();
             const suffix = normalized.match(/[tmbk]$/i)?.[0]?.toLowerCase() || '';
             const number = Number.parseFloat(normalized.replace(/[^0-9.\-]/g, ''));
 
@@ -1117,12 +1119,23 @@
             return Number(value.toFixed(4)).toString();
         };
         const calculateFormula = (formula, payload = {}) => {
+            let hasMissingField = false;
             const expression = String(formula || '').replace(/[A-Za-z_][A-Za-z0-9_]*/g, (field) => {
+                if (!Object.prototype.hasOwnProperty.call(payload, field) || isBlank(payload[field])) {
+                    hasMissingField = true;
+                    return '0';
+                }
+
                 const value = parseMetric(payload[field]);
-                return value === null ? '0' : String(value);
+                if (value === null) {
+                    hasMissingField = true;
+                    return '0';
+                }
+
+                return String(value);
             });
 
-            if (!/^[0-9+\-*/().\s]+$/.test(expression)) {
+            if (hasMissingField || !/^[0-9+\-*/().\s]+$/.test(expression)) {
                 return null;
             }
 
@@ -1214,7 +1227,7 @@
         const verdict = (state, label, text) => ({ state, label, text });
         const missing = (text = 'В snapshot нет данных для расчета. Подтяните этот показатель через адаптер или внесите вручную.') => verdict('missing', 'Нет данных', text);
         const metricValue = (payload, field) => {
-            const raw = payload?.[field] || '';
+            const raw = payload?.[field] ?? '';
             const number = parseMetric(raw);
 
             return { raw, number };
@@ -1223,7 +1236,7 @@
             <div class="bank-stock-analysis-item">
                 <div class="bank-stock-analysis-item__top">
                     <strong>${escapeHtml(title)}</strong>
-                    <span class="bank-stock-analysis-value">${escapeHtml(rawValue || '—')}</span>
+                    <span class="bank-stock-analysis-value">${escapeHtml(displayValue(rawValue))}</span>
                 </div>
                 <span class="bank-stock-analysis-verdict is-${result.state}">${escapeHtml(result.label)}</span>
                 <div class="bank-stock-analysis-text">${escapeHtml(result.text)}</div>
@@ -1353,8 +1366,8 @@
             document.querySelectorAll('[data-stock-snapshot-value]').forEach((cell) => {
                 const label = cell.dataset.stockSnapshotValue || '';
                 const field = fieldByLabel[label];
-                const value = field ? (payload[field] || '—') : '—';
-                cell.textContent = value || '—';
+                const value = field ? displayValue(payload[field]) : '—';
+                cell.textContent = value;
                 cell.classList.toggle('is-negative', label === 'Change' && String(value).startsWith('-'));
                 cell.classList.toggle('is-positive', label === 'Change' && value && !String(value).startsWith('-') && value !== '0' && value !== '0%');
             });
@@ -1364,9 +1377,9 @@
             const chartDate = document.querySelector('[data-stock-chart-date]');
             if (chartDate) chartDate.textContent = `Date ${date}`;
             const chartPrice = document.querySelector('[data-stock-chart-price]');
-            if (chartPrice) chartPrice.textContent = `Price ${payload.price || '—'}`;
+            if (chartPrice) chartPrice.textContent = `Price ${displayValue(payload.price)}`;
             const chartVolume = document.querySelector('[data-stock-chart-volume]');
-            if (chartVolume) chartVolume.textContent = `Volume ${payload.volume || '—'}`;
+            if (chartVolume) chartVolume.textContent = `Volume ${displayValue(payload.volume)}`;
             renderAnalysis(payload);
             renderMultipliers(payload);
 
