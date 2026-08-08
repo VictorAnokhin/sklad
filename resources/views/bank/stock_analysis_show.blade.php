@@ -66,6 +66,19 @@
         ['P/E', $stockValue('pe')],
         ['Dividend', $stockValue('dividend_est') ?: $stockValue('dividend_ttm')],
     ];
+    $multiplierCollection = $multipliers ?? collect();
+    $multiplierData = $multiplierCollection->map(function ($multiplier) {
+        return [
+            'id' => (int) $multiplier->id,
+            'name' => (string) $multiplier->name,
+            'formula' => (string) $multiplier->formula,
+            'description' => (string) ($multiplier->description ?? ''),
+            'sort_order' => (int) ($multiplier->sort_order ?? 0),
+            'update_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
+            'delete_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
+        ];
+    })->values();
+    $nextMultiplierSortOrder = (int) (($multiplierCollection->max('sort_order') ?? 0) + 10);
     $snapshotRows = [
         [
             ['Index', '—'],
@@ -1022,19 +1035,11 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const snapshots = @json($snapshotData);
-        const multipliers = @json(($multipliers ?? collect())->map(fn ($multiplier) => [
-            'id' => (int) $multiplier->id,
-            'name' => (string) $multiplier->name,
-            'formula' => (string) $multiplier->formula,
-            'description' => (string) ($multiplier->description ?? ''),
-            'sort_order' => (int) ($multiplier->sort_order ?? 0),
-            'update_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
-            'delete_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
-        ])->values());
+        const multipliers = @json($multiplierData);
         const initialSnapshotDate = @json($selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '');
         const csrfToken = @json(csrf_token());
         const multiplierStoreUrl = @json(url('/bank/stock-analysis/multipliers'));
-        const nextMultiplierSortOrder = @json((int) ((($multipliers ?? collect())->max('sort_order') ?? 0) + 10));
+        const nextMultiplierSortOrder = @json($nextMultiplierSortOrder);
         const analysisResults = document.querySelector('[data-stock-analysis-results]');
         const multiplierValues = document.querySelector('[data-stock-multiplier-values]');
         const multiplierAddButton = document.querySelector('[data-stock-multiplier-add]');
