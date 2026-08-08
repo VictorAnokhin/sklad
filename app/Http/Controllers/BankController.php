@@ -1077,6 +1077,26 @@ class BankController extends Controller
         ]);
     }
 
+    public function storeStockAnalysisParameter(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_stock_analysis_parameters'), 404);
+
+        $payload = $this->stockAnalysisParameterPayload($request, (int) $project->id);
+        $maxSortOrder = (int) DB::table('bank_stock_analysis_parameters')
+            ->where('project_id', (int) $project->id)
+            ->max('sort_order');
+
+        DB::table('bank_stock_analysis_parameters')->insert($payload + [
+            'project_id' => (int) $project->id,
+            'sort_order' => $maxSortOrder + 10,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->route('bank.stock-analysis.parameters')->with('success', 'Параметр добавлен.');
+    }
+
     public function updateStockAnalysisParameter(Request $request, int $parameter): RedirectResponse
     {
         $project = $this->bankProject();
@@ -1088,30 +1108,11 @@ class BankController extends Controller
             ->first();
         abort_unless($row, 404);
 
-        $payload = $request->validate([
-            'label' => ['required', 'string', 'max:160'],
-            'field_key' => [
-                'required',
-                'string',
-                'max:120',
-                'regex:/^[A-Za-z_][A-Za-z0-9_]*$/',
-                Rule::unique('bank_stock_analysis_parameters', 'field_key')
-                    ->where(fn ($query) => $query->where('project_id', (int) $project->id))
-                    ->ignore((int) $row->id),
-            ],
-            'group_name' => ['nullable', 'string', 'max:160'],
-            'description' => ['nullable', 'string', 'max:4000'],
-            'settings' => ['nullable', 'string', 'max:4000'],
-        ]);
+        $payload = $this->stockAnalysisParameterPayload($request, (int) $project->id, (int) $row->id);
 
         DB::table('bank_stock_analysis_parameters')
             ->where('id', (int) $row->id)
-            ->update([
-                'label' => trim((string) $payload['label']),
-                'field_key' => trim((string) $payload['field_key']),
-                'group_name' => trim((string) ($payload['group_name'] ?? '')) ?: 'Основные',
-                'description' => trim((string) ($payload['description'] ?? '')),
-                'settings' => trim((string) ($payload['settings'] ?? '')),
+            ->update($payload + [
                 'updated_at' => now(),
             ]);
 
@@ -5937,6 +5938,37 @@ class BankController extends Controller
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+    }
+
+    private function stockAnalysisParameterPayload(Request $request, int $projectId, ?int $ignoreId = null): array
+    {
+        $uniqueRule = Rule::unique('bank_stock_analysis_parameters', 'field_key')
+            ->where(fn ($query) => $query->where('project_id', $projectId));
+        if ($ignoreId !== null) {
+            $uniqueRule->ignore($ignoreId);
+        }
+
+        $payload = $request->validate([
+            'label' => ['required', 'string', 'max:160'],
+            'field_key' => [
+                'required',
+                'string',
+                'max:120',
+                'regex:/^[A-Za-z_][A-Za-z0-9_]*$/',
+                $uniqueRule,
+            ],
+            'group_name' => ['nullable', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:4000'],
+            'settings' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        return [
+            'label' => trim((string) $payload['label']),
+            'field_key' => trim((string) $payload['field_key']),
+            'group_name' => trim((string) ($payload['group_name'] ?? '')) ?: 'Основные',
+            'description' => trim((string) ($payload['description'] ?? '')),
+            'settings' => trim((string) ($payload['settings'] ?? '')),
+        ];
     }
 
     private function stockAnalysisParameterDescriptionsForView($parameters): array

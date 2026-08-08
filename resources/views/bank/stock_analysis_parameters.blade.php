@@ -77,6 +77,12 @@
                         @endif
                     </article>
                 @endforeach
+                <article class="bank-stock-parameter-card bank-stock-parameter-add-card">
+                    <button type="button"
+                            data-stock-parameter-create
+                            data-stock-parameter-group="{{ $groupName }}"
+                            aria-label="Добавить параметр в группу {{ $groupName }}">+</button>
+                </article>
             </div>
         </section>
     @empty
@@ -97,7 +103,7 @@
             </div>
             <form method="POST" class="bank-stock-parameter-modal-form" data-stock-parameter-form>
                 @csrf
-                @method('PUT')
+                <input type="hidden" name="_method" value="PUT" data-stock-parameter-method>
                 <label>
                     <span>Название</span>
                     <input type="text" name="label" data-stock-parameter-label required>
@@ -260,6 +266,31 @@
         color: rgba(203, 213, 225, 0.74);
         font-size: 0.76rem;
         line-height: 1.35;
+    }
+
+    .bank-stock-parameter-add-card {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 118px;
+        padding: 10px;
+        border-style: dashed;
+    }
+
+    .bank-stock-parameter-add-card button {
+        width: 58px;
+        height: 58px;
+        border: 1px solid rgba(251, 191, 36, 0.42);
+        border-radius: 50%;
+        background: rgba(251, 191, 36, 0.1);
+        color: #fbbf24;
+        font-size: 2.2rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .bank-stock-parameter-add-card button:hover {
+        background: rgba(251, 191, 36, 0.18);
     }
 
     .bank-stock-parameter-delete,
@@ -437,8 +468,10 @@
         if (!root) return;
 
         const parameters = @json($parameterData);
+        const parameterStoreUrl = @json(route('bank.stock-analysis.parameters.store'));
         const modal = root.querySelector('[data-stock-parameter-modal]');
         const form = root.querySelector('[data-stock-parameter-form]');
+        const methodInput = root.querySelector('[data-stock-parameter-method]');
         const closeButtons = root.querySelectorAll('[data-stock-parameter-close]');
         const labelInput = root.querySelector('[data-stock-parameter-label]');
         const fieldInput = root.querySelector('[data-stock-parameter-field]');
@@ -454,14 +487,20 @@
             if (groupOptions) groupOptions.hidden = true;
         };
 
-        const openModal = (parameter) => {
-            if (!modal || !form || !parameter) return;
-            form.action = parameter.update_url;
-            if (labelInput) labelInput.value = parameter.label || '';
-            if (fieldInput) fieldInput.value = parameter.field_key || '';
-            if (groupInput) groupInput.value = parameter.group_name || 'Основные';
-            if (descriptionInput) descriptionInput.value = parameter.description || '';
-            if (settingsInput) settingsInput.value = parameter.settings || '';
+        const openModal = (mode = 'edit', parameter = null, groupName = 'Основные') => {
+            if (!modal || !form) return;
+            const isEdit = mode === 'edit' && parameter;
+
+            form.action = isEdit ? parameter.update_url : parameterStoreUrl;
+            if (methodInput) {
+                methodInput.value = isEdit ? 'PUT' : 'POST';
+                methodInput.disabled = !isEdit;
+            }
+            if (labelInput) labelInput.value = isEdit ? (parameter.label || '') : '';
+            if (fieldInput) fieldInput.value = isEdit ? (parameter.field_key || '') : '';
+            if (groupInput) groupInput.value = isEdit ? (parameter.group_name || 'Основные') : (groupName || 'Основные');
+            if (descriptionInput) descriptionInput.value = isEdit ? (parameter.description || '') : '';
+            if (settingsInput) settingsInput.value = isEdit ? (parameter.settings || '') : '';
             modal.hidden = false;
             document.body.style.overflow = 'hidden';
             setTimeout(() => labelInput?.focus(), 0);
@@ -470,7 +509,12 @@
         root.querySelectorAll('[data-stock-parameter-open]').forEach((button) => {
             button.addEventListener('click', () => {
                 const parameter = parameters.find((item) => String(item.id) === String(button.dataset.stockParameterId));
-                openModal(parameter);
+                openModal('edit', parameter);
+            });
+        });
+        root.querySelectorAll('[data-stock-parameter-create]').forEach((button) => {
+            button.addEventListener('click', () => {
+                openModal('create', null, button.dataset.stockParameterGroup || 'Основные');
             });
         });
 
