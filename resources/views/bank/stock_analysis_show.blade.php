@@ -266,57 +266,11 @@
                     <span>Мультипликаторы нельзя оценивать в вакууме. Для точного вывода нужны средние по отрасли и главные конкуренты; если таких данных нет в snapshot, вывод ниже использует только базовые ориентиры.</span>
                 </div>
                 <div class="bank-stock-multipliers">
-                    <div class="bank-stock-analysis-heading">Настраиваемые мультипликаторы</div>
-                    <div class="bank-stock-multiplier-values" data-stock-multiplier-values></div>
-                    <form class="bank-stock-multiplier-form" method="POST" action="{{ route('bank.stock-analysis.multipliers.store') }}">
-                        @csrf
-                        <input type="hidden" name="sort_order" value="{{ (($multipliers ?? collect())->max('sort_order') ?? 0) + 10 }}">
-                        <label>
-                            <span>Название</span>
-                            <input type="text" name="name" placeholder="Например, Gross Margin" required>
-                        </label>
-                        <label>
-                            <span>Формула</span>
-                            <input type="text" name="formula" placeholder="gross_profit / sales * 100" required>
-                        </label>
-                        <label class="bank-stock-multiplier-form__description">
-                            <span>Описание</span>
-                            <textarea name="description" rows="2" placeholder="Что понимать под высоким, низким или нормальным значением"></textarea>
-                        </label>
-                        <button type="submit" class="btn btn-sm btn-primary">Добавить</button>
-                    </form>
-                    <div class="bank-stock-multiplier-editor">
-                        @foreach(($multipliers ?? collect()) as $multiplier)
-                            <form method="POST" action="{{ route('bank.stock-analysis.multipliers.update', $multiplier->id) }}">
-                                @csrf
-                                @method('PUT')
-                                <input type="hidden" name="sort_order" value="{{ (int) ($multiplier->sort_order ?? 0) }}">
-                                <label>
-                                    <span>Название</span>
-                                    <input type="text" name="name" value="{{ $multiplier->name }}" required>
-                                </label>
-                                <label>
-                                    <span>Формула</span>
-                                    <input type="text" name="formula" value="{{ $multiplier->formula }}" required>
-                                </label>
-                                <label class="bank-stock-multiplier-editor__description">
-                                    <span>Описание</span>
-                                    <textarea name="description" rows="2">{{ $multiplier->description }}</textarea>
-                                </label>
-                                <div class="bank-stock-multiplier-editor__actions">
-                                    <button type="submit" class="btn btn-sm btn-outline-light">Сохранить</button>
-                                </div>
-                            </form>
-                            <form method="POST"
-                                  action="{{ route('bank.stock-analysis.multipliers.destroy', $multiplier->id) }}"
-                                  class="bank-stock-multiplier-delete"
-                                  data-stock-multiplier-delete>
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                            </form>
-                        @endforeach
+                    <div class="bank-stock-multipliers__header">
+                        <div class="bank-stock-analysis-heading">Настраиваемые мультипликаторы</div>
+                        <button type="button" class="btn btn-sm btn-primary" data-stock-multiplier-add>Добавить</button>
                     </div>
+                    <div class="bank-stock-multiplier-values" data-stock-multiplier-values></div>
                 </div>
                 <div class="bank-stock-analysis-grid" data-stock-analysis-results></div>
                 <div class="bank-stock-analysis-cheatsheet">
@@ -361,6 +315,41 @@
             </div>
         </div>
     </section>
+
+    <div class="bank-modal" data-stock-multiplier-modal hidden>
+        <div class="bank-modal__backdrop" data-stock-multiplier-close></div>
+        <div class="bank-modal__dialog bank-stock-multiplier-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="stockMultiplierModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Мультипликатор</div>
+                    <h2 id="stockMultiplierModalTitle" data-stock-multiplier-modal-title>Изменить мультипликатор</h2>
+                    <div class="bank-meta">Формула использует поля snapshot как переменные: pe, market_cap, sales, payout.</div>
+                </div>
+                <button type="button" class="bank-modal__close" data-stock-multiplier-close aria-label="Закрыть">×</button>
+            </div>
+            <form method="POST" class="bank-stock-multiplier-modal-form" data-stock-multiplier-form>
+                @csrf
+                <input type="hidden" name="_method" value="PUT" data-stock-multiplier-method>
+                <input type="hidden" name="sort_order" data-stock-multiplier-sort-order>
+                <label>
+                    <span>Название</span>
+                    <input type="text" name="name" data-stock-multiplier-name required>
+                </label>
+                <label>
+                    <span>Формула</span>
+                    <input type="text" name="formula" data-stock-multiplier-formula required>
+                </label>
+                <label>
+                    <span>Описание</span>
+                    <textarea name="description" rows="5" data-stock-multiplier-description></textarea>
+                </label>
+                <div class="bank-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-stock-multiplier-close>Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 @include('bank.partials.styles')
@@ -705,6 +694,13 @@
         padding: 12px;
     }
 
+    .bank-stock-multipliers__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
     .bank-stock-multiplier-values {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -712,12 +708,20 @@
     }
 
     .bank-stock-multiplier-value {
+        position: relative;
         display: grid;
         gap: 5px;
         padding: 9px;
         border: 1px solid rgba(148, 163, 184, 0.12);
         border-radius: 8px;
         background: rgba(15, 23, 42, 0.55);
+    }
+
+    .bank-stock-multiplier-value__header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
     }
 
     .bank-stock-multiplier-value strong {
@@ -745,33 +749,72 @@
         line-height: 1.4;
     }
 
-    .bank-stock-multiplier-form,
-    .bank-stock-multiplier-editor form:not(.bank-stock-multiplier-delete) {
+    .bank-stock-multiplier-menu-trigger {
+        width: 28px;
+        height: 28px;
+        flex: 0 0 auto;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.76);
+        color: #e5e7eb;
+        font-size: 18px;
+        line-height: 1;
+        padding: 0;
+    }
+
+    .bank-stock-multiplier-menu {
+        position: fixed;
+        z-index: 10020;
+        min-width: 138px;
+        padding: 6px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: #0f172a;
+        box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
+    }
+
+    .bank-stock-multiplier-menu button {
+        display: block;
+        width: 100%;
+        padding: 8px 10px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: #e5e7eb;
+        text-align: left;
+        font-size: 0.84rem;
+    }
+
+    .bank-stock-multiplier-menu button:hover {
+        background: rgba(59, 130, 246, 0.18);
+    }
+
+    .bank-stock-multiplier-menu form {
+        margin: 0;
+    }
+
+    .bank-stock-multiplier-modal-form {
         display: grid;
         grid-template-columns: minmax(130px, 0.8fr) minmax(180px, 1fr) minmax(220px, 1.4fr) auto;
         gap: 8px;
         align-items: end;
     }
 
-    .bank-stock-multiplier-form label,
-    .bank-stock-multiplier-editor label {
+    .bank-stock-multiplier-modal-form label {
         display: grid;
         gap: 4px;
         margin: 0;
     }
 
-    .bank-stock-multiplier-form label span,
-    .bank-stock-multiplier-editor label span {
+    .bank-stock-multiplier-modal-form label span {
         color: rgba(148, 163, 184, 0.9);
         font-size: 0.7rem;
         font-weight: 900;
         text-transform: uppercase;
     }
 
-    .bank-stock-multiplier-form input,
-    .bank-stock-multiplier-form textarea,
-    .bank-stock-multiplier-editor input,
-    .bank-stock-multiplier-editor textarea {
+    .bank-stock-multiplier-modal-form input,
+    .bank-stock-multiplier-modal-form textarea {
         width: 100%;
         min-height: 34px;
         padding: 7px 9px;
@@ -782,27 +825,21 @@
         font-size: 0.82rem;
     }
 
-    .bank-stock-multiplier-form textarea,
-    .bank-stock-multiplier-editor textarea {
+    .bank-stock-multiplier-modal-form textarea {
         resize: vertical;
     }
 
-    .bank-stock-multiplier-editor {
+    .bank-stock-multiplier-modal__dialog {
+        width: min(560px, calc(100vw - 28px));
+        max-height: calc(100vh - 28px);
+        overflow: auto;
+    }
+
+    .bank-stock-multiplier-modal-form {
         display: grid;
-        gap: 8px;
-    }
-
-    .bank-stock-multiplier-editor form:not(.bank-stock-multiplier-delete) {
-        padding: 8px;
-        border: 1px solid rgba(148, 163, 184, 0.12);
-        border-radius: 8px;
-        background: rgba(15, 23, 42, 0.38);
-    }
-
-    .bank-stock-multiplier-delete {
-        justify-self: end;
-        margin-top: -48px;
-        margin-right: 8px;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 0 16px 16px;
     }
 
     .bank-stock-analysis-block {
@@ -976,14 +1013,8 @@
             grid-template-columns: 1fr;
         }
 
-        .bank-stock-multiplier-form,
-        .bank-stock-multiplier-editor form:not(.bank-stock-multiplier-delete) {
+        .bank-stock-multiplier-modal-form {
             grid-template-columns: 1fr;
-        }
-
-        .bank-stock-multiplier-delete {
-            justify-self: stretch;
-            margin: -4px 8px 8px;
         }
     }
 </style>
@@ -991,10 +1022,31 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const snapshots = @json($snapshotData);
-        const multipliers = @json(($multipliers ?? collect())->values());
+        const multipliers = @json(($multipliers ?? collect())->map(fn ($multiplier) => [
+            'id' => (int) $multiplier->id,
+            'name' => (string) $multiplier->name,
+            'formula' => (string) $multiplier->formula,
+            'description' => (string) ($multiplier->description ?? ''),
+            'sort_order' => (int) ($multiplier->sort_order ?? 0),
+            'update_url' => route('bank.stock-analysis.multipliers.update', $multiplier->id),
+            'delete_url' => route('bank.stock-analysis.multipliers.destroy', $multiplier->id),
+        ])->values());
         const initialSnapshotDate = @json($selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '');
+        const csrfToken = @json(csrf_token());
+        const multiplierStoreUrl = @json(route('bank.stock-analysis.multipliers.store'));
+        const nextMultiplierSortOrder = @json((int) ((($multipliers ?? collect())->max('sort_order') ?? 0) + 10));
         const analysisResults = document.querySelector('[data-stock-analysis-results]');
         const multiplierValues = document.querySelector('[data-stock-multiplier-values]');
+        const multiplierAddButton = document.querySelector('[data-stock-multiplier-add]');
+        const multiplierModal = document.querySelector('[data-stock-multiplier-modal]');
+        const multiplierForm = document.querySelector('[data-stock-multiplier-form]');
+        const multiplierMethodInput = document.querySelector('[data-stock-multiplier-method]');
+        const multiplierModalTitle = document.querySelector('[data-stock-multiplier-modal-title]');
+        const multiplierCloseButtons = document.querySelectorAll('[data-stock-multiplier-close]');
+        const multiplierNameInput = document.querySelector('[data-stock-multiplier-name]');
+        const multiplierFormulaInput = document.querySelector('[data-stock-multiplier-formula]');
+        const multiplierDescriptionInput = document.querySelector('[data-stock-multiplier-description]');
+        const multiplierSortOrderInput = document.querySelector('[data-stock-multiplier-sort-order]');
         const fieldByLabel = {
             'Market Cap': 'market_cap',
             'Income': 'income',
@@ -1088,14 +1140,76 @@
                 const value = calculateFormula(multiplier.formula, payload);
 
                 return `
-                    <div class="bank-stock-multiplier-value">
-                        <strong>${escapeHtml(multiplier.name)}</strong>
+                    <div class="bank-stock-multiplier-value" data-stock-multiplier-id="${multiplier.id}">
+                        <div class="bank-stock-multiplier-value__header">
+                            <strong>${escapeHtml(multiplier.name)}</strong>
+                            <button type="button"
+                                    class="bank-stock-multiplier-menu-trigger"
+                                    data-stock-multiplier-menu-toggle
+                                    data-stock-multiplier-id="${multiplier.id}"
+                                    aria-label="Открыть меню мультипликатора ${escapeHtml(multiplier.name)}">⋮</button>
+                        </div>
                         <span>${escapeHtml(formatFormulaValue(value))}</span>
                         <code>${escapeHtml(multiplier.formula)}</code>
                         <p>${escapeHtml(multiplier.description || 'Описание не заполнено.')}</p>
+                        <div class="bank-stock-multiplier-menu" data-stock-multiplier-menu hidden>
+                            <button type="button" data-stock-multiplier-edit data-stock-multiplier-id="${multiplier.id}">Изменить</button>
+                            <form method="POST" action="${escapeHtml(multiplier.delete_url)}" data-stock-multiplier-delete>
+                                <input type="hidden" name="_token" value="${escapeHtml(csrfToken)}">
+                                <input type="hidden" name="_method" value="DELETE">
+                                <button type="submit">Удалить</button>
+                            </form>
+                        </div>
                     </div>
                 `;
             }).join('');
+        };
+        const closeMultiplierMenus = (exceptMenu = null) => {
+            document.querySelectorAll('[data-stock-multiplier-menu]').forEach((menu) => {
+                if (menu !== exceptMenu) {
+                    menu.hidden = true;
+                    menu.style.top = '';
+                    menu.style.left = '';
+                }
+            });
+        };
+        const positionMultiplierMenu = (button, menu) => {
+            menu.hidden = false;
+
+            const buttonRect = button.getBoundingClientRect();
+            const menuRect = menu.getBoundingClientRect();
+            const viewportPadding = 8;
+            const preferredTop = buttonRect.bottom + 6;
+            const top = preferredTop + menuRect.height <= window.innerHeight - viewportPadding
+                ? preferredTop
+                : Math.max(viewportPadding, buttonRect.top - menuRect.height - 6);
+            const left = Math.max(
+                viewportPadding,
+                Math.min(window.innerWidth - menuRect.width - viewportPadding, buttonRect.right - menuRect.width)
+            );
+
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
+        };
+        const openMultiplierModal = (mode = 'create', multiplier = null) => {
+            if (!multiplierModal || !multiplierForm) return;
+
+            const isEdit = mode === 'edit' && multiplier;
+            multiplierForm.action = isEdit ? multiplier.update_url : multiplierStoreUrl;
+            if (multiplierMethodInput) multiplierMethodInput.value = isEdit ? 'PUT' : 'POST';
+            if (multiplierModalTitle) multiplierModalTitle.textContent = isEdit ? 'Изменить мультипликатор' : 'Добавить мультипликатор';
+            if (multiplierNameInput) multiplierNameInput.value = isEdit ? (multiplier.name || '') : '';
+            if (multiplierFormulaInput) multiplierFormulaInput.value = isEdit ? (multiplier.formula || '') : '';
+            if (multiplierDescriptionInput) multiplierDescriptionInput.value = isEdit ? (multiplier.description || '') : '';
+            if (multiplierSortOrderInput) multiplierSortOrderInput.value = isEdit ? (multiplier.sort_order || 0) : nextMultiplierSortOrder;
+            multiplierModal.hidden = false;
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => multiplierNameInput?.focus(), 0);
+        };
+        const closeMultiplierModal = () => {
+            if (!multiplierModal) return;
+            multiplierModal.hidden = true;
+            document.body.style.overflow = '';
         };
         const verdict = (state, label, text) => ({ state, label, text });
         const missing = (text = 'В snapshot нет данных для расчета. Подтяните этот показатель через адаптер или внесите вручную.') => verdict('missing', 'Нет данных', text);
@@ -1286,12 +1400,58 @@
         const initialSnapshot = snapshots.find((item) => item.date === initialSnapshotDate) || snapshots[snapshots.length - 1];
         renderAnalysis(initialSnapshot?.payload || {});
         renderMultipliers(initialSnapshot?.payload || {});
-        document.querySelectorAll('[data-stock-multiplier-delete]').forEach((form) => {
-            form.addEventListener('submit', (event) => {
+        multiplierValues?.addEventListener('click', (event) => {
+            const menuToggle = event.target.closest('[data-stock-multiplier-menu-toggle]');
+            if (menuToggle) {
+                event.stopPropagation();
+                const menu = menuToggle.closest('.bank-stock-multiplier-value')?.querySelector('[data-stock-multiplier-menu]');
+                if (!menu) return;
+
+                const shouldOpen = menu.hidden;
+                closeMultiplierMenus(menu);
+                if (shouldOpen) {
+                    positionMultiplierMenu(menuToggle, menu);
+                } else {
+                    menu.hidden = true;
+                    menu.style.top = '';
+                    menu.style.left = '';
+                }
+                return;
+            }
+
+            const editButton = event.target.closest('[data-stock-multiplier-edit]');
+            if (editButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                const multiplier = multipliers.find((item) => String(item.id) === String(editButton.dataset.stockMultiplierId));
+                closeMultiplierMenus();
+                openMultiplierModal('edit', multiplier);
+            }
+        });
+        multiplierValues?.addEventListener('submit', (event) => {
+            if (event.target.matches('[data-stock-multiplier-delete]')) {
                 if (!window.confirm('Удалить мультипликатор?')) {
                     event.preventDefault();
                 }
-            });
+            }
+        });
+        multiplierCloseButtons.forEach((button) => button.addEventListener('click', closeMultiplierModal));
+        multiplierAddButton?.addEventListener('click', () => openMultiplierModal('create'));
+        multiplierModal?.addEventListener('click', (event) => {
+            if (event.target === multiplierModal) {
+                closeMultiplierModal();
+            }
+        });
+        document.addEventListener('click', () => closeMultiplierMenus());
+        window.addEventListener('resize', () => closeMultiplierMenus());
+        window.addEventListener('scroll', () => closeMultiplierMenus(), true);
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeMultiplierMenus();
+                if (multiplierModal && !multiplierModal.hidden) {
+                    closeMultiplierModal();
+                }
+            }
         });
     });
 </script>
