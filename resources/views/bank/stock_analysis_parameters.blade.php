@@ -272,14 +272,14 @@
         width: 26px;
         height: 26px;
         margin: 0;
-        border: 1px solid rgba(148, 163, 184, 0.22);
         border-radius: 7px;
-        background: rgba(15, 23, 42, 0.82);
-        color: #e5e7eb;
     }
 
     .bank-stock-parameter-delete {
         left: 7px;
+        border: 0;
+        background: transparent;
+        color: #fbbf24;
     }
 
     .bank-stock-parameter-delete button,
@@ -294,6 +294,9 @@
 
     .bank-stock-parameter-menu {
         right: 7px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: rgba(15, 23, 42, 0.82);
+        color: #e5e7eb;
         font-size: 19px;
     }
 
