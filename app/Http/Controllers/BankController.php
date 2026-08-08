@@ -1053,6 +1053,7 @@ class BankController extends Controller
         $selectedPayload = $selectedSnapshot
             ? (json_decode((string) $selectedSnapshot->payload, true) ?: [])
             : $this->stockPayloadFromRow($stockRow);
+        $parameters = $this->stockAnalysisParametersForView((int) $project->id);
 
         return view('bank.stock_analysis_show', [
             'project' => $project,
@@ -1060,6 +1061,8 @@ class BankController extends Controller
             'snapshots' => $snapshots,
             'selectedSnapshot' => $selectedSnapshot,
             'selectedPayload' => $selectedPayload,
+            'parameters' => $parameters,
+            'parameterDescriptions' => $this->stockAnalysisParameterDescriptionsForView($parameters),
             'multipliers' => $this->stockAnalysisMultipliersForView((int) $project->id),
         ]);
     }
@@ -5936,6 +5939,17 @@ class BankController extends Controller
             ->get();
     }
 
+    private function stockAnalysisParameterDescriptionsForView($parameters): array
+    {
+        return collect($parameters)
+            ->filter(fn ($parameter) => trim((string) ($parameter->description ?? '')) !== '')
+            ->mapWithKeys(fn ($parameter) => [
+                (string) ($parameter->label ?? '') => trim((string) ($parameter->description ?? '')),
+            ])
+            ->filter(fn (string $description, string $label) => $label !== '')
+            ->all();
+    }
+
     private function defaultStockAnalysisParameters(): array
     {
         $labels = [
@@ -6027,7 +6041,7 @@ class BankController extends Controller
                 'volume',
             ], true))
             ->flip();
-        $fields = collect($parameters)
+        return collect($parameters)
             ->filter(function ($parameter) use ($editableFields): bool {
                 $fieldKey = trim((string) ($parameter->field_key ?? ''));
 
@@ -6038,15 +6052,18 @@ class BankController extends Controller
                 ['sort_order', 'asc'],
                 ['id', 'asc'],
             ])
-            ->map(fn ($parameter) => [
-                trim((string) ($parameter->field_key ?? '')),
-                trim((string) ($parameter->label ?? 'Параметр')),
-                trim((string) ($parameter->description ?? '')),
-            ])
-            ->values()
+            ->groupBy(fn ($parameter) => trim((string) ($parameter->group_name ?? '')) ?: 'Основные')
+            ->map(fn ($groupParameters) => $groupParameters
+                ->map(fn ($parameter) => [
+                    trim((string) ($parameter->field_key ?? '')),
+                    trim((string) ($parameter->label ?? 'Параметр')),
+                    trim((string) ($parameter->description ?? '')),
+                ])
+                ->values()
+                ->all()
+            )
+            ->filter(fn (array $fields) => $fields !== [])
             ->all();
-
-        return $fields === [] ? [] : ['Параметры snapshot' => $fields];
     }
 
     private function calculateStockAnalysisFormula(string $formula, array $payload): ?float

@@ -80,7 +80,12 @@
             'delete_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
         ];
     })->values();
-    $snapshotRows = [
+    $parameterDescriptions = collect($parameterDescriptions ?? []);
+    $snapshotParameters = ($parameters ?? collect())->sortBy([
+        ['sort_order', 'asc'],
+        ['id', 'asc'],
+    ])->values();
+    $defaultSnapshotRows = [
         [
             ['Index', '—'],
             ['Market Cap', $stockValue('market_cap') ?: $stockValue('market')],
@@ -148,6 +153,22 @@
             ['Volume', $stockValue('volume')],
         ],
     ];
+    $snapshotRows = $snapshotParameters->isNotEmpty()
+        ? $snapshotParameters
+            ->map(fn ($parameter) => [
+                (string) ($parameter->label ?? ''),
+                $stockValue((string) ($parameter->field_key ?? '')),
+            ])
+            ->filter(fn ($row) => trim((string) $row[0]) !== '')
+            ->chunk(4)
+            ->values()
+        : collect($defaultSnapshotRows);
+    $snapshotFieldByLabel = $snapshotParameters
+        ->mapWithKeys(fn ($parameter) => [
+            (string) ($parameter->label ?? '') => (string) ($parameter->field_key ?? ''),
+        ])
+        ->filter(fn (string $field, string $label) => $label !== '' && $field !== '')
+        ->all();
 @endphp
 
 <div class="bank-page bank-stock-detail-page">
@@ -264,8 +285,24 @@
                         @foreach($snapshotRows as $row)
                             <tr>
                                 @foreach($row as [$label, $rowValue])
-                                    <th>{{ $label }}</th>
-                                    <td class="{{ $label === 'Change' ? $changeClass : '' }}" data-stock-snapshot-value="{{ $label }}">{{ $rowValue ?: '—' }}</td>
+                                    @php($parameterDescription = trim((string) $parameterDescriptions->get($label, '')))
+                                    <th>
+                                        <span class="bank-stock-snapshot-label">
+                                            {{ $label }}
+                                            @if($parameterDescription !== '')
+                                                <button type="button"
+                                                        class="bank-stock-parameter-info"
+                                                        data-stock-parameter-info
+                                                        aria-label="Описание параметра {{ $label }}">
+                                                    i
+                                                    <span>{{ $parameterDescription }}</span>
+                                                </button>
+                                            @endif
+                                        </span>
+                                    </th>
+                                    <td class="{{ $label === 'Change' ? $changeClass : '' }}" data-stock-snapshot-value="{{ $label }}">
+                                        <span data-stock-snapshot-value-text>{{ $rowValue ?: '—' }}</span>
+                                    </td>
                                 @endforeach
                             </tr>
                         @endforeach
@@ -664,6 +701,63 @@
         text-align: left;
     }
 
+    .bank-stock-snapshot-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        max-width: 100%;
+        position: relative;
+    }
+
+    .bank-stock-parameter-info {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 17px;
+        height: 17px;
+        border: 1px solid rgba(251, 191, 36, 0.42);
+        border-radius: 50%;
+        background: rgba(251, 191, 36, 0.12);
+        color: #fbbf24;
+        font-size: 0.68rem;
+        font-weight: 900;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .bank-stock-parameter-info > span {
+        position: absolute;
+        z-index: 40;
+        left: 50%;
+        bottom: calc(100% + 8px);
+        width: min(260px, 72vw);
+        padding: 8px 10px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: #101827;
+        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+        color: #e5e7eb;
+        font-size: 0.76rem;
+        font-weight: 600;
+        line-height: 1.35;
+        text-align: left;
+        text-transform: none;
+        white-space: normal;
+        transform: translateX(-50%);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .bank-stock-parameter-info:hover > span,
+    .bank-stock-parameter-info:focus > span,
+    .bank-stock-parameter-info.is-open > span {
+        opacity: 1;
+        visibility: visible;
+    }
+
     .bank-stock-snapshot-table td {
         width: 12.5%;
         background: rgba(2, 6, 23, 0.28);
@@ -1041,6 +1135,7 @@
         const csrfToken = @json(csrf_token());
         const multiplierStoreUrl = @json(url('/bank/stock-analysis/multipliers'));
         const multiplierReturnUrl = @json(url()->full() . '#analysis');
+        const dynamicFieldByLabel = @json($snapshotFieldByLabel);
         const analysisResults = document.querySelector('[data-stock-analysis-results]');
         const multiplierModal = document.querySelector('[data-stock-multiplier-modal]');
         const multiplierForm = document.querySelector('[data-stock-multiplier-form]');
@@ -1053,7 +1148,7 @@
         const multiplierSortOrderInput = document.querySelector('[data-stock-multiplier-sort-order]');
         const multiplierBlockSelect = document.querySelector('[data-stock-multiplier-block]');
         const multiplierTableVisibleInput = document.querySelector('[data-stock-multiplier-table-visible]');
-        const fieldByLabel = {
+        const defaultFieldByLabel = {
             'Market Cap': 'market_cap',
             'Income': 'income',
             'Sales': 'sales',
@@ -1098,6 +1193,7 @@
             'Change': 'change_percent',
             'Volume': 'volume',
         };
+        const fieldByLabel = Object.keys(dynamicFieldByLabel || {}).length ? dynamicFieldByLabel : defaultFieldByLabel;
         const escapeHtml = (value) => String(value || '')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -1415,7 +1511,12 @@
                 const label = cell.dataset.stockSnapshotValue || '';
                 const field = fieldByLabel[label];
                 const value = field ? displayValue(payload[field]) : '—';
-                cell.textContent = value;
+                const valueText = cell.querySelector('[data-stock-snapshot-value-text]');
+                if (valueText) {
+                    valueText.textContent = value;
+                } else {
+                    cell.textContent = value;
+                }
                 cell.classList.toggle('is-negative', label === 'Change' && String(value).startsWith('-'));
                 cell.classList.toggle('is-positive', label === 'Change' && value && !String(value).startsWith('-') && value !== '0' && value !== '0%');
             });
@@ -1443,6 +1544,20 @@
                     setSnapshot(point.dataset.stockSnapshotDate || '');
                 }
             });
+        });
+        document.querySelectorAll('[data-stock-parameter-info]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                document.querySelectorAll('[data-stock-parameter-info]').forEach((item) => {
+                    if (item !== button) {
+                        item.classList.remove('is-open');
+                    }
+                });
+                button.classList.toggle('is-open');
+            });
+        });
+        document.addEventListener('click', () => {
+            document.querySelectorAll('[data-stock-parameter-info]').forEach((button) => button.classList.remove('is-open'));
         });
         document.querySelectorAll('[data-stock-tab]').forEach((tab) => {
             tab.addEventListener('click', () => {
