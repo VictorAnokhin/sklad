@@ -920,13 +920,20 @@
             }
         };
 
+        const adapterConfigString = (adapter) => JSON.stringify(defaultAdapterConfigs[adapter] || {}, null, 2);
+        const defaultAdapterByConfig = (configValue) => {
+            const normalized = (configValue || '').trim();
+
+            return Object.keys(defaultAdapterConfigs).find((adapter) => normalized === adapterConfigString(adapter).trim()) || '';
+        };
         const ensureAdapterConfig = (adapter, force = false) => {
             if (!adapterConfigField || !defaultAdapterConfigs[adapter]) {
                 return;
             }
 
-            if (force || !adapterConfigField.value.trim()) {
-                adapterConfigField.value = JSON.stringify(defaultAdapterConfigs[adapter], null, 2);
+            const currentDefaultAdapter = defaultAdapterByConfig(adapterConfigField.value);
+            if (force || !adapterConfigField.value.trim() || (currentDefaultAdapter && currentDefaultAdapter !== adapter)) {
+                adapterConfigField.value = adapterConfigString(adapter);
             }
         };
 
@@ -1070,8 +1077,13 @@
             ensureAdapterConfig(adapterSelect.value);
         });
         adapterModalSelect?.addEventListener('change', () => {
-            if (adapterModalConfig && defaultAdapterConfigs[adapterModalSelect.value] && !adapterModalConfig.value.trim()) {
-                adapterModalConfig.value = JSON.stringify(defaultAdapterConfigs[adapterModalSelect.value], null, 2);
+            if (!adapterModalConfig || !defaultAdapterConfigs[adapterModalSelect.value]) {
+                return;
+            }
+
+            const currentDefaultAdapter = defaultAdapterByConfig(adapterModalConfig.value);
+            if (!adapterModalConfig.value.trim() || (currentDefaultAdapter && currentDefaultAdapter !== adapterModalSelect.value)) {
+                adapterModalConfig.value = adapterConfigString(adapterModalSelect.value);
             }
         });
         adapterCloseButtons.forEach((button) => button.addEventListener('click', closeAdapterModal));
