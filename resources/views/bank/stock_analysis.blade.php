@@ -386,8 +386,20 @@
                         <div class="bank-label">{{ $groupTitle }}</div>
                         <div class="bank-form-grid">
                             @foreach($fields as [$name, $label, $placeholder])
+                                @php($parameterDescription = trim((string) $placeholder))
                                 <label>
-                                    <span>{{ $label }}</span>
+                                    <span class="bank-stock-form-label">
+                                        {{ $label }}
+                                        @if($parameterDescription !== '')
+                                            <button type="button"
+                                                    class="bank-stock-form-info"
+                                                    data-stock-form-info
+                                                    aria-label="Описание параметра {{ $label }}">
+                                                i
+                                                <span>{{ $parameterDescription }}</span>
+                                            </button>
+                                        @endif
+                                    </span>
                                     <input type="text" name="{{ $name }}" value="{{ old($name) }}" placeholder="{{ Str::limit($placeholder, 90) }}">
                                 </label>
                             @endforeach
@@ -603,6 +615,63 @@
         font-size: 0.72rem;
         line-height: 1.35;
         overflow-wrap: anywhere;
+    }
+
+    .bank-stock-form-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        max-width: 100%;
+        position: relative;
+    }
+
+    .bank-stock-form-info {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 17px;
+        height: 17px;
+        border: 1px solid rgba(251, 191, 36, 0.42);
+        border-radius: 50%;
+        background: rgba(251, 191, 36, 0.12);
+        color: #fbbf24;
+        font-size: 0.68rem;
+        font-weight: 900;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .bank-stock-form-info > span {
+        position: absolute;
+        z-index: 10040;
+        left: 50%;
+        bottom: calc(100% + 8px);
+        width: min(260px, 72vw);
+        padding: 8px 10px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 8px;
+        background: #101827;
+        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+        color: #e5e7eb;
+        font-size: 0.76rem;
+        font-weight: 600;
+        line-height: 1.35;
+        text-align: left;
+        text-transform: none;
+        white-space: normal;
+        transform: translateX(-50%);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .bank-stock-form-info:hover > span,
+    .bank-stock-form-info:focus > span,
+    .bank-stock-form-info.is-open > span {
+        opacity: 1;
+        visibility: visible;
     }
 
     .bank-stock-actions {
@@ -1248,6 +1317,21 @@
             if (!event.target.closest('[data-stock-filter-combobox]')) {
                 closeFilterOptionLists();
             }
+            if (!event.target.closest('[data-stock-form-info]')) {
+                root.querySelectorAll('[data-stock-form-info]').forEach((button) => button.classList.remove('is-open'));
+            }
+        });
+        root.querySelectorAll('[data-stock-form-info]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                root.querySelectorAll('[data-stock-form-info]').forEach((item) => {
+                    if (item !== button) {
+                        item.classList.remove('is-open');
+                    }
+                });
+                button.classList.toggle('is-open');
+            });
         });
         window.addEventListener('resize', () => closeMenus());
         window.addEventListener('scroll', () => closeMenus(), true);
@@ -1261,6 +1345,7 @@
             if (event.key === 'Escape') {
                 closeMenus();
                 closeFilterOptionLists();
+                root.querySelectorAll('[data-stock-form-info]').forEach((button) => button.classList.remove('is-open'));
             }
         });
     });
