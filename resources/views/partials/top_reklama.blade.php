@@ -245,6 +245,7 @@
         <a class="header-nav-menu__link" href="{{ route('bank.pool-movements') }}">Движение средств</a>
         <a class="header-nav-menu__link" href="{{ route('bank.invest') }}">Инвестиции</a>
         <a class="header-nav-menu__link" href="{{ route('bank.assets') }}">Активы</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.stock-analysis') }}">Анализ Акций</a>
         <a class="header-nav-menu__link" href="{{ route('bank.exchange') }}">Обмен фиат/крипта</a>
         <a class="header-nav-menu__link" href="{{ route('bank.clearing') }}">Клиринг проектов</a>
         <a class="header-nav-menu__link" href="{{ route('bank.payments') }}">Платежи</a>

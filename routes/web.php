@@ -195,6 +195,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/invest', [BankController::class, 'invest'])->name('invest');
         Route::get('/pool-movements', [BankController::class, 'poolMovements'])->name('pool-movements');
         Route::get('/assets', [BankController::class, 'assets'])->name('assets');
+        Route::get('/stock-analysis', [BankController::class, 'stockAnalysis'])->name('stock-analysis');
+        Route::post('/stock-analysis', [BankController::class, 'storeStockAnalysis'])->name('stock-analysis.store');
         Route::post('/invest/assets', [BankController::class, 'storeInvestAsset'])
             ->name('invest-assets.store');
         Route::put('/invest/assets/{asset}', [BankController::class, 'updateInvestAsset'])

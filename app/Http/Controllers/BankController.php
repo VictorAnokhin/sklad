@@ -961,6 +961,49 @@ class BankController extends Controller
         ]);
     }
 
+    public function stockAnalysis(): View
+    {
+        $project = $this->bankProject();
+        $stocks = $this->stockAnalysisRows((int) $project->id);
+
+        return view('bank.stock_analysis', [
+            'project' => $project,
+            'stocks' => $stocks,
+            'summary' => [
+                'stocks' => $stocks->count(),
+                'countries' => $stocks->pluck('country')->filter()->unique()->count(),
+                'sectors' => $stocks->pluck('sector')->filter()->unique()->count(),
+                'tickers' => $stocks->pluck('ticker')->filter()->implode(', '),
+            ],
+        ]);
+    }
+
+    public function storeStockAnalysis(Request $request): RedirectResponse
+    {
+        $project = $this->bankProject();
+        abort_unless(Schema::hasTable('bank_stock_analyses'), 404);
+
+        $payload = $this->stockAnalysisPayload($request);
+        $ticker = strtoupper(trim((string) $payload['ticker']));
+        $now = now();
+        $key = [
+            'project_id' => (int) $project->id,
+            'ticker' => $ticker,
+        ];
+        $values = array_merge($payload, [
+            'ticker' => $ticker,
+            'updated_at' => $now,
+        ]);
+
+        if (DB::table('bank_stock_analyses')->where($key)->exists()) {
+            DB::table('bank_stock_analyses')->where($key)->update($values);
+        } else {
+            DB::table('bank_stock_analyses')->insert($key + $values + ['created_at' => $now]);
+        }
+
+        return redirect()->route('bank.stock-analysis')->with('success', 'Акция добавлена в анализ.');
+    }
+
     public function poolMovements(): View
     {
         $project = $this->bankProject();
@@ -2044,6 +2087,61 @@ class BankController extends Controller
         }
 
         return [$key, $values];
+    }
+
+    private function stockAnalysisPayload(Request $request): array
+    {
+        return $request->validate([
+            'company' => ['required', 'string', 'max:255'],
+            'ticker' => ['required', 'string', 'max:20'],
+            'sector' => ['nullable', 'string', 'max:160'],
+            'industry' => ['nullable', 'string', 'max:190'],
+            'country' => ['nullable', 'string', 'max:120'],
+            'market' => ['nullable', 'string', 'max:80'],
+            'pe' => ['nullable', 'string', 'max:80'],
+            'price' => ['nullable', 'string', 'max:80'],
+            'change_percent' => ['nullable', 'string', 'max:80'],
+            'volume' => ['nullable', 'string', 'max:80'],
+            'market_cap' => ['nullable', 'string', 'max:80'],
+            'enterprise_value' => ['nullable', 'string', 'max:80'],
+            'income' => ['nullable', 'string', 'max:80'],
+            'sales' => ['nullable', 'string', 'max:80'],
+            'book_per_share' => ['nullable', 'string', 'max:80'],
+            'cash_per_share' => ['nullable', 'string', 'max:80'],
+            'dividend_est' => ['nullable', 'string', 'max:120'],
+            'dividend_ttm' => ['nullable', 'string', 'max:120'],
+            'dividend_ex_date' => ['nullable', 'string', 'max:120'],
+            'dividend_growth_3_5y' => ['nullable', 'string', 'max:120'],
+            'payout' => ['nullable', 'string', 'max:80'],
+            'employees' => ['nullable', 'string', 'max:80'],
+            'ipo' => ['nullable', 'string', 'max:120'],
+            'forward_pe' => ['nullable', 'string', 'max:80'],
+            'peg' => ['nullable', 'string', 'max:80'],
+            'ps' => ['nullable', 'string', 'max:80'],
+            'pb' => ['nullable', 'string', 'max:80'],
+            'pc' => ['nullable', 'string', 'max:80'],
+            'pfcf' => ['nullable', 'string', 'max:80'],
+            'ev_ebitda' => ['nullable', 'string', 'max:80'],
+            'ev_sales' => ['nullable', 'string', 'max:80'],
+            'quick_ratio' => ['nullable', 'string', 'max:80'],
+            'current_ratio' => ['nullable', 'string', 'max:80'],
+            'debt_eq' => ['nullable', 'string', 'max:80'],
+            'lt_debt_eq' => ['nullable', 'string', 'max:80'],
+            'option_short' => ['nullable', 'string', 'max:80'],
+            'eps_ttm' => ['nullable', 'string', 'max:80'],
+            'eps_next_y_value' => ['nullable', 'string', 'max:80'],
+            'eps_next_q' => ['nullable', 'string', 'max:80'],
+            'eps_this_y_growth' => ['nullable', 'string', 'max:80'],
+            'eps_next_y_growth' => ['nullable', 'string', 'max:80'],
+            'eps_next_5y_growth' => ['nullable', 'string', 'max:80'],
+            'eps_past_3_5y' => ['nullable', 'string', 'max:120'],
+            'sales_past_3_5y' => ['nullable', 'string', 'max:120'],
+            'eps_yy_ttm' => ['nullable', 'string', 'max:80'],
+            'sales_yy_ttm' => ['nullable', 'string', 'max:80'],
+            'eps_qq' => ['nullable', 'string', 'max:80'],
+            'sales_qq' => ['nullable', 'string', 'max:80'],
+            'earnings' => ['nullable', 'string', 'max:120'],
+        ]);
     }
 
     private function createInvestOperationLedger(
@@ -4832,6 +4930,21 @@ class BankController extends Controller
                     'is_visible' => (string) ($deposit->vision ?? '1') !== '0',
                 ];
             });
+    }
+
+    private function stockAnalysisRows(int $projectId)
+    {
+        if (! Schema::hasTable('bank_stock_analyses')) {
+            return collect();
+        }
+
+        return DB::table('bank_stock_analyses')
+            ->whereIn('project_id', [0, $projectId])
+            ->orderByDesc('project_id')
+            ->orderBy('ticker')
+            ->get()
+            ->unique(fn ($stock) => strtoupper((string) $stock->ticker))
+            ->values();
     }
 
     private function bankOperationalAccounts(string $projectId)
