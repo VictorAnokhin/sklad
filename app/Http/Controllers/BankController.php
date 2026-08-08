@@ -5697,7 +5697,9 @@ class BankController extends Controller
     private function stockAnalysisMultipliers(int $projectId)
     {
         if (! Schema::hasTable('bank_stock_analysis_multipliers')) {
-            return collect($this->defaultStockAnalysisMultipliers())->map(fn ($row) => (object) $row);
+            return collect($this->defaultStockAnalysisMultipliers())
+                ->values()
+                ->map(fn ($row, $index) => (object) (['id' => $index + 1] + $row));
         }
 
         if (! DB::table('bank_stock_analysis_multipliers')->where('project_id', $projectId)->exists()) {

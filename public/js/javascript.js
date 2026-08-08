@@ -1,21 +1,13 @@
 
 const phone = document.querySelector('.phone2');
-phone.addEventListener('input', function () {
-    this.value = '4';
-    if (phone.value != '') {
-        phone.value = phone.value + 2;
-    }
-
-})
-
-const phone = document.querySelector('.phone2');
-phone.addEventListener('input', function () {
-    this.value = '4';
-    if (phone.value != '') {
-        phone.value = phone.value + 2;
-    }
-
-})
+if (phone) {
+    phone.addEventListener('input', function () {
+        this.value = '4';
+        if (phone.value != '') {
+            phone.value = phone.value + 2;
+        }
+    });
+}
 
 /*
 filter.onclick = function() {myFunctionButton()};
@@ -61,4 +53,3 @@ window.onload = function () {
         document.body.classList.remove('loaded_hiding');
     }, 1500);
 }
-
