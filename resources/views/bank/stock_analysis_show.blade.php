@@ -73,12 +73,12 @@
             'name' => (string) $multiplier->name,
             'formula' => (string) $multiplier->formula,
             'description' => (string) ($multiplier->description ?? ''),
+            'block' => (string) ($multiplier->block ?? ''),
             'sort_order' => (int) ($multiplier->sort_order ?? 0),
             'update_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
             'delete_url' => url('/bank/stock-analysis/multipliers/' . $multiplier->id),
         ];
     })->values();
-    $nextMultiplierSortOrder = (int) (($multiplierCollection->max('sort_order') ?? 0) + 10);
     $snapshotRows = [
         [
             ['Index', '—'],
@@ -337,6 +337,15 @@
                 @csrf
                 <input type="hidden" name="_method" value="PUT" data-stock-multiplier-method>
                 <input type="hidden" name="sort_order" data-stock-multiplier-sort-order>
+                <label>
+                    <span>Блок</span>
+                    <select name="block" data-stock-multiplier-block required>
+                        <option value="cheapness">Блок 1. Оценка цены</option>
+                        <option value="debt">Блок 2. Долги</option>
+                        <option value="efficiency">Блок 3. Эффективность</option>
+                        <option value="growth">Блок 4. Рост и дивиденды</option>
+                    </select>
+                </label>
                 <label>
                     <span>Название</span>
                     <input type="text" name="name" data-stock-multiplier-name required>
@@ -758,6 +767,7 @@
     }
 
     .bank-stock-multiplier-modal-form input,
+    .bank-stock-multiplier-modal-form select,
     .bank-stock-multiplier-modal-form textarea {
         width: 100%;
         min-height: 34px;
@@ -810,6 +820,34 @@
         border: 1px solid rgba(148, 163, 184, 0.12);
         border-radius: 8px;
         background: rgba(15, 23, 42, 0.55);
+    }
+
+    .bank-stock-analysis-add {
+        min-height: 148px;
+        display: grid;
+        place-items: center;
+        border: 1px dashed rgba(148, 163, 184, 0.34);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.28);
+        color: rgba(203, 213, 225, 0.74);
+    }
+
+    .bank-stock-analysis-add button {
+        width: 100%;
+        height: 100%;
+        min-height: 132px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font-size: 3rem;
+        font-weight: 300;
+        line-height: 1;
+    }
+
+    .bank-stock-analysis-add:hover {
+        border-color: rgba(59, 130, 246, 0.6);
+        color: #f8fafc;
+        background: rgba(59, 130, 246, 0.1);
     }
 
     .bank-stock-analysis-item__top {
@@ -984,7 +1022,6 @@
         const initialSnapshotDate = @json($selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '');
         const csrfToken = @json(csrf_token());
         const multiplierStoreUrl = @json(url('/bank/stock-analysis/multipliers'));
-        const nextMultiplierSortOrder = @json($nextMultiplierSortOrder);
         const analysisResults = document.querySelector('[data-stock-analysis-results]');
         const multiplierModal = document.querySelector('[data-stock-multiplier-modal]');
         const multiplierForm = document.querySelector('[data-stock-multiplier-form]');
@@ -995,6 +1032,7 @@
         const multiplierFormulaInput = document.querySelector('[data-stock-multiplier-formula]');
         const multiplierDescriptionInput = document.querySelector('[data-stock-multiplier-description]');
         const multiplierSortOrderInput = document.querySelector('[data-stock-multiplier-sort-order]');
+        const multiplierBlockSelect = document.querySelector('[data-stock-multiplier-block]');
         const fieldByLabel = {
             'Market Cap': 'market_cap',
             'Income': 'income',
@@ -1094,7 +1132,34 @@
                 return null;
             }
         };
-        const multiplierBySortOrder = new Map(multipliers.map((multiplier) => [Number(multiplier.sort_order || 0), multiplier]));
+        const analysisBlocks = [
+            { key: 'cheapness', title: 'Блок 1. Оценка дешевизны и справедливости цены', min: 10, max: 49 },
+            { key: 'debt', title: 'Блок 2. Финансовая безопасность и долги', min: 50, max: 69 },
+            { key: 'efficiency', title: 'Блок 3. Эффективность бизнеса и менеджмента', min: 70, max: 89 },
+            { key: 'growth', title: 'Блок 4. Темпы роста и дивиденды', min: 90, max: 109 },
+        ];
+        const blockByKey = new Map(analysisBlocks.map((block) => [block.key, block]));
+        const multiplierBlockKey = (multiplier) => {
+            if (multiplier?.block && blockByKey.has(multiplier.block)) {
+                return multiplier.block;
+            }
+
+            return blockForSortOrder(multiplier?.sort_order || 0).key;
+        };
+        const blockForSortOrder = (sortOrder) => {
+            const order = Number(sortOrder || 0);
+            return analysisBlocks.find((block) => order >= block.min && order <= block.max) || analysisBlocks[0];
+        };
+        const nextSortOrderForBlock = (blockKey) => {
+            const block = blockByKey.get(blockKey) || analysisBlocks[0];
+            const usedOrders = multipliers
+                .filter((multiplier) => multiplierBlockKey(multiplier) === block.key)
+                .map((multiplier) => Number(multiplier.sort_order || 0))
+                .filter((order) => Number.isFinite(order) && order > 0);
+            const nextOrder = usedOrders.length ? Math.max(...usedOrders) + 1 : block.min;
+
+            return Math.min(nextOrder, block.max);
+        };
         const closeMultiplierMenus = (exceptMenu = null) => {
             document.querySelectorAll('[data-stock-multiplier-menu]').forEach((menu) => {
                 if (menu !== exceptMenu) {
@@ -1122,17 +1187,23 @@
             menu.style.top = `${top}px`;
             menu.style.left = `${left}px`;
         };
-        const openMultiplierModal = (mode = 'create', multiplier = null) => {
+        const openMultiplierModal = (mode = 'create', multiplier = null, blockKey = 'cheapness') => {
             if (!multiplierModal || !multiplierForm) return;
 
             const isEdit = mode === 'edit' && multiplier;
+            const selectedBlock = isEdit ? multiplierBlockKey(multiplier) : blockKey;
             multiplierForm.action = isEdit ? multiplier.update_url : multiplierStoreUrl;
+            multiplierForm.dataset.mode = isEdit ? 'edit' : 'create';
+            multiplierForm.dataset.originalSortOrder = isEdit ? String(multiplier.sort_order || 0) : '';
             if (multiplierMethodInput) multiplierMethodInput.value = isEdit ? 'PUT' : 'POST';
             if (multiplierModalTitle) multiplierModalTitle.textContent = isEdit ? 'Изменить мультипликатор' : 'Добавить мультипликатор';
             if (multiplierNameInput) multiplierNameInput.value = isEdit ? (multiplier.name || '') : '';
             if (multiplierFormulaInput) multiplierFormulaInput.value = isEdit ? (multiplier.formula || '') : '';
             if (multiplierDescriptionInput) multiplierDescriptionInput.value = isEdit ? (multiplier.description || '') : '';
-            if (multiplierSortOrderInput) multiplierSortOrderInput.value = isEdit ? (multiplier.sort_order || 0) : nextMultiplierSortOrder;
+            if (multiplierBlockSelect) multiplierBlockSelect.value = selectedBlock;
+            if (multiplierSortOrderInput) {
+                multiplierSortOrderInput.value = isEdit ? (multiplier.sort_order || 0) : nextSortOrderForBlock(selectedBlock);
+            }
             multiplierModal.hidden = false;
             document.body.style.overflow = 'hidden';
             setTimeout(() => multiplierNameInput?.focus(), 0);
@@ -1150,21 +1221,18 @@
 
             return { raw, number };
         };
-        const metricItem = (sortOrder, fallbackTitle, result, payload = {}) => {
-            const multiplier = multiplierBySortOrder.get(Number(sortOrder));
-            if (!multiplier) return '';
-
+        const metricItem = (multiplier, result, payload = {}) => {
             const formulaValue = calculateFormula(multiplier.formula, payload);
 
             return `
             <div class="bank-stock-analysis-item" data-stock-multiplier-card data-stock-multiplier-id="${multiplier.id}">
                 <div class="bank-stock-analysis-item__top">
-                    <strong>${escapeHtml(multiplier.name || fallbackTitle)}</strong>
+                    <strong>${escapeHtml(multiplier.name || 'Мультипликатор')}</strong>
                     <button type="button"
                             class="bank-stock-multiplier-menu-trigger"
                             data-stock-multiplier-menu-toggle
                             data-stock-multiplier-id="${multiplier.id}"
-                            aria-label="Открыть меню параметра ${escapeHtml(multiplier.name || fallbackTitle)}">⋮</button>
+                            aria-label="Открыть меню параметра ${escapeHtml(multiplier.name || 'Мультипликатор')}">⋮</button>
                 </div>
                 <span class="bank-stock-analysis-value">${escapeHtml(formatFormulaValue(formulaValue))}</span>
                 <code class="bank-stock-analysis-formula">${escapeHtml(multiplier.formula || '')}</code>
@@ -1182,10 +1250,18 @@
             </div>
         `;
         };
-        const renderAnalysisBlock = (title, items) => `
+        const addMetricItem = (block) => `
+            <div class="bank-stock-analysis-add">
+                <button type="button"
+                        data-stock-multiplier-add
+                        data-stock-multiplier-block="${escapeHtml(block.key)}"
+                        aria-label="Добавить мультипликатор в ${escapeHtml(block.title)}">+</button>
+            </div>
+        `;
+        const renderAnalysisBlock = (block, items) => `
             <section class="bank-stock-analysis-block">
-                <h3>${escapeHtml(title)}</h3>
-                <div class="bank-stock-analysis-items">${items.join('')}</div>
+                <h3>${escapeHtml(block.title)}</h3>
+                <div class="bank-stock-analysis-items">${items.join('')}${addMetricItem(block)}</div>
             </section>
         `;
         const renderAnalysis = (payload = {}) => {
@@ -1270,25 +1346,32 @@
                         ? verdict('watch', 'Допустимо', 'Payout вне идеального диапазона, но ниже критической зоны 90-100%.')
                         : verdict('risk', 'Риск дивидендов', 'Payout около или выше 100% означает риск выплаты дивидендов в долг.');
 
-            analysisResults.innerHTML = [
-                renderAnalysisBlock('Блок 1. Оценка дешевизны и справедливости цены', [
-                    metricItem(10, 'P/E', peVerdict, payload),
-                    metricItem(20, 'EV/EBITDA', evEbitdaVerdict, payload),
-                    metricItem(30, 'P/S', psVerdict, payload),
-                    metricItem(40, 'P/B', pbVerdict, payload),
-                ].filter(Boolean)),
-                renderAnalysisBlock('Блок 2. Финансовая безопасность и долги', [
-                    metricItem(50, 'Net Debt / EBITDA', debtVerdict, payload),
-                    metricItem(60, 'Current Ratio', currentRatioVerdict, payload),
-                ].filter(Boolean)),
-                renderAnalysisBlock('Блок 3. Эффективность бизнеса и менеджмента', [
-                    metricItem(70, 'ROE', roeVerdict, payload),
-                    metricItem(80, 'ROIC', roicVerdict, payload),
-                ].filter(Boolean)),
-                renderAnalysisBlock('Блок 4. Темпы роста и дивиденды', [
-                    metricItem(90, 'Dividend Payout Ratio', payoutVerdict, payload),
-                ].filter(Boolean)),
-            ].join('');
+            const knownVerdicts = new Map([
+                [10, peVerdict],
+                [20, evEbitdaVerdict],
+                [30, psVerdict],
+                [40, pbVerdict],
+                [50, debtVerdict],
+                [60, currentRatioVerdict],
+                [70, roeVerdict],
+                [80, roicVerdict],
+                [90, payoutVerdict],
+            ]);
+            const customVerdict = verdict('watch', 'Параметр', 'Оценка задается формулой и описанием мультипликатора.');
+            const renderBlockItems = (block) => multipliers
+                .filter((multiplier) => {
+                    return multiplierBlockKey(multiplier) === block.key;
+                })
+                .sort((left, right) => Number(left.sort_order || 0) - Number(right.sort_order || 0))
+                .map((multiplier) => metricItem(
+                    multiplier,
+                    knownVerdicts.get(Number(multiplier.sort_order || 0)) || customVerdict,
+                    payload
+                ));
+
+            analysisResults.innerHTML = analysisBlocks
+                .map((block) => renderAnalysisBlock(block, renderBlockItems(block)))
+                .join('');
         };
 
         const setSnapshot = (date) => {
@@ -1345,6 +1428,14 @@
         const initialSnapshot = snapshots.find((item) => item.date === initialSnapshotDate) || snapshots[snapshots.length - 1];
         renderAnalysis(initialSnapshot?.payload || {});
         analysisResults?.addEventListener('click', (event) => {
+            const addButton = event.target.closest('[data-stock-multiplier-add]');
+            if (addButton) {
+                event.preventDefault();
+                closeMultiplierMenus();
+                openMultiplierModal('create', null, addButton.dataset.stockMultiplierBlock || 'cheapness');
+                return;
+            }
+
             const menuToggle = event.target.closest('[data-stock-multiplier-menu-toggle]');
             if (menuToggle) {
                 event.stopPropagation();
@@ -1378,6 +1469,18 @@
                     event.preventDefault();
                 }
             }
+        });
+        multiplierForm?.addEventListener('submit', () => {
+            if (!multiplierSortOrderInput || !multiplierBlockSelect) return;
+
+            const selectedBlock = multiplierBlockSelect.value || 'cheapness';
+            const originalSortOrder = Number(multiplierForm.dataset.originalSortOrder || 0);
+            const editingMultiplier = multipliers.find((item) => item.update_url === multiplierForm.action);
+            const originalBlock = editingMultiplier ? multiplierBlockKey(editingMultiplier) : '';
+
+            multiplierSortOrderInput.value = multiplierForm.dataset.mode === 'edit' && originalBlock === selectedBlock
+                ? originalSortOrder
+                : nextSortOrderForBlock(selectedBlock);
         });
         multiplierCloseButtons.forEach((button) => button.addEventListener('click', closeMultiplierModal));
         multiplierModal?.addEventListener('click', (event) => {

@@ -5669,15 +5669,22 @@ class BankController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'formula' => ['required', 'string', 'max:500'],
             'description' => ['nullable', 'string', 'max:4000'],
+            'block' => ['nullable', 'string', 'in:cheapness,debt,efficiency,growth'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:100000'],
         ]);
 
-        return [
+        $result = [
             'name' => trim((string) $payload['name']),
             'formula' => trim((string) $payload['formula']),
             'description' => trim((string) ($payload['description'] ?? '')),
             'sort_order' => (int) ($payload['sort_order'] ?? 0),
         ];
+
+        if (Schema::hasColumn('bank_stock_analysis_multipliers', 'block')) {
+            $result['block'] = (string) ($payload['block'] ?? $this->stockAnalysisBlockBySortOrder((int) ($payload['sort_order'] ?? 0)));
+        }
+
+        return $result;
     }
 
     private function stockAnalysisMultiplierRow(int $projectId, int $multiplierId): object
@@ -5694,6 +5701,23 @@ class BankController extends Controller
         return $row;
     }
 
+    private function stockAnalysisBlockBySortOrder(int $sortOrder): string
+    {
+        if ($sortOrder >= 50 && $sortOrder <= 69) {
+            return 'debt';
+        }
+
+        if ($sortOrder >= 70 && $sortOrder <= 89) {
+            return 'efficiency';
+        }
+
+        if ($sortOrder >= 90 && $sortOrder <= 109) {
+            return 'growth';
+        }
+
+        return 'cheapness';
+    }
+
     private function stockAnalysisMultipliers(int $projectId)
     {
         if (! Schema::hasTable('bank_stock_analysis_multipliers')) {
@@ -5704,8 +5728,15 @@ class BankController extends Controller
 
         if (! DB::table('bank_stock_analysis_multipliers')->where('project_id', $projectId)->exists()) {
             $now = now();
+            $hasBlockColumn = Schema::hasColumn('bank_stock_analysis_multipliers', 'block');
             DB::table('bank_stock_analysis_multipliers')->insert(array_map(
-                fn (array $row) => $row + ['project_id' => $projectId, 'created_at' => $now, 'updated_at' => $now],
+                function (array $row) use ($projectId, $now, $hasBlockColumn) {
+                    if (! $hasBlockColumn) {
+                        unset($row['block']);
+                    }
+
+                    return $row + ['project_id' => $projectId, 'created_at' => $now, 'updated_at' => $now];
+                },
                 $this->defaultStockAnalysisMultipliers()
             ));
         }
@@ -5737,54 +5768,63 @@ class BankController extends Controller
                 'name' => 'P/E',
                 'formula' => 'pe',
                 'description' => 'Цена к прибыли. Сравнивайте с историей компании, средним по отрасли и конкурентами; низкое значение может быть ловушкой стоимости.',
+                'block' => 'cheapness',
                 'sort_order' => 10,
             ],
             [
                 'name' => 'EV/EBITDA',
                 'formula' => 'ev_ebitda',
                 'description' => 'Стоимость предприятия к EBITDA. Учитывает долг; для стабильных компаний ориентир до 10-12 часто выглядит привлекательным, но зависит от сектора.',
+                'block' => 'cheapness',
                 'sort_order' => 20,
             ],
             [
                 'name' => 'P/S',
                 'formula' => 'ps',
                 'description' => 'Цена к выручке. Полезно для компаний с временно низкой прибылью; показывает цену каждого доллара продаж.',
+                'block' => 'cheapness',
                 'sort_order' => 30,
             ],
             [
                 'name' => 'P/B',
                 'formula' => 'pb',
                 'description' => 'Цена к балансовой стоимости. Особенно важно для банков, финансов и капиталоемких компаний.',
+                'block' => 'cheapness',
                 'sort_order' => 40,
             ],
             [
                 'name' => 'Net Debt / EBITDA',
                 'formula' => 'net_debt_ebitda',
                 'description' => 'Показывает, за сколько лет бизнес может закрыть чистый долг операционной прибылью. До 2.0-2.5 обычно безопаснее, выше 3.5 - риск.',
+                'block' => 'debt',
                 'sort_order' => 50,
             ],
             [
                 'name' => 'Current Ratio',
                 'formula' => 'current_ratio',
                 'description' => 'Краткосрочные активы к краткосрочным обязательствам. Значение выше 1.5 обычно комфортнее, ниже 1.0 - риск кассового разрыва.',
+                'block' => 'debt',
                 'sort_order' => 60,
             ],
             [
                 'name' => 'ROE',
                 'formula' => 'roe',
                 'description' => 'Рентабельность собственного капитала. Стабильно выше 15% часто говорит об эффективности бизнеса и менеджмента.',
+                'block' => 'efficiency',
                 'sort_order' => 70,
             ],
             [
                 'name' => 'ROIC',
                 'formula' => 'roic',
                 'description' => 'Рентабельность инвестированного капитала. Важно сравнивать со стоимостью капитала WACC.',
+                'block' => 'efficiency',
                 'sort_order' => 80,
             ],
             [
                 'name' => 'Dividend Payout',
                 'formula' => 'payout',
                 'description' => 'Доля прибыли, направляемая на дивиденды. Ориентир 40-60%; выше 90-100% повышает риск отмены выплат.',
+                'block' => 'growth',
                 'sort_order' => 90,
             ],
         ];
