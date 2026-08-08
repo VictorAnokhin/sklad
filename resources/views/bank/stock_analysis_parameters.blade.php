@@ -531,9 +531,9 @@
             if (event.target === modal) closeModal();
         });
 
-        const showGroupOptions = () => {
+        const showGroupOptions = (filter = false) => {
             if (!groupOptions) return;
-            const search = (groupInput?.value || '').trim().toLowerCase();
+            const search = filter ? (groupInput?.value || '').trim().toLowerCase() : '';
             let visible = 0;
 
             groupOptions.querySelectorAll('[data-stock-group-option]').forEach((option) => {
@@ -545,9 +545,9 @@
             groupOptions.hidden = visible === 0;
         };
 
-        groupInput?.addEventListener('focus', showGroupOptions);
-        groupInput?.addEventListener('click', showGroupOptions);
-        groupInput?.addEventListener('input', showGroupOptions);
+        groupInput?.addEventListener('focus', () => showGroupOptions(false));
+        groupInput?.addEventListener('click', () => showGroupOptions(false));
+        groupInput?.addEventListener('input', () => showGroupOptions(true));
         root.querySelectorAll('[data-stock-group-option]').forEach((option) => {
             option.addEventListener('click', () => {
                 if (groupInput) groupInput.value = option.dataset.value || option.textContent.trim();
