@@ -337,6 +337,7 @@
                 @csrf
                 <input type="hidden" name="_method" value="PUT" data-stock-multiplier-method>
                 <input type="hidden" name="sort_order" data-stock-multiplier-sort-order>
+                <input type="hidden" name="return_url" value="{{ url()->full() }}#analysis">
                 <label>
                     <span>Блок</span>
                     <select name="block" data-stock-multiplier-block required>
@@ -1022,6 +1023,7 @@
         const initialSnapshotDate = @json($selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '');
         const csrfToken = @json(csrf_token());
         const multiplierStoreUrl = @json(url('/bank/stock-analysis/multipliers'));
+        const multiplierReturnUrl = @json(url()->full() . '#analysis');
         const analysisResults = document.querySelector('[data-stock-analysis-results]');
         const multiplierModal = document.querySelector('[data-stock-multiplier-modal]');
         const multiplierForm = document.querySelector('[data-stock-multiplier-form]');
@@ -1221,6 +1223,16 @@
 
             return { raw, number };
         };
+        const activateStockTab = (target = 'parameters') => {
+            document.querySelectorAll('[data-stock-tab]').forEach((button) => {
+                const active = button.dataset.stockTab === target;
+                button.classList.toggle('is-active', active);
+                button.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            document.querySelectorAll('[data-stock-tab-panel]').forEach((panel) => {
+                panel.hidden = panel.dataset.stockTabPanel !== target;
+            });
+        };
         const metricItem = (multiplier, result, payload = {}) => {
             const formulaValue = calculateFormula(multiplier.formula, payload);
 
@@ -1244,6 +1256,7 @@
                     <form method="POST" action="${escapeHtml(multiplier.delete_url)}" data-stock-multiplier-delete>
                         <input type="hidden" name="_token" value="${escapeHtml(csrfToken)}">
                         <input type="hidden" name="_method" value="DELETE">
+                        <input type="hidden" name="return_url" value="${escapeHtml(multiplierReturnUrl)}">
                         <button type="submit">Удалить</button>
                     </form>
                 </div>
@@ -1415,18 +1428,19 @@
         document.querySelectorAll('[data-stock-tab]').forEach((tab) => {
             tab.addEventListener('click', () => {
                 const target = tab.dataset.stockTab || 'parameters';
-                document.querySelectorAll('[data-stock-tab]').forEach((button) => {
-                    const active = button.dataset.stockTab === target;
-                    button.classList.toggle('is-active', active);
-                    button.setAttribute('aria-selected', active ? 'true' : 'false');
-                });
-                document.querySelectorAll('[data-stock-tab-panel]').forEach((panel) => {
-                    panel.hidden = panel.dataset.stockTabPanel !== target;
-                });
+                activateStockTab(target);
+                if (target === 'analysis') {
+                    history.replaceState(null, '', `${location.pathname}${location.search}#analysis`);
+                } else if (location.hash === '#analysis') {
+                    history.replaceState(null, '', `${location.pathname}${location.search}`);
+                }
             });
         });
         const initialSnapshot = snapshots.find((item) => item.date === initialSnapshotDate) || snapshots[snapshots.length - 1];
         renderAnalysis(initialSnapshot?.payload || {});
+        if (location.hash === '#analysis') {
+            activateStockTab('analysis');
+        }
         analysisResults?.addEventListener('click', (event) => {
             const addButton = event.target.closest('[data-stock-multiplier-add]');
             if (addButton) {

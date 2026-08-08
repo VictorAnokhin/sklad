@@ -1072,7 +1072,7 @@ class BankController extends Controller
             'updated_at' => now(),
         ]);
 
-        return back()->with('success', 'Мультипликатор добавлен.');
+        return $this->redirectAfterStockAnalysisMultiplier($request, 'Мультипликатор добавлен.');
     }
 
     public function updateStockAnalysisMultiplier(Request $request, int $multiplier): RedirectResponse
@@ -1085,16 +1085,16 @@ class BankController extends Controller
             'updated_at' => now(),
         ]);
 
-        return back()->with('success', 'Мультипликатор обновлен.');
+        return $this->redirectAfterStockAnalysisMultiplier($request, 'Мультипликатор обновлен.');
     }
 
-    public function destroyStockAnalysisMultiplier(int $multiplier): RedirectResponse
+    public function destroyStockAnalysisMultiplier(Request $request, int $multiplier): RedirectResponse
     {
         $project = $this->bankProject();
         $row = $this->stockAnalysisMultiplierRow((int) $project->id, $multiplier);
         DB::table('bank_stock_analysis_multipliers')->where('id', (int) $row->id)->delete();
 
-        return back()->with('success', 'Мультипликатор удален.');
+        return $this->redirectAfterStockAnalysisMultiplier($request, 'Мультипликатор удален.');
     }
 
     public function updateStockAnalysis(Request $request, int $stock): RedirectResponse
@@ -5685,6 +5685,18 @@ class BankController extends Controller
         }
 
         return $result;
+    }
+
+    private function redirectAfterStockAnalysisMultiplier(Request $request, string $message): RedirectResponse
+    {
+        $returnUrl = trim((string) $request->input('return_url', ''));
+        $appUrl = url('/');
+
+        if ($returnUrl !== '' && str_starts_with($returnUrl, $appUrl)) {
+            return redirect()->to($returnUrl)->with('success', $message);
+        }
+
+        return back()->with('success', $message);
     }
 
     private function stockAnalysisMultiplierRow(int $projectId, int $multiplierId): object
