@@ -1070,10 +1070,12 @@ class BankController extends Controller
     public function stockAnalysisParameters(): View
     {
         $project = $this->bankProject();
+        $parameters = $this->stockAnalysisParametersForView((int) $project->id);
 
         return view('bank.stock_analysis_parameters', [
             'project' => $project,
-            'parameters' => $this->stockAnalysisParametersForView((int) $project->id),
+            'parameters' => $parameters,
+            'parameterGroups' => $this->stockAnalysisParameterGroupsForView((int) $project->id, $parameters),
         ]);
     }
 
@@ -1083,6 +1085,7 @@ class BankController extends Controller
         abort_unless(Schema::hasTable('bank_stock_analysis_parameters'), 404);
 
         $payload = $this->stockAnalysisParameterPayload($request, (int) $project->id);
+        $this->ensureStockAnalysisParameterGroup((int) $project->id, (string) $payload['group_name']);
         $maxSortOrder = (int) DB::table('bank_stock_analysis_parameters')
             ->where('project_id', (int) $project->id)
             ->max('sort_order');
@@ -1109,6 +1112,7 @@ class BankController extends Controller
         abort_unless($row, 404);
 
         $payload = $this->stockAnalysisParameterPayload($request, (int) $project->id, (int) $row->id);
+        $this->ensureStockAnalysisParameterGroup((int) $project->id, (string) $payload['group_name']);
 
         DB::table('bank_stock_analysis_parameters')
             ->where('id', (int) $row->id)
@@ -1150,6 +1154,12 @@ class BankController extends Controller
                     'group_name' => 'Основные',
                     'updated_at' => now(),
                 ]);
+            if (Schema::hasTable('bank_stock_analysis_parameter_groups')) {
+                DB::table('bank_stock_analysis_parameter_groups')
+                    ->where('project_id', (int) $project->id)
+                    ->where('name', $groupName)
+                    ->delete();
+            }
         }
 
         return redirect()->route('bank.stock-analysis.parameters')->with('success', 'Группа удалена.');
@@ -5938,6 +5948,71 @@ class BankController extends Controller
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+    }
+
+    private function stockAnalysisParameterGroupsForView(int $projectId, $parameters)
+    {
+        if (! Schema::hasTable('bank_stock_analysis_parameter_groups')) {
+            return collect($parameters)
+                ->pluck('group_name')
+                ->filter()
+                ->unique()
+                ->values()
+                ->map(fn ($name, $index) => (object) [
+                    'name' => (string) $name,
+                    'sort_order' => $index * 10,
+                ]);
+        }
+
+        $existingGroups = DB::table('bank_stock_analysis_parameter_groups')
+            ->where('project_id', $projectId)
+            ->pluck('name')
+            ->map(fn ($name) => (string) $name)
+            ->all();
+        $now = now();
+
+        collect($parameters)
+            ->pluck('group_name')
+            ->map(fn ($name) => trim((string) $name) ?: 'Основные')
+            ->unique()
+            ->values()
+            ->each(function (string $groupName, int $index) use ($projectId, $existingGroups, $now): void {
+                if (! in_array($groupName, $existingGroups, true)) {
+                    DB::table('bank_stock_analysis_parameter_groups')->insertOrIgnore([
+                        'project_id' => $projectId,
+                        'name' => $groupName,
+                        'sort_order' => ($index + count($existingGroups)) * 10,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
+            });
+
+        return DB::table('bank_stock_analysis_parameter_groups')
+            ->where('project_id', $projectId)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function ensureStockAnalysisParameterGroup(int $projectId, string $groupName): void
+    {
+        if (! Schema::hasTable('bank_stock_analysis_parameter_groups')) {
+            return;
+        }
+
+        $groupName = trim($groupName) ?: 'Основные';
+        $maxSortOrder = (int) DB::table('bank_stock_analysis_parameter_groups')
+            ->where('project_id', $projectId)
+            ->max('sort_order');
+
+        DB::table('bank_stock_analysis_parameter_groups')->insertOrIgnore([
+            'project_id' => $projectId,
+            'name' => $groupName,
+            'sort_order' => $maxSortOrder + 10,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     private function stockAnalysisParameterPayload(Request $request, int $projectId, ?int $ignoreId = null): array

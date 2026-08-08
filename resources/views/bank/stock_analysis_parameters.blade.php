@@ -10,10 +10,18 @@
         ['sort_order', 'asc'],
         ['id', 'asc'],
     ])->values();
-    $groups = $parameters
-        ->groupBy(fn ($parameter) => trim((string) ($parameter->group_name ?? '')) ?: 'Основные')
-        ->sortKeys();
-    $groupNames = $groups->keys()->values();
+    $parameterGroups = ($parameterGroups ?? collect())->sortBy([
+        ['sort_order', 'asc'],
+        ['name', 'asc'],
+    ])->values();
+    if ($parameterGroups->isEmpty()) {
+        $parameterGroups = collect([(object) ['name' => 'Основные', 'sort_order' => 0]]);
+    }
+    $parametersByGroup = $parameters->groupBy(fn ($parameter) => trim((string) ($parameter->group_name ?? '')) ?: 'Основные');
+    $groups = $parameterGroups->mapWithKeys(fn ($group) => [
+        (string) $group->name => $parametersByGroup->get((string) $group->name, collect())->values(),
+    ]);
+    $groupNames = $parameterGroups->pluck('name')->map(fn ($name) => (string) $name)->values();
     $parameterData = $parameters->map(fn ($parameter) => [
         'id' => (int) $parameter->id,
         'label' => (string) $parameter->label,
