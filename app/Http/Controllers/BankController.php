@@ -1392,7 +1392,9 @@ class BankController extends Controller
             ]);
         }
 
-        $request = Http::baseUrl(rtrim((string) ($config['base_url'] ?? 'https://financialmodelingprep.com/stable'), '/'))
+        $baseUrl = rtrim((string) ($config['base_url'] ?? 'https://financialmodelingprep.com/stable'), '/');
+        $stableBaseUrl = 'https://financialmodelingprep.com/stable';
+        $request = Http::baseUrl($baseUrl)
             ->acceptJson()
             ->timeout(20)
             ->connectTimeout(8);
@@ -1400,6 +1402,20 @@ class BankController extends Controller
         $quoteResponse = $request->get('quote', $auth + [
             'symbol' => $ticker,
         ]);
+        if ($quoteResponse->failed() && $baseUrl !== $stableBaseUrl) {
+            $quoteResponse = Http::baseUrl($stableBaseUrl)
+                ->acceptJson()
+                ->timeout(20)
+                ->connectTimeout(8)
+                ->get('quote', $auth + ['symbol' => $ticker]);
+        }
+        if ($quoteResponse->failed()) {
+            $quoteResponse = Http::baseUrl($stableBaseUrl)
+                ->acceptJson()
+                ->timeout(20)
+                ->connectTimeout(8)
+                ->get('quote-short', $auth + ['symbol' => $ticker]);
+        }
         $profileResponse = $request->get('profile', $auth + [
             'symbol' => $ticker,
         ]);
@@ -1420,8 +1436,12 @@ class BankController extends Controller
         ]);
 
         if ($quoteResponse->failed()) {
+            $errorPayload = $quoteResponse->json();
+            $errorMessage = is_array($errorPayload)
+                ? (string) ($errorPayload['Error Message'] ?? $errorPayload['message'] ?? '')
+                : '';
             throw ValidationException::withMessages([
-                'adapter' => 'FMP quote вернул ошибку: HTTP ' . $quoteResponse->status(),
+                'adapter' => 'FMP quote вернул ошибку: HTTP ' . $quoteResponse->status() . ($errorMessage !== '' ? ' — ' . $errorMessage : ''),
             ]);
         }
 
