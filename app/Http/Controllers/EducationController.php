@@ -207,6 +207,7 @@ class EducationController extends Controller
         return response()->json([
             'test' => [
                 'id' => $test->id,
+                'slug' => (string) ($test->slug ?? ''),
                 'category_id' => $test->category_id,
                 'category_title' => $test->category
                     ? $this->localizedText($test->category->title_translations, $lang, (string) $test->category->title)
@@ -390,6 +391,7 @@ class EducationController extends Controller
                         : null,
                     'category_position' => (int) ($topic->category?->position ?? 2147483647),
                     'title' => $this->localizedText($topic->title_translations, $lang, (string) $topic->title),
+                    'slug' => (string) ($topic->slug ?? ''),
                     'description' => $this->localizedText($topic->description_translations, $lang, (string) ($topic->description ?? '')),
                     'rating' => $topicRating,
                     'local_rating' => $progress ? max($topicRating, (int) $progress->local_rating) : null,
@@ -787,13 +789,15 @@ class EducationController extends Controller
         ]);
     }
 
-    public function courseShow(int $topic, EducationMaterialResolver $resolver)
+    public function courseShow(string $topic, EducationMaterialResolver $resolver)
     {
         $project = $this->educationProject();
         abort_unless($this->educationSchemaReady(), 503, 'Таблицы образовательного модуля ещё не созданы.');
 
         $payload = $this->educationCoursePayload($project, $resolver);
-        $courseDetailTopic = $payload['topics']->firstWhere('id', $topic);
+        $courseDetailTopic = ctype_digit($topic)
+            ? $payload['topics']->firstWhere('id', (int) $topic)
+            : $payload['topics']->first(fn (EducationTopic $item): bool => (string) ($item->slug ?? '') === $topic);
         abort_unless($courseDetailTopic, 404);
 
         return view('education.course', $payload + [
@@ -844,6 +848,7 @@ class EducationController extends Controller
                 'topic_id' => $topic->id,
                 'topic_title' => $topic->title,
                 'topic_description' => $topic->description,
+                'topic_slug' => (string) ($topic->slug ?? ''),
                 'topic_title_translations' => $topic->title_translations ?? [],
                 'topic_description_translations' => $topic->description_translations ?? [],
                 'position' => $topic->position,
@@ -863,6 +868,7 @@ class EducationController extends Controller
             ->mapWithKeys(fn (EducationTopic $topic) => [
                 $topic->id => [
                     'title' => $topic->title,
+                    'slug' => (string) ($topic->slug ?? ''),
                     'description' => $topic->description,
                     'title_translations' => $topic->title_translations ?? [],
                     'description_translations' => $topic->description_translations ?? [],
@@ -1244,6 +1250,7 @@ class EducationController extends Controller
             'project_id' => $project->id,
             'category_id' => $validated['category_id'],
             'title' => $validated['title'],
+            'slug' => $this->uniqueEducationTopicSlug($project->id, $validated['slug'] ?: $validated['title']),
             'title_translations' => $validated['title_translations'],
             'description' => $validated['description'] ?? null,
             'description_translations' => $validated['description_translations'],
@@ -1265,6 +1272,7 @@ class EducationController extends Controller
 
         $topic->update([
             'title' => $validated['title'],
+            'slug' => $this->uniqueEducationTopicSlug($project->id, $validated['slug'] ?: $validated['title'], (int) $topic->id),
             'title_translations' => $validated['title_translations'],
             'description' => $validated['description'] ?? null,
             'description_translations' => $validated['description_translations'],
@@ -1391,6 +1399,7 @@ class EducationController extends Controller
                 $test->id => [
                     'id' => $test->id,
                     'title' => $test->title,
+                    'slug' => (string) ($test->slug ?? ''),
                     'title_translations' => $test->title_translations ?? [],
                     'material_id' => $test->material_id,
                     'test_type' => $test->test_type ?? 'knowledge_check',
@@ -1501,6 +1510,7 @@ class EducationController extends Controller
                 $test->id => [
                     'id' => $test->id,
                     'title' => $test->title,
+                    'slug' => (string) ($test->slug ?? ''),
                     'title_translations' => $test->title_translations ?? [],
                     'quest_data' => $test->quest_data,
                     'quest_data_translations' => $test->quest_data_translations ?? [],
@@ -1568,6 +1578,7 @@ class EducationController extends Controller
         $project = $this->educationProject();
         $validated = $this->validateKnowYourselfTest($request);
 
+        $validated['slug'] = $this->uniqueQuestTestSlug($project->id, 'profile_assessment', $validated['slug'] ?: $validated['title']);
         $test = QuestTest::create($validated + [
             'project_id' => $project->id,
             'material_id' => null,
@@ -1589,6 +1600,7 @@ class EducationController extends Controller
         abort_unless(($test->test_type ?? '') === 'profile_assessment', 404);
 
         $validated = $this->validateKnowYourselfTest($request);
+        $validated['slug'] = $this->uniqueQuestTestSlug($project->id, 'profile_assessment', $validated['slug'] ?: $validated['title'], (int) $test->id);
         $test->update($validated + [
             'project_id' => $project->id,
             'material_id' => null,
@@ -2150,6 +2162,7 @@ class EducationController extends Controller
             && Schema::hasColumn('education_topics', 'title_translations')
             && Schema::hasColumn('education_topics', 'description_translations')
             && Schema::hasColumn('education_topics', 'cost_av8')
+            && Schema::hasColumn('education_topics', 'slug')
             && Schema::hasColumn('educational_materials', 'title_translations')
             && Schema::hasColumn('educational_materials', 'body_translations')
             && Schema::hasColumn('users', 'education_rating')
@@ -2158,6 +2171,7 @@ class EducationController extends Controller
             && Schema::hasColumn('quests_tests', 'project_id')
             && Schema::hasColumn('quests_tests', 'category_id')
             && Schema::hasColumn('quests_tests', 'test_type')
+            && Schema::hasColumn('quests_tests', 'slug')
             && Schema::hasColumn('quests_tests', 'title_translations')
             && Schema::hasColumn('quests_tests', 'quest_data_translations')
             && Schema::hasTable('education_progress')
@@ -2166,6 +2180,51 @@ class EducationController extends Controller
             && Schema::hasColumn('quest_test_attempts', 'total_score')
             && Schema::hasColumn('quest_test_attempts', 'max_score')
             && Schema::hasColumn('quest_test_attempts', 'result_data');
+    }
+
+    private function normalizeEducationSlug(string $value): string
+    {
+        $slug = Str::slug($value);
+        return $slug !== '' ? Str::limit($slug, 160, '') : '';
+    }
+
+    private function uniqueEducationTopicSlug(int $projectId, string $value, ?int $ignoreId = null): string
+    {
+        $base = $this->normalizeEducationSlug($value) ?: 'course';
+        $candidate = $base;
+        $index = 2;
+
+        while (EducationTopic::query()
+            ->where('project_id', $projectId)
+            ->where('slug', $candidate)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()) {
+            $suffix = '-' . $index;
+            $candidate = Str::limit($base, 160 - strlen($suffix), '') . $suffix;
+            $index++;
+        }
+
+        return $candidate;
+    }
+
+    private function uniqueQuestTestSlug(int $projectId, string $testType, string $value, ?int $ignoreId = null): string
+    {
+        $base = $this->normalizeEducationSlug($value) ?: 'test';
+        $candidate = $base;
+        $index = 2;
+
+        while (QuestTest::query()
+            ->where('project_id', $projectId)
+            ->where('test_type', $testType)
+            ->where('slug', $candidate)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()) {
+            $suffix = '-' . $index;
+            $candidate = Str::limit($base, 160 - strlen($suffix), '') . $suffix;
+            $index++;
+        }
+
+        return $candidate;
     }
 
     private function validateMaterial(Request $request, ?EducationalMaterial $material = null): array
@@ -2204,6 +2263,7 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:160', 'regex:/^[A-Za-z0-9\-_]+$/'],
             'title_translations' => ['nullable'],
             'description' => ['nullable', 'string'],
             'description_translations' => ['nullable'],
@@ -2214,6 +2274,7 @@ class EducationController extends Controller
         $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
         $validated['description_translations'] = $this->translationMap($validated['description_translations'] ?? null);
         $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
+        $validated['slug'] = $this->normalizeEducationSlug($validated['slug'] ?? '');
         $validated['description'] = $this->fallbackTranslationValue($validated['description_translations'], $validated['description'] ?? '');
         abort_if($validated['title'] === '', 422, 'Заполните название курса хотя бы на одном языке.');
         if ($validated['title_translations'] === []) {
@@ -2322,6 +2383,7 @@ class EducationController extends Controller
     {
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:160', 'regex:/^[A-Za-z0-9\-_]+$/'],
             'title_translations' => ['nullable'],
             'quest_data' => ['required', 'json'],
             'quest_data_translations' => ['nullable', 'json'],
@@ -2333,6 +2395,7 @@ class EducationController extends Controller
         $validated['title_translations'] = $this->translationMap($validated['title_translations'] ?? null);
         $validated['quest_data_translations'] = $this->questDataTranslationMap($validated['quest_data_translations'] ?? null);
         $validated['title'] = $this->fallbackTranslationValue($validated['title_translations'], $validated['title'] ?? '');
+        $validated['slug'] = $this->normalizeEducationSlug($validated['slug'] ?? '');
         abort_if($validated['title'] === '', 422, 'Заполните название теста хотя бы на одном языке.');
 
         if (!isset($validated['quest_data']['questions']) || !is_array($validated['quest_data']['questions'])) {
@@ -2534,6 +2597,7 @@ class EducationController extends Controller
 
         return [
             'id' => $test->id,
+            'slug' => (string) ($test->slug ?? ''),
             'category_id' => $test->category_id,
             'category_title' => $test->category
                 ? $this->localizedText($test->category->title_translations, $lang, (string) $test->category->title)

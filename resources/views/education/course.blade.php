@@ -161,13 +161,14 @@
                         @foreach($courseList as $topic)
                             @php
                                 $topicCategoryKey = $topic->category_id ? (string) $topic->category_id : 'none';
+                                $topicRouteKey = $topic->slug ?: $topic->id;
                             @endphp
                             <article class="course-list-card">
                                 <div class="course-list-card-body">
                                     <div>
                                         <div class="small text-secondary mb-2">{{ $topic->category?->title ?? 'Без категории' }}</div>
                                         <h2 class="h5 mb-2">
-                                            <a href="{{ route('education.course.show', ['topic' => $topic->id]) }}" class="text-light text-decoration-none">
+                                            <a href="{{ route('education.course.show', ['topic' => $topicRouteKey]) }}" class="text-light text-decoration-none">
                                                 {{ $topic->title }}
                                             </a>
                                         </h2>
@@ -182,7 +183,7 @@
                                     </div>
                                 </div>
                                 <div class="course-list-actions">
-                                    <a href="{{ route('education.course.show', ['topic' => $topic->id]) }}" class="btn btn-sm btn-warning">
+                                    <a href="{{ route('education.course.show', ['topic' => $topicRouteKey]) }}" class="btn btn-sm btn-warning">
                                         Открыть
                                     </a>
                                     <button type="button" class="btn btn-sm btn-outline-light edit-topic-button"
@@ -574,6 +575,11 @@
                             </div>
                         </div>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="topic-slug">ЧПУ / ссылка</label>
+                        <input class="form-control" id="topic-slug" name="slug" maxlength="160" placeholder="investment-basics">
+                        <div class="form-text">Используется в адресе курса. Если оставить пустым, будет создано из названия.</div>
+                    </div>
                     <div class="row">
                         <div class="col-md-4 mb-0">
                             <label class="form-label" for="topic-category">Категория</label>
@@ -815,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         descriptionEn: document.getElementById('topic-description-en'),
         descriptionEs: document.getElementById('topic-description-es'),
         descriptionFr: document.getElementById('topic-description-fr'),
+        slug: document.getElementById('topic-slug'),
         categoryId: document.getElementById('topic-category'),
         position: document.getElementById('topic-position'),
         costAv8: document.getElementById('topic-cost-av8'),
@@ -964,6 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
         topicDeleteButton.classList.add('d-none');
         topicFields.position.value = '0';
         topicFields.costAv8.value = '0';
+        topicFields.slug.value = '';
         topicFields.categoryId.value = '';
         showDefaultTopicLanguageTabs();
         topicModal.show();
@@ -992,6 +1000,7 @@ document.addEventListener('DOMContentLoaded', () => {
         topicFields.descriptionEn.value = topic.description_translations?.en || '';
         topicFields.descriptionEs.value = topic.description_translations?.es || '';
         topicFields.descriptionFr.value = topic.description_translations?.fr || '';
+        topicFields.slug.value = topic.slug || '';
         topicFields.position.value = topic.position || 0;
         topicFields.costAv8.value = topic.cost_av8 || '0';
         topicFields.categoryId.value = topic.category_id || '';

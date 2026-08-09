@@ -232,6 +232,11 @@
                             <input class="form-control" id="know-test-rating" type="number" min="0" value="0">
                         </div>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="know-test-slug">ЧПУ / ссылка</label>
+                        <input class="form-control" id="know-test-slug" name="slug" maxlength="160" placeholder="investor-profile">
+                        <div class="form-text">Используется в адресе теста. Если оставить пустым, будет создано из названия.</div>
+                    </div>
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" role="switch" id="know-test-public-featured">
                         <label class="form-check-label" for="know-test-public-featured">Показывать первым на публичной странице «Узнай себя»</label>
@@ -320,6 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
         titleEs: document.getElementById('know-test-title-es'),
         titleFr: document.getElementById('know-test-title-fr'),
         categoryId: document.getElementById('know-test-category'),
+        slug: document.getElementById('know-test-slug'),
         questData: document.getElementById('know-test-quest-data'),
         questDataTranslations: document.getElementById('know-test-quest-data-translations'),
         publicFeatured: document.getElementById('know-test-public-featured'),
@@ -693,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleEn.value = '';
         fields.titleEs.value = '';
         fields.titleFr.value = '';
+        fields.slug.value = '';
         fields.categoryId.value = '';
         currentLang = 'ru';
         activateLanguageButton('ru');
@@ -718,6 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.titleEn.value = item.title_translations?.en || '';
         fields.titleEs.value = item.title_translations?.es || '';
         fields.titleFr.value = item.title_translations?.fr || '';
+        fields.slug.value = item.slug || '';
         fields.categoryId.value = item.category_id || '';
         currentLang = 'ru';
         activateLanguageButton('ru');
