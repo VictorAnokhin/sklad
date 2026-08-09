@@ -252,7 +252,7 @@
                             $isChanged = fn (array|string $fields) => collect((array) $fields)->intersect($changedFields)->isNotEmpty();
                         @endphp
                         <tr>
-                            <td class="bank-table__num bank-mono">{{ $loop->iteration }}</td>
+                            <td class="bank-table__num bank-mono">{{ ($stocks->firstItem() ?? 1) + $loop->index }}</td>
                             <td class="{{ $isChanged('ticker') ? 'bank-stock-cell--changed' : '' }}"><span class="bank-pill bank-pill--currency">{{ $stock->ticker }}</span></td>
                             <td class="{{ $isChanged(['company', 'sector', 'industry', 'country']) ? 'bank-stock-cell--changed' : '' }}">
                                 <strong class="bank-stock-company">{{ $stock->company }}</strong>
@@ -321,6 +321,11 @@
                 </tbody>
             </table>
         </div>
+        @if($stocks->hasPages())
+            <div class="bank-stock-pagination">
+                {{ $stocks->links() }}
+            </div>
+        @endif
     </section>
 
     <div class="bank-modal" data-stock-modal @if(! $errors->any()) hidden @endif>
@@ -607,6 +612,62 @@
     .bank-stock-table td:nth-child(9) {
         width: 44px;
         overflow: visible;
+    }
+
+    .bank-stock-pagination {
+        display: flex;
+        justify-content: center;
+        margin-top: 16px;
+    }
+
+    .bank-stock-pagination nav {
+        width: 100%;
+    }
+
+    .bank-stock-pagination .pagination {
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 0;
+        flex-wrap: wrap;
+    }
+
+    .bank-stock-pagination .page-link {
+        min-width: 38px;
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(148, 163, 184, .28);
+        border-radius: 10px !important;
+        background: rgba(15, 23, 42, .76);
+        color: #d7dee9;
+        box-shadow: none;
+        font-weight: 600;
+    }
+
+    .bank-stock-pagination svg {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+    }
+
+    .bank-stock-pagination .page-link:hover,
+    .bank-stock-pagination .page-link:focus {
+        border-color: rgba(251, 191, 36, .72);
+        background: rgba(251, 191, 36, .13);
+        color: #fbbf24;
+    }
+
+    .bank-stock-pagination .page-item.active .page-link {
+        border-color: #fbbf24;
+        background: #fbbf24;
+        color: #111827;
+    }
+
+    .bank-stock-pagination .page-item.disabled .page-link {
+        border-color: rgba(148, 163, 184, .16);
+        background: rgba(15, 23, 42, .48);
+        color: rgba(203, 213, 225, .42);
     }
 
     .bank-stock-company {

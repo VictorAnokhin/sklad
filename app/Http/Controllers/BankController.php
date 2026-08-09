@@ -10,6 +10,7 @@ use App\Support\HoldingScope;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -978,21 +979,34 @@ class BankController extends Controller
         if (! in_array($filters['dividend_frequency'], ['', 'never', 'month', 'quarter', 'year'], true)) {
             $filters['dividend_frequency'] = '';
         }
-        $stocks = $allStocks
+        $filteredStocks = $allStocks
             ->when($filters['sector'] !== '', fn ($rows) => $rows->where('sector', $filters['sector']))
             ->when($filters['industry'] !== '', fn ($rows) => $rows->where('industry', $filters['industry']))
             ->when($filters['country'] !== '', fn ($rows) => $rows->where('country', $filters['country']))
             ->when($filters['dividend_frequency'] !== '', fn ($rows) => $rows->where('dividend_frequency', $filters['dividend_frequency']))
             ->values();
+        $perPage = 15;
+        $currentPage = max(1, (int) $request->query('page', 1));
+        $stocks = new LengthAwarePaginator(
+            $filteredStocks->forPage($currentPage, $perPage)->values(),
+            $filteredStocks->count(),
+            $perPage,
+            $currentPage,
+            [
+                'path' => $request->url(),
+                'query' => $request->except('page'),
+            ],
+        );
+        $pageStocks = $stocks->getCollection();
         $tableMultipliers = $this->stockAnalysisTableMultipliers((int) $project->id);
         $parameters = $this->stockAnalysisParametersForView((int) $project->id);
 
         return view('bank.stock_analysis', [
             'project' => $project,
             'stocks' => $stocks,
-            'stockTableMultipliers' => $this->stockAnalysisTableMultiplierValues($stocks, $tableMultipliers),
+            'stockTableMultipliers' => $this->stockAnalysisTableMultiplierValues($pageStocks, $tableMultipliers),
             'stockFormParameterGroups' => $this->stockAnalysisFormParameterGroups($parameters),
-            'stockChanges' => $this->latestStockSnapshotChanges($stocks->pluck('id')->map(fn ($id) => (int) $id)->all()),
+            'stockChanges' => $this->latestStockSnapshotChanges($pageStocks->pluck('id')->map(fn ($id) => (int) $id)->all()),
             'stockFilterOptions' => [
                 'sector' => $allStocks->pluck('sector')->filter()->unique()->sort()->values(),
                 'industry' => $allStocks->pluck('industry')->filter()->unique()->sort()->values(),
@@ -1001,10 +1015,10 @@ class BankController extends Controller
             'stockFilters' => $filters,
             'stockFiltersActive' => collect($filters)->filter()->isNotEmpty(),
             'summary' => [
-                'stocks' => $stocks->count(),
-                'countries' => $stocks->pluck('country')->filter()->unique()->count(),
-                'sectors' => $stocks->pluck('sector')->filter()->unique()->count(),
-                'tickers' => $stocks->pluck('ticker')->filter()->implode(', '),
+                'stocks' => $filteredStocks->count(),
+                'countries' => $filteredStocks->pluck('country')->filter()->unique()->count(),
+                'sectors' => $filteredStocks->pluck('sector')->filter()->unique()->count(),
+                'tickers' => $filteredStocks->pluck('ticker')->filter()->implode(', '),
             ],
         ]);
     }
