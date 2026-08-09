@@ -323,7 +323,31 @@
         </div>
         @if($stocks->hasPages())
             <div class="bank-stock-pagination">
-                {{ $stocks->links() }}
+                @php
+                    $stockPageQuery = request()->except('page');
+                    $stockPageUrl = fn (int $page) => request()->url() . '?' . http_build_query($stockPageQuery + ['page' => $page]);
+                    $stockFrom = $stocks->firstItem() ?? 0;
+                    $stockTo = $stocks->lastItem() ?? 0;
+                @endphp
+                @if($stocks->onFirstPage())
+                    <span class="bank-stock-pagination__button is-disabled">«</span>
+                    <span class="bank-stock-pagination__button is-disabled">‹</span>
+                @else
+                    <a class="bank-stock-pagination__button" href="{{ $stockPageUrl(1) }}">«</a>
+                    <a class="bank-stock-pagination__button" href="{{ $stockPageUrl($stocks->currentPage() - 1) }}">‹</a>
+                @endif
+
+                <span class="bank-stock-pagination__meta">
+                    {{ $stockFrom }}-{{ $stockTo }} из {{ $stocks->total() }} | стр. {{ $stocks->currentPage() }} / {{ $stocks->lastPage() }}
+                </span>
+
+                @if($stocks->hasMorePages())
+                    <a class="bank-stock-pagination__button" href="{{ $stockPageUrl($stocks->currentPage() + 1) }}">›</a>
+                    <a class="bank-stock-pagination__button" href="{{ $stockPageUrl($stocks->lastPage()) }}">»</a>
+                @else
+                    <span class="bank-stock-pagination__button is-disabled">›</span>
+                    <span class="bank-stock-pagination__button is-disabled">»</span>
+                @endif
             </div>
         @endif
     </section>
@@ -616,58 +640,55 @@
 
     .bank-stock-pagination {
         display: flex;
+        align-items: center;
         justify-content: center;
+        gap: 14px;
         margin-top: 16px;
-    }
-
-    .bank-stock-pagination nav {
-        width: 100%;
-    }
-
-    .bank-stock-pagination .pagination {
-        justify-content: center;
-        gap: 8px;
-        margin-bottom: 0;
+        padding: 16px 0 4px;
         flex-wrap: wrap;
     }
 
-    .bank-stock-pagination .page-link {
-        min-width: 38px;
-        height: 38px;
+    .bank-stock-pagination__button {
+        width: 44px;
+        height: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid rgba(148, 163, 184, .28);
-        border-radius: 10px !important;
-        background: rgba(15, 23, 42, .76);
-        color: #d7dee9;
-        box-shadow: none;
-        font-weight: 600;
-    }
-
-    .bank-stock-pagination svg {
-        width: 16px;
-        height: 16px;
-        flex: 0 0 16px;
-    }
-
-    .bank-stock-pagination .page-link:hover,
-    .bank-stock-pagination .page-link:focus {
-        border-color: rgba(251, 191, 36, .72);
-        background: rgba(251, 191, 36, .13);
+        border: 1px solid rgba(251, 191, 36, .36);
+        border-radius: 10px;
+        background: rgba(251, 191, 36, .08);
         color: #fbbf24;
+        font-size: 1.35rem;
+        font-weight: 800;
+        line-height: 1;
+        text-decoration: none;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 10px 24px rgba(0, 0, 0, .22);
+        transition: all .2s ease;
     }
 
-    .bank-stock-pagination .page-item.active .page-link {
-        border-color: #fbbf24;
-        background: #fbbf24;
-        color: #111827;
+    .bank-stock-pagination__button:hover,
+    .bank-stock-pagination__button:focus {
+        border-color: rgba(251, 191, 36, .78);
+        background: rgba(251, 191, 36, .18);
+        color: #ffd166;
+        text-decoration: none;
+        outline: none;
     }
 
-    .bank-stock-pagination .page-item.disabled .page-link {
-        border-color: rgba(148, 163, 184, .16);
+    .bank-stock-pagination__button.is-disabled {
+        border-color: rgba(148, 163, 184, .24);
         background: rgba(15, 23, 42, .48);
         color: rgba(203, 213, 225, .42);
+        box-shadow: none;
+        cursor: not-allowed;
+    }
+
+    .bank-stock-pagination__meta {
+        color: #fbbf24;
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: .01em;
+        white-space: nowrap;
     }
 
     .bank-stock-company {
