@@ -1831,7 +1831,7 @@ class DocumentController extends Controller
             })
             ->orderBy('name')
             ->get();
-        $clientStatuses = DB::table('conf')->where('type', 'tclient')->where('firma', $fid)->orderBy('name')->get();
+        $clientStatuses = DB::table('conf')->where('type', 'tclient')->where('firma', 0)->orderBy('name')->get();
         $clientGroups = DB::table('conf')->where('type', 'usergroup')->where('firma', $fid)->orderBy('name')->get();
         $myCompanies = collect();
 

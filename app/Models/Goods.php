@@ -198,16 +198,12 @@ class Goods extends Model
 
         $priceGroups = DB::table('conf')
             ->where('type', 'tgroup')
-            ->whereIn('firma', $firmaIds)
+            ->where('firma', 0)
             ->orderByDesc('status')
-            ->get()
-            ->groupBy(fn ($row) => (string) ($row->firma ?? ''));
+            ->get();
 
-        $retailGroups = $priceGroups->map(function ($rows) {
-            $retail = $rows->first(fn ($row) => (string) ($row->status ?? '0') === '1');
-
-            return $retail ? (string) $retail->id : null;
-        });
+        $retailGroup = $priceGroups->first(fn ($row) => (string) ($row->status ?? '0') === '1');
+        $retailGroupId = $retailGroup ? (string) $retailGroup->id : null;
 
         $priceRows = DB::table('price')
             ->whereIn('firma', $firmaIds)
@@ -240,11 +236,10 @@ class Goods extends Model
                 ->groupBy(fn ($row) => $row->firma . ':' . $row->pnum . ':' . $row->sklad)
             : collect();
 
-        return $comps->map(function ($comp) use ($priceRows, $skladNames, $stockRows, $retailGroups, $fid) {
+        return $comps->map(function ($comp) use ($priceRows, $skladNames, $stockRows, $retailGroupId, $fid) {
             $itemFirma = (string) (($comp->firma ?? '') !== '' ? $comp->firma : $fid);
             $key = $itemFirma . ':' . ($comp->id ?? '');
             $rows = $priceRows->get($key, collect());
-            $retailGroupId = $retailGroups->get($itemFirma);
 
             $price = ($retailGroupId !== null
                 ? $rows->first(fn ($row) => (string) $row->tgroup === (string) $retailGroupId)
@@ -297,18 +292,14 @@ class Goods extends Model
         $firmaIds = $pairs->pluck('firma')->unique()->values();
         $productIds = $pairs->pluck('id')->unique()->values();
 
-        // Fetch all price groups for these firms to identify the retail group
         $priceGroups = DB::table('conf')
             ->where('type', 'tgroup')
-            ->whereIn('firma', $firmaIds)
+            ->where('firma', 0)
             ->orderByDesc('status') // Usually status='1' is retail, put it first
-            ->get()
-            ->groupBy('firma');
+            ->get();
 
-        $retailGroups = $priceGroups->map(function ($rows) {
-            $retail = $rows->first(fn($row) => (string) ($row->status ?? '0') === '1');
-            return $retail ? (string) $retail->id : null;
-        });
+        $retailGroup = $priceGroups->first(fn($row) => (string) ($row->status ?? '0') === '1');
+        $retailGroupId = $retailGroup ? (string) $retailGroup->id : null;
 
         $priceRows = DB::table('price')
             ->whereIn('firma', $firmaIds)
@@ -341,11 +332,9 @@ class Goods extends Model
                 ->groupBy(fn ($row) => $row->firma . ':' . $row->pnum . ':' . $row->sklad)
             : collect();
 
-        return $comps->map(function ($comp) use ($priceRows, $retailGroups, $skladNames, $stockRows, $targetTgroupId) {
+        return $comps->map(function ($comp) use ($priceRows, $retailGroupId, $skladNames, $stockRows, $targetTgroupId) {
             $key = ($comp->firma ?? '') . ':' . ($comp->id ?? '');
             $rows = $priceRows->get($key, collect());
-            
-            $retailGroupId = $retailGroups->get((string) ($comp->firma ?? ''));
 
             // 1. Try to find row for the user's specific tgroup
             // 2. Fallback to retail group row

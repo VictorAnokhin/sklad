@@ -473,11 +473,6 @@ Route::middleware(['auth'])->group(function () {
             Route::delete('/accounts/{id}', [SettingsController::class , 'accountsDestroy'])->name('accounts.destroy');
             Route::get('/payment-type-account-bindings', [SettingsController::class, 'paymentTypeAccountBindings'])->name('paymentTypeBindings.index');
             Route::put('/payment-type-account-bindings/{id}', [SettingsController::class, 'updatePaymentTypeAccountBinding'])->name('paymentTypeBindings.update');
-            Route::get('/report-rules', [SettingsController::class, 'reportRulesIndex'])->name('reportRules.index');
-            Route::get('/report-rules/{id}', [SettingsController::class, 'reportRulesShow'])->name('reportRules.show');
-            Route::post('/report-rules', [SettingsController::class, 'reportRulesStore'])->name('reportRules.store');
-            Route::put('/report-rules/{id}', [SettingsController::class, 'reportRulesUpdate'])->name('reportRules.update');
-            Route::delete('/report-rules/{id}', [SettingsController::class, 'reportRulesDestroy'])->name('reportRules.destroy');
             Route::get('/firms', [SettingsController::class , 'firmsIndex'])->name('firms.index');
             Route::get('/firms/{id}', [SettingsController::class , 'firmsShow'])->name('firms.show');
             Route::post('/firms', [SettingsController::class , 'firmsStore'])->name('firms.store');
@@ -509,9 +504,6 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/banners', [SettingsController::class , 'bannersStore'])->name('banners.store');
             Route::post('/banners/{id}', [SettingsController::class , 'bannersUpdate'])->name('banners.update');
             Route::delete('/banners/{id}', [SettingsController::class , 'bannersDestroy'])->name('banners.destroy');
-            Route::get('/sitemap/status', [SettingsController::class, 'sitemapStatus'])->name('sitemap.status');
-            Route::post('/sitemap/generate', [SettingsController::class, 'sitemapGenerate'])->name('sitemap.generate');
-
             // Async API
             Route::get('/api/web3-token-search', [SettingsController::class, 'web3TokenSearch'])->name('api.web3-token-search');
             Route::get('/api/office-city-search', [SettingsController::class, 'officeCitySearch'])->name('api.office-city-search');

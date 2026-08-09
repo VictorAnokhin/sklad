@@ -466,12 +466,12 @@ class ClientController extends Controller
         $client = $result['client'];
         $statuses = DB::table('conf')
             ->where('type', 'tclient')
-            ->where('firma', $fid)
+            ->where('firma', 0)
             ->orderBy('name')
             ->get();
         $clientTypes = DB::table('conf')
             ->where('type', 'tgroup')
-            ->where('firma', $fid)
+            ->where('firma', 0)
             ->orderBy('name')
             ->get();
         $userGroups = DB::table('conf')

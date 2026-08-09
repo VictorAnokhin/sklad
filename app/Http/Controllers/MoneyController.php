@@ -168,7 +168,7 @@ class MoneyController extends Controller
         $reestrList = Conf::paymentTypesForDocument($fid, $type);
         $clientStatuses = DB::table('conf')
             ->where('type', 'tclient')
-            ->where('firma', $fid)
+            ->where('firma', 0)
             ->orderBy('name')
             ->get();
 

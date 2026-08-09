@@ -1538,7 +1538,7 @@ class GoodsController extends Controller
 
         $tgroup = DB::table('conf')
             ->where('type', 'tgroup')
-            ->where('firma', $fid)
+            ->where('firma', 0)
             ->where('status', '1')
             ->orderBy('id')
             ->value('id');

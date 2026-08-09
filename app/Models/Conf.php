@@ -39,7 +39,7 @@ class Conf extends Model
     {
         return DB::table('conf')
             ->where('type', 'tgroup')
-            ->where('firma', $fid)
+            ->where('firma', 0)
             ->orderBy('name')
             ->get();
     }

@@ -2526,7 +2526,7 @@ class AuthController extends Controller
 
         return DB::table('conf')
             ->where('type', 'currency')
-            ->where('firma', $fid)
+            ->where('firma', 0)
             ->orderBy('name')
             ->get(['name', 'currency'])
             ->map(fn ($item) => $this->normalizeCurrencyCode($item->currency ?? $item->name ?? ''))

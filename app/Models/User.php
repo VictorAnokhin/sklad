@@ -267,7 +267,7 @@ class User extends Authenticatable
         // Data for filter dropdowns
         $statuses = DB::table('conf')
             ->where('type', 'tclient')
-            ->where('firma', $currentFirma)
+            ->where('firma', 0)
             ->orderBy('name')->get();
 
         return compact('clients', 'total', 'statuses');
@@ -284,7 +284,7 @@ class User extends Authenticatable
         // Selects needed for form
         $statuses = DB::table('conf')
             ->where('type', 'tclient')
-            ->where('firma', $currentFirma)
+            ->where('firma', 0)
             ->orderBy('name')->get();
 
         return compact('client', 'statuses');

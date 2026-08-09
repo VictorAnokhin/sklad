@@ -189,31 +189,11 @@
         </div>
 
         <div class="col-md-4">
-            <div class="glass-card h-100 border-secondary setting-card" data-bs-toggle="modal" data-bs-target="#modalSitemap">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🗺 {{ __('settings.sitemap') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.sitemap_desc') }}</p>
-                    <span class="badge bg-secondary" id="badge-sitemap">{{ !empty($sitemapInfo['exists']) ? 'XML' : '—' }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
             <div class="glass-card h-100 border-success setting-card" data-bs-toggle="modal" data-bs-target="#modalAccounts">
                 <div class="card-body text-center">
                     <h5 class="card-title">📚 {{ __('settings.cards.chart_of_accounts.title') }}</h5>
                     <p class="card-text text-muted">{{ __('settings.cards.chart_of_accounts.description') }}</p>
                     <span class="badge bg-success" id="badge-accounts">{{ $accountsCount ?? 0 }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 border-warning setting-card" data-bs-toggle="modal" data-bs-target="#modalReportRules">
-                <div class="card-body text-center">
-                    <h5 class="card-title">📈 Правила отчетов</h5>
-                    <p class="card-text text-muted">Документы и виды платежей для Cash Flow</p>
-                    <span class="badge bg-warning text-dark">3</span>
                 </div>
             </div>
         </div>
@@ -228,49 +208,6 @@
             </div>
         </div>
 
-    </div>
-</div>
-
-<div class="modal fade" id="modalSitemap" tabindex="-1" aria-labelledby="modalSitemapLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content glass-card border-0">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalSitemapLabel">🗺 {{ __('settings.sitemap') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-secondary mb-3">
-                    {{ __('settings.sitemap_modal.intro') }}
-                </div>
-
-                <dl class="row mb-3">
-                    <dt class="col-sm-4">{{ __('settings.sitemap_modal.status_label') }}</dt>
-                    <dd class="col-sm-8" id="sitemap-status-text">{{ !empty($sitemapInfo['exists']) ? __('settings.sitemap_modal.file_ready') : __('settings.sitemap_modal.file_missing') }}</dd>
-
-                    <dt class="col-sm-4">{{ __('settings.sitemap_modal.last_generation') }}</dt>
-                    <dd class="col-sm-8" id="sitemap-lastmod-text">
-                        @if(!empty($sitemapInfo['last_modified_at']))
-                            {{ date('Y-m-d H:i:s', $sitemapInfo['last_modified_at']) }}
-                        @else
-                            —
-                        @endif
-                    </dd>
-
-                    <dt class="col-sm-4">{{ __('settings.sitemap_modal.public_url') }}</dt>
-                    <dd class="col-sm-8">
-                        <a href="{{ $sitemapInfo['public_url'] ?? '#' }}" id="sitemap-public-link" target="_blank" rel="noopener noreferrer">
-                            {{ $sitemapInfo['public_url'] ?? '—' }}
-                        </a>
-                    </dd>
-                </dl>
-
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary" id="btn-sitemap-generate">🔄 {{ __('settings.sitemap_modal.btn_generate') }}</button>
-                    <a href="{{ $sitemapInfo['public_url'] ?? '#' }}" class="btn btn-outline-secondary" id="btn-sitemap-open" target="_blank" rel="noopener noreferrer">🌍 {{ __('settings.sitemap_modal.btn_open') }}</a>
-                </div>
-                <div class="small text-muted mt-3" id="sitemap-feedback"></div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -437,57 +374,6 @@
                         </div>
                         <p class="text-center text-muted" id="payment-bindings-empty-msg" style="display:none">{{ __('settings.accounts.empty_payments') }}</p>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="modalReportRules" tabindex="-1" aria-labelledby="modalReportRulesLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content glass-card border-0">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalReportRulesLabel">📈 Правила отчетов</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body">
-                <div class="text-muted small mb-3">
-                    Отчет Cash Flow строится по проведенным денежным проводкам счетов 301 и 311. Вид деятельности в первую очередь берется из настройки «Виды платежей», поле «Вид деятельности». Если у вида платежа значение не задано, применяется правило по типу документа.
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle report-rules-table">
-                        <thead>
-                            <tr>
-                                <th>Вид деятельности</th>
-                                <th>Документы</th>
-                                <th>Движение денег</th>
-                                <th>Как попадает в отчет</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><span class="badge bg-success">Операционная</span></td>
-                                <td><code>PO</code>, <code>CPO</code>, <code>RO</code>, <code>CRO</code>, <code>ZP</code>, <code>PPO</code>, <code>PRO</code></td>
-                                <td>Поступления от клиентов и продаж; выплаты зарплаты, аренды, налогов, поставщикам и прочие текущие платежи.</td>
-                                <td>Если «Вид платежа» документа = «Операционная» или если вид платежа не задан, но тип документа входит в этот список.</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-primary">Инвестиционная</span></td>
-                                <td><code>PP</code> и любые денежные документы с видом платежа «Инвестиционная»</td>
-                                <td>Покупка и продажа оборудования, активов, инвестиций, депозитных/инвестиционных операций.</td>
-                                <td>Если «Вид платежа» документа = «Инвестиционная»; для <code>PP</code> это fallback-правило.</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-secondary">Финансовая</span></td>
-                                <td>Любые денежные документы с видом платежа «Финансовая»; остальные денежные проводки без операционного или инвестиционного правила</td>
-                                <td>Кредиты, займы, дивиденды, взносы собственников, привлечение или возврат финансирования.</td>
-                                <td>Если «Вид платежа» документа = «Финансовая» или денежная проводка не распознана предыдущими правилами.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="alert alert-info small mb-0">
-                    Для изменения классификации откройте <strong>Settings → Виды платежей</strong> и задайте «Вид деятельности» у нужного вида платежа. Это точнее, чем ключевые слова в примечании документа.
                 </div>
             </div>
         </div>
@@ -3669,6 +3555,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let currentCurrencyTab = 'directory';
         let officeCitySearchTimer = null;
         let officeCitySelectedLabel = '';
+        const canManagePaymentTypes = @json((bool) ($canManagePaymentTypes ?? false));
 
         fotoFileInput?.addEventListener('change', () => {
             updateImagePreview(fotoFileInput, 'form-foto-preview', 'form-foto-preview-wrap');
@@ -3964,7 +3851,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isCompactConfTable = currentType === 'sklads' || currentType === 'oplata';
                 const editLabel = isCompactConfTable ? '✏' : _ts('crud.edit');
                 const deleteLabel = isCompactConfTable ? '🗑' : _ts('crud.delete');
-                const deleteButtonHtml = isPoolDepositMode()
+                const canEditItem = canEditCurrentItem();
+                const editButtonHtml = canEditItem
+                    ? `<button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}" title="${escapeHtml(_ts('crud.edit'))}">${editLabel}</button>`
+                    : '';
+                const deleteButtonHtml = isPoolDepositMode() || !canEditItem
                     ? ''
                     : `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}" title="${escapeHtml(_ts('crud.delete'))}">${deleteLabel}</button>`;
                 let statusLabel = `<span class="badge bg-secondary">${_ts('crud.inactive')}</span>`;
@@ -4001,7 +3892,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${currentType === 'reestr' ? `<td class="conf-cost-type-col">${costTypeHtml}</td>` : ''}
                     ${currentType === 'reestr' ? `<td class="conf-cash-flow-activity-col">${cashFlowActivityHtml}</td>` : ''}
                     <td class="text-end conf-actions-col">
-                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}" title="${escapeHtml(_ts('crud.edit'))}">${editLabel}</button>
+                        ${editButtonHtml}
                         ${deleteButtonHtml}
                     </td>
                 `;
@@ -4217,7 +4108,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currencyExchangeArea) {
                 currencyExchangeArea.style.display = 'none';
             }
-            deleteBtn.style.display = document.getElementById('form-id').value && !isPoolDepositMode() ? '' : 'none';
+            deleteBtn.style.display = document.getElementById('form-id').value && !isPoolDepositMode() && canEditCurrentItem() ? '' : 'none';
         }
 
         function hideForm() {
@@ -4228,6 +4119,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             deleteBtn.style.display = 'none';
             configureCurrencyTabs();
+        }
+
+        function canEditCurrentItem() {
+            return currentType !== 'oplata' || canManagePaymentTypes;
         }
 
         function configureStatusField() {
@@ -6673,117 +6568,6 @@ document.addEventListener('DOMContentLoaded', () => {
         div.textContent = str;
         return div.innerHTML;
     }
-    (() => {
-        const sitemapStatusUrl = @json(route('settings.sitemap.status'));
-        const sitemapGenerateUrl = @json(route('settings.sitemap.generate'));
-        const modal = document.getElementById('modalSitemap');
-        const btnGenerate = document.getElementById('btn-sitemap-generate');
-        const publicLink = document.getElementById('sitemap-public-link');
-        const openBtn = document.getElementById('btn-sitemap-open');
-        const statusText = document.getElementById('sitemap-status-text');
-        const lastmodText = document.getElementById('sitemap-lastmod-text');
-        const feedback = document.getElementById('sitemap-feedback');
-        const badge = document.getElementById('badge-sitemap');
-
-        if (!modal || !btnGenerate) return;
-
-        modal.addEventListener('show.bs.modal', loadSitemapStatus);
-        btnGenerate.addEventListener('click', generateSitemap);
-
-        async function parseSitemapResponse(response) {
-            const raw = await response.text().catch(() => '');
-
-            if (!raw) {
-                return {};
-            }
-
-            try {
-                return JSON.parse(raw);
-            } catch (_) {
-                const trimmed = raw.trim();
-                const isHtml = trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.startsWith('<');
-
-                return {
-                    message: isHtml ? _ts('sitemap.parse_html_error') : trimmed,
-                };
-            }
-        }
-
-        function loadSitemapStatus() {
-            feedback.textContent = '';
-
-            fetch(sitemapStatusUrl, {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            })
-                .then(async (response) => {
-                    const data = await parseSitemapResponse(response);
-
-                    if (!response.ok) {
-                        throw new Error(data.message || _ts('sitemap.load_status_failed'));
-                    }
-
-                    return data;
-                })
-                .then((data) => updateSitemapUi(data))
-                .catch((error) => {
-                    feedback.textContent = error.message || _ts('sitemap.load_status_failed');
-                });
-        }
-
-        function generateSitemap() {
-            btnGenerate.disabled = true;
-            feedback.textContent = _ts('sitemap.generating');
-
-            fetch(sitemapGenerateUrl, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                },
-            })
-                .then(async (response) => {
-                    const data = await parseSitemapResponse(response);
-                    return { ok: response.ok, data };
-                })
-                .then(({ ok, data }) => {
-                    if (!ok || !data.success) {
-                        throw new Error(data.message || data.error || _ts('sitemap.generate_failed'));
-                    }
-
-                    updateSitemapUi(data);
-                    feedback.textContent = data.message || _ts('sitemap.generated');
-                })
-                .catch((error) => {
-                    feedback.textContent = error.message || _ts('sitemap.generate_failed');
-                })
-                .finally(() => {
-                    btnGenerate.disabled = false;
-                });
-        }
-
-        function updateSitemapUi(data) {
-            const exists = Boolean(data.exists ?? data.public_url);
-            const publicUrl = data.public_url || '#';
-
-            statusText.textContent = exists ? _ts('sitemap.file_ready') : _ts('sitemap.file_missing');
-            badge.textContent = exists ? 'XML' : '—';
-            publicLink.href = publicUrl;
-            publicLink.textContent = publicUrl;
-            openBtn.href = publicUrl;
-            lastmodText.textContent = formatTimestamp(data.last_modified_at);
-        }
-
-        function formatTimestamp(value) {
-            if (!value) return '—';
-
-            const date = new Date(Number(value) * 1000);
-            return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
-        }
-    })();
 });
 
 // === База знаний (Knowledge Base) ===

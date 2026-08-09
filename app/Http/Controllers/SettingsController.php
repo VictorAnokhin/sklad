@@ -59,11 +59,11 @@ class SettingsController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Client types — той самий набір, що Conf::tgroupsForFirma (форма товару / price)
+        // Client types — shared by every project.
         $tgroups = Conf::tgroupsForFirma($fid);
 
-        // Counterparty types — conf where type='tclient'
-        $tclients = DB::table('conf')->where('type', 'tclient')->where('firma', $fid)->orderBy('name')->get();
+        // Counterparty types are shared by every project.
+        $tclients = DB::table('conf')->where('type', 'tclient')->where('firma', 0)->orderBy('name')->get();
         $currentCounterpartyType = null;
         if ($user) {
             $counterpartyTypeId = (int) ($user->idstatus ?: $user->ustype ?: 0);
@@ -75,11 +75,12 @@ class SettingsController extends Controller
         // Каса — conf where type='oplata'
         $oplatas = DB::table('conf')->where('type', 'oplata')->where('firma', $fid)->orderBy('name')->get();
 
-        // Валюты — conf where type='currency'
-        $currencies = DB::table('conf')->where('type', 'currency')->where('firma', $fid)->orderBy('name')->get();
+        // Currencies are shared by every project.
+        $currencies = DB::table('conf')->where('type', 'currency')->where('firma', 0)->orderBy('name')->get();
         $accountCurrencies = $this->currencyCodesForAccounts();
         $currentProjectType = strtolower(trim((string) (Project::query()->where('id', (int) $fid)->value('project_type') ?? '')));
         $currencyExchangeSettings = $this->currencyExchangeSettingsForFirma((string) $fid);
+        $canManagePaymentTypes = $this->canManageCurrentProject($user, $fid);
 
         // FAQ — conf where type='faq'
         $faqs = DB::table('conf')->where('type', 'faq')->where('firma', $fid)->orderBy('name')->get();
@@ -145,13 +146,6 @@ class SettingsController extends Controller
                 ->when(Schema::hasColumn('accounts', 'project_id'), fn ($query) => $query->whereNull('project_id'))
                 ->count()
             : 0;
-        $sitemapService = app(SitemapService::class);
-        $sitemapInfo = [
-            'public_url' => $sitemapService->getPublicUrl($fid !== '' ? (int) $fid : null),
-            'exists' => $sitemapService->exists($fid !== '' ? (int) $fid : null),
-            'last_modified_at' => $sitemapService->lastModifiedAt($fid !== '' ? (int) $fid : null),
-        ];
-
         $catalogNewsOptions = Schema::hasTable('news')
             ? DB::table('news')
                 ->where(function ($query) use ($fid) {
@@ -185,7 +179,7 @@ class SettingsController extends Controller
             }
         }
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'sitemapInfo', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
     }
 
     public function show(Request $request)
@@ -363,7 +357,8 @@ class SettingsController extends Controller
 
         $items = DB::table('conf')
             ->where('type', $type)
-            ->when(! in_array($type, ['reestr', 'asset_type'], true), fn ($query) => $query->where('firma', $fid))
+            ->when($this->confTypeUsesCurrentProject($type), fn ($query) => $query->where('firma', $fid))
+            ->when($this->confTypeIsGlobal($type), fn ($query) => $query->where('firma', 0))
             ->when($type === 'asset_type', fn ($query) => $query->where(function ($builder) use ($fid) {
                 $builder->where('firma', '0')->orWhere('firma', $fid);
             }))
@@ -378,7 +373,7 @@ class SettingsController extends Controller
         $fid = (string) $request->query('fid', config('app.fid', '12'));
         $items = DB::table('conf')
             ->where('type', 'currency')
-            ->where('firma', $fid)
+            ->where('firma', 0)
             ->orderBy('name')
             ->get()
             ->map(function ($item) {
@@ -539,7 +534,8 @@ class SettingsController extends Controller
         $item = DB::table('conf')
             ->where('id', $id)
             ->where('type', $type)
-            ->when(! in_array($type, ['reestr', 'asset_type'], true), fn ($query) => $query->where('firma', $fid))
+            ->when($this->confTypeUsesCurrentProject($type), fn ($query) => $query->where('firma', $fid))
+            ->when($this->confTypeIsGlobal($type), fn ($query) => $query->where('firma', 0))
             ->when($type === 'asset_type', fn ($query) => $query->where(function ($builder) use ($fid) {
                 $builder->where('firma', '0')->orWhere('firma', $fid);
             }))
@@ -561,7 +557,7 @@ class SettingsController extends Controller
 
         $data = $this->validateConfRecord($request);
         $data['hide'] = '0';
-        $data['firma'] = in_array((string) ($data['type'] ?? ''), ['reestr', 'asset_type'], true) ? 0 : $fid;
+        $data['firma'] = $this->confFirmaForType((string) ($data['type'] ?? ''), $fid);
 
         $id = DB::table('conf')->insertGetId($data);
         $this->syncDefaultConfRecord((int) $id, $data);
@@ -581,19 +577,22 @@ class SettingsController extends Controller
         }
 
         $type = (string) $request->input('type');
+        if ($type === 'oplata' && ! $this->canManageCurrentProject($this->currentUser(), $fid)) {
+            return response()->json(['success' => false, 'message' => 'Редактирование видов платежей доступно только автору проекта.'], 403);
+        }
+
         $exists = DB::table('conf')
             ->where('id', $id)
             ->where('type', $type)
-            ->when(! in_array($type, ['reestr', 'asset_type'], true), fn ($query) => $query->where('firma', $fid))
+            ->when($this->confTypeUsesCurrentProject($type), fn ($query) => $query->where('firma', $fid))
+            ->when($this->confTypeIsGlobal($type), fn ($query) => $query->where('firma', 0))
             ->when($type === 'asset_type', fn ($query) => $query->where(function ($builder) use ($fid) {
                 $builder->where('firma', '0')->orWhere('firma', $fid);
             }))
             ->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
         $update = $this->validateConfRecord($request, $exists);
-        if (in_array($type, ['reestr', 'asset_type'], true)) {
-            $update['firma'] = 0;
-        }
+        $update['firma'] = $this->confFirmaForType($type, $fid);
 
         DB::table('conf')->where('id', $id)->update($update);
         $this->syncDefaultConfRecord((int) $id, $update);
@@ -610,7 +609,14 @@ class SettingsController extends Controller
         $fid = session('fid', '');
         $exists = DB::table('conf')->where('id', $id)->first();
         if (!$exists) return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
-        if (! in_array((string) $exists->type, ['reestr', 'asset_type'], true) && (string) $exists->firma !== (string) $fid) {
+        $type = (string) $exists->type;
+        if ($type === 'oplata' && ! $this->canManageCurrentProject($this->currentUser(), $fid)) {
+            return response()->json(['success' => false, 'message' => 'Удаление видов платежей доступно только автору проекта.'], 403);
+        }
+        if ($this->confTypeUsesCurrentProject($type) && (string) $exists->firma !== (string) $fid) {
+            return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
+        }
+        if ($this->confTypeIsGlobal($type) && (string) $exists->firma !== '0') {
             return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
         }
 
@@ -2664,6 +2670,41 @@ class SettingsController extends Controller
         return User::forLogin($login)->first();
     }
 
+    private function sharedConfTypes(): array
+    {
+        return ['tgroup', 'tclient', 'currency'];
+    }
+
+    private function globalConfTypes(): array
+    {
+        return array_merge(['reestr'], $this->sharedConfTypes());
+    }
+
+    private function confTypeIsGlobal(string $type): bool
+    {
+        return in_array($type, $this->globalConfTypes(), true);
+    }
+
+    private function confTypeUsesCurrentProject(string $type): bool
+    {
+        return ! $this->confTypeIsGlobal($type) && $type !== 'asset_type';
+    }
+
+    private function confFirmaForType(string $type, mixed $fid): string|int
+    {
+        return $this->confTypeIsGlobal($type) ? 0 : $fid;
+    }
+
+    private function canManageCurrentProject(?object $user, mixed $fid): bool
+    {
+        $projectId = (int) $fid;
+        if ($projectId <= 0) {
+            return false;
+        }
+
+        return $this->creatorProjectIdsForUser($user)->contains($projectId);
+    }
+
     private function companiesQuery(object $user)
     {
         return Firma::query()->where(function ($query) use ($user) {
@@ -3131,7 +3172,7 @@ class SettingsController extends Controller
     {
         return DB::table('conf')
             ->where('type', 'currency')
-            ->where('firma', $fid)
+            ->where('firma', 0)
             ->orderBy('name')
             ->get(['name', 'currency'])
             ->map(fn ($item) => $this->normalizeCurrencyCode($item->currency ?? $item->name ?? ''))
