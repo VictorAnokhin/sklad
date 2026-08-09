@@ -1397,10 +1397,8 @@ class BankController extends Controller
             ->timeout(20)
             ->connectTimeout(8);
         $auth = ['apikey' => $apiKey];
-        $historicalResponse = $request->get('historical-price-eod/full', $auth + [
+        $quoteResponse = $request->get('quote', $auth + [
             'symbol' => $ticker,
-            'from' => $snapshotDate,
-            'to' => $snapshotDate,
         ]);
         $profileResponse = $request->get('profile', $auth + [
             'symbol' => $ticker,
@@ -1421,18 +1419,17 @@ class BankController extends Controller
             'limit' => 5,
         ]);
 
-        if ($historicalResponse->failed()) {
+        if ($quoteResponse->failed()) {
             throw ValidationException::withMessages([
-                'adapter' => 'FMP historical-price-eod/full вернул ошибку: HTTP ' . $historicalResponse->status(),
+                'adapter' => 'FMP quote вернул ошибку: HTTP ' . $quoteResponse->status(),
             ]);
         }
 
-        $historicalPayload = $historicalResponse->json() ?: [];
-        $historicalRows = array_is_list($historicalPayload) ? $historicalPayload : ($historicalPayload['historical'] ?? []);
-        $historical = collect($historicalRows)->first();
-        if (! is_array($historical)) {
+        $quotePayload = $quoteResponse->json() ?: [];
+        $quote = is_array($quotePayload[0] ?? null) ? $quotePayload[0] : (is_array($quotePayload) ? $quotePayload : []);
+        if (! is_array($quote) || $quote === []) {
             throw ValidationException::withMessages([
-                'snapshot_date' => 'FMP не вернул историческую цену для ' . $ticker . ' на дату ' . $snapshotDate . '. Проверьте, что это торговый день.',
+                'ticker' => 'FMP не вернул текущую котировку для ' . $ticker . '. Проверьте тикер и доступность тарифа API.',
             ]);
         }
 
@@ -1449,16 +1446,16 @@ class BankController extends Controller
             : [];
 
         $data = [
-            'ticker' => strtoupper((string) ($profile['symbol'] ?? $ticker)),
-            'company' => (string) ($profile['companyName'] ?? ''),
+            'ticker' => strtoupper((string) ($quote['symbol'] ?? $profile['symbol'] ?? $ticker)),
+            'company' => (string) ($profile['companyName'] ?? $quote['name'] ?? ''),
             'sector' => (string) ($profile['sector'] ?? ''),
             'industry' => (string) ($profile['industry'] ?? ''),
             'country' => (string) ($profile['country'] ?? ''),
-            'market' => $this->formatStockMarketCapFromValue($profile['marketCap'] ?? $profile['mktCap'] ?? $metrics['marketCap'] ?? null),
-            'market_cap' => $this->formatStockMarketCapFromValue($profile['marketCap'] ?? $profile['mktCap'] ?? $metrics['marketCap'] ?? null),
-            'price' => $this->formatStockNumber($historical['close'] ?? null),
-            'change_percent' => $this->formatStockPercent($historical['changePercent'] ?? null),
-            'volume' => $this->formatStockInteger($historical['volume'] ?? null),
+            'market' => $this->formatStockMarketCapFromValue($quote['marketCap'] ?? $profile['marketCap'] ?? $profile['mktCap'] ?? $metrics['marketCap'] ?? null),
+            'market_cap' => $this->formatStockMarketCapFromValue($quote['marketCap'] ?? $profile['marketCap'] ?? $profile['mktCap'] ?? $metrics['marketCap'] ?? null),
+            'price' => $this->formatStockNumber($quote['price'] ?? null),
+            'change_percent' => $this->formatStockPercent($quote['changePercentage'] ?? $quote['changesPercentage'] ?? null),
+            'volume' => $this->formatStockInteger($quote['volume'] ?? null),
             'enterprise_value' => $this->formatStockMarketCapFromValue($metrics['enterpriseValue'] ?? null),
             'income' => $this->formatStockMarketCapFromValue($income['netIncome'] ?? null),
             'sales' => $this->formatStockMarketCapFromValue($income['revenue'] ?? null),
@@ -1472,7 +1469,7 @@ class BankController extends Controller
                 : null),
             'employees' => $this->formatStockInteger($profile['fullTimeEmployees'] ?? null),
             'ipo' => (string) ($profile['ipoDate'] ?? ''),
-            'pe' => $this->formatStockNumber($ratios['priceToEarningsRatio'] ?? null),
+            'pe' => $this->formatStockNumber($quote['pe'] ?? $ratios['priceToEarningsRatio'] ?? null),
             'pb' => $this->formatStockNumber($ratios['priceToBookRatio'] ?? null),
             'ps' => $this->formatStockNumber($ratios['priceToSalesRatio'] ?? null),
             'pc' => $this->formatStockNumber($ratios['priceToOperatingCashFlowRatio'] ?? null),
@@ -1485,13 +1482,13 @@ class BankController extends Controller
             'roe' => $this->formatStockPercent(($metrics['returnOnEquity'] ?? null) !== null ? (float) $metrics['returnOnEquity'] * 100 : null),
             'roic' => $this->formatStockPercent(($metrics['returnOnInvestedCapital'] ?? null) !== null ? (float) $metrics['returnOnInvestedCapital'] * 100 : null),
             'debt_eq' => $this->formatStockNumber($ratios['debtToEquityRatio'] ?? $ratios['debtEquityRatio'] ?? $metrics['debtToEquity'] ?? null),
-            'eps_ttm' => $this->formatStockNumber($income['eps'] ?? $income['epsDiluted'] ?? null),
+            'eps_ttm' => $this->formatStockNumber($quote['eps'] ?? $income['eps'] ?? $income['epsDiluted'] ?? null),
         ];
 
         $data = array_filter($data, fn ($value) => trim((string) $value) !== '');
 
         return [
-            'message' => 'Данные FMP подтянуты по тикеру ' . $ticker . ' на дату ' . $snapshotDate . '. Нажмите Сохранить, чтобы записать snapshot.',
+            'message' => 'Текущие данные FMP подтянуты по тикеру ' . $ticker . '. Нажмите Сохранить, чтобы записать snapshot на дату ' . $snapshotDate . '.',
             'data' => $data,
         ];
     }
