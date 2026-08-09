@@ -1167,6 +1167,8 @@
         let currentPullUrl = '';
         let currentAdapterUrl = '';
         let currentSnapshotDate = '';
+        let currentAdapterValue = 'manual';
+        let adapterConfigCache = {};
 
         if (modal && !modal.hidden) {
             document.body.style.overflow = 'hidden';
@@ -1220,9 +1222,14 @@
             }
             if (adapterSelect) {
                 adapterSelect.value = stock?.adapter || 'manual';
+                currentAdapterValue = adapterSelect.value || 'manual';
             }
             if (adapterConfigField) {
                 adapterConfigField.value = stock?.adapter_config || '';
+            }
+            adapterConfigCache = {};
+            if (stock?.adapter && stock?.adapter_config) {
+                adapterConfigCache[stock.adapter] = stock.adapter_config;
             }
             if (snapshotDateField) {
                 snapshotDateField.value = mode === 'edit'
@@ -1241,22 +1248,80 @@
         };
 
         const adapterConfigString = (adapter) => JSON.stringify(defaultAdapterConfigs[adapter] || {}, null, 2);
+        const normalizeAdapterConfigString = (adapter, value) => {
+            let normalized = (value || '').trim();
+            if (adapter === 'fmp' && normalized.includes('financialmodelingprep.com/api/v3')) {
+                normalized = normalized.replace('https://financialmodelingprep.com/api/v3', 'https://financialmodelingprep.com/stable');
+            }
+
+            return normalized;
+        };
         const defaultAdapterByConfig = (configValue) => {
             const normalized = (configValue || '').trim();
 
             return Object.keys(defaultAdapterConfigs).find((adapter) => normalized === adapterConfigString(adapter).trim()) || '';
         };
-        const ensureAdapterConfig = (adapter, force = false) => {
-            if (!adapterConfigField || !defaultAdapterConfigs[adapter]) {
+        const adapterByConfig = (configValue) => {
+            const defaultAdapter = defaultAdapterByConfig(configValue);
+            if (defaultAdapter) {
+                return defaultAdapter;
+            }
+
+            try {
+                const config = JSON.parse((configValue || '').trim() || '{}');
+                const baseUrl = String(config.base_url || '').toLowerCase();
+                if (baseUrl.includes('finnhub.io')) {
+                    return 'finnhub';
+                }
+                if (baseUrl.includes('financialmodelingprep.com')) {
+                    return 'fmp';
+                }
+            } catch (error) {
+                return '';
+            }
+
+            return '';
+        };
+        const cacheCurrentAdapterConfig = () => {
+            if (!adapterConfigField || !currentAdapterValue || currentAdapterValue === 'manual') {
                 return;
             }
 
-            if (adapter === 'fmp' && adapterConfigField.value.includes('financialmodelingprep.com/api/v3')) {
-                adapterConfigField.value = adapterConfigField.value.replace('https://financialmodelingprep.com/api/v3', 'https://financialmodelingprep.com/stable');
+            const value = normalizeAdapterConfigString(currentAdapterValue, adapterConfigField.value);
+            if (value) {
+                adapterConfigCache[currentAdapterValue] = value;
             }
-            const currentDefaultAdapter = defaultAdapterByConfig(adapterConfigField.value);
-            if (force || !adapterConfigField.value.trim() || (currentDefaultAdapter && currentDefaultAdapter !== adapter)) {
-                adapterConfigField.value = adapterConfigString(adapter);
+        };
+        const configForAdapter = (adapter) => {
+            if (!defaultAdapterConfigs[adapter]) {
+                return '';
+            }
+
+            if (adapterConfigCache[adapter]) {
+                return normalizeAdapterConfigString(adapter, adapterConfigCache[adapter]);
+            }
+
+            if (adapterByConfig(adapterConfigField?.value || '') === adapter) {
+                return normalizeAdapterConfigString(adapter, adapterConfigField.value);
+            }
+
+            return adapterConfigString(adapter);
+        };
+        const ensureAdapterConfig = (adapter, force = false) => {
+            if (!adapterConfigField) {
+                return;
+            }
+
+            if (!defaultAdapterConfigs[adapter]) {
+                adapterConfigField.value = '';
+                return;
+            }
+
+            const configOwner = adapterByConfig(adapterConfigField.value);
+            if (force || !adapterConfigField.value.trim() || configOwner !== adapter) {
+                adapterConfigField.value = configForAdapter(adapter);
+            } else {
+                adapterConfigField.value = normalizeAdapterConfigString(adapter, adapterConfigField.value);
             }
         };
 
@@ -1397,19 +1462,49 @@
         };
         adapterSettingsButton?.addEventListener('click', openAdapterModal);
         adapterSelect?.addEventListener('change', () => {
-            ensureAdapterConfig(adapterSelect.value);
+            cacheCurrentAdapterConfig();
+            currentAdapterValue = adapterSelect.value || 'manual';
+            ensureAdapterConfig(currentAdapterValue, true);
         });
         adapterModalSelect?.addEventListener('change', () => {
-            if (!adapterModalConfig || !defaultAdapterConfigs[adapterModalSelect.value]) {
+            if (!adapterModalConfig) {
                 return;
             }
 
-            if (adapterModalSelect.value === 'fmp' && adapterModalConfig.value.includes('financialmodelingprep.com/api/v3')) {
-                adapterModalConfig.value = adapterModalConfig.value.replace('https://financialmodelingprep.com/api/v3', 'https://financialmodelingprep.com/stable');
+            const previousAdapter = adapterByConfig(adapterModalConfig.value) || adapterSelect?.value || currentAdapterValue;
+            if (previousAdapter && previousAdapter !== 'manual') {
+                adapterConfigCache[previousAdapter] = normalizeAdapterConfigString(previousAdapter, adapterModalConfig.value);
             }
-            const currentDefaultAdapter = defaultAdapterByConfig(adapterModalConfig.value);
-            if (!adapterModalConfig.value.trim() || (currentDefaultAdapter && currentDefaultAdapter !== adapterModalSelect.value)) {
-                adapterModalConfig.value = adapterConfigString(adapterModalSelect.value);
+            adapterModalConfig.value = configForAdapter(adapterModalSelect.value);
+            if (adapterSelect) {
+                adapterSelect.value = adapterModalSelect.value || 'manual';
+                currentAdapterValue = adapterSelect.value || 'manual';
+            }
+            if (adapterConfigField) {
+                adapterConfigField.value = adapterModalConfig.value;
+            }
+        });
+        adapterModalConfig?.addEventListener('input', () => {
+            if (!adapterModalSelect || !adapterModalConfig || adapterModalSelect.value === 'manual') {
+                return;
+            }
+
+            adapterConfigCache[adapterModalSelect.value] = normalizeAdapterConfigString(adapterModalSelect.value, adapterModalConfig.value);
+            if (adapterConfigField && adapterSelect?.value === adapterModalSelect.value) {
+                adapterConfigField.value = adapterModalConfig.value;
+            }
+        });
+        adapterModalForm?.addEventListener('submit', () => {
+            if (!adapterModalSelect || !adapterModalConfig) {
+                return;
+            }
+
+            if (adapterSelect) {
+                adapterSelect.value = adapterModalSelect.value || 'manual';
+                currentAdapterValue = adapterSelect.value || 'manual';
+            }
+            if (adapterConfigField) {
+                adapterConfigField.value = adapterModalConfig.value || '';
             }
         });
         adapterCloseButtons.forEach((button) => button.addEventListener('click', closeAdapterModal));
