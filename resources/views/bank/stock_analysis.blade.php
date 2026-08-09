@@ -23,6 +23,13 @@
         'industry' => $stockFilterOptions['industry'] ?? collect(),
         'country' => $stockFilterOptions['country'] ?? collect(),
     ];
+    $dividendFrequencyOptions = [
+        '' => 'Все',
+        'never' => 'Никогда',
+        'month' => 'Месяц',
+        'quarter' => 'Квартал',
+        'year' => 'Год',
+    ];
     $defaultMetricGroups = [
         'Оценка и баланс' => [
             ['market_cap', 'Market Cap', '374.54B'],
@@ -160,6 +167,15 @@
                                 @endforeach
                             </div>
                         </div>
+                    </div>
+
+                    <div>
+                        <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Платит дивиденды</label>
+                        <select name="dividend_frequency" style="width:100%; padding:8px 12px; font-size:0.9rem;">
+                            @foreach($dividendFrequencyOptions as $value => $label)
+                                <option value="{{ $value }}" @selected(($stockFilters['dividend_frequency'] ?? '') === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 
@@ -378,6 +394,14 @@
                                 @endif
                             </label>
                         @endforeach
+                        <label>
+                            <span>Платит дивиденды</span>
+                            <select name="dividend_frequency">
+                                @foreach($dividendFrequencyOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('dividend_frequency', '') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </label>
                     </div>
                 </div>
 
@@ -1109,6 +1133,9 @@
             form.querySelectorAll('input[name]:not([name="_token"]):not([name="_method"]), select[name], textarea[name]').forEach((input) => {
                 input.value = stock ? (stock[input.name] ?? '') : '';
             });
+            if (form.elements?.dividend_frequency) {
+                form.elements.dividend_frequency.value = stock?.dividend_frequency || '';
+            }
             if (adapterSelect) {
                 adapterSelect.value = stock?.adapter || 'manual';
             }

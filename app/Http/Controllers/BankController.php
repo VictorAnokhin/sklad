@@ -973,11 +973,16 @@ class BankController extends Controller
             'sector' => trim((string) $request->query('sector', '')),
             'industry' => trim((string) $request->query('industry', '')),
             'country' => trim((string) $request->query('country', '')),
+            'dividend_frequency' => trim((string) $request->query('dividend_frequency', '')),
         ];
+        if (! in_array($filters['dividend_frequency'], ['', 'never', 'month', 'quarter', 'year'], true)) {
+            $filters['dividend_frequency'] = '';
+        }
         $stocks = $allStocks
             ->when($filters['sector'] !== '', fn ($rows) => $rows->where('sector', $filters['sector']))
             ->when($filters['industry'] !== '', fn ($rows) => $rows->where('industry', $filters['industry']))
             ->when($filters['country'] !== '', fn ($rows) => $rows->where('country', $filters['country']))
+            ->when($filters['dividend_frequency'] !== '', fn ($rows) => $rows->where('dividend_frequency', $filters['dividend_frequency']))
             ->values();
         $tableMultipliers = $this->stockAnalysisTableMultipliers((int) $project->id);
         $parameters = $this->stockAnalysisParametersForView((int) $project->id);
@@ -1321,6 +1326,9 @@ class BankController extends Controller
         if ($payload['adapter_config'] === '') {
             $payload['adapter_config'] = null;
         }
+        $payload['dividend_frequency'] = in_array((string) ($payload['dividend_frequency'] ?? ''), ['', 'never', 'month', 'quarter', 'year'], true)
+            ? (string) $payload['dividend_frequency']
+            : '';
 
         return $payload;
     }
@@ -2758,6 +2766,7 @@ class BankController extends Controller
             'cash_per_share' => ['nullable', 'string', 'max:80'],
             'dividend_est' => ['nullable', 'string', 'max:120'],
             'dividend_ttm' => ['nullable', 'string', 'max:120'],
+            'dividend_frequency' => ['nullable', 'string', Rule::in(['never', 'month', 'quarter', 'year'])],
             'dividend_ex_date' => ['nullable', 'string', 'max:120'],
             'dividend_growth_3_5y' => ['nullable', 'string', 'max:120'],
             'payout' => ['nullable', 'string', 'max:80'],
@@ -2818,6 +2827,7 @@ class BankController extends Controller
             'cash_per_share',
             'dividend_est',
             'dividend_ttm',
+            'dividend_frequency',
             'dividend_ex_date',
             'dividend_growth_3_5y',
             'payout',
