@@ -62,6 +62,7 @@ Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.p
 // ── Public Pages ──────────────────────────────────────────────────────────────
 Route::view('/', 'pages.micro_business')->name('micro-business');
 Route::view('/individuals', 'pages.individuals')->name('individuals');
+Route::view('/education', 'pages.education')->name('education.public');
 Route::get('/about', function () {
     $projects = \Illuminate\Support\Facades\Schema::hasTable('project') 
         ? \App\Models\Project::orderBy('num')->orderBy('name')->get() 
