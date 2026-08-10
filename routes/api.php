@@ -231,6 +231,9 @@ Route::middleware(['api', 'throttle:30,1'])->prefix('projects/manager-ai')->grou
 });
 Route::get('/projects/{id}', [SettingsController::class, 'projectsPublicShow']);
 Route::get('/offices', [SettingsController::class, 'officesPublicIndex']);
+Route::get('/stocks', [BankController::class, 'publicStockAnalysis']);
+Route::get('/stocks/{ticker}', [BankController::class, 'publicStockAnalysisShow'])
+    ->where('ticker', '[A-Za-z0-9\\.\\-_]+');
 Route::get('/bank/cash-accounts', [BankController::class, 'publicExchangeCashAccounts']);
 Route::get('/bank/assets', [BankController::class, 'publicExchangeAssets']);
 Route::get('/settings/currencies', [SettingsController::class, 'publicCurrencies']);

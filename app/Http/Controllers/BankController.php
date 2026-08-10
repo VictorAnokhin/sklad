@@ -1023,6 +1023,94 @@ class BankController extends Controller
         ]);
     }
 
+    public function publicStockAnalysis(Request $request): JsonResponse
+    {
+        $projectId = $this->publicStockAnalysisProjectId($request);
+        $allStocks = $this->stockAnalysisRows($projectId);
+        $filters = $this->publicStockAnalysisFilters($request);
+        $filteredStocks = $this->filterStockAnalysisRows($allStocks, $filters);
+        $perPage = 15;
+        $currentPage = max(1, (int) $request->query('page', 1));
+        $pageStocks = $filteredStocks->forPage($currentPage, $perPage)->values();
+        $tableMultipliers = $this->stockAnalysisTableMultipliers($projectId);
+        $tableMultiplierValues = $this->stockAnalysisTableMultiplierValues($pageStocks, $tableMultipliers);
+
+        return response()->json([
+            'data' => $pageStocks
+                ->map(fn ($stock) => $this->publicStockAnalysisRow($stock, $tableMultiplierValues[(int) $stock->id] ?? []))
+                ->values(),
+            'filters' => $filters,
+            'filter_options' => [
+                'sector' => $allStocks->pluck('sector')->filter()->unique()->sort()->values(),
+                'industry' => $allStocks->pluck('industry')->filter()->unique()->sort()->values(),
+                'country' => $allStocks->pluck('country')->filter()->unique()->sort()->values(),
+                'dividend_frequency' => $this->stockDividendFrequencyOptions(),
+            ],
+            'summary' => [
+                'stocks' => $filteredStocks->count(),
+                'countries' => $filteredStocks->pluck('country')->filter()->unique()->count(),
+                'sectors' => $filteredStocks->pluck('sector')->filter()->unique()->count(),
+            ],
+            'pagination' => [
+                'current_page' => $currentPage,
+                'per_page' => $perPage,
+                'total' => $filteredStocks->count(),
+                'last_page' => max(1, (int) ceil($filteredStocks->count() / $perPage)),
+                'from' => $filteredStocks->count() > 0 ? (($currentPage - 1) * $perPage) + 1 : 0,
+                'to' => min($currentPage * $perPage, $filteredStocks->count()),
+            ],
+        ]);
+    }
+
+    public function publicStockAnalysisShow(Request $request, string $ticker): JsonResponse
+    {
+        $projectId = $this->publicStockAnalysisProjectId($request);
+        $ticker = strtoupper(trim($ticker));
+        $stockRow = $this->stockAnalysisRows($projectId)
+            ->first(fn ($stock) => strtoupper((string) ($stock->ticker ?? '')) === $ticker);
+
+        if (! $stockRow) {
+            return response()->json(['message' => 'Stock not found'], 404);
+        }
+
+        $snapshots = $this->stockAnalysisSnapshots($stockRow);
+        $parameters = $this->stockAnalysisParametersForView($projectId);
+        $multipliers = $this->stockAnalysisMultipliersForView($projectId);
+        $payload = $this->stockPayloadFromRow($stockRow);
+
+        return response()->json([
+            'data' => $this->publicStockAnalysisRow($stockRow, $this->stockAnalysisTableMultiplierValues(collect([$stockRow]), $this->stockAnalysisTableMultipliers($projectId))[(int) $stockRow->id] ?? []),
+            'payload' => $payload,
+            'snapshots' => $snapshots->map(function ($snapshot) {
+                $payload = json_decode((string) ($snapshot->payload ?? ''), true);
+
+                return [
+                    'id' => (int) $snapshot->id,
+                    'snapshot_date' => (string) ($snapshot->snapshot_date ?? ''),
+                    'price' => (string) ($payload['price'] ?? ''),
+                    'change_percent' => (string) ($payload['change_percent'] ?? ''),
+                    'volume' => (string) ($payload['volume'] ?? ''),
+                    'payload' => is_array($payload) ? $payload : [],
+                ];
+            })->values(),
+            'parameters' => collect($parameters)->map(fn ($parameter) => [
+                'id' => (int) $parameter->id,
+                'name' => (string) ($parameter->name ?? ''),
+                'field_key' => (string) ($parameter->field_key ?? ''),
+                'group_name' => (string) ($parameter->group_name ?? ''),
+                'description' => (string) ($parameter->description ?? ''),
+            ])->values(),
+            'multipliers' => collect($multipliers)->map(fn ($multiplier) => [
+                'id' => (int) $multiplier->id,
+                'name' => (string) ($multiplier->name ?? ''),
+                'formula' => (string) ($multiplier->formula ?? ''),
+                'description' => (string) ($multiplier->description ?? ''),
+                'block' => (string) ($multiplier->block ?? ''),
+                'table_visible' => (bool) ($multiplier->table_visible ?? false),
+            ])->values(),
+        ]);
+    }
+
     public function storeStockAnalysis(Request $request): RedirectResponse
     {
         $project = $this->bankProject();
@@ -5794,6 +5882,72 @@ class BankController extends Controller
             ->get()
             ->unique(fn ($stock) => strtoupper((string) $stock->ticker))
             ->values();
+    }
+
+    private function publicStockAnalysisProjectId(Request $request): int
+    {
+        $fid = (int) $request->query('fid', config('app.fid', 12));
+
+        return $fid > 0 ? $fid : 12;
+    }
+
+    private function publicStockAnalysisFilters(Request $request): array
+    {
+        $filters = [
+            'sector' => trim((string) $request->query('sector', '')),
+            'industry' => trim((string) $request->query('industry', '')),
+            'country' => trim((string) $request->query('country', '')),
+            'dividend_frequency' => trim((string) $request->query('dividend_frequency', '')),
+        ];
+
+        if (! in_array($filters['dividend_frequency'], ['', 'never', 'month', 'quarter', 'year'], true)) {
+            $filters['dividend_frequency'] = '';
+        }
+
+        return $filters;
+    }
+
+    private function filterStockAnalysisRows($stocks, array $filters)
+    {
+        return collect($stocks)
+            ->when($filters['sector'] !== '', fn ($rows) => $rows->where('sector', $filters['sector']))
+            ->when($filters['industry'] !== '', fn ($rows) => $rows->where('industry', $filters['industry']))
+            ->when($filters['country'] !== '', fn ($rows) => $rows->where('country', $filters['country']))
+            ->when($filters['dividend_frequency'] !== '', fn ($rows) => $rows->where('dividend_frequency', $filters['dividend_frequency']))
+            ->values();
+    }
+
+    private function stockDividendFrequencyOptions(): array
+    {
+        return [
+            ['value' => '', 'label' => 'Все'],
+            ['value' => 'never', 'label' => 'Никогда'],
+            ['value' => 'month', 'label' => 'Месяц'],
+            ['value' => 'quarter', 'label' => 'Квартал'],
+            ['value' => 'year', 'label' => 'Год'],
+        ];
+    }
+
+    private function publicStockAnalysisRow(object $stock, array $tableMultipliers = []): array
+    {
+        return [
+            'id' => (int) $stock->id,
+            'company' => (string) ($stock->company ?? ''),
+            'ticker' => strtoupper((string) ($stock->ticker ?? '')),
+            'sector' => (string) ($stock->sector ?? ''),
+            'industry' => (string) ($stock->industry ?? ''),
+            'country' => (string) ($stock->country ?? ''),
+            'market' => (string) ($stock->market ?? ''),
+            'price' => (string) ($stock->price ?? ''),
+            'change_percent' => (string) ($stock->change_percent ?? ''),
+            'volume' => (string) ($stock->volume ?? ''),
+            'market_cap' => (string) ($stock->market_cap ?? ''),
+            'pe' => (string) ($stock->pe ?? ''),
+            'ps' => (string) ($stock->ps ?? ''),
+            'pb' => (string) ($stock->pb ?? ''),
+            'dividend_frequency' => (string) ($stock->dividend_frequency ?? ''),
+            'multipliers' => array_values($tableMultipliers),
+        ];
     }
 
     private function stockAnalysisRow(int $projectId, int $stockId): object
