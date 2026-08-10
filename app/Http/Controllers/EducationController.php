@@ -7,6 +7,7 @@ use App\Models\EducationProgress;
 use App\Models\EducationTopic;
 use App\Models\EducationUtility;
 use App\Models\EducationalMaterial;
+use App\Models\Document;
 use App\Models\QuestTest;
 use App\Models\QuestTestAttempt;
 use App\Models\QuestTestResult;
@@ -18,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -87,14 +89,15 @@ class EducationController extends Controller
         $comment = trim((string) ($validated['comment'] ?? ''));
         $source = trim((string) ($validated['source'] ?? 'site'));
         $pageUrl = trim((string) ($validated['page_url'] ?? ''));
-        $user = Auth::guard('sanctum')->user();
+        $authUser = Auth::guard('sanctum')->user();
 
-        $order = DB::transaction(function () use ($phone, $comment, $source, $pageUrl, $user) {
+        $order = DB::transaction(function () use ($phone, $comment, $source, $pageUrl, $authUser) {
             DB::table('project')->where('id', self::CONSULTATION_FID)->lockForUpdate()->first();
+            $client = $authUser ?: $this->ensureConsultationGuestClient($phone, $source);
 
             $now = now();
             $year = $now->format('Y');
-            $orderNum = Document::nextNum('ZOUT', '36', $year);
+            $orderNum = Document::nextNum('ZOUT', self::CONSULTATION_FID, $year);
             $contentParts = [
                 'Consultation: заявка на консультацию',
                 'source: ' . $source,
@@ -107,11 +110,11 @@ class EducationController extends Controller
                 $contentParts[] = 'page: ' . $pageUrl;
             }
 
-            $orderId = DB::table('document')->insertGetId([
+            $documentPayload = [
                 'num' => (string) $orderNum,
                 'type' => 'ZOUT',
                 'firma' => self::CONSULTATION_FID,
-                'client1' => $user ? (string) $user->getAuthIdentifier() : '0',
+                'client1' => (string) $client->id,
                 'client2' => '0',
                 'summa' => 0,
                 'data' => $now->format('d-m-Y'),
@@ -130,7 +133,13 @@ class EducationController extends Controller
                 'numdoc' => $source,
                 'close' => 0,
                 'typeproduct' => 'consultation',
-            ]);
+            ];
+            $documentPayload = array_intersect_key(
+                $documentPayload,
+                array_flip(Schema::getColumnListing('document'))
+            );
+
+            $orderId = DB::table('document')->insertGetId($documentPayload);
 
             return DB::table('document')->where('id', $orderId)->first();
         });
@@ -143,6 +152,79 @@ class EducationController extends Controller
                 'phone' => $phone,
             ],
         ]);
+    }
+
+    private function ensureConsultationGuestClient(string $phone, string $source): object
+    {
+        $existing = DB::table('users')
+            ->where('firma', self::CONSULTATION_FID)
+            ->where('phone', $phone)
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $now = now();
+        $suffix = strtolower(Str::random(10));
+        $name = 'Guest ' . $now->format('YmdHis');
+        $email = 'consultation+' . $suffix . '@av8.local';
+        $login = 'consultation_' . $suffix;
+        $payload = [
+            'name' => $name,
+            'secondname' => 'Consultation',
+            'fathername' => 'Guest',
+            'orgname' => '',
+            'kod1' => '',
+            'name2' => $name,
+            'city' => '',
+            'country' => '',
+            'region' => '',
+            'poshta' => '',
+            'idstatus' => 1,
+            'email' => $email,
+            'fid' => self::CONSULTATION_FID,
+            'firma' => self::CONSULTATION_FID,
+            'project_id' => (int) self::CONSULTATION_FID,
+            'status' => 1,
+            'idkassa' => '',
+            'idsklad' => '',
+            'idreestr' => '',
+            'domen' => '',
+            'phone' => $phone,
+            'phone1' => $phone,
+            'password' => Hash::make(Str::random(24)),
+            'firmuser' => '',
+            'firmuserall' => '',
+            'login' => $login,
+            'pass' => '',
+            'ustype' => '',
+            'direktor' => '',
+            'kod2' => '',
+            'pp' => '',
+            'bank' => '',
+            'mfo' => '',
+            'address' => '',
+            'phone2' => '',
+            'website' => '',
+            'description' => 'Гостевой клиент для заявки на консультацию. Source: ' . $source,
+            'foto1' => '',
+            'foto2' => '',
+            'foto3' => '',
+            'foto4' => '',
+            'foto5' => '',
+            'created_at' => $now,
+            'updated_at' => $now,
+            'date' => $now->toDateString(),
+            'time' => $now->format('H:i:s'),
+        ];
+
+        $payload = array_intersect_key($payload, array_flip(Schema::getColumnListing('users')));
+        $clientId = DB::table('users')->insertGetId($payload);
+
+        return DB::table('users')->where('id', $clientId)->first();
     }
 
     public function profile(Request $request): JsonResponse
