@@ -28,7 +28,7 @@ use Illuminate\Validation\ValidationException;
 
 class EducationController extends Controller
 {
-    private const CONSULTATION_FID = '12';
+    private const CONSULTATION_FID = '36';
     private const EDUCATION_LANGUAGES = ['ru', 'ua', 'en', 'es', 'fr'];
     private const INVESTMENT_SIMULATION_UTILITY_SLUG = 'investment-simulation';
     private const CAPITAL_EFFICIENCY_UTILITY_SLUG = 'capital-efficiency';
@@ -85,7 +85,10 @@ class EducationController extends Controller
             'page_url' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $phone = trim((string) $validated['phone']);
+        $phone = $this->normalizeConsultationPhone((string) $validated['phone']);
+        if ($phone === '') {
+            throw ValidationException::withMessages(['phone' => 'Введите номер телефона для связи.']);
+        }
         $comment = trim((string) ($validated['comment'] ?? ''));
         $source = trim((string) ($validated['source'] ?? 'site'));
         $pageUrl = trim((string) ($validated['page_url'] ?? ''));
@@ -157,8 +160,10 @@ class EducationController extends Controller
     private function ensureConsultationGuestClient(string $phone, string $source): object
     {
         $existing = DB::table('users')
-            ->where('firma', self::CONSULTATION_FID)
-            ->where('phone', $phone)
+            ->where(function ($query) use ($phone) {
+                $query->where('phone', $phone)
+                    ->orWhere('phone1', $phone);
+            })
             ->orderByDesc('id')
             ->lockForUpdate()
             ->first();
@@ -187,7 +192,7 @@ class EducationController extends Controller
             'email' => $email,
             'fid' => self::CONSULTATION_FID,
             'firma' => self::CONSULTATION_FID,
-            'project_id' => (int) self::CONSULTATION_FID,
+            'project_id' => null,
             'status' => 1,
             'idkassa' => '',
             'idsklad' => '',
@@ -225,6 +230,38 @@ class EducationController extends Controller
         $clientId = DB::table('users')->insertGetId($payload);
 
         return DB::table('users')->where('id', $clientId)->first();
+    }
+
+    private function normalizeConsultationPhone(string $phone): string
+    {
+        $phone = trim($phone);
+        if ($phone === '') {
+            return '';
+        }
+
+        $hasPlus = str_starts_with($phone, '+');
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        if ($digits === '') {
+            return '';
+        }
+
+        if (str_starts_with($digits, '00')) {
+            return '+' . substr($digits, 2);
+        }
+
+        if ($hasPlus) {
+            return '+' . $digits;
+        }
+
+        if (str_starts_with($digits, '380')) {
+            return '+' . $digits;
+        }
+
+        if (str_starts_with($digits, '0')) {
+            return '+38' . $digits;
+        }
+
+        return '+' . $digits;
     }
 
     public function profile(Request $request): JsonResponse
