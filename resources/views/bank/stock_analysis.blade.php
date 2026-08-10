@@ -1330,9 +1330,12 @@
                 modalTitle.textContent = mode === 'edit' ? 'Редактировать акцию' : 'Добавить акцию';
             }
 
-            form.querySelectorAll('input[name]:not([name="_token"]):not([name="_method"]), select[name], textarea[name]').forEach((input) => {
+            form.querySelectorAll('input[name]:not([name="_token"]):not([name="_method"]):not([name="return_url"]), select[name], textarea[name]').forEach((input) => {
                 input.value = stock ? (stock[input.name] ?? '') : '';
             });
+            if (form.elements?.return_url) {
+                form.elements.return_url.value = @json(url()->full());
+            }
             if (form.elements?.dividend_frequency) {
                 form.elements.dividend_frequency.value = stock?.dividend_frequency || '';
             }
