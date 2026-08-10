@@ -293,9 +293,10 @@
                                                 <button type="button"
                                                         class="bank-stock-parameter-info"
                                                         data-stock-parameter-info
+                                                        data-stock-parameter-title="{{ $label }}"
+                                                        data-stock-parameter-description="{{ $parameterDescription }}"
                                                         aria-label="Описание параметра {{ $label }}">
                                                     i
-                                                    <span>{{ $parameterDescription }}</span>
                                                 </button>
                                             @endif
                                         </span>
@@ -359,6 +360,20 @@
             </div>
         </div>
     </section>
+
+    <div class="bank-modal" data-stock-parameter-modal hidden>
+        <div class="bank-modal__backdrop" data-stock-parameter-modal-close></div>
+        <div class="bank-modal__dialog bank-stock-parameter-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="stockParameterModalTitle">
+            <div class="bank-modal__header">
+                <div>
+                    <div class="bank-label">Описание параметра</div>
+                    <h2 id="stockParameterModalTitle" data-stock-parameter-modal-title>Параметр</h2>
+                </div>
+                <button type="button" class="bank-modal__close" data-stock-parameter-modal-close aria-label="Закрыть">×</button>
+            </div>
+            <div class="bank-stock-parameter-modal__description" data-stock-parameter-modal-description></div>
+        </div>
+    </div>
 
     <div class="bank-modal" data-stock-multiplier-modal hidden>
         <div class="bank-modal__backdrop" data-stock-multiplier-close></div>
@@ -733,33 +748,18 @@
         cursor: pointer;
     }
 
-    .bank-stock-parameter-info > span {
-        position: absolute;
-        z-index: 40;
-        left: 50%;
-        bottom: calc(100% + 8px);
-        width: min(260px, 72vw);
-        padding: 8px 10px;
-        border: 1px solid rgba(148, 163, 184, 0.22);
-        border-radius: 8px;
-        background: #101827;
-        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
-        color: #e5e7eb;
-        font-size: 0.76rem;
-        font-weight: 600;
-        line-height: 1.35;
-        text-align: left;
-        text-transform: none;
-        white-space: normal;
-        transform: translateX(-50%);
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
+    .bank-stock-parameter-modal__dialog {
+        max-width: 560px;
     }
 
-    .bank-stock-parameter-info.is-open > span {
-        opacity: 1;
-        visibility: visible;
+    .bank-stock-parameter-modal__description {
+        padding: 18px 20px 20px;
+        color: #e5e7eb;
+        font-size: 0.94rem;
+        font-weight: 600;
+        line-height: 1.65;
+        white-space: pre-line;
+        overflow-wrap: anywhere;
     }
 
     .bank-stock-snapshot-table td {
@@ -1141,6 +1141,10 @@
         const multiplierReturnUrl = @json(url()->full() . '#analysis');
         const dynamicFieldByLabel = @json($snapshotFieldByLabel);
         const analysisResults = document.querySelector('[data-stock-analysis-results]');
+        const parameterModal = document.querySelector('[data-stock-parameter-modal]');
+        const parameterModalTitle = document.querySelector('[data-stock-parameter-modal-title]');
+        const parameterModalDescription = document.querySelector('[data-stock-parameter-modal-description]');
+        const parameterModalCloseButtons = document.querySelectorAll('[data-stock-parameter-modal-close]');
         const multiplierModal = document.querySelector('[data-stock-multiplier-modal]');
         const multiplierForm = document.querySelector('[data-stock-multiplier-form]');
         const multiplierMethodInput = document.querySelector('[data-stock-multiplier-method]');
@@ -1549,19 +1553,30 @@
                 }
             });
         });
+        const closeParameterModal = () => {
+            if (parameterModal) {
+                parameterModal.hidden = true;
+                document.body.style.overflow = '';
+            }
+        };
+        const openParameterModal = (button) => {
+            if (!parameterModal || !parameterModalTitle || !parameterModalDescription) {
+                return;
+            }
+            parameterModalTitle.textContent = button.dataset.stockParameterTitle || 'Параметр';
+            parameterModalDescription.textContent = button.dataset.stockParameterDescription || 'Описание не заполнено.';
+            parameterModal.hidden = false;
+            document.body.style.overflow = 'hidden';
+        };
         document.querySelectorAll('[data-stock-parameter-info]').forEach((button) => {
             button.addEventListener('click', (event) => {
+                event.preventDefault();
                 event.stopPropagation();
-                document.querySelectorAll('[data-stock-parameter-info]').forEach((item) => {
-                    if (item !== button) {
-                        item.classList.remove('is-open');
-                    }
-                });
-                button.classList.toggle('is-open');
+                openParameterModal(button);
             });
         });
-        document.addEventListener('click', () => {
-            document.querySelectorAll('[data-stock-parameter-info]').forEach((button) => button.classList.remove('is-open'));
+        parameterModalCloseButtons.forEach((button) => {
+            button.addEventListener('click', closeParameterModal);
         });
         document.querySelectorAll('[data-stock-tab]').forEach((tab) => {
             tab.addEventListener('click', () => {
@@ -1646,6 +1661,9 @@
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 closeMultiplierMenus();
+                if (parameterModal && !parameterModal.hidden) {
+                    closeParameterModal();
+                }
                 if (multiplierModal && !multiplierModal.hidden) {
                     closeMultiplierModal();
                 }
