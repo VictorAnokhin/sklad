@@ -38,26 +38,6 @@
             'changed_fields' => [],
         ]]);
     }
-    $numericPrices = $snapshotData
-        ->map(fn ($point) => (float) preg_replace('/[^0-9.\-]/', '', (string) ($point['price'] ?? '')))
-        ->filter(fn ($price) => $price > 0)
-        ->values();
-    $minPrice = $numericPrices->isNotEmpty() ? (float) $numericPrices->min() : 0.0;
-    $maxPrice = $numericPrices->isNotEmpty() ? (float) $numericPrices->max() : 1.0;
-    if (abs($maxPrice - $minPrice) < 0.0001) {
-        $minPrice = max(0, $minPrice - 1);
-        $maxPrice += 1;
-    }
-    $chartPoints = $snapshotData->map(function ($point, $index) use ($snapshotData, $minPrice, $maxPrice) {
-        $count = max(1, $snapshotData->count() - 1);
-        $price = (float) preg_replace('/[^0-9.\-]/', '', (string) ($point['price'] ?? ''));
-        $x = 24 + (($index / $count) * 712);
-        $y = 252 - ((max($minPrice, min($maxPrice, $price)) - $minPrice) / ($maxPrice - $minPrice) * 204);
-
-        return $point + ['x' => round($x, 2), 'y' => round($y, 2)];
-    })->values();
-    $linePath = $chartPoints->map(fn ($point, $index) => ($index === 0 ? 'M' : 'L') . $point['x'] . ' ' . $point['y'])->implode(' ');
-    $areaPath = $linePath !== '' ? $linePath . ' L736 280 L24 280 Z' : '';
     $quoteCards = [
         ['Price', $stockValue('price')],
         ['Change', $change ?: '—'],
@@ -169,6 +149,13 @@
         ])
         ->filter(fn (string $field, string $label) => $label !== '' && $field !== '')
         ->all();
+    $tradingViewTicker = strtoupper(trim($stockValue('ticker')));
+    if (str_contains($tradingViewTicker, ':')) {
+        $tradingViewTickerParts = explode(':', $tradingViewTicker);
+        $tradingViewTicker = (string) end($tradingViewTickerParts);
+    }
+    $tradingViewTicker = $tradingViewTicker !== '' ? $tradingViewTicker : 'AAPL';
+    $selectedSnapshotDate = $selectedSnapshot?->snapshot_date ?? $snapshotData->last()['date'] ?? now()->toDateString();
 @endphp
 
 <div class="bank-page bank-stock-detail-page">
@@ -194,77 +181,72 @@
 
     <section class="bank-stock-workspace">
         <div class="bank-stock-chart-panel">
-            <div class="bank-stock-chart-toolbar">
-                <div>
-                    <span>Chart</span>
-                    <strong>{{ $stockValue('ticker') }}</strong>
+            <div class="tradingview-widget-container" style="height:100%;width:100%">
+                <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+                <div class="tradingview-widget-copyright">
+                    <a href="https://www.tradingview.com/symbols/{{ $tradingViewTicker }}/" rel="noopener nofollow" target="_blank">
+                        <span class="blue-text">{{ $tradingViewTicker }} stock chart</span>
+                    </a>
+                    <span class="trademark"> by TradingView</span>
                 </div>
-                <div class="bank-stock-chart-tabs">
-                    <span>1D</span>
-                    <span>1W</span>
-                    <span class="is-active">1M</span>
-                    <span>1Y</span>
-                </div>
-            </div>
-            <div class="bank-stock-chart">
-                <svg viewBox="0 0 760 300" role="img" aria-label="Price chart">
-                    <defs>
-                        <linearGradient id="stockChartFill" x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="0%" stop-color="#22c55e" stop-opacity="0.32"/>
-                            <stop offset="100%" stop-color="#22c55e" stop-opacity="0"/>
-                        </linearGradient>
-                    </defs>
-                    <g class="grid">
-                        <line x1="0" y1="60" x2="760" y2="60"/>
-                        <line x1="0" y1="120" x2="760" y2="120"/>
-                        <line x1="0" y1="180" x2="760" y2="180"/>
-                        <line x1="0" y1="240" x2="760" y2="240"/>
-                    </g>
-                    <path class="area" d="{{ $areaPath }}"/>
-                    <path class="line" d="{{ $linePath }}"/>
-                    @foreach($chartPoints as $point)
-                        <g class="bank-stock-chart-point {{ ($selectedSnapshot?->snapshot_date ?? '') === $point['date'] ? 'is-active' : '' }}"
-                           data-stock-snapshot-date="{{ $point['date'] }}"
-                           role="button"
-                           tabindex="0"
-                           aria-label="Показать данные на {{ $point['date'] }}">
-                            <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="6"/>
-                        </g>
-                    @endforeach
-                </svg>
-            </div>
-            <div class="bank-stock-chart-foot">
-                <span data-stock-chart-date>Date {{ $selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '—' }}</span>
-                <span data-stock-chart-price>Price {{ $stockValue('price') ?: '—' }}</span>
-                <span data-stock-chart-volume>Volume {{ $stockValue('volume') ?: '—' }}</span>
-                <span>Change {{ $change ?: '—' }}</span>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+                {
+                  "allow_symbol_change": true,
+                  "calendar": false,
+                  "details": false,
+                  "hide_side_toolbar": true,
+                  "hide_top_toolbar": false,
+                  "hide_legend": false,
+                  "hide_volume": false,
+                  "hotlist": false,
+                  "interval": "D",
+                  "locale": "en",
+                  "save_image": true,
+                  "style": "1",
+                  "symbol": @json($tradingViewTicker),
+                  "theme": "dark",
+                  "timezone": "Etc/UTC",
+                  "backgroundColor": "#0F0F0F",
+                  "gridColor": "rgba(242, 242, 242, 0.2)",
+                  "watchlist": [],
+                  "withdateranges": false,
+                  "compareSymbols": [],
+                  "studies": [],
+                  "autosize": true
+                }
+                </script>
             </div>
         </div>
 
-        <aside class="bank-stock-profile-panel">
-            <div class="bank-stock-profile-row">
-                <span>Company</span>
-                <strong>{{ $stockValue('company') ?: '—' }}</strong>
+        <aside class="bank-stock-snapshot-dates-panel">
+            <div class="bank-stock-snapshot-dates-title">
+                <span>Snapshot</span>
+                <strong>Даты сохранения</strong>
             </div>
-            <div class="bank-stock-profile-row">
-                <span>Sector</span>
-                <strong>{{ $stockValue('sector') ?: '—' }}</strong>
-            </div>
-            <div class="bank-stock-profile-row">
-                <span>Industry</span>
-                <strong>{{ $stockValue('industry') ?: '—' }}</strong>
-            </div>
-            <div class="bank-stock-profile-row">
-                <span>Country</span>
-                <strong>{{ $stockValue('country') ?: '—' }}</strong>
-            </div>
-            <div class="bank-stock-profile-row">
-                <span>IPO</span>
-                <strong>{{ $stockValue('ipo') ?: '—' }}</strong>
-            </div>
-            <div class="bank-stock-profile-row">
-                <span>Employees</span>
-                <strong>{{ $stockValue('employees') ?: '—' }}</strong>
+            <div class="bank-stock-snapshot-dates-scroll">
+                <table class="bank-stock-snapshot-dates-table">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Price</th>
+                            <th>Change</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($snapshotData->sortByDesc('date')->values() as $snapshotPoint)
+                            @php($rowChange = trim((string) ($snapshotPoint['change_percent'] ?? '')))
+                            <tr class="bank-stock-snapshot-date-row {{ $selectedSnapshotDate === $snapshotPoint['date'] ? 'is-active' : '' }}"
+                                data-stock-snapshot-date="{{ $snapshotPoint['date'] }}"
+                                role="button"
+                                tabindex="0"
+                                aria-label="Показать сохраненные параметры на {{ $snapshotPoint['date'] }}">
+                                <td>{{ $snapshotPoint['date'] }}</td>
+                                <td>{{ $snapshotPoint['price'] ?: '—' }}</td>
+                                <td class="{{ str_starts_with($rowChange, '-') ? 'is-negative' : ($rowChange !== '' && $rowChange !== '0' && $rowChange !== '0%' ? 'is-positive' : 'is-neutral') }}">{{ $rowChange ?: '—' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </aside>
     </section>
@@ -272,7 +254,7 @@
     <section class="bank-stock-snapshot">
         <div class="bank-stock-snapshot-title">
             <span>Snapshot</span>
-            <strong><span data-stock-snapshot-title-date>{{ $selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? now()->toDateString() }}</span> · {{ $stockValue('ticker') }} fundamentals</strong>
+            <strong><span data-stock-snapshot-title-date>{{ $selectedSnapshotDate }}</span> · {{ $stockValue('ticker') }} fundamentals</strong>
         </div>
         <div class="bank-stock-snapshot-tabs" role="tablist" aria-label="Snapshot views">
             <button type="button" class="is-active" data-stock-tab="parameters" role="tab" aria-selected="true">Параметры</button>
@@ -434,7 +416,7 @@
 
     .bank-stock-detail-header,
     .bank-stock-chart-panel,
-    .bank-stock-profile-panel,
+    .bank-stock-snapshot-dates-panel,
     .bank-stock-snapshot {
         border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 8px;
@@ -453,8 +435,7 @@
 
     .bank-stock-detail-kicker,
     .bank-stock-snapshot-title span,
-    .bank-stock-chart-toolbar span,
-    .bank-stock-profile-row span {
+    .bank-stock-snapshot-dates-title span {
         color: rgba(148, 163, 184, 0.9);
         font-size: 0.72rem;
         font-weight: 800;
@@ -528,18 +509,19 @@
 
     .bank-stock-workspace {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 260px;
+        grid-template-columns: minmax(0, 1fr) 340px;
         gap: 10px;
         margin-bottom: 10px;
     }
 
     .bank-stock-chart-panel {
         min-width: 0;
+        min-height: 440px;
         padding: 12px;
+        background: #0f0f0f;
+        overflow: hidden;
     }
 
-    .bank-stock-chart-toolbar,
-    .bank-stock-chart-foot,
     .bank-stock-snapshot-title {
         display: flex;
         align-items: center;
@@ -547,116 +529,94 @@
         gap: 12px;
     }
 
-    .bank-stock-chart-toolbar strong,
     .bank-stock-snapshot-title strong {
         color: #f8fafc;
         font-size: 0.94rem;
     }
 
-    .bank-stock-chart-tabs {
-        display: inline-flex;
-        gap: 4px;
-        padding: 3px;
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        border-radius: 8px;
-        background: rgba(2, 6, 23, 0.28);
+    .tradingview-widget-container {
+        min-height: 416px;
     }
 
-    .bank-stock-chart-tabs span {
-        min-width: 34px;
-        padding: 4px 7px;
-        border-radius: 6px;
-        color: rgba(203, 213, 225, 0.72);
-        text-align: center;
-        font-size: 0.72rem;
+    .tradingview-widget-copyright {
+        padding-top: 8px;
+        color: rgba(148, 163, 184, 0.78);
+        font-size: 0.74rem;
     }
 
-    .bank-stock-chart-tabs .is-active {
-        background: rgba(251, 191, 36, 0.18);
-        color: #fbbf24;
+    .tradingview-widget-copyright a {
+        color: #60a5fa;
+        font-weight: 800;
+        text-decoration: none;
     }
 
-    .bank-stock-chart {
-        height: 320px;
-        margin-top: 10px;
-        border: 1px solid rgba(148, 163, 184, 0.14);
-        border-radius: 8px;
-        background:
-            linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px) 0 0 / 76px 100%,
-            linear-gradient(180deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px) 0 0 / 100% 60px,
-            rgba(2, 6, 23, 0.42);
-        overflow: hidden;
-    }
-
-    .bank-stock-chart svg {
-        display: block;
-        width: 100%;
-        height: 100%;
-    }
-
-    .bank-stock-chart .grid line {
-        stroke: rgba(148, 163, 184, 0.12);
-        stroke-width: 1;
-    }
-
-    .bank-stock-chart .area {
-        fill: url(#stockChartFill);
-    }
-
-    .bank-stock-chart .line {
-        fill: none;
-        stroke: #22c55e;
-        stroke-width: 4;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
-
-    .bank-stock-chart-point {
-        cursor: pointer;
-        outline: none;
-    }
-
-    .bank-stock-chart-point circle {
-        fill: #0f172a;
-        stroke: #fbbf24;
-        stroke-width: 3;
-        transition: r 0.16s ease, fill 0.16s ease;
-    }
-
-    .bank-stock-chart-point:hover circle,
-    .bank-stock-chart-point.is-active circle {
-        r: 8;
-        fill: #fbbf24;
-    }
-
-    .bank-stock-chart-foot {
-        margin-top: 8px;
-        color: rgba(203, 213, 225, 0.74);
-        font-size: 0.78rem;
-    }
-
-    .bank-stock-profile-panel {
+    .bank-stock-snapshot-dates-panel {
         display: grid;
         align-content: start;
         padding: 10px 12px;
     }
 
-    .bank-stock-profile-row {
-        display: grid;
-        gap: 4px;
-        padding: 10px 0;
-        border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    .bank-stock-snapshot-dates-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
     }
 
-    .bank-stock-profile-row:last-child {
-        border-bottom: 0;
-    }
-
-    .bank-stock-profile-row strong {
+    .bank-stock-snapshot-dates-title strong {
         color: #f8fafc;
-        font-size: 0.88rem;
-        line-height: 1.25;
-        overflow-wrap: anywhere;
+        font-size: 0.9rem;
+    }
+
+    .bank-stock-snapshot-dates-scroll {
+        max-height: 394px;
+        overflow: auto;
+    }
+
+    .bank-stock-snapshot-dates-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+    }
+
+    .bank-stock-snapshot-dates-table th,
+    .bank-stock-snapshot-dates-table td {
+        padding: 8px 9px;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        white-space: nowrap;
+    }
+
+    .bank-stock-snapshot-dates-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #111827;
+        color: rgba(148, 163, 184, 0.96);
+        font-weight: 900;
+        text-align: left;
+    }
+
+    .bank-stock-snapshot-dates-table td {
+        background: rgba(2, 6, 23, 0.28);
+        color: #f8fafc;
+        text-align: right;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    .bank-stock-snapshot-dates-table td:first-child {
+        text-align: left;
+        color: #fbbf24;
+    }
+
+    .bank-stock-snapshot-date-row {
+        cursor: pointer;
+        outline: none;
+    }
+
+    .bank-stock-snapshot-date-row:hover td,
+    .bank-stock-snapshot-date-row.is-active td {
+        background: rgba(251, 191, 36, 0.14);
     }
 
     .bank-stock-snapshot {
@@ -1072,9 +1032,8 @@
             grid-template-columns: 1fr;
         }
 
-        .bank-stock-profile-panel {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0 14px;
+        .bank-stock-snapshot-dates-scroll {
+            max-height: 240px;
         }
     }
 
@@ -1097,23 +1056,12 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .bank-stock-chart {
-            height: 240px;
+        .bank-stock-chart-panel {
+            min-height: 360px;
         }
 
-        .bank-stock-chart-toolbar {
-            align-items: flex-start;
-            flex-direction: column;
-        }
-
-        .bank-stock-chart-foot {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 4px;
-        }
-
-        .bank-stock-profile-panel {
-            grid-template-columns: 1fr;
+        .tradingview-widget-container {
+            min-height: 336px;
         }
 
         .bank-stock-snapshot-table {
@@ -1135,7 +1083,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         const snapshots = @json($snapshotData);
         const multipliers = @json($multiplierData);
-        const initialSnapshotDate = @json($selectedSnapshot?->snapshot_date ?? $chartPoints->last()['date'] ?? '');
+        const initialSnapshotDate = @json($selectedSnapshotDate);
         const csrfToken = @json(csrf_token());
         const multiplierStoreUrl = @json(url('/bank/stock-analysis/multipliers'));
         const multiplierReturnUrl = @json(url()->full() . '#analysis');
