@@ -94,18 +94,28 @@
         <div class="alert alert-danger">Проверьте поля формы и попробуйте снова.</div>
     @endif
 
-    <div class="ttable top-action-bar bank-stock-filter-bar">
-        <div class="top-action-filter">
-            <div style="position:relative;margin-top:13px">
-                <div onclick="stockFilterToggle()"
-                     class="{{ !empty($stockFiltersActive) ? 'button_submit_start' : 'button_submit_start0' }}"
-                     style="width:70px;height:70px;margin-top:-3px;cursor:pointer; background: linear-gradient(135deg, #fbbf24, #f59e0b); border: none; border-radius: 16px; box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); transition: all 0.3s ease; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                    <img src="/img/icon-category.png" alt="Фильтр" style="width:32px;filter: brightness(0);">
-                    <span style="font-size: 0.7rem; font-weight: 600; color: #000; margin-top: 4px;">Фильтр</span>
-                </div>
+    <section class="bank-stock-toolbar">
+        <button type="button"
+                onclick="stockFilterToggle()"
+                class="bank-stock-filter-button {{ !empty($stockFiltersActive) ? 'is-active' : '' }}">
+            <img src="/img/icon-category.png" alt="" aria-hidden="true">
+            <span>Фильтр</span>
+        </button>
+        <div class="bank-stock-summary-strip" aria-label="Сводка акций">
+            <div class="bank-panel bank-panel--accent bank-stock-summary-card">
+                <div class="bank-label">Акции</div>
+                <div class="bank-value">{{ $summary['stocks'] }}</div>
+            </div>
+            <div class="bank-panel bank-stock-summary-card">
+                <div class="bank-label">Страны</div>
+                <div class="bank-value">{{ $summary['countries'] }}</div>
+            </div>
+            <div class="bank-panel bank-stock-summary-card">
+                <div class="bank-label">Секторы</div>
+                <div class="bank-value">{{ $summary['sectors'] }}</div>
             </div>
         </div>
-    </div>
+    </section>
 
     <div id="stockFilterModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:9999; justify-content:center; align-items:center;">
         <div class="glass-card" style="width:700px; max-width:90vw; max-height:80vh; overflow:visible; position:relative; margin:0 auto; padding:24px;">
@@ -115,6 +125,16 @@
 
             <form action="{{ route('bank.stock-analysis') }}" method="get" name="stockfilterform">
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div style="grid-column:1 / -1;">
+                        <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Поиск</label>
+                        <input type="text"
+                               name="search"
+                               autocomplete="off"
+                               placeholder="Тикер или название компании"
+                               value="{{ $stockFilters['search'] ?? '' }}"
+                               style="width:100%; padding:8px 12px; font-size:0.9rem;">
+                    </div>
+
                     <div>
                         <label style="display:block; margin-bottom:4px; font-size:0.85rem;">Sector</label>
                         <div class="bank-stock-filter-field" data-stock-filter-combobox>
@@ -190,29 +210,6 @@
             </form>
         </div>
     </div>
-
-    <section class="bank-grid bank-grid--summary">
-        <div class="bank-panel bank-panel--accent">
-            <div class="bank-label">Акций</div>
-            <div class="bank-value">{{ $summary['stocks'] }}</div>
-            <div class="bank-meta">Записи в таблице анализа.</div>
-        </div>
-        <div class="bank-panel">
-            <div class="bank-label">Страны</div>
-            <div class="bank-value">{{ $summary['countries'] }}</div>
-            <div class="bank-meta">Уникальные страны эмитентов.</div>
-        </div>
-        <div class="bank-panel">
-            <div class="bank-label">Секторы</div>
-            <div class="bank-value">{{ $summary['sectors'] }}</div>
-            <div class="bank-meta">Уникальные сектора.</div>
-        </div>
-        <div class="bank-panel">
-            <div class="bank-label">Tickers</div>
-            <div class="bank-value bank-stock-tickers">{{ $summary['tickers'] ?: '—' }}</div>
-            <div class="bank-meta">Список тикеров для анализа.</div>
-        </div>
-    </section>
 
     <section class="bank-panel bank-table-panel">
         <div class="bank-table-header">
@@ -506,13 +503,76 @@
 @include('bank.partials.styles')
 
 <style>
-    .bank-stock-tickers {
-        font-size: 1.1rem;
-        overflow-wrap: anywhere;
+    .bank-stock-toolbar {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 12px;
+        align-items: stretch;
+        margin-bottom: 16px;
     }
 
-    .bank-stock-filter-bar {
-        margin-bottom: 16px;
+    .bank-stock-filter-button {
+        width: 142px;
+        height: 58px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        border: 0;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+        color: #000;
+        font-size: 0.92rem;
+        font-weight: 800;
+        line-height: 1;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        white-space: nowrap;
+    }
+
+    .bank-stock-filter-button:hover,
+    .bank-stock-filter-button:focus,
+    .bank-stock-filter-button.is-active {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba(251, 191, 36, 0.34);
+        outline: none;
+    }
+
+    .bank-stock-filter-button img {
+        width: 24px;
+        height: 24px;
+        filter: brightness(0);
+        flex: 0 0 auto;
+    }
+
+    .bank-stock-summary-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .bank-stock-summary-card {
+        min-height: 58px;
+        height: 58px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 0 16px;
+        overflow: hidden;
+    }
+
+    .bank-stock-summary-card .bank-label,
+    .bank-stock-summary-card .bank-value {
+        margin: 0;
+        white-space: nowrap;
+        line-height: 1;
+    }
+
+    .bank-stock-summary-card .bank-value {
+        font-size: 1.35rem;
     }
 
     .bank-stock-table-header-actions {
@@ -521,6 +581,20 @@
         gap: 8px;
         flex-wrap: wrap;
         justify-content: flex-end;
+    }
+
+    @media (max-width: 768px) {
+        .bank-stock-toolbar {
+            grid-template-columns: 1fr;
+        }
+
+        .bank-stock-filter-button {
+            width: 100%;
+        }
+
+        .bank-stock-summary-strip {
+            grid-template-columns: 1fr;
+        }
     }
 
     .bank-stock-filter-field {

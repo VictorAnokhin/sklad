@@ -971,6 +971,7 @@ class BankController extends Controller
         $project = $this->bankProject();
         $allStocks = $this->stockAnalysisRows((int) $project->id);
         $filters = [
+            'search' => trim((string) $request->query('search', '')),
             'sector' => trim((string) $request->query('sector', '')),
             'industry' => trim((string) $request->query('industry', '')),
             'country' => trim((string) $request->query('country', '')),
@@ -980,6 +981,13 @@ class BankController extends Controller
             $filters['dividend_frequency'] = '';
         }
         $filteredStocks = $allStocks
+            ->when($filters['search'] !== '', function ($rows) use ($filters) {
+                $needle = mb_strtolower($filters['search']);
+                return $rows->filter(function ($stock) use ($needle) {
+                    return str_contains(mb_strtolower((string) ($stock->ticker ?? '')), $needle)
+                        || str_contains(mb_strtolower((string) ($stock->company ?? '')), $needle);
+                });
+            })
             ->when($filters['sector'] !== '', fn ($rows) => $rows->where('sector', $filters['sector']))
             ->when($filters['industry'] !== '', fn ($rows) => $rows->where('industry', $filters['industry']))
             ->when($filters['country'] !== '', fn ($rows) => $rows->where('country', $filters['country']))
@@ -1018,7 +1026,6 @@ class BankController extends Controller
                 'stocks' => $filteredStocks->count(),
                 'countries' => $filteredStocks->pluck('country')->filter()->unique()->count(),
                 'sectors' => $filteredStocks->pluck('sector')->filter()->unique()->count(),
-                'tickers' => $filteredStocks->pluck('ticker')->filter()->implode(', '),
             ],
         ]);
     }
