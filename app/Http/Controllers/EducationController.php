@@ -26,6 +26,7 @@ use Illuminate\Validation\ValidationException;
 
 class EducationController extends Controller
 {
+    private const CONSULTATION_FID = '12';
     private const EDUCATION_LANGUAGES = ['ru', 'ua', 'en', 'es', 'fr'];
     private const INVESTMENT_SIMULATION_UTILITY_SLUG = 'investment-simulation';
     private const CAPITAL_EFFICIENCY_UTILITY_SLUG = 'capital-efficiency';
@@ -70,6 +71,77 @@ class EducationController extends Controller
                 $validated['digest'],
                 $validated['wallet_address']
             ),
+        ]);
+    }
+
+    public function storeConsultationOrder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:50'],
+            'comment' => ['nullable', 'string', 'max:2000'],
+            'source' => ['nullable', 'string', 'max:120'],
+            'page_url' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $phone = trim((string) $validated['phone']);
+        $comment = trim((string) ($validated['comment'] ?? ''));
+        $source = trim((string) ($validated['source'] ?? 'site'));
+        $pageUrl = trim((string) ($validated['page_url'] ?? ''));
+        $user = Auth::guard('sanctum')->user();
+
+        $order = DB::transaction(function () use ($phone, $comment, $source, $pageUrl, $user) {
+            DB::table('project')->where('id', self::CONSULTATION_FID)->lockForUpdate()->first();
+
+            $now = now();
+            $year = $now->format('Y');
+            $orderNum = Document::nextNum('ZOUT', '36', $year);
+            $contentParts = [
+                'Consultation: заявка на консультацию',
+                'source: ' . $source,
+                'phone: ' . $phone,
+            ];
+            if ($comment !== '') {
+                $contentParts[] = 'comment: ' . $comment;
+            }
+            if ($pageUrl !== '') {
+                $contentParts[] = 'page: ' . $pageUrl;
+            }
+
+            $orderId = DB::table('document')->insertGetId([
+                'num' => (string) $orderNum,
+                'type' => 'ZOUT',
+                'firma' => self::CONSULTATION_FID,
+                'client1' => $user ? (string) $user->getAuthIdentifier() : '0',
+                'client2' => '0',
+                'summa' => 0,
+                'data' => $now->format('d-m-Y'),
+                'data2' => $now->format('d-m-Y'),
+                'time' => $now->format('H:i:s'),
+                'dt' => $now->timestamp,
+                'manager' => 'consultation_api',
+                'user' => 'consultation_api',
+                'content' => implode('; ', $contentParts),
+                'numz' => (string) $orderNum,
+                'typez' => 'ZOUT',
+                'docum' => 'consultation',
+                'provodka' => 0,
+                'dostup' => 1,
+                'money' => '',
+                'numdoc' => $source,
+                'close' => 0,
+                'typeproduct' => 'consultation',
+            ]);
+
+            return DB::table('document')->where('id', $orderId)->first();
+        });
+
+        return response()->json([
+            'order' => [
+                'zout_id' => (int) $order->id,
+                'zout_num' => (string) $order->num,
+                'client_id' => (int) ($order->client1 ?? 0),
+                'phone' => $phone,
+            ],
         ]);
     }
 
