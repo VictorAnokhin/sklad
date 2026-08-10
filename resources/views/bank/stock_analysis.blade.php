@@ -101,6 +101,12 @@
             <img src="/img/icon-category.png" alt="" aria-hidden="true">
             <span>Фильтр</span>
         </button>
+        @if(!empty($stockFiltersActive))
+            <a href="{{ route('bank.stock-analysis') }}"
+               class="bank-stock-filter-clear"
+               aria-label="Очистить фильтр"
+               title="Очистить фильтр">×</a>
+        @endif
         <div class="bank-stock-summary-strip" aria-label="Сводка акций">
             <div class="bank-panel bank-panel--accent bank-stock-summary-card">
                 <div class="bank-label">Акции</div>
@@ -304,6 +310,7 @@
                                         <form method="POST" action="{{ route('bank.stock-analysis.destroy', $stock->id) }}" data-stock-delete-form>
                                             @csrf
                                             @method('DELETE')
+                                            <input type="hidden" name="return_url" value="{{ url()->full() }}">
                                             <button type="submit">Удалить</button>
                                         </form>
                                     </div>
@@ -367,6 +374,7 @@
                   data-stock-store-url="{{ route('bank.stock-analysis.store') }}">
                 @csrf
                 <input type="hidden" name="_method" value="POST" data-stock-form-method>
+                <input type="hidden" name="return_url" value="{{ url()->full() }}">
                 <textarea name="adapter_config" data-stock-adapter-config-field hidden>{{ old('adapter_config') }}</textarea>
                 <input type="hidden" name="net_debt_ebitda" value="{{ old('net_debt_ebitda') }}">
                 <input type="hidden" name="roe" value="{{ old('roe') }}">
@@ -478,6 +486,7 @@
             </div>
             <form method="POST" class="bank-requisites-form" data-stock-adapter-form>
                 @csrf
+                <input type="hidden" name="return_url" value="{{ url()->full() }}">
                 <label>
                     <span>Адаптер</span>
                     <select name="adapter" data-stock-adapter-modal-select>
@@ -504,8 +513,7 @@
 
 <style>
     .bank-stock-toolbar {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
+        display: flex;
         gap: 12px;
         align-items: stretch;
         margin-bottom: 16px;
@@ -546,10 +554,38 @@
         flex: 0 0 auto;
     }
 
+    .bank-stock-filter-clear {
+        width: 58px;
+        height: 58px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        border: 1px solid rgba(248, 113, 113, 0.38);
+        border-radius: 14px;
+        background: rgba(248, 113, 113, 0.10);
+        color: #fecaca;
+        font-size: 1.8rem;
+        font-weight: 800;
+        line-height: 1;
+        text-decoration: none;
+        transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+    }
+
+    .bank-stock-filter-clear:hover,
+    .bank-stock-filter-clear:focus {
+        border-color: rgba(248, 113, 113, 0.72);
+        background: rgba(248, 113, 113, 0.18);
+        color: #fff;
+        text-decoration: none;
+        outline: none;
+    }
+
     .bank-stock-summary-strip {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
+        flex: 1 1 auto;
         min-width: 0;
     }
 
@@ -585,14 +621,20 @@
 
     @media (max-width: 768px) {
         .bank-stock-toolbar {
-            grid-template-columns: 1fr;
+            display: grid;
+            grid-template-columns: 1fr auto;
         }
 
         .bank-stock-filter-button {
             width: 100%;
         }
 
+        .bank-stock-filter-clear {
+            width: 58px;
+        }
+
         .bank-stock-summary-strip {
+            grid-column: 1 / -1;
             grid-template-columns: 1fr;
         }
     }

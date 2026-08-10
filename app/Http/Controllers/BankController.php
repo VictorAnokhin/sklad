@@ -1152,7 +1152,7 @@ class BankController extends Controller
             }
         }
 
-        return redirect()->route('bank.stock-analysis')->with('success', 'Акция добавлена в анализ.');
+        return $this->redirectAfterStockAnalysis($request, 'Акция добавлена в анализ.');
     }
 
     public function showStockAnalysis(Request $request, int $stock): View
@@ -1346,7 +1346,7 @@ class BankController extends Controller
             $this->recordStockAnalysisSnapshot($updatedRow, $stockPayload, $this->changedStockFields($stockRow, $stockPayload), $snapshotDate);
         }
 
-        return redirect()->route('bank.stock-analysis')->with('success', 'Акция обновлена.');
+        return $this->redirectAfterStockAnalysis($request, 'Акция обновлена.');
     }
 
     public function pullStockAnalysisAdapter(Request $request, int $stock): JsonResponse
@@ -1767,10 +1767,10 @@ class BankController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect()->route('bank.stock-analysis')->with('success', 'Настройки адаптера акции сохранены.');
+        return $this->redirectAfterStockAnalysis($request, 'Настройки адаптера акции сохранены.');
     }
 
-    public function destroyStockAnalysis(int $stock): RedirectResponse
+    public function destroyStockAnalysis(Request $request, int $stock): RedirectResponse
     {
         $project = $this->bankProject();
         $this->stockAnalysisRow((int) $project->id, $stock);
@@ -1780,7 +1780,7 @@ class BankController extends Controller
         }
         DB::table('bank_stock_analyses')->where('id', $stock)->delete();
 
-        return redirect()->route('bank.stock-analysis')->with('success', 'Акция удалена.');
+        return $this->redirectAfterStockAnalysis($request, 'Акция удалена.');
     }
 
     public function poolMovements(): View
@@ -6009,6 +6009,18 @@ class BankController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    private function redirectAfterStockAnalysis(Request $request, string $message): RedirectResponse
+    {
+        $returnUrl = trim((string) $request->input('return_url', ''));
+        $appUrl = url('/');
+
+        if ($returnUrl !== '' && str_starts_with($returnUrl, $appUrl)) {
+            return redirect()->to($returnUrl)->with('success', $message);
+        }
+
+        return redirect()->route('bank.stock-analysis')->with('success', $message);
     }
 
     private function stockAnalysisMultiplierRow(int $projectId, int $multiplierId): object
