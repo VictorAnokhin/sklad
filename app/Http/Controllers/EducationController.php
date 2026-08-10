@@ -79,6 +79,9 @@ class EducationController extends Controller
     public function storeConsultationOrder(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:50'],
             'comment' => ['nullable', 'string', 'max:2000'],
             'source' => ['nullable', 'string', 'max:120'],
@@ -89,14 +92,22 @@ class EducationController extends Controller
         if ($phone === '') {
             throw ValidationException::withMessages(['phone' => 'Введите номер телефона для связи.']);
         }
+        $firstName = trim((string) $validated['first_name']);
+        $lastName = trim((string) $validated['last_name']);
+        $email = mb_strtolower(trim((string) $validated['email']));
+        if ($firstName === '') {
+            throw ValidationException::withMessages(['first_name' => 'Введите имя.']);
+        }
+        if ($lastName === '') {
+            throw ValidationException::withMessages(['last_name' => 'Введите фамилию.']);
+        }
         $comment = trim((string) ($validated['comment'] ?? ''));
         $source = trim((string) ($validated['source'] ?? 'site'));
         $pageUrl = trim((string) ($validated['page_url'] ?? ''));
-        $authUser = Auth::guard('sanctum')->user();
 
-        $order = DB::transaction(function () use ($phone, $comment, $source, $pageUrl, $authUser) {
+        $order = DB::transaction(function () use ($firstName, $lastName, $email, $phone, $comment, $source, $pageUrl) {
             DB::table('project')->where('id', self::CONSULTATION_FID)->lockForUpdate()->first();
-            $client = $authUser ?: $this->ensureConsultationGuestClient($phone, $source);
+            $client = $this->ensureConsultationClient($firstName, $lastName, $email, $phone, $source);
 
             $now = now();
             $year = $now->format('Y');
@@ -104,6 +115,8 @@ class EducationController extends Controller
             $contentParts = [
                 'Consultation: заявка на консультацию',
                 'source: ' . $source,
+                'name: ' . trim($firstName . ' ' . $lastName),
+                'email: ' . $email,
                 'phone: ' . $phone,
             ];
             if ($comment !== '') {
@@ -152,18 +165,16 @@ class EducationController extends Controller
                 'zout_id' => (int) $order->id,
                 'zout_num' => (string) $order->num,
                 'client_id' => (int) ($order->client1 ?? 0),
+                'email' => $email,
                 'phone' => $phone,
             ],
         ]);
     }
 
-    private function ensureConsultationGuestClient(string $phone, string $source): object
+    private function ensureConsultationClient(string $firstName, string $lastName, string $email, string $phone, string $source): object
     {
         $existing = DB::table('users')
-            ->where(function ($query) use ($phone) {
-                $query->where('phone', $phone)
-                    ->orWhere('phone1', $phone);
-            })
+            ->whereRaw('LOWER(email) = ?', [$email])
             ->orderByDesc('id')
             ->lockForUpdate()
             ->first();
@@ -174,16 +185,15 @@ class EducationController extends Controller
 
         $now = now();
         $suffix = strtolower(Str::random(10));
-        $name = 'Guest ' . $now->format('YmdHis');
-        $email = 'consultation+' . $suffix . '@av8.local';
+        $fullName = trim($firstName . ' ' . $lastName);
         $login = 'consultation_' . $suffix;
         $payload = [
-            'name' => $name,
-            'secondname' => 'Consultation',
-            'fathername' => 'Guest',
+            'name' => $firstName,
+            'secondname' => $lastName,
+            'fathername' => '',
             'orgname' => '',
             'kod1' => '',
-            'name2' => $name,
+            'name2' => $fullName,
             'city' => '',
             'country' => '',
             'region' => '',
@@ -214,7 +224,7 @@ class EducationController extends Controller
             'address' => '',
             'phone2' => '',
             'website' => '',
-            'description' => 'Гостевой клиент для заявки на консультацию. Source: ' . $source,
+            'description' => 'Клиент для заявки на консультацию. Source: ' . $source,
             'foto1' => '',
             'foto2' => '',
             'foto3' => '',
