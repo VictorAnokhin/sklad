@@ -20,7 +20,7 @@ class MoneyController extends Controller
         $defaultDateTo = now()->format('Y-m-d');
 
         return [
-            'q' => trim((string) $request->input('q', '')),
+            'q' => $this->safeFilterText($request->input('q', ''), 30),
             'type' => trim((string) $request->input('type', '')),
             'money' => trim((string) $request->input('money', '')),
             'reestr' => trim((string) $request->input('reestr', '')),
@@ -29,6 +29,15 @@ class MoneyController extends Controller
             '_dates_are_default' => trim((string) $request->input('date_from', $defaultDateFrom)) === $defaultDateFrom
                 && trim((string) $request->input('date_to', $defaultDateTo)) === $defaultDateTo,
         ];
+    }
+
+    private function safeFilterText(mixed $value, int $maxLength): string
+    {
+        $text = preg_replace('/[\x00-\x1F\x7F<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', '', (string) ($value ?? ''));
+        $text = preg_replace("/[^\p{L}\p{M}\p{N}\s.,'\"’`-]/u", '', (string) $text);
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags((string) $text)));
+
+        return mb_substr((string) $text, 0, $maxLength);
     }
 
     private function activeTab(Request $request): string

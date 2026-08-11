@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TeamController extends Controller
 {
@@ -168,10 +169,10 @@ class TeamController extends Controller
         $validationFirma = (string) ($existingMember->firma ?? $fid);
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'secondname' => ['nullable', 'string', 'max:255'],
-            'fathername' => ['nullable', 'string', 'max:255'],
-            'name2' => ['nullable', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:30'],
+            'secondname' => ['nullable', 'string', 'max:30'],
+            'fathername' => ['nullable', 'string', 'max:30'],
+            'name2' => ['nullable', 'string', 'max:30'],
             'email' => [
                 'required',
                 'email',
@@ -189,9 +190,9 @@ class TeamController extends Controller
                     ->ignore($id === '0' ? null : $id),
             ],
             'website' => ['nullable', 'string', 'max:255'],
-            'city' => ['nullable', 'string', 'max:100'],
-            'region' => ['nullable', 'string', 'max:100'],
-            'description' => ['nullable', 'string'],
+            'city' => ['nullable', 'string', 'max:30'],
+            'region' => ['nullable', 'string', 'max:30'],
+            'description' => ['nullable', 'string', 'max:250'],
             'foto1' => ['nullable', 'string', 'max:255'],
             'foto1_file' => ['nullable', 'file', 'image', 'max:10240'],
             'status' => ['nullable', 'integer', 'min:0', 'max:999999'],
@@ -218,15 +219,15 @@ class TeamController extends Controller
         }
 
         $data = [
-            'name' => $stringValue($request->input('name')),
-            'secondname' => $stringValue($request->input('secondname')),
-            'fathername' => $stringValue($request->input('fathername')),
-            'name2' => $stringValue($request->input('name2')),
+            'name' => $this->safeTeamText($request->input('name'), 'Имя', 30),
+            'secondname' => $this->safeTeamText($request->input('secondname'), 'Фамилия', 30),
+            'fathername' => $this->safeTeamText($request->input('fathername'), 'Отчество', 30),
+            'name2' => $this->safeTeamText($request->input('name2'), 'Должность', 30),
             'email' => $stringValue($request->input('email')),
             'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
-            'city' => $stringValue($request->input('city')),
-            'region' => $stringValue($request->input('region')),
-            'description' => $stringValue($request->input('description')),
+            'city' => $this->safeTeamText($request->input('city'), 'Город', 30),
+            'region' => $this->safeTeamText($request->input('region'), 'Регион', 30),
+            'description' => $this->safeTeamText($request->input('description'), 'Описание', 250),
             'foto1' => $currentPhoto,
             'status' => $departmentValue,
             'firmuser' => '1',
@@ -406,5 +407,27 @@ class TeamController extends Controller
         ])));
 
         return $name !== '' ? $name : (trim((string) ($user->orgname ?? '')) ?: ('User #' . $user->id));
+    }
+
+    private function safeTeamText(mixed $value, string $label, int $maxLength): string
+    {
+        $raw = trim((string) ($value ?? ''));
+
+        if ($raw !== '' && preg_match('/[\x00-\x1F\x7F<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', $raw)) {
+            throw ValidationException::withMessages([
+                $label => $label . ': недопустимые символы.',
+            ]);
+        }
+
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags($raw)));
+        $text = mb_substr((string) $text, 0, $maxLength);
+
+        if ($text !== '' && preg_match("/[^\p{L}\p{M}\p{N}\s.,'\"’`-]/u", $text)) {
+            throw ValidationException::withMessages([
+                $label => $label . ': используйте буквы, цифры, пробелы, дефис, точку, запятую, кавычки или апостроф.',
+            ]);
+        }
+
+        return $text;
     }
 }

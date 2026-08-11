@@ -44,11 +44,11 @@ class ClientController extends Controller
         $pos2 = 20;
 
         $filters = [
-            'search' => $request->input('search', $previousFilters['search']),
-            'city' => $request->input('city', $previousFilters['city']),
+            'search' => $this->safeFilterText($request->input('search', $previousFilters['search']), 30),
+            'city' => $this->safeFilterText($request->input('city', $previousFilters['city']), 30),
             'idstatus' => $request->input('idstatus', $previousFilters['idstatus']),
-            'phone' => $request->input('phone', $previousFilters['phone']),
-            'email' => $request->input('email', $previousFilters['email']),
+            'phone' => $this->clientDigitsOnly($request->input('phone', $previousFilters['phone']), 15),
+            'email' => $this->safeFilterEmail($request->input('email', $previousFilters['email']), 30),
         ];
 
         $hasFilterInput = $request->hasAny(['search', 'city', 'idstatus', 'phone', 'email']);
@@ -201,7 +201,7 @@ class ClientController extends Controller
     {
         $fid = session('fid', '');
         $clientFirmaScope = $this->clientFirmaScope($fid);
-        $orgname = trim((string) ($request->input('orgname') ?? ''));
+        $orgname = $this->safeQuickClientGeneralText($request, 'orgname', 'Організація');
         $name = $this->safeQuickClientText($request, 'name', 'Імʼя');
         $secondname = $this->safeQuickClientText($request, 'secondname', 'Прізвище');
         $rawPhone = trim((string) ($request->input('phone') ?? ''));
@@ -209,7 +209,7 @@ class ClientController extends Controller
         $phone = $phoneDigits !== '' ? '+' . $phoneDigits : '';
         $city = $this->safeQuickClientText($request, 'city', 'Місто');
         $region = $this->safeQuickClientText($request, 'region', 'Область');
-        $poshta = trim((string) ($request->input('poshta') ?? ''));
+        $poshta = $this->safeQuickClientGeneralText($request, 'poshta', 'Відділення НП');
         $idstatus = (int) $request->input('idstatus', 0);
         $usergroup = $this->resolveQuickClientGroup(
             $fid,
@@ -314,6 +314,111 @@ class ClientController extends Controller
         }
 
         return $value;
+    }
+
+    private function safeQuickClientGeneralText(Request $request, string $field, string $label): string
+    {
+        $raw = trim((string) ($request->input($field) ?? ''));
+
+        if ($raw !== '' && preg_match('/[\x00-\x1F\x7F<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', $raw)) {
+            throw ValidationException::withMessages([
+                $field => $label . ': недопустимі символи.',
+            ]);
+        }
+
+        $value = preg_replace('/\s+/u', ' ', trim(strip_tags($raw)));
+        $value = mb_substr((string) $value, 0, 30);
+
+        if ($value !== '' && preg_match("/[^\p{L}\p{M}\p{N}\s.,'\"’`-]/u", $value)) {
+            throw ValidationException::withMessages([
+                $field => $label . ': використовуйте літери, цифри, пробіли, дефіс, крапку, кому, лапки або апостроф.',
+            ]);
+        }
+
+        return $value;
+    }
+
+    private function safeClientGeneralText(mixed $value, string $label, int $maxLength): string
+    {
+        $raw = trim((string) ($value ?? ''));
+
+        if ($raw !== '' && preg_match('/[\x00-\x1F\x7F<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', $raw)) {
+            throw ValidationException::withMessages([
+                $label => $label . ': недопустимі символи.',
+            ]);
+        }
+
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags($raw)));
+        $text = mb_substr((string) $text, 0, $maxLength);
+
+        if ($text !== '' && preg_match("/[^\p{L}\p{M}\p{N}\s.,'\"’`-]/u", $text)) {
+            throw ValidationException::withMessages([
+                $label => $label . ': використовуйте літери, цифри, пробіли, дефіс, крапку, кому, лапки або апостроф.',
+            ]);
+        }
+
+        return $text;
+    }
+
+    private function clientDigitsOnly(mixed $value, int $maxLength): string
+    {
+        return mb_substr(preg_replace('/\D/', '', (string) ($value ?? '')), 0, $maxLength);
+    }
+
+    private function safeFilterText(mixed $value, int $maxLength): string
+    {
+        $text = preg_replace('/[\x00-\x1F\x7F<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', '', (string) ($value ?? ''));
+        $text = preg_replace("/[^\p{L}\p{M}\p{N}\s.,'\"’`-]/u", '', (string) $text);
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags((string) $text)));
+
+        return mb_substr((string) $text, 0, $maxLength);
+    }
+
+    private function safeFilterEmail(mixed $value, int $maxLength): string
+    {
+        $email = preg_replace('/[^a-zA-Z0-9@._+-]/', '', (string) ($value ?? ''));
+
+        return mb_substr((string) $email, 0, $maxLength);
+    }
+
+    private function clientBonusValue(mixed $value): float
+    {
+        $raw = mb_substr(str_replace(',', '.', trim((string) ($value ?? '0'))), 0, 20);
+        $normalized = preg_replace('/[^0-9.]/', '', $raw);
+
+        if (! is_numeric($normalized)) {
+            return 0.0;
+        }
+
+        return round(max(0.0, (float) $normalized), 2);
+    }
+
+    private function clientBirthdayValue(mixed $value): string
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return '';
+        }
+
+        $digits = preg_replace('/\D/', '', $raw);
+        if (strlen($digits) === 8) {
+            $raw = substr($digits, 0, 4) . '-' . substr($digits, 4, 2) . '-' . substr($digits, 6, 2);
+        }
+
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            throw ValidationException::withMessages([
+                'hbd' => 'День народження: використовуйте формат YYYY-MM-DD.',
+            ]);
+        }
+
+        [$year, $month, $day] = array_map('intval', explode('-', $raw));
+        if (! checkdate($month, $day, $year)) {
+            throw ValidationException::withMessages([
+                'hbd' => 'День народження: некоректна дата.',
+            ]);
+        }
+
+        return $raw;
     }
 
     private function syncClientCityReference(string $fid, string $region, string $city): void
@@ -1026,22 +1131,22 @@ class ClientController extends Controller
                 'name' => $this->safeQuickClientText($request, 'name', 'Імʼя'),
                 'secondname' => $this->safeQuickClientText($request, 'secondname', 'Прізвище'),
                 'fathername' => $this->safeQuickClientText($request, 'fathername', 'По батькові'),
-                'orgname' => $stringValue($request->input('orgname', '')),
-                'name2' => $stringValue($request->input('name2', '')),
-                'kod1' => $stringValue($request->input('kod1', '')),
+                'orgname' => $this->safeClientGeneralText($request->input('orgname', ''), 'Організація', 30),
+                'name2' => $this->safeClientGeneralText($request->input('name2', ''), 'Контактне лице', 20),
+                'kod1' => $this->clientDigitsOnly($request->input('kod1', ''), 15),
                 'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
                 'phone1' => preg_replace('/\D/', '', $request->input('phone1', '')),
                 'email' => $stringValue($request->input('email', '')),
                 'city' => $this->safeQuickClientText($request, 'city', 'Місто'),
                 'region' => $this->safeQuickClientText($request, 'region', 'Область'),
-                'poshta' => $stringValue($request->input('poshta', '')),
+                'poshta' => $this->safeClientGeneralText($request->input('poshta', ''), 'Відділення НП', 20),
                 'idstatus' => (int)$request->input('idstatus', 1),
                 'ustype' => (int)$request->input('idstatus', 1),
                 'tgroup' => (int)$request->input('tgroup', 0),
                 'usergroup' => (int)$request->input('usergroup', 0),
                 'top' => (int)$request->input('top', 1),
-                'bonus' => (float)$request->input('bonus', 0),
-                'hbd' => $stringValue($request->input('hbd', '')),
+                'bonus' => $this->clientBonusValue($request->input('bonus', 0)),
+                'hbd' => $this->clientBirthdayValue($request->input('hbd', '')),
                 'kyc_status' => $stringValue($request->input('kyc_status', 'not_started')),
                 'firma' => $targetFirma,
                 'project_id' => $request->filled('project_id') ? (int) $request->input('project_id') : null,

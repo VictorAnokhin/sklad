@@ -1332,7 +1332,10 @@
                             </div>
                             <div class="col-12 client-modal-field">
                                 <label class="form-label small mb-0">Організація</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientOrgname">
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control form-control-sm text-white" id="newClientOrgname" maxlength="30" autocomplete="organization" spellcheck="false" data-client-safe-text="general">
+                                    <span class="input-group-text client-modal-char-counter" data-client-modal-counter-for="newClientOrgname">0/30</span>
+                                </div>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Прізвище</label>
@@ -1371,7 +1374,10 @@
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Отделение НP</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientPoshta">
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control form-control-sm text-white" id="newClientPoshta" maxlength="30" autocomplete="off" spellcheck="false" data-client-safe-text="general">
+                                    <span class="input-group-text client-modal-char-counter" data-client-modal-counter-for="newClientPoshta">0/30</span>
+                                </div>
                             </div>
                             <div class="col-12 client-modal-field">
                                 <label class="form-label small mb-0">Статус клієнта</label>
@@ -1770,11 +1776,17 @@
                 /(^|[\s\-'"`(])([a-zа-яёіїєґ])/giu,
                 (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`
             );
-            const sanitizeClientModalText = (value, maxLength = 80) => String(value || '')
-                .replace(/[\u0000-\u001F\u007F<>[\]{}\\/=;:*|~^$#@!?%&+=]/g, '')
-                .replace(/[^\p{L}\p{M}\s.'’`-]/gu, '')
-                .replace(/\s{2,}/g, ' ')
-                .slice(0, maxLength);
+            const sanitizeClientModalText = (value, maxLength = 80, mode = 'person') => {
+                const withoutDanger = String(value || '')
+                    .replace(/[\u0000-\u001F\u007F<>[\]{}\\/=;:*|~^$#@!?%&+=]/g, '');
+                const safeText = mode === 'general'
+                    ? withoutDanger.replace(/[^\p{L}\p{M}\p{N}\s.,'"’`-]/gu, '')
+                    : withoutDanger.replace(/[^\p{L}\p{M}\s.'’`-]/gu, '');
+
+                return safeText
+                    .replace(/\s{2,}/g, ' ')
+                    .slice(0, maxLength);
+            };
             const updateClientModalCharCounter = (field) => {
                 if (!field) {
                     return;
@@ -1797,7 +1809,8 @@
                     const selectionStart = field.selectionStart;
                     const selectionEnd = field.selectionEnd;
                     const maxLength = Number(field.getAttribute('maxlength') || 80);
-                    const nextValue = sanitizeClientModalText(capitalizeTextWords(field.value), maxLength);
+                    const mode = field.dataset.clientSafeText === 'general' ? 'general' : 'person';
+                    const nextValue = sanitizeClientModalText(capitalizeTextWords(field.value), maxLength, mode);
 
                     if (nextValue === field.value) {
                         updateClientModalCharCounter(field);
@@ -1814,7 +1827,8 @@
             const applyCapitalizedValue = (field) => {
                 if (field) {
                     const maxLength = Number(field.getAttribute('maxlength') || 80);
-                    field.value = sanitizeClientModalText(capitalizeTextWords(field.value), maxLength);
+                    const mode = field.dataset.clientSafeText === 'general' ? 'general' : 'person';
+                    field.value = sanitizeClientModalText(capitalizeTextWords(field.value), maxLength, mode);
                     updateClientModalCharCounter(field);
                 }
             };
@@ -2130,7 +2144,7 @@
                     document.getElementById('newClientPoshta').value = client1Id.dataset.poshta || '';
                     document.getElementById('newClientStatus').value = client1Id.dataset.status || '';
                     document.getElementById('newClientError').style.display = 'none';
-                    [document.getElementById('newClientName'), document.getElementById('newClientSecondname'), document.getElementById('newClientCity'), document.getElementById('newClientRegion')].forEach(applyCapitalizedValue);
+                    [newClientOrgnameField, document.getElementById('newClientName'), document.getElementById('newClientSecondname'), document.getElementById('newClientCity'), document.getElementById('newClientRegion'), document.getElementById('newClientPoshta')].forEach(applyCapitalizedValue);
                     refreshClientModalCounters();
                     // Trigger format
                     newClientPhoneField.dispatchEvent(new Event('input'));

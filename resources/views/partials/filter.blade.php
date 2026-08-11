@@ -40,6 +40,7 @@
         <div>
           <label style="display:block; margin-bottom:4px; font-size:0.85rem;">{{ __('document.filter.number_or_note') }}</label>
           <input type="text" name="f_content" autocomplete="off"
+                 maxlength="30" data-filter-safe-text
                  placeholder="{{ __('document.filter.number_or_note_placeholder') }}"
                  value="{{ $fd['fContent'] ?? '' }}" style="width:100%; padding:8px 12px; font-size:0.9rem;">
         </div>
@@ -49,6 +50,7 @@
         <div>
           <label style="display:block; margin-bottom:4px; font-size:0.85rem;">{{ __('document.filter.client_data') }}</label>
           <input type="text" name="f_name" autocomplete="off"
+                 maxlength="30" data-filter-safe-text
                  placeholder="{{ __('document.filter.client_data_placeholder') }}"
                  value="{{ $fd['fName'] ?? '' }}" style="width:100%; padding:8px 12px; font-size:0.9rem;">
         </div>
@@ -141,6 +143,21 @@ document.addEventListener('keydown', function(e) {
       filterToggle();
     }
   }
+});
+
+document.querySelectorAll('#filterModal [data-filter-safe-text]').forEach(function(input) {
+  const sanitize = function(value) {
+    return String(value || '')
+      .replace(/[<>{}\[\]\\\/=;:*|~^$#@!?%&+]/g, '')
+      .replace(/[^\p{L}\p{M}\p{N}\s.,'"’`-]/gu, '')
+      .replace(/\s+/g, ' ')
+      .slice(0, 30);
+  };
+
+  input.value = sanitize(input.value);
+  input.addEventListener('input', function() {
+    input.value = sanitize(input.value);
+  });
 });
 </script>
 @endpush

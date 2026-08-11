@@ -60,8 +60,8 @@ class FilterService
         session([
             "f.fdata1.{$pfx}" => $request->input('fdata1', ''),
             "f.fdata2.{$pfx}" => $request->input('fdata2', ''),
-            "f.name.{$doc}" => $request->input('f_name', ''),
-            "f.content.{$doc}" => $request->input('f_content', ''),
+            "f.name.{$doc}" => $this->safeFilterText($request->input('f_name', ''), 30),
+            "f.content.{$doc}" => $this->safeFilterText($request->input('f_content', ''), 30),
             "f.operator.{$doc}" => $request->input('f_operator', ''),
             "f.reteil.{$doc}" => $request->input('reteil', ''),
             "f.sklads.{$doc}" => $request->input('sklads', ''),
@@ -72,6 +72,15 @@ class FilterService
             "f.provodka.{$doc}" => $request->input('f_provodka', ''),
             'pos' => 0,
         ]);
+    }
+
+    private function safeFilterText(mixed $value, int $maxLength): string
+    {
+        $text = preg_replace('/[\x00-\x1F\x7F<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', '', (string) ($value ?? ''));
+        $text = preg_replace("/[^\p{L}\p{M}\p{N}\s.,'\"’`-]/u", '', (string) $text);
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags((string) $text)));
+
+        return mb_substr((string) $text, 0, $maxLength);
     }
 
     public function clear(string $doc): void

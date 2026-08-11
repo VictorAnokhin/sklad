@@ -23,22 +23,22 @@
     <div class="row mb-3">
         <div class="col-md-4">
             <label class="form-label">Фамилия</label>
-            <input type="text" name="secondname" class="form-control" value="{{ old('secondname', $member->secondname ?? '') }}">
+            <input type="text" name="secondname" class="form-control team-safe-text-input" value="{{ old('secondname', $member->secondname ?? '') }}" maxlength="30">
         </div>
         <div class="col-md-4">
             <label class="form-label">Имя</label>
-            <input type="text" name="name" class="form-control" value="{{ old('name', $member->name ?? '') }}" required>
+            <input type="text" name="name" class="form-control team-safe-text-input" value="{{ old('name', $member->name ?? '') }}" maxlength="30" required>
         </div>
         <div class="col-md-4">
             <label class="form-label">Отчество</label>
-            <input type="text" name="fathername" class="form-control" value="{{ old('fathername', $member->fathername ?? '') }}">
+            <input type="text" name="fathername" class="form-control team-safe-text-input" value="{{ old('fathername', $member->fathername ?? '') }}" maxlength="30">
         </div>
     </div>
 
     <div class="row mb-3">
         <div class="col-md-6">
             <label class="form-label">Должность</label>
-            <input type="text" name="name2" class="form-control" value="{{ old('name2', $member->name2 ?? '') }}" placeholder="CEO, Analyst, Partner">
+            <input type="text" name="name2" class="form-control team-safe-text-input" value="{{ old('name2', $member->name2 ?? '') }}" placeholder="CEO, Analyst, Partner" maxlength="30">
         </div>
         <div class="col-md-6">
             <label class="form-label">Подразделение</label>
@@ -81,11 +81,11 @@
     <div class="row mb-3">
         <div class="col-md-6">
             <label class="form-label">Город</label>
-            <input type="text" name="city" class="form-control" value="{{ old('city', $member->city ?? '') }}">
+            <input type="text" name="city" class="form-control team-safe-text-input" value="{{ old('city', $member->city ?? '') }}" maxlength="30">
         </div>
         <div class="col-md-6">
             <label class="form-label">Регион</label>
-            <input type="text" name="region" class="form-control" value="{{ old('region', $member->region ?? '') }}">
+            <input type="text" name="region" class="form-control team-safe-text-input" value="{{ old('region', $member->region ?? '') }}" maxlength="30">
         </div>
     </div>
 
@@ -105,7 +105,7 @@
 
     <div class="mb-3">
         <label class="form-label">Описание</label>
-        <textarea name="description" class="form-control" rows="5" placeholder="Краткая информация о сотруднике">{{ old('description', $member->description ?? '') }}</textarea>
+        <textarea name="description" class="form-control team-safe-description-input" rows="5" placeholder="Краткая информация о сотруднике" maxlength="250">{{ old('description', $member->description ?? '') }}</textarea>
     </div>
 
     <div class="d-flex gap-3 mt-4">
@@ -159,6 +159,24 @@
                 if (phoneInput.value.trim()) phoneInput.value = formatPhone(phoneInput.value);
                 phoneInput.addEventListener('input', () => { phoneInput.value = formatPhone(phoneInput.value); });
             }
+
+            function sanitizeTeamText(value, maxLength) {
+                return String(value || '')
+                    .replace(/[<>{}\[\]\\\/=;:*|~^$#@!?%&+]/g, '')
+                    .replace(/[^\p{L}\p{M}\p{N}\s.,'"’`-]/gu, '')
+                    .replace(/\s+/g, ' ')
+                    .slice(0, maxLength);
+            }
+
+            document.querySelectorAll('#team-member-form .team-safe-text-input').forEach(input => {
+                input.value = sanitizeTeamText(input.value, 30);
+                input.addEventListener('input', () => { input.value = sanitizeTeamText(input.value, 30); });
+            });
+
+            document.querySelectorAll('#team-member-form .team-safe-description-input').forEach(input => {
+                input.value = sanitizeTeamText(input.value, 250);
+                input.addEventListener('input', () => { input.value = sanitizeTeamText(input.value, 250); });
+            });
 
             photoInput?.addEventListener('change', function () {
                 const file = photoInput.files?.[0];

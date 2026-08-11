@@ -18,7 +18,7 @@ class DepositController extends Controller
         $defaultDateFrom = now()->subDays(30)->format('Y-m-d');
         $defaultDateTo = now()->format('Y-m-d');
         $filters = [
-            'q' => trim((string) $request->input('q', '')),
+            'q' => $this->safeFilterText($request->input('q', ''), 30),
             'mode' => trim((string) $request->input('mode', '')),
             'date_from' => trim((string) $request->input('date_from', $defaultDateFrom)),
             'date_to' => trim((string) $request->input('date_to', $defaultDateTo)),
@@ -39,6 +39,15 @@ class DepositController extends Controller
         $poolMap = $depositPools->pluck('name', 'asset_key');
 
         return view('deposit.index', array_merge($data, compact('pos', 'filters', 'datesAreDefault', 'usesPoolDeposits', 'depositPools', 'poolMap')));
+    }
+
+    private function safeFilterText(mixed $value, int $maxLength): string
+    {
+        $text = preg_replace('/[\x00-\x1F\x7F<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', '', (string) ($value ?? ''));
+        $text = preg_replace("/[^\p{L}\p{M}\p{N}\s.,'\"’`-]/u", '', (string) $text);
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags((string) $text)));
+
+        return mb_substr((string) $text, 0, $maxLength);
     }
 
     public function show(Request $request)

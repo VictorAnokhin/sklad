@@ -255,15 +255,20 @@
         <div onclick="moneyFilterToggle()" class="money-filter-modal__close">✕</div>
         <h3 class="money-filter-modal__title">🔍 {{ __('money.filter_title') }}</h3>
 
-        @if($hasDateFilter)
+        @if($hasDateFilter && ! $datesAreDefault)
         <div style="margin-bottom:16px; padding:10px 12px; border-radius:10px; border:1px solid rgba(251,191,36,0.28); background:rgba(251,191,36,0.08); color:var(--foreground); font-size:0.9rem;">
-            {{ $datesAreDefault ? 'За замовчуванням показано останні 30 днів:' : 'Активний діапазон дат:' }}
+            Активний діапазон дат:
             <strong>{{ $filters['date_from'] ?: '—' }}</strong> - <strong>{{ $filters['date_to'] ?: '—' }}</strong>.
         </div>
         @endif
 
         <form action="{{ route($filterRouteName) }}" method="get">
             <div class="money-filter-modal__grid">
+                <div class="money-filter-modal__field">
+                    <label>{{ $activeTab === 'orders' ? __('money.filter_search') : __('money.filter_transfer_search') }}</label>
+                    <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" class="form-control" maxlength="30" data-money-filter-safe autocomplete="off">
+                </div>
+
                 @if($activeTab === 'orders')
                 <div class="money-filter-modal__field">
                     <label>{{ __('money.filter_type') }}</label>
@@ -328,6 +333,21 @@ document.addEventListener('keydown', function (e) {
             moneyFilterToggle();
         }
     }
+});
+
+document.querySelectorAll('#moneyFilterModal [data-money-filter-safe]').forEach(function(input) {
+    const sanitize = function(value) {
+        return String(value || '')
+            .replace(/[<>{}\[\]\\\/=;:*|~^$#@!?%&+]/g, '')
+            .replace(/[^\p{L}\p{M}\p{N}\s.,'"’`-]/gu, '')
+            .replace(/\s+/g, ' ')
+            .slice(0, 30);
+    };
+
+    input.value = sanitize(input.value);
+    input.addEventListener('input', function() {
+        input.value = sanitize(input.value);
+    });
 });
 
 document.addEventListener('click', function (e) {

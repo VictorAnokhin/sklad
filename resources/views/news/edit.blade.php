@@ -13,7 +13,7 @@
 
     @php($photoPreview = trim((string) ($item->photo_view ?? '')))
 
-    <form action="{{ route('news.save') }}" method="post" enctype="multipart/form-data">
+    <form action="{{ route('news.save') }}" method="post" enctype="multipart/form-data" id="news-edit-form">
         @csrf
         <input type="hidden" name="id" value="{{ $item->id ?? 0 }}">
         <input type="hidden" name="foto" value="{{ old('foto', $item->foto ?? '') }}">
@@ -60,10 +60,10 @@
                 <input
                     type="text"
                     name="url"
-                    class="form-control"
+                    class="form-control news-safe-line"
                     value="{{ old('url', $item->url ?? '') }}"
                     placeholder="finansovyi-plan"
-                    maxlength="255"
+                    maxlength="100"
                 >
             </div>
             <div class="form-text">Якщо залишити поле порожнім, URL автоматично сформується транслітом із назви RU.</div>
@@ -121,45 +121,45 @@
             <div class="tab-pane fade show active" id="news-ru" role="tabpanel">
                 <div class="mb-3">
                     <label class="form-label">Назва RU (`title`)</label>
-                    <input type="text" name="title" class="form-control" value="{{ old('title', $item->title ?? '') }}">
+                    <input type="text" name="title" class="form-control news-safe-line" value="{{ old('title', $item->title ?? '') }}" maxlength="100">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Короткий текст RU (`kratko`)</label>
-                    <textarea name="kratko" class="form-control" rows="4">{{ old('kratko', $item->kratko ?? '') }}</textarea>
+                    <textarea name="kratko" class="form-control news-safe-text" rows="4" maxlength="2000">{{ old('kratko', $item->kratko ?? '') }}</textarea>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Повний текст RU (`txt`)</label>
-                    <textarea name="txt" class="form-control" rows="12">{{ old('txt', $item->txt ?? '') }}</textarea>
+                    <textarea name="txt" class="form-control news-safe-text" rows="12" maxlength="2000">{{ old('txt', $item->txt ?? '') }}</textarea>
                 </div>
             </div>
 
             <div class="tab-pane fade" id="news-ua" role="tabpanel">
                 <div class="mb-3">
                     <label class="form-label">Назва UA (`title_ua`)</label>
-                    <input type="text" name="title_ua" class="form-control" value="{{ old('title_ua', $item->title_ua ?? '') }}">
+                    <input type="text" name="title_ua" class="form-control news-safe-line" value="{{ old('title_ua', $item->title_ua ?? '') }}" maxlength="100">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Короткий текст UA (`kratko_ua`)</label>
-                    <textarea name="kratko_ua" class="form-control" rows="4">{{ old('kratko_ua', $item->kratko_ua ?? '') }}</textarea>
+                    <textarea name="kratko_ua" class="form-control news-safe-text" rows="4" maxlength="2000">{{ old('kratko_ua', $item->kratko_ua ?? '') }}</textarea>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Повний текст UA (`txt_ua`)</label>
-                    <textarea name="txt_ua" class="form-control" rows="12">{{ old('txt_ua', $item->txt_ua ?? '') }}</textarea>
+                    <textarea name="txt_ua" class="form-control news-safe-text" rows="12" maxlength="2000">{{ old('txt_ua', $item->txt_ua ?? '') }}</textarea>
                 </div>
             </div>
 
             <div class="tab-pane fade" id="news-en" role="tabpanel">
                 <div class="mb-3">
                     <label class="form-label">Назва EN (`title_en`)</label>
-                    <input type="text" name="title_en" class="form-control" value="{{ old('title_en', $item->title_en ?? '') }}">
+                    <input type="text" name="title_en" class="form-control news-safe-line" value="{{ old('title_en', $item->title_en ?? '') }}" maxlength="100">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Короткий текст EN (`kratko_en`)</label>
-                    <textarea name="kratko_en" class="form-control" rows="4">{{ old('kratko_en', $item->kratko_en ?? '') }}</textarea>
+                    <textarea name="kratko_en" class="form-control news-safe-text" rows="4" maxlength="2000">{{ old('kratko_en', $item->kratko_en ?? '') }}</textarea>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Повний текст EN (`txt_en`)</label>
-                    <textarea name="txt_en" class="form-control" rows="12">{{ old('txt_en', $item->txt_en ?? '') }}</textarea>
+                    <textarea name="txt_en" class="form-control news-safe-text" rows="12" maxlength="2000">{{ old('txt_en', $item->txt_en ?? '') }}</textarea>
                 </div>
             </div>
         </div>
@@ -167,17 +167,12 @@
         <div class="row g-3 mt-2">
             <div class="col-md-6">
                 <label class="form-label">Tags</label>
-                <input type="text" name="tags" class="form-control" value="{{ old('tags', $item->tags ?? '') }}">
+                <input type="text" name="tags" class="form-control news-safe-keywords" value="{{ old('tags', $item->tags ?? '') }}" maxlength="30">
             </div>
             <div class="col-md-6">
                 <label class="form-label">HTML keys</label>
-                <input type="text" name="htmlkeys" class="form-control" value="{{ old('htmlkeys', $item->htmlkeys ?? '') }}">
+                <input type="text" name="htmlkeys" class="form-control news-safe-keywords" value="{{ old('htmlkeys', $item->htmlkeys ?? '') }}" maxlength="30">
             </div>
-        </div>
-
-        <div class="mt-3">
-            <label class="form-label">Code socnet</label>
-            <textarea name="codesocnet" class="form-control" rows="4">{{ old('codesocnet', $item->codesocnet ?? '') }}</textarea>
         </div>
     </form>
 
@@ -235,4 +230,39 @@
         font-size: 0.95rem;
     }
 </style>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('news-edit-form');
+    if (!form) return;
+
+    const safeLine = value => String(value || '')
+        .replace(/[\x00-\x1F\x7F<>{}\[\]\\=;:*|~^$#@!?%&+]/g, '')
+        .replace(/[^\p{L}\p{M}\p{N}\s.,'"’`()_-]/gu, '')
+        .replace(/\s+/g, ' ')
+        .slice(0, 100);
+    const safeKeywords = value => String(value || '')
+        .replace(/[<>{}\[\]\\=;:*|~^$#@!?%&+]/g, '')
+        .replace(/[^\p{L}\p{M}\p{N}\s,._-]/gu, '')
+        .replace(/\s+/g, ' ')
+        .slice(0, 30);
+    const safeText = value => String(value || '')
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/\son\w+\s*=\s*(['"]).*?\1/gi, '')
+        .replace(/\s(href|src)\s*=\s*(['"])\s*javascript:.*?\2/gi, '')
+        .slice(0, 2000);
+
+    form.querySelectorAll('.news-safe-line').forEach(input => {
+        input.value = safeLine(input.value);
+        input.addEventListener('input', () => { input.value = safeLine(input.value); });
+    });
+    form.querySelectorAll('.news-safe-keywords').forEach(input => {
+        input.value = safeKeywords(input.value);
+        input.addEventListener('input', () => { input.value = safeKeywords(input.value); });
+    });
+    form.querySelectorAll('.news-safe-text').forEach(input => {
+        input.value = safeText(input.value);
+        input.addEventListener('input', () => { input.value = safeText(input.value); });
+    });
+});
+</script>
 @endsection

@@ -420,8 +420,11 @@
             <div class="gs-row">
                 <div class="gs-col-3">
                     <label>htmlkeyspop (автозаповнення)</label>
-                    <textarea name="htmlkeyspop" id="goods-htmlkeyspop" class="form-control" rows="2"
-                        placeholder="729:730,761:762,">{{ $comp->htmlkeyspop ?? '' }}</textarea>
+                    <div class="input-group">
+                        <textarea name="htmlkeyspop" id="goods-htmlkeyspop" class="form-control goods-safe-text-input" rows="2"
+                            maxlength="300" spellcheck="false" placeholder="729:730,761:762,">{{ $comp->htmlkeyspop ?? '' }}</textarea>
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="htmlkeyspop">0/300</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -467,7 +470,10 @@
                 </div>
                 <div class="gs-col">
                     <label>Артикул / Cod</label>
-                    <input type="text" class="form-control" value="{{ $comp->cod ?? '' }}" readonly>
+                    <div class="input-group">
+                        <input type="text" name="cod_display" class="form-control goods-safe-text-input" value="{{ $comp->cod ?? '' }}" maxlength="30" spellcheck="false" readonly>
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="cod_display">0/30</span>
+                    </div>
                 </div>
                 <div class="gs-col">
                     <label>Назва документа</label>
@@ -485,15 +491,15 @@
             <div class="gs-row">
                 <div class="gs-col">
                     <label>Ціна закупки</label>
-                    <input type="text" step="0.01" id="pay1Input" name="pay1" class="form-control" value="{{ $comp->pay1 ?? 0 }}">
+                    <input type="text" id="pay1Input" name="pay1" class="form-control goods-price-terminal-input" value="{{ $comp->pay1 ?? 0 }}" maxlength="15" inputmode="numeric" autocomplete="off">
                 </div>
                 <div class="gs-col">
                     <label>Ціна продажу</label>
-                    <input type="text" step="0.01" id="payInput" name="pay" class="form-control" value="{{ $comp->pay ?? 0 }}">
+                    <input type="text" id="payInput" name="pay" class="form-control goods-price-terminal-input" value="{{ $comp->pay ?? 0 }}" maxlength="15" inputmode="numeric" autocomplete="off">
                 </div>
                 <div class="gs-col">
                     <label>Маржа / Profit</label>
-                    <input type="text" step="0.01" id="profitpayInput" name="profitpay" class="form-control profit-field" value="{{ $comp->profitpay ?? 0 }}" readonly>
+                    <input type="text" id="profitpayInput" name="profitpay" class="form-control profit-field goods-price-terminal-input" value="{{ $comp->profitpay ?? 0 }}" maxlength="15" inputmode="numeric" autocomplete="off" data-allow-negative="1" readonly>
                 </div>
                 <div class="gs-col">
                     <label>Гарантія</label>
@@ -528,15 +534,15 @@
                                 <input type="hidden" name="tgroup[{{ $group->id }}]" value="1">
                             </td>
                             <td>
-                                <input type="number" step="0.01" name="tpay[{{ $group->id }}]" class="form-control"
+                                <input type="text" name="tpay[{{ $group->id }}]" class="form-control goods-price-terminal-input" maxlength="15" inputmode="numeric" autocomplete="off"
                                     value="{{ $row !== null ? $row->pay : 0 }}">
                             </td>
                             <td>
-                                <input type="number" step="0.01" name="tpay1[{{ $group->id }}]" class="form-control"
+                                <input type="text" name="tpay1[{{ $group->id }}]" class="form-control goods-price-terminal-input" maxlength="15" inputmode="numeric" autocomplete="off"
                                     value="{{ $row !== null ? $row->pay1 : 0 }}">
                             </td>
                             <td>
-                                <input type="number" step="0.01" name="toldpay[{{ $group->id }}]" class="form-control"
+                                <input type="text" name="toldpay[{{ $group->id }}]" class="form-control goods-price-terminal-input" maxlength="15" inputmode="numeric" autocomplete="off"
                                     value="{{ $row !== null ? $row->oldpay : 0 }}">
                             </td>
                             <td>
@@ -577,10 +583,13 @@
                     </label>
                 </div>
                 <div class="gs-col" style="display:flex;align-items:flex-end;">
-                    <label class="gs-check" style="min-height:42px;width:100%;">
-                        Top
-                        <input type="text" name="top" class="form-control" value="{{ $comp->top ?? 0 }}">
-                    </label>
+                    <div style="width:100%;">
+                        <label>Top</label>
+                        <div class="input-group">
+                            <input type="text" name="top" class="form-control goods-safe-text-input" value="{{ $comp->top ?? 0 }}" maxlength="30" spellcheck="false">
+                            <span class="input-group-text goods-char-counter" data-goods-char-counter-for="top">0/30</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -619,11 +628,17 @@
             <div class="gs-row">
                 <div class="gs-col-2">
                     <label>HTML description</label>
-                    <textarea name="htmldescr" class="form-control">{{ $comp->htmldescr ?? '' }}</textarea>
+                    <div class="input-group">
+                        <textarea name="htmldescr" class="form-control goods-safe-text-input" maxlength="300" spellcheck="false">{{ $comp->htmldescr ?? '' }}</textarea>
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="htmldescr">0/300</span>
+                    </div>
                 </div>
                 <div class="gs-col">
                     <label>HTML keys</label>
-                    <textarea name="htmlkeys" class="form-control">{{ $comp->htmlkeys ?? '' }}</textarea>
+                    <div class="input-group">
+                        <textarea name="htmlkeys" class="form-control goods-safe-text-input" maxlength="300" spellcheck="false">{{ $comp->htmlkeys ?? '' }}</textarea>
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="htmlkeys">0/300</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -634,11 +649,17 @@
             <div class="gs-row">
                 <div class="gs-col">
                     <label>Video 1</label>
-                    <input type="text" name="video1" class="form-control" value="{{ $comp->nvideo1 ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="video1" class="form-control goods-safe-text-input" value="{{ $comp->nvideo1 ?? '' }}" maxlength="30" spellcheck="false">
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="video1">0/30</span>
+                    </div>
                 </div>
                 <div class="gs-col">
                     <label>Video 2</label>
-                    <input type="text" name="video2" class="form-control" value="{{ $comp->nvideo2 ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="video2" class="form-control goods-safe-text-input" value="{{ $comp->nvideo2 ?? '' }}" maxlength="30" spellcheck="false">
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="video2">0/30</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -865,6 +886,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const profitInput  = document.getElementById('profitpayInput');
     const subSel = document.getElementById('goodsShowSubSelect');
     const goodsSafeTextInputs = document.querySelectorAll('.goods-safe-text-input');
+    const goodsPriceInputs = document.querySelectorAll('.goods-price-terminal-input');
+    let refreshGoodsMargin = () => {};
     const sanitizeGoodsSafeText = (value, maxLength) => String(value || '')
         .replace(/[\u0000-\u001F\u007F<>]/g, '')
         .replace(/\s{2,}/g, ' ')
@@ -900,11 +923,141 @@ document.addEventListener('DOMContentLoaded', function() {
 
     goodsSafeTextInputs.forEach(bindGoodsSafeTextInput);
 
-    const calcMargin = () => {
-        const buy  = parseFloat(pay1Input?.value)  || 0;
-        const sell = parseFloat(payInput?.value)   || 0;
-        if (profitInput) profitInput.value = (sell - buy).toFixed(2);
+    const parseGoodsPriceToCents = (value) => {
+        const normalized = String(value || '').replace(/\s/g, '').replace(',', '.');
+        const amount = parseFloat(normalized);
+
+        return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
     };
+    const formatGoodsPrice = (cents) => {
+        const sign = cents < 0 ? '-' : '';
+        const amount = (Math.abs(cents) / 100).toFixed(2);
+        const parts = amount.split('.');
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
+        return sign + parts.join('.');
+    };
+    const normalizeGoodsPriceForSubmit = (input) => {
+        input.value = (parseGoodsPriceToCents(input.value) / 100).toFixed(2);
+    };
+    const syncGoodsPriceValue = (input, cents) => {
+        const allowNegative = input.dataset.allowNegative === '1';
+        let nextCents = allowNegative ? cents : Math.max(0, cents);
+        while (formatGoodsPrice(nextCents).length > 15 && Math.abs(nextCents) > 0) {
+            nextCents = nextCents < 0 ? Math.ceil(nextCents / 10) : Math.floor(nextCents / 10);
+        }
+
+        input.dataset.terminalPriceCents = String(nextCents);
+        input.value = formatGoodsPrice(nextCents);
+        if (input === payInput || input === pay1Input) {
+            refreshGoodsMargin();
+        }
+    };
+    const bindGoodsTerminalPriceInput = (input) => {
+        if (!input || input.dataset.terminalPriceBound === '1') {
+            return;
+        }
+
+        input.dataset.terminalPriceBound = '1';
+
+        const getDigits = () => String(parseInt(input.dataset.terminalPriceCents || '0', 10) || 0);
+        const appendDigit = (digit) => {
+            const currentDigits = input.dataset.terminalPriceFresh === '1' ? '' : getDigits();
+            const nextDigits = (currentDigits + digit).replace(/^0+(?=\d)/, '');
+
+            syncGoodsPriceValue(input, parseInt(nextDigits || '0', 10));
+            input.dataset.terminalPriceFresh = '0';
+        };
+        const removeLastDigit = () => {
+            syncGoodsPriceValue(input, parseInt(getDigits().slice(0, -1) || '0', 10));
+            input.dataset.terminalPriceFresh = '0';
+        };
+
+        syncGoodsPriceValue(input, parseGoodsPriceToCents(input.value));
+
+        input.addEventListener('focus', () => {
+            if (input.readOnly) {
+                return;
+            }
+
+            input.dataset.terminalPriceFresh = '1';
+            syncGoodsPriceValue(input, parseGoodsPriceToCents(input.value));
+            input.select();
+        });
+        input.addEventListener('beforeinput', (event) => {
+            if (input.readOnly) {
+                return;
+            }
+
+            if (event.inputType === 'insertText' && /^\d$/.test(event.data || '')) {
+                event.preventDefault();
+                appendDigit(event.data);
+                return;
+            }
+
+            if (event.inputType === 'deleteContentBackward') {
+                event.preventDefault();
+                removeLastDigit();
+                return;
+            }
+
+            if (event.inputType === 'deleteContentForward') {
+                event.preventDefault();
+                syncGoodsPriceValue(input, 0);
+                input.dataset.terminalPriceFresh = '0';
+            }
+        });
+        input.addEventListener('keydown', (event) => {
+            if (input.readOnly || event.ctrlKey || event.metaKey || event.altKey) {
+                return;
+            }
+
+            if (/^\d$/.test(event.key)) {
+                event.preventDefault();
+                appendDigit(event.key);
+                return;
+            }
+
+            if (event.key === 'Backspace') {
+                event.preventDefault();
+                removeLastDigit();
+                return;
+            }
+
+            if (event.key === 'Delete') {
+                event.preventDefault();
+                syncGoodsPriceValue(input, 0);
+                input.dataset.terminalPriceFresh = '0';
+            }
+        });
+        input.addEventListener('paste', (event) => {
+            if (input.readOnly) {
+                return;
+            }
+
+            event.preventDefault();
+            const text = event.clipboardData?.getData('text') || '';
+            const digits = text.replace(/\D/g, '');
+
+            syncGoodsPriceValue(input, parseInt(digits || '0', 10));
+            input.dataset.terminalPriceFresh = '0';
+        });
+        input.addEventListener('input', () => {
+            syncGoodsPriceValue(input, parseGoodsPriceToCents(input.value));
+            input.dataset.terminalPriceFresh = '0';
+        });
+    };
+
+    goodsPriceInputs.forEach(bindGoodsTerminalPriceInput);
+
+    const calcMargin = () => {
+        const buy = parseGoodsPriceToCents(pay1Input?.value);
+        const sell = parseGoodsPriceToCents(payInput?.value);
+        if (profitInput) {
+            syncGoodsPriceValue(profitInput, sell - buy);
+        }
+    };
+    refreshGoodsMargin = calcMargin;
 
     payInput?.addEventListener('input',  calcMargin);
     pay1Input?.addEventListener('input', calcMargin);
@@ -918,12 +1071,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.querySelector('form.gs-form')?.addEventListener('submit', function() {
+        goodsSyncHtmlkeyspopFromUi();
+        goodsPriceInputs.forEach(normalizeGoodsPriceForSubmit);
         goodsSafeTextInputs.forEach(function(input) {
             const maxLength = Number(input.getAttribute('maxlength') || 120);
             input.value = sanitizeGoodsSafeText(input.value, maxLength).trim();
             updateGoodsCharCounter(input);
         });
-        goodsSyncHtmlkeyspopFromUi();
     });
 
     goodsReloadCatalogFilters();

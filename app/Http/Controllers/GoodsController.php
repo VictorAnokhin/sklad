@@ -1867,9 +1867,9 @@ class GoodsController extends Controller
         $priceRows = [];
         foreach ((array) $request->input('tgroup', []) as $gid => $_) {
             $priceRows[$gid] = [
-                'oldpay' => (float) ($request->input('toldpay')[$gid] ?? 0),
-                'pay' => (float) ($request->input('tpay')[$gid] ?? 0),
-                'pay1' => (float) ($request->input('tpay1')[$gid] ?? 0),
+                'oldpay' => $this->goodsPriceAmount($request->input('toldpay')[$gid] ?? 0),
+                'pay' => $this->goodsPriceAmount($request->input('tpay')[$gid] ?? 0),
+                'pay1' => $this->goodsPriceAmount($request->input('tpay1')[$gid] ?? 0),
                 'count' => (int) ($request->input('tcount')[$gid] ?? 0),
             ];
         }
@@ -1885,16 +1885,16 @@ class GoodsController extends Controller
             'firma' => $request->input('firma', $fid),
             'nickname' => $this->safeGoodsText($request->input('nickname', ''), 'Код', 60),
             'namedoc' => $this->safeGoodsText($request->input('name_doc', ''), 'Назва документа', 120),
-            'pay1' => (float) $request->input('pay1', 0),
-            'pay' => (float) $request->input('pay', 0),
-            'profitpay' => (float) $request->input('profitpay', 0),
+            'pay1' => $this->goodsPriceAmount($request->input('pay1', 0)),
+            'pay' => $this->goodsPriceAmount($request->input('pay', 0)),
+            'profitpay' => $this->goodsPriceAmount($request->input('profitpay', 0), true),
             'sklad' => (int) $request->input('sklad', 0),
             'garant' => $this->safeGoodsText($request->input('garant', ''), 'Гарантія', 60),
-            'htmldescr' => $request->input('htmldescr', ''),
-            'htmlkeys' => $request->input('htmlkeys', ''),
-            'htmlkeyspop' => $request->input('htmlkeyspop', ''),
-            'nvideo1' => $request->input('video1', ''),
-            'nvideo2' => $request->input('video2', ''),
+            'htmldescr' => $this->safeGoodsText($request->input('htmldescr', ''), 'HTML description', 300),
+            'htmlkeys' => $this->safeGoodsText($request->input('htmlkeys', ''), 'HTML keys', 300),
+            'htmlkeyspop' => $this->safeGoodsText($request->input('htmlkeyspop', ''), 'htmlkeyspop', 300),
+            'nvideo1' => $this->safeGoodsText($request->input('video1', ''), 'Video 1', 30),
+            'nvideo2' => $this->safeGoodsText($request->input('video2', ''), 'Video 2', 30),
         ];
 
         // ── Descript data
@@ -1931,6 +1931,21 @@ class GoodsController extends Controller
         $text = preg_replace('/\s+/u', ' ', trim(strip_tags($raw)));
 
         return mb_substr((string) $text, 0, $maxLength);
+    }
+
+    private function goodsPriceAmount(mixed $value, bool $allowNegative = false): float
+    {
+        $raw = mb_substr(trim((string) ($value ?? '')), 0, 15);
+        $normalized = str_replace([' ', ','], ['', '.'], $raw);
+        $normalized = preg_replace($allowNegative ? '/[^0-9.\-]/' : '/[^0-9.]/', '', (string) $normalized);
+
+        if (! is_numeric($normalized)) {
+            return 0.0;
+        }
+
+        $amount = round((float) $normalized, 2);
+
+        return $allowNegative ? $amount : max(0.0, $amount);
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────

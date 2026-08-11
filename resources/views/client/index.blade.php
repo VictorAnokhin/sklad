@@ -289,26 +289,26 @@
                     <div style="grid-column: 1 / -1;">
                         <label
                             style="display:block;margin-bottom:4px;font-size:0.85rem;">{{ __('client.search_label') }}</label>
-                        <input type="text" name="search" autocomplete="off"
+                        <input type="text" name="search" autocomplete="off" maxlength="30" data-client-filter-safe
                             placeholder="{{ __('client.search_placeholder') }}" value="{{ $filters['search'] ?? '' }}"
                             style="width:100%;padding:8px 12px;font-size:0.9rem;">
                     </div>
 
                     <div>
                         <label style="display:block;margin-bottom:4px;font-size:0.85rem;">{{ __('client.city') }}</label>
-                        <input type="text" name="city" autocomplete="off" placeholder="{{ __('client.city') }}"
+                        <input type="text" name="city" autocomplete="off" maxlength="30" data-client-filter-safe placeholder="{{ __('client.city') }}"
                             value="{{ $filters['city'] ?? '' }}" style="width:100%;padding:8px 12px;font-size:0.9rem;">
                     </div>
 
                     <div>
                         <label style="display:block;margin-bottom:4px;font-size:0.85rem;">{{ __('client.phone') }}</label>
-                        <input type="text" name="phone" autocomplete="off" placeholder="{{ __('client.phone') }}"
+                        <input type="text" name="phone" autocomplete="off" inputmode="numeric" maxlength="15" data-client-filter-digits placeholder="{{ __('client.phone') }}"
                             value="{{ $filters['phone'] ?? '' }}" style="width:100%;padding:8px 12px;font-size:0.9rem;">
                     </div>
 
                     <div>
                         <label style="display:block;margin-bottom:4px;font-size:0.85rem;">{{ __('client.field_email') }}</label>
-                        <input type="text" name="email" autocomplete="off" inputmode="email"
+                        <input type="text" name="email" autocomplete="off" inputmode="email" maxlength="30" data-client-filter-email
                             placeholder="{{ __('client.field_email') }}"
                             value="{{ $filters['email'] ?? '' }}" style="width:100%;padding:8px 12px;font-size:0.9rem;">
                     </div>
@@ -396,6 +396,35 @@
         document.getElementById('clientFilterModal').addEventListener('click', function (e) {
             if (e.target === this) clientFilterToggle();
         });
+
+        (function () {
+            const modal = document.getElementById('clientFilterModal');
+            if (!modal) return;
+
+            const safeText = value => String(value || '')
+                .replace(/[<>{}\[\]\\\/=;:*|~^$#@!?%&+]/g, '')
+                .replace(/[^\p{L}\p{M}\p{N}\s.,'"’`-]/gu, '')
+                .replace(/\s+/g, ' ')
+                .slice(0, 30);
+            const safeEmail = value => String(value || '')
+                .replace(/[^a-zA-Z0-9@._+-]/g, '')
+                .slice(0, 30);
+            const digitsOnly = value => String(value || '').replace(/\D/g, '').slice(0, 15);
+
+            modal.querySelectorAll('[data-client-filter-safe]').forEach(input => {
+                input.value = safeText(input.value);
+                input.addEventListener('input', () => { input.value = safeText(input.value); });
+            });
+            modal.querySelectorAll('[data-client-filter-email]').forEach(input => {
+                input.value = safeEmail(input.value);
+                input.addEventListener('input', () => { input.value = safeEmail(input.value); });
+            });
+            modal.querySelectorAll('[data-client-filter-digits]').forEach(input => {
+                input.value = digitsOnly(input.value);
+                input.addEventListener('input', () => { input.value = digitsOnly(input.value); });
+            });
+        })();
+
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 var d = document.getElementById('clientFilterModal');

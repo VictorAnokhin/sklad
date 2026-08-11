@@ -283,15 +283,21 @@
             <div class="row mb-3">
                 <div class="col-md-6">
                     <label class="form-label">{{ __('client.field_organization') }}</label>
-                    <input type="text" name="orgname" class="form-control" value="{{ $client->orgname ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="orgname" class="form-control client-general-safe-input" value="{{ $client->orgname ?? '' }}" maxlength="30" autocomplete="organization" spellcheck="false">
+                        <span class="input-group-text client-char-counter" data-char-counter-for="orgname">0/30</span>
+                    </div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">{{ __('client.field_edrpou') }}</label>
-                    <input type="text" name="kod1" class="form-control" value="{{ $client->kod1 ?? '' }}">
+                    <input type="text" name="kod1" class="form-control client-digits-only-input" value="{{ $client->kod1 ?? '' }}" maxlength="15" inputmode="numeric" autocomplete="off">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">{{ __('client.field_contact') }}</label>
-                    <input type="text" name="name2" class="form-control" value="{{ $client->name2 ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="name2" class="form-control client-general-safe-input" value="{{ $client->name2 ?? '' }}" maxlength="20" autocomplete="name" spellcheck="false">
+                        <span class="input-group-text client-char-counter" data-char-counter-for="name2">0/20</span>
+                    </div>
                 </div>
             </div>
 
@@ -349,7 +355,10 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_nova_poshta') }}</label>
-                    <input type="text" name="poshta" class="form-control" value="{{ $client->poshta ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="poshta" class="form-control client-general-safe-input" value="{{ $client->poshta ?? '' }}" maxlength="20" autocomplete="off" spellcheck="false">
+                        <span class="input-group-text client-char-counter" data-char-counter-for="poshta">0/20</span>
+                    </div>
                 </div>
             </div>
 
@@ -410,11 +419,14 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_bonus') }}</label>
-                    <input type="number" step="0.01" name="bonus" class="form-control" value="{{ $client->bonus ?? 0 }}">
+                    <div class="input-group">
+                        <input type="text" name="bonus" class="form-control client-bonus-input" value="{{ $client->bonus ?? 0 }}" maxlength="20" inputmode="decimal" autocomplete="off">
+                        <span class="input-group-text client-char-counter" data-char-counter-for="bonus">0/20</span>
+                    </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_birthday') }}</label>
-                    <input type="text" name="hbd" class="form-control" value="{{ $client->hbd ?? '' }}">
+                    <input type="text" name="hbd" class="form-control client-date-input" value="{{ $client->hbd ?? '' }}" maxlength="10" inputmode="numeric" autocomplete="bday" placeholder="YYYY-MM-DD">
                 </div>
             </div>
 
@@ -852,6 +864,36 @@
             .slice(0, 30);
     }
 
+    function sanitizeClientGeneralText(value, maxLength) {
+        return String(value || '')
+            .replace(/[\u0000-\u001F\u007F<>[\]{}\\/=;:*|~^$#@!?%&+=]/g, '')
+            .replace(/[^\p{L}\p{M}\p{N}\s.,'"’`-]/gu, '')
+            .replace(/\s{2,}/g, ' ')
+            .slice(0, maxLength);
+    }
+
+    function sanitizeClientBonus(value) {
+        const normalized = String(value || '').replace(',', '.').replace(/[^0-9.]/g, '');
+        const parts = normalized.split('.');
+        const integer = (parts.shift() || '').slice(0, 17);
+        const fraction = parts.join('').slice(0, 2);
+        const nextValue = fraction !== '' ? integer + '.' + fraction : integer;
+
+        return nextValue.slice(0, 20);
+    }
+
+    function formatClientDate(value) {
+        const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+        if (digits.length <= 4) {
+            return digits;
+        }
+        if (digits.length <= 6) {
+            return digits.slice(0, 4) + '-' + digits.slice(4);
+        }
+
+        return digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6);
+    }
+
     function updateClientCharCounter(input) {
         const maxLength = Number(input.getAttribute('maxlength') || 30);
         const counter = document.querySelector('[data-char-counter-for="' + input.name + '"]');
@@ -882,6 +924,49 @@
     }
 
     document.querySelectorAll('.client-safe-text-input').forEach(bindClientSafeTextInput);
+
+    document.querySelectorAll('.client-general-safe-input').forEach(function(input) {
+        updateClientCharCounter(input);
+        input.addEventListener('input', function() {
+            const selectionStart = input.selectionStart;
+            const selectionEnd = input.selectionEnd;
+            const maxLength = Number(input.getAttribute('maxlength') || 20);
+            const nextValue = sanitizeClientGeneralText(input.value, maxLength);
+            if (nextValue === input.value) {
+                updateClientCharCounter(input);
+                return;
+            }
+            input.value = nextValue;
+            if (selectionStart !== null && selectionEnd !== null) {
+                input.setSelectionRange(selectionStart, selectionEnd);
+            }
+            updateClientCharCounter(input);
+        });
+    });
+
+    document.querySelectorAll('.client-digits-only-input').forEach(function(input) {
+        input.addEventListener('input', function() {
+            input.value = String(input.value || '').replace(/\D/g, '').slice(0, 15);
+        });
+        input.value = String(input.value || '').replace(/\D/g, '').slice(0, 15);
+    });
+
+    document.querySelectorAll('.client-bonus-input').forEach(function(input) {
+        updateClientCharCounter(input);
+        input.addEventListener('input', function() {
+            input.value = sanitizeClientBonus(input.value);
+            updateClientCharCounter(input);
+        });
+        input.value = sanitizeClientBonus(input.value);
+        updateClientCharCounter(input);
+    });
+
+    document.querySelectorAll('.client-date-input').forEach(function(input) {
+        input.value = formatClientDate(input.value);
+        input.addEventListener('input', function() {
+            input.value = formatClientDate(input.value);
+        });
+    });
 
     // Async email uniqueness check
     let emailCheckTimeout = null;
@@ -998,6 +1083,21 @@
             document.querySelectorAll('.client-safe-text-input').forEach(function(input) {
                 input.value = sanitizeClientSafeText(input.value);
                 updateClientCharCounter(input);
+            });
+            document.querySelectorAll('.client-general-safe-input').forEach(function(input) {
+                const maxLength = Number(input.getAttribute('maxlength') || 20);
+                input.value = sanitizeClientGeneralText(input.value, maxLength).trim();
+                updateClientCharCounter(input);
+            });
+            document.querySelectorAll('.client-digits-only-input').forEach(function(input) {
+                input.value = String(input.value || '').replace(/\D/g, '').slice(0, 15);
+            });
+            document.querySelectorAll('.client-bonus-input').forEach(function(input) {
+                input.value = sanitizeClientBonus(input.value);
+                updateClientCharCounter(input);
+            });
+            document.querySelectorAll('.client-date-input').forEach(function(input) {
+                input.value = formatClientDate(input.value);
             });
 
             // Validate phone
