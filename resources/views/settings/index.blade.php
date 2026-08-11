@@ -848,7 +848,7 @@
                         <div class="col-md-4 mb-3 d-flex align-items-end">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="project-hit">
-                                <label class="form-check-label" for="project-hit">hit</label>
+                                <label class="form-check-label" for="project-hit">Главный</label>
                             </div>
                         </div>
                         <div class="col-md-4 mb-3 d-flex align-items-end">

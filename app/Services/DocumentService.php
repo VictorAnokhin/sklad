@@ -6,7 +6,6 @@ use App\Models\Document;
 use App\Models\ZBody;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -18,6 +17,11 @@ use Illuminate\Support\Facades\Schema;
  */
 class DocumentService
 {
+    public function __construct(
+        private readonly SmsClubService $smsClub,
+    ) {
+    }
+
     // ── Save document header ──────────────────────────────────────────────────
 
     public function saveHead(Request $request, string $docId, string $docType, string $fid): void
@@ -484,12 +488,7 @@ class DocumentService
             return;
 
         try {
-            Http::withToken(config('services.sms.api_key'))
-                ->post('https://sms.smsclub.mobi/sms/send', [
-                'phone' => [$phone],
-                'message' => $text,
-                'src_addr' => config('services.sms.sender', 'av8fund'),
-            ]);
+            $this->smsClub->sendOtp($phone, $text);
         }
         catch (\Throwable $e) {
             Log::warning('SMS failed', ['phone' => $phone, 'error' => $e->getMessage()]);

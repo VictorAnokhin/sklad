@@ -728,11 +728,114 @@ class AuthController extends Controller
             return;
         }
 
-        $fid = $user->firma ?: $user->fid;
+        $requestedFid = trim((string) $request->input('fid', ''));
+        $activeUser = $user;
+
+        if ($requestedFid === '') {
+            $defaultProject = $this->defaultHitProjectForUser($user);
+            if ($defaultProject instanceof Project) {
+                $activeUser = $this->ensureAuthUserRowForProject($user, (string) $defaultProject->id);
+                if ((int) Auth::id() !== (int) $activeUser->id) {
+                    Auth::login($activeUser);
+                }
+            }
+        }
+
+        $fid = $activeUser->firma ?: $activeUser->fid;
 
         if ($fid !== null && $fid !== '') {
             $request->session()->put('fid', $fid);
         }
+    }
+
+    private function defaultHitProjectForUser(User $user): ?Project
+    {
+        if (! Schema::hasTable('project') || ! Schema::hasColumn('project', 'hit')) {
+            return null;
+        }
+
+        $query = $this->authAccessibleProjectsQuery($user);
+        if ($query === null) {
+            return null;
+        }
+
+        return $query
+            ->where('hit', 1)
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function authAccessibleProjectsQuery(User $user)
+    {
+        if (! Schema::hasTable('project')) {
+            return null;
+        }
+
+        $identityUserIds = $this->authIdentityUserIds($user);
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+        $firmaProjectIds = $this->authProjectFirmaIdsForUser($user);
+
+        $hasUserId = Schema::hasColumn('project', 'userid') && $identityUserIds->isNotEmpty();
+        $hasEmail = Schema::hasColumn('project', 'email') && $email !== '';
+        $hasFirmaProjects = $firmaProjectIds->isNotEmpty();
+
+        if (! $hasUserId && ! $hasEmail && ! $hasFirmaProjects) {
+            return null;
+        }
+
+        return Project::query()
+            ->where(function ($query) use ($hasUserId, $hasEmail, $hasFirmaProjects, $identityUserIds, $email, $firmaProjectIds): void {
+                if ($hasUserId) {
+                    $query->whereIn('userid', $identityUserIds->all());
+                }
+                if ($hasEmail) {
+                    $method = $hasUserId ? 'orWhereRaw' : 'whereRaw';
+                    $query->{$method}('LOWER(TRIM(email)) = ?', [$email]);
+                }
+                if ($hasFirmaProjects) {
+                    $method = ($hasUserId || $hasEmail) ? 'orWhereIn' : 'whereIn';
+                    $query->{$method}('id', $firmaProjectIds->all());
+                }
+            });
+    }
+
+    private function authIdentityUserIds(User $user): \Illuminate\Support\Collection
+    {
+        $ids = collect([(int) $user->id]);
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+
+        if ($email !== '' && Schema::hasTable('users') && Schema::hasColumn('users', 'email')) {
+            $ids = $ids->merge(
+                User::query()
+                    ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+            );
+        }
+
+        return $ids->filter()->unique()->values();
+    }
+
+    private function authProjectFirmaIdsForUser(User $user): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('users') || ! Schema::hasColumn('users', 'firma')) {
+            return collect();
+        }
+
+        $identityUserIds = $this->authIdentityUserIds($user);
+        if ($identityUserIds->isEmpty()) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereIn('id', $identityUserIds->all())
+            ->pluck('firma')
+            ->map(fn ($firma) => trim((string) $firma))
+            ->filter(fn ($firma) => $firma !== '' && $firma !== '0' && ctype_digit($firma))
+            ->map(fn ($firma) => (int) $firma)
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     private function establishAuthenticatedSession(Request $request, User $user): void
