@@ -224,8 +224,46 @@
                     </div>
                 </div>
             </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalSmsClub">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">📨 Отправка смс</h5>
+                        <p class="card-text text-muted">SMS Club API ключ и баланс</p>
+                        <span class="badge {{ ($smsClubTokenConfigured ?? false) ? 'bg-success' : 'bg-secondary' }}" id="badge-sms-club">{{ ($smsClubTokenConfigured ?? false) ? 'Активно' : 'Не настроено' }}</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
+</div>
+
+<div class="modal fade" id="modalSmsClub" tabindex="-1" aria-labelledby="modalSmsClubLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalSmsClubLabel">📨 Отправка смс</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
+            </div>
+            <form id="sms-club-form">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white" for="sms-club-api-key">API ключ SMS Club <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="sms-club-api-key" name="api_key" maxlength="255" autocomplete="off" placeholder="{{ $smsClubApiKeyHint ? 'Сохранен: ' . $smsClubApiKeyHint : 'Введите API ключ' }}" required>
+                    </div>
+                    <div class="small text-muted mb-3">Используется для SMS из поля SMS в document/show.</div>
+                    <div class="alert d-none mb-0" id="sms-club-feedback" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success" id="sms-club-save-btn">
+                        <span class="spinner-border spinner-border-sm me-2 d-none" id="sms-club-spinner" aria-hidden="true"></span>
+                        <span id="sms-club-save-text">Сохранить и показать баланс</span>
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('settings.common.close') }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <div class="modal fade" id="modalAccounts" tabindex="-1" aria-labelledby="modalAccountsLabel" aria-hidden="true">
@@ -2513,6 +2551,104 @@ document.addEventListener('DOMContentLoaded', () => {
     const sanitizeProfileDate = (value, maxLength = 30) => String(value || '')
         .replace(/[^\d-]/g, '')
         .slice(0, maxLength);
+
+    const smsClubModal = document.getElementById('modalSmsClub');
+    const smsClubForm = document.getElementById('sms-club-form');
+    const smsClubApiKeyInput = document.getElementById('sms-club-api-key');
+    const smsClubFeedback = document.getElementById('sms-club-feedback');
+    const smsClubBadge = document.getElementById('badge-sms-club');
+    const smsClubSaveButton = document.getElementById('sms-club-save-btn');
+    const smsClubSpinner = document.getElementById('sms-club-spinner');
+
+    const setSmsClubLoading = (isLoading) => {
+        if (smsClubSaveButton) {
+            smsClubSaveButton.disabled = isLoading;
+        }
+        if (smsClubSpinner) {
+            smsClubSpinner.classList.toggle('d-none', !isLoading);
+        }
+    };
+
+    const showSmsClubFeedback = (type, message) => {
+        if (!smsClubFeedback) {
+            return;
+        }
+        smsClubFeedback.className = `alert alert-${type} mb-0`;
+        smsClubFeedback.textContent = message;
+    };
+
+    const setSmsClubConfiguredBadge = (isConfigured) => {
+        if (!smsClubBadge) {
+            return;
+        }
+        smsClubBadge.classList.toggle('bg-success', isConfigured);
+        smsClubBadge.classList.toggle('bg-secondary', !isConfigured);
+        smsClubBadge.textContent = isConfigured ? 'Активно' : 'Не настроено';
+    };
+
+    smsClubModal?.addEventListener('show.bs.modal', async () => {
+        if (smsClubFeedback) {
+            smsClubFeedback.className = 'alert d-none mb-0';
+            smsClubFeedback.textContent = '';
+        }
+        if (smsClubApiKeyInput) {
+            smsClubApiKeyInput.value = '';
+        }
+
+        try {
+            const response = await fetch('/settings/sms-club', {
+                headers: { Accept: 'application/json' },
+            });
+            const data = await response.json();
+            setSmsClubConfiguredBadge(Boolean(data.configured));
+            if (smsClubApiKeyInput && data.api_key_hint) {
+                smsClubApiKeyInput.placeholder = `Сохранен: ${data.api_key_hint}`;
+            }
+        } catch (error) {
+            showSmsClubFeedback('danger', 'Не удалось загрузить настройки SMS.');
+        }
+    });
+
+    smsClubForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const apiKey = String(smsClubApiKeyInput?.value || '').replace(/[\u0000-\u001F\u007F]/g, '').trim();
+
+        if (!apiKey) {
+            showSmsClubFeedback('danger', 'Введите API ключ.');
+            return;
+        }
+
+        setSmsClubLoading(true);
+        showSmsClubFeedback('info', 'Сохраняем ключ и проверяем баланс...');
+
+        try {
+            const response = await fetch('/settings/sms-club', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify({ api_key: apiKey }),
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Не удалось сохранить API ключ.');
+            }
+
+            if (smsClubApiKeyInput) {
+                smsClubApiKeyInput.value = '';
+                smsClubApiKeyInput.placeholder = data.api_key_hint ? `Сохранен: ${data.api_key_hint}` : 'API ключ сохранен';
+            }
+            setSmsClubConfiguredBadge(true);
+            showSmsClubFeedback('success', data.balance ? `Баланс: ${data.balance}` : 'API ключ сохранен. Баланс получен, но формат ответа не распознан.');
+        } catch (error) {
+            showSmsClubFeedback('danger', error.message || 'Ошибка сохранения SMS настроек.');
+        } finally {
+            setSmsClubLoading(false);
+        }
+    });
     const updateProfileCounter = (input) => {
         const maxLength = Number(input.getAttribute('maxlength') || 30);
         let counter = input.nextElementSibling;

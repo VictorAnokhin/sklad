@@ -69,6 +69,7 @@ return [
         'token' => env('SMSCLUB_TOKEN'),
         'sender' => env('SMSCLUB_SENDER'),
         'endpoint' => env('SMSCLUB_ENDPOINT', 'https://im.smsclub.mobi/sms/send'),
+        'balance_endpoint' => env('SMSCLUB_BALANCE_ENDPOINT', 'https://im.smsclub.mobi/sms/balance'),
     ],
 
     'telegram_orders' => [

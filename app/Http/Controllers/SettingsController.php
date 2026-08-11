@@ -10,8 +10,9 @@ use App\Models\News;
 use App\Models\Project;
 use App\Models\Settings;
 use App\Services\AutoAgentSitemapBuildService;
-use App\Services\ZerionWalletService;
 use App\Services\SitemapService;
+use App\Services\SmsClubService;
+use App\Services\ZerionWalletService;
 use App\Support\MediaUrl;
 use App\Support\HoldingScope;
 use App\Models\User;
@@ -178,8 +179,12 @@ class SettingsController extends Controller
                     ->count();
             }
         }
+        $smsClubApiKey = $this->smsClubApiKeyForFirma((string) $fid);
+        $smsClubTokenConfigured = $smsClubApiKey !== ''
+            || trim((string) config('services.smsclub.token', '')) !== '';
+        $smsClubApiKeyHint = $this->maskSmsClubApiKey($smsClubApiKey);
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount', 'smsClubTokenConfigured', 'smsClubApiKeyHint')));
     }
 
     public function show(Request $request)
@@ -434,6 +439,49 @@ class SettingsController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->currencyExchangeSettingsForFirma($fid),
+        ]);
+    }
+
+    public function smsClubSettings(Request $request)
+    {
+        $apiKey = $this->smsClubApiKeyForFirma((string) session('fid', ''));
+
+        return response()->json([
+            'success' => true,
+            'configured' => $apiKey !== '' || trim((string) config('services.smsclub.token', '')) !== '',
+            'api_key_hint' => $this->maskSmsClubApiKey($apiKey),
+        ]);
+    }
+
+    public function updateSmsClubSettings(Request $request, SmsClubService $smsClub)
+    {
+        $validated = $request->validate([
+            'api_key' => ['required', 'string', 'max:255'],
+        ]);
+
+        $apiKey = trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $validated['api_key']));
+        if ($apiKey === '') {
+            return response()->json(['success' => false, 'message' => 'Введите API ключ.'], 422);
+        }
+
+        try {
+            $balancePayload = $smsClub->balance($apiKey);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage() ?: 'Не удалось получить баланс SMS Club.',
+            ], 422);
+        }
+
+        $this->saveSmsClubApiKey((string) session('fid', ''), $apiKey);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'API ключ сохранен.',
+            'configured' => true,
+            'api_key_hint' => $this->maskSmsClubApiKey($apiKey),
+            'balance' => $this->extractSmsClubBalance($balancePayload),
+            'payload' => $balancePayload,
         ]);
     }
 
@@ -3209,6 +3257,80 @@ class SettingsController extends Controller
         $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
 
         return $currency !== '' ? substr($currency, 0, 10) : 'UAH';
+    }
+
+    private function smsClubApiKeyForFirma(string $fid): string
+    {
+        if (!Schema::hasTable('conf') || !Schema::hasColumn('conf', 'constanta')) {
+            return '';
+        }
+
+        $row = DB::table('conf')
+            ->where('type', 'smsclub')
+            ->where('name', 'api_key')
+            ->where('firma', $fid !== '' ? $fid : '0')
+            ->first();
+
+        if (!$row) {
+            $row = DB::table('conf')
+                ->where('type', 'smsclub')
+                ->where('name', 'api_key')
+                ->where('firma', 0)
+                ->first();
+        }
+
+        return trim((string) ($row->constanta ?? ''));
+    }
+
+    private function saveSmsClubApiKey(string $fid, string $apiKey): void
+    {
+        abort_unless(Schema::hasTable('conf') && Schema::hasColumn('conf', 'constanta'), 500, 'Таблица настроек conf недоступна.');
+
+        DB::table('conf')->updateOrInsert(
+            [
+                'firma' => $fid !== '' ? $fid : '0',
+                'type' => 'smsclub',
+                'name' => 'api_key',
+            ],
+            [
+                'color' => '',
+                'status' => '1',
+                'vision' => '1',
+                'constanta' => $apiKey,
+                'descript' => 'SMS Club API key',
+            ]
+        );
+    }
+
+    private function maskSmsClubApiKey(string $apiKey): string
+    {
+        $apiKey = trim($apiKey);
+        if ($apiKey === '') {
+            return '';
+        }
+
+        $tail = substr($apiKey, -4);
+
+        return str_repeat('*', max(4, min(12, strlen($apiKey) - 4))) . $tail;
+    }
+
+    private function extractSmsClubBalance(array $payload): ?string
+    {
+        $candidates = [
+            $payload['success_request']['info']['money'] ?? null,
+            $payload['success_request']['money'] ?? null,
+            $payload['money'] ?? null,
+            $payload['balance'] ?? null,
+            $payload['data']['balance'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate !== null && $candidate !== '') {
+                return (string) $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function currencyExchangeSettingsForFirma(string $fid): array
