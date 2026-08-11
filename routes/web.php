@@ -17,6 +17,7 @@ use App\Http\Controllers\KursController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\MoneyController;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\PriceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SitemapController;
@@ -63,7 +64,7 @@ Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.p
 Route::view('/', 'pages.micro_business')->name('micro-business');
 Route::view('/individuals', 'pages.individuals')->name('individuals');
 Route::view('/education', 'pages.education')->name('education.public');
-Route::view('/price', 'pages.price')->name('price');
+Route::get('/price', [PriceController::class, 'index'])->name('price');
 Route::get('/about', function () {
     $projects = \Illuminate\Support\Facades\Schema::hasTable('project') 
         ? \App\Models\Project::orderBy('num')->orderBy('name')->get() 
@@ -76,6 +77,7 @@ Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
+    Route::post('/price/order', [PriceController::class, 'order'])->name('price.order');
     Route::name('education.')->group(function () {
         Route::get('/course', [EducationController::class, 'course'])->name('course');
         Route::get('/course/{topic}', [EducationController::class, 'courseShow'])->name('course.show');
@@ -462,6 +464,8 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/sms-club', [SettingsController::class , 'smsClubSettings'])->name('smsClub.show');
             Route::post('/sms-club', [SettingsController::class , 'updateSmsClubSettings'])->name('smsClub.update');
             Route::get('/sms-club/balance', [SettingsController::class , 'smsClubBalance'])->name('smsClub.balance');
+            Route::get('/price-plans', [SettingsController::class, 'pricePlansIndex'])->name('pricePlans.index');
+            Route::put('/price-plans', [SettingsController::class, 'pricePlansUpdate'])->name('pricePlans.update');
             Route::get('/holdings', [SettingsController::class , 'holdingsIndex'])->name('holdings.index');
             Route::delete('/holdings/{id}', [SettingsController::class , 'holdingsDestroy'])->name('holdings.destroy');
             Route::get('/projects', [SettingsController::class , 'projectsIndex'])->name('projects.index');

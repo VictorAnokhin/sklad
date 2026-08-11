@@ -18,72 +18,55 @@
     </section>
 
     <section class="pricing-plans" aria-label="Тарифы">
-        @php
-            $plans = [
-                [
-                    'name' => 'Start',
-                    'price' => '$19',
-                    'period' => 'в месяц',
-                    'description' => 'Для одного проекта и первых продаж.',
-                    'features' => [
-                        'Заказы, клиенты и товары',
-                        'Касса и базовые платежи',
-                        'Документы покупки и продажи',
-                        'Стартовые отчеты',
-                    ],
-                ],
-                [
-                    'name' => 'Business',
-                    'price' => '$49',
-                    'period' => 'в месяц',
-                    'description' => 'Для команды, склада и регулярного учета.',
-                    'featured' => true,
-                    'features' => [
-                        'Все возможности Start',
-                        'Склад, активы и финансирование',
-                        'P&L, Cash Flow и баланс',
-                        'Команда, роли и несколько компаний',
-                    ],
-                ],
-                [
-                    'name' => 'Platform',
-                    'price' => '$129',
-                    'period' => 'в месяц',
-                    'description' => 'Для холдинга, маркетплейса и инвестиционных процессов.',
-                    'features' => [
-                        'Все возможности Business',
-                        'Холдинги и связанные проекты',
-                        'Каталог, сайт и база знаний',
-                        'Банк, активы, депозиты и Web3',
-                    ],
-                ],
-            ];
-        @endphp
+        @if(session('success'))
+        <div class="pricing-alert pricing-alert--success">{{ session('success') }}</div>
+        @endif
+        @if($errors->any())
+        <div class="pricing-alert pricing-alert--danger">{{ $errors->first() }}</div>
+        @endif
 
-        <div class="pricing-plans__grid">
+        <div class="pricing-plans__grid" style="--pricing-columns: {{ max(1, min(count($plans), 4)) }};">
             @foreach($plans as $plan)
+            @php
+                $features = collect(preg_split('/\r\n|\r|\n/', (string) ($plan['description'] ?? '')))
+                    ->map(fn ($feature) => trim($feature))
+                    ->filter()
+                    ->values();
+            @endphp
             <article class="pricing-card {{ !empty($plan['featured']) ? 'pricing-card--featured' : '' }}">
                 <div>
                     <div class="pricing-card__topline">
-                        <h2>{{ $plan['name'] }}</h2>
+                        <h2>{{ $plan['name'] ?? '' }}</h2>
                         @if(!empty($plan['featured']))
                         <span>Рекомендуем</span>
                         @endif
                     </div>
-                    <p class="pricing-card__description">{{ $plan['description'] }}</p>
+                    <p class="pricing-card__description">{{ $plan['subtitle'] ?? '' }}</p>
                     <div class="pricing-card__price">
-                        <strong>{{ $plan['price'] }}</strong>
-                        <span>{{ $plan['period'] }}</span>
+                        <strong>{{ $plan['price'] ?? '' }}</strong>
+                        <span>в месяц</span>
                     </div>
                 </div>
 
                 <ul class="pricing-card__features">
-                    @foreach($plan['features'] as $feature)
+                    @foreach($features as $feature)
                     <li>{{ $feature }}</li>
                     @endforeach
                 </ul>
 
+                @auth
+                    @if($loop->first)
+                    <button type="button" class="pricing-card__button pricing-card__button--muted" disabled>В работе</button>
+                    @else
+                    <form action="{{ route('price.order') }}" method="POST" class="pricing-card__form">
+                        @csrf
+                        <input type="hidden" name="plan" value="{{ $plan['name'] ?? '' }}">
+                        <button type="submit" class="pricing-card__button">Заказать</button>
+                    </form>
+                    @endif
+                @else
                 <a href="{{ route('login') }}" class="pricing-card__button">Войти</a>
+                @endauth
             </article>
             @endforeach
         </div>
@@ -173,9 +156,28 @@
         padding-top: 28px;
     }
 
+    .pricing-alert {
+        margin-bottom: 16px;
+        padding: 13px 16px;
+        border-radius: 8px;
+        font-weight: 700;
+    }
+
+    .pricing-alert--success {
+        border: 1px solid rgba(34, 197, 94, 0.36);
+        background: rgba(34, 197, 94, 0.14);
+        color: #bbf7d0;
+    }
+
+    .pricing-alert--danger {
+        border: 1px solid rgba(248, 113, 113, 0.42);
+        background: rgba(248, 113, 113, 0.14);
+        color: #fecaca;
+    }
+
     .pricing-plans__grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(var(--pricing-columns), minmax(0, 1fr));
         gap: 16px;
     }
 
@@ -270,6 +272,17 @@
 
     .pricing-card__button {
         width: 100%;
+    }
+
+    .pricing-card__button--muted {
+        border-color: rgba(148, 163, 184, 0.34);
+        background: rgba(148, 163, 184, 0.18);
+        color: rgba(248, 250, 252, 0.74);
+        cursor: not-allowed;
+    }
+
+    .pricing-card__form {
+        margin: 0;
     }
 
     @media (max-width: 900px) {

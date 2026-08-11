@@ -234,6 +234,16 @@
                     </div>
                 </div>
             </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalPricePlans">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">💳 Цены</h5>
+                        <p class="card-text text-muted">Пакеты и описание страницы price</p>
+                        <span class="badge bg-info text-dark" id="badge-price-plans">{{ $pricePlansCount ?? 0 }}</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 </div>
@@ -270,6 +280,46 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('settings.common.close') }}</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPricePlans" tabindex="-1" aria-labelledby="modalPricePlansLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPricePlansLabel">💳 Цены</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm align-middle mb-0 price-plans-table">
+                        <thead>
+                            <tr>
+                                <th>Название</th>
+                                <th>Подпись</th>
+                                <th>Цена</th>
+                                <th>Описание</th>
+                                <th class="text-end">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="price-plans-tbody">
+                            <tr>
+                                <td colspan="5" class="text-muted text-center py-4">Загрузка...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert d-none mt-3 mb-0" id="price-plans-feedback" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" id="btn-price-plan-add">+ Добавить</button>
+                <button type="button" class="btn btn-success" id="btn-price-plans-save">
+                    <span class="spinner-border spinner-border-sm me-2 d-none" id="price-plans-spinner" aria-hidden="true"></span>
+                    Сохранить
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('settings.common.close') }}</button>
+            </div>
         </div>
     </div>
 </div>
@@ -2727,6 +2777,165 @@ document.addEventListener('DOMContentLoaded', () => {
             showSmsClubFeedback('danger', error.message || 'Ошибка получения баланса SMS Club.');
         } finally {
             setSmsClubLoading(false);
+        }
+    });
+
+    const pricePlansModal = document.getElementById('modalPricePlans');
+    const pricePlansTbody = document.getElementById('price-plans-tbody');
+    const pricePlansFeedback = document.getElementById('price-plans-feedback');
+    const pricePlansBadge = document.getElementById('badge-price-plans');
+    const pricePlansSaveButton = document.getElementById('btn-price-plans-save');
+    const pricePlansAddButton = document.getElementById('btn-price-plan-add');
+    const pricePlansSpinner = document.getElementById('price-plans-spinner');
+
+    const cleanPricePlanField = (value, maxLength = 255, multiline = false) => {
+        let text = String(value || '')
+            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F<>[\]{}\\|~^]/g, '');
+        if (!multiline) {
+            text = text.replace(/[=;:*$#!?%+]/g, '').replace(/\s{2,}/g, ' ');
+        } else {
+            text = text.replace(/[ \t]{2,}/g, ' ');
+        }
+        return text.trim().slice(0, maxLength);
+    };
+
+    const showPricePlansFeedback = (type, message) => {
+        if (!pricePlansFeedback) {
+            return;
+        }
+        pricePlansFeedback.className = `alert alert-${type} mt-3 mb-0`;
+        pricePlansFeedback.textContent = message;
+    };
+
+    const setPricePlansLoading = (isLoading) => {
+        if (pricePlansSaveButton) {
+            pricePlansSaveButton.disabled = isLoading;
+        }
+        if (pricePlansAddButton) {
+            pricePlansAddButton.disabled = isLoading;
+        }
+        pricePlansSpinner?.classList.toggle('d-none', !isLoading);
+    };
+
+    const buildPricePlanControl = (tagName, className, value, maxLength, placeholder) => {
+        const control = document.createElement(tagName);
+        control.className = `${className} form-control form-control-sm`;
+        control.value = value || '';
+        control.maxLength = maxLength;
+        control.placeholder = placeholder;
+        return control;
+    };
+
+    const appendPricePlanRow = (plan = {}) => {
+        if (!pricePlansTbody) {
+            return;
+        }
+        const row = document.createElement('tr');
+        const nameCell = document.createElement('td');
+        const subtitleCell = document.createElement('td');
+        const priceCell = document.createElement('td');
+        const descriptionCell = document.createElement('td');
+        const actionCell = document.createElement('td');
+
+        nameCell.appendChild(buildPricePlanControl('input', 'price-plan-name', plan.name, 100, 'Название'));
+        subtitleCell.appendChild(buildPricePlanControl('input', 'price-plan-subtitle', plan.subtitle, 255, 'Подпись'));
+        priceCell.appendChild(buildPricePlanControl('input', 'price-plan-price', plan.price, 80, 'Цена'));
+
+        const description = buildPricePlanControl('textarea', 'price-plan-description', plan.description, 2000, 'Описание');
+        description.rows = 3;
+        descriptionCell.appendChild(description);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'btn btn-sm btn-outline-danger';
+        deleteButton.textContent = 'Удалить';
+        deleteButton.addEventListener('click', () => row.remove());
+        actionCell.className = 'text-end';
+        actionCell.appendChild(deleteButton);
+
+        row.append(nameCell, subtitleCell, priceCell, descriptionCell, actionCell);
+        pricePlansTbody.appendChild(row);
+    };
+
+    const renderPricePlans = (plans = []) => {
+        if (!pricePlansTbody) {
+            return;
+        }
+        pricePlansTbody.innerHTML = '';
+        if (!plans.length) {
+            appendPricePlanRow();
+            return;
+        }
+        plans.forEach((plan) => appendPricePlanRow(plan));
+    };
+
+    const collectPricePlans = () => Array.from(pricePlansTbody?.querySelectorAll('tr') || [])
+        .map((row) => ({
+            name: cleanPricePlanField(row.querySelector('.price-plan-name')?.value, 100),
+            subtitle: cleanPricePlanField(row.querySelector('.price-plan-subtitle')?.value, 255),
+            price: cleanPricePlanField(row.querySelector('.price-plan-price')?.value, 80),
+            description: cleanPricePlanField(row.querySelector('.price-plan-description')?.value, 2000, true),
+        }))
+        .filter((plan) => plan.name);
+
+    pricePlansModal?.addEventListener('show.bs.modal', async () => {
+        if (pricePlansFeedback) {
+            pricePlansFeedback.className = 'alert d-none mt-3 mb-0';
+            pricePlansFeedback.textContent = '';
+        }
+        if (pricePlansTbody) {
+            pricePlansTbody.innerHTML = '<tr><td colspan="5" class="text-muted text-center py-4">Загрузка...</td></tr>';
+        }
+
+        try {
+            const response = await fetch('/settings/price-plans', {
+                headers: { Accept: 'application/json' },
+            });
+            const data = await response.json();
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Не удалось загрузить варианты цен.');
+            }
+            renderPricePlans(data.data || []);
+        } catch (error) {
+            renderPricePlans([]);
+            showPricePlansFeedback('danger', error.message || 'Ошибка загрузки вариантов цен.');
+        }
+    });
+
+    pricePlansAddButton?.addEventListener('click', () => appendPricePlanRow());
+
+    pricePlansSaveButton?.addEventListener('click', async () => {
+        const plans = collectPricePlans();
+        if (!plans.length) {
+            showPricePlansFeedback('danger', 'Добавьте минимум один вариант цены.');
+            return;
+        }
+
+        setPricePlansLoading(true);
+        showPricePlansFeedback('info', 'Сохраняем варианты цен...');
+        try {
+            const response = await fetch('/settings/price-plans', {
+                method: 'PUT',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify({ plans }),
+            });
+            const data = await response.json();
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Не удалось сохранить варианты цен.');
+            }
+            renderPricePlans(data.data || plans);
+            if (pricePlansBadge) {
+                pricePlansBadge.textContent = String((data.data || plans).length);
+            }
+            showPricePlansFeedback('success', data.message || 'Варианты цен сохранены.');
+        } catch (error) {
+            showPricePlansFeedback('danger', error.message || 'Ошибка сохранения вариантов цен.');
+        } finally {
+            setPricePlansLoading(false);
         }
     });
     const updateProfileCounter = (input) => {

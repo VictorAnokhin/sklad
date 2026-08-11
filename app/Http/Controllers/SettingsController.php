@@ -183,8 +183,9 @@ class SettingsController extends Controller
         $smsClubTokenConfigured = $smsClubApiKey !== ''
             || trim((string) config('services.smsclub.token', '')) !== '';
         $smsClubApiKeyHint = $this->maskSmsClubApiKey($smsClubApiKey);
+        $pricePlansCount = PriceController::plans()->count();
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount', 'smsClubTokenConfigured', 'smsClubApiKeyHint')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount', 'smsClubTokenConfigured', 'smsClubApiKeyHint', 'pricePlansCount')));
     }
 
     public function show(Request $request)
@@ -511,6 +512,33 @@ class SettingsController extends Controller
             'success' => true,
             'balance' => $this->extractSmsClubBalance($balancePayload),
             'payload' => $balancePayload,
+        ]);
+    }
+
+    public function pricePlansIndex(Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => PriceController::plans()->values(),
+        ]);
+    }
+
+    public function pricePlansUpdate(Request $request)
+    {
+        $validated = $request->validate([
+            'plans' => ['required', 'array', 'max:12'],
+            'plans.*.name' => ['required', 'string', 'max:100'],
+            'plans.*.subtitle' => ['nullable', 'string', 'max:255'],
+            'plans.*.price' => ['nullable', 'string', 'max:80'],
+            'plans.*.description' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        PriceController::replacePlans($validated['plans']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Варианты цен сохранены.',
+            'data' => PriceController::plans()->values(),
         ]);
     }
 
