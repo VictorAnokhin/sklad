@@ -1155,62 +1155,62 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Назва компанії <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control settings-safe-text-input" id="firm-name" required maxlength="100" spellcheck="false">
+                            <input type="text" class="form-control settings-safe-text-input firm-protected-input" id="firm-name" required maxlength="30" spellcheck="false">
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label">ЄДРПОУ / RegNum</label>
-                            <input type="text" class="form-control" id="firm-regnum">
+                            <input type="text" class="form-control firm-digits-input firm-protected-input" id="firm-regnum" maxlength="30" inputmode="numeric" autocomplete="off">
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label">ІПН / INN</label>
-                            <input type="text" class="form-control" id="firm-inn">
+                            <input type="text" class="form-control firm-digits-input firm-protected-input" id="firm-inn" maxlength="30" inputmode="numeric" autocomplete="off">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Рахунок</label>
-                            <input type="text" class="form-control" id="firm-schet">
+                            <input type="text" class="form-control firm-safe-free-input firm-protected-input" id="firm-schet" maxlength="30" autocomplete="off" spellcheck="false">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Банк</label>
-                            <input type="text" class="form-control settings-safe-text-input" id="firm-bank" maxlength="50" spellcheck="false">
+                            <input type="text" class="form-control settings-safe-text-input firm-protected-input" id="firm-bank" maxlength="30" spellcheck="false">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">МФО</label>
-                            <input type="text" class="form-control" id="firm-mfo">
+                            <input type="text" class="form-control firm-digits-input firm-protected-input" id="firm-mfo" maxlength="30" inputmode="numeric" autocomplete="off">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Місто</label>
-                            <input type="text" class="form-control settings-safe-text-input" id="firm-town" maxlength="25" spellcheck="false">
+                            <input type="text" class="form-control settings-safe-text-input firm-protected-input" id="firm-town" maxlength="30" spellcheck="false">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Телефон</label>
-                            <input type="text" class="form-control" id="firm-phone" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
+                            <input type="text" class="form-control firm-protected-input" id="firm-phone" placeholder="+38 (000) 00-00-000" maxlength="30" inputmode="tel">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Тип / View</label>
-                            <input type="text" class="form-control settings-safe-text-input" id="firm-view" maxlength="15" spellcheck="false">
+                            <input type="text" class="form-control settings-safe-text-input firm-protected-input" id="firm-view" maxlength="30" spellcheck="false">
                         </div>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Адреса</label>
-                        <input type="text" class="form-control settings-safe-text-input" id="firm-address" maxlength="50" spellcheck="false">
+                        <input type="text" class="form-control settings-safe-text-input firm-protected-input" id="firm-address" maxlength="30" spellcheck="false">
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Карта / Посилання</label>
-                        <input type="text" class="form-control" id="firm-map">
+                        <input type="text" class="form-control firm-safe-free-input firm-protected-input" id="firm-map" maxlength="30" autocomplete="off" spellcheck="false">
                     </div>
 
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Директор</label>
-                            <input type="text" class="form-control settings-safe-text-input" id="firm-direktor" maxlength="30" spellcheck="false">
+                            <input type="text" class="form-control settings-safe-text-input firm-protected-input" id="firm-direktor" maxlength="30" spellcheck="false">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Фото підпису</label>
@@ -1617,37 +1617,37 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label>Ім'я</label>
-                                    <input type="text" name="name" class="form-control settings-safe-text-input" value="{{ $user->name ?? '' }}" maxlength="80" autocomplete="given-name" spellcheck="false">
+                                    <input type="text" name="name" class="form-control settings-safe-text-input profile-protected-input" value="{{ $user->name ?? '' }}" maxlength="30" autocomplete="given-name" spellcheck="false">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label>Прізвище</label>
-                                    <input type="text" name="secondname" class="form-control settings-safe-text-input" value="{{ $user->secondname ?? '' }}" maxlength="80" autocomplete="family-name" spellcheck="false">
+                                    <input type="text" name="secondname" class="form-control settings-safe-text-input profile-protected-input" value="{{ $user->secondname ?? '' }}" maxlength="30" autocomplete="family-name" spellcheck="false">
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label>По батькові</label>
-                                    <input type="text" name="fathername" class="form-control settings-safe-text-input" value="{{ $user->fathername ?? '' }}" maxlength="80" autocomplete="additional-name" spellcheck="false">
+                                    <input type="text" name="fathername" class="form-control settings-safe-text-input profile-protected-input" value="{{ $user->fathername ?? '' }}" maxlength="30" autocomplete="additional-name" spellcheck="false">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label>Email</label>
-                                    <input type="email" name="email" class="form-control" value="{{ $user->email ?? '' }}">
+                                    <input type="email" name="email" class="form-control profile-email-input profile-protected-input" value="{{ $user->email ?? '' }}" maxlength="30" autocomplete="email" spellcheck="false">
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label>Телефон</label>
-                                    <input type="text" name="phone" id="profile-phone" class="form-control" value="{{ $user->phone ?? '' }}" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
+                                    <input type="text" name="phone" id="profile-phone" class="form-control profile-protected-input" value="{{ $user->phone ?? '' }}" placeholder="+38 (000) 00-00-000" maxlength="30" inputmode="tel">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label>Місто</label>
-                                    <input type="text" name="city" class="form-control settings-safe-text-input" value="{{ $user->city ?? '' }}" maxlength="80" autocomplete="address-level2" spellcheck="false">
+                                    <input type="text" name="city" class="form-control settings-safe-text-input profile-protected-input" value="{{ $user->city ?? '' }}" maxlength="30" autocomplete="address-level2" spellcheck="false">
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label>Дата народження</label>
-                                    <input type="date" name="hbd" class="form-control" value="{{ $user->hbd ?? '' }}">
+                                    <input type="date" name="hbd" class="form-control profile-date-input profile-protected-input" value="{{ $user->hbd ?? '' }}" maxlength="30">
                                 </div>
                             </div>
                             <div class="row">
@@ -1954,6 +1954,14 @@
         color: #fff;
     }
 
+    #modalProfile .profile-char-counter {
+        color: #94a3b8;
+        font-size: 0.76rem;
+        line-height: 1.2;
+        margin-top: 4px;
+        text-align: right;
+    }
+
     .report-rules-table {
         table-layout: fixed;
         font-size: 0.82rem;
@@ -2036,6 +2044,14 @@
         height: 28px;
         padding: 0;
         line-height: 1;
+    }
+
+    #modalFirms .firm-char-counter {
+        color: #94a3b8;
+        font-size: 0.76rem;
+        line-height: 1.2;
+        margin-top: 4px;
+        text-align: right;
     }
 
     .firm-media-preview {
@@ -2442,6 +2458,22 @@ document.addEventListener('DOMContentLoaded', () => {
         .replace(/[^\p{L}\p{M}\p{N}\s.,'’`"-]/gu, '')
         .replace(/\s{2,}/g, ' ')
         .slice(0, maxLength);
+    const sanitizeProfileEmail = (value, maxLength = 30) => String(value || '')
+        .replace(/[^a-zA-Z0-9@._+-]/g, '')
+        .slice(0, maxLength);
+    const sanitizeProfileDate = (value, maxLength = 30) => String(value || '')
+        .replace(/[^\d-]/g, '')
+        .slice(0, maxLength);
+    const updateProfileCounter = (input) => {
+        const maxLength = Number(input.getAttribute('maxlength') || 30);
+        let counter = input.nextElementSibling;
+        if (!counter || !counter.classList.contains('profile-char-counter')) {
+            counter = document.createElement('div');
+            counter.className = 'profile-char-counter';
+            input.insertAdjacentElement('afterend', counter);
+        }
+        counter.textContent = `${String(input.value || '').length}/${maxLength}`;
+    };
 
     const bindSettingsSafeTextInput = (input) => {
         input.addEventListener('input', function () {
@@ -2464,10 +2496,41 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.settings-safe-text-input').forEach(bindSettingsSafeTextInput);
 
     document.querySelectorAll('#modalProfile form[action*="profile-update"]').forEach((form) => {
+        const protectedInputs = form.querySelectorAll('.profile-protected-input');
+
+        protectedInputs.forEach((input) => {
+            const maxLength = Number(input.getAttribute('maxlength') || 30);
+            if (input.classList.contains('settings-safe-text-input')) {
+                input.value = sanitizeSettingsSafeText(input.value, maxLength);
+            } else if (input.classList.contains('profile-email-input')) {
+                input.value = sanitizeProfileEmail(input.value, maxLength);
+                input.addEventListener('input', () => {
+                    input.value = sanitizeProfileEmail(input.value, maxLength);
+                    updateProfileCounter(input);
+                });
+            } else if (input.classList.contains('profile-date-input')) {
+                input.value = sanitizeProfileDate(input.value, maxLength);
+                input.addEventListener('input', () => {
+                    input.value = sanitizeProfileDate(input.value, maxLength);
+                    updateProfileCounter(input);
+                });
+            }
+
+            input.addEventListener('input', () => updateProfileCounter(input));
+            updateProfileCounter(input);
+        });
+
         form.addEventListener('submit', () => {
-            form.querySelectorAll('.settings-safe-text-input').forEach((input) => {
-                const maxLength = Number(input.getAttribute('maxlength') || 80);
-                input.value = sanitizeSettingsSafeText(input.value, maxLength).trim();
+            protectedInputs.forEach((input) => {
+                const maxLength = Number(input.getAttribute('maxlength') || 30);
+                if (input.classList.contains('settings-safe-text-input')) {
+                    input.value = sanitizeSettingsSafeText(input.value, maxLength).trim();
+                } else if (input.classList.contains('profile-email-input')) {
+                    input.value = sanitizeProfileEmail(input.value, maxLength).trim();
+                } else if (input.classList.contains('profile-date-input')) {
+                    input.value = sanitizeProfileDate(input.value, maxLength).trim();
+                }
+                updateProfileCounter(input);
             });
         });
     });
@@ -2476,7 +2539,9 @@ document.addEventListener('DOMContentLoaded', () => {
         profilePhoneInput.value = formatSettingsPhoneInput(profilePhoneInput.value);
         profilePhoneInput.addEventListener('input', function () {
             this.value = formatSettingsPhoneInput(this.value);
+            updateProfileCounter(this);
         });
+        updateProfileCounter(profilePhoneInput);
     }
 
     initProjectsCrud(csrf);
@@ -6326,6 +6391,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const signatureInput = document.getElementById('firm-pidpys-file');
         const stampInput = document.getElementById('firm-pechat-file');
         const firmPhoneInput = document.getElementById('firm-phone');
+        const firmProtectedInputs = document.querySelectorAll('#firm-form .firm-protected-input');
+
+        const sanitizeFirmFreeText = (value, maxLength = 30) => String(value || '')
+            .replace(/[\u0000-\u001F\u007F<>\[\]{}\\=;*|~^$!?%&+]/g, '')
+            .replace(/[^\p{L}\p{M}\p{N}\s@:/.,'’`"()_-]/gu, '')
+            .replace(/\s{2,}/g, ' ')
+            .slice(0, maxLength);
+        const sanitizeFirmDigits = (value, maxLength = 30) => String(value || '').replace(/\D/g, '').slice(0, maxLength);
+        const updateFirmCounter = (input) => {
+            const maxLength = Number(input.getAttribute('maxlength') || 30);
+            let counter = input.nextElementSibling;
+            if (!counter || !counter.classList.contains('firm-char-counter')) {
+                counter = document.createElement('div');
+                counter.className = 'firm-char-counter';
+                input.insertAdjacentElement('afterend', counter);
+            }
+            counter.textContent = `${String(input.value || '').length}/${maxLength}`;
+        };
+        const sanitizeFirmInput = (input) => {
+            const maxLength = Number(input.getAttribute('maxlength') || 30);
+            if (input.classList.contains('settings-safe-text-input')) {
+                input.value = sanitizeSettingsSafeText(input.value, maxLength);
+            } else if (input.classList.contains('firm-digits-input')) {
+                input.value = sanitizeFirmDigits(input.value, maxLength);
+            } else if (input.classList.contains('firm-safe-free-input')) {
+                input.value = sanitizeFirmFreeText(input.value, maxLength);
+            }
+            updateFirmCounter(input);
+        };
+
+        firmProtectedInputs.forEach((input) => {
+            sanitizeFirmInput(input);
+            input.addEventListener('input', () => sanitizeFirmInput(input));
+        });
 
         modal.addEventListener('show.bs.modal', () => {
             hideFirmForm();
@@ -6357,7 +6456,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         firmPhoneInput?.addEventListener('input', function () {
             this.value = formatSettingsPhoneInput(this.value);
+            updateFirmCounter(this);
         });
+        if (firmPhoneInput) {
+            firmPhoneInput.value = formatSettingsPhoneInput(firmPhoneInput.value);
+            updateFirmCounter(firmPhoneInput);
+        }
 
         tbody.addEventListener('click', (e) => {
             const btn = e.target.closest('.action-btn');
@@ -6411,9 +6515,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         function collectFirmPayload() {
-            document.querySelectorAll('#firm-form .settings-safe-text-input').forEach((input) => {
-                const maxLength = Number(input.getAttribute('maxlength') || 80);
-                input.value = sanitizeSettingsSafeText(input.value, maxLength).trim();
+            firmProtectedInputs.forEach((input) => {
+                sanitizeFirmInput(input);
+                input.value = input.value.trim();
+                updateFirmCounter(input);
             });
 
             const payload = new FormData();

@@ -1226,23 +1226,23 @@ class SettingsController extends Controller
         if (!$user) return redirect()->back()->with('error', 'Користувача не знайдено');
 
         $request->validate([
-            'name' => 'nullable|string|max:255',
-            'secondname' => 'nullable|string|max:255',
-            'fathername' => 'nullable|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'city' => 'nullable|string|max:100',
-            'hbd' => 'nullable|string|max:50',
+            'name' => 'nullable|string|max:30',
+            'secondname' => 'nullable|string|max:30',
+            'fathername' => 'nullable|string|max:30',
+            'email' => 'nullable|email|max:30',
+            'phone' => 'nullable|string|max:30',
+            'city' => 'nullable|string|max:30',
+            'hbd' => 'nullable|date|max:30',
         ]);
 
         DB::table('users')->where('id', $user->id)->update([
-            'name'       => $this->safeSettingsText($request->input('name'), 'Імʼя', 80),
-            'secondname' => $this->safeSettingsText($request->input('secondname'), 'Прізвище', 80),
-            'fathername' => $this->safeSettingsText($request->input('fathername'), 'По батькові', 80),
-            'email'      => trim((string) ($request->input('email') ?? '')),
-            'phone'      => trim((string) ($request->input('phone') ?? '')),
-            'city'       => $this->safeSettingsText($request->input('city'), 'Місто', 80),
-            'hbd'        => trim((string) ($request->input('hbd') ?? '')),
+            'name'       => $this->safeSettingsText($request->input('name'), 'Імʼя', 30),
+            'secondname' => $this->safeSettingsText($request->input('secondname'), 'Прізвище', 30),
+            'fathername' => $this->safeSettingsText($request->input('fathername'), 'По батькові', 30),
+            'email'      => mb_substr(preg_replace('/[^a-zA-Z0-9@._+-]/', '', (string) ($request->input('email') ?? '')), 0, 30),
+            'phone'      => mb_substr(preg_replace('/\D/', '', (string) ($request->input('phone') ?? '')), 0, 30),
+            'city'       => $this->safeSettingsText($request->input('city'), 'Місто', 30),
+            'hbd'        => mb_substr(preg_replace('/[^\d-]/', '', (string) ($request->input('hbd') ?? '')), 0, 30),
         ]);
 
         return redirect()->route('settings.index')->with('success', 'Профіль оновлено');
@@ -2721,20 +2721,20 @@ class SettingsController extends Controller
         $userId = $user?->id;
         
         $validated = $request->validate([
-            'name' => 'required|string|max:100',
-            'regnum' => 'nullable|string|max:12',
-            'inn' => 'nullable|string|max:15',
+            'name' => 'required|string|max:30',
+            'regnum' => 'nullable|string|max:30',
+            'inn' => 'nullable|string|max:30',
             'schet' => 'nullable|string|max:30',
-            'bank' => 'nullable|string|max:50',
-            'mfo' => 'nullable|string|max:6',
-            'town' => 'nullable|string|max:25',
-            'address' => 'nullable|string|max:50',
-            'map' => 'nullable|string|max:200',
-            'view' => 'nullable|string|max:15',
+            'bank' => 'nullable|string|max:30',
+            'mfo' => 'nullable|string|max:30',
+            'town' => 'nullable|string|max:30',
+            'address' => 'nullable|string|max:30',
+            'map' => 'nullable|string|max:30',
+            'view' => 'nullable|string|max:30',
             'phone' => [
                 'nullable',
                 'string',
-                'max:50',
+                'max:30',
                 Rule::unique('firma', 'phone')
                     ->where('userid', $userId)
                     ->ignore($firmaId),
@@ -2771,17 +2771,17 @@ class SettingsController extends Controller
         }
 
         return [
-            'name' => $this->safeSettingsText($validated['name'] ?? '', 'Назва компанії', 100),
-            'regnum' => $validated['regnum'] ?? '',
-            'inn' => $validated['inn'] ?? '',
-            'schet' => $validated['schet'] ?? '',
-            'bank' => $this->safeSettingsText($validated['bank'] ?? '', 'Банк', 50),
-            'mfo' => $validated['mfo'] ?? '',
-            'town' => $this->safeSettingsText($validated['town'] ?? '', 'Місто', 25),
-            'address' => $this->safeSettingsText($validated['address'] ?? '', 'Адреса', 50),
-            'map' => $validated['map'] ?? '',
-            'view' => $this->safeSettingsText($validated['view'] ?? '', 'Тип / View', 15),
-            'phone' => $validated['phone'] ?? '',
+            'name' => $this->safeSettingsText($validated['name'] ?? '', 'Назва компанії', 30),
+            'regnum' => mb_substr(preg_replace('/\D/', '', (string) ($validated['regnum'] ?? '')), 0, 30),
+            'inn' => mb_substr(preg_replace('/\D/', '', (string) ($validated['inn'] ?? '')), 0, 30),
+            'schet' => $this->safeProjectContactText($validated['schet'] ?? '', 'Рахунок', 30),
+            'bank' => $this->safeSettingsText($validated['bank'] ?? '', 'Банк', 30),
+            'mfo' => mb_substr(preg_replace('/\D/', '', (string) ($validated['mfo'] ?? '')), 0, 30),
+            'town' => $this->safeSettingsText($validated['town'] ?? '', 'Місто', 30),
+            'address' => $this->safeSettingsText($validated['address'] ?? '', 'Адреса', 30),
+            'map' => $this->safeProjectContactText($validated['map'] ?? '', 'Карта', 30),
+            'view' => $this->safeSettingsText($validated['view'] ?? '', 'Тип / View', 30),
+            'phone' => mb_substr(preg_replace('/\D/', '', (string) ($validated['phone'] ?? '')), 0, 30),
             'direktor' => $this->safeSettingsText($validated['direktor'] ?? '', 'Директор', 30),
             'pidpys' => $pidpys,
             'pechat' => $pechat,
