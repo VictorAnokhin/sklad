@@ -249,7 +249,11 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label text-white" for="sms-club-api-key">API ключ SMS Club <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="sms-club-api-key" name="api_key" maxlength="255" autocomplete="off" placeholder="{{ $smsClubApiKeyHint ? 'Сохранен: ' . $smsClubApiKeyHint : 'Введите API ключ' }}" required>
+                        <input type="password" class="form-control" id="sms-club-api-key" name="api_key" maxlength="255" autocomplete="off" placeholder="{{ $smsClubApiKeyHint ? 'Сохранен: ' . $smsClubApiKeyHint : 'Введите API ключ' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white" for="sms-club-sender">Альфа-имя <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="sms-club-sender" name="sender" maxlength="30" autocomplete="off" placeholder="Например: av8fund" required>
                     </div>
                     <div class="small text-muted mb-3">Используется для SMS из поля SMS в document/show.</div>
                     <div class="alert d-none mb-0" id="sms-club-feedback" role="alert"></div>
@@ -2583,6 +2587,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const smsClubModal = document.getElementById('modalSmsClub');
     const smsClubForm = document.getElementById('sms-club-form');
     const smsClubApiKeyInput = document.getElementById('sms-club-api-key');
+    const smsClubSenderInput = document.getElementById('sms-club-sender');
     const smsClubFeedback = document.getElementById('sms-club-feedback');
     const smsClubBadge = document.getElementById('badge-sms-club');
     const smsClubSaveButton = document.getElementById('sms-club-save-btn');
@@ -2630,6 +2635,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (smsClubApiKeyInput) {
             smsClubApiKeyInput.value = '';
         }
+        if (smsClubSenderInput) {
+            smsClubSenderInput.value = '';
+        }
 
         try {
             const response = await fetch('/settings/sms-club', {
@@ -2640,6 +2648,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (smsClubApiKeyInput && data.api_key_hint) {
                 smsClubApiKeyInput.placeholder = `Сохранен: ${data.api_key_hint}`;
             }
+            if (smsClubSenderInput) {
+                smsClubSenderInput.value = data.sender || '';
+            }
         } catch (error) {
             showSmsClubFeedback('danger', 'Не удалось загрузить настройки SMS.');
         }
@@ -2648,15 +2659,25 @@ document.addEventListener('DOMContentLoaded', () => {
     smsClubForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const apiKey = String(smsClubApiKeyInput?.value || '').replace(/[\u0000-\u001F\u007F]/g, '').trim();
+        const sender = String(smsClubSenderInput?.value || '').replace(/[\u0000-\u001F\u007F]/g, '').replace(/[^A-Za-z0-9._-]/g, '').trim().slice(0, 30);
 
-        if (!apiKey) {
+        if (smsClubSenderInput) {
+            smsClubSenderInput.value = sender;
+        }
+
+        if (!apiKey && !smsClubApiKeyInput?.placeholder?.startsWith('Сохранен:')) {
             showSmsClubFeedback('danger', 'Введите API ключ.');
+            return;
+        }
+
+        if (!sender) {
+            showSmsClubFeedback('danger', 'Введите Альфа-имя.');
             return;
         }
 
         setSmsClubLoading(true);
         setSmsClubLoading(true, 'save');
-        showSmsClubFeedback('info', 'Сохраняем ключ...');
+        showSmsClubFeedback('info', 'Сохраняем настройки...');
 
         try {
             const response = await fetch('/settings/sms-club', {
@@ -2666,12 +2687,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrf,
                 },
-                body: JSON.stringify({ api_key: apiKey }),
+                body: JSON.stringify({ api_key: apiKey, sender }),
             });
             const data = await response.json();
 
             if (!response.ok || data.success === false) {
-                throw new Error(data.message || 'Не удалось сохранить API ключ.');
+                throw new Error(data.message || 'Не удалось сохранить настройки SMS Club.');
             }
 
             if (smsClubApiKeyInput) {
@@ -2679,7 +2700,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 smsClubApiKeyInput.placeholder = data.api_key_hint ? `Сохранен: ${data.api_key_hint}` : 'API ключ сохранен';
             }
             setSmsClubConfiguredBadge(true);
-            showSmsClubFeedback('success', data.message || 'API ключ сохранен.');
+            showSmsClubFeedback('success', data.message || 'Настройки SMS Club сохранены.');
         } catch (error) {
             showSmsClubFeedback('danger', error.message || 'Ошибка сохранения SMS настроек.');
         } finally {

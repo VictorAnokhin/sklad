@@ -445,32 +445,46 @@ class SettingsController extends Controller
     public function smsClubSettings(Request $request)
     {
         $apiKey = $this->smsClubApiKeyForFirma((string) session('fid', ''));
+        $sender = $this->smsClubSenderForFirma((string) session('fid', ''));
 
         return response()->json([
             'success' => true,
             'configured' => $apiKey !== '' || trim((string) config('services.smsclub.token', '')) !== '',
             'api_key_hint' => $this->maskSmsClubApiKey($apiKey),
+            'sender' => $sender,
         ]);
     }
 
     public function updateSmsClubSettings(Request $request)
     {
         $validated = $request->validate([
-            'api_key' => ['required', 'string', 'max:255'],
+            'api_key' => ['nullable', 'string', 'max:255'],
+            'sender' => ['required', 'string', 'max:30'],
         ]);
 
-        $apiKey = trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $validated['api_key']));
-        if ($apiKey === '') {
+        $apiKey = trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $validated['api_key'] ?? ''));
+        $existingApiKey = $this->smsClubApiKeyForFirma((string) session('fid', ''));
+        if ($apiKey === '' && $existingApiKey === '') {
             return response()->json(['success' => false, 'message' => 'Введите API ключ.'], 422);
         }
 
-        $this->saveSmsClubApiKey((string) session('fid', ''), $apiKey);
+        $sender = $this->sanitizeSmsClubSender($validated['sender'] ?? '');
+        if ($sender === '') {
+            return response()->json(['success' => false, 'message' => 'Введите Альфа-имя латиницей.'], 422);
+        }
+
+        $fid = (string) session('fid', '');
+        if ($apiKey !== '') {
+            $this->saveSmsClubSetting($fid, 'api_key', $apiKey, 'SMS Club API key');
+        }
+        $this->saveSmsClubSetting($fid, 'sender', $sender, 'SMS Club alpha name');
 
         return response()->json([
             'success' => true,
-            'message' => 'API ключ сохранен.',
+            'message' => 'Настройки SMS Club сохранены.',
             'configured' => true,
-            'api_key_hint' => $this->maskSmsClubApiKey($apiKey),
+            'api_key_hint' => $this->maskSmsClubApiKey($apiKey !== '' ? $apiKey : $existingApiKey),
+            'sender' => $sender,
         ]);
     }
 
@@ -3323,20 +3337,30 @@ class SettingsController extends Controller
 
     private function smsClubApiKeyForFirma(string $fid): string
     {
+        return $this->smsClubSettingForFirma($fid, 'api_key');
+    }
+
+    private function smsClubSenderForFirma(string $fid): string
+    {
+        return $this->smsClubSettingForFirma($fid, 'sender') ?: (trim((string) config('services.smsclub.sender', '')) ?: 'av8fund');
+    }
+
+    private function smsClubSettingForFirma(string $fid, string $name): string
+    {
         if (!Schema::hasTable('conf') || !Schema::hasColumn('conf', 'constanta')) {
             return '';
         }
 
         $row = DB::table('conf')
             ->where('type', 'smsclub')
-            ->where('name', 'api_key')
+            ->where('name', $name)
             ->where('firma', $fid !== '' ? $fid : '0')
             ->first();
 
         if (!$row) {
             $row = DB::table('conf')
                 ->where('type', 'smsclub')
-                ->where('name', 'api_key')
+                ->where('name', $name)
                 ->where('firma', 0)
                 ->first();
         }
@@ -3344,7 +3368,7 @@ class SettingsController extends Controller
         return trim((string) ($row->constanta ?? ''));
     }
 
-    private function saveSmsClubApiKey(string $fid, string $apiKey): void
+    private function saveSmsClubSetting(string $fid, string $name, string $value, string $description): void
     {
         abort_unless(Schema::hasTable('conf') && Schema::hasColumn('conf', 'constanta'), 500, 'Таблица настроек conf недоступна.');
 
@@ -3352,16 +3376,23 @@ class SettingsController extends Controller
             [
                 'firma' => $fid !== '' ? $fid : '0',
                 'type' => 'smsclub',
-                'name' => 'api_key',
+                'name' => $name,
             ],
             [
                 'color' => '',
                 'status' => '1',
                 'vision' => '1',
-                'constanta' => $apiKey,
-                'descript' => 'SMS Club API key',
+                'constanta' => $value,
+                'descript' => $description,
             ]
         );
+    }
+
+    private function sanitizeSmsClubSender(mixed $value): string
+    {
+        $sender = preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($value ?? '')) ?? '';
+
+        return mb_substr(trim($sender), 0, 30);
     }
 
     private function maskSmsClubApiKey(string $apiKey): string
