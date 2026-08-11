@@ -369,7 +369,7 @@ class SettingsController extends Controller
             }))
             ->orderBy('name')
             ->get()
-            ->map(fn ($item) => $this->decorateConfItem($item, $type));
+            ->map(fn ($item) => $this->decorateConfItemForSettings($item, $type));
         return response()->json($items);
     }
 
@@ -604,7 +604,7 @@ class SettingsController extends Controller
             }))
             ->first();
         if (!$item) return response()->json(['message' => 'Не знайдено'], 404);
-        return response()->json($this->decorateConfItem($item, $type));
+        return response()->json($this->decorateConfItemForSettings($item, $type));
     }
 
     /**
@@ -619,6 +619,9 @@ class SettingsController extends Controller
         }
 
         $data = $this->validateConfRecord($request);
+        if (! $this->canWriteConfType((string) ($data['type'] ?? ''), $fid)) {
+            return response()->json(['success' => false, 'message' => 'Этот справочник доступен только для просмотра.'], 403);
+        }
         $data['hide'] = '0';
         $data['firma'] = $this->confFirmaForType((string) ($data['type'] ?? ''), $fid);
 
@@ -642,6 +645,9 @@ class SettingsController extends Controller
         $type = (string) $request->input('type');
         if ($type === 'oplata' && ! $this->canManageCurrentProject($this->currentUser(), $fid)) {
             return response()->json(['success' => false, 'message' => 'Редактирование видов платежей доступно только автору проекта.'], 403);
+        }
+        if (! $this->canWriteConfType($type, $fid)) {
+            return response()->json(['success' => false, 'message' => 'Этот справочник доступен только для просмотра.'], 403);
         }
 
         $exists = DB::table('conf')
@@ -675,6 +681,9 @@ class SettingsController extends Controller
         $type = (string) $exists->type;
         if ($type === 'oplata' && ! $this->canManageCurrentProject($this->currentUser(), $fid)) {
             return response()->json(['success' => false, 'message' => 'Удаление видов платежей доступно только автору проекта.'], 403);
+        }
+        if (! $this->canWriteConfType($type, $fid)) {
+            return response()->json(['success' => false, 'message' => 'Этот справочник доступен только для просмотра.'], 403);
         }
         if ($this->confTypeUsesCurrentProject($type) && (string) $exists->firma !== (string) $fid) {
             return response()->json(['success' => false, 'message' => 'Не знайдено'], 404);
@@ -1719,15 +1728,6 @@ class SettingsController extends Controller
         $participatingProjectIds = $creatorProjectIds->merge($employeeProjectIds)->unique()->values();
         $otherProjectIds = $participatingProjectIds->diff($holdingProjectIds)->values();
 
-        if (! $request->boolean('all_projects')) {
-            $projectIds = $holdingProjectIds->merge($otherProjectIds)->unique()->values();
-            if ($projectIds->isEmpty()) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->whereIn('id', $projectIds->all());
-            }
-        }
-
         $searchValue = $request->query('search', '');
         $search = is_string($searchValue) ? trim($searchValue) : '';
         if ($search !== '') {
@@ -2099,6 +2099,14 @@ class SettingsController extends Controller
 
         if (!$project) {
             return response()->json(['success' => false, 'message' => 'Проєкт не знайдено'], 404);
+        }
+
+        $user = $this->currentUser();
+        if (! $this->userCanEditProject($user, $project)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Изменять данные можно только в проектах, связанных с авторизованным пользователем.',
+            ], 403);
         }
 
         $wasActiveProject = (int) session('fid', 0) === (int) $project->id;
@@ -2557,6 +2565,9 @@ class SettingsController extends Controller
         if (!Schema::hasTable('filter')) {
             return response()->json(['success' => false, 'message' => 'Таблиця filter відсутня'], 404);
         }
+        if (! $this->canWriteCityDirectory()) {
+            return response()->json(['success' => false, 'message' => 'Регионы и города доступны только для просмотра.'], 403);
+        }
 
         $data = $this->validateRegionCity($request, true);
         $regionId = (int) $data['region_id'];
@@ -2588,6 +2599,10 @@ class SettingsController extends Controller
 
     public function regionCitiesUpdate(Request $request, $id)
     {
+        if (! $this->canWriteCityDirectory()) {
+            return response()->json(['success' => false, 'message' => 'Регионы и города доступны только для просмотра.'], 403);
+        }
+
         $ignoreFirma = $this->shouldIgnoreCityFirma($request, 'city');
         $row = $this->regionCityFind(session('fid', ''), $id, $ignoreFirma);
         if (!$row) {
@@ -2606,6 +2621,10 @@ class SettingsController extends Controller
 
     public function regionCitiesDestroy(Request $request, $id)
     {
+        if (! $this->canWriteCityDirectory()) {
+            return response()->json(['success' => false, 'message' => 'Регионы и города доступны только для просмотра.'], 403);
+        }
+
         $ignoreFirma = $this->shouldIgnoreCityFirma($request, 'city');
         $row = $this->regionCityFind(session('fid', ''), $id, $ignoreFirma);
         if (!$row) {
@@ -2653,6 +2672,7 @@ class SettingsController extends Controller
             'valru' => (string) ($row->valru ?? ''),
             'valen' => (string) ($row->valen ?? ''),
             'num' => (int) ($row->num ?? 0),
+            'can_edit' => $this->canWriteCityDirectory(),
         ];
     }
 
@@ -2741,6 +2761,28 @@ class SettingsController extends Controller
         return array_merge(['reestr'], $this->sharedConfTypes());
     }
 
+    private function protectedReadOnlyConfTypes(): array
+    {
+        return ['currency', 'reestr', 'tgroup', 'tclient'];
+    }
+
+    private function canWriteConfType(string $type, mixed $fid): bool
+    {
+        if (! in_array($type, $this->protectedReadOnlyConfTypes(), true)) {
+            return true;
+        }
+
+        return $this->canManageCurrentProject($this->currentUser(), $fid);
+    }
+
+    private function decorateConfItemForSettings(object $item, string $type): object
+    {
+        $item = $this->decorateConfItem($item, $type);
+        $item->can_edit = $this->canWriteConfType($type, session('fid', ''));
+
+        return $item;
+    }
+
     private function confTypeIsGlobal(string $type): bool
     {
         return in_array($type, $this->globalConfTypes(), true);
@@ -2764,6 +2806,11 @@ class SettingsController extends Controller
         }
 
         return $this->creatorProjectIdsForUser($user)->contains($projectId);
+    }
+
+    private function canWriteCityDirectory(): bool
+    {
+        return $this->canManageCurrentProject($this->currentUser(), session('fid', ''));
     }
 
     private function companiesQuery(object $user)
@@ -3547,6 +3594,35 @@ class SettingsController extends Controller
         return $projectEmail !== '' && $userEmail !== '' && $projectEmail === $userEmail;
     }
 
+    private function userCanEditProject(?object $user, Project $project): bool
+    {
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        $projectId = (int) $project->id;
+        if ($projectId <= 0) {
+            return false;
+        }
+
+        if ($this->userCanDeleteProjectByEmail($user, $project)) {
+            return true;
+        }
+
+        if (Schema::hasColumn('project', 'userid')) {
+            $identityUserIds = $this->projectIdentityUserIds($user);
+            if ($identityUserIds->contains((int) ($project->userid ?? 0))) {
+                return true;
+            }
+        }
+
+        if ($this->projectFirmaIdsForUser($user)->contains($projectId)) {
+            return true;
+        }
+
+        return $this->employeeProjectIdsForUser($user)->contains($projectId);
+    }
+
     private function projectIdentityUserIds(?object $user): \Illuminate\Support\Collection
     {
         if (! $user instanceof User) {
@@ -3653,7 +3729,8 @@ class SettingsController extends Controller
         $payload['holding_id'] = (int) ($payload['holding_id'] ?? 0);
         $payload['holding_name'] = $this->holdingNameById($payload['holding_id']);
         $payload['constanta'] = (int) ($payload['constanta'] ?? 0);
-        $payload['can_delete'] = $this->userCanDeleteProjectByEmail($user, $project);
+        $payload['can_edit'] = $this->userCanEditProject($user, $project);
+        $payload['can_delete'] = $payload['can_edit'] && $this->userCanDeleteProjectByEmail($user, $project);
 
         return $payload;
     }
@@ -4200,6 +4277,7 @@ class SettingsController extends Controller
             'num' => (int) (property_exists($item, 'num') ? ($item->num ?? 0) : 0),
             'visible' => (string) (property_exists($item, 'visible') ? ($item->visible ?? '1') : '1'),
             'firstpage' => (string) (property_exists($item, 'firstpage') ? ($item->firstpage ?? '0') : '0'),
+            'can_edit' => (string) ($item->keyfield ?? '') !== 'city' || $this->canWriteCityDirectory(),
         ];
     }
 
@@ -4339,6 +4417,9 @@ class SettingsController extends Controller
         if (!Schema::hasTable('field')) {
             return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
         }
+        if ($keyfield === 'city' && ! $this->canWriteCityDirectory()) {
+            return response()->json(['success' => false, 'message' => 'Регионы и города доступны только для просмотра.'], 403);
+        }
 
         $fid = session('fid', '');
         $parentId = $keyfield === 'catalog'
@@ -4360,6 +4441,9 @@ class SettingsController extends Controller
     {
         if (!Schema::hasTable('field')) {
             return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
+        }
+        if ($keyfield === 'city' && ! $this->canWriteCityDirectory()) {
+            return response()->json(['success' => false, 'message' => 'Регионы и города доступны только для просмотра.'], 403);
         }
 
         $fid = session('fid', '');
@@ -4389,6 +4473,9 @@ class SettingsController extends Controller
     {
         if (!Schema::hasTable('field')) {
             return response()->json(['success' => false, 'message' => 'Таблицю field не знайдено'], 404);
+        }
+        if ($keyfield === 'city' && ! $this->canWriteCityDirectory()) {
+            return response()->json(['success' => false, 'message' => 'Регионы и города доступны только для просмотра.'], 403);
         }
 
         $fid = session('fid', '');

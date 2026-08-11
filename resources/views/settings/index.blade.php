@@ -872,10 +872,6 @@
             <div class="modal-body" id="project-list-area">
                 <div class="project-list-toolbar mb-3">
                     <input type="search" class="form-control" id="projects-search" placeholder="Поиск по названию проекта" autocomplete="off">
-                    <div class="form-check mb-0">
-                        <input class="form-check-input" type="checkbox" id="projects-all">
-                        <label class="form-check-label" for="projects-all">Все проекты</label>
-                    </div>
                 </div>
                 <div class="table-responsive project-list-scroll" id="projects-scroll-area">
                     <table class="table table-hover table-sm align-middle project-compact-table">
@@ -3270,7 +3266,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const form = document.getElementById('project-form');
         const emptyMsg = document.getElementById('projects-empty-msg');
         const searchInput = document.getElementById('projects-search');
-        const allProjectsInput = document.getElementById('projects-all');
         const scrollArea = document.getElementById('projects-scroll-area');
         const loadingIndicator = document.getElementById('projects-loading');
         const addBtn = document.getElementById('btn-project-add');
@@ -3417,7 +3412,6 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.addEventListener('show.bs.modal', () => {
             hideForm();
             if (searchInput) searchInput.value = '';
-            if (allProjectsInput) allProjectsInput.checked = false;
             if (scrollArea) scrollArea.scrollTop = 0;
             loadHoldings();
             loadProjects(true);
@@ -3442,8 +3436,6 @@ document.addEventListener('DOMContentLoaded', () => {
             window.clearTimeout(projectsSearchTimer);
             projectsSearchTimer = window.setTimeout(() => loadProjects(true), 300);
         });
-
-        allProjectsInput?.addEventListener('change', () => loadProjects(true));
 
         scrollArea?.addEventListener('scroll', () => {
             const distanceToBottom = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight;
@@ -3471,6 +3463,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const row = event.target.closest('tr[data-project-id]');
             if (row) {
+                if (row.dataset.canEdit !== '1') {
+                    return;
+                }
                 editProject(row.dataset.projectId);
             }
         });
@@ -3583,7 +3578,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams({ page: String(requestedPage) });
             const search = searchInput?.value.trim() || '';
             if (search) params.set('search', search);
-            if (allProjectsInput?.checked) params.set('all_projects', '1');
 
             const controller = new AbortController();
             projectsRequestController = controller;
@@ -3662,7 +3656,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     : '—';
                 const projectRole = item.user_role === 'creator'
                     ? 'Создатель'
-                    : (item.user_role === 'employee' ? 'Сотрудник' : '');
+                    : (item.user_role === 'employee' ? 'Сотрудник' : (item.can_edit ? 'Доступен' : 'Просмотр'));
                 const projectType = item.project_type_label || projectTypeLabel(item.project_type) || '';
                 const holdingName = item.holding_name || '—';
 
@@ -3676,6 +3670,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const tr = document.createElement('tr');
                 tr.dataset.projectId = item.id;
+                tr.dataset.canEdit = item.can_edit ? '1' : '0';
+                if (!item.can_edit) {
+                    tr.classList.add('text-muted');
+                    tr.title = 'Просмотр без права изменения';
+                }
                 tr.innerHTML = `
                     <td>${item.id ?? ''}</td>
                     <td>
@@ -3683,7 +3682,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${projectType ? `<div class="company-meta text-muted">${escapeHtml(projectType)}</div>` : ''}
                         ${Number(item.constanta) === 1 ? '<span class="badge bg-warning text-dark mt-1">Маркетплейс</span>' : ''}
                     </td>
-                    <td>${projectRole ? `<span class="badge bg-secondary">${escapeHtml(projectRole)}</span>` : ''}</td>
+                    <td>${projectRole ? `<span class="badge ${item.can_edit ? 'bg-secondary' : 'bg-dark'}">${escapeHtml(projectRole)}</span>` : ''}</td>
                     <td>${escapeHtml(holdingName)}</td>
                     <td>${projectEmail}</td>
                     <td class="text-end">
@@ -4092,6 +4091,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let officeCitySearchTimer = null;
         let officeCitySelectedLabel = '';
         const canManagePaymentTypes = @json((bool) ($canManagePaymentTypes ?? false));
+        const protectedReadOnlyCrudTypes = ['currency', 'reestr', 'tgroup', 'tclient'];
 
         const formatOfficePhoneInput = (value) => {
             const digits = String(value || '').replace(/\D/g, '').slice(0, 12);
@@ -4157,7 +4157,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('modalCrudLabel').textContent = btn.dataset.title;
             currentCurrencyTab = 'directory';
             configureCurrencyTabs();
-            addBtn.style.display = isPoolDepositMode() ? 'none' : '';
+            addBtn.style.display = isPoolDepositMode() || !canEditCurrentItem() ? 'none' : '';
             configureStatusField();
             hideForm();
             loadData();
@@ -4216,6 +4216,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         cancelBtn.addEventListener('click', hideForm);
         deleteBtn.addEventListener('click', () => {
+            if (!canEditCurrentItem()) {
+                return;
+            }
             const id = document.getElementById('form-id').value;
             if (!id) return;
             deleteItem(id);
@@ -4261,6 +4264,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         form.addEventListener('submit', (e) => {
             e.preventDefault();
+            if (!canEditCurrentItem()) {
+                alert('Этот справочник доступен только для просмотра.');
+                return;
+            }
 
             const id = document.getElementById('form-id').value;
             const payload = {
@@ -4418,7 +4425,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isCompactConfTable = currentType === 'sklads' || currentType === 'oplata';
                 const editLabel = isCompactConfTable ? '✏' : _ts('crud.edit');
                 const deleteLabel = isCompactConfTable ? '🗑' : _ts('crud.delete');
-                const canEditItem = canEditCurrentItem();
+                const canEditItem = canEditCurrentItem() && item.can_edit !== false;
                 const editButtonHtml = canEditItem
                     ? `<button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}" title="${escapeHtml(_ts('crud.edit'))}">${editLabel}</button>`
                     : '';
@@ -4689,6 +4696,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function canEditCurrentItem() {
+            if (protectedReadOnlyCrudTypes.includes(currentType)) {
+                return canManagePaymentTypes;
+            }
+
             return currentType !== 'oplata' || canManagePaymentTypes;
         }
 
@@ -5689,6 +5700,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const fieldModeConfig = window.SettingsI18n.field_modes || {};
         let breadcrumb = [{ id: 0, name: fieldModeConfig.catalog.root }];
 
+        const canEditCurrentFieldMode = () => currentKeyfield !== 'city' || canManagePaymentTypes;
+
         modal.addEventListener('show.bs.modal', (event) => {
             const triggerMode = event.relatedTarget?.dataset?.fieldMode;
             switchFieldMode(triggerMode === 'city' ? 'city' : 'catalog');
@@ -5708,6 +5721,9 @@ document.addEventListener('DOMContentLoaded', () => {
         modeCityBtn?.addEventListener('click', () => switchFieldMode('city'));
 
         addBtn.addEventListener('click', () => {
+            if (!canEditCurrentFieldMode()) {
+                return;
+            }
             if (selectedRegion) {
                 resetRegionCityForm();
                 regionCityFormArea.style.display = 'block';
@@ -5767,6 +5783,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         form.addEventListener('submit', (e) => {
             e.preventDefault();
+            if (!canEditCurrentFieldMode()) {
+                alert('Регионы и города доступны только для просмотра.');
+                return;
+            }
 
             const id = document.getElementById('catalog-id').value;
             const payload = {
@@ -5904,6 +5924,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const openButton = currentKeyfield === 'catalog'
                     ? `<button class="btn btn-sm btn-outline-secondary action-btn" data-action="open" data-id="${item.id}">📂</button>`
                     : `<button class="btn btn-sm btn-outline-secondary action-btn" data-action="cities" data-id="${item.id}" data-name="${escapeHtml(item.name_ua || item.name_ru || `#${item.id}`)}">${escapeHtml(_ts('catalog_modal.cities'))}</button>`;
+                const canEditItem = canEditCurrentFieldMode() && item.can_edit !== false;
                 tr.innerHTML = `
                     <td >${item.id}</td>
                     <td>
@@ -5916,8 +5937,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td >${childLabel}</td>
                     <td >
                         ${openButton}
-                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
-                        <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
+                        ${canEditItem ? `<button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>` : ''}
+                        ${canEditItem ? `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>` : ''}
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -6142,6 +6163,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (childrenHead) childrenHead.textContent = config.allowChildren ? _ts('crud.column_subcategories') : _ts('crud.column_records');
             if (breadcrumbBox) breadcrumbBox.style.display = config.allowChildren ? '' : 'none';
             if (backBtn) backBtn.style.display = 'none';
+            if (addBtn) addBtn.style.display = canEditCurrentFieldMode() ? '' : 'none';
         }
 
         async function openRegionCities(region) {
@@ -6153,6 +6175,7 @@ document.addEventListener('DOMContentLoaded', () => {
             regionCitiesTitle.textContent = `${_ts('catalog_modal.cities_of_region')}: ${region.name}`;
             currentLevel.textContent = regionCitiesTitle.textContent;
             addBtn.style.display = 'none';
+            regionCityAddBtn.style.display = canEditCurrentFieldMode() ? '' : 'none';
             backBtn.style.display = 'inline-block';
             await loadRegionCities();
         }
@@ -6161,7 +6184,7 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedRegion = null;
             regionCitiesArea.style.display = 'none';
             regionCityFormArea.style.display = 'none';
-            addBtn.style.display = '';
+            addBtn.style.display = canEditCurrentFieldMode() ? '' : 'none';
             listArea.style.display = 'block';
         }
 
@@ -6183,6 +6206,7 @@ document.addEventListener('DOMContentLoaded', () => {
             regionCitiesEmpty.style.display = items.length ? 'none' : 'block';
             items.forEach((city) => {
                 const tr = document.createElement('tr');
+                const canEditCity = canEditCurrentFieldMode() && city.can_edit !== false;
                 tr.innerHTML = `
                     <td>${city.id}</td>
                     <td>${escapeHtml(city.val)}</td>
@@ -6190,8 +6214,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${escapeHtml(city.valen || '—')}</td>
                     <td>${city.num}</td>
                     <td class="text-end">
-                        <button type="button" class="btn btn-sm btn-outline-primary region-city-edit" data-id="${city.id}">✏</button>
-                        <button type="button" class="btn btn-sm btn-outline-danger region-city-delete" data-id="${city.id}">🗑</button>
+                        ${canEditCity ? `<button type="button" class="btn btn-sm btn-outline-primary region-city-edit" data-id="${city.id}">✏</button>` : ''}
+                        ${canEditCity ? `<button type="button" class="btn btn-sm btn-outline-danger region-city-delete" data-id="${city.id}">🗑</button>` : ''}
                     </td>
                 `;
                 regionCitiesTbody.appendChild(tr);
@@ -6199,6 +6223,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         regionCityAddBtn.addEventListener('click', () => {
+            if (!canEditCurrentFieldMode()) {
+                return;
+            }
             resetRegionCityForm();
             regionCityFormArea.style.display = 'block';
         });
@@ -6213,6 +6240,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const deleteButton = event.target.closest('.region-city-delete');
 
             if (editButton) {
+                if (!canEditCurrentFieldMode()) {
+                    return;
+                }
                 const response = await fetch(`/settings/region-cities/${encodeURIComponent(editButton.dataset.id)}?ignore_firma=1`, {
                     headers: { Accept: 'application/json' },
                 });
@@ -6230,6 +6260,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (deleteButton) {
+                if (!canEditCurrentFieldMode()) {
+                    return;
+                }
                 if (!confirm(_ts('catalog_modal.delete_city_confirm'))) return;
                 const response = await fetch(`/settings/region-cities/${encodeURIComponent(deleteButton.dataset.id)}?ignore_firma=1`, {
                     method: 'DELETE',
@@ -6249,6 +6282,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         regionCityForm.addEventListener('submit', async (event) => {
             event.preventDefault();
+            if (!canEditCurrentFieldMode()) {
+                alert('Регионы и города доступны только для просмотра.');
+                return;
+            }
             if (!selectedRegion) return;
 
             const id = document.getElementById('region-city-id').value;
