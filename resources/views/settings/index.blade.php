@@ -827,7 +827,6 @@
                                 <th>Статус</th>
                                 <th>Холдинг</th>
                                 <th>Email</th>
-                                <th>Телефон</th>
                                 <th class="text-end"></th>
                             </tr>
                         </thead>
@@ -3416,7 +3415,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (requestedPage > 1) {
                         projectsPage = requestedPage - 1;
                     }
-                    const errorRow = `<tr class="projects-load-error"><td colspan="7" class="text-danger">${escapeHtml(error?.message || _ts('js.load_error'))}</td></tr>`;
+                    const errorRow = `<tr class="projects-load-error"><td colspan="6" class="text-danger">${escapeHtml(error?.message || _ts('js.load_error'))}</td></tr>`;
                     if (requestedPage > 1) {
                         tbody.querySelector('.projects-load-error')?.remove();
                         tbody.insertAdjacentHTML('beforeend', errorRow);
@@ -3458,12 +3457,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const projectEmail = item.email
                     ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>`
                     : '—';
-                const projectPhone = item.phone
-                    ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>`
-                    : '—';
-                const projectUrl = item.url
-                    ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>`
-                    : '—';
                 const projectRole = item.user_role === 'creator'
                     ? 'Создатель'
                     : (item.user_role === 'employee' ? 'Сотрудник' : '');
@@ -3473,7 +3466,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (item.scope_group && item.scope_group !== lastRenderedProjectGroup) {
                     const groupRow = document.createElement('tr');
                     groupRow.className = 'project-scope-group';
-                    groupRow.innerHTML = `<td colspan="7">${escapeHtml(item.scope_group_label || '')}</td>`;
+                    groupRow.innerHTML = `<td colspan="6">${escapeHtml(item.scope_group_label || '')}</td>`;
                     tbody.appendChild(groupRow);
                     lastRenderedProjectGroup = item.scope_group;
                 }
@@ -3490,10 +3483,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${projectRole ? `<span class="badge bg-secondary">${escapeHtml(projectRole)}</span>` : ''}</td>
                     <td>${escapeHtml(holdingName)}</td>
                     <td>${projectEmail}</td>
-                    <td>
-                        <div>${projectPhone}</div>
-                        <div class="small text-muted">${projectUrl}</div>
-                    </td>
                     <td class="text-end">
                         ${item.can_delete ? `<button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">${escapeHtml(_ts('crud.delete'))}</button>` : ''}
                     </td>
