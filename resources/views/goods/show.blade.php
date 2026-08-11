@@ -469,13 +469,6 @@
                     </div>
                 </div>
                 <div class="gs-col">
-                    <label>Артикул / Cod</label>
-                    <div class="input-group">
-                        <input type="text" name="cod_display" class="form-control goods-safe-text-input" value="{{ $comp->cod ?? '' }}" maxlength="30" spellcheck="false" readonly>
-                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="cod_display">0/30</span>
-                    </div>
-                </div>
-                <div class="gs-col">
                     <label>Назва документа</label>
                     <div class="input-group">
                         <input type="text" name="name_doc" class="form-control goods-safe-text-input" value="{{ $comp->namedoc ?? '' }}" maxlength="120" spellcheck="false">
@@ -548,7 +541,7 @@
                             <td>
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">від</span>
-                                    <input type="number" step="0.001" name="tcount[{{ $group->id }}]" class="form-control"
+                                    <input type="text" name="tcount[{{ $group->id }}]" class="form-control goods-discount-condition-input" maxlength="10" inputmode="numeric" autocomplete="off"
                                         value="{{ $row !== null ? $row->count : 0 }}">
                                     <span class="input-group-text">шт.</span>
                                 </div>
@@ -887,6 +880,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const subSel = document.getElementById('goodsShowSubSelect');
     const goodsSafeTextInputs = document.querySelectorAll('.goods-safe-text-input');
     const goodsPriceInputs = document.querySelectorAll('.goods-price-terminal-input');
+    const goodsDiscountConditionInputs = document.querySelectorAll('.goods-discount-condition-input');
     let refreshGoodsMargin = () => {};
     const sanitizeGoodsSafeText = (value, maxLength) => String(value || '')
         .replace(/[\u0000-\u001F\u007F<>]/g, '')
@@ -1050,6 +1044,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     goodsPriceInputs.forEach(bindGoodsTerminalPriceInput);
 
+    const normalizeGoodsDiscountCondition = (input) => {
+        input.value = String(input.value || '').replace(/\D/g, '').slice(0, 10);
+    };
+
+    goodsDiscountConditionInputs.forEach(input => {
+        normalizeGoodsDiscountCondition(input);
+        input.addEventListener('input', () => normalizeGoodsDiscountCondition(input));
+        input.addEventListener('paste', () => setTimeout(() => normalizeGoodsDiscountCondition(input), 0));
+    });
+
     const calcMargin = () => {
         const buy = parseGoodsPriceToCents(pay1Input?.value);
         const sell = parseGoodsPriceToCents(payInput?.value);
@@ -1073,6 +1077,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('form.gs-form')?.addEventListener('submit', function() {
         goodsSyncHtmlkeyspopFromUi();
         goodsPriceInputs.forEach(normalizeGoodsPriceForSubmit);
+        goodsDiscountConditionInputs.forEach(normalizeGoodsDiscountCondition);
         goodsSafeTextInputs.forEach(function(input) {
             const maxLength = Number(input.getAttribute('maxlength') || 120);
             input.value = sanitizeGoodsSafeText(input.value, maxLength).trim();

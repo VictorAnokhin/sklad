@@ -229,6 +229,14 @@
         color: #94a3b8;
         font-size: 0.95rem;
     }
+
+    .news-field-counter {
+        color: #94a3b8;
+        font-size: 0.78rem;
+        line-height: 1.2;
+        margin-top: 4px;
+        text-align: right;
+    }
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -250,18 +258,43 @@ document.addEventListener('DOMContentLoaded', function () {
         .replace(/\son\w+\s*=\s*(['"]).*?\1/gi, '')
         .replace(/\s(href|src)\s*=\s*(['"])\s*javascript:.*?\2/gi, '')
         .slice(0, 2000);
+    const ensureCounter = input => {
+        const maxLength = Number(input.getAttribute('maxlength') || 0);
+        if (!maxLength) return null;
+
+        const anchor = input.closest('.input-group') || input;
+        let counter = anchor.nextElementSibling;
+        if (!counter || !counter.classList.contains('news-field-counter')) {
+            counter = document.createElement('div');
+            counter.className = 'news-field-counter';
+            anchor.insertAdjacentElement('afterend', counter);
+        }
+
+        return counter;
+    };
+    const updateCounter = input => {
+        const counter = ensureCounter(input);
+        if (!counter) return;
+        const maxLength = Number(input.getAttribute('maxlength') || 0);
+        counter.textContent = `${String(input.value || '').length}/${maxLength}`;
+    };
+    const bindProtectedInput = (input, sanitizer) => {
+        input.value = sanitizer(input.value);
+        updateCounter(input);
+        input.addEventListener('input', () => {
+            input.value = sanitizer(input.value);
+            updateCounter(input);
+        });
+    };
 
     form.querySelectorAll('.news-safe-line').forEach(input => {
-        input.value = safeLine(input.value);
-        input.addEventListener('input', () => { input.value = safeLine(input.value); });
+        bindProtectedInput(input, safeLine);
     });
     form.querySelectorAll('.news-safe-keywords').forEach(input => {
-        input.value = safeKeywords(input.value);
-        input.addEventListener('input', () => { input.value = safeKeywords(input.value); });
+        bindProtectedInput(input, safeKeywords);
     });
     form.querySelectorAll('.news-safe-text').forEach(input => {
-        input.value = safeText(input.value);
-        input.addEventListener('input', () => { input.value = safeText(input.value); });
+        bindProtectedInput(input, safeText);
     });
 });
 </script>

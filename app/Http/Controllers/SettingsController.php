@@ -3007,6 +3007,50 @@ class SettingsController extends Controller
         return $text;
     }
 
+    private function safeProjectText(mixed $value, string $label, int $maxLength = 30): string
+    {
+        $raw = trim((string) ($value ?? ''));
+
+        if ($raw !== '' && preg_match('/[\x00-\x1F\x7F<>{}\[\]\\\\=;*|~^$!?%&+]/u', $raw)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $label => $label . ': недопустимі символи.',
+            ]);
+        }
+
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags($raw)));
+        $text = mb_substr((string) $text, 0, $maxLength);
+
+        if ($text !== '' && preg_match("/[^\p{L}\p{M}\p{N}\s.,'’`\"()_-]/u", $text)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $label => $label . ': використовуйте літери, цифри, пробіли, дефіс, крапку, кому, лапки або апостроф.',
+            ]);
+        }
+
+        return $text;
+    }
+
+    private function safeProjectContactText(mixed $value, string $label, int $maxLength = 30): string
+    {
+        $raw = trim((string) ($value ?? ''));
+
+        if ($raw !== '' && preg_match('/[\x00-\x1F\x7F<>{}\[\]\\\\=;*|~^$!?%&+]/u', $raw)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $label => $label . ': недопустимі символи.',
+            ]);
+        }
+
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags($raw)));
+        $text = mb_substr((string) $text, 0, $maxLength);
+
+        if ($text !== '' && preg_match("/[^\p{L}\p{M}\p{N}\s@:\/.,'’`\"()_-]/u", $text)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $label => $label . ': недопустимі символи.',
+            ]);
+        }
+
+        return $text;
+    }
+
     private function syncDefaultConfRecord(int $id, array $data): void
     {
         if (
@@ -3223,25 +3267,25 @@ class SettingsController extends Controller
     {
         $validated = $request->validate([
             'num' => 'nullable|integer|min:0',
-            'name' => 'required|string|max:50',
+            'name' => 'required|string|max:30',
             'project_type' => ['nullable', 'string', Rule::in(array_keys($this->projectTypeOptions()))],
-            'holding_name' => 'nullable|string|max:255',
-            'phone' => 'nullable|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'url' => 'nullable|string|max:65535',
-            'telegram' => 'nullable|string|max:65535',
-            'instagram' => 'nullable|string|max:65535',
-            'twitter' => 'nullable|string|max:65535',
-            'facebook' => 'nullable|string|max:65535',
-            'userid' => 'nullable|integer|min:0',
+            'holding_name' => 'nullable|string|max:30',
+            'phone' => 'nullable|string|max:30',
+            'email' => 'nullable|email|max:30',
+            'url' => 'nullable|string|max:30',
+            'telegram' => 'nullable|string|max:30',
+            'instagram' => 'nullable|string|max:30',
+            'twitter' => 'nullable|string|max:30',
+            'facebook' => 'nullable|string|max:30',
+            'userid' => 'nullable|integer|min:0|max:9999999999',
             'foto' => 'nullable|string|max:255',
             'foto_header' => 'nullable|string|max:255',
             'foto_footer' => 'nullable|string|max:255',
-            'description' => 'nullable|string|max:65535',
+            'description' => 'nullable|string|max:30',
             'web' => 'nullable|boolean',
             'hit' => 'nullable|boolean',
             'constanta' => 'nullable|boolean',
-            'htmlkeys' => 'nullable|string|max:65535',
+            'htmlkeys' => 'nullable|string|max:30',
             'foto_file' => 'nullable|image|max:4096',
             'foto_header_file' => 'nullable|image|max:4096',
             'foto_footer_file' => 'nullable|image|max:4096',
@@ -3286,24 +3330,24 @@ class SettingsController extends Controller
 
         $payload = [
             'num' => (int) ($validated['num'] ?? 0),
-            'name' => $this->safeSettingsText($validated['name'] ?? '', 'Назва проєкту', 50),
-            'telegram' => trim((string) ($validated['telegram'] ?? '')),
-            'instagram' => trim((string) ($validated['instagram'] ?? '')),
-            'twitter' => trim((string) ($validated['twitter'] ?? '')),
-            'facebook' => trim((string) ($validated['facebook'] ?? '')),
+            'name' => $this->safeProjectText($validated['name'] ?? '', 'Назва проєкту', 30),
+            'telegram' => $this->safeProjectContactText($validated['telegram'] ?? '', 'telegram', 30),
+            'instagram' => $this->safeProjectContactText($validated['instagram'] ?? '', 'instagram', 30),
+            'twitter' => $this->safeProjectContactText($validated['twitter'] ?? '', 'twitter', 30),
+            'facebook' => $this->safeProjectContactText($validated['facebook'] ?? '', 'facebook', 30),
             'userid' => (int) ($validated['userid'] ?? 0),
             'foto' => $foto,
             'foto_header' => $fotoHeader,
             'foto_footer' => $fotoFooter,
-            'description' => trim((string) ($validated['description'] ?? '')),
+            'description' => $this->safeProjectContactText($validated['description'] ?? '', 'Опис', 30),
             'web' => $request->boolean('web') ? 1 : 0,
             'hit' => $request->boolean('hit') ? 1 : 0,
-            'htmlkeys' => trim((string) ($validated['htmlkeys'] ?? '')),
+            'htmlkeys' => $this->safeProjectContactText($validated['htmlkeys'] ?? '', 'htmlkeys', 30),
         ];
 
-        $projectPhone = trim((string) ($validated['phone'] ?? ''));
-        $projectEmail = mb_strtolower(trim((string) ($validated['email'] ?? '')));
-        $projectUrl = trim((string) ($validated['url'] ?? ''));
+        $projectPhone = mb_substr(preg_replace('/\D/', '', (string) ($validated['phone'] ?? '')), 0, 30);
+        $projectEmail = mb_strtolower($this->safeProjectContactText($validated['email'] ?? '', 'email', 30));
+        $projectUrl = $this->safeProjectContactText($validated['url'] ?? '', 'web', 30);
         if (in_array('phone', $projectColumns, true)) {
             $payload['phone'] = $projectPhone;
         }
@@ -3311,7 +3355,7 @@ class SettingsController extends Controller
             $payload['project_type'] = trim((string) ($validated['project_type'] ?? '')) ?: null;
         }
         if (in_array('holding_id', $projectColumns, true)) {
-            $payload['holding_id'] = $this->resolveHoldingId($this->safeSettingsText($validated['holding_name'] ?? '', 'Холдинг', 100));
+            $payload['holding_id'] = $this->resolveHoldingId($this->safeProjectText($validated['holding_name'] ?? '', 'Холдинг', 30));
         }
         if (in_array('email', $projectColumns, true)) {
             $payload['email'] = $projectEmail === '' ? null : $projectEmail;

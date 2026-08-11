@@ -664,16 +664,12 @@
                     <input type="hidden" id="project-foto-footer-existing" value="">
                     <input type="hidden" id="project-num" value="0">
 
-                    <div class="row">
-                        <div class="col-md-2 mb-3">
-                            <label class="form-label">ID</label>
-                            <input type="text" class="form-control" id="project-id-display" readonly>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Назва <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control settings-safe-text-input" id="project-name" maxlength="50" required spellcheck="false">
-                        </div>
-                        <div class="col-md-2 mb-3">
+                    <input type="hidden" id="project-id-display" value="">
+
+                    <div class="settings-project-section">
+                        <div class="settings-project-section__title">Структура</div>
+                        <div class="row">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Тип проекта</label>
                             <select class="form-select" id="project-type">
                                 <option value="">Не указан</option>
@@ -683,60 +679,77 @@
                                 <option value="education">Образование</option>
                             </select>
                         </div>
-                        <div class="col-md-3 mb-3 position-relative">
+                        <div class="col-md-4 mb-3 position-relative">
                             <label class="form-label">Холдинг</label>
                             <div class="input-group">
-                                <input type="text" class="form-control settings-safe-text-input" id="project-holding" autocomplete="off" placeholder="Введите или выберите" maxlength="100" spellcheck="false">
+                                <input type="text" class="form-control project-safe-text-input" id="project-holding" autocomplete="off" placeholder="Введите или выберите" maxlength="30" spellcheck="false">
                                 <button type="button" class="btn btn-outline-secondary" id="project-holding-toggle">▾</button>
                             </div>
                             <div class="project-holding-menu shadow-sm" id="project-holding-menu" hidden></div>
                         </div>
-                        <div class="col-md-2 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">userid</label>
-                            <input type="number" class="form-control" id="project-userid" min="0" value="0">
+                            <input type="number" class="form-control" id="project-userid" min="0" max="9999999999" value="0">
+                        </div>
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">email</label>
-                            <input type="email" class="form-control" id="project-email" maxlength="255" placeholder="fallback при зміні проєкту, якщо у сесії немає email">
-                            <div class="form-text small text-muted">Звичайно email береться з облікового запису; це поле — резерв для перемикання проєкту.</div>
+                    <div class="settings-project-section">
+                        <div class="settings-project-section__title">Данные</div>
+                        <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Название <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control project-safe-text-input" id="project-name" maxlength="30" required spellcheck="false">
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">phone</label>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">телефон</label>
                             <input type="text" class="form-control" id="project-phone" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">url</label>
-                            <textarea class="form-control" id="project-url" rows="2" placeholder="https://example.com"></textarea>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">email</label>
+                            <input type="email" class="form-control project-safe-contact-input" id="project-email" maxlength="30" placeholder="fallback при зміні проєкту">
+                            <div class="form-text small text-muted">Звичайно email береться з облікового запису; це поле — резерв для перемикання проєкту.</div>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">description</label>
-                            <textarea class="form-control" id="project-description" rows="4"></textarea>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">web</label>
+                            <input type="text" class="form-control project-safe-contact-input" id="project-url" maxlength="30" placeholder="https://example.com">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Описание</label>
+                            <textarea class="form-control project-safe-contact-input" id="project-description" rows="2" maxlength="30"></textarea>
+                        </div>
                         </div>
                     </div>
 
-                    <div class="row">
+                    <div class="settings-project-section">
+                        <div class="settings-project-section__title">Маркетинг</div>
+                        <div class="row">
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label class="form-label">telegram</label>
-                            <textarea class="form-control" id="project-telegram" rows="2"></textarea>
+                            <input type="text" class="form-control project-safe-contact-input" id="project-telegram" maxlength="30">
                         </div>
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label class="form-label">instagram</label>
-                            <textarea class="form-control" id="project-instagram" rows="2"></textarea>
+                            <input type="text" class="form-control project-safe-contact-input" id="project-instagram" maxlength="30">
                         </div>
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label class="form-label">twitter</label>
-                            <textarea class="form-control" id="project-twitter" rows="2"></textarea>
+                            <input type="text" class="form-control project-safe-contact-input" id="project-twitter" maxlength="30">
                         </div>
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label class="form-label">facebook</label>
-                            <textarea class="form-control" id="project-facebook" rows="2"></textarea>
+                            <input type="text" class="form-control project-safe-contact-input" id="project-facebook" maxlength="30">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">htmlkeys</label>
+                            <input type="text" class="form-control project-safe-contact-input" id="project-htmlkeys" maxlength="30">
+                        </div>
                         </div>
                     </div>
 
-                    <div class="row">
+                    <div class="settings-project-section">
+                        <div class="settings-project-section__title">Логотипы</div>
+                        <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">foto</label>
                             <input type="file" class="form-control" id="project-foto-file" accept="image/*">
@@ -761,31 +774,31 @@
                                 <img src="" alt="foto_footer" id="project-foto-footer-preview">
                             </div>
                         </div>
+                        </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">htmlkeys</label>
-                            <textarea class="form-control" id="project-htmlkeys" rows="3"></textarea>
-                        </div>
-                        <div class="col-md-3 mb-3 d-flex align-items-end">
+                    <div class="settings-project-section">
+                        <div class="settings-project-section__title">Управление</div>
+                        <div class="row">
+                        <div class="col-md-4 mb-3 d-flex align-items-end">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="project-web">
                                 <label class="form-check-label" for="project-web">web</label>
                             </div>
                         </div>
-                        <div class="col-md-3 mb-3 d-flex align-items-end">
+                        <div class="col-md-4 mb-3 d-flex align-items-end">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="project-hit">
                                 <label class="form-check-label" for="project-hit">hit</label>
                             </div>
                         </div>
-                        <div class="col-md-3 mb-3 d-flex align-items-end">
+                        <div class="col-md-4 mb-3 d-flex align-items-end">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="project-constanta">
                                 <label class="form-check-label" for="project-constanta">Маркетплейс</label>
                                 <div class="form-text">Категорії цього проєкту доступні іншим проєктам.</div>
                             </div>
+                        </div>
                         </div>
                     </div>
 
@@ -2179,6 +2192,22 @@
         line-height: 1.2;
     }
 
+    .settings-project-section {
+        padding: 14px 0 4px;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .settings-project-section:first-of-type {
+        border-top: 0;
+        padding-top: 0;
+    }
+
+    .settings-project-section__title {
+        color: #f8fafc;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
     .project-holding-menu {
         position: absolute;
         z-index: 1060;
@@ -2982,9 +3011,40 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const sanitizeProjectText = (value, maxLength = 30) => String(value || '')
+            .replace(/[\u0000-\u001F\u007F<>\[\]{}\\=;*|~^$!?%&+]/g, '')
+            .replace(/[^\p{L}\p{M}\p{N}\s.,'’`"()_-]/gu, '')
+            .replace(/\s{2,}/g, ' ')
+            .slice(0, maxLength);
+        const sanitizeProjectContact = (value, maxLength = 30) => String(value || '')
+            .replace(/[\u0000-\u001F\u007F<>\[\]{}\\=;*|~^$!?%&+]/g, '')
+            .replace(/[^\p{L}\p{M}\p{N}\s@:/.,'’`"()_-]/gu, '')
+            .replace(/\s{2,}/g, ' ')
+            .slice(0, maxLength);
+        const bindProjectSafeInput = (input, sanitizer) => {
+            input.value = sanitizer(input.value, Number(input.getAttribute('maxlength') || 30));
+            input.addEventListener('input', function () {
+                const selectionStart = input.selectionStart;
+                const selectionEnd = input.selectionEnd;
+                const maxLength = Number(input.getAttribute('maxlength') || 30);
+                const nextValue = sanitizer(input.value, maxLength);
+
+                if (nextValue === input.value) {
+                    return;
+                }
+
+                input.value = nextValue;
+                if (selectionStart !== null && selectionEnd !== null) {
+                    input.setSelectionRange(selectionStart, selectionEnd);
+                }
+            });
+        };
+
         bindProjectPreview(fotoFileInput, 'project-foto-preview-wrap', 'project-foto-preview');
         bindProjectPreview(fotoHeaderFileInput, 'project-foto-header-preview-wrap', 'project-foto-header-preview');
         bindProjectPreview(fotoFooterFileInput, 'project-foto-footer-preview-wrap', 'project-foto-footer-preview');
+        form.querySelectorAll('.project-safe-text-input').forEach((input) => bindProjectSafeInput(input, sanitizeProjectText));
+        form.querySelectorAll('.project-safe-contact-input').forEach((input) => bindProjectSafeInput(input, sanitizeProjectContact));
 
         const formatProjectPhoneInput = (value) => {
             const digits = String(value || '').replace(/\D/g, '').slice(0, 12);
@@ -3116,10 +3176,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = document.getElementById('project-id').value;
             const payload = new FormData();
             payload.append('num', String(Number(document.getElementById('project-num').value || 0)));
-            document.getElementById('project-name').value = sanitizeSettingsSafeText(document.getElementById('project-name').value, 50).trim();
+            document.getElementById('project-name').value = sanitizeProjectText(document.getElementById('project-name').value, 30).trim();
             if (holdingInput) {
-                holdingInput.value = sanitizeSettingsSafeText(holdingInput.value, 100).trim();
+                holdingInput.value = sanitizeProjectText(holdingInput.value, 30).trim();
             }
+
+            form.querySelectorAll('.project-safe-contact-input').forEach((input) => {
+                input.value = sanitizeProjectContact(input.value, Number(input.getAttribute('maxlength') || 30)).trim();
+            });
 
             payload.append('name', document.getElementById('project-name').value.trim());
             payload.append('project_type', document.getElementById('project-type').value);

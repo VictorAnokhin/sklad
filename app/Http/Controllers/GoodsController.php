@@ -1870,7 +1870,7 @@ class GoodsController extends Controller
                 'oldpay' => $this->goodsPriceAmount($request->input('toldpay')[$gid] ?? 0),
                 'pay' => $this->goodsPriceAmount($request->input('tpay')[$gid] ?? 0),
                 'pay1' => $this->goodsPriceAmount($request->input('tpay1')[$gid] ?? 0),
-                'count' => (int) ($request->input('tcount')[$gid] ?? 0),
+                'count' => $this->goodsDiscountCondition($request->input('tcount')[$gid] ?? 0),
             ];
         }
 
@@ -1946,6 +1946,13 @@ class GoodsController extends Controller
         $amount = round((float) $normalized, 2);
 
         return $allowNegative ? $amount : max(0.0, $amount);
+    }
+
+    private function goodsDiscountCondition(mixed $value): int
+    {
+        $digits = mb_substr(preg_replace('/\D/', '', (string) ($value ?? '')), 0, 10);
+
+        return (int) ($digits !== '' ? $digits : 0);
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
