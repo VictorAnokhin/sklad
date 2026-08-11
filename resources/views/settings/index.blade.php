@@ -2249,9 +2249,10 @@
         right: 0.75rem;
         max-height: 220px;
         overflow-y: auto;
-        border: 1px solid #dee2e6;
+        border: 1px solid rgba(148, 163, 184, 0.35);
         border-radius: 0.375rem;
-        background: #fff;
+        background: #111827;
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
     }
 
     .project-holding-item {
@@ -2260,12 +2261,13 @@
         justify-content: space-between;
         gap: 0.5rem;
         padding: 0.45rem 0.65rem;
-        color: #111827;
+        color: #f8fafc;
         cursor: pointer;
     }
 
     .project-holding-item:hover {
-        background: #f3f4f6;
+        background: rgba(251, 191, 36, 0.14);
+        color: #fff;
     }
 
     .client-location-suggest {
