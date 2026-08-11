@@ -1935,6 +1935,12 @@
         white-space: nowrap;
     }
 
+    #modalProfile label,
+    #modalProfile .form-label,
+    #modalProfile .form-check-label {
+        color: #fff;
+    }
+
     .report-rules-table {
         table-layout: fixed;
         font-size: 0.82rem;
