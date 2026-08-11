@@ -202,13 +202,13 @@ class ClientController extends Controller
         $fid = session('fid', '');
         $clientFirmaScope = $this->clientFirmaScope($fid);
         $orgname = trim((string) ($request->input('orgname') ?? ''));
-        $name = trim((string) ($request->input('name') ?? ''));
-        $secondname = trim((string) ($request->input('secondname') ?? ''));
+        $name = $this->safeQuickClientText($request, 'name', 'Імʼя');
+        $secondname = $this->safeQuickClientText($request, 'secondname', 'Прізвище');
         $rawPhone = trim((string) ($request->input('phone') ?? ''));
         $phoneDigits = preg_replace('/\D/', '', $rawPhone);
         $phone = $phoneDigits !== '' ? '+' . $phoneDigits : '';
-        $city = trim((string) ($request->input('city') ?? ''));
-        $region = trim((string) ($request->input('region') ?? ''));
+        $city = $this->safeQuickClientText($request, 'city', 'Місто');
+        $region = $this->safeQuickClientText($request, 'region', 'Область');
         $poshta = trim((string) ($request->input('poshta') ?? ''));
         $idstatus = (int) $request->input('idstatus', 0);
         $usergroup = $this->resolveQuickClientGroup(
@@ -294,6 +294,26 @@ class ClientController extends Controller
             ->first(['u.*', 'client_group.name as usergroup_name']);
 
         return response()->json($user);
+    }
+
+    private function safeQuickClientText(Request $request, string $field, string $label): string
+    {
+        $value = preg_replace('/\s+/u', ' ', trim(strip_tags((string) ($request->input($field) ?? ''))));
+        $value = mb_substr((string) $value, 0, 80);
+
+        if ($value !== '' && preg_match('/[<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', $value)) {
+            throw ValidationException::withMessages([
+                $field => $label . ': недопустимі символи.',
+            ]);
+        }
+
+        if ($value !== '' && preg_match("/[^\p{L}\p{M}\s.'’`-]/u", $value)) {
+            throw ValidationException::withMessages([
+                $field => $label . ': використовуйте тільки літери, пробіли, дефіс, крапку або апостроф.',
+            ]);
+        }
+
+        return $value;
     }
 
     private function syncClientCityReference(string $fid, string $region, string $city): void
@@ -1003,17 +1023,17 @@ class ClientController extends Controller
 
             $data = [
                 'login' => $stringValue($request->input('login', '')),
-                'name' => $stringValue($request->input('name', '')),
-                'secondname' => $stringValue($request->input('secondname', '')),
-                'fathername' => $stringValue($request->input('fathername', '')),
+                'name' => $this->safeQuickClientText($request, 'name', 'Імʼя'),
+                'secondname' => $this->safeQuickClientText($request, 'secondname', 'Прізвище'),
+                'fathername' => $this->safeQuickClientText($request, 'fathername', 'По батькові'),
                 'orgname' => $stringValue($request->input('orgname', '')),
                 'name2' => $stringValue($request->input('name2', '')),
                 'kod1' => $stringValue($request->input('kod1', '')),
                 'phone' => preg_replace('/\D/', '', $request->input('phone', '')),
                 'phone1' => preg_replace('/\D/', '', $request->input('phone1', '')),
                 'email' => $stringValue($request->input('email', '')),
-                'city' => $stringValue($request->input('city', '')),
-                'region' => $stringValue($request->input('region', '')),
+                'city' => $this->safeQuickClientText($request, 'city', 'Місто'),
+                'region' => $this->safeQuickClientText($request, 'region', 'Область'),
                 'poshta' => $stringValue($request->input('poshta', '')),
                 'idstatus' => (int)$request->input('idstatus', 1),
                 'ustype' => (int)$request->input('idstatus', 1),

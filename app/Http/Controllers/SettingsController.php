@@ -1235,16 +1235,14 @@ class SettingsController extends Controller
             'hbd' => 'nullable|string|max:50',
         ]);
 
-        $stringValue = static fn ($value): string => trim((string) ($value ?? ''));
-
         DB::table('users')->where('id', $user->id)->update([
-            'name'       => $stringValue($request->input('name')),
-            'secondname' => $stringValue($request->input('secondname')),
-            'fathername' => $stringValue($request->input('fathername')),
-            'email'      => $stringValue($request->input('email')),
-            'phone'      => $stringValue($request->input('phone')),
-            'city'       => $stringValue($request->input('city')),
-            'hbd'        => $stringValue($request->input('hbd')),
+            'name'       => $this->safeSettingsText($request->input('name'), 'Імʼя', 80),
+            'secondname' => $this->safeSettingsText($request->input('secondname'), 'Прізвище', 80),
+            'fathername' => $this->safeSettingsText($request->input('fathername'), 'По батькові', 80),
+            'email'      => trim((string) ($request->input('email') ?? '')),
+            'phone'      => trim((string) ($request->input('phone') ?? '')),
+            'city'       => $this->safeSettingsText($request->input('city'), 'Місто', 80),
+            'hbd'        => trim((string) ($request->input('hbd') ?? '')),
         ]);
 
         return redirect()->route('settings.index')->with('success', 'Профіль оновлено');
@@ -2773,18 +2771,18 @@ class SettingsController extends Controller
         }
 
         return [
-            'name' => $validated['name'],
+            'name' => $this->safeSettingsText($validated['name'] ?? '', 'Назва компанії', 100),
             'regnum' => $validated['regnum'] ?? '',
             'inn' => $validated['inn'] ?? '',
             'schet' => $validated['schet'] ?? '',
-            'bank' => $validated['bank'] ?? '',
+            'bank' => $this->safeSettingsText($validated['bank'] ?? '', 'Банк', 50),
             'mfo' => $validated['mfo'] ?? '',
-            'town' => $validated['town'] ?? '',
-            'address' => $validated['address'] ?? '',
+            'town' => $this->safeSettingsText($validated['town'] ?? '', 'Місто', 25),
+            'address' => $this->safeSettingsText($validated['address'] ?? '', 'Адреса', 50),
             'map' => $validated['map'] ?? '',
-            'view' => $validated['view'] ?? '',
+            'view' => $this->safeSettingsText($validated['view'] ?? '', 'Тип / View', 15),
             'phone' => $validated['phone'] ?? '',
-            'direktor' => $validated['direktor'] ?? '',
+            'direktor' => $this->safeSettingsText($validated['direktor'] ?? '', 'Директор', 30),
             'pidpys' => $pidpys,
             'pechat' => $pechat,
         ];
@@ -2891,7 +2889,11 @@ class SettingsController extends Controller
         }
 
         $data = [
-            'name' => $type === 'currency' ? $currency : trim((string) ($validated['name'] ?? '')),
+            'name' => $type === 'currency'
+                ? $currency
+                : ($type === 'sklads'
+                    ? $this->safeSettingsText($validated['name'] ?? '', 'Назва офісу', 80)
+                    : trim((string) ($validated['name'] ?? ''))),
             'type' => $type,
             'color' => $type === 'faq'
                 ? $this->faqTranslatedText($faqTranslations['questions'], 'ru')
@@ -2955,7 +2957,7 @@ class SettingsController extends Controller
             }
 
             if (Schema::hasColumn('conf', 'address')) {
-                $data['address'] = trim((string) ($validated['address'] ?? ''));
+                $data['address'] = $this->safeSettingsText($validated['address'] ?? '', 'Адреса офісу', 120);
             }
 
             $cityId = $this->normalizeOptionalInteger($validated['city_id'] ?? null);
@@ -2981,6 +2983,28 @@ class SettingsController extends Controller
         }
 
         return $data;
+    }
+
+    private function safeSettingsText(mixed $value, string $label, int $maxLength = 80): string
+    {
+        $raw = trim((string) ($value ?? ''));
+
+        if ($raw !== '' && preg_match('/[\x00-\x1F\x7F<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', $raw)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $label => $label . ': недопустимі символи.',
+            ]);
+        }
+
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags($raw)));
+        $text = mb_substr((string) $text, 0, $maxLength);
+
+        if ($text !== '' && preg_match("/[^\p{L}\p{M}\p{N}\s.,'’`\"-]/u", $text)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $label => $label . ': використовуйте літери, цифри, пробіли, дефіс, крапку, кому, лапки або апостроф.',
+            ]);
+        }
+
+        return $text;
     }
 
     private function syncDefaultConfRecord(int $id, array $data): void
@@ -3262,7 +3286,7 @@ class SettingsController extends Controller
 
         $payload = [
             'num' => (int) ($validated['num'] ?? 0),
-            'name' => trim((string) ($validated['name'] ?? '')),
+            'name' => $this->safeSettingsText($validated['name'] ?? '', 'Назва проєкту', 50),
             'telegram' => trim((string) ($validated['telegram'] ?? '')),
             'instagram' => trim((string) ($validated['instagram'] ?? '')),
             'twitter' => trim((string) ($validated['twitter'] ?? '')),
@@ -3287,7 +3311,7 @@ class SettingsController extends Controller
             $payload['project_type'] = trim((string) ($validated['project_type'] ?? '')) ?: null;
         }
         if (in_array('holding_id', $projectColumns, true)) {
-            $payload['holding_id'] = $this->resolveHoldingId((string) ($validated['holding_name'] ?? ''));
+            $payload['holding_id'] = $this->resolveHoldingId($this->safeSettingsText($validated['holding_name'] ?? '', 'Холдинг', 100));
         }
         if (in_array('email', $projectColumns, true)) {
             $payload['email'] = $projectEmail === '' ? null : $projectEmail;

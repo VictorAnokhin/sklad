@@ -291,15 +291,15 @@
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_lastname') }}</label>
-                    <input type="text" name="secondname" class="form-control" value="{{ $client->secondname ?? '' }}">
+                    <input type="text" name="secondname" class="form-control client-safe-text-input" value="{{ $client->secondname ?? '' }}" maxlength="80" autocomplete="family-name" spellcheck="false">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_firstname') }}</label>
-                    <input type="text" name="name" class="form-control" value="{{ $client->name ?? '' }}">
+                    <input type="text" name="name" class="form-control client-safe-text-input" value="{{ $client->name ?? '' }}" maxlength="80" autocomplete="given-name" spellcheck="false">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_middlename') }}</label>
-                    <input type="text" name="fathername" class="form-control" value="{{ $client->fathername ?? '' }}">
+                    <input type="text" name="fathername" class="form-control client-safe-text-input" value="{{ $client->fathername ?? '' }}" maxlength="80" autocomplete="additional-name" spellcheck="false">
                 </div>
             </div>
 
@@ -319,11 +319,11 @@
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_region') }}</label>
-                    <input type="text" name="region" class="form-control" value="{{ $client->region ?? '' }}">
+                    <input type="text" name="region" class="form-control client-safe-text-input" value="{{ $client->region ?? '' }}" maxlength="80" autocomplete="address-level1" spellcheck="false">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_city') }}</label>
-                    <input type="text" name="city" class="form-control" value="{{ $client->city ?? '' }}">
+                    <input type="text" name="city" class="form-control client-safe-text-input" value="{{ $client->city ?? '' }}" maxlength="80" autocomplete="address-level2" spellcheck="false">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_nova_poshta') }}</label>
@@ -822,6 +822,33 @@
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
     }
 
+    function sanitizeClientSafeText(value) {
+        return String(value || '')
+            .replace(/[\u0000-\u001F\u007F<>[\]{}\\/=;:*|~^$#@!?%&+=]/g, '')
+            .replace(/[^\p{L}\p{M}\s.'’`-]/gu, '')
+            .replace(/\s{2,}/g, ' ')
+            .slice(0, 80);
+    }
+
+    function bindClientSafeTextInput(input) {
+        input.addEventListener('input', function() {
+            const selectionStart = input.selectionStart;
+            const selectionEnd = input.selectionEnd;
+            const nextValue = sanitizeClientSafeText(input.value);
+
+            if (nextValue === input.value) {
+                return;
+            }
+
+            input.value = nextValue;
+            if (selectionStart !== null && selectionEnd !== null) {
+                input.setSelectionRange(selectionStart, selectionEnd);
+            }
+        });
+    }
+
+    document.querySelectorAll('.client-safe-text-input').forEach(bindClientSafeTextInput);
+
     // Async email uniqueness check
     let emailCheckTimeout = null;
     let emailCheckPromise = null;
@@ -933,6 +960,10 @@
     if (form) {
         form.addEventListener('submit', function(e) {
             let hasErrors = false;
+
+            document.querySelectorAll('.client-safe-text-input').forEach(function(input) {
+                input.value = sanitizeClientSafeText(input.value);
+            });
 
             // Validate phone
             const phoneInput = document.getElementById('phone-input');

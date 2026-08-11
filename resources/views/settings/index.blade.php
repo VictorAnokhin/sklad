@@ -671,7 +671,7 @@
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label">Назва <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="project-name" maxlength="50" required>
+                            <input type="text" class="form-control settings-safe-text-input" id="project-name" maxlength="50" required spellcheck="false">
                         </div>
                         <div class="col-md-2 mb-3">
                             <label class="form-label">Тип проекта</label>
@@ -686,7 +686,7 @@
                         <div class="col-md-3 mb-3 position-relative">
                             <label class="form-label">Холдинг</label>
                             <div class="input-group">
-                                <input type="text" class="form-control" id="project-holding" autocomplete="off" placeholder="Введите или выберите">
+                                <input type="text" class="form-control settings-safe-text-input" id="project-holding" autocomplete="off" placeholder="Введите или выберите" maxlength="100" spellcheck="false">
                                 <button type="button" class="btn btn-outline-secondary" id="project-holding-toggle">▾</button>
                             </div>
                             <div class="project-holding-menu shadow-sm" id="project-holding-menu" hidden></div>
@@ -1014,14 +1014,14 @@
                                 <label for="form-office-city-search" class="form-label">Город</label>
                                 <input type="hidden" id="form-office-city-id">
                                 <div class="client-location-suggest">
-                                    <input type="text" class="form-control" id="form-office-city-search" placeholder="Начните вводить город" autocomplete="off">
+                                    <input type="text" class="form-control settings-safe-text-input" id="form-office-city-search" placeholder="Начните вводить город" autocomplete="off" maxlength="80" spellcheck="false">
                                     <div class="client-location-suggest__list" id="office-city-suggest"></div>
                                 </div>
                                 <div class="form-text">Выберите город из справочника городов.</div>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="form-address" class="form-label">Адреса</label>
-                                <input type="text" class="form-control" id="form-address" placeholder="Місто, вулиця, офіс">
+                                <input type="text" class="form-control settings-safe-text-input" id="form-address" placeholder="Місто, вулиця, офіс" maxlength="120" spellcheck="false">
                             </div>
                         </div>
                         <div class="mb-3">
@@ -1142,7 +1142,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Назва компанії <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="firm-name" required>
+                            <input type="text" class="form-control settings-safe-text-input" id="firm-name" required maxlength="100" spellcheck="false">
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label">ЄДРПОУ / RegNum</label>
@@ -1161,7 +1161,7 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Банк</label>
-                            <input type="text" class="form-control" id="firm-bank">
+                            <input type="text" class="form-control settings-safe-text-input" id="firm-bank" maxlength="50" spellcheck="false">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">МФО</label>
@@ -1172,7 +1172,7 @@
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Місто</label>
-                            <input type="text" class="form-control" id="firm-town">
+                            <input type="text" class="form-control settings-safe-text-input" id="firm-town" maxlength="25" spellcheck="false">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Телефон</label>
@@ -1180,13 +1180,13 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Тип / View</label>
-                            <input type="text" class="form-control" id="firm-view">
+                            <input type="text" class="form-control settings-safe-text-input" id="firm-view" maxlength="15" spellcheck="false">
                         </div>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Адреса</label>
-                        <input type="text" class="form-control" id="firm-address">
+                        <input type="text" class="form-control settings-safe-text-input" id="firm-address" maxlength="50" spellcheck="false">
                     </div>
 
                     <div class="mb-3">
@@ -1197,7 +1197,7 @@
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Директор</label>
-                            <input type="text" class="form-control" id="firm-direktor">
+                            <input type="text" class="form-control settings-safe-text-input" id="firm-direktor" maxlength="30" spellcheck="false">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Фото підпису</label>
@@ -1604,17 +1604,17 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label>Ім'я</label>
-                                    <input type="text" name="name" class="form-control" value="{{ $user->name ?? '' }}">
+                                    <input type="text" name="name" class="form-control settings-safe-text-input" value="{{ $user->name ?? '' }}" maxlength="80" autocomplete="given-name" spellcheck="false">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label>Прізвище</label>
-                                    <input type="text" name="secondname" class="form-control" value="{{ $user->secondname ?? '' }}">
+                                    <input type="text" name="secondname" class="form-control settings-safe-text-input" value="{{ $user->secondname ?? '' }}" maxlength="80" autocomplete="family-name" spellcheck="false">
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label>По батькові</label>
-                                    <input type="text" name="fathername" class="form-control" value="{{ $user->fathername ?? '' }}">
+                                    <input type="text" name="fathername" class="form-control settings-safe-text-input" value="{{ $user->fathername ?? '' }}" maxlength="80" autocomplete="additional-name" spellcheck="false">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label>Email</label>
@@ -1628,7 +1628,7 @@
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label>Місто</label>
-                                    <input type="text" name="city" class="form-control" value="{{ $user->city ?? '' }}">
+                                    <input type="text" name="city" class="form-control settings-safe-text-input" value="{{ $user->city ?? '' }}" maxlength="80" autocomplete="address-level2" spellcheck="false">
                                 </div>
                             </div>
                             <div class="row">
@@ -2408,6 +2408,41 @@ document.addEventListener('DOMContentLoaded', () => {
         return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8, 10)}-${digits.slice(10)}`;
     };
 
+    const sanitizeSettingsSafeText = (value, maxLength = 80) => String(value || '')
+        .replace(/[\u0000-\u001F\u007F<>[\]{}\\/=;:*|~^$#@!?%&+=]/g, '')
+        .replace(/[^\p{L}\p{M}\p{N}\s.,'’`"-]/gu, '')
+        .replace(/\s{2,}/g, ' ')
+        .slice(0, maxLength);
+
+    const bindSettingsSafeTextInput = (input) => {
+        input.addEventListener('input', function () {
+            const selectionStart = input.selectionStart;
+            const selectionEnd = input.selectionEnd;
+            const maxLength = Number(input.getAttribute('maxlength') || 80);
+            const nextValue = sanitizeSettingsSafeText(input.value, maxLength);
+
+            if (nextValue === input.value) {
+                return;
+            }
+
+            input.value = nextValue;
+            if (selectionStart !== null && selectionEnd !== null) {
+                input.setSelectionRange(selectionStart, selectionEnd);
+            }
+        });
+    };
+
+    document.querySelectorAll('.settings-safe-text-input').forEach(bindSettingsSafeTextInput);
+
+    document.querySelectorAll('#modalProfile form[action*="profile-update"]').forEach((form) => {
+        form.addEventListener('submit', () => {
+            form.querySelectorAll('.settings-safe-text-input').forEach((input) => {
+                const maxLength = Number(input.getAttribute('maxlength') || 80);
+                input.value = sanitizeSettingsSafeText(input.value, maxLength).trim();
+            });
+        });
+    });
+
     if (profilePhoneInput) {
         profilePhoneInput.value = formatSettingsPhoneInput(profilePhoneInput.value);
         profilePhoneInput.addEventListener('input', function () {
@@ -3081,6 +3116,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = document.getElementById('project-id').value;
             const payload = new FormData();
             payload.append('num', String(Number(document.getElementById('project-num').value || 0)));
+            document.getElementById('project-name').value = sanitizeSettingsSafeText(document.getElementById('project-name').value, 50).trim();
+            if (holdingInput) {
+                holdingInput.value = sanitizeSettingsSafeText(holdingInput.value, 100).trim();
+            }
+
             payload.append('name', document.getElementById('project-name').value.trim());
             payload.append('project_type', document.getElementById('project-type').value);
             payload.append('holding_name', holdingInput?.value.trim() || '');
@@ -3862,7 +3902,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = document.getElementById('form-id').value;
             const payload = {
                 type: currentType,
-                name: document.getElementById('form-name').value.trim(),
+                name: currentType === 'sklads'
+                    ? sanitizeSettingsSafeText(document.getElementById('form-name').value, 80).trim()
+                    : document.getElementById('form-name').value.trim(),
                 color: currentType === 'faq' ? '' : colorInput.value.trim(),
                 status: document.getElementById('form-status').value,
                 vision: currentType === 'sklads'
@@ -4549,6 +4591,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             formData.append('phone', phoneInput.value.trim());
             formData.append('city_id', officeCityIdInput.value.trim());
+            addressInput.value = sanitizeSettingsSafeText(addressInput.value, 120).trim();
             formData.append('address', addressInput.value.trim());
             formData.append('google_map', googleMapInput.value.trim());
             formData.append('foto', fotoExistingInput.value.trim());
@@ -6304,6 +6347,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         function collectFirmPayload() {
+            document.querySelectorAll('#firm-form .settings-safe-text-input').forEach((input) => {
+                const maxLength = Number(input.getAttribute('maxlength') || 80);
+                input.value = sanitizeSettingsSafeText(input.value, maxLength).trim();
+            });
+
             const payload = new FormData();
             payload.append('name', document.getElementById('firm-name').value.trim());
             payload.append('regnum', document.getElementById('firm-regnum').value.trim());

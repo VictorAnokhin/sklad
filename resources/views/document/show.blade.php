@@ -1327,11 +1327,11 @@
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Прізвище</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientSecondname">
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientSecondname" maxlength="80" autocomplete="family-name" spellcheck="false" data-client-safe-text>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Ім'я</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientName">
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientName" maxlength="80" autocomplete="given-name" spellcheck="false" data-client-safe-text>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Телефон</label>
@@ -1340,12 +1340,12 @@
                             </div>
                             <div class="col-12 col-md-6 client-modal-field client-location-suggest">
                                 <label class="form-label small mb-0">Місто</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientCity" autocomplete="off">
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientCity" maxlength="80" autocomplete="off" spellcheck="false" data-client-safe-text>
                                 <div id="newClientCityList" class="client-location-suggest__list"></div>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field client-location-suggest">
                                 <label class="form-label small mb-0">Область</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientRegion" autocomplete="off">
+                                <input type="text" class="form-control form-control-sm text-white" id="newClientRegion" maxlength="80" autocomplete="off" spellcheck="false" data-client-safe-text>
                                 <div id="newClientRegionList" class="client-location-suggest__list"></div>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
@@ -1749,6 +1749,11 @@
                 /(^|[\s\-'"`(])([a-zа-яёіїєґ])/giu,
                 (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`
             );
+            const sanitizeClientModalText = (value) => String(value || '')
+                .replace(/[\u0000-\u001F\u007F<>[\]{}\\/=;:*|~^$#@!?%&+=]/g, '')
+                .replace(/[^\p{L}\p{M}\s.'’`-]/gu, '')
+                .replace(/\s{2,}/g, ' ')
+                .slice(0, 80);
             const bindCapitalizedInput = (field) => {
                 if (!field) {
                     return;
@@ -1757,7 +1762,7 @@
                 field.addEventListener('input', () => {
                     const selectionStart = field.selectionStart;
                     const selectionEnd = field.selectionEnd;
-                    const nextValue = capitalizeTextWords(field.value);
+                    const nextValue = sanitizeClientModalText(capitalizeTextWords(field.value));
 
                     if (nextValue === field.value) {
                         return;
@@ -1771,7 +1776,7 @@
             };
             const applyCapitalizedValue = (field) => {
                 if (field) {
-                    field.value = capitalizeTextWords(field.value);
+                    field.value = sanitizeClientModalText(capitalizeTextWords(field.value));
                 }
             };
             [
