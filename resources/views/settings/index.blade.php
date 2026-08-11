@@ -15,7 +15,7 @@
     <div class="alert alert-error">{{ session('error') }}</div>
     @endif
 
-    <section class="settings-card-section">
+    <section class="settings-card-section settings-card-section--personal">
         <h3 class="settings-card-section__title">Мои данные</h3>
         <div class="row g-4">
             <div class="col-md-4">
@@ -72,7 +72,7 @@
         </div>
     </section>
 
-    <section class="settings-card-section">
+    <section class="settings-card-section settings-card-section--project">
         <h3 class="settings-card-section__title">Настройка проекта</h3>
         <div class="row g-4">
             <div class="col-md-4">
@@ -147,7 +147,7 @@
         </div>
     </section>
 
-    <section class="settings-card-section">
+    <section class="settings-card-section settings-card-section--site">
         <h3 class="settings-card-section__title">Для сайта</h3>
         <div class="row g-4">
             <div class="col-md-4">
@@ -202,7 +202,7 @@
         </div>
     </section>
 
-    <section class="settings-card-section">
+    <section class="settings-card-section settings-card-section--services">
         <h3 class="settings-card-section__title">Сервисы</h3>
         <div class="row g-4">
             <div class="col-md-4">
@@ -1881,6 +1881,23 @@
 
     .settings-card-section {
         margin-bottom: 28px;
+        --settings-section-border: rgba(148, 163, 184, 0.24);
+    }
+
+    .settings-card-section--personal {
+        --settings-section-border: rgba(96, 165, 250, 0.24);
+    }
+
+    .settings-card-section--project {
+        --settings-section-border: rgba(52, 211, 153, 0.22);
+    }
+
+    .settings-card-section--site {
+        --settings-section-border: rgba(251, 113, 133, 0.22);
+    }
+
+    .settings-card-section--services {
+        --settings-section-border: rgba(250, 204, 21, 0.22);
     }
 
     .settings-card-section__title {
@@ -1894,6 +1911,11 @@
 
     .setting-card {
         cursor: pointer;
+        border-color: var(--settings-section-border) !important;
+    }
+
+    .setting-card:hover {
+        border-color: color-mix(in srgb, var(--settings-section-border) 72%, #ffffff 28%) !important;
     }
 
     .btn-kb-tab {
