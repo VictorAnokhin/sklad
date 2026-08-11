@@ -1229,13 +1229,13 @@
                     <table class="table table-hover table-sm align-middle firm-compact-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Назва</th>
-                                <th>Телефон</th>
-                                <th>Місто</th>
-                                <th>Адреса</th>
-                                <th>Директор</th>
-                                <th class="text-end">Дії</th>
+                                <th class="firm-id-col">ID</th>
+                                <th class="firm-name-col">Назва</th>
+                                <th class="firm-phone-col">Телефон</th>
+                                <th class="firm-town-col">Місто</th>
+                                <th class="firm-address-col">Адреса</th>
+                                <th class="firm-director-col">Директор</th>
+                                <th class="text-end firm-actions-col">Дії</th>
                             </tr>
                         </thead>
                         <tbody id="firms-tbody"></tbody>
@@ -1957,6 +1957,7 @@
     .firm-compact-table {
         table-layout: fixed;
         font-size: 0.78rem;
+        min-width: 0;
     }
 
     .firm-compact-table th,
@@ -1981,9 +1982,41 @@
         white-space: nowrap;
     }
 
-    .firm-compact-table .firm-actions {
-        width: 76px;
+    .firm-compact-table .firm-id-col {
+        width: 44px;
+    }
+
+    .firm-compact-table .firm-name-col {
+        width: 25%;
+    }
+
+    .firm-compact-table .firm-phone-col {
+        width: 15%;
+    }
+
+    .firm-compact-table .firm-town-col {
+        width: 13%;
+    }
+
+    .firm-compact-table .firm-address-col {
+        width: 20%;
+    }
+
+    .firm-compact-table .firm-director-col {
+        width: 17%;
+    }
+
+    .firm-compact-table .firm-actions,
+    .firm-compact-table .firm-actions-col {
+        width: 42px;
         white-space: nowrap;
+    }
+
+    .firm-compact-table .firm-actions .btn {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        line-height: 1;
     }
 
     .firm-media-preview {
