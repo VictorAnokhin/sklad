@@ -15,200 +15,217 @@
     <div class="alert alert-error">{{ session('error') }}</div>
     @endif
 
-    <div class="row g-4">
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalProjects">
-                <div class="card-body text-center">
-                    <h5 class="card-title">📁 {{ __('settings.projects') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.projects_desc') }}</p>
-                    <span class="badge bg-primary" id="badge-projects">{{ $projectsCount ?? 0 }}</span>
+    <section class="settings-card-section">
+        <h3 class="settings-card-section__title">Мои данные</h3>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="glass-card h-100 border-primary setting-card" data-bs-toggle="modal" data-bs-target="#modalProfile">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">👤 {{ __('settings.cards.profile.title') }}</h5>
+                        <p class="card-text text-muted">{{ session('login', '') }}</p>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="status" data-title="📊 {{ __('settings.cards.statuses.modal_title') }}">
-                <div class="card-body text-center">
-                    <h5 class="card-title">📊 {{ __('settings.cards.statuses.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.statuses.description') }}</p>
-                    <span class="badge bg-success" id="badge-status">{{ count($statuses ?? []) }}</span>
+            <div class="col-md-4">
+                <div class="glass-card h-100 border-warning setting-card" data-bs-toggle="modal" data-bs-target="#modalFirms">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🏛 {{ __('settings.cards.my_companies.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.my_companies.description') }}</p>
+                        <span class="badge bg-warning text-dark" id="badge-firms">{{ count($myCompanies ?? []) }}</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="reestr" data-title="💳 {{ __('settings.cards.payment_types.modal_title') }}">
-                <div class="card-body text-center">
-                    <h5 class="card-title">💳 {{ __('settings.cards.payment_types.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.payment_types.description') }}</p>
-                    <span class="badge bg-info" id="badge-reestr">{{ count($reestrs ?? []) }}</span>
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalProjects">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">📁 {{ __('settings.projects') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.projects_desc') }}</p>
+                        <span class="badge bg-primary" id="badge-projects">{{ $projectsCount ?? 0 }}</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="asset_type" data-title="🏗 Типы активов">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🏗 Типы активов</h5>
-                    <p class="card-text text-muted">Оборудование, недвижимость, ценные бумаги, криптоактивы и R&D</p>
-                    <span class="badge bg-warning text-dark" id="badge-asset_type">{{ count($assetTypes ?? []) }}</span>
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="currency" data-title="💱 {{ __('settings.cards.currencies.modal_title') }}">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">💱 {{ __('settings.cards.currencies.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.currencies.description') }}</p>
+                        <span class="badge bg-info text-dark" id="badge-currency">{{ count($currencies ?? []) }}</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tgroup" data-title="👥 {{ __('settings.cards.client_type.modal_title') }}">
-                <div class="card-body text-center">
-                    <h5 class="card-title">👥 {{ __('settings.cards.client_type.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.client_type.description') }}</p>
-                    <span class="badge bg-secondary" id="badge-tgroup">{{ count($tgroups ?? []) }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tclient" data-title="🏷 {{ __('settings.cards.counterparty_type.modal_title') }}">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🏷 {{ __('settings.cards.counterparty_type.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.counterparty_type.description') }}</p>
-                    <span class="badge bg-dark" id="badge-tclient">{{ count($tclients ?? []) }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="oplata" data-title="💰 {{ __('settings.cards.cashbox.modal_title') }}">
-                <div class="card-body text-center">
-                    <h5 class="card-title">💰 {{ __('settings.cards.cashbox.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.cashbox.description') }}</p>
-                    <span class="badge bg-warning text-dark" id="badge-oplata">{{ count($oplatas ?? []) }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="currency" data-title="💱 {{ __('settings.cards.currencies.modal_title') }}">
-                <div class="card-body text-center">
-                    <h5 class="card-title">💱 {{ __('settings.cards.currencies.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.currencies.description') }}</p>
-                    <span class="badge bg-info text-dark" id="badge-currency">{{ count($currencies ?? []) }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="faq" data-title="❓ FAQ">
-                <div class="card-body text-center">
-                    <h5 class="card-title">❓ FAQ</h5>
-                    <p class="card-text text-muted">Вопросы и ответы для страниц сайта</p>
-                    <span class="badge bg-info text-dark" id="badge-faq">{{ count($faqs ?? []) }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="sklads" data-title="🏢 {{ __('settings.cards.offices.modal_title') }}">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🏢 {{ __('settings.cards.offices.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.offices.description') }}</p>
-                    <span class="badge bg-secondary" id="badge-sklads">{{ count($sklads ?? []) }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="deposit" data-title="🏦 {{ __('settings.cards.deposits.modal_title') }}">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🏦 {{ __('settings.cards.deposits.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.deposits.description') }}</p>
-                    <span class="badge bg-dark" id="badge-deposit">{{ count($deposits ?? []) }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog" data-field-mode="catalog">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🌐 {{ __('settings.catalog_directory') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.catalog_directory_desc') }}</p>
-                    <span class="badge bg-info text-dark" id="badge-catalog">{{ $fieldCatalogTopCount ?? 0 }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog" data-field-mode="city">
-                <div class="card-body text-center">
-                    <h5 class="card-title">📍 {{ __('settings.regions_cities') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.regions_cities_desc') }}</p>
-                    <span class="badge bg-info text-dark" id="badge-city">{{ $fieldCityCount ?? 0 }}</span>
-                    <div class="small text-muted mt-2">
-                        {{ __('settings.catalog.regions_count') }}
+            <div class="col-md-4">
+                <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog" data-field-mode="city">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">📍 {{ __('settings.regions_cities') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.regions_cities_desc') }}</p>
+                        <span class="badge bg-info text-dark" id="badge-city">{{ $fieldCityCount ?? 0 }}</span>
+                        <div class="small text-muted mt-2">
+                            {{ __('settings.catalog.regions_count') }}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+    </section>
 
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalogFilters">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🔎 {{ __('settings.cards.catalog_filters.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.catalog_filters.description') }}</p>
-                    <span class="badge bg-primary" id="badge-catalog-filters">{{ $catalogFiltersGroupCount ?? 0 }}</span>
+    <section class="settings-card-section">
+        <h3 class="settings-card-section__title">Настройка проекта</h3>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="status" data-title="📊 {{ __('settings.cards.statuses.modal_title') }}">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">📊 {{ __('settings.cards.statuses.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.statuses.description') }}</p>
+                        <span class="badge bg-success" id="badge-status">{{ count($statuses ?? []) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="reestr" data-title="💳 {{ __('settings.cards.payment_types.modal_title') }}">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">💳 {{ __('settings.cards.payment_types.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.payment_types.description') }}</p>
+                        <span class="badge bg-info" id="badge-reestr">{{ count($reestrs ?? []) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tgroup" data-title="👥 {{ __('settings.cards.client_type.modal_title') }}">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">👥 {{ __('settings.cards.client_type.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.client_type.description') }}</p>
+                        <span class="badge bg-secondary" id="badge-tgroup">{{ count($tgroups ?? []) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="tclient" data-title="🏷 {{ __('settings.cards.counterparty_type.modal_title') }}">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🏷 {{ __('settings.cards.counterparty_type.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.counterparty_type.description') }}</p>
+                        <span class="badge bg-dark" id="badge-tclient">{{ count($tclients ?? []) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="oplata" data-title="💰 {{ __('settings.cards.cashbox.modal_title') }}">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">💰 {{ __('settings.cards.cashbox.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.cashbox.description') }}</p>
+                        <span class="badge bg-warning text-dark" id="badge-oplata">{{ count($oplatas ?? []) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="deposit" data-title="🏦 {{ __('settings.cards.deposits.modal_title') }}">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🏦 {{ __('settings.cards.deposits.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.deposits.description') }}</p>
+                        <span class="badge bg-dark" id="badge-deposit">{{ count($deposits ?? []) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalog" data-field-mode="catalog">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🌐 {{ __('settings.catalog_directory') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.catalog_directory_desc') }}</p>
+                        <span class="badge bg-info text-dark" id="badge-catalog">{{ $fieldCatalogTopCount ?? 0 }}</span>
+                    </div>
                 </div>
             </div>
         </div>
+    </section>
 
-        <div class="col-md-4">
-            <div class="glass-card h-100 border-primary setting-card" data-bs-toggle="modal" data-bs-target="#modalProfile">
-                <div class="card-body text-center">
-                    <h5 class="card-title">👤 {{ __('settings.cards.profile.title') }}</h5>
-                    <p class="card-text text-muted">{{ session('login', '') }}</p>
+    <section class="settings-card-section">
+        <h3 class="settings-card-section__title">Для сайта</h3>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="sklads" data-title="🏢 {{ __('settings.cards.offices.modal_title') }}">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🏢 {{ __('settings.cards.offices.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.offices.description') }}</p>
+                        <span class="badge bg-secondary" id="badge-sklads">{{ count($sklads ?? []) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCatalogFilters">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🔎 {{ __('settings.cards.catalog_filters.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.catalog_filters.description') }}</p>
+                        <span class="badge bg-primary" id="badge-catalog-filters">{{ $catalogFiltersGroupCount ?? 0 }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="faq" data-title="❓ FAQ">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">❓ FAQ</h5>
+                        <p class="card-text text-muted">Вопросы и ответы для страниц сайта</p>
+                        <span class="badge bg-info text-dark" id="badge-faq">{{ count($faqs ?? []) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 border-danger setting-card" data-bs-toggle="modal" data-bs-target="#modalBanners">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🎞 {{ __('settings.cards.banner_carousel.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.banner_carousel.description') }}</p>
+                        <span class="badge bg-danger" id="badge-banners">{{ $bannerCarouselCount ?? 0 }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalKnowledgeBase" style="border-color: #a5b4fc;">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🧠 {{ __('settings.cards.knowledge_base.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.knowledge_base.description') }}</p>
+                        <span class="badge" style="background:#a5b4fc;color:#020617;" id="badge-knowledge-base">{{ $knowledgeBaseCount ?? 0 }}</span>
+                    </div>
                 </div>
             </div>
         </div>
+    </section>
 
-        <div class="col-md-4">
-            <div class="glass-card h-100 border-warning setting-card" data-bs-toggle="modal" data-bs-target="#modalFirms">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🏛 {{ __('settings.cards.my_companies.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.my_companies.description') }}</p>
-                    <span class="badge bg-warning text-dark" id="badge-firms">{{ count($myCompanies ?? []) }}</span>
+    <section class="settings-card-section">
+        <h3 class="settings-card-section__title">Сервисы</h3>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="glass-card h-100 border-success setting-card" data-bs-toggle="modal" data-bs-target="#modalAccounts">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">📚 {{ __('settings.cards.chart_of_accounts.title') }}</h5>
+                        <p class="card-text text-muted">{{ __('settings.cards.chart_of_accounts.description') }}</p>
+                        <span class="badge bg-success" id="badge-accounts">{{ $accountsCount ?? 0 }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="asset_type" data-title="🏗 Типы активов">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🏗 Типы активов</h5>
+                        <p class="card-text text-muted">Оборудование, недвижимость, ценные бумаги, криптоактивы и R&D</p>
+                        <span class="badge bg-warning text-dark" id="badge-asset_type">{{ count($assetTypes ?? []) }}</span>
+                    </div>
                 </div>
             </div>
         </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 border-danger setting-card" data-bs-toggle="modal" data-bs-target="#modalBanners">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🎞 {{ __('settings.cards.banner_carousel.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.banner_carousel.description') }}</p>
-                    <span class="badge bg-danger" id="badge-banners">{{ $bannerCarouselCount ?? 0 }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 border-success setting-card" data-bs-toggle="modal" data-bs-target="#modalAccounts">
-                <div class="card-body text-center">
-                    <h5 class="card-title">📚 {{ __('settings.cards.chart_of_accounts.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.chart_of_accounts.description') }}</p>
-                    <span class="badge bg-success" id="badge-accounts">{{ $accountsCount ?? 0 }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalKnowledgeBase" style="border-color: #a5b4fc;">
-                <div class="card-body text-center">
-                    <h5 class="card-title">🧠 {{ __('settings.cards.knowledge_base.title') }}</h5>
-                    <p class="card-text text-muted">{{ __('settings.cards.knowledge_base.description') }}</p>
-                    <span class="badge" style="background:#a5b4fc;color:#020617;" id="badge-knowledge-base">{{ $knowledgeBaseCount ?? 0 }}</span>
-                </div>
-            </div>
-        </div>
-
-    </div>
+    </section>
 </div>
 
 <div class="modal fade" id="modalAccounts" tabindex="-1" aria-labelledby="modalAccountsLabel" aria-hidden="true">
@@ -1822,6 +1839,19 @@
     .kb-category-actions-col {
         width: 10%;
         white-space: nowrap;
+    }
+
+    .settings-card-section {
+        margin-bottom: 28px;
+    }
+
+    .settings-card-section__title {
+        color: #fff;
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 0 0 14px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
     }
 
     .setting-card {
