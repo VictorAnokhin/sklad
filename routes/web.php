@@ -70,7 +70,6 @@ Route::get('/about', function () {
     return view('pages.about', compact('projects'));
 })->name('about');
 Route::get('/team', [TeamController::class, 'index'])->name('team');
-Route::get('/wallet', [WalletController::class, 'page'])->name('wallet');
 Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name('wallet.swap-window');
 
 // ── Protected area ────────────────────────────────────────────────────────────
@@ -401,6 +400,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/', [MoneyController::class , 'index'])->name('index');
             Route::get('/transfers', [MoneyController::class , 'transfers'])->name('transfers');
             Route::get('/show', [MoneyController::class , 'show'])->name('show');
+            Route::get('/swap', [MoneyController::class , 'swap'])->name('swap');
             Route::post('/save', [MoneyController::class , 'save'])->name('save');
             Route::post('/provodka', [MoneyController::class , 'provodka'])->name('provodka');
             Route::post('/delete', [MoneyController::class , 'destroy'])->name('destroy');

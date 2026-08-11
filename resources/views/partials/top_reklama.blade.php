@@ -233,7 +233,6 @@
       <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
       <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
       <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
-      <a class="header-nav-menu__link" href="{{ route('wallet') }}">Кошелек</a>
     </div>
 
     @if($isBankProject)

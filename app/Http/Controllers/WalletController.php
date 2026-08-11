@@ -107,17 +107,6 @@ class WalletController extends Controller
         $this->oneInchSwapService = $oneInchSwapService;
     }
 
-    public function page()
-    {
-        $query = $this->web3TokensQuery();
-        $web3Tokens = $query->get();
-        $web3Catalog = $this->buildWeb3CatalogFromCollection($web3Tokens);
-        $profileWallets = $this->resolveProfileWallets();
-        $profileWallet = $profileWallets[0] ?? null;
-
-        return view('pages.wallet', compact('web3Tokens', 'web3Catalog', 'profileWallet', 'profileWallets'));
-    }
-
     public function protocols(Request $request)
     {
         $validated = $request->validate([

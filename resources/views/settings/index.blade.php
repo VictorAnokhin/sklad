@@ -1657,6 +1657,9 @@
                         <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profileTab" type="button" role="tab">📝 Дані</button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="profile-web3-tab" data-bs-toggle="tab" data-bs-target="#profileWeb3Tab" type="button" role="tab">WEB3</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="password-tab" data-bs-toggle="tab" data-bs-target="#passwordTab" type="button" role="tab">🔑 Пароль</button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -1710,50 +1713,53 @@
                                     <input type="text" class="form-control" value="{{ $currentCounterpartyType->name ?? 'Не вказано' }}" readonly>
                                 </div>
                             </div>
-                            <div class="wallet-link-card mb-4">
-                                <div class="wallet-link-header">
-                                    <div>
-                                        <div class="wallet-link-eyebrow">WEB3</div>
-                                        <h6 class="wallet-link-title mb-1">Прив'язка адреси гаманця</h6>
-                                        <p class="wallet-link-text mb-0">Після прив'язки EVM або Solana гаманець зможе входити через Web3 і буде асоційований з вашим контрагентом.</p>
-                                    </div>
-                                </div>
-                                <div class="wallet-link-state">
-                                    <div class="wallet-link-meta">
-                                        <span class="wallet-link-label">Поточний статус</span>
-                                        <strong id="wallet-status-badge" class="wallet-status-badge {{ ($userWallets->count() ?? 0) > 0 ? 'is-linked' : 'is-empty' }}">
-                                            {{ ($userWallets->count() ?? 0) > 0 ? 'Гаманці прив’язані' : 'Гаманці не прив’язані' }}
-                                        </strong>
-                                    </div>
-                                    <div class="wallet-link-meta">
-                                        <span class="wallet-link-label">Кількість</span>
-                                        <span id="wallet-count">{{ $userWallets->count() }}</span>
-                                    </div>
-                                    <div class="wallet-link-meta">
-                                        <span class="wallet-link-label">Остання мережа</span>
-                                        <span id="wallet-linked-network">{{ optional($userWallets->first())->network ?? ($user->wallet_network ?? '—') }}</span>
-                                    </div>
-                                </div>
-                                <div id="wallet-list" class="wallet-list">
-                                    @forelse($userWallets as $wallet)
-                                    <div class="wallet-list-item" data-wallet-address="{{ $wallet->address }}">
-                                        <div class="wallet-list-main">
-                                            <code title="{{ $wallet->address }}">{{ $wallet->address }}</code>
-                                            <span class="wallet-list-network">{{ $wallet->network ?: 'Мережа не вказана' }}</span>
-                                        </div>
-                                        <button type="button" class="btn btn-sm btn-outline-danger wallet-remove-btn" data-address="{{ $wallet->address }}">Відв’язати</button>
-                                    </div>
-                                    @empty
-                                    <p id="wallet-list-empty" class="wallet-list-empty mb-0">Ще не прив’язано жодного гаманця.</p>
-                                    @endforelse
-                                </div>
-                                <div class="wallet-link-actions">
-                                    <button type="button" class="btn btn-warning" id="wallet-connect-btn">Додати гаманець</button>
-                                </div>
-                                <p id="wallet-link-feedback" class="wallet-link-feedback" style="display:none;"></p>
-                            </div>
                             <button type="submit" class="btn btn-primary">💾 Зберегти дані</button>
                         </form>
+                    </div>
+
+                    <div class="tab-pane fade" id="profileWeb3Tab">
+                        <div class="wallet-link-card mb-4">
+                            <div class="wallet-link-header">
+                                <div>
+                                    <div class="wallet-link-eyebrow">WEB3</div>
+                                    <h6 class="wallet-link-title mb-1">Прив'язка адреси гаманця</h6>
+                                    <p class="wallet-link-text mb-0">Після прив'язки EVM або Solana гаманець зможе входити через Web3 і буде асоційований з вашим контрагентом.</p>
+                                </div>
+                            </div>
+                            <div class="wallet-link-state">
+                                <div class="wallet-link-meta">
+                                    <span class="wallet-link-label">Поточний статус</span>
+                                    <strong id="wallet-status-badge" class="wallet-status-badge {{ ($userWallets->count() ?? 0) > 0 ? 'is-linked' : 'is-empty' }}">
+                                        {{ ($userWallets->count() ?? 0) > 0 ? 'Гаманці прив’язані' : 'Гаманці не прив’язані' }}
+                                    </strong>
+                                </div>
+                                <div class="wallet-link-meta">
+                                    <span class="wallet-link-label">Кількість</span>
+                                    <span id="wallet-count">{{ $userWallets->count() }}</span>
+                                </div>
+                                <div class="wallet-link-meta">
+                                    <span class="wallet-link-label">Остання мережа</span>
+                                    <span id="wallet-linked-network">{{ optional($userWallets->first())->network ?? ($user->wallet_network ?? '—') }}</span>
+                                </div>
+                            </div>
+                            <div id="wallet-list" class="wallet-list">
+                                @forelse($userWallets as $wallet)
+                                <div class="wallet-list-item" data-wallet-address="{{ $wallet->address }}">
+                                    <div class="wallet-list-main">
+                                        <code title="{{ $wallet->address }}">{{ $wallet->address }}</code>
+                                        <span class="wallet-list-network">{{ $wallet->network ?: 'Мережа не вказана' }}</span>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger wallet-remove-btn" data-address="{{ $wallet->address }}">Відв’язати</button>
+                                </div>
+                                @empty
+                                <p id="wallet-list-empty" class="wallet-list-empty mb-0">Ще не прив’язано жодного гаманця.</p>
+                                @endforelse
+                            </div>
+                            <div class="wallet-link-actions">
+                                <button type="button" class="btn btn-warning" id="wallet-connect-btn">Додати гаманець</button>
+                            </div>
+                            <p id="wallet-link-feedback" class="wallet-link-feedback" style="display:none;"></p>
+                        </div>
                     </div>
 
                     <div class="tab-pane fade" id="passwordTab">

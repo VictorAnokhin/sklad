@@ -184,6 +184,11 @@ class MoneyController extends Controller
         return view('money.show', compact('document', 'reestrList', 'returnFilters', 'tab', 'clientStatuses', 'ownerBalances'));
     }
 
+    public function swap()
+    {
+        return view('money.swap');
+    }
+
     public function save(Request $request)
     {
         $fid = session('fid', '');

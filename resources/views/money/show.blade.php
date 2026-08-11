@@ -7,6 +7,7 @@
     $activeTab = ($tab ?? 'orders') === 'transfers' ? 'transfers' : 'orders';
     $indexRouteName = $indexRouteName ?? ($activeTab === 'transfers' ? 'money.transfers' : 'money.index');
     $showRouteName = $showRouteName ?? 'money.show';
+    $cryptoSwapUrl = route('money.swap');
 @endphp
 
 @include('money.partials.top-actions', ['returnFilters' => $returnFilters ?? [], 'tab' => $activeTab, 'indexRouteName' => $indexRouteName, 'showRouteName' => $showRouteName])
@@ -128,6 +129,7 @@
 
         <div class="d-flex gap-2 align-items-center flex-wrap">
             <a href="{{ $backUrl }}" class="btn btn-outline-secondary">← {{ __('money.btn_back') }}</a>
+            <a href="{{ $cryptoSwapUrl }}" class="btn btn-warning">💱 Крипто-обмен</a>
             @if((int)($document->provodka ?? 0) === 1)
             <button type="submit" formaction="{{ route('money.provodka') }}" formmethod="post" class="btn btn-success">
                 ↺ {{ __('money.btn_unpost') }}
@@ -400,6 +402,7 @@
 
         <div class="d-flex gap-2 align-items-center flex-wrap">
             <a href="{{ $backUrl }}" class="btn btn-outline-secondary">← {{ __('money.btn_back') }}</a>
+            <a href="{{ $cryptoSwapUrl }}" class="btn btn-warning">💱 Крипто-обмен</a>
             @if((int)($document->provodka ?? 0) === 1)
             <button type="submit" formaction="{{ route('money.provodka') }}" formmethod="post" class="btn btn-success">
                 ↺ {{ __('money.btn_unpost') }}
@@ -759,6 +762,7 @@
 
         <div class="d-flex gap-2 align-items-center flex-wrap">
             <a href="{{ $backUrl }}" class="btn btn-outline-secondary">← {{ __('money.btn_back') }}</a>
+            <a href="{{ $cryptoSwapUrl }}" class="btn btn-warning">💱 Крипто-обмен</a>
             @if((int)($document->provodka ?? 0) === 1)
             <button type="submit" formaction="{{ route('money.provodka') }}" formmethod="post" class="btn btn-success">
                 ↺ {{ __('money.btn_unpost') }}

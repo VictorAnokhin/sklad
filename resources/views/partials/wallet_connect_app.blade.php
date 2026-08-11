@@ -1,4 +1,4 @@
-{{-- Web3 modal + window.appWallet: кнопка входа — на странице «Кошелек». --}}
+{{-- Web3 modal + window.appWallet: подключение кошелька в интерфейсе профиля. --}}
 <div class="modal fade" id="wallet-connect-modal" tabindex="-1" aria-labelledby="wallet-connect-modal-title" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered wallet-modal-dialog">
     <div class="modal-content wallet-modal-content">
@@ -180,8 +180,8 @@
     const web3LoginUrl = '{{ route('web3.login') }}';
     const walletLinkChallengeUrl = '{{ route('wallet.challenge') }}';
     const walletLinkUrl = '{{ route('wallet.link') }}';
-    const walletPageUrl = '{{ route('wallet') }}';
     const dashboardUrl = '{{ route('dashboard') }}';
+    const walletPageUrl = dashboardUrl;
     const stateListeners = new Set();
     const eip6963Providers = new Map();
     const KNOWN_WALLETS = [
@@ -832,7 +832,7 @@
           window.location.href = dashboardUrl;
         }, 250);
       } else if (!loginResult.skipped) {
-        setWalletModalStatus('Кошелек подключен, но адрес пока не привязан к аккаунту. Можно продолжить работу на странице кошелька.', 'info');
+        setWalletModalStatus('Кошелек подключен, но адрес пока не привязан к аккаунту.', 'info');
       } else {
         setWalletModalStatus(linkResult.linked ? 'Кошелек подключен и добавлен к аккаунту.' : 'Кошелек подключен.', 'success');
       }
