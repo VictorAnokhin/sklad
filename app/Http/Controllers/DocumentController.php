@@ -2343,6 +2343,10 @@ class DocumentController extends Controller
                 $wasSmsFlagEnabled = false;
 
                 if ($doc === 'ZOUT') {
+                    if ($request->boolean('sms_flag') && ! $this->canAttemptOrderTtnSms($request)) {
+                        $request->merge(['sms_flag' => '0']);
+                    }
+
                     $wasSmsFlagEnabled = (string) DB::table(Document::tableForType($doc))
                         ->where('id', $docId)
                         ->where('firma', $fid)
@@ -2455,6 +2459,12 @@ class DocumentController extends Controller
         }
 
         return redirect()->back();
+    }
+
+    private function canAttemptOrderTtnSms(Request $request): bool
+    {
+        return trim((string) $request->input('ttn', '')) !== ''
+            && (int) $request->input('client1', 0) > 0;
     }
 
     // ── Provodka ──────────────────────────────────────────────────────────────

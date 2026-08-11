@@ -18,7 +18,7 @@ class SmsClubService
     public function sendOtp(string $phone, string $message): array
     {
         $token = $this->apiToken();
-        $sender = trim((string) config('services.smsclub.sender', ''));
+        $sender = trim((string) config('services.smsclub.sender', 'av8fund'));
         $endpoint = trim((string) config('services.smsclub.endpoint', 'https://im.smsclub.mobi/sms/send'));
 
         if ($token === '') {

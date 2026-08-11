@@ -17,11 +17,6 @@ use Illuminate\Support\Facades\Schema;
  */
 class DocumentService
 {
-    public function __construct(
-        private readonly SmsClubService $smsClub,
-    ) {
-    }
-
     // ── Save document header ──────────────────────────────────────────────────
 
     public function saveHead(Request $request, string $docId, string $docType, string $fid): void
@@ -201,11 +196,6 @@ class DocumentService
             Document::refreshUserCache((string)$client1, $fid, $data['currency_from'] ?? null);
         }
 
-        // ── Notifications ─────────────────────────────────────────────────────
-        $smsFlag = $data['sms_flag'];
-        if ($smsFlag === '1') {
-            $this->sendSms($docId, $docType, $fid, $request);
-        }
     }
 
     // ── Save z_body rows ──────────────────────────────────────────────────────
@@ -470,29 +460,6 @@ class DocumentService
         $currency = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $value) ?? '');
 
         return $currency !== '' ? substr($currency, 0, 10) : $default;
-    }
-
-    // ── SMS (smsclub.mobi) ────────────────────────────────────────────────────
-
-    private function sendSms(string $docId, string $docType, string $fid, Request $request): void
-    {
-        $phone = DB::table('document as d')
-            ->join('users', 'users.id', '=', 'd.client1')
-            ->where('d.id', $docId)
-            ->value('users.phone');
-        if (!$phone)
-            return;
-
-        $text = $request->input('sms_text', '');
-        if ($text === '')
-            return;
-
-        try {
-            $this->smsClub->sendOtp($phone, $text);
-        }
-        catch (\Throwable $e) {
-            Log::warning('SMS failed', ['phone' => $phone, 'error' => $e->getMessage()]);
-        }
     }
 
 }
