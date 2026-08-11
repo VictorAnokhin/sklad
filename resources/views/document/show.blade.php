@@ -215,6 +215,15 @@
             min-height: 42px;
         }
 
+        .client-modal-char-counter {
+            min-width: 42px;
+            justify-content: center;
+            font-size: 0.68rem;
+            color: #9ca3af;
+            padding-left: 0.35rem;
+            padding-right: 0.35rem;
+        }
+
         .client-location-suggest {
             position: relative;
         }
@@ -1327,11 +1336,17 @@
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Прізвище</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientSecondname" maxlength="80" autocomplete="family-name" spellcheck="false" data-client-safe-text>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control form-control-sm text-white" id="newClientSecondname" maxlength="30" autocomplete="family-name" spellcheck="false" data-client-safe-text>
+                                    <span class="input-group-text client-modal-char-counter" data-client-modal-counter-for="newClientSecondname">0/30</span>
+                                </div>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Ім'я</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientName" maxlength="80" autocomplete="given-name" spellcheck="false" data-client-safe-text>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control form-control-sm text-white" id="newClientName" maxlength="30" autocomplete="given-name" spellcheck="false" data-client-safe-text>
+                                    <span class="input-group-text client-modal-char-counter" data-client-modal-counter-for="newClientName">0/30</span>
+                                </div>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
                                 <label class="form-label small mb-0">Телефон</label>
@@ -1340,12 +1355,18 @@
                             </div>
                             <div class="col-12 col-md-6 client-modal-field client-location-suggest">
                                 <label class="form-label small mb-0">Місто</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientCity" maxlength="80" autocomplete="off" spellcheck="false" data-client-safe-text>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control form-control-sm text-white" id="newClientCity" maxlength="30" autocomplete="off" spellcheck="false" data-client-safe-text>
+                                    <span class="input-group-text client-modal-char-counter" data-client-modal-counter-for="newClientCity">0/30</span>
+                                </div>
                                 <div id="newClientCityList" class="client-location-suggest__list"></div>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field client-location-suggest">
                                 <label class="form-label small mb-0">Область</label>
-                                <input type="text" class="form-control form-control-sm text-white" id="newClientRegion" maxlength="80" autocomplete="off" spellcheck="false" data-client-safe-text>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control form-control-sm text-white" id="newClientRegion" maxlength="30" autocomplete="off" spellcheck="false" data-client-safe-text>
+                                    <span class="input-group-text client-modal-char-counter" data-client-modal-counter-for="newClientRegion">0/30</span>
+                                </div>
                                 <div id="newClientRegionList" class="client-location-suggest__list"></div>
                             </div>
                             <div class="col-12 col-md-6 client-modal-field">
@@ -1749,22 +1770,37 @@
                 /(^|[\s\-'"`(])([a-zа-яёіїєґ])/giu,
                 (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`
             );
-            const sanitizeClientModalText = (value) => String(value || '')
+            const sanitizeClientModalText = (value, maxLength = 80) => String(value || '')
                 .replace(/[\u0000-\u001F\u007F<>[\]{}\\/=;:*|~^$#@!?%&+=]/g, '')
                 .replace(/[^\p{L}\p{M}\s.'’`-]/gu, '')
                 .replace(/\s{2,}/g, ' ')
-                .slice(0, 80);
+                .slice(0, maxLength);
+            const updateClientModalCharCounter = (field) => {
+                if (!field) {
+                    return;
+                }
+
+                const maxLength = Number(field.getAttribute('maxlength') || 30);
+                const counter = document.querySelector(`[data-client-modal-counter-for="${field.id}"]`);
+                if (counter) {
+                    counter.textContent = `${field.value.length}/${maxLength}`;
+                }
+            };
             const bindCapitalizedInput = (field) => {
                 if (!field) {
                     return;
                 }
 
+                updateClientModalCharCounter(field);
+
                 field.addEventListener('input', () => {
                     const selectionStart = field.selectionStart;
                     const selectionEnd = field.selectionEnd;
-                    const nextValue = sanitizeClientModalText(capitalizeTextWords(field.value));
+                    const maxLength = Number(field.getAttribute('maxlength') || 80);
+                    const nextValue = sanitizeClientModalText(capitalizeTextWords(field.value), maxLength);
 
                     if (nextValue === field.value) {
+                        updateClientModalCharCounter(field);
                         return;
                     }
 
@@ -1772,11 +1808,14 @@
                     if (selectionStart !== null && selectionEnd !== null) {
                         field.setSelectionRange(selectionStart, selectionEnd);
                     }
+                    updateClientModalCharCounter(field);
                 });
             };
             const applyCapitalizedValue = (field) => {
                 if (field) {
-                    field.value = sanitizeClientModalText(capitalizeTextWords(field.value));
+                    const maxLength = Number(field.getAttribute('maxlength') || 80);
+                    field.value = sanitizeClientModalText(capitalizeTextWords(field.value), maxLength);
+                    updateClientModalCharCounter(field);
                 }
             };
             [
@@ -1788,6 +1827,9 @@
                 newClientRegionField,
                 document.getElementById('newClientPoshta'),
             ].forEach(bindCapitalizedInput);
+            const refreshClientModalCounters = () => {
+                document.querySelectorAll('[data-client-safe-text]').forEach(updateClientModalCharCounter);
+            };
             const regionDisplayName = (region) => region?.name || region?.name_ua || region?.name_ru || region?.name_en || '';
             const cityDisplayName = (city) => city?.val || city?.valru || city?.valen || '';
             const cityMatchesQuery = (city, query) => {
@@ -1813,6 +1855,8 @@
                 const selectedCity = clientCitiesCache.find((city) => normalizeLocationName(city.name) === cityName);
                 if (selectedCity) {
                     newClientRegionField.value = selectedCity.region_name || newClientRegionField.value;
+                    applyCapitalizedValue(newClientRegionField);
+                    refreshClientModalCounters();
                 }
             };
             const renderClientCityOptions = () => {
@@ -2012,6 +2056,8 @@
 
                     newClientCityField.value = button.dataset.city || '';
                     newClientRegionField.value = button.dataset.regionName || newClientRegionField.value;
+                    [newClientCityField, newClientRegionField].forEach(applyCapitalizedValue);
+                    refreshClientModalCounters();
                     hideClientLocationOptions();
                 });
             }
@@ -2032,6 +2078,8 @@
                     }
 
                     newClientRegionField.value = button.dataset.regionName || '';
+                    applyCapitalizedValue(newClientRegionField);
+                    refreshClientModalCounters();
                     hideClientLocationOptions();
                 });
             }
@@ -2063,6 +2111,7 @@
                     document.getElementById('newClientPoshta').value = '';
                     document.getElementById('newClientStatus').value = '';
                     document.getElementById('newClientError').style.display = 'none';
+                    refreshClientModalCounters();
                 });
             }
 
@@ -2081,6 +2130,8 @@
                     document.getElementById('newClientPoshta').value = client1Id.dataset.poshta || '';
                     document.getElementById('newClientStatus').value = client1Id.dataset.status || '';
                     document.getElementById('newClientError').style.display = 'none';
+                    [document.getElementById('newClientName'), document.getElementById('newClientSecondname'), document.getElementById('newClientCity'), document.getElementById('newClientRegion')].forEach(applyCapitalizedValue);
+                    refreshClientModalCounters();
                     // Trigger format
                     newClientPhoneField.dispatchEvent(new Event('input'));
                 });

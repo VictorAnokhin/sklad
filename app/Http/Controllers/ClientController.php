@@ -299,7 +299,7 @@ class ClientController extends Controller
     private function safeQuickClientText(Request $request, string $field, string $label): string
     {
         $value = preg_replace('/\s+/u', ' ', trim(strip_tags((string) ($request->input($field) ?? ''))));
-        $value = mb_substr((string) $value, 0, 80);
+        $value = mb_substr((string) $value, 0, 30);
 
         if ($value !== '' && preg_match('/[<>{}\[\]\\\\\/=;:*|~^$#@!?%&+]/u', $value)) {
             throw ValidationException::withMessages([

@@ -1883,13 +1883,13 @@ class GoodsController extends Controller
             'constanta' => (int) $request->input('constanta', 0),
             'top' => (int) $request->input('top', 0),
             'firma' => $request->input('firma', $fid),
-            'nickname' => $request->input('nickname', ''),
-            'namedoc' => $request->input('name_doc', ''),
+            'nickname' => $this->safeGoodsText($request->input('nickname', ''), 'Код', 60),
+            'namedoc' => $this->safeGoodsText($request->input('name_doc', ''), 'Назва документа', 120),
             'pay1' => (float) $request->input('pay1', 0),
             'pay' => (float) $request->input('pay', 0),
             'profitpay' => (float) $request->input('profitpay', 0),
             'sklad' => (int) $request->input('sklad', 0),
-            'garant' => $request->input('garant', ''),
+            'garant' => $this->safeGoodsText($request->input('garant', ''), 'Гарантія', 60),
             'htmldescr' => $request->input('htmldescr', ''),
             'htmlkeys' => $request->input('htmlkeys', ''),
             'htmlkeyspop' => $request->input('htmlkeyspop', ''),
@@ -1899,12 +1899,12 @@ class GoodsController extends Controller
 
         // ── Descript data
         $descData = [
-            'name' => $request->input('name_client_ru', ''),
-            'name_ua' => $request->input('name_client_ua', ''),
-            'name_en' => $request->input('name_client_en', ''),
-            'description' => $request->input('description_ru', ''),
-            'description_ua' => $request->input('description_ua', ''),
-            'description_en' => $request->input('description_en', ''),
+            'name' => $this->safeGoodsText($request->input('name_client_ru', ''), 'Назва RU', 120),
+            'name_ua' => $this->safeGoodsText($request->input('name_client_ua', ''), 'Назва UA', 120),
+            'name_en' => $this->safeGoodsText($request->input('name_client_en', ''), 'Назва EN', 120),
+            'description' => $this->safeGoodsText($request->input('description_ru', ''), 'Опис RU', 1000),
+            'description_ua' => $this->safeGoodsText($request->input('description_ua', ''), 'Опис UA', 1000),
+            'description_en' => $this->safeGoodsText($request->input('description_en', ''), 'Опис EN', 1000),
             'web' => $request->input('web', '0'),
             'descript' => $request->input('descript', 0),
             'descript2' => $request->input('descript2', 0),
@@ -1916,6 +1916,21 @@ class GoodsController extends Controller
         $pnum = Goods::saveGoods($pnum, $fid, $compData, $priceRows, $descData, $fotoMap);
 
         return redirect()->route('goods.show', ['pnum' => $pnum])->with('success', 'Збережено');
+    }
+
+    private function safeGoodsText(mixed $value, string $label, int $maxLength): string
+    {
+        $raw = trim((string) ($value ?? ''));
+
+        if ($raw !== '' && preg_match('/[\x00-\x1F\x7F<>]/u', $raw)) {
+            throw ValidationException::withMessages([
+                $label => $label . ': недопустимі символи.',
+            ]);
+        }
+
+        $text = preg_replace('/\s+/u', ' ', trim(strip_tags($raw)));
+
+        return mb_substr((string) $text, 0, $maxLength);
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────

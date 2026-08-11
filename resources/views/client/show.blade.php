@@ -178,6 +178,13 @@
             grid-template-columns: 1fr;
         }
     }
+
+    .client-char-counter {
+        min-width: 44px;
+        justify-content: center;
+        font-size: 0.74rem;
+        color: var(--muted-foreground, #9ca3af);
+    }
 </style>
 
 <style>
@@ -291,15 +298,24 @@
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_lastname') }}</label>
-                    <input type="text" name="secondname" class="form-control client-safe-text-input" value="{{ $client->secondname ?? '' }}" maxlength="80" autocomplete="family-name" spellcheck="false">
+                    <div class="input-group">
+                        <input type="text" name="secondname" class="form-control client-safe-text-input" value="{{ $client->secondname ?? '' }}" maxlength="30" autocomplete="family-name" spellcheck="false">
+                        <span class="input-group-text client-char-counter" data-char-counter-for="secondname">0/30</span>
+                    </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_firstname') }}</label>
-                    <input type="text" name="name" class="form-control client-safe-text-input" value="{{ $client->name ?? '' }}" maxlength="80" autocomplete="given-name" spellcheck="false">
+                    <div class="input-group">
+                        <input type="text" name="name" class="form-control client-safe-text-input" value="{{ $client->name ?? '' }}" maxlength="30" autocomplete="given-name" spellcheck="false">
+                        <span class="input-group-text client-char-counter" data-char-counter-for="name">0/30</span>
+                    </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_middlename') }}</label>
-                    <input type="text" name="fathername" class="form-control client-safe-text-input" value="{{ $client->fathername ?? '' }}" maxlength="80" autocomplete="additional-name" spellcheck="false">
+                    <div class="input-group">
+                        <input type="text" name="fathername" class="form-control client-safe-text-input" value="{{ $client->fathername ?? '' }}" maxlength="30" autocomplete="additional-name" spellcheck="false">
+                        <span class="input-group-text client-char-counter" data-char-counter-for="fathername">0/30</span>
+                    </div>
                 </div>
             </div>
 
@@ -319,11 +335,17 @@
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_region') }}</label>
-                    <input type="text" name="region" class="form-control client-safe-text-input" value="{{ $client->region ?? '' }}" maxlength="80" autocomplete="address-level1" spellcheck="false">
+                    <div class="input-group">
+                        <input type="text" name="region" class="form-control client-safe-text-input" value="{{ $client->region ?? '' }}" maxlength="30" autocomplete="address-level1" spellcheck="false">
+                        <span class="input-group-text client-char-counter" data-char-counter-for="region">0/30</span>
+                    </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_city') }}</label>
-                    <input type="text" name="city" class="form-control client-safe-text-input" value="{{ $client->city ?? '' }}" maxlength="80" autocomplete="address-level2" spellcheck="false">
+                    <div class="input-group">
+                        <input type="text" name="city" class="form-control client-safe-text-input" value="{{ $client->city ?? '' }}" maxlength="30" autocomplete="address-level2" spellcheck="false">
+                        <span class="input-group-text client-char-counter" data-char-counter-for="city">0/30</span>
+                    </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">{{ __('client.field_nova_poshta') }}</label>
@@ -827,16 +849,27 @@
             .replace(/[\u0000-\u001F\u007F<>[\]{}\\/=;:*|~^$#@!?%&+=]/g, '')
             .replace(/[^\p{L}\p{M}\s.'’`-]/gu, '')
             .replace(/\s{2,}/g, ' ')
-            .slice(0, 80);
+            .slice(0, 30);
+    }
+
+    function updateClientCharCounter(input) {
+        const maxLength = Number(input.getAttribute('maxlength') || 30);
+        const counter = document.querySelector('[data-char-counter-for="' + input.name + '"]');
+        if (counter) {
+            counter.textContent = input.value.length + '/' + maxLength;
+        }
     }
 
     function bindClientSafeTextInput(input) {
+        updateClientCharCounter(input);
+
         input.addEventListener('input', function() {
             const selectionStart = input.selectionStart;
             const selectionEnd = input.selectionEnd;
             const nextValue = sanitizeClientSafeText(input.value);
 
             if (nextValue === input.value) {
+                updateClientCharCounter(input);
                 return;
             }
 
@@ -844,6 +877,7 @@
             if (selectionStart !== null && selectionEnd !== null) {
                 input.setSelectionRange(selectionStart, selectionEnd);
             }
+            updateClientCharCounter(input);
         });
     }
 
@@ -963,6 +997,7 @@
 
             document.querySelectorAll('.client-safe-text-input').forEach(function(input) {
                 input.value = sanitizeClientSafeText(input.value);
+                updateClientCharCounter(input);
             });
 
             // Validate phone

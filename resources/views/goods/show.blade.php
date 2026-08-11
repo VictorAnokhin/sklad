@@ -245,6 +245,15 @@
             border-right: 1px solid rgba(255,255,255,0.12);
         }
 
+        .goods-char-counter {
+            min-width: 58px;
+            justify-content: center;
+            font-size: 0.72rem;
+            color: #9ca3af;
+            padding-left: 0.45rem;
+            padding-right: 0.45rem;
+        }
+
         /* Checkboxes */
         .gs-check {
             display: flex;
@@ -423,15 +432,24 @@
             <div class="gs-row">
                 <div class="gs-col">
                     <label>Назва RU</label>
-                    <input type="text" name="name_client_ru" class="form-control" value="{{ $descript->name ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="name_client_ru" class="form-control goods-safe-text-input" value="{{ $descript->name ?? '' }}" maxlength="120" spellcheck="false">
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="name_client_ru">0/120</span>
+                    </div>
                 </div>
                 <div class="gs-col">
                     <label>Назва UA</label>
-                    <input type="text" name="name_client_ua" class="form-control" value="{{ $descript->name_ua ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="name_client_ua" class="form-control goods-safe-text-input" value="{{ $descript->name_ua ?? '' }}" maxlength="120" spellcheck="false">
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="name_client_ua">0/120</span>
+                    </div>
                 </div>
                 <div class="gs-col">
                     <label>Назва EN</label>
-                    <input type="text" name="name_client_en" class="form-control" value="{{ $descript->name_en ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="name_client_en" class="form-control goods-safe-text-input" value="{{ $descript->name_en ?? '' }}" maxlength="120" spellcheck="false">
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="name_client_en">0/120</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -442,7 +460,10 @@
             <div class="gs-row">
                 <div class="gs-col">
                     <label>Код</label>
-                    <input type="text" name="nickname" class="form-control" value="{{ $comp->nickname ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="nickname" class="form-control goods-safe-text-input" value="{{ $comp->nickname ?? '' }}" maxlength="60" spellcheck="false">
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="nickname">0/60</span>
+                    </div>
                 </div>
                 <div class="gs-col">
                     <label>Артикул / Cod</label>
@@ -450,7 +471,10 @@
                 </div>
                 <div class="gs-col">
                     <label>Назва документа</label>
-                    <input type="text" name="name_doc" class="form-control" value="{{ $comp->namedoc ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="name_doc" class="form-control goods-safe-text-input" value="{{ $comp->namedoc ?? '' }}" maxlength="120" spellcheck="false">
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="name_doc">0/120</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -473,7 +497,10 @@
                 </div>
                 <div class="gs-col">
                     <label>Гарантія</label>
-                    <input type="text" name="garant" class="form-control" value="{{ $comp->garant ?? '' }}">
+                    <div class="input-group">
+                        <input type="text" name="garant" class="form-control goods-safe-text-input" value="{{ $comp->garant ?? '' }}" maxlength="60" spellcheck="false">
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="garant">0/60</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -564,15 +591,24 @@
             <div class="gs-row">
                 <div class="gs-col">
                     <label>Опис RU</label>
-                    <textarea name="description_ru" class="form-control">{{ $descript->description ?? '' }}</textarea>
+                    <div class="input-group">
+                        <textarea name="description_ru" class="form-control goods-safe-text-input" maxlength="1000" spellcheck="false">{{ $descript->description ?? '' }}</textarea>
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="description_ru">0/1000</span>
+                    </div>
                 </div>
                 <div class="gs-col">
                     <label>Опис UA</label>
-                    <textarea name="description_ua" class="form-control">{{ $descript->description_ua ?? '' }}</textarea>
+                    <div class="input-group">
+                        <textarea name="description_ua" class="form-control goods-safe-text-input" maxlength="1000" spellcheck="false">{{ $descript->description_ua ?? '' }}</textarea>
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="description_ua">0/1000</span>
+                    </div>
                 </div>
                 <div class="gs-col">
                     <label>Опис EN</label>
-                    <textarea name="description_en" class="form-control">{{ $descript->description_en ?? '' }}</textarea>
+                    <div class="input-group">
+                        <textarea name="description_en" class="form-control goods-safe-text-input" maxlength="1000" spellcheck="false">{{ $descript->description_en ?? '' }}</textarea>
+                        <span class="input-group-text goods-char-counter" data-goods-char-counter-for="description_en">0/1000</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -828,6 +864,41 @@ document.addEventListener('DOMContentLoaded', function() {
     const pay1Input    = document.getElementById('pay1Input');
     const profitInput  = document.getElementById('profitpayInput');
     const subSel = document.getElementById('goodsShowSubSelect');
+    const goodsSafeTextInputs = document.querySelectorAll('.goods-safe-text-input');
+    const sanitizeGoodsSafeText = (value, maxLength) => String(value || '')
+        .replace(/[\u0000-\u001F\u007F<>]/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .slice(0, maxLength);
+    const updateGoodsCharCounter = (input) => {
+        const maxLength = Number(input.getAttribute('maxlength') || 120);
+        const counter = document.querySelector('[data-goods-char-counter-for="' + input.name + '"]');
+        if (counter) {
+            counter.textContent = input.value.length + '/' + maxLength;
+        }
+    };
+    const bindGoodsSafeTextInput = (input) => {
+        updateGoodsCharCounter(input);
+
+        input.addEventListener('input', function() {
+            const selectionStart = input.selectionStart;
+            const selectionEnd = input.selectionEnd;
+            const maxLength = Number(input.getAttribute('maxlength') || 120);
+            const nextValue = sanitizeGoodsSafeText(input.value, maxLength);
+
+            if (nextValue === input.value) {
+                updateGoodsCharCounter(input);
+                return;
+            }
+
+            input.value = nextValue;
+            if (selectionStart !== null && selectionEnd !== null) {
+                input.setSelectionRange(selectionStart, selectionEnd);
+            }
+            updateGoodsCharCounter(input);
+        });
+    };
+
+    goodsSafeTextInputs.forEach(bindGoodsSafeTextInput);
 
     const calcMargin = () => {
         const buy  = parseFloat(pay1Input?.value)  || 0;
@@ -847,6 +918,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.querySelector('form.gs-form')?.addEventListener('submit', function() {
+        goodsSafeTextInputs.forEach(function(input) {
+            const maxLength = Number(input.getAttribute('maxlength') || 120);
+            input.value = sanitizeGoodsSafeText(input.value, maxLength).trim();
+            updateGoodsCharCounter(input);
+        });
         goodsSyncHtmlkeyspopFromUi();
     });
 
