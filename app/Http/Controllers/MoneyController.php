@@ -16,18 +16,17 @@ class MoneyController extends Controller
 {
     private function buildIndexFilters(Request $request): array
     {
-        $defaultDateFrom = now()->subDays(30)->format('Y-m-d');
-        $defaultDateTo = now()->format('Y-m-d');
+        $dateFrom = trim((string) $request->input('date_from', ''));
+        $dateTo = trim((string) $request->input('date_to', ''));
 
         return [
             'q' => $this->safeFilterText($request->input('q', ''), 30),
             'type' => trim((string) $request->input('type', '')),
             'money' => trim((string) $request->input('money', '')),
             'reestr' => trim((string) $request->input('reestr', '')),
-            'date_from' => trim((string) $request->input('date_from', $defaultDateFrom)),
-            'date_to' => trim((string) $request->input('date_to', $defaultDateTo)),
-            '_dates_are_default' => trim((string) $request->input('date_from', $defaultDateFrom)) === $defaultDateFrom
-                && trim((string) $request->input('date_to', $defaultDateTo)) === $defaultDateTo,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            '_dates_are_default' => false,
         ];
     }
 

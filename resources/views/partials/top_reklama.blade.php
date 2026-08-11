@@ -167,6 +167,7 @@
     <a href="{{ route('micro-business') }}" class="header-public-link">Для микро-бизнеса</a>
     <a href="{{ route('individuals') }}" class="header-public-link">Для физических лиц</a>
     <a href="{{ route('education.public') }}" class="header-public-link">Обучение</a>
+    <a href="{{ route('price') }}" class="header-public-link">Цены</a>
     <a href="{{ route('about') }}" class="header-public-link">О проекте</a>
     <a href="{{ route('login') }}" class="header-public-link header-btn-login">Войти</a>
   </div>
@@ -267,6 +268,7 @@
 
     <div class="header-nav-menu__section-label">Прочее</div>
     <div class="header-nav-menu__grid">
+      <a class="header-nav-menu__link" href="{{ route('price') }}">Оплатить</a>
       <a class="header-nav-menu__link" href="{{ route('settings.index') }}">{{ __('nav.settings') }}</a>
       <form method="POST" action="{{ route('logout') }}" id="logout-form" style="display: contents;">
         @csrf
@@ -279,6 +281,7 @@
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('micro-business') }}">Для микро-бизнеса</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('individuals') }}">Для физических лиц</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('education.public') }}">Обучение</a>
+      <a class="header-nav-menu__link mobile-only-link" href="{{ route('price') }}">Цены</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('team') }}">Команда</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('about') }}">О проекте</a>
       <a class="header-nav-menu__link" href="{{ route('login') }}">Войти</a>
