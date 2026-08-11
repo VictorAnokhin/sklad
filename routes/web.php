@@ -66,8 +66,32 @@ Route::view('/individuals', 'pages.individuals')->name('individuals');
 Route::view('/education', 'pages.education')->name('education.public');
 Route::get('/price', [PriceController::class, 'index'])->name('price');
 Route::get('/about', function () {
+    $projectTypeLabels = [
+        'trade' => 'Торговля',
+        'bank' => 'Банк',
+        'insurance' => 'Страхование',
+        'education' => 'Образование',
+        '' => 'Другие проекты',
+    ];
+
     $projects = \Illuminate\Support\Facades\Schema::hasTable('project') 
-        ? \App\Models\Project::orderBy('num')->orderBy('name')->get() 
+        ? \App\Models\Project::query()
+            ->when(
+                \Illuminate\Support\Facades\Schema::hasColumn('project', 'web'),
+                fn ($query) => $query->where('web', 1)
+            )
+            ->whereNotNull('url')
+            ->where('url', '<>', '')
+            ->orderBy('project_type')
+            ->orderBy('num')
+            ->orderBy('name')
+            ->get(['id', 'name', 'project_type', 'url', 'web'])
+            ->map(function ($project) use ($projectTypeLabels) {
+                $type = strtolower(trim((string) ($project->project_type ?? '')));
+                $project->segment_label = $projectTypeLabels[$type] ?? 'Другие проекты';
+                return $project;
+            })
+            ->groupBy('segment_label')
         : collect();
     return view('pages.about', compact('projects'));
 })->name('about');

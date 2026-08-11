@@ -91,6 +91,42 @@
         from { box-shadow: 0 15px 35px rgba(251, 191, 36, 0.05); }
         to { box-shadow: 0 15px 45px rgba(251, 191, 36, 0.2); }
     }
+    .about-project-segment {
+        margin-bottom: 2rem;
+    }
+    .about-project-segment__title {
+        color: #fbbf24;
+        font-size: 1.15rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+    }
+    .about-project-links {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+    .about-project-link {
+        display: flex;
+        align-items: center;
+        min-height: 46px;
+        padding: 0.75rem 0.9rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        background: rgba(255,255,255,0.025);
+        color: #fff;
+        font-weight: 700;
+        text-decoration: none;
+    }
+    .about-project-link:hover {
+        border-color: rgba(251, 191, 36, 0.42);
+        color: #fde68a;
+        background: rgba(251, 191, 36, 0.06);
+    }
+    @media (max-width: 640px) {
+        .about-project-links {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 <div class="glass-card animated-card" style="padding: 2.5rem; max-width: 1000px; margin: 0 auto; border-radius: 16px;">
@@ -156,19 +192,22 @@
         <div class="col-12 mb-4">
             <h3 class="mb-4 text-center" style="color: #fbbf24; font-weight: 700;">Проекты</h3>
         </div>
-        
-        @foreach($projects as $project)
-        <div class="col-md-6 mb-4">
-            <div class="hover-feature" style="background: rgba(255,255,255,0.02); height: 100%;">
-                <h4 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-                    <span style="color: #fbbf24; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: #fbbf24;"></span>
-                    {{ $project->name }}
-                </h4>
-                @if($project->description)
-                <p style="color: rgba(255, 255, 255, 0.65); font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">
-                    {!! nl2br(e($project->description)) !!}
-                </p>
-                @endif
+
+        @foreach($projects as $segment => $segmentProjects)
+        <div class="col-12 about-project-segment">
+            <h4 class="about-project-segment__title">{{ $segment }}</h4>
+            <div class="about-project-links">
+                @foreach($segmentProjects as $project)
+                    @php
+                        $projectUrl = trim((string) ($project->url ?? ''));
+                        $projectHref = $projectUrl !== '' && !preg_match('/^https?:\/\//i', $projectUrl)
+                            ? 'https://' . $projectUrl
+                            : $projectUrl;
+                    @endphp
+                    @if($projectHref !== '')
+                    <a href="{{ $projectHref }}" target="_blank" rel="noreferrer" class="about-project-link">{{ $project->name }}</a>
+                    @endif
+                @endforeach
             </div>
         </div>
         @endforeach
