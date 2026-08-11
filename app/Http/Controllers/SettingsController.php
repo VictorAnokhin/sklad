@@ -116,6 +116,7 @@ class SettingsController extends Controller
         $profileBalances = $user
             ? $this->profileBalancesFromCache($user, $fid)
             : [];
+        $profileCompletionRequired = $user ? $this->profileCompletionRequired($user) : false;
 
         $fieldCatalogTopCount = 0;
         $fieldCityCount = 0;
@@ -185,7 +186,7 @@ class SettingsController extends Controller
         $smsClubApiKeyHint = $this->maskSmsClubApiKey($smsClubApiKey);
         $pricePlansCount = PriceController::plans()->count();
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount', 'smsClubTokenConfigured', 'smsClubApiKeyHint', 'pricePlansCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'profileCompletionRequired', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount', 'smsClubTokenConfigured', 'smsClubApiKeyHint', 'pricePlansCount')));
     }
 
     public function show(Request $request)
@@ -1340,24 +1341,48 @@ class SettingsController extends Controller
         if (!$user) return redirect()->back()->with('error', 'Користувача не знайдено');
 
         $request->validate([
-            'name' => 'nullable|string|max:30',
-            'secondname' => 'nullable|string|max:30',
+            'name' => 'required|string|max:30',
+            'secondname' => 'required|string|max:30',
             'fathername' => 'nullable|string|max:30',
             'email' => 'nullable|email|max:30',
-            'phone' => 'nullable|string|max:30',
-            'city' => 'nullable|string|max:30',
+            'phone' => 'required|string|max:30',
+            'city' => 'required|string|max:30',
             'hbd' => 'nullable|date|max:30',
         ]);
 
-        DB::table('users')->where('id', $user->id)->update([
-            'name'       => $this->safeSettingsText($request->input('name'), 'Імʼя', 30),
-            'secondname' => $this->safeSettingsText($request->input('secondname'), 'Прізвище', 30),
+        $phone = mb_substr(preg_replace('/\D/', '', (string) ($request->input('phone') ?? '')), 0, 30);
+        if ($phone === '') {
+            return redirect()
+                ->route('settings.index')
+                ->withErrors(['phone' => 'Введіть телефон.'])
+                ->with('force_profile_completion', true);
+        }
+
+        $name = $this->safeSettingsText($request->input('name'), 'Імʼя', 30);
+        $secondname = $this->safeSettingsText($request->input('secondname'), 'Прізвище', 30);
+        $city = $this->safeSettingsText($request->input('city'), 'Місто', 30);
+
+        if ($name === '' || $secondname === '' || $city === '') {
+            return redirect()
+                ->route('settings.index')
+                ->withErrors(['profile' => 'Заповніть прізвище, імʼя, телефон і місто.'])
+                ->with('force_profile_completion', true);
+        }
+
+        $payload = [
+            'name'       => $name,
+            'secondname' => $secondname,
             'fathername' => $this->safeSettingsText($request->input('fathername'), 'По батькові', 30),
             'email'      => mb_substr(preg_replace('/[^a-zA-Z0-9@._+-]/', '', (string) ($request->input('email') ?? '')), 0, 30),
-            'phone'      => mb_substr(preg_replace('/\D/', '', (string) ($request->input('phone') ?? '')), 0, 30),
-            'city'       => $this->safeSettingsText($request->input('city'), 'Місто', 30),
-            'hbd'        => mb_substr(preg_replace('/[^\d-]/', '', (string) ($request->input('hbd') ?? '')), 0, 30),
-        ]);
+            'phone'      => $phone,
+            'city'       => $city,
+        ];
+
+        if ($request->has('hbd')) {
+            $payload['hbd'] = mb_substr(preg_replace('/[^\d-]/', '', (string) ($request->input('hbd') ?? '')), 0, 30);
+        }
+
+        DB::table('users')->where('id', $user->id)->update($payload);
 
         return redirect()->route('settings.index')->with('success', 'Профіль оновлено');
     }
@@ -4625,5 +4650,16 @@ class SettingsController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function profileCompletionRequired(object $user): bool
+    {
+        foreach (['secondname', 'name', 'phone', 'city'] as $field) {
+            if (trim((string) ($user->{$field} ?? '')) === '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

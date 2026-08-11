@@ -1726,14 +1726,24 @@
     </div>
 </div>
 
-<div class="modal fade" id="modalProfile" tabindex="-1" aria-labelledby="modalProfileLabel" aria-hidden="true">
+@php
+    $forceProfileCompletion = (bool) (($profileCompletionRequired ?? false) || session('force_profile_completion') || $errors->hasAny(['name', 'secondname', 'phone', 'city']));
+@endphp
+<div class="modal fade" id="modalProfile" tabindex="-1" aria-labelledby="modalProfileLabel" aria-hidden="true" data-force-completion="{{ $forceProfileCompletion ? '1' : '0' }}">
     <div class="modal-dialog modal-lg">
         <div class="modal-content glass-card border-0">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalProfileLabel">👤 Дані зареєстрованого відвідувача</h5>
+                @unless($forceProfileCompletion)
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+                @endunless
             </div>
             <div class="modal-body">
+                @if($forceProfileCompletion)
+                <div class="alert alert-warning py-2">
+                    Заповніть обов'язкові поля: Прізвище, Ім'я, Телефон, Місто.
+                </div>
+                @endif
                 <div class="alert alert-info py-2">
                     <strong>Логін:</strong> {{ session('login', '') }} <span class="text-muted">(не можна змінити)</span>
                 </div>
@@ -1759,44 +1769,32 @@
                             @csrf
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label>Ім'я</label>
-                                    <input type="text" name="name" class="form-control settings-safe-text-input profile-protected-input" value="{{ $user->name ?? '' }}" maxlength="30" autocomplete="given-name" spellcheck="false">
+                                    <label>Ім'я <span class="text-danger">*</span></label>
+                                    <input type="text" name="name" class="form-control settings-safe-text-input profile-protected-input profile-required-input" value="{{ old('name', $user->name ?? '') }}" maxlength="30" autocomplete="given-name" spellcheck="false" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label>Прізвище</label>
-                                    <input type="text" name="secondname" class="form-control settings-safe-text-input profile-protected-input" value="{{ $user->secondname ?? '' }}" maxlength="30" autocomplete="family-name" spellcheck="false">
+                                    <label>Прізвище <span class="text-danger">*</span></label>
+                                    <input type="text" name="secondname" class="form-control settings-safe-text-input profile-protected-input profile-required-input" value="{{ old('secondname', $user->secondname ?? '') }}" maxlength="30" autocomplete="family-name" spellcheck="false" required>
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label>По батькові</label>
-                                    <input type="text" name="fathername" class="form-control settings-safe-text-input profile-protected-input" value="{{ $user->fathername ?? '' }}" maxlength="30" autocomplete="additional-name" spellcheck="false">
+                                    <input type="text" name="fathername" class="form-control settings-safe-text-input profile-protected-input" value="{{ old('fathername', $user->fathername ?? '') }}" maxlength="30" autocomplete="additional-name" spellcheck="false">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label>Email</label>
-                                    <input type="email" name="email" class="form-control profile-email-input profile-protected-input" value="{{ $user->email ?? '' }}" maxlength="30" autocomplete="email" spellcheck="false">
+                                    <input type="email" name="email" class="form-control profile-email-input profile-protected-input" value="{{ old('email', $user->email ?? '') }}" maxlength="30" autocomplete="email" spellcheck="false">
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label>Телефон</label>
-                                    <input type="text" name="phone" id="profile-phone" class="form-control profile-protected-input" value="{{ $user->phone ?? '' }}" placeholder="+38 (000) 00-00-000" maxlength="30" inputmode="tel">
+                                    <label>Телефон <span class="text-danger">*</span></label>
+                                    <input type="text" name="phone" id="profile-phone" class="form-control profile-protected-input profile-required-input" value="{{ old('phone', $user->phone ?? '') }}" placeholder="+38 (000) 00-00-000" maxlength="30" inputmode="tel" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label>Місто</label>
-                                    <input type="text" name="city" class="form-control settings-safe-text-input profile-protected-input" value="{{ $user->city ?? '' }}" maxlength="30" autocomplete="address-level2" spellcheck="false">
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label>Дата народження</label>
-                                    <input type="date" name="hbd" class="form-control profile-date-input profile-protected-input" value="{{ $user->hbd ?? '' }}" maxlength="30">
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label>Роль контрагента</label>
-                                    <input type="text" class="form-control" value="{{ $currentCounterpartyType->name ?? 'Не вказано' }}" readonly>
+                                    <label>Місто <span class="text-danger">*</span></label>
+                                    <input type="text" name="city" class="form-control settings-safe-text-input profile-protected-input profile-required-input" value="{{ old('city', $user->city ?? '') }}" maxlength="30" autocomplete="address-level2" spellcheck="false" required>
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-primary">💾 Зберегти дані</button>
@@ -3080,6 +3078,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.settings-safe-text-input').forEach(bindSettingsSafeTextInput);
 
+    const profileModal = document.getElementById('modalProfile');
+    const forceProfileCompletion = profileModal?.dataset.forceCompletion === '1';
+
+    const profileHasRequiredValues = (form) => {
+        const name = sanitizeSettingsSafeText(form.querySelector('[name="name"]')?.value, 30).trim();
+        const secondname = sanitizeSettingsSafeText(form.querySelector('[name="secondname"]')?.value, 30).trim();
+        const city = sanitizeSettingsSafeText(form.querySelector('[name="city"]')?.value, 30).trim();
+        const phoneDigits = String(form.querySelector('[name="phone"]')?.value || '').replace(/\D/g, '');
+
+        return Boolean(name && secondname && city && phoneDigits);
+    };
+
+    if (forceProfileCompletion && profileModal && window.bootstrap?.Modal) {
+        const forcedProfileModal = new bootstrap.Modal(profileModal, {
+            backdrop: 'static',
+            keyboard: false,
+        });
+        forcedProfileModal.show();
+        profileModal.addEventListener('hide.bs.modal', (event) => {
+            event.preventDefault();
+        });
+    }
+
     document.querySelectorAll('#modalProfile form[action*="profile-update"]').forEach((form) => {
         const protectedInputs = form.querySelectorAll('.profile-protected-input');
 
@@ -3105,7 +3126,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateProfileCounter(input);
         });
 
-        form.addEventListener('submit', () => {
+        form.addEventListener('submit', (event) => {
             protectedInputs.forEach((input) => {
                 const maxLength = Number(input.getAttribute('maxlength') || 30);
                 if (input.classList.contains('settings-safe-text-input')) {
@@ -3117,6 +3138,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 updateProfileCounter(input);
             });
+
+            if (!profileHasRequiredValues(form)) {
+                event.preventDefault();
+                form.reportValidity();
+            }
         });
     });
 

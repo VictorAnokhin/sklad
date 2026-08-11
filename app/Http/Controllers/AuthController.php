@@ -285,7 +285,7 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $this->syncAuthSessionFid($request, $user);
 
-        return redirect()->route('dashboard');
+        return $this->redirectAfterAuth($user);
     }
 
     public function login(Request $request)
@@ -328,7 +328,7 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $this->syncAuthSessionFid($request, $user);
 
-        return redirect()->route('dashboard');
+        return $this->redirectAfterAuth($user);
     }
 
     public function googleLogin(Request $request)
@@ -410,7 +410,7 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $this->syncAuthSessionFid($request, $user);
 
-        return redirect()->route('dashboard');
+        return $this->redirectAfterAuth($user);
     }
 
     public function logout(Request $request)
@@ -3859,5 +3859,27 @@ class AuthController extends Controller
             'idstatus' => $roleStatus,
             'ustype' => $roleStatus,
         ])->save();
+    }
+
+    private function redirectAfterAuth(User $user)
+    {
+        if ($this->profileCompletionRequired($user)) {
+            return redirect()
+                ->route('settings.index')
+                ->with('force_profile_completion', true);
+        }
+
+        return redirect()->route('dashboard');
+    }
+
+    private function profileCompletionRequired(User $user): bool
+    {
+        foreach (['secondname', 'name', 'phone', 'city'] as $field) {
+            if (trim((string) ($user->{$field} ?? '')) === '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
