@@ -732,7 +732,7 @@ class AuthController extends Controller
         $activeUser = $user;
 
         if ($requestedFid === '') {
-            $defaultProject = $this->defaultHitProjectForUser($user);
+            $defaultProject = $this->defaultProjectForUser($user);
             if ($defaultProject instanceof Project) {
                 $activeUser = $this->ensureAuthUserRowForProject($user, (string) $defaultProject->id);
                 if ((int) Auth::id() !== (int) $activeUser->id) {
@@ -748,9 +748,9 @@ class AuthController extends Controller
         }
     }
 
-    private function defaultHitProjectForUser(User $user): ?Project
+    private function defaultProjectForUser(User $user): ?Project
     {
-        if (! Schema::hasTable('project') || ! Schema::hasColumn('project', 'hit')) {
+        if (! Schema::hasTable('project')) {
             return null;
         }
 
@@ -759,10 +759,11 @@ class AuthController extends Controller
             return null;
         }
 
-        return $query
-            ->where('hit', 1)
-            ->orderBy('id')
-            ->first();
+        if (Schema::hasColumn('project', 'hit')) {
+            $query->orderByDesc('hit');
+        }
+
+        return $query->orderBy('id')->first();
     }
 
     private function authAccessibleProjectsQuery(User $user)
