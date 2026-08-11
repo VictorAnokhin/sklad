@@ -1347,6 +1347,7 @@ class SettingsController extends Controller
             'email' => 'nullable|email|max:30',
             'phone' => 'required|string|max:30',
             'city' => 'required|string|max:30',
+            'city_id' => 'nullable|integer|min:1',
             'hbd' => 'nullable|date|max:30',
         ]);
 
@@ -1358,8 +1359,8 @@ class SettingsController extends Controller
                 ->with('force_profile_completion', true);
         }
 
-        $name = $this->safeSettingsText($request->input('name'), 'Імʼя', 30);
-        $secondname = $this->safeSettingsText($request->input('secondname'), 'Прізвище', 30);
+        $name = $this->capitalizeProfileName($this->safeSettingsText($request->input('name'), 'Імʼя', 30));
+        $secondname = $this->capitalizeProfileName($this->safeSettingsText($request->input('secondname'), 'Прізвище', 30));
         $city = $this->safeSettingsText($request->input('city'), 'Місто', 30);
 
         if ($name === '' || $secondname === '' || $city === '') {
@@ -1372,11 +1373,15 @@ class SettingsController extends Controller
         $payload = [
             'name'       => $name,
             'secondname' => $secondname,
-            'fathername' => $this->safeSettingsText($request->input('fathername'), 'По батькові', 30),
+            'fathername' => $this->capitalizeProfileName($this->safeSettingsText($request->input('fathername'), 'По батькові', 30)),
             'email'      => mb_substr(preg_replace('/[^a-zA-Z0-9@._+-]/', '', (string) ($request->input('email') ?? '')), 0, 30),
             'phone'      => $phone,
             'city'       => $city,
         ];
+
+        if (Schema::hasColumn('users', 'city_id')) {
+            $payload['city_id'] = $request->filled('city_id') ? (int) $request->input('city_id') : null;
+        }
 
         if ($request->has('hbd')) {
             $payload['hbd'] = mb_substr(preg_replace('/[^\d-]/', '', (string) ($request->input('hbd') ?? '')), 0, 30);
@@ -3182,6 +3187,13 @@ class SettingsController extends Controller
         }
 
         return $text;
+    }
+
+    private function capitalizeProfileName(string $value): string
+    {
+        return preg_replace_callback('/(^|[\s-])([\p{L}\p{M}])/u', function (array $matches) {
+            return $matches[1] . mb_convert_case($matches[2], MB_CASE_UPPER, 'UTF-8');
+        }, mb_convert_case(trim($value), MB_CASE_LOWER, 'UTF-8')) ?? trim($value);
     }
 
     private function safeProjectText(mixed $value, string $label, int $maxLength = 30): string

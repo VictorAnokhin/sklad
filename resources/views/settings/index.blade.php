@@ -1794,7 +1794,11 @@
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label>Місто <span class="text-danger">*</span></label>
-                                    <input type="text" name="city" class="form-control settings-safe-text-input profile-protected-input profile-required-input" value="{{ old('city', $user->city ?? '') }}" maxlength="30" autocomplete="address-level2" spellcheck="false" required>
+                                    <div class="client-location-suggest position-relative">
+                                        <input type="hidden" name="city_id" id="profile-city-id" value="{{ old('city_id', $user->city_id ?? '') }}">
+                                        <input type="text" name="city" id="profile-city-search" class="form-control settings-safe-text-input profile-protected-input profile-required-input" value="{{ old('city', $user->city ?? '') }}" maxlength="30" autocomplete="off" spellcheck="false" required>
+                                        <div class="client-location-suggest__list" id="profile-city-suggest"></div>
+                                    </div>
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-primary">💾 Зберегти дані</button>
@@ -2627,6 +2631,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
     const catalogNewsOptions = @json($catalogNewsOptions ?? []);
     const profilePhoneInput = document.getElementById('profile-phone');
+    const profileCityIdInput = document.getElementById('profile-city-id');
+    const profileCitySearchInput = document.getElementById('profile-city-search');
+    const profileCitySuggest = document.getElementById('profile-city-suggest');
+    let profileCitySearchTimer = null;
+    let profileCitySelectedLabel = profileCitySearchInput?.value?.trim() || '';
     const formatSettingsPhoneInput = (value) => {
         const digits = String(value || '').replace(/\D/g, '').slice(0, 12);
         if (digits.length === 0) {
@@ -2662,6 +2671,17 @@ document.addEventListener('DOMContentLoaded', () => {
         .slice(0, maxLength);
     const sanitizeProfileDate = (value, maxLength = 30) => String(value || '')
         .replace(/[^\d-]/g, '')
+        .slice(0, maxLength);
+    const capitalizeProfileName = (value, maxLength = 30) => String(value || '')
+        .split(/(\s+|-)/)
+        .map((part) => {
+            if (/^\s+$/.test(part) || part === '-') {
+                return part;
+            }
+            const lower = part.toLocaleLowerCase('uk-UA');
+            return lower.charAt(0).toLocaleUpperCase('uk-UA') + lower.slice(1);
+        })
+        .join('')
         .slice(0, maxLength);
 
     const smsClubModal = document.getElementById('modalSmsClub');
@@ -3108,6 +3128,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const maxLength = Number(input.getAttribute('maxlength') || 30);
             if (input.classList.contains('settings-safe-text-input')) {
                 input.value = sanitizeSettingsSafeText(input.value, maxLength);
+                if (input.matches('[name="name"], [name="secondname"], [name="fathername"]')) {
+                    input.value = capitalizeProfileName(input.value, maxLength);
+                    input.addEventListener('input', () => {
+                        input.value = capitalizeProfileName(sanitizeSettingsSafeText(input.value, maxLength), maxLength);
+                        updateProfileCounter(input);
+                    });
+                }
             } else if (input.classList.contains('profile-email-input')) {
                 input.value = sanitizeProfileEmail(input.value, maxLength);
                 input.addEventListener('input', () => {
@@ -3131,6 +3158,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const maxLength = Number(input.getAttribute('maxlength') || 30);
                 if (input.classList.contains('settings-safe-text-input')) {
                     input.value = sanitizeSettingsSafeText(input.value, maxLength).trim();
+                    if (input.matches('[name="name"], [name="secondname"], [name="fathername"]')) {
+                        input.value = capitalizeProfileName(input.value, maxLength).trim();
+                    }
                 } else if (input.classList.contains('profile-email-input')) {
                     input.value = sanitizeProfileEmail(input.value, maxLength).trim();
                 } else if (input.classList.contains('profile-date-input')) {
@@ -3144,6 +3174,116 @@ document.addEventListener('DOMContentLoaded', () => {
                 form.reportValidity();
             }
         });
+    });
+
+    const profileCityDisplayName = (city) => city?.val || city?.valru || city?.valen || city?.label || '';
+
+    const hideProfileCitySuggest = () => {
+        if (profileCitySuggest) {
+            profileCitySuggest.style.display = 'none';
+            profileCitySuggest.innerHTML = '';
+        }
+    };
+
+    const setProfileCity = (id, label) => {
+        window.clearTimeout(profileCitySearchTimer);
+        if (profileCityIdInput) {
+            profileCityIdInput.value = id ? String(id) : '';
+        }
+        if (profileCitySearchInput) {
+            profileCitySearchInput.value = sanitizeSettingsSafeText(label || '', 30);
+            updateProfileCounter(profileCitySearchInput);
+        }
+        profileCitySelectedLabel = profileCitySearchInput?.value?.trim() || '';
+        hideProfileCitySuggest();
+    };
+
+    const renderProfileCitySuggest = (items) => {
+        if (!profileCitySuggest) {
+            return;
+        }
+        profileCitySuggest.innerHTML = '';
+        items.forEach((city) => {
+            const name = profileCityDisplayName(city) || `#${city.id}`;
+            const regionName = city.region_name || '';
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'client-location-suggest__item';
+            button.dataset.cityId = city.id || '';
+            button.dataset.cityLabel = name;
+            button.append(document.createTextNode(name));
+            if (regionName) {
+                const region = document.createElement('span');
+                region.className = 'client-location-suggest__region';
+                region.textContent = ` — ${regionName}`;
+                button.append(region);
+            }
+            profileCitySuggest.appendChild(button);
+        });
+        profileCitySuggest.style.display = items.length ? 'block' : 'none';
+    };
+
+    const searchProfileCities = (query) => {
+        if (!profileCitySuggest || !profileCitySearchInput) {
+            return;
+        }
+        const text = sanitizeSettingsSafeText(query, 30).trim();
+        if (profileCityIdInput?.value?.trim() && text === profileCitySelectedLabel) {
+            hideProfileCitySuggest();
+            return;
+        }
+        if (text.length < 2) {
+            hideProfileCitySuggest();
+            return;
+        }
+
+        fetch(`/settings/api/office-city-search?q=${encodeURIComponent(text)}&ignore_firma=1`, {
+            headers: { 'Accept': 'application/json' },
+        })
+            .then((response) => response.json())
+            .then((payload) => {
+                if ((profileCitySearchInput.value.trim() || '') !== text) {
+                    return;
+                }
+                renderProfileCitySuggest(Array.isArray(payload.items) ? payload.items : []);
+            })
+            .catch(hideProfileCitySuggest);
+    };
+
+    const scheduleProfileCitySearch = (query) => {
+        window.clearTimeout(profileCitySearchTimer);
+        profileCitySearchTimer = window.setTimeout(() => searchProfileCities(query), 250);
+    };
+
+    profileCitySearchInput?.addEventListener('input', () => {
+        const safeValue = sanitizeSettingsSafeText(profileCitySearchInput.value, 30);
+        if (safeValue !== profileCitySearchInput.value) {
+            profileCitySearchInput.value = safeValue;
+        }
+        if (profileCitySearchInput.value.trim() !== profileCitySelectedLabel) {
+            if (profileCityIdInput) {
+                profileCityIdInput.value = '';
+            }
+        }
+        updateProfileCounter(profileCitySearchInput);
+        scheduleProfileCitySearch(profileCitySearchInput.value);
+    });
+
+    profileCitySearchInput?.addEventListener('focus', () => {
+        scheduleProfileCitySearch(profileCitySearchInput.value);
+    });
+
+    profileCitySearchInput?.addEventListener('blur', () => {
+        window.setTimeout(hideProfileCitySuggest, 150);
+    });
+
+    profileCitySuggest?.addEventListener('mousedown', (event) => {
+        const button = event.target.closest('.client-location-suggest__item');
+        if (!button) {
+            return;
+        }
+        event.preventDefault();
+        setProfileCity(button.dataset.cityId || '', button.dataset.cityLabel || '');
     });
 
     if (profilePhoneInput) {
