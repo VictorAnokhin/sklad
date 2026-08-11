@@ -274,6 +274,10 @@ class SettingsController extends Controller
             return false;
         }
 
+        if (Schema::hasColumn('project', 'web') && (int) ($project->web ?? 0) !== 1) {
+            return false;
+        }
+
         $projectId = (string) $project->id;
         $userFirma = (string) (($user->firma ?? '') ?: ($user->fid ?? ''));
         if ($userFirma !== '' && $userFirma === $projectId) {

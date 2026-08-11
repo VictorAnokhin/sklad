@@ -25,6 +25,7 @@
   $hasProjectTable = \Illuminate\Support\Facades\Schema::hasTable('project');
   $hasProjectUserId = $hasProjectTable && \Illuminate\Support\Facades\Schema::hasColumn('project', 'userid');
   $hasProjectEmail = $hasProjectTable && \Illuminate\Support\Facades\Schema::hasColumn('project', 'email');
+  $hasProjectWeb = $hasProjectTable && \Illuminate\Support\Facades\Schema::hasColumn('project', 'web');
   $creatorProjectIds = collect();
   $employeeProjectIds = collect();
 
@@ -72,6 +73,7 @@
   $headerProjects = $hasProjectTable && $userProjectIds->isNotEmpty()
     ? \App\Models\Project::query()
         ->whereIn('id', $userProjectIds->all())
+        ->when($hasProjectWeb, fn ($query) => $query->where('web', 1))
         ->orderBy('num')
         ->orderBy('name')
         ->get($projectSelectColumns)
@@ -83,12 +85,12 @@
 
   if (
     $isAuthenticated
-    && $userProjectIds->isNotEmpty()
+    && $headerProjects->isNotEmpty()
     && \Illuminate\Support\Facades\Schema::hasTable('document')
   ) {
     $newOrdersByProject = \Illuminate\Support\Facades\DB::table('document')
       ->select('firma', \Illuminate\Support\Facades\DB::raw('COUNT(*) as cnt'))
-      ->whereIn('firma', $userProjectIds->map(fn ($id) => (string) $id)->all())
+      ->whereIn('firma', $headerProjects->pluck('id')->map(fn ($id) => (string) $id)->all())
       ->where('type', 'ZOUT')
       ->where(function ($query) {
         $query->whereNull('status')
