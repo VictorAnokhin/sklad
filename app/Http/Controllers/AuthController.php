@@ -279,7 +279,7 @@ class AuthController extends Controller
         }
 
         $user = User::create(User::filterUsersColumns($userData));
-        $this->ensureAuthUserProject($user);
+        $user = $this->ensureAuthUserProject($user);
 
         Auth::login($user);
         $request->session()->regenerate();
@@ -322,6 +322,7 @@ class AuthController extends Controller
         }
 
         $this->syncUserRoleStatus($user);
+        $user = $this->ensureAuthUserProject($user);
 
         Auth::login($user);
         $request->session()->regenerate();
@@ -399,10 +400,11 @@ class AuthController extends Controller
             }
 
             $user = User::create(User::filterUsersColumns($userData));
-            $this->ensureAuthUserProject($user);
+            $user = $this->ensureAuthUserProject($user);
         }
 
         $this->syncUserRoleStatus($user);
+        $user = $this->ensureAuthUserProject($user);
 
         Auth::login($user);
         $request->session()->regenerate();
@@ -511,80 +513,166 @@ class AuthController extends Controller
         return $fid !== null && $fid !== '' ? $fid : $this->nextFirma();
     }
 
-    private function ensureAuthUserProject(User $user): void
+    private function ensureAuthUserProject(User $user): User
     {
         if (!Schema::hasTable('project')) {
-            return;
+            return $user;
         }
 
         $projectColumns = Schema::getColumnListing('project');
         if ($projectColumns === []) {
-            return;
+            return $user;
         }
 
-        $firma = trim((string) ($user->firma ?? $user->fid ?? ''));
-        if ($firma === '' || $firma === '0' || !ctype_digit($firma)) {
-            return;
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !in_array('email', $projectColumns, true)) {
+            return $user;
         }
 
-        $projectId = (int) $firma;
-        $name = trim(implode(' ', array_filter([
-            trim((string) ($user->secondname ?? '')),
-            trim((string) ($user->name ?? '')),
-        ])));
-        $name = $name !== ''
-            ? $name
-            : (trim((string) ($user->email ?? $user->login ?? '')) ?: 'Project ' . $projectId);
+        $project = Project::query()
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->first();
 
-        $payload = [];
-        if (in_array('num', $projectColumns, true)) {
-            $payload['num'] = $projectId;
-        }
-        if (in_array('name', $projectColumns, true)) {
-            $payload['name'] = mb_substr($name, 0, 255);
-        }
-        if (in_array('userid', $projectColumns, true)) {
-            $payload['userid'] = (int) $user->id;
-        }
-        if (in_array('email', $projectColumns, true)) {
-            $payload['email'] = trim((string) ($user->email ?? ''));
-        }
-        if (in_array('phone', $projectColumns, true)) {
-            $payload['phone'] = trim((string) ($user->phone ?? ''));
-        }
-        if (in_array('project_type', $projectColumns, true)) {
-            $payload['project_type'] = 'trade';
-        }
-        foreach (['url', 'telegram', 'instagram', 'twitter', 'facebook', 'foto', 'foto_header', 'foto_footer', 'description', 'htmlkeys'] as $column) {
-            if (in_array($column, $projectColumns, true)) {
-                $payload[$column] = '';
+        if (!$project) {
+            $firma = trim((string) ($user->firma ?? $user->fid ?? ''));
+            $projectId = ($firma !== '' && $firma !== '0' && ctype_digit($firma) && !Project::query()->whereKey((int) $firma)->exists())
+                ? (int) $firma
+                : $this->nextFirma();
+
+            while (Project::query()->whereKey($projectId)->exists()) {
+                $projectId++;
             }
-        }
-        foreach (['web', 'hit', 'constanta'] as $column) {
-            if (in_array($column, $projectColumns, true)) {
-                $payload[$column] = 0;
+
+            $name = $this->projectNameFromEmail($email) ?: 'Project ' . $projectId;
+            $payload = [];
+            if (in_array('id', $projectColumns, true)) {
+                $payload['id'] = $projectId;
             }
+            if (in_array('num', $projectColumns, true)) {
+                $payload['num'] = $projectId;
+            }
+            if (in_array('name', $projectColumns, true)) {
+                $payload['name'] = mb_substr($name, 0, 255);
+            }
+            if (in_array('userid', $projectColumns, true)) {
+                $payload['userid'] = (int) $user->id;
+            }
+            $payload['email'] = $email;
+            if (in_array('phone', $projectColumns, true)) {
+                $payload['phone'] = trim((string) ($user->phone ?? ''));
+            }
+            if (in_array('project_type', $projectColumns, true)) {
+                $payload['project_type'] = 'trade';
+            }
+            foreach (['url', 'telegram', 'instagram', 'twitter', 'facebook', 'foto', 'foto_header', 'foto_footer', 'description', 'htmlkeys'] as $column) {
+                if (in_array($column, $projectColumns, true)) {
+                    $payload[$column] = '';
+                }
+            }
+            foreach (['web', 'hit', 'constanta'] as $column) {
+                if (in_array($column, $projectColumns, true)) {
+                    $payload[$column] = 0;
+                }
+            }
+            if (in_array('created_at', $projectColumns, true)) {
+                $payload['created_at'] = now();
+            }
+            if (in_array('updated_at', $projectColumns, true)) {
+                $payload['updated_at'] = now();
+            }
+
+            Project::query()->insert($payload);
+            $project = Project::query()
+                ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+                ->first();
         }
-        if (in_array('created_at', $projectColumns, true)) {
-            $payload['created_at'] = now();
+
+        if (!$project) {
+            return $user;
         }
-        if (in_array('updated_at', $projectColumns, true)) {
+
+        $projectUser = $this->ensureAuthUserRowForProject($user, (string) $project->id);
+
+        if (in_array('userid', $projectColumns, true) && (int) ($project->userid ?? 0) !== (int) $projectUser->id) {
+            Project::query()->whereKey($project->id)->update(['userid' => (int) $projectUser->id]);
+        }
+
+        return $projectUser;
+    }
+
+    private function ensureAuthUserRowForProject(User $user, string $projectId): User
+    {
+        if (!Schema::hasTable('users') || !Schema::hasColumn('users', 'firma')) {
+            return $user;
+        }
+
+        $projectId = trim($projectId);
+        if ($projectId === '') {
+            return $user;
+        }
+
+        if ((string) ($user->firma ?? '') === $projectId) {
+            return $user->fresh() ?? $user;
+        }
+
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+        $login = trim((string) ($user->login ?? ''));
+        $phone = trim((string) ($user->phone ?? ''));
+
+        $existing = User::query()
+            ->where('firma', $projectId)
+            ->where(function ($query) use ($email, $login, $phone): void {
+                if ($email !== '' && Schema::hasColumn('users', 'email')) {
+                    $query->whereRaw('LOWER(TRIM(email)) = ?', [$email]);
+                }
+                if ($login !== '' && User::hasUsersColumn('login')) {
+                    $method = $email !== '' && Schema::hasColumn('users', 'email') ? 'orWhere' : 'where';
+                    $query->{$method}('login', $login);
+                }
+                if ($phone !== '' && Schema::hasColumn('users', 'phone')) {
+                    $method = ($email !== '' && Schema::hasColumn('users', 'email')) || ($login !== '' && User::hasUsersColumn('login'))
+                        ? 'orWhere'
+                        : 'where';
+                    $query->{$method}('phone', $phone);
+                }
+            })
+            ->first();
+
+        if ($existing instanceof User) {
+            return $existing;
+        }
+
+        $source = DB::table('users')->where('id', $user->id)->first();
+        if (!$source) {
+            return $user;
+        }
+
+        $payload = (array) $source;
+        unset($payload['id']);
+        $payload['firma'] = $projectId;
+
+        if (Schema::hasColumn('users', 'updated_at')) {
             $payload['updated_at'] = now();
         }
-
-        if ($payload === []) {
-            return;
+        if (Schema::hasColumn('users', 'created_at')) {
+            $payload['created_at'] = now();
         }
 
-        if (Project::query()->whereKey($projectId)->exists()) {
-            return;
+        $id = DB::table('users')->insertGetId(User::filterUsersColumns($payload));
+
+        return User::query()->find($id) ?? $user;
+    }
+
+    private function projectNameFromEmail(string $email): string
+    {
+        if ($email === '' || !str_contains($email, '@')) {
+            return '';
         }
 
-        if (in_array('id', $projectColumns, true)) {
-            $payload['id'] = $projectId;
-        }
+        $name = trim(strstr($email, '@', true) ?: '');
+        $name = preg_replace('/[^a-zA-Z0-9._-]+/', '', $name) ?? '';
 
-        Project::query()->insert($payload);
+        return mb_substr($name, 0, 255);
     }
 
     private function userForLogin(string $login, ?string $fid)
@@ -720,6 +808,7 @@ class AuthController extends Controller
             if (Schema::hasColumn('users', 'email_verified_at') && !$user->email_verified_at) {
                 $user->forceFill(['email_verified_at' => now()])->save();
             }
+            $user = $this->ensureAuthUserProject($user);
 
             return $user;
         }
@@ -756,7 +845,7 @@ class AuthController extends Controller
         }
 
         $user = User::create(User::filterUsersColumns($userData));
-        $this->ensureAuthUserProject($user);
+        $user = $this->ensureAuthUserProject($user);
 
         return $user;
     }
@@ -781,6 +870,9 @@ class AuthController extends Controller
         if ($user && Schema::hasColumn('users', 'email_verified_at') && !$user->email_verified_at) {
             $user->forceFill(['email_verified_at' => now()])->save();
         }
+        if ($user) {
+            $user = $this->ensureAuthUserProject($user);
+        }
 
         return $user;
     }
@@ -804,6 +896,7 @@ class AuthController extends Controller
         }
 
         $this->syncUserRoleStatus($user);
+        $user = $this->ensureAuthUserProject($user);
 
         // Create Sanctum token instead of session login
         $token = $user->createToken('api-token')->plainTextToken;
@@ -1972,7 +2065,7 @@ class AuthController extends Controller
         }
 
         $user = User::create(User::filterUsersColumns($userData));
-        $this->ensureAuthUserProject($user);
+        $user = $this->ensureAuthUserProject($user);
 
         // Auto login for stateful web callers; API clients receive JSON and can authenticate separately.
         $this->establishAuthenticatedSession($request, $user);
@@ -2282,7 +2375,7 @@ class AuthController extends Controller
         }
 
         $user = User::create(User::filterUsersColumns($userData));
-        $this->ensureAuthUserProject($user);
+        $user = $this->ensureAuthUserProject($user);
 
         return $user;
     }
