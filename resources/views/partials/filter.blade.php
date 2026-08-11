@@ -16,18 +16,19 @@
   @endif
 </div>
 
+<style>
+  #filterModal input::placeholder,
+  #filterModal textarea::placeholder {
+    color: rgba(148, 163, 184, 0.46);
+    opacity: 1;
+  }
+</style>
+
 <div id="filterModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:9999; justify-content:center; align-items:center;">
   <div class="glass-card" style="width:700px; max-width:90vw; max-height:80vh; overflow-y:auto; position:relative; margin:0 auto; padding:24px;">
     <div onclick="filterToggle()" style="position:absolute; top:12px; right:16px; cursor:pointer; font-size:1.5rem; color:var(--muted-foreground); transition:color 0.2s; z-index:10;">✕</div>
 
     <h3 style="margin:0 0 16px 0; color:var(--foreground); font-family:var(--header); font-size:1.25rem;">🔍 {{ __('document.filter.title') }}</h3>
-
-    @if($fd['datesAreDefault'] ?? false)
-      <div style="margin-bottom:16px; padding:10px 12px; border-radius:10px; border:1px solid rgba(251,191,36,0.28); background:rgba(251,191,36,0.08); color:var(--foreground); font-size:0.9rem;">
-        За замовчуванням список обмежений датами
-        <strong>{{ $fd['fdata1'] ?? '—' }}</strong> - <strong>{{ $fd['fdata2'] ?? '—' }}</strong>.
-      </div>
-    @endif
 
     <form action="{{ route('filter.apply') }}" method="post" name="filterform">
       @csrf
