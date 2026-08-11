@@ -307,14 +307,14 @@ class AuthController extends Controller
         $fid = $this->resolveAuthFid($request);
 
         /** @var User|null $user */
-        $user = $this->userForLogin($login, $fid)->first();
+        $loginUsers = $this->userForLogin($login, $fid)->get();
+        $user = $loginUsers->first(fn (User $candidate) => $candidate->passwordMatches($pass));
 
         if (!$user) {
-            return back()->withErrors(['email' => 'Користувача з таким email не знайдено. Спочатку зареєструйтесь.']);
-        }
-
-        if (!$user->passwordMatches($pass)) {
-            return back()->withErrors(['email' => 'Невірний email або пароль']);
+            $message = $loginUsers->isEmpty()
+                ? 'Користувача з таким email не знайдено. Спочатку зареєструйтесь.'
+                : 'Невірний email або пароль';
+            return back()->withErrors(['email' => $message]);
         }
 
         if ($user->usesLegacyPasswordHash()) {
@@ -534,10 +534,7 @@ class AuthController extends Controller
             ->first();
 
         if (!$project) {
-            $firma = trim((string) ($user->firma ?? $user->fid ?? ''));
-            $projectId = ($firma !== '' && $firma !== '0' && ctype_digit($firma) && !Project::query()->whereKey((int) $firma)->exists())
-                ? (int) $firma
-                : $this->nextFirma();
+            $projectId = $this->nextFirma();
 
             while (Project::query()->whereKey($projectId)->exists()) {
                 $projectId++;
@@ -715,10 +712,6 @@ class AuthController extends Controller
 
     private function scopeUserQueryToFid($query, ?string $fid)
     {
-        if ($fid !== null && $fid !== '' && Schema::hasColumn('users', 'firma')) {
-            $query->whereIn('firma', HoldingScope::projectIdsFor($fid));
-        }
-
         return $query;
     }
 
@@ -730,18 +723,30 @@ class AuthController extends Controller
 
         $requestedFid = trim((string) $request->input('fid', ''));
         $activeUser = $user;
+        $activeProjectId = '';
 
-        if ($requestedFid === '') {
-            $defaultProject = $this->defaultProjectForUser($user);
-            if ($defaultProject instanceof Project) {
-                $activeUser = $this->ensureAuthUserRowForProject($user, (string) $defaultProject->id);
-                if ((int) Auth::id() !== (int) $activeUser->id) {
-                    Auth::login($activeUser);
-                }
+        if ($requestedFid !== '') {
+            $requestedProject = $this->accessibleProjectById($user, $requestedFid);
+            if ($requestedProject instanceof Project) {
+                $activeProjectId = (string) $requestedProject->id;
             }
         }
 
-        $fid = $activeUser->firma ?: $activeUser->fid;
+        if ($activeProjectId === '') {
+            $defaultProject = $this->defaultProjectForUser($user);
+            if ($defaultProject instanceof Project) {
+                $activeProjectId = (string) $defaultProject->id;
+            }
+        }
+
+        if ($activeProjectId !== '') {
+            $activeUser = $this->ensureAuthUserRowForProject($user, $activeProjectId);
+            if ((int) Auth::id() !== (int) $activeUser->id) {
+                Auth::login($activeUser);
+            }
+        }
+
+        $fid = $activeProjectId;
 
         if ($fid !== null && $fid !== '') {
             $request->session()->put('fid', $fid);
@@ -766,6 +771,20 @@ class AuthController extends Controller
         return $query->orderBy('id')->first();
     }
 
+    private function accessibleProjectById(User $user, string $projectId): ?Project
+    {
+        if ($projectId === '' || ! ctype_digit($projectId)) {
+            return null;
+        }
+
+        $query = $this->authAccessibleProjectsQuery($user);
+        if ($query === null) {
+            return null;
+        }
+
+        return $query->whereKey((int) $projectId)->first();
+    }
+
     private function authAccessibleProjectsQuery(User $user)
     {
         if (! Schema::hasTable('project')) {
@@ -774,28 +793,22 @@ class AuthController extends Controller
 
         $identityUserIds = $this->authIdentityUserIds($user);
         $email = mb_strtolower(trim((string) ($user->email ?? '')));
-        $firmaProjectIds = $this->authProjectFirmaIdsForUser($user);
 
         $hasUserId = Schema::hasColumn('project', 'userid') && $identityUserIds->isNotEmpty();
         $hasEmail = Schema::hasColumn('project', 'email') && $email !== '';
-        $hasFirmaProjects = $firmaProjectIds->isNotEmpty();
 
-        if (! $hasUserId && ! $hasEmail && ! $hasFirmaProjects) {
+        if (! $hasUserId && ! $hasEmail) {
             return null;
         }
 
         return Project::query()
-            ->where(function ($query) use ($hasUserId, $hasEmail, $hasFirmaProjects, $identityUserIds, $email, $firmaProjectIds): void {
+            ->where(function ($query) use ($hasUserId, $hasEmail, $identityUserIds, $email): void {
                 if ($hasUserId) {
                     $query->whereIn('userid', $identityUserIds->all());
                 }
                 if ($hasEmail) {
                     $method = $hasUserId ? 'orWhereRaw' : 'whereRaw';
                     $query->{$method}('LOWER(TRIM(email)) = ?', [$email]);
-                }
-                if ($hasFirmaProjects) {
-                    $method = ($hasUserId || $hasEmail) ? 'orWhereIn' : 'whereIn';
-                    $query->{$method}('id', $firmaProjectIds->all());
                 }
             });
     }
@@ -815,28 +828,6 @@ class AuthController extends Controller
         }
 
         return $ids->filter()->unique()->values();
-    }
-
-    private function authProjectFirmaIdsForUser(User $user): \Illuminate\Support\Collection
-    {
-        if (! Schema::hasTable('users') || ! Schema::hasColumn('users', 'firma')) {
-            return collect();
-        }
-
-        $identityUserIds = $this->authIdentityUserIds($user);
-        if ($identityUserIds->isEmpty()) {
-            return collect();
-        }
-
-        return User::query()
-            ->whereIn('id', $identityUserIds->all())
-            ->pluck('firma')
-            ->map(fn ($firma) => trim((string) $firma))
-            ->filter(fn ($firma) => $firma !== '' && $firma !== '0' && ctype_digit($firma))
-            ->map(fn ($firma) => (int) $firma)
-            ->filter()
-            ->unique()
-            ->values();
     }
 
     private function establishAuthenticatedSession(Request $request, User $user): void
