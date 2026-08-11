@@ -3577,12 +3577,14 @@ class SettingsController extends Controller
         $email = mb_strtolower(trim((string) ($user->email ?? '')));
         $hasUserId = Schema::hasColumn('project', 'userid') && $identityUserIds->isNotEmpty();
         $hasEmail = Schema::hasColumn('project', 'email') && $email !== '';
-        if (! $hasUserId && ! $hasEmail) {
+        $firmaProjectIds = $this->projectFirmaIdsForUser($user);
+        $hasFirmaProjects = $firmaProjectIds->isNotEmpty();
+        if (! $hasUserId && ! $hasEmail && ! $hasFirmaProjects) {
             return collect();
         }
 
         return Project::query()
-            ->where(function ($query) use ($hasUserId, $hasEmail, $identityUserIds, $email): void {
+            ->where(function ($query) use ($hasUserId, $hasEmail, $hasFirmaProjects, $identityUserIds, $email, $firmaProjectIds): void {
                 if ($hasUserId) {
                     $query->whereIn('userid', $identityUserIds->all());
                 }
@@ -3590,9 +3592,35 @@ class SettingsController extends Controller
                     $method = $hasUserId ? 'orWhereRaw' : 'whereRaw';
                     $query->{$method}('LOWER(TRIM(email)) = ?', [$email]);
                 }
+                if ($hasFirmaProjects) {
+                    $method = ($hasUserId || $hasEmail) ? 'orWhereIn' : 'whereIn';
+                    $query->{$method}('id', $firmaProjectIds->all());
+                }
             })
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    private function projectFirmaIdsForUser(?object $user): \Illuminate\Support\Collection
+    {
+        if (! $user instanceof User || ! Schema::hasTable('users') || ! Schema::hasColumn('users', 'firma')) {
+            return collect();
+        }
+
+        $identityUserIds = $this->projectIdentityUserIds($user);
+        if ($identityUserIds->isEmpty()) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereIn('id', $identityUserIds->all())
+            ->pluck('firma')
+            ->map(fn ($firma) => trim((string) $firma))
+            ->filter(fn ($firma) => $firma !== '' && $firma !== '0' && ctype_digit($firma))
+            ->map(fn ($firma) => (int) $firma)
             ->filter()
             ->unique()
             ->values();

@@ -279,6 +279,7 @@ class AuthController extends Controller
         }
 
         $user = User::create(User::filterUsersColumns($userData));
+        $this->ensureAuthUserProject($user);
 
         Auth::login($user);
         $request->session()->regenerate();
@@ -398,6 +399,7 @@ class AuthController extends Controller
             }
 
             $user = User::create(User::filterUsersColumns($userData));
+            $this->ensureAuthUserProject($user);
         }
 
         $this->syncUserRoleStatus($user);
@@ -486,7 +488,11 @@ class AuthController extends Controller
             ->selectRaw('MAX(CAST(COALESCE(NULLIF(firma, \'\'), \'0\') AS UNSIGNED)) as max_firma')
             ->value('max_firma');
 
-        return $maxFirma + 1;
+        $maxProject = Schema::hasTable('project')
+            ? (int) DB::table('project')->max('id')
+            : 0;
+
+        return max($maxFirma, $maxProject) + 1;
     }
 
     private function resolveAuthFid(Request $request): ?string
@@ -503,6 +509,82 @@ class AuthController extends Controller
     private function authFirmaForNewUser(?string $fid): int|string
     {
         return $fid !== null && $fid !== '' ? $fid : $this->nextFirma();
+    }
+
+    private function ensureAuthUserProject(User $user): void
+    {
+        if (!Schema::hasTable('project')) {
+            return;
+        }
+
+        $projectColumns = Schema::getColumnListing('project');
+        if ($projectColumns === []) {
+            return;
+        }
+
+        $firma = trim((string) ($user->firma ?? $user->fid ?? ''));
+        if ($firma === '' || $firma === '0' || !ctype_digit($firma)) {
+            return;
+        }
+
+        $projectId = (int) $firma;
+        $name = trim(implode(' ', array_filter([
+            trim((string) ($user->secondname ?? '')),
+            trim((string) ($user->name ?? '')),
+        ])));
+        $name = $name !== ''
+            ? $name
+            : (trim((string) ($user->email ?? $user->login ?? '')) ?: 'Project ' . $projectId);
+
+        $payload = [];
+        if (in_array('num', $projectColumns, true)) {
+            $payload['num'] = $projectId;
+        }
+        if (in_array('name', $projectColumns, true)) {
+            $payload['name'] = mb_substr($name, 0, 255);
+        }
+        if (in_array('userid', $projectColumns, true)) {
+            $payload['userid'] = (int) $user->id;
+        }
+        if (in_array('email', $projectColumns, true)) {
+            $payload['email'] = trim((string) ($user->email ?? ''));
+        }
+        if (in_array('phone', $projectColumns, true)) {
+            $payload['phone'] = trim((string) ($user->phone ?? ''));
+        }
+        if (in_array('project_type', $projectColumns, true)) {
+            $payload['project_type'] = 'trade';
+        }
+        foreach (['url', 'telegram', 'instagram', 'twitter', 'facebook', 'foto', 'foto_header', 'foto_footer', 'description', 'htmlkeys'] as $column) {
+            if (in_array($column, $projectColumns, true)) {
+                $payload[$column] = '';
+            }
+        }
+        foreach (['web', 'hit', 'constanta'] as $column) {
+            if (in_array($column, $projectColumns, true)) {
+                $payload[$column] = 0;
+            }
+        }
+        if (in_array('created_at', $projectColumns, true)) {
+            $payload['created_at'] = now();
+        }
+        if (in_array('updated_at', $projectColumns, true)) {
+            $payload['updated_at'] = now();
+        }
+
+        if ($payload === []) {
+            return;
+        }
+
+        if (Project::query()->whereKey($projectId)->exists()) {
+            return;
+        }
+
+        if (in_array('id', $projectColumns, true)) {
+            $payload['id'] = $projectId;
+        }
+
+        Project::query()->insert($payload);
     }
 
     private function userForLogin(string $login, ?string $fid)
@@ -673,7 +755,10 @@ class AuthController extends Controller
             $userData['status'] = 1;
         }
 
-        return User::create(User::filterUsersColumns($userData));
+        $user = User::create(User::filterUsersColumns($userData));
+        $this->ensureAuthUserProject($user);
+
+        return $user;
     }
 
     private function resolveExistingGoogleUser(array $payload, ?string $fid = null): ?User
@@ -1887,6 +1972,7 @@ class AuthController extends Controller
         }
 
         $user = User::create(User::filterUsersColumns($userData));
+        $this->ensureAuthUserProject($user);
 
         // Auto login for stateful web callers; API clients receive JSON and can authenticate separately.
         $this->establishAuthenticatedSession($request, $user);
@@ -2195,7 +2281,10 @@ class AuthController extends Controller
             $userData['email_verified_at'] = now();
         }
 
-        return User::create(User::filterUsersColumns($userData));
+        $user = User::create(User::filterUsersColumns($userData));
+        $this->ensureAuthUserProject($user);
+
+        return $user;
     }
 
     private function userControlsSuiAddress(User $user, string $normalizedSender): bool
