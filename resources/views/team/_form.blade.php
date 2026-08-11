@@ -74,7 +74,7 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">Телефон</label>
-            <input type="tel" name="phone" id="team-phone-input" class="form-control" value="{{ old('phone', $member->phone ?? '') }}" placeholder="+38 (0XX) XXX-XX-XX" maxlength="19">
+            <input type="text" name="phone" id="team-phone-input" class="form-control" value="{{ old('phone', $member->phone ?? '') }}" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
         </div>
     </div>
 
@@ -131,19 +131,28 @@
             const photoPreviewEmpty = document.getElementById('team-photo-preview-empty');
 
             function formatPhone(value) {
-                let digits = String(value || '').replace(/\D/g, '');
-                if (digits.startsWith('380')) digits = digits.slice(2, 12);
-                else if (digits.startsWith('38')) digits = digits.slice(2, 12);
-                else if (digits.startsWith('0')) digits = digits.slice(0, 10);
-                else digits = digits.slice(0, 10);
+                const digits = String(value || '').replace(/\D/g, '').slice(0, 12);
+                if (digits.length === 0) {
+                    return '';
+                }
 
-                let formatted = '+38';
-                if (digits.length) formatted += ` (${digits.slice(0, 3)}`;
-                if (digits.length >= 3) formatted += ')';
-                if (digits.length > 3) formatted += ` ${digits.slice(3, 6)}`;
-                if (digits.length > 6) formatted += `-${digits.slice(6, 8)}`;
-                if (digits.length > 8) formatted += `-${digits.slice(8, 10)}`;
-                return formatted;
+                if (digits.length <= 3) {
+                    return `+${digits}`;
+                }
+
+                if (digits.length <= 5) {
+                    return `+${digits.slice(0, 3)} (${digits.slice(3)}`;
+                }
+
+                if (digits.length <= 8) {
+                    return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5)}`;
+                }
+
+                if (digits.length <= 10) {
+                    return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8)}`;
+                }
+
+                return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8, 10)}-${digits.slice(10)}`;
             }
 
             if (phoneInput) {

@@ -14,13 +14,6 @@
     <span style="font-size: 0.7rem; font-weight: 600; color: #000; margin-top: 4px;">{{ $filterButtonLabel ?? __('document.filter.search') }}</span>
   </div>
   @endif
-  @if(($fd['datesAreDefault'] ?? false) && $num === '0' && !in_array($doc, ['ZOUT', 'ZIN'], true))
-  <div class="alert alert-secondary" style="position:absolute; top:100%; left:0; margin-top:12px; min-width:320px; max-width:420px; padding:10px 14px; border:1px solid var(--border); background:rgba(255,255,255,0.04); color:var(--foreground); z-index:20;">
-    Показані документи за період за замовчуванням:
-    <strong>{{ $fd['fdata1'] ?? '—' }}</strong> - <strong>{{ $fd['fdata2'] ?? '—' }}</strong>.
-    Відкрийте фільтр, щоб змінити або скинути діапазон дат.
-  </div>
-  @endif
 </div>
 
 <div id="filterModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:9999; justify-content:center; align-items:center;">
