@@ -699,7 +699,7 @@
                         <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Название <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control project-safe-text-input" id="project-name" maxlength="30" required spellcheck="false">
+                            <input type="text" class="form-control project-safe-text-input" id="project-name" maxlength="30" required spellcheck="false" data-project-counter>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">телефон</label>
@@ -712,11 +712,11 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">web</label>
-                            <input type="text" class="form-control project-safe-contact-input" id="project-url" maxlength="30" placeholder="https://example.com">
+                            <input type="text" class="form-control project-safe-contact-input" id="project-url" maxlength="30" placeholder="https://example.com" data-project-counter>
                         </div>
                         <div class="col-12 mb-3">
                             <label class="form-label">Описание</label>
-                            <textarea class="form-control project-safe-contact-input" id="project-description" rows="2" maxlength="30"></textarea>
+                            <textarea class="form-control project-safe-contact-input" id="project-description" rows="2" maxlength="30" data-project-counter></textarea>
                         </div>
                         </div>
                     </div>
@@ -726,23 +726,23 @@
                         <div class="row">
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label class="form-label">telegram</label>
-                            <input type="text" class="form-control project-safe-contact-input" id="project-telegram" maxlength="30">
+                            <input type="text" class="form-control project-safe-contact-input" id="project-telegram" maxlength="30" data-project-counter>
                         </div>
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label class="form-label">instagram</label>
-                            <input type="text" class="form-control project-safe-contact-input" id="project-instagram" maxlength="30">
+                            <input type="text" class="form-control project-safe-contact-input" id="project-instagram" maxlength="30" data-project-counter>
                         </div>
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label class="form-label">twitter</label>
-                            <input type="text" class="form-control project-safe-contact-input" id="project-twitter" maxlength="30">
+                            <input type="text" class="form-control project-safe-contact-input" id="project-twitter" maxlength="30" data-project-counter>
                         </div>
                         <div class="col-md-6 col-lg-3 mb-3">
                             <label class="form-label">facebook</label>
-                            <input type="text" class="form-control project-safe-contact-input" id="project-facebook" maxlength="30">
+                            <input type="text" class="form-control project-safe-contact-input" id="project-facebook" maxlength="30" data-project-counter>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">htmlkeys</label>
-                            <input type="text" class="form-control project-safe-contact-input" id="project-htmlkeys" maxlength="30">
+                            <input type="text" class="form-control project-safe-contact-input" id="project-htmlkeys" maxlength="30" data-project-counter>
                         </div>
                         </div>
                     </div>
@@ -781,19 +781,19 @@
                         <div class="settings-project-section__title">Управление</div>
                         <div class="row">
                         <div class="col-md-4 mb-3 d-flex align-items-end">
-                            <div class="form-check">
+                            <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="project-web">
                                 <label class="form-check-label" for="project-web">web</label>
                             </div>
                         </div>
                         <div class="col-md-4 mb-3 d-flex align-items-end">
-                            <div class="form-check">
+                            <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="project-hit">
                                 <label class="form-check-label" for="project-hit">hit</label>
                             </div>
                         </div>
                         <div class="col-md-4 mb-3 d-flex align-items-end">
-                            <div class="form-check">
+                            <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="project-constanta">
                                 <label class="form-check-label" for="project-constanta">Маркетплейс</label>
                                 <div class="form-text">Категорії цього проєкту доступні іншим проєктам.</div>
@@ -2224,6 +2224,24 @@
         margin-bottom: 10px;
     }
 
+    #modalProjects .form-switch .form-check-label {
+        color: #fff;
+    }
+
+    #modalProjects .form-switch .form-check-input {
+        cursor: pointer;
+        width: 2.6em;
+        height: 1.35em;
+    }
+
+    #modalProjects .project-char-counter {
+        color: #94a3b8;
+        font-size: 0.76rem;
+        line-height: 1.2;
+        margin-top: 4px;
+        text-align: right;
+    }
+
     .project-holding-menu {
         position: absolute;
         z-index: 1060;
@@ -3086,8 +3104,23 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/[^\p{L}\p{M}\p{N}\s@:/.,'’`"()_-]/gu, '')
             .replace(/\s{2,}/g, ' ')
             .slice(0, maxLength);
+        const updateProjectCounter = (input) => {
+            if (!input || !input.hasAttribute('data-project-counter')) {
+                return;
+            }
+
+            const maxLength = Number(input.getAttribute('maxlength') || 30);
+            let counter = input.nextElementSibling;
+            if (!counter || !counter.classList.contains('project-char-counter')) {
+                counter = document.createElement('div');
+                counter.className = 'project-char-counter';
+                input.insertAdjacentElement('afterend', counter);
+            }
+            counter.textContent = `${String(input.value || '').length}/${maxLength}`;
+        };
         const bindProjectSafeInput = (input, sanitizer) => {
             input.value = sanitizer(input.value, Number(input.getAttribute('maxlength') || 30));
+            updateProjectCounter(input);
             input.addEventListener('input', function () {
                 const selectionStart = input.selectionStart;
                 const selectionEnd = input.selectionEnd;
@@ -3095,6 +3128,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const nextValue = sanitizer(input.value, maxLength);
 
                 if (nextValue === input.value) {
+                    updateProjectCounter(input);
                     return;
                 }
 
@@ -3102,7 +3136,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (selectionStart !== null && selectionEnd !== null) {
                     input.setSelectionRange(selectionStart, selectionEnd);
                 }
+                updateProjectCounter(input);
             });
+        };
+        const refreshProjectCounters = () => {
+            form.querySelectorAll('[data-project-counter]').forEach(updateProjectCounter);
         };
 
         bindProjectPreview(fotoFileInput, 'project-foto-preview-wrap', 'project-foto-preview');
@@ -3248,7 +3286,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             form.querySelectorAll('.project-safe-contact-input').forEach((input) => {
                 input.value = sanitizeProjectContact(input.value, Number(input.getAttribute('maxlength') || 30)).trim();
+                updateProjectCounter(input);
             });
+            updateProjectCounter(document.getElementById('project-name'));
 
             payload.append('name', document.getElementById('project-name').value.trim());
             payload.append('project_type', document.getElementById('project-type').value);
@@ -3538,6 +3578,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setProjectPreview('project-foto-preview-wrap', 'project-foto-preview', item.foto_preview || '');
             setProjectPreview('project-foto-header-preview-wrap', 'project-foto-header-preview', item.foto_header_preview || '');
             setProjectPreview('project-foto-footer-preview-wrap', 'project-foto-footer-preview', item.foto_footer_preview || '');
+            refreshProjectCounters();
         }
 
         function resetProjectForm() {
@@ -3569,6 +3610,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setProjectPreview('project-foto-preview-wrap', 'project-foto-preview', '');
             setProjectPreview('project-foto-header-preview-wrap', 'project-foto-header-preview', '');
             setProjectPreview('project-foto-footer-preview-wrap', 'project-foto-footer-preview', '');
+            refreshProjectCounters();
         }
 
         function showForm() {
