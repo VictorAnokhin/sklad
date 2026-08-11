@@ -306,12 +306,12 @@
             <div class="row mb-3">
                 <div class="col-md-6">
                     <label class="form-label">{{ __('client.field_phone') }}</label>
-                    <input type="tel" name="phone" id="phone-input" class="form-control phone-input" value="{{ $client->phone ?? '' }}" placeholder="+38 (0XX) XXX-XX-XX" maxlength="19">
+                    <input type="text" name="phone" id="phone-input" class="form-control phone-input" value="{{ $client->phone ?? '' }}" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                     <div class="invalid-feedback" id="phone-error"></div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">{{ __('client.field_phone2') }}</label>
-                    <input type="tel" name="phone1" id="phone1-input" class="form-control phone-input" value="{{ $client->phone1 ?? '' }}" placeholder="+38 (0XX) XXX-XX-XX" maxlength="19">
+                    <input type="text" name="phone1" id="phone1-input" class="form-control phone-input" value="{{ $client->phone1 ?? '' }}" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                     <div class="invalid-feedback" id="phone1-error"></div>
                 </div>
             </div>
@@ -773,33 +773,30 @@
     const checkEmailUrl = "{{ route('client.checkEmail') }}";
     const clientId = "{{ $client->id ?? '0' }}";
 
-    // Phone formatting: +38 (0XX) XXX-XX-XX
+    // Phone formatting matches the client modal in document/show: +380 (67) 123-45-67
     function formatPhone(value) {
-        let digits = value.replace(/\D/g, '');
-
-        if (digits.startsWith('380') && digits.length > 3) {
-            digits = digits.slice(0, 12);
-        } else if (digits.startsWith('0') && digits.length > 0) {
-            digits = `38${digits}`.slice(0, 12);
-        } else if (digits.startsWith('38') && digits.length > 2) {
-            digits = digits.slice(0, 12);
-        } else if (digits.length === 0) {
-            digits = '38';
-        } else {
-            digits = `38${digits}`.slice(0, 12);
+        const digits = value.replace(/\D/g, '').slice(0, 12);
+        if (digits.length === 0) {
+            return '';
         }
 
-        const local = digits.slice(2);
-        let formatted = '+38';
-        if (local.length > 0) {
-            formatted += ` (${local.slice(0, 3)}`;
-            if (local.length >= 3) formatted += ')';
-            if (local.length > 3) formatted += ` ${local.slice(3, 6)}`;
-            if (local.length > 6) formatted += `-${local.slice(6, 8)}`;
-            if (local.length > 8) formatted += `-${local.slice(8, 10)}`;
+        if (digits.length <= 3) {
+            return `+${digits}`;
         }
 
-        return formatted;
+        if (digits.length <= 5) {
+            return `+${digits.slice(0, 3)} (${digits.slice(3)}`;
+        }
+
+        if (digits.length <= 8) {
+            return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5)}`;
+        }
+
+        if (digits.length <= 10) {
+            return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8)}`;
+        }
+
+        return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8, 10)}-${digits.slice(10)}`;
     }
 
     // Normalize phone to +380XXXXXXXXX
@@ -942,7 +939,7 @@
             if (phoneInput && phoneInput.value && !isValidPhone(phoneInput.value)) {
                 phoneInput.classList.add('is-invalid');
                 const errorEl = document.getElementById('phone-error');
-                if (errorEl) errorEl.textContent = 'Введіть коректний номер телефону (наприклад: +380671234567)';
+                if (errorEl) errorEl.textContent = 'Введіть коректний номер телефону (наприклад: +380 (67) 123-45-67)';
                 hasErrors = true;
             }
 

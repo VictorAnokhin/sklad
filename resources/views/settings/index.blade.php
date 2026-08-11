@@ -705,7 +705,7 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">phone</label>
-                            <input type="text" class="form-control" id="project-phone" maxlength="255">
+                            <input type="text" class="form-control" id="project-phone" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">url</label>
@@ -1008,7 +1008,7 @@
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="form-phone" class="form-label">Телефон</label>
-                                <input type="text" class="form-control" id="form-phone" placeholder="+380...">
+                                <input type="text" class="form-control" id="form-phone" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="form-office-city-search" class="form-label">Город</label>
@@ -1176,7 +1176,7 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Телефон</label>
-                            <input type="text" class="form-control" id="firm-phone">
+                            <input type="text" class="form-control" id="firm-phone" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Тип / View</label>
@@ -1226,7 +1226,7 @@
 
             <div class="modal-body" id="firm-list-area">
                 <div class="table-responsive">
-                    <table class="table table-hover table-sm align-middle">
+                    <table class="table table-hover table-sm align-middle firm-compact-table">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -1624,7 +1624,7 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label>Телефон</label>
-                                    <input type="text" name="phone" class="form-control" value="{{ $user->phone ?? '' }}">
+                                    <input type="text" name="phone" id="profile-phone" class="form-control" value="{{ $user->phone ?? '' }}" placeholder="+38 (000) 00-00-000" maxlength="19" inputmode="tel">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label>Місто</label>
@@ -1952,6 +1952,38 @@
     .company-meta {
         font-size: 0.85rem;
         color: #aab4c8;
+    }
+
+    .firm-compact-table {
+        table-layout: fixed;
+        font-size: 0.78rem;
+    }
+
+    .firm-compact-table th,
+    .firm-compact-table td {
+        padding: 0.32rem 0.42rem;
+        vertical-align: middle;
+    }
+
+    .firm-compact-table tbody tr {
+        cursor: pointer;
+    }
+
+    .firm-compact-table td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .firm-compact-table .company-meta {
+        font-size: 0.72rem;
+        line-height: 1.15;
+        white-space: nowrap;
+    }
+
+    .firm-compact-table .firm-actions {
+        width: 76px;
+        white-space: nowrap;
     }
 
     .firm-media-preview {
@@ -2311,6 +2343,38 @@
 document.addEventListener('DOMContentLoaded', () => {
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
     const catalogNewsOptions = @json($catalogNewsOptions ?? []);
+    const profilePhoneInput = document.getElementById('profile-phone');
+    const formatSettingsPhoneInput = (value) => {
+        const digits = String(value || '').replace(/\D/g, '').slice(0, 12);
+        if (digits.length === 0) {
+            return '';
+        }
+
+        if (digits.length <= 3) {
+            return `+${digits}`;
+        }
+
+        if (digits.length <= 5) {
+            return `+${digits.slice(0, 3)} (${digits.slice(3)}`;
+        }
+
+        if (digits.length <= 8) {
+            return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5)}`;
+        }
+
+        if (digits.length <= 10) {
+            return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8)}`;
+        }
+
+        return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8, 10)}-${digits.slice(10)}`;
+    };
+
+    if (profilePhoneInput) {
+        profilePhoneInput.value = formatSettingsPhoneInput(profilePhoneInput.value);
+        profilePhoneInput.addEventListener('input', function () {
+            this.value = formatSettingsPhoneInput(this.value);
+        });
+    }
 
     initProjectsCrud(csrf);
     initConfCrud(csrf);
@@ -2831,6 +2895,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const holdingInput = document.getElementById('project-holding');
         const holdingToggle = document.getElementById('project-holding-toggle');
         const holdingMenu = document.getElementById('project-holding-menu');
+        const projectPhoneInput = document.getElementById('project-phone');
         let holdings = [];
         let projectsPage = 1;
         let projectsLastPage = 1;
@@ -2846,6 +2911,35 @@ document.addEventListener('DOMContentLoaded', () => {
         bindProjectPreview(fotoFileInput, 'project-foto-preview-wrap', 'project-foto-preview');
         bindProjectPreview(fotoHeaderFileInput, 'project-foto-header-preview-wrap', 'project-foto-header-preview');
         bindProjectPreview(fotoFooterFileInput, 'project-foto-footer-preview-wrap', 'project-foto-footer-preview');
+
+        const formatProjectPhoneInput = (value) => {
+            const digits = String(value || '').replace(/\D/g, '').slice(0, 12);
+            if (digits.length === 0) {
+                return '';
+            }
+
+            if (digits.length <= 3) {
+                return `+${digits}`;
+            }
+
+            if (digits.length <= 5) {
+                return `+${digits.slice(0, 3)} (${digits.slice(3)}`;
+            }
+
+            if (digits.length <= 8) {
+                return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5)}`;
+            }
+
+            if (digits.length <= 10) {
+                return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8)}`;
+            }
+
+            return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8, 10)}-${digits.slice(10)}`;
+        };
+
+        projectPhoneInput?.addEventListener('input', function () {
+            this.value = formatProjectPhoneInput(this.value);
+        });
 
         const parseResponseData = async (response) => {
             const raw = await response.text().catch(() => '');
@@ -3215,7 +3309,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-type').value = item.project_type || '';
             if (holdingInput) holdingInput.value = item.holding_name || '';
             document.getElementById('project-email').value = item.email || '';
-            document.getElementById('project-phone').value = item.phone || '';
+            if (projectPhoneInput) projectPhoneInput.value = formatProjectPhoneInput(item.phone || '');
             document.getElementById('project-url').value = item.url || '';
             document.getElementById('project-telegram').value = item.telegram || '';
             document.getElementById('project-instagram').value = item.instagram || '';
@@ -3246,7 +3340,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('project-type').value = '';
             if (holdingInput) holdingInput.value = '';
             document.getElementById('project-email').value = '';
-            document.getElementById('project-phone').value = '';
+            if (projectPhoneInput) projectPhoneInput.value = '';
             document.getElementById('project-url').value = '';
             document.getElementById('project-telegram').value = '';
             document.getElementById('project-instagram').value = '';
@@ -3556,6 +3650,35 @@ document.addEventListener('DOMContentLoaded', () => {
         let officeCitySearchTimer = null;
         let officeCitySelectedLabel = '';
         const canManagePaymentTypes = @json((bool) ($canManagePaymentTypes ?? false));
+
+        const formatOfficePhoneInput = (value) => {
+            const digits = String(value || '').replace(/\D/g, '').slice(0, 12);
+            if (digits.length === 0) {
+                return '';
+            }
+
+            if (digits.length <= 3) {
+                return `+${digits}`;
+            }
+
+            if (digits.length <= 5) {
+                return `+${digits.slice(0, 3)} (${digits.slice(3)}`;
+            }
+
+            if (digits.length <= 8) {
+                return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5)}`;
+            }
+
+            if (digits.length <= 10) {
+                return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8)}`;
+            }
+
+            return `+${digits.slice(0, 3)} (${digits.slice(3, 5)}) ${digits.slice(5, 8)}-${digits.slice(8, 10)}-${digits.slice(10)}`;
+        };
+
+        phoneInput?.addEventListener('input', function () {
+            this.value = formatOfficePhoneInput(this.value);
+        });
 
         fotoFileInput?.addEventListener('change', () => {
             updateImagePreview(fotoFileInput, 'form-foto-preview', 'form-foto-preview-wrap');
@@ -3967,7 +4090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     setDocFlags(item.doc || '');
                     setCostType(item.constanta ?? '1');
                     setCashFlowActivity(item.cash_flow_activity || item.vision || 'operating');
-                    phoneInput.value = item.phone || '';
+                    phoneInput.value = formatOfficePhoneInput(item.phone || '');
                     setOfficeCityFromItem(item);
                     addressInput.value = item.address || '';
                     googleMapInput.value = item.google_map || '';
@@ -6056,6 +6179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancelBtn = document.getElementById('btn-firm-cancel');
         const signatureInput = document.getElementById('firm-pidpys-file');
         const stampInput = document.getElementById('firm-pechat-file');
+        const firmPhoneInput = document.getElementById('firm-phone');
 
         modal.addEventListener('show.bs.modal', () => {
             hideFirmForm();
@@ -6085,16 +6209,24 @@ document.addEventListener('DOMContentLoaded', () => {
             updateFirmImagePreview(stampInput, 'firm-pechat-preview', 'firm-pechat-preview-wrap');
         });
 
+        firmPhoneInput?.addEventListener('input', function () {
+            this.value = formatSettingsPhoneInput(this.value);
+        });
+
         tbody.addEventListener('click', (e) => {
             const btn = e.target.closest('.action-btn');
-            if (!btn) return;
-
-            const id = btn.dataset.id;
-            if (btn.dataset.action === 'edit') {
-                editFirm(id);
+            if (btn) {
+                e.stopPropagation();
+                const id = btn.dataset.id;
+                if (btn.dataset.action === 'delete') {
+                    deleteFirm(id, btn);
+                }
+                return;
             }
-            if (btn.dataset.action === 'delete') {
-                deleteFirm(id, btn);
+
+            const row = e.target.closest('tr[data-firm-id]');
+            if (row) {
+                editFirm(row.dataset.firmId);
             }
         });
 
@@ -6188,6 +6320,7 @@ document.addEventListener('DOMContentLoaded', () => {
             emptyMsg.style.display = 'none';
             items.forEach((item) => {
                 const tr = document.createElement('tr');
+                tr.dataset.firmId = item.id;
                 tr.innerHTML = `
                     <td>${item.id}</td>
                     <td>
@@ -6198,8 +6331,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${escapeHtml(item.town || '—')}</td>
                     <td>${escapeHtml(item.address || '—')}</td>
                     <td>${escapeHtml(item.direktor || '—')}</td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary action-btn" data-action="edit" data-id="${item.id}">✏</button>
+                    <td class="text-end firm-actions">
                         <button class="btn btn-sm btn-outline-danger action-btn" data-action="delete" data-id="${item.id}">🗑</button>
                     </td>
                 `;
@@ -6230,7 +6362,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('firm-address').value = data.address || '';
                     document.getElementById('firm-map').value = data.map || '';
                     document.getElementById('firm-view').value = data.view || '';
-                    document.getElementById('firm-phone').value = data.phone || '';
+                    if (firmPhoneInput) firmPhoneInput.value = formatSettingsPhoneInput(data.phone || '');
                     document.getElementById('firm-direktor').value = data.direktor || '';
                     updateFirmImagePreview(null, 'firm-pidpys-preview', 'firm-pidpys-preview-wrap', data.pidpys_preview || '');
                     updateFirmImagePreview(null, 'firm-pechat-preview', 'firm-pechat-preview-wrap', data.pechat_preview || '');
