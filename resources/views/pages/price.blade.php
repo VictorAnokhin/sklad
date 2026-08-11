@@ -4,19 +4,6 @@
 
 @section('content')
 <main class="pricing-page">
-    <section class="pricing-hero">
-        <div class="pricing-hero__inner">
-            <div class="pricing-hero__copy">
-                <p class="pricing-eyebrow">AV8 Capital DAO</p>
-                <h1>Цены для учета, продаж и финансового контроля</h1>
-                <p class="pricing-lead">
-                    Выберите пакет под текущий размер команды. Все тарифы включают доступ к рабочему кабинету, базовым справочникам и аналитике.
-                </p>
-            </div>
-            <a href="{{ route('login') }}" class="pricing-login-link">Войти</a>
-        </div>
-    </section>
-
     <section class="pricing-plans" aria-label="Тарифы">
         @if(session('success'))
         <div class="pricing-alert pricing-alert--success">{{ session('success') }}</div>
@@ -91,49 +78,9 @@
             url("{{ asset('images/about_hero_1776457354755.png') }}") center/cover fixed;
     }
 
-    .pricing-hero,
     .pricing-plans {
         width: min(1120px, 100%);
         margin: 0 auto;
-    }
-
-    .pricing-hero__inner {
-        display: flex;
-        align-items: flex-end;
-        justify-content: space-between;
-        gap: 24px;
-        padding: 42px 0 28px;
-        border-bottom: 1px solid var(--pricing-border);
-    }
-
-    .pricing-hero__copy {
-        max-width: 760px;
-    }
-
-    .pricing-eyebrow {
-        margin: 0 0 12px;
-        color: var(--pricing-accent);
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-    }
-
-    .pricing-hero h1 {
-        margin: 0;
-        max-width: 760px;
-        font-size: clamp(2rem, 4vw, 4.2rem);
-        line-height: 1.02;
-        font-weight: 760;
-        letter-spacing: 0;
-    }
-
-    .pricing-lead {
-        max-width: 680px;
-        margin: 18px 0 0;
-        color: var(--pricing-muted);
-        font-size: 1.04rem;
-        line-height: 1.65;
     }
 
     .pricing-login-link,
@@ -153,7 +100,7 @@
     }
 
     .pricing-plans {
-        padding-top: 28px;
+        padding-top: 0;
     }
 
     .pricing-alert {
@@ -286,11 +233,6 @@
     }
 
     @media (max-width: 900px) {
-        .pricing-hero__inner {
-            align-items: flex-start;
-            flex-direction: column;
-        }
-
         .pricing-plans__grid {
             grid-template-columns: 1fr;
         }
