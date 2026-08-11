@@ -2831,11 +2831,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let pricePlansState = [];
 
     const cleanPricePlanField = (value, maxLength = 255, multiline = false) => {
-        let text = String(value || '')
-            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F<>[\]{}\\|~^]/g, '');
+        let text = String(value || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
         if (!multiline) {
+            text = text.replace(/[<>[\]{}\\|~^]/g, '');
             text = text.replace(/[=;:*$#!?%+]/g, '').replace(/\s{2,}/g, ' ');
         } else {
+            text = text.replace(/<\s*(script|style|iframe|object|embed|form)[^>]*>.*?<\s*\/\s*\1\s*>/gis, '');
             text = text.replace(/[ \t]{2,}/g, ' ');
         }
         return text.trim().slice(0, maxLength);

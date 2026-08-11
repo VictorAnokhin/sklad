@@ -14,12 +14,6 @@
 
         <div class="pricing-plans__grid" style="--pricing-columns: {{ max(1, min(count($plans), 4)) }};">
             @foreach($plans as $plan)
-            @php
-                $features = collect(preg_split('/\r\n|\r|\n/', (string) ($plan['description'] ?? '')))
-                    ->map(fn ($feature) => trim($feature))
-                    ->filter()
-                    ->values();
-            @endphp
             <article class="pricing-card {{ !empty($plan['featured']) ? 'pricing-card--featured' : '' }}">
                 <div>
                     <div class="pricing-card__topline">
@@ -35,11 +29,9 @@
                     </div>
                 </div>
 
-                <ul class="pricing-card__features">
-                    @foreach($features as $feature)
-                    <li>{{ $feature }}</li>
-                    @endforeach
-                </ul>
+                <div class="pricing-card__features">
+                    {!! $plan['description'] ?? '' !!}
+                </div>
 
                 @auth
                     @if($loop->first)
@@ -193,12 +185,29 @@
     }
 
     .pricing-card__features {
+        margin: 0;
+        padding: 0;
+        line-height: 1.45;
+        white-space: pre-line;
+    }
+
+    .pricing-card__features ul,
+    .pricing-card__features ol {
         display: grid;
         gap: 12px;
         margin: 0;
         padding: 0;
         list-style: none;
-        line-height: 1.45;
+    }
+
+    .pricing-card__features p,
+    .pricing-card__features div {
+        margin: 0 0 12px;
+    }
+
+    .pricing-card__features p:last-child,
+    .pricing-card__features div:last-child {
+        margin-bottom: 0;
     }
 
     .pricing-card__features li {

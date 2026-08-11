@@ -177,7 +177,7 @@ class PriceController extends Controller
             'name' => (string) ($row->name ?? ''),
             'subtitle' => (string) ($row->descript ?? ''),
             'price' => (string) ($row->descript2 ?? ''),
-            'description' => (string) ($row->constanta ?? ''),
+            'description' => self::cleanPlanHtml($row->constanta ?? '', 2000),
             'featured' => (string) ($row->color ?? '') === 'featured',
         ];
     }
@@ -206,7 +206,7 @@ class PriceController extends Controller
             'name' => self::cleanText($plan['name'] ?? '', 100),
             'subtitle' => self::cleanText($plan['subtitle'] ?? '', 255),
             'price' => self::cleanText($plan['price'] ?? '', 80),
-            'description' => self::cleanMultilineText($plan['description'] ?? '', 2000),
+            'description' => self::cleanPlanHtml($plan['description'] ?? '', 2000),
             'featured' => $featured,
         ];
     }
@@ -219,9 +219,12 @@ class PriceController extends Controller
         return mb_substr($value, 0, $maxLength);
     }
 
-    private static function cleanMultilineText(mixed $value, int $maxLength): string
+    private static function cleanPlanHtml(mixed $value, int $maxLength): string
     {
-        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F<>[\]{}\\\\|~^]/u', '', (string) $value);
+        $value = preg_replace('/<\s*(script|style|iframe|object|embed|form)[^>]*>.*?<\s*\/\s*\1\s*>/isu', '', (string) $value);
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', (string) $value);
+        $value = strip_tags($value, '<p><br><ul><ol><li><strong><b><em><i><u><span><small><div><h3><h4>');
+        $value = preg_replace('/<([a-z][a-z0-9]*)\b[^>]*>/iu', '<$1>', (string) $value);
         $value = preg_replace("/[ \t]{2,}/u", ' ', trim((string) $value));
 
         return mb_substr($value, 0, $maxLength);
