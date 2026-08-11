@@ -453,7 +453,7 @@ class SettingsController extends Controller
         ]);
     }
 
-    public function updateSmsClubSettings(Request $request, SmsClubService $smsClub)
+    public function updateSmsClubSettings(Request $request)
     {
         $validated = $request->validate([
             'api_key' => ['required', 'string', 'max:255'],
@@ -462,6 +462,26 @@ class SettingsController extends Controller
         $apiKey = trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $validated['api_key']));
         if ($apiKey === '') {
             return response()->json(['success' => false, 'message' => 'Введите API ключ.'], 422);
+        }
+
+        $this->saveSmsClubApiKey((string) session('fid', ''), $apiKey);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'API ключ сохранен.',
+            'configured' => true,
+            'api_key_hint' => $this->maskSmsClubApiKey($apiKey),
+        ]);
+    }
+
+    public function smsClubBalance(Request $request, SmsClubService $smsClub)
+    {
+        $apiKey = $this->smsClubApiKeyForFirma((string) session('fid', ''));
+        if ($apiKey === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Сохраненный API ключ не найден.',
+            ], 422);
         }
 
         try {
@@ -473,13 +493,8 @@ class SettingsController extends Controller
             ], 422);
         }
 
-        $this->saveSmsClubApiKey((string) session('fid', ''), $apiKey);
-
         return response()->json([
             'success' => true,
-            'message' => 'API ключ сохранен.',
-            'configured' => true,
-            'api_key_hint' => $this->maskSmsClubApiKey($apiKey),
             'balance' => $this->extractSmsClubBalance($balancePayload),
             'payload' => $balancePayload,
         ]);

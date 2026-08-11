@@ -460,6 +460,7 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/password-change', [SettingsController::class , 'passwordChange'])->name('passwordChange');
             Route::get('/sms-club', [SettingsController::class , 'smsClubSettings'])->name('smsClub.show');
             Route::post('/sms-club', [SettingsController::class , 'updateSmsClubSettings'])->name('smsClub.update');
+            Route::get('/sms-club/balance', [SettingsController::class , 'smsClubBalance'])->name('smsClub.balance');
             Route::get('/holdings', [SettingsController::class , 'holdingsIndex'])->name('holdings.index');
             Route::delete('/holdings/{id}', [SettingsController::class , 'holdingsDestroy'])->name('holdings.destroy');
             Route::get('/projects', [SettingsController::class , 'projectsIndex'])->name('projects.index');

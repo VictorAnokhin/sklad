@@ -257,7 +257,11 @@
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-success" id="sms-club-save-btn">
                         <span class="spinner-border spinner-border-sm me-2 d-none" id="sms-club-spinner" aria-hidden="true"></span>
-                        <span id="sms-club-save-text">Сохранить и показать баланс</span>
+                        <span id="sms-club-save-text">Сохранить</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-info" id="sms-club-balance-btn">
+                        <span class="spinner-border spinner-border-sm me-2 d-none" id="sms-club-balance-spinner" aria-hidden="true"></span>
+                        Показать баланс
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('settings.common.close') }}</button>
                 </div>
@@ -2559,13 +2563,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const smsClubBadge = document.getElementById('badge-sms-club');
     const smsClubSaveButton = document.getElementById('sms-club-save-btn');
     const smsClubSpinner = document.getElementById('sms-club-spinner');
+    const smsClubBalanceButton = document.getElementById('sms-club-balance-btn');
+    const smsClubBalanceSpinner = document.getElementById('sms-club-balance-spinner');
 
-    const setSmsClubLoading = (isLoading) => {
+    const setSmsClubLoading = (isLoading, action = 'save') => {
         if (smsClubSaveButton) {
             smsClubSaveButton.disabled = isLoading;
         }
+        if (smsClubBalanceButton) {
+            smsClubBalanceButton.disabled = isLoading;
+        }
         if (smsClubSpinner) {
-            smsClubSpinner.classList.toggle('d-none', !isLoading);
+            smsClubSpinner.classList.toggle('d-none', !isLoading || action !== 'save');
+        }
+        if (smsClubBalanceSpinner) {
+            smsClubBalanceSpinner.classList.toggle('d-none', !isLoading || action !== 'balance');
         }
     };
 
@@ -2619,7 +2631,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         setSmsClubLoading(true);
-        showSmsClubFeedback('info', 'Сохраняем ключ и проверяем баланс...');
+        setSmsClubLoading(true, 'save');
+        showSmsClubFeedback('info', 'Сохраняем ключ...');
 
         try {
             const response = await fetch('/settings/sms-club', {
@@ -2642,9 +2655,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 smsClubApiKeyInput.placeholder = data.api_key_hint ? `Сохранен: ${data.api_key_hint}` : 'API ключ сохранен';
             }
             setSmsClubConfiguredBadge(true);
-            showSmsClubFeedback('success', data.balance ? `Баланс: ${data.balance}` : 'API ключ сохранен. Баланс получен, но формат ответа не распознан.');
+            showSmsClubFeedback('success', data.message || 'API ключ сохранен.');
         } catch (error) {
             showSmsClubFeedback('danger', error.message || 'Ошибка сохранения SMS настроек.');
+        } finally {
+            setSmsClubLoading(false);
+        }
+    });
+
+    smsClubBalanceButton?.addEventListener('click', async () => {
+        setSmsClubLoading(true, 'balance');
+        showSmsClubFeedback('info', 'Получаем баланс по сохраненному ключу...');
+
+        try {
+            const response = await fetch('/settings/sms-club/balance', {
+                headers: { Accept: 'application/json' },
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Не удалось получить баланс SMS Club.');
+            }
+
+            showSmsClubFeedback('success', data.balance ? `Баланс: ${data.balance}` : 'Баланс получен, но формат ответа не распознан.');
+        } catch (error) {
+            showSmsClubFeedback('danger', error.message || 'Ошибка получения баланса SMS Club.');
         } finally {
             setSmsClubLoading(false);
         }
