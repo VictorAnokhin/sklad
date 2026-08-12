@@ -179,168 +179,180 @@
         @endforeach
     </section>
 
-    <section class="bank-stock-workspace">
-        <div class="bank-stock-chart-panel">
-            <div class="tradingview-widget-container" style="height:100%;width:100%">
-                <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
-                <div class="tradingview-widget-copyright">
-                    <a href="https://www.tradingview.com/symbols/{{ $tradingViewTicker }}/" rel="noopener nofollow" target="_blank">
-                        <span class="blue-text">{{ $tradingViewTicker }} stock chart</span>
-                    </a>
-                    <span class="trademark"> by TradingView</span>
+    <section class="bank-stock-detail-layout">
+        <div class="bank-stock-left-rail">
+            <div class="bank-stock-chart-panel">
+                <div class="tradingview-widget-container" style="height:100%;width:100%">
+                    <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+                    <div class="tradingview-widget-copyright">
+                        <a href="https://www.tradingview.com/symbols/{{ $tradingViewTicker }}/" rel="noopener nofollow" target="_blank">
+                            <span class="blue-text">{{ $tradingViewTicker }} stock chart</span>
+                        </a>
+                        <span class="trademark"> by TradingView</span>
+                    </div>
+                    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+                    {
+                      "allow_symbol_change": true,
+                      "calendar": false,
+                      "details": false,
+                      "hide_side_toolbar": true,
+                      "hide_top_toolbar": false,
+                      "hide_legend": false,
+                      "hide_volume": false,
+                      "hotlist": false,
+                      "interval": "D",
+                      "locale": "en",
+                      "save_image": true,
+                      "style": "1",
+                      "symbol": @json($tradingViewTicker),
+                      "theme": "dark",
+                      "timezone": "Etc/UTC",
+                      "backgroundColor": "#0F0F0F",
+                      "gridColor": "rgba(242, 242, 242, 0.2)",
+                      "watchlist": [],
+                      "withdateranges": false,
+                      "compareSymbols": [],
+                      "studies": [],
+                      "autosize": true
+                    }
+                    </script>
                 </div>
-                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-                {
-                  "allow_symbol_change": true,
-                  "calendar": false,
-                  "details": false,
-                  "hide_side_toolbar": true,
-                  "hide_top_toolbar": false,
-                  "hide_legend": false,
-                  "hide_volume": false,
-                  "hotlist": false,
-                  "interval": "D",
-                  "locale": "en",
-                  "save_image": true,
-                  "style": "1",
-                  "symbol": @json($tradingViewTicker),
-                  "theme": "dark",
-                  "timezone": "Etc/UTC",
-                  "backgroundColor": "#0F0F0F",
-                  "gridColor": "rgba(242, 242, 242, 0.2)",
-                  "watchlist": [],
-                  "withdateranges": false,
-                  "compareSymbols": [],
-                  "studies": [],
-                  "autosize": true
-                }
-                </script>
             </div>
-        </div>
 
-        <aside class="bank-stock-snapshot-dates-panel">
-            <div class="bank-stock-snapshot-dates-title">
-                <span>Snapshot</span>
-                <strong>Даты сохранения</strong>
-            </div>
-            <div class="bank-stock-snapshot-dates-scroll">
-                <table class="bank-stock-snapshot-dates-table">
-                    <thead>
-                        <tr>
-                            <th>Дата</th>
-                            <th>Price</th>
-                            <th>Change</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            <aside class="bank-stock-snapshot-dates-panel">
+                <div class="bank-stock-snapshot-dates-title">
+                    <span>Snapshot</span>
+                    <strong>Даты сохранения</strong>
+                </div>
+                <label class="bank-stock-snapshot-mobile-select">
+                    <span>Дата snapshot</span>
+                    <select data-stock-snapshot-select aria-label="Выберите дату snapshot">
                         @foreach($snapshotData->sortByDesc('date')->values() as $snapshotPoint)
-                            @php($rowChange = trim((string) ($snapshotPoint['change_percent'] ?? '')))
-                            <tr class="bank-stock-snapshot-date-row {{ $selectedSnapshotDate === $snapshotPoint['date'] ? 'is-active' : '' }}"
-                                data-stock-snapshot-date="{{ $snapshotPoint['date'] }}"
-                                role="button"
-                                tabindex="0"
-                                aria-label="Показать сохраненные параметры на {{ $snapshotPoint['date'] }}">
-                                <td>{{ $snapshotPoint['date'] }}</td>
-                                <td>{{ $snapshotPoint['price'] ?: '—' }}</td>
-                                <td class="{{ str_starts_with($rowChange, '-') ? 'is-negative' : ($rowChange !== '' && $rowChange !== '0' && $rowChange !== '0%' ? 'is-positive' : 'is-neutral') }}">{{ $rowChange ?: '—' }}</td>
-                            </tr>
+                            <option value="{{ $snapshotPoint['date'] }}" {{ $selectedSnapshotDate === $snapshotPoint['date'] ? 'selected' : '' }}>
+                                {{ $snapshotPoint['date'] }}
+                            </option>
                         @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </aside>
-    </section>
-
-    <section class="bank-stock-snapshot">
-        <div class="bank-stock-snapshot-title">
-            <span>Snapshot</span>
-            <strong><span data-stock-snapshot-title-date>{{ $selectedSnapshotDate }}</span> · {{ $stockValue('ticker') }} fundamentals</strong>
-        </div>
-        <div class="bank-stock-snapshot-tabs" role="tablist" aria-label="Snapshot views">
-            <button type="button" class="is-active" data-stock-tab="parameters" role="tab" aria-selected="true">Параметры</button>
-            <button type="button" data-stock-tab="analysis" role="tab" aria-selected="false">Анализ</button>
-        </div>
-        <div data-stock-tab-panel="parameters">
-            <div class="bank-stock-snapshot-scroll">
-                <table class="bank-stock-snapshot-table">
-                    <tbody>
-                        @foreach($snapshotRows as $row)
-                            <tr>
-                                @foreach($row as [$label, $rowValue])
-                                    @php($parameterDescription = trim((string) $parameterDescriptions->get($label, '')))
-                                    <th>
-                                        <span class="bank-stock-snapshot-label">
-                                            {{ $label }}
-                                            @if($parameterDescription !== '')
-                                                <button type="button"
-                                                        class="bank-stock-parameter-info"
-                                                        data-stock-parameter-info
-                                                        data-stock-parameter-title="{{ $label }}"
-                                                        data-stock-parameter-description="{{ $parameterDescription }}"
-                                                        aria-label="Описание параметра {{ $label }}">
-                                                    i
-                                                </button>
-                                            @endif
-                                        </span>
-                                    </th>
-                                    <td class="{{ $label === 'Change' ? $changeClass : '' }}" data-stock-snapshot-value="{{ $label }}">
-                                        <span data-stock-snapshot-value-text>{{ $rowValue ?: '—' }}</span>
-                                    </td>
-                                @endforeach
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <div data-stock-tab-panel="analysis" hidden>
-            <div class="bank-stock-analysis-view">
-                <div class="bank-stock-analysis-note">
-                    <strong>Методика</strong>
-                    <span>Мультипликаторы нельзя оценивать в вакууме. Для точного вывода нужны средние по отрасли и главные конкуренты; если таких данных нет в snapshot, вывод ниже использует только базовые ориентиры.</span>
-                </div>
-                <div class="bank-stock-analysis-grid" data-stock-analysis-results></div>
-                <div class="bank-stock-analysis-cheatsheet">
-                    <div class="bank-stock-analysis-heading">Сводная таблица-шпаргалка</div>
-                    <table>
+                    </select>
+                </label>
+                <div class="bank-stock-snapshot-dates-scroll">
+                    <table class="bank-stock-snapshot-dates-table">
                         <thead>
                             <tr>
-                                <th>Метрика</th>
-                                <th>Здоровая норма</th>
-                                <th>Красный флаг</th>
+                                <th>Дата</th>
+                                <th>Price</th>
+                                <th>Change</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>P/E</td>
-                                <td>Ниже среднеотраслевого при хорошем росте</td>
-                                <td>Экстремально высокий без оправданного роста</td>
-                            </tr>
-                            <tr>
-                                <td>Net Debt / EBITDA</td>
-                                <td>До 2.0-2.5</td>
-                                <td>Выше 3.5</td>
-                            </tr>
-                            <tr>
-                                <td>ROE</td>
-                                <td>Выше 15%</td>
-                                <td>Ниже 5% или отрицательный</td>
-                            </tr>
-                            <tr>
-                                <td>Current Ratio</td>
-                                <td>Выше 1.5</td>
-                                <td>Ниже 1.0</td>
-                            </tr>
-                            <tr>
-                                <td>Dividend Payout</td>
-                                <td>40%-60% от прибыли</td>
-                                <td>Выше 100%</td>
-                            </tr>
+                            @foreach($snapshotData->sortByDesc('date')->values() as $snapshotPoint)
+                                @php($rowChange = trim((string) ($snapshotPoint['change_percent'] ?? '')))
+                                <tr class="bank-stock-snapshot-date-row {{ $selectedSnapshotDate === $snapshotPoint['date'] ? 'is-active' : '' }}"
+                                    data-stock-snapshot-date="{{ $snapshotPoint['date'] }}"
+                                    role="button"
+                                    tabindex="0"
+                                    aria-label="Показать сохраненные параметры на {{ $snapshotPoint['date'] }}">
+                                    <td>{{ $snapshotPoint['date'] }}</td>
+                                    <td>{{ $snapshotPoint['price'] ?: '—' }}</td>
+                                    <td class="{{ str_starts_with($rowChange, '-') ? 'is-negative' : ($rowChange !== '' && $rowChange !== '0' && $rowChange !== '0%' ? 'is-positive' : 'is-neutral') }}">{{ $rowChange ?: '—' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </aside>
+        </div>
+
+        <section class="bank-stock-snapshot">
+            <div class="bank-stock-snapshot-title">
+                <span>Snapshot</span>
+                <strong><span data-stock-snapshot-title-date>{{ $selectedSnapshotDate }}</span> · {{ $stockValue('ticker') }} fundamentals</strong>
+            </div>
+            <div class="bank-stock-snapshot-tabs" role="tablist" aria-label="Snapshot views">
+                <button type="button" class="is-active" data-stock-tab="parameters" role="tab" aria-selected="true">Параметры</button>
+                <button type="button" data-stock-tab="analysis" role="tab" aria-selected="false">Анализ</button>
+            </div>
+            <div data-stock-tab-panel="parameters">
+                <div class="bank-stock-snapshot-scroll">
+                    <table class="bank-stock-snapshot-table">
+                        <tbody>
+                            @foreach($snapshotRows as $row)
+                                <tr>
+                                    @foreach($row as [$label, $rowValue])
+                                        @php($parameterDescription = trim((string) $parameterDescriptions->get($label, '')))
+                                        <th>
+                                            <span class="bank-stock-snapshot-label">
+                                                {{ $label }}
+                                                @if($parameterDescription !== '')
+                                                    <button type="button"
+                                                            class="bank-stock-parameter-info"
+                                                            data-stock-parameter-info
+                                                            data-stock-parameter-title="{{ $label }}"
+                                                            data-stock-parameter-description="{{ $parameterDescription }}"
+                                                            aria-label="Описание параметра {{ $label }}">
+                                                        i
+                                                    </button>
+                                                @endif
+                                            </span>
+                                        </th>
+                                        <td class="{{ $label === 'Change' ? $changeClass : '' }}" data-stock-snapshot-value="{{ $label }}">
+                                            <span data-stock-snapshot-value-text>{{ $rowValue ?: '—' }}</span>
+                                        </td>
+                                    @endforeach
+                                </tr>
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
+            <div data-stock-tab-panel="analysis" hidden>
+                <div class="bank-stock-analysis-view">
+                    <div class="bank-stock-analysis-note">
+                        <strong>Методика</strong>
+                        <span>Мультипликаторы нельзя оценивать в вакууме. Для точного вывода нужны средние по отрасли и главные конкуренты; если таких данных нет в snapshot, вывод ниже использует только базовые ориентиры.</span>
+                    </div>
+                    <div class="bank-stock-analysis-grid" data-stock-analysis-results></div>
+                    <div class="bank-stock-analysis-cheatsheet">
+                        <div class="bank-stock-analysis-heading">Сводная таблица-шпаргалка</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Метрика</th>
+                                    <th>Здоровая норма</th>
+                                    <th>Красный флаг</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>P/E</td>
+                                    <td>Ниже среднеотраслевого при хорошем росте</td>
+                                    <td>Экстремально высокий без оправданного роста</td>
+                                </tr>
+                                <tr>
+                                    <td>Net Debt / EBITDA</td>
+                                    <td>До 2.0-2.5</td>
+                                    <td>Выше 3.5</td>
+                                </tr>
+                                <tr>
+                                    <td>ROE</td>
+                                    <td>Выше 15%</td>
+                                    <td>Ниже 5% или отрицательный</td>
+                                </tr>
+                                <tr>
+                                    <td>Current Ratio</td>
+                                    <td>Выше 1.5</td>
+                                    <td>Ниже 1.0</td>
+                                </tr>
+                                <tr>
+                                    <td>Dividend Payout</td>
+                                    <td>40%-60% от прибыли</td>
+                                    <td>Выше 100%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
     </section>
 
     <div class="bank-modal" data-stock-parameter-modal hidden>
@@ -507,11 +519,18 @@
         color: rgba(226, 232, 240, 0.8) !important;
     }
 
-    .bank-stock-workspace {
+    .bank-stock-detail-layout {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 340px;
+        grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+        align-items: start;
         gap: 10px;
         margin-bottom: 10px;
+    }
+
+    .bank-stock-left-rail {
+        display: grid;
+        gap: 10px;
+        min-width: 0;
     }
 
     .bank-stock-chart-panel {
@@ -570,8 +589,32 @@
     }
 
     .bank-stock-snapshot-dates-scroll {
-        max-height: 394px;
+        max-height: 260px;
         overflow: auto;
+    }
+
+    .bank-stock-snapshot-mobile-select {
+        display: none;
+        gap: 5px;
+        margin: 0;
+    }
+
+    .bank-stock-snapshot-mobile-select span {
+        color: rgba(148, 163, 184, 0.9);
+        font-size: 0.72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .bank-stock-snapshot-mobile-select select {
+        width: 100%;
+        min-height: 38px;
+        padding: 7px 10px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.72);
+        color: #f8fafc;
+        font-weight: 800;
     }
 
     .bank-stock-snapshot-dates-table {
@@ -1028,12 +1071,20 @@
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
-        .bank-stock-workspace {
+        .bank-stock-detail-layout {
             grid-template-columns: 1fr;
         }
 
+        .bank-stock-left-rail {
+            gap: 8px;
+        }
+
         .bank-stock-snapshot-dates-scroll {
-            max-height: 240px;
+            display: none;
+        }
+
+        .bank-stock-snapshot-mobile-select {
+            display: grid;
         }
     }
 
@@ -1104,6 +1155,7 @@
         const multiplierSortOrderInput = document.querySelector('[data-stock-multiplier-sort-order]');
         const multiplierBlockSelect = document.querySelector('[data-stock-multiplier-block]');
         const multiplierTableVisibleInput = document.querySelector('[data-stock-multiplier-table-visible]');
+        const snapshotSelect = document.querySelector('[data-stock-snapshot-select]');
         const defaultFieldByLabel = {
             'Market Cap': 'market_cap',
             'Income': 'income',
@@ -1490,6 +1542,9 @@
             document.querySelectorAll('[data-stock-snapshot-date]').forEach((point) => {
                 point.classList.toggle('is-active', point.dataset.stockSnapshotDate === date);
             });
+            if (snapshotSelect) {
+                snapshotSelect.value = date;
+            }
         };
 
         document.querySelectorAll('[data-stock-snapshot-date]').forEach((point) => {
@@ -1500,6 +1555,9 @@
                     setSnapshot(point.dataset.stockSnapshotDate || '');
                 }
             });
+        });
+        snapshotSelect?.addEventListener('change', () => {
+            setSnapshot(snapshotSelect.value || '');
         });
         const closeParameterModal = () => {
             if (parameterModal) {
