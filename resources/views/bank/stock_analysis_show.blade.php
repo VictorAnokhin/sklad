@@ -180,45 +180,45 @@
     </section>
 
     <section class="bank-stock-detail-layout">
-        <div class="bank-stock-left-rail">
-            <div class="bank-stock-chart-panel">
-                <div class="tradingview-widget-container" style="height:100%;width:100%">
-                    <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
-                    <div class="tradingview-widget-copyright">
-                        <a href="https://www.tradingview.com/symbols/{{ $tradingViewTicker }}/" rel="noopener nofollow" target="_blank">
-                            <span class="blue-text">{{ $tradingViewTicker }} stock chart</span>
-                        </a>
-                        <span class="trademark"> by TradingView</span>
-                    </div>
-                    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-                    {
-                      "allow_symbol_change": true,
-                      "calendar": false,
-                      "details": false,
-                      "hide_side_toolbar": true,
-                      "hide_top_toolbar": false,
-                      "hide_legend": false,
-                      "hide_volume": false,
-                      "hotlist": false,
-                      "interval": "D",
-                      "locale": "en",
-                      "save_image": true,
-                      "style": "1",
-                      "symbol": @json($tradingViewTicker),
-                      "theme": "dark",
-                      "timezone": "Etc/UTC",
-                      "backgroundColor": "#0F0F0F",
-                      "gridColor": "rgba(242, 242, 242, 0.2)",
-                      "watchlist": [],
-                      "withdateranges": false,
-                      "compareSymbols": [],
-                      "studies": [],
-                      "autosize": true
-                    }
-                    </script>
+        <div class="bank-stock-chart-panel">
+            <div class="tradingview-widget-container" style="height:100%;width:100%">
+                <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+                <div class="tradingview-widget-copyright">
+                    <a href="https://www.tradingview.com/symbols/{{ $tradingViewTicker }}/" rel="noopener nofollow" target="_blank">
+                        <span class="blue-text">{{ $tradingViewTicker }} stock chart</span>
+                    </a>
+                    <span class="trademark"> by TradingView</span>
                 </div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+                {
+                  "allow_symbol_change": true,
+                  "calendar": false,
+                  "details": false,
+                  "hide_side_toolbar": true,
+                  "hide_top_toolbar": false,
+                  "hide_legend": false,
+                  "hide_volume": false,
+                  "hotlist": false,
+                  "interval": "D",
+                  "locale": "en",
+                  "save_image": true,
+                  "style": "1",
+                  "symbol": @json($tradingViewTicker),
+                  "theme": "dark",
+                  "timezone": "Etc/UTC",
+                  "backgroundColor": "#0F0F0F",
+                  "gridColor": "rgba(242, 242, 242, 0.2)",
+                  "watchlist": [],
+                  "withdateranges": false,
+                  "compareSymbols": [],
+                  "studies": [],
+                  "autosize": true
+                }
+                </script>
             </div>
+        </div>
 
+        <div class="bank-stock-lower-grid">
             <aside class="bank-stock-snapshot-dates-panel">
                 <div class="bank-stock-snapshot-dates-title">
                     <span>Snapshot</span>
@@ -260,9 +260,8 @@
                     </table>
                 </div>
             </aside>
-        </div>
 
-        <section class="bank-stock-snapshot">
+            <section class="bank-stock-snapshot">
             <div class="bank-stock-snapshot-title">
                 <span>Snapshot</span>
                 <strong><span data-stock-snapshot-title-date>{{ $selectedSnapshotDate }}</span> · {{ $stockValue('ticker') }} fundamentals</strong>
@@ -352,7 +351,8 @@
                     </div>
                 </div>
             </div>
-        </section>
+            </section>
+        </div>
     </section>
 
     <div class="bank-modal" data-stock-parameter-modal hidden>
@@ -521,14 +521,14 @@
 
     .bank-stock-detail-layout {
         display: grid;
-        grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-        align-items: start;
         gap: 10px;
         margin-bottom: 10px;
     }
 
-    .bank-stock-left-rail {
+    .bank-stock-lower-grid {
         display: grid;
+        grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+        align-items: start;
         gap: 10px;
         min-width: 0;
     }
@@ -1071,12 +1071,8 @@
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
-        .bank-stock-detail-layout {
+        .bank-stock-lower-grid {
             grid-template-columns: 1fr;
-        }
-
-        .bank-stock-left-rail {
-            gap: 8px;
         }
 
         .bank-stock-snapshot-dates-scroll {
