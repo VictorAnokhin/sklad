@@ -572,6 +572,37 @@
       padding-right: 0.25rem;
     }
 
+    .desktop-auth-menu__items.is-switching .desktop-auth-menu__item {
+      animation: desktopMenuTileIn 0.28s ease-out both;
+    }
+
+    .desktop-auth-menu__items.is-switching .desktop-auth-menu__item:nth-child(2) {
+      animation-delay: 0.035s;
+    }
+
+    .desktop-auth-menu__items.is-switching .desktop-auth-menu__item:nth-child(3) {
+      animation-delay: 0.07s;
+    }
+
+    .desktop-auth-menu__items.is-switching .desktop-auth-menu__item:nth-child(4) {
+      animation-delay: 0.105s;
+    }
+
+    .desktop-auth-menu__items.is-switching .desktop-auth-menu__item:nth-child(n+5) {
+      animation-delay: 0.14s;
+    }
+
+    @keyframes desktopMenuTileIn {
+      from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
     .desktop-auth-menu__item {
       display: flex;
       align-items: center;
@@ -594,6 +625,13 @@
       border-color: rgba(251, 191, 36, 0.48);
       background: rgba(251, 191, 36, 0.12);
       color: #fbbf24;
+    }
+
+    .desktop-auth-menu__item.is-active {
+      border-color: rgba(251, 191, 36, 0.72);
+      background: rgba(251, 191, 36, 0.16);
+      color: #fbbf24;
+      box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.14), 0 16px 34px rgba(0, 0, 0, 0.24);
     }
   }
 
@@ -1512,6 +1550,9 @@
 
         const desktopMenu = document.createElement('div');
         desktopMenu.className = 'desktop-auth-menu';
+        desktopMenu.addEventListener('click', function (event) {
+          event.stopPropagation();
+        });
 
         const sectionsColumn = document.createElement('div');
         sectionsColumn.className = 'desktop-auth-menu__sections';
@@ -1528,7 +1569,7 @@
         itemsWrap.append(title, itemsGrid);
         desktopMenu.append(sectionsColumn, itemsWrap);
 
-        function renderDesktopMenu() {
+        function renderDesktopMenu(animateItems = false) {
           sectionsColumn.replaceChildren(...sections.map((section, index) => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -1539,9 +1580,16 @@
               button.classList.add('is-active');
             }
 
-            button.addEventListener('click', function () {
+            button.addEventListener('click', function (event) {
+              event.preventDefault();
+              event.stopPropagation();
+
+              if (index === activeDesktopSectionIndex) {
+                return;
+              }
+
               activeDesktopSectionIndex = index;
-              renderDesktopMenu();
+              renderDesktopMenu(true);
             });
 
             return button;
@@ -1549,13 +1597,21 @@
 
           const activeSection = sections[activeDesktopSectionIndex];
           title.textContent = activeSection.label;
+          itemsGrid.classList.remove('is-switching');
           itemsGrid.replaceChildren(...activeSection.links.map((link) => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'desktop-auth-menu__item';
             button.textContent = link.textContent.trim().replace(/\s+/g, ' ');
 
-            button.addEventListener('click', function () {
+            if (isCurrentMenuLink(link)) {
+              button.classList.add('is-active');
+            }
+
+            button.addEventListener('click', function (event) {
+              event.preventDefault();
+              event.stopPropagation();
+
               if (shouldShowSpinnerForLink(link)) {
                 showNavigationSpinner();
               }
@@ -1566,6 +1622,12 @@
 
             return button;
           }));
+
+          if (animateItems) {
+            window.requestAnimationFrame(function () {
+              itemsGrid.classList.add('is-switching');
+            });
+          }
         }
 
         renderDesktopMenu();
