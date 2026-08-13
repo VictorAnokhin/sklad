@@ -620,6 +620,8 @@
       width: 100%;
       height: 390px;
       perspective: 720px;
+      touch-action: pan-y;
+      user-select: none;
     }
 
     .header-nav-menu--public .header-nav-menu__link {
@@ -914,6 +916,9 @@
     const publicPicker = document.getElementById('mobile-public-links');
     const publicLinks = publicPicker ? Array.from(publicPicker.querySelectorAll('a')) : [];
     let activePublicIndex = 0;
+    let publicTouchStartY = null;
+    let publicTouchLastY = null;
+    let publicTouchMoved = false;
 
     function closeHeaderMenu() {
       if (!burger || !menu) {
@@ -965,6 +970,17 @@
       syncPublicPicker();
 
       if (publicPicker && publicLinks.length) {
+        function movePublicPicker(direction) {
+          const nextIndex = activePublicIndex + direction;
+
+          if (nextIndex < 0 || nextIndex >= publicLinks.length) {
+            return;
+          }
+
+          activePublicIndex = nextIndex;
+          syncPublicPicker();
+        }
+
         publicPicker.addEventListener('click', function (event) {
           const link = event.target.closest('a');
 
@@ -978,11 +994,56 @@
             return;
           }
 
+          if (publicTouchMoved) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            publicTouchMoved = false;
+            return;
+          }
+
           event.preventDefault();
           event.stopImmediatePropagation();
           activePublicIndex = nextIndex;
           syncPublicPicker();
         }, true);
+
+        publicPicker.addEventListener('touchstart', function (event) {
+          if (!event.touches.length) {
+            return;
+          }
+
+          publicTouchStartY = event.touches[0].clientY;
+          publicTouchLastY = publicTouchStartY;
+          publicTouchMoved = false;
+        }, { passive: true });
+
+        publicPicker.addEventListener('touchmove', function (event) {
+          if (publicTouchStartY === null || !event.touches.length) {
+            return;
+          }
+
+          const currentY = event.touches[0].clientY;
+          const deltaY = currentY - publicTouchLastY;
+
+          if (Math.abs(currentY - publicTouchStartY) > 12) {
+            publicTouchMoved = true;
+          }
+
+          if (Math.abs(deltaY) < 46) {
+            return;
+          }
+
+          movePublicPicker(deltaY < 0 ? 1 : -1);
+          publicTouchLastY = currentY;
+        }, { passive: true });
+
+        publicPicker.addEventListener('touchend', function () {
+          publicTouchStartY = null;
+          publicTouchLastY = null;
+          window.setTimeout(function () {
+            publicTouchMoved = false;
+          }, 80);
+        });
       }
 
       burger.addEventListener('click', function () {
