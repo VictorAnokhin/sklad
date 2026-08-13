@@ -195,7 +195,7 @@
 
   
 
-  <nav class="header-nav-menu{{ !$isAuthenticated ? ' header-nav-menu--public' : '' }}" id="header-nav-menu">
+  <nav class="header-nav-menu{{ $isAuthenticated ? ' header-nav-menu--auth' : ' header-nav-menu--public' }}" id="header-nav-menu">
     @if($isAuthenticated)
     @if(!$isBankProject)
       <div class="header-nav-menu__section-label">Бизнес</div>
@@ -591,17 +591,46 @@
     }
 
     .header-nav-menu--public {
-      left: 50%;
-      right: auto;
-      width: min(92vw, 430px);
-      min-height: 460px;
-      padding: 1.2rem;
+      position: fixed;
+      top: 74px;
+      right: 12px;
+      bottom: 14px;
+      left: 12px;
+      width: auto;
+      min-height: 0;
+      padding: 1.35rem;
       border-radius: 24px;
-      transform: translateX(-50%);
+      transform: none;
       background:
         linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.16), transparent) center/100% 92px no-repeat,
         linear-gradient(180deg, rgba(19, 24, 33, 0.97), rgba(8, 11, 16, 0.99));
       overflow: hidden;
+    }
+
+    .header-nav-menu--auth.auth-picker-ready {
+      position: fixed;
+      top: 74px;
+      right: 12px;
+      bottom: 14px;
+      left: 12px;
+      width: auto;
+      min-height: 0;
+      padding: 1.35rem;
+      border-radius: 24px;
+      background:
+        linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.16), transparent) center/100% 92px no-repeat,
+        linear-gradient(180deg, rgba(19, 24, 33, 0.97), rgba(8, 11, 16, 0.99));
+      overflow: hidden;
+    }
+
+    .header-nav-menu--auth.auth-picker-ready.is-open {
+      display: grid;
+      place-items: center;
+      animation: publicPickerIn 0.22s ease-out;
+    }
+
+    .header-nav-menu--auth.auth-picker-ready > :not(.auth-picker-menu) {
+      display: none !important;
     }
 
     .header-nav-menu--public.is-open {
@@ -611,17 +640,157 @@
     }
 
     @keyframes publicPickerIn {
-      from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.96); }
-      to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+      from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .public-picker-menu {
       position: relative;
       width: 100%;
-      height: 390px;
+      height: min(100%, 620px);
+      min-height: 440px;
       perspective: 720px;
-      touch-action: pan-y;
+      touch-action: none;
       user-select: none;
+    }
+
+    .auth-picker-menu {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+      width: 100%;
+      height: min(100%, 620px);
+      min-height: 440px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .auth-picker-menu__top {
+      display: grid;
+      grid-template-columns: 72px 1fr 72px;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .auth-picker-menu__back {
+      min-height: 42px;
+      border: 1px solid rgba(251, 191, 36, 0.32);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #fbbf24;
+      font-weight: 900;
+    }
+
+    .auth-picker-menu[data-view="sections"] .auth-picker-menu__back {
+      visibility: hidden;
+    }
+
+    .auth-picker-menu__title {
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 0.86rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .auth-picker-menu__stage {
+      position: relative;
+      perspective: 720px;
+    }
+
+    .auth-picker-menu__option {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: min(86vw, 360px);
+      min-height: 84px;
+      padding: 0.85rem 1rem;
+      border: 1px solid rgba(251, 191, 36, 0.24);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.075);
+      color: #fff;
+      font-size: 1.45rem;
+      font-weight: 900;
+      line-height: 1.08;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+      transition: opacity 0.24s ease, filter 0.24s ease, transform 0.24s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .auth-picker-menu__option.is-active {
+      z-index: 5;
+      opacity: 1;
+      filter: none;
+      pointer-events: auto;
+      border-color: rgba(251, 191, 36, 0.72);
+      background: rgba(251, 191, 36, 0.14);
+      color: #fbbf24;
+      font-size: 1.68rem;
+      transform: translate(-50%, -50%) scale(1);
+      box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.16), 0 18px 42px rgba(0, 0, 0, 0.34);
+    }
+
+    .auth-picker-menu__option.is-prev-1,
+    .auth-picker-menu__option.is-next-1 {
+      z-index: 4;
+      opacity: 0.72;
+      filter: blur(0.4px);
+      pointer-events: auto;
+      transform: translate(-50%, calc(-50% + var(--picker-offset))) scale(0.82) rotateX(var(--picker-tilt));
+    }
+
+    .auth-picker-menu__option.is-prev-2,
+    .auth-picker-menu__option.is-next-2 {
+      z-index: 3;
+      opacity: 0.38;
+      filter: blur(1.3px);
+      pointer-events: auto;
+      transform: translate(-50%, calc(-50% + var(--picker-offset))) scale(0.64) rotateX(var(--picker-tilt));
+    }
+
+    .auth-picker-menu__option.is-prev-3,
+    .auth-picker-menu__option.is-next-3 {
+      z-index: 2;
+      opacity: 0.18;
+      filter: blur(2.2px);
+      transform: translate(-50%, calc(-50% + var(--picker-offset))) scale(0.5) rotateX(var(--picker-tilt));
+    }
+
+    .auth-picker-menu__option.is-prev-1 {
+      --picker-offset: -118px;
+      --picker-tilt: -18deg;
+    }
+
+    .auth-picker-menu__option.is-next-1 {
+      --picker-offset: 118px;
+      --picker-tilt: 18deg;
+    }
+
+    .auth-picker-menu__option.is-prev-2 {
+      --picker-offset: -210px;
+      --picker-tilt: -28deg;
+    }
+
+    .auth-picker-menu__option.is-next-2 {
+      --picker-offset: 210px;
+      --picker-tilt: 28deg;
+    }
+
+    .auth-picker-menu__option.is-prev-3 {
+      --picker-offset: -288px;
+      --picker-tilt: -34deg;
+    }
+
+    .auth-picker-menu__option.is-next-3 {
+      --picker-offset: 288px;
+      --picker-tilt: 34deg;
     }
 
     .header-nav-menu--public .header-nav-menu__link {
@@ -691,32 +860,32 @@
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-prev-1 {
-      --picker-offset: -96px;
+      --picker-offset: -118px;
       --picker-tilt: -18deg;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-next-1 {
-      --picker-offset: 96px;
+      --picker-offset: 118px;
       --picker-tilt: 18deg;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-prev-2 {
-      --picker-offset: -164px;
+      --picker-offset: -210px;
       --picker-tilt: -28deg;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-next-2 {
-      --picker-offset: 164px;
+      --picker-offset: 210px;
       --picker-tilt: 28deg;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-prev-3 {
-      --picker-offset: -216px;
+      --picker-offset: -288px;
       --picker-tilt: -34deg;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-next-3 {
-      --picker-offset: 216px;
+      --picker-offset: 288px;
       --picker-tilt: 34deg;
     }
 
@@ -840,8 +1009,14 @@
     box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12);
   }
 
-  .header-nav-menu__project-select option {
+    .header-nav-menu__project-select option {
     color: #111827;
+  }
+
+  @media (max-width: 900px) {
+    body.header-menu-open {
+      overflow: hidden;
+    }
   }
 
   @media (max-width: 520px) {
@@ -856,13 +1031,79 @@
     }
 
     .header-nav-menu--public {
-      width: min(96vw, 360px);
-      min-height: 420px;
+      top: 68px;
+      right: 8px;
+      bottom: 10px;
+      left: 8px;
+      width: auto;
+      min-height: 0;
+      padding: 0.75rem;
+    }
+
+    .header-nav-menu--auth.auth-picker-ready {
+      top: 68px;
+      right: 8px;
+      bottom: 10px;
+      left: 8px;
       padding: 0.75rem;
     }
 
     .public-picker-menu {
-      height: 360px;
+      height: min(100%, 560px);
+      min-height: 400px;
+    }
+
+    .auth-picker-menu {
+      height: min(100%, 560px);
+      min-height: 400px;
+    }
+
+    .auth-picker-menu__top {
+      grid-template-columns: 58px 1fr 58px;
+    }
+
+    .auth-picker-menu__back {
+      min-height: 38px;
+      font-size: 0.82rem;
+    }
+
+    .auth-picker-menu__title {
+      font-size: 0.76rem;
+    }
+
+    .auth-picker-menu__option {
+      width: min(86vw, 304px);
+      min-height: 74px;
+      font-size: 1.12rem;
+      padding: 0.7rem 0.75rem;
+    }
+
+    .auth-picker-menu__option.is-active {
+      font-size: 1.32rem;
+    }
+
+    .auth-picker-menu__option.is-prev-1 {
+      --picker-offset: -102px;
+    }
+
+    .auth-picker-menu__option.is-next-1 {
+      --picker-offset: 102px;
+    }
+
+    .auth-picker-menu__option.is-prev-2 {
+      --picker-offset: -178px;
+    }
+
+    .auth-picker-menu__option.is-next-2 {
+      --picker-offset: 178px;
+    }
+
+    .auth-picker-menu__option.is-prev-3 {
+      --picker-offset: -238px;
+    }
+
+    .auth-picker-menu__option.is-next-3 {
+      --picker-offset: 238px;
     }
 
     .header-nav-menu--public .header-nav-menu__link {
@@ -877,27 +1118,27 @@
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-prev-1 {
-      --picker-offset: -84px;
+      --picker-offset: -102px;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-next-1 {
-      --picker-offset: 84px;
+      --picker-offset: 102px;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-prev-2 {
-      --picker-offset: -142px;
+      --picker-offset: -178px;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-next-2 {
-      --picker-offset: 142px;
+      --picker-offset: 178px;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-prev-3 {
-      --picker-offset: -188px;
+      --picker-offset: -238px;
     }
 
     .header-nav-menu--public .header-nav-menu__link.is-next-3 {
-      --picker-offset: 188px;
+      --picker-offset: 238px;
     }
   }
 
@@ -919,6 +1160,12 @@
     let publicTouchStartY = null;
     let publicTouchLastY = null;
     let publicTouchMoved = false;
+    let activeAuthIndex = 0;
+    let activeAuthSectionIndex = 0;
+    let activeAuthView = 'sections';
+    let authTouchStartY = null;
+    let authTouchLastY = null;
+    let authTouchMoved = false;
 
     function closeHeaderMenu() {
       if (!burger || !menu) {
@@ -968,6 +1215,222 @@
       }
 
       syncPublicPicker();
+
+      function createPickerOption(label, index) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'auth-picker-menu__option';
+        button.dataset.index = String(index);
+        button.textContent = label;
+        return button;
+      }
+
+      function applyPickerPositionClasses(items, activeIndex) {
+        items.forEach((item, index) => {
+          item.classList.remove(
+            'is-active',
+            'is-prev-1',
+            'is-prev-2',
+            'is-prev-3',
+            'is-next-1',
+            'is-next-2',
+            'is-next-3'
+          );
+
+          const offset = index - activeIndex;
+
+          if (offset === 0) {
+            item.classList.add('is-active');
+            item.setAttribute('aria-current', 'true');
+            return;
+          }
+
+          item.removeAttribute('aria-current');
+
+          if (offset < 0 && Math.abs(offset) <= 3) {
+            item.classList.add(`is-prev-${Math.abs(offset)}`);
+          }
+
+          if (offset > 0 && offset <= 3) {
+            item.classList.add(`is-next-${offset}`);
+          }
+        });
+      }
+
+      function buildAuthPicker() {
+        if (!menu.classList.contains('header-nav-menu--auth')) {
+          return;
+        }
+
+        const sections = [];
+        let currentSection = null;
+
+        Array.from(menu.children).forEach((child) => {
+          if (child.classList.contains('header-nav-menu__section-label')) {
+            currentSection = {
+              label: child.textContent.trim(),
+              links: [],
+            };
+            sections.push(currentSection);
+            return;
+          }
+
+          if (child.classList.contains('header-nav-menu__grid') && currentSection) {
+            currentSection.links.push(...Array.from(child.querySelectorAll('a.header-nav-menu__link')));
+          }
+        });
+
+        const availableSections = sections.filter((section) => section.links.length > 0);
+
+        if (!availableSections.length) {
+          return;
+        }
+
+        const picker = document.createElement('div');
+        picker.className = 'auth-picker-menu';
+        picker.dataset.view = 'sections';
+        picker.innerHTML = [
+          '<div class="auth-picker-menu__top">',
+          '<button type="button" class="auth-picker-menu__back">Назад</button>',
+          '<div class="auth-picker-menu__title"></div>',
+          '<span></span>',
+          '</div>',
+          '<div class="auth-picker-menu__stage"></div>',
+        ].join('');
+
+        const title = picker.querySelector('.auth-picker-menu__title');
+        const stage = picker.querySelector('.auth-picker-menu__stage');
+        const backButton = picker.querySelector('.auth-picker-menu__back');
+
+        function currentItems() {
+          return activeAuthView === 'sections'
+            ? availableSections.map((section) => ({ label: section.label, target: section }))
+            : availableSections[activeAuthSectionIndex].links.map((link) => ({
+                label: link.textContent.trim().replace(/\s+/g, ' '),
+                target: link,
+              }));
+        }
+
+        function syncAuthPicker() {
+          const items = currentItems();
+          activeAuthIndex = Math.max(0, Math.min(activeAuthIndex, items.length - 1));
+          picker.dataset.view = activeAuthView;
+          title.textContent = activeAuthView === 'sections'
+            ? 'Выберите раздел'
+            : availableSections[activeAuthSectionIndex].label;
+          stage.replaceChildren(...items.map((item, index) => createPickerOption(item.label, index)));
+          applyPickerPositionClasses(Array.from(stage.children), activeAuthIndex);
+        }
+
+        function moveAuthPicker(direction) {
+          const items = currentItems();
+          const nextIndex = activeAuthIndex + direction;
+
+          if (nextIndex < 0 || nextIndex >= items.length) {
+            return;
+          }
+
+          activeAuthIndex = nextIndex;
+          syncAuthPicker();
+        }
+
+        stage.addEventListener('click', function (event) {
+          const option = event.target.closest('.auth-picker-menu__option');
+
+          if (!option || !stage.contains(option)) {
+            return;
+          }
+
+          const nextIndex = Number(option.dataset.index);
+
+          if (Number.isNaN(nextIndex)) {
+            return;
+          }
+
+          if (authTouchMoved) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            authTouchMoved = false;
+            return;
+          }
+
+          if (nextIndex !== activeAuthIndex) {
+            activeAuthIndex = nextIndex;
+            syncAuthPicker();
+            return;
+          }
+
+          if (activeAuthView === 'sections') {
+            activeAuthSectionIndex = activeAuthIndex;
+            activeAuthView = 'items';
+            activeAuthIndex = 0;
+            syncAuthPicker();
+            return;
+          }
+
+          const originalLink = currentItems()[activeAuthIndex]?.target;
+
+          if (originalLink) {
+            originalLink.click();
+          }
+        });
+
+        backButton.addEventListener('click', function () {
+          if (activeAuthView === 'sections') {
+            return;
+          }
+
+          activeAuthView = 'sections';
+          activeAuthIndex = activeAuthSectionIndex;
+          syncAuthPicker();
+        });
+
+        picker.addEventListener('touchstart', function (event) {
+          if (!event.touches.length) {
+            return;
+          }
+
+          authTouchStartY = event.touches[0].clientY;
+          authTouchLastY = authTouchStartY;
+          authTouchMoved = false;
+        }, { passive: true });
+
+        picker.addEventListener('touchmove', function (event) {
+          if (authTouchStartY === null || !event.touches.length) {
+            return;
+          }
+
+          event.preventDefault();
+
+          const currentY = event.touches[0].clientY;
+          const deltaY = currentY - authTouchLastY;
+
+          if (Math.abs(currentY - authTouchStartY) > 12) {
+            authTouchMoved = true;
+          }
+
+          if (Math.abs(deltaY) < 46) {
+            return;
+          }
+
+          moveAuthPicker(deltaY < 0 ? 1 : -1);
+          authTouchLastY = currentY;
+        }, { passive: false });
+
+        picker.addEventListener('touchend', function () {
+          authTouchStartY = null;
+          authTouchLastY = null;
+          window.setTimeout(function () {
+            authTouchMoved = false;
+          }, 80);
+        });
+
+        syncAuthPicker();
+        menu.prepend(picker);
+        menu.classList.add('auth-picker-ready');
+      }
+
+      buildAuthPicker();
 
       if (publicPicker && publicLinks.length) {
         function movePublicPicker(direction) {
@@ -1022,6 +1485,8 @@
             return;
           }
 
+          event.preventDefault();
+
           const currentY = event.touches[0].clientY;
           const deltaY = currentY - publicTouchLastY;
 
@@ -1035,7 +1500,7 @@
 
           movePublicPicker(deltaY < 0 ? 1 : -1);
           publicTouchLastY = currentY;
-        }, { passive: true });
+        }, { passive: false });
 
         publicPicker.addEventListener('touchend', function () {
           publicTouchStartY = null;
