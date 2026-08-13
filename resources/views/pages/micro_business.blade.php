@@ -1,7 +1,7 @@
 @extends('home')
 
 @section('title')
-av8capital.space для бизнеса в Украине
+Управление бизнесом
 @endsection
 
 @section('content')
@@ -32,6 +32,26 @@ av8capital.space для бизнеса в Украине
             linear-gradient(90deg, rgba(7, 11, 16, 0.97) 0%, rgba(7, 11, 16, 0.87) 52%, rgba(7, 11, 16, 0.35) 100%),
             url("{{ asset('images/micro_business_hero_1776457020084.png') }}") right center/cover no-repeat;
         box-shadow: 0 28px 90px rgba(0, 0, 0, 0.34);
+    }
+
+    .business-home__reveal {
+        opacity: 0;
+        transform: translateY(34px);
+        transition: opacity 0.68s ease, transform 0.68s ease;
+        will-change: opacity, transform;
+    }
+
+    .business-home__reveal.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .business-home__grid .business-home__reveal:nth-child(2) {
+        transition-delay: 0.09s;
+    }
+
+    .business-home__grid .business-home__reveal:nth-child(3) {
+        transition-delay: 0.18s;
     }
 
     .business-home__eyebrow {
@@ -141,8 +161,8 @@ av8capital.space для бизнеса в Украине
     }
 
     .business-home__section {
-        margin-top: 28px;
-        padding: 34px;
+        margin-top: 56px;
+        padding: 42px;
         border: 1px solid var(--business-border);
         border-radius: 8px;
         background: var(--business-panel);
@@ -152,9 +172,9 @@ av8capital.space для бизнеса в Украине
     .business-home__section-header {
         display: grid;
         grid-template-columns: minmax(0, 0.85fr) minmax(260px, 1fr);
-        gap: 28px;
+        gap: 38px;
         align-items: start;
-        margin-bottom: 24px;
+        margin-bottom: 36px;
     }
 
     .business-home__section h3 {
@@ -176,7 +196,7 @@ av8capital.space для бизнеса в Украине
     .business-home__grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px;
+        gap: 22px;
     }
 
     .business-home__card {
@@ -251,7 +271,7 @@ av8capital.space для бизнеса в Украине
     .business-home__split {
         display: grid;
         grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
-        gap: 18px;
+        gap: 28px;
         align-items: stretch;
     }
 
@@ -269,7 +289,7 @@ av8capital.space для бизнеса в Украине
     .business-home__report-list {
         display: grid;
         grid-template-columns: 1fr;
-        gap: 12px;
+        gap: 18px;
     }
 
     .business-home__report-list .business-home__card {
@@ -279,9 +299,9 @@ av8capital.space для бизнеса в Украине
     .business-home__pilot {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
-        gap: 24px;
+        gap: 36px;
         align-items: center;
-        padding: 34px;
+        padding: 42px;
         border: 1px solid rgba(251, 191, 36, 0.28);
         border-radius: 8px;
         background:
@@ -295,6 +315,7 @@ av8capital.space для бизнеса в Украине
 
     .business-home__pilot-list {
         margin-top: 18px;
+        gap: 14px;
     }
 
     .business-home__pilot-list li {
@@ -350,6 +371,10 @@ av8capital.space для бизнеса в Украине
             padding: 22px;
         }
 
+        .business-home__section {
+            margin-top: 34px;
+        }
+
         .business-home__hero {
             min-height: auto;
         }
@@ -360,10 +385,18 @@ av8capital.space для бизнеса в Украине
             width: 100%;
         }
     }
+
+    @media (prefers-reduced-motion: reduce) {
+        .business-home__reveal {
+            opacity: 1;
+            transform: none;
+            transition: none;
+        }
+    }
 </style>
 
 <main class="business-home">
-    <section class="business-home__hero" aria-label="Платформа управленческого учета AV8 Capital">
+    <section class="business-home__hero business-home__reveal" aria-label="Платформа управленческого учета AV8 Capital">
         <div>
             <div class="business-home__eyebrow">Управленческий учет для украинского бизнеса</div>
             <h2>Перестаньте управлять финансами на глаз</h2>
@@ -401,7 +434,7 @@ av8capital.space для бизнеса в Украине
         </aside>
     </section>
 
-    <section class="business-home__section">
+    <section class="business-home__section business-home__reveal">
         <div class="business-home__section-header">
             <h3>Главная боль современного бизнеса в Украине</h3>
             <p>
@@ -410,17 +443,17 @@ av8capital.space для бизнеса в Украине
         </div>
 
         <div class="business-home__grid">
-            <article class="business-home__card">
+            <article class="business-home__card business-home__reveal">
                 <div class="business-home__card-marker">01</div>
                 <h4>Реальная маржинальность</h4>
                 <p>Четкое понимание прибыльности каждой единицы товара, услуги, направления или проекта вместо усредненных оценок.</p>
             </article>
-            <article class="business-home__card">
+            <article class="business-home__card business-home__reveal">
                 <div class="business-home__card-marker">02</div>
                 <h4>Прозрачный Cash Flow</h4>
                 <p>Отчет о движении денежных средств, который показывает будущие разрывы до того, как они станут операционной проблемой.</p>
             </article>
-            <article class="business-home__card">
+            <article class="business-home__card business-home__reveal">
                 <div class="business-home__card-marker">03</div>
                 <h4>Профессиональная отчетность</h4>
                 <p>Финансовая история, которую можно показать инвестору, партнеру или банку при обсуждении финансирования.</p>
@@ -428,7 +461,7 @@ av8capital.space для бизнеса в Украине
         </div>
     </section>
 
-    <section class="business-home__section">
+    <section class="business-home__section business-home__reveal">
         <div class="business-home__section-header">
             <h3>Что дает платформа av8capital.space</h3>
             <p>
@@ -437,17 +470,17 @@ av8capital.space для бизнеса в Украине
         </div>
 
         <div class="business-home__grid">
-            <article class="business-home__card">
+            <article class="business-home__card business-home__reveal">
                 <div class="business-home__card-marker">A</div>
                 <h4>Управленческий баланс за пару кликов</h4>
                 <p>Доходы, расходы, активы и обязательства остаются под контролем в реальном времени.</p>
             </article>
-            <article class="business-home__card">
+            <article class="business-home__card business-home__reveal">
                 <div class="business-home__card-marker">V</div>
                 <h4>Контроль маржи и юнит-экономики</h4>
                 <p>Вы видите, какие направления приносят прибыль, а какие сжигают деньги и требуют пересмотра.</p>
             </article>
-            <article class="business-home__card">
+            <article class="business-home__card business-home__reveal">
                 <div class="business-home__card-marker">8</div>
                 <h4>Инвесторские отчеты автоматически</h4>
                 <p>Операционные результаты упаковываются в стандартизированные метрики, понятные фондам и крупным игрокам.</p>
@@ -455,7 +488,7 @@ av8capital.space для бизнеса в Украине
         </div>
     </section>
 
-    <section class="business-home__section">
+    <section class="business-home__section business-home__reveal">
         <div class="business-home__split">
             <div>
                 <h3>Трансформируйте отчеты в капитал</h3>
@@ -465,15 +498,15 @@ av8capital.space для бизнеса в Украине
             </div>
             <div class="business-home__callout">
                 <div class="business-home__report-list">
-                    <article class="business-home__card">
+                    <article class="business-home__card business-home__reveal">
                         <h4>Прозрачный P&amp;L и Cash Flow</h4>
                         <p>Инвестор видит, куда уходит каждая гривна и как бизнес генерирует операционный поток.</p>
                     </article>
-                    <article class="business-home__card">
+                    <article class="business-home__card business-home__reveal">
                         <h4>ROI, ROE, EBITDA</h4>
                         <p>Показатели эффективности демонстрируют зрелость бизнеса на языке международных стандартов.</p>
                     </article>
-                    <article class="business-home__card">
+                    <article class="business-home__card business-home__reveal">
                         <h4>Доверие с первой встречи</h4>
                         <p>Финансовая модель становится аргументом в переговорах о долевом участии или заемном капитале.</p>
                     </article>
@@ -482,7 +515,7 @@ av8capital.space для бизнеса в Украине
         </div>
     </section>
 
-    <section class="business-home__section business-home__pilot" aria-label="Пилотное внедрение">
+    <section class="business-home__section business-home__pilot business-home__reveal" aria-label="Пилотное внедрение">
         <div>
             <div class="business-home__eyebrow">Специальное предложение</div>
             <h3>Первая группа партнерских бизнесов</h3>
@@ -502,3 +535,38 @@ av8capital.space для бизнеса в Украине
     </section>
 </main>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const revealItems = document.querySelectorAll('.business-home__reveal');
+
+        if (!revealItems.length) {
+            return;
+        }
+
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        if (reducedMotion || !('IntersectionObserver' in window)) {
+            revealItems.forEach((item) => item.classList.add('is-visible'));
+            return;
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) {
+                    return;
+                }
+
+                entry.target.classList.add('is-visible');
+                observer.unobserve(entry.target);
+            });
+        }, {
+            threshold: 0.16,
+            rootMargin: '0px 0px -8% 0px',
+        });
+
+        revealItems.forEach((item) => observer.observe(item));
+    });
+</script>
+@endpush
