@@ -457,6 +457,46 @@
         min-height: 0;
     }
 
+    .business-home__ecosystem-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 22px;
+    }
+
+    .business-home__ecosystem-card {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 14px;
+        min-height: 260px;
+    }
+
+    .business-home__ecosystem-card .business-home__card-marker {
+        width: 42px;
+        height: 42px;
+        margin-bottom: 0;
+        color: #111827;
+        background: linear-gradient(135deg, var(--business-accent), var(--business-accent-dark));
+    }
+
+    .business-home__ecosystem-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: fit-content;
+        min-height: 40px;
+        padding: 0.62rem 0.9rem;
+        border: 1px solid rgba(251, 191, 36, 0.34);
+        border-radius: 8px;
+        color: #fde68a;
+        font-weight: 800;
+        text-decoration: none;
+    }
+
+    .business-home__ecosystem-link:hover {
+        color: #111827;
+        background: linear-gradient(135deg, var(--business-accent), var(--business-accent-dark));
+    }
+
     .business-home__pilot {
         display: grid;
         grid-template-columns: minmax(240px, 0.78fr) minmax(0, 1fr) auto;
@@ -524,6 +564,10 @@
         }
 
         .business-home__grid {
+            grid-template-columns: 1fr;
+        }
+
+        .business-home__ecosystem-grid {
             grid-template-columns: 1fr;
         }
 
@@ -738,6 +782,44 @@
         <p class="business-home__capital-copy">
             Инвесторы не верят словам — они верят цифрам. Когда бизнес идет за инвестициями, кредитным лимитом или партнерством, обычные таблицы вызывают скепсис. Профессиональная финансовая история снимает большую часть вопросов уже на первой встрече.
         </p>
+    </section>
+
+    <section class="business-home__section business-home__reveal">
+        <div class="business-home__section-header">
+            <h3>Больше чем бизнес-учет</h3>
+            <p>
+                В нашу систему входит не только управленческий учет. AV8 Capital соединяет обучение, торговлю товарами и консультации по инвестированию в единую практическую экосистему для роста капитала.
+            </p>
+        </div>
+
+        <div class="business-home__ecosystem-grid">
+            <article class="business-home__card business-home__ecosystem-card business-home__reveal">
+                <div class="business-home__card-marker">01</div>
+                <div>
+                    <h4>Обучение</h4>
+                    <p>Академия помогает предпринимателям и командам понимать финансы, инвестиции, риски и управленческие решения на практике.</p>
+                </div>
+                <a href="https://av8.fund/academy" target="_blank" rel="noreferrer" class="business-home__ecosystem-link">av8.fund/academy</a>
+            </article>
+
+            <article class="business-home__card business-home__ecosystem-card business-home__reveal">
+                <div class="business-home__card-marker">02</div>
+                <div>
+                    <h4>Торговля товарами</h4>
+                    <p>Маркетплейс помогает выводить товары в онлайн-канал, работать со спросом и превращать учет остатков в реальные продажи.</p>
+                </div>
+                <a href="https://autoagent.in.ua" target="_blank" rel="noreferrer" class="business-home__ecosystem-link">autoagent.in.ua</a>
+            </article>
+
+            <article class="business-home__card business-home__ecosystem-card business-home__reveal">
+                <div class="business-home__card-marker">03</div>
+                <div>
+                    <h4>Инвестиционные консультации</h4>
+                    <p>Консультации по фондовому и крипторынку помогают оценивать возможности, риски и стратегию размещения свободного капитала.</p>
+                </div>
+                <a href="https://av8.fund/invest" target="_blank" rel="noreferrer" class="business-home__ecosystem-link">av8.fund/invest</a>
+            </article>
+        </div>
     </section>
 
     <section class="business-home__section business-home__pilot business-home__reveal" aria-label="Пилотное внедрение">
