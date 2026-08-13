@@ -1432,7 +1432,7 @@
         return false;
       }
 
-      if (button.closest('.auth-picker-menu__top') || button.closest('.desktop-auth-menu__sections')) {
+      if (button.closest('.auth-picker-menu') || button.closest('.desktop-auth-menu__sections')) {
         return false;
       }
 
