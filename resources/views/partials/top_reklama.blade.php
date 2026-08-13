@@ -1341,6 +1341,9 @@
             return;
           }
 
+          event.preventDefault();
+          event.stopPropagation();
+
           const nextIndex = Number(option.dataset.index);
 
           if (Number.isNaN(nextIndex)) {
@@ -1348,7 +1351,6 @@
           }
 
           if (authTouchMoved) {
-            event.preventDefault();
             event.stopImmediatePropagation();
             authTouchMoved = false;
             return;
@@ -1375,7 +1377,10 @@
           }
         });
 
-        backButton.addEventListener('click', function () {
+        backButton.addEventListener('click', function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+
           if (activeAuthView === 'sections') {
             return;
           }
