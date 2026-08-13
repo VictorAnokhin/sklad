@@ -678,7 +678,9 @@
       border-radius: 12px;
       background: rgba(255, 255, 255, 0.06);
       color: #fbbf24;
+      font-size: 2rem;
       font-weight: 900;
+      line-height: 1;
     }
 
     .auth-picker-menu[data-view="sections"] .auth-picker-menu__back {
@@ -1291,7 +1293,7 @@
         picker.dataset.view = 'sections';
         picker.innerHTML = [
           '<div class="auth-picker-menu__top">',
-          '<button type="button" class="auth-picker-menu__back">Назад</button>',
+          '<button type="button" class="auth-picker-menu__back" aria-label="Назад">‹</button>',
           '<div class="auth-picker-menu__title"></div>',
           '<span></span>',
           '</div>',
