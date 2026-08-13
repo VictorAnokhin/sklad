@@ -484,6 +484,117 @@
     .header-burger {
       order: 4;
     }
+
+    .header-nav-menu--auth.desktop-auth-ready {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      left: auto;
+      width: min(940px, calc(100vw - 2rem));
+      max-height: calc(100vh - 112px);
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid rgba(251, 191, 36, 0.25);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(19, 24, 33, 0.98), rgba(8, 11, 16, 0.99));
+      box-shadow: 0 28px 70px -22px rgba(0, 0, 0, 0.78);
+    }
+
+    .header-nav-menu--auth.desktop-auth-ready.is-open {
+      display: grid;
+      animation: menuFadeIn 0.2s ease-out;
+    }
+
+    .header-nav-menu--auth.desktop-auth-ready > :not(.desktop-auth-menu) {
+      display: none !important;
+    }
+
+    .desktop-auth-menu {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      min-height: 420px;
+      max-height: calc(100vh - 112px);
+    }
+
+    .desktop-auth-menu__sections {
+      display: grid;
+      align-content: start;
+      gap: 0.4rem;
+      padding: 1rem;
+      overflow-y: auto;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .desktop-auth-menu__section {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 54px;
+      padding: 0.85rem 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.045);
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 1.05rem;
+      font-weight: 850;
+      text-align: left;
+    }
+
+    .desktop-auth-menu__section.is-active {
+      border-color: rgba(251, 191, 36, 0.55);
+      background: rgba(251, 191, 36, 0.14);
+      color: #fbbf24;
+      box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.1);
+    }
+
+    .desktop-auth-menu__items-wrap {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-width: 0;
+      min-height: 0;
+      padding: 1.15rem;
+    }
+
+    .desktop-auth-menu__title {
+      margin: 0 0 1rem;
+      color: #fbbf24;
+      font-size: 1.25rem;
+      font-weight: 900;
+    }
+
+    .desktop-auth-menu__items {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-content: start;
+      gap: 0.85rem;
+      overflow-y: auto;
+      padding-right: 0.25rem;
+    }
+
+    .desktop-auth-menu__item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 92px;
+      padding: 1rem;
+      border: 1px solid rgba(251, 191, 36, 0.18);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.055);
+      color: #fff;
+      font-size: 1.22rem;
+      font-weight: 900;
+      line-height: 1.18;
+      text-align: center;
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .desktop-auth-menu__item:hover {
+      transform: translateY(-3px);
+      border-color: rgba(251, 191, 36, 0.48);
+      background: rgba(251, 191, 36, 0.12);
+      color: #fbbf24;
+    }
   }
 
   /* Mobile overrides */
@@ -1356,15 +1467,15 @@
         });
       }
 
-      function buildAuthPicker() {
-        if (!menu.classList.contains('header-nav-menu--auth')) {
-          return;
-        }
-
+      function collectAuthMenuSections() {
         const sections = [];
         let currentSection = null;
 
         Array.from(menu.children).forEach((child) => {
+          if (child.classList.contains('desktop-auth-menu') || child.classList.contains('auth-picker-menu')) {
+            return;
+          }
+
           if (child.classList.contains('header-nav-menu__section-label')) {
             currentSection = {
               label: child.textContent.trim(),
@@ -1379,7 +1490,95 @@
           }
         });
 
-        const availableSections = sections.filter((section) => section.links.length > 0);
+        return sections.filter((section) => section.links.length > 0);
+      }
+
+      function buildDesktopAuthMenu() {
+        if (!menu.classList.contains('header-nav-menu--auth')) {
+          return;
+        }
+
+        const sections = collectAuthMenuSections();
+
+        if (!sections.length) {
+          return;
+        }
+
+        let activeDesktopSectionIndex = sections.findIndex((section) => section.links.some((link) => isCurrentMenuLink(link)));
+
+        if (activeDesktopSectionIndex < 0) {
+          activeDesktopSectionIndex = 0;
+        }
+
+        const desktopMenu = document.createElement('div');
+        desktopMenu.className = 'desktop-auth-menu';
+
+        const sectionsColumn = document.createElement('div');
+        sectionsColumn.className = 'desktop-auth-menu__sections';
+
+        const itemsWrap = document.createElement('div');
+        itemsWrap.className = 'desktop-auth-menu__items-wrap';
+
+        const title = document.createElement('div');
+        title.className = 'desktop-auth-menu__title';
+
+        const itemsGrid = document.createElement('div');
+        itemsGrid.className = 'desktop-auth-menu__items';
+
+        itemsWrap.append(title, itemsGrid);
+        desktopMenu.append(sectionsColumn, itemsWrap);
+
+        function renderDesktopMenu() {
+          sectionsColumn.replaceChildren(...sections.map((section, index) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'desktop-auth-menu__section';
+            button.textContent = section.label;
+
+            if (index === activeDesktopSectionIndex) {
+              button.classList.add('is-active');
+            }
+
+            button.addEventListener('click', function () {
+              activeDesktopSectionIndex = index;
+              renderDesktopMenu();
+            });
+
+            return button;
+          }));
+
+          const activeSection = sections[activeDesktopSectionIndex];
+          title.textContent = activeSection.label;
+          itemsGrid.replaceChildren(...activeSection.links.map((link) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'desktop-auth-menu__item';
+            button.textContent = link.textContent.trim().replace(/\s+/g, ' ');
+
+            button.addEventListener('click', function () {
+              if (shouldShowSpinnerForLink(link)) {
+                showNavigationSpinner();
+              }
+
+              closeHeaderMenu();
+              link.click();
+            });
+
+            return button;
+          }));
+        }
+
+        renderDesktopMenu();
+        menu.prepend(desktopMenu);
+        menu.classList.add('desktop-auth-ready');
+      }
+
+      function buildAuthPicker() {
+        if (!menu.classList.contains('header-nav-menu--auth')) {
+          return;
+        }
+
+        const availableSections = collectAuthMenuSections();
 
         if (!availableSections.length) {
           return;
@@ -1549,6 +1748,7 @@
         menu.classList.add('auth-picker-ready');
       }
 
+      buildDesktopAuthMenu();
       buildAuthPicker();
 
       if (publicPicker && publicLinks.length) {
