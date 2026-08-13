@@ -120,7 +120,14 @@
         background:
             radial-gradient(circle at 50% 18%, rgba(251, 191, 36, 0.13), transparent 42%),
             rgba(255, 255, 255, 0.045);
-        transition: transform 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+        opacity: 0;
+        transform: translateX(42px);
+        transition: opacity 0.62s ease, transform 0.62s ease, border-color 0.22s ease, background 0.22s ease;
+    }
+
+    .business-home__capital-card.is-visible {
+        opacity: 1;
+        transform: translateX(0);
     }
 
     .business-home__capital-card:hover {
@@ -129,6 +136,34 @@
         background:
             radial-gradient(circle at 50% 18%, rgba(251, 191, 36, 0.19), transparent 46%),
             rgba(255, 255, 255, 0.07);
+    }
+
+    .business-home__capital-card.is-visible:hover {
+        transform: translateY(-4px);
+    }
+
+    .business-home__capital-card:nth-child(6) {
+        transition-delay: 0.06s;
+    }
+
+    .business-home__capital-card:nth-child(5) {
+        transition-delay: 0.12s;
+    }
+
+    .business-home__capital-card:nth-child(4) {
+        transition-delay: 0.18s;
+    }
+
+    .business-home__capital-card:nth-child(3) {
+        transition-delay: 0.24s;
+    }
+
+    .business-home__capital-card:nth-child(2) {
+        transition-delay: 0.3s;
+    }
+
+    .business-home__capital-card:nth-child(1) {
+        transition-delay: 0.36s;
     }
 
     .business-home__capital-letter {
@@ -155,6 +190,13 @@
         font-weight: 700;
         line-height: 1.35;
         text-align: center;
+    }
+
+    .business-home__capital-copy {
+        margin-top: 30px;
+        color: var(--business-muted);
+        font-size: 1.03rem;
+        line-height: 1.68;
     }
 
     .business-home__feature-row .business-home__card {
@@ -541,7 +583,8 @@
     @media (prefers-reduced-motion: reduce) {
         .business-home__reveal,
         .business-home__feature-visual,
-        .business-home__feature-row .business-home__card {
+        .business-home__feature-row .business-home__card,
+        .business-home__capital-card {
             opacity: 1;
             transform: none;
             transition: none;
@@ -657,29 +700,8 @@
     </section>
 
     <section class="business-home__section business-home__reveal">
-        <div class="business-home__split">
-            <div>
-                <h3>Трансформируйте отчеты в капитал</h3>
-                <p class="business-home__copy">
-                    Инвесторы не верят словам — они верят цифрам. Когда бизнес идет за инвестициями, кредитным лимитом или партнерством, обычные таблицы вызывают скепсис. Профессиональная финансовая история снимает большую часть вопросов уже на первой встрече.
-                </p>
-            </div>
-            <div class="business-home__callout">
-                <div class="business-home__report-list">
-                    <article class="business-home__card business-home__reveal">
-                        <h4>Прозрачный P&amp;L и Cash Flow</h4>
-                        <p>Инвестор видит, куда уходит каждая гривна и как бизнес генерирует операционный поток.</p>
-                    </article>
-                    <article class="business-home__card business-home__reveal">
-                        <h4>ROI, ROE, EBITDA</h4>
-                        <p>Показатели эффективности демонстрируют зрелость бизнеса на языке международных стандартов.</p>
-                    </article>
-                    <article class="business-home__card business-home__reveal">
-                        <h4>Доверие с первой встречи</h4>
-                        <p>Финансовая модель становится аргументом в переговорах о долевом участии или заемном капитале.</p>
-                    </article>
-                </div>
-            </div>
+        <div class="business-home__section-header">
+            <h3>Трансформируйте отчеты в</h3>
         </div>
 
         <div class="business-home__capital-grid" aria-label="Капитал через финансовую отчетность">
@@ -712,6 +734,10 @@
                 <div class="business-home__capital-label">Зрелость бизнеса</div>
             </article>
         </div>
+
+        <p class="business-home__capital-copy">
+            Инвесторы не верят словам — они верят цифрам. Когда бизнес идет за инвестициями, кредитным лимитом или партнерством, обычные таблицы вызывают скепсис. Профессиональная финансовая история снимает большую часть вопросов уже на первой встрече.
+        </p>
     </section>
 
     <section class="business-home__section business-home__pilot business-home__reveal" aria-label="Пилотное внедрение">
