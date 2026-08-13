@@ -87,10 +87,10 @@
 
     .business-home__feature-letter {
         color: transparent;
-        -webkit-text-stroke: 1px rgba(251, 191, 36, 0.9);
+        -webkit-text-stroke: 1.35px rgba(251, 191, 36, 0.95);
         font-family: var(--header);
-        font-size: clamp(6.6rem, 12vw, 10.4rem);
-        font-weight: 900;
+        font-size: clamp(7.92rem, 14.4vw, 12.48rem);
+        font-weight: 1000;
         line-height: 0.86;
         text-shadow: 0 0 28px rgba(251, 191, 36, 0.28);
         transition: color 0.25s ease, text-shadow 0.25s ease, -webkit-text-stroke-color 0.25s ease;
