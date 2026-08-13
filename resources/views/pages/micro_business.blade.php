@@ -85,11 +85,76 @@
         transform: translateX(-58px);
     }
 
-    .business-home__feature-visual img {
-        width: min(128px, 56%);
-        height: auto;
-        object-fit: contain;
-        filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.34));
+    .business-home__feature-letter {
+        color: transparent;
+        -webkit-text-stroke: 1px rgba(251, 191, 36, 0.9);
+        font-family: var(--header);
+        font-size: clamp(6.6rem, 12vw, 10.4rem);
+        font-weight: 900;
+        line-height: 0.86;
+        text-shadow: 0 0 28px rgba(251, 191, 36, 0.28);
+        transition: color 0.25s ease, text-shadow 0.25s ease, -webkit-text-stroke-color 0.25s ease;
+    }
+
+    .business-home__feature-row:hover .business-home__feature-letter {
+        color: rgba(251, 191, 36, 0.12);
+        -webkit-text-stroke-color: #fbbf24;
+        text-shadow: 0 0 18px rgba(251, 191, 36, 0.52), 0 0 46px rgba(251, 191, 36, 0.24);
+    }
+
+    .business-home__capital-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 34px;
+    }
+
+    .business-home__capital-card {
+        display: grid;
+        gap: 12px;
+        align-content: start;
+        min-height: 172px;
+        padding: 18px 14px;
+        border: 1px solid rgba(251, 191, 36, 0.16);
+        border-radius: 8px;
+        background:
+            radial-gradient(circle at 50% 18%, rgba(251, 191, 36, 0.13), transparent 42%),
+            rgba(255, 255, 255, 0.045);
+        transition: transform 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+    }
+
+    .business-home__capital-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(251, 191, 36, 0.42);
+        background:
+            radial-gradient(circle at 50% 18%, rgba(251, 191, 36, 0.19), transparent 46%),
+            rgba(255, 255, 255, 0.07);
+    }
+
+    .business-home__capital-letter {
+        color: transparent;
+        -webkit-text-stroke: 1px rgba(251, 191, 36, 0.9);
+        font-family: var(--header);
+        font-size: clamp(3.6rem, 6vw, 5.35rem);
+        font-weight: 900;
+        line-height: 0.9;
+        text-align: center;
+        text-shadow: 0 0 24px rgba(251, 191, 36, 0.28);
+        transition: color 0.25s ease, text-shadow 0.25s ease, -webkit-text-stroke-color 0.25s ease;
+    }
+
+    .business-home__capital-card:hover .business-home__capital-letter {
+        color: rgba(251, 191, 36, 0.12);
+        -webkit-text-stroke-color: #fbbf24;
+        text-shadow: 0 0 18px rgba(251, 191, 36, 0.52), 0 0 42px rgba(251, 191, 36, 0.24);
+    }
+
+    .business-home__capital-label {
+        color: rgba(255, 255, 255, 0.76);
+        font-size: 0.82rem;
+        font-weight: 700;
+        line-height: 1.35;
+        text-align: center;
     }
 
     .business-home__feature-row .business-home__card {
@@ -420,6 +485,10 @@
             grid-template-columns: 1fr;
         }
 
+        .business-home__capital-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .business-home__feature-visual,
         .business-home__feature-row .business-home__card {
             transform: translateY(24px);
@@ -462,6 +531,10 @@
         .business-home__button,
         .business-home__button-secondary {
             width: 100%;
+        }
+
+        .business-home__capital-grid {
+            grid-template-columns: 1fr;
         }
     }
 
@@ -553,10 +626,9 @@
         <div class="business-home__feature-list">
             <div class="business-home__feature-row business-home__reveal">
                 <div class="business-home__feature-visual" aria-hidden="true">
-                    <img src="{{ asset('img/money.png') }}" alt="">
+                    <span class="business-home__feature-letter">A</span>
                 </div>
                 <article class="business-home__card">
-                    <div class="business-home__card-marker">A</div>
                     <h4>Управленческий баланс за пару кликов</h4>
                     <p>Доходы, расходы, активы и обязательства остаются под контролем в реальном времени.</p>
                 </article>
@@ -564,10 +636,9 @@
 
             <div class="business-home__feature-row business-home__reveal">
                 <div class="business-home__feature-visual" aria-hidden="true">
-                    <img src="{{ asset('img/plan.png') }}" alt="">
+                    <span class="business-home__feature-letter">V</span>
                 </div>
                 <article class="business-home__card">
-                    <div class="business-home__card-marker">V</div>
                     <h4>Контроль маржи и юнит-экономики</h4>
                     <p>Вы видите, какие направления приносят прибыль, а какие сжигают деньги и требуют пересмотра.</p>
                 </article>
@@ -575,10 +646,9 @@
 
             <div class="business-home__feature-row business-home__reveal">
                 <div class="business-home__feature-visual" aria-hidden="true">
-                    <img src="{{ asset('img/icon-coins.png') }}" alt="">
+                    <span class="business-home__feature-letter">8</span>
                 </div>
                 <article class="business-home__card">
-                    <div class="business-home__card-marker">8</div>
                     <h4>Инвесторские отчеты автоматически</h4>
                     <p>Операционные результаты упаковываются в стандартизированные метрики, понятные фондам и крупным игрокам.</p>
                 </article>
@@ -610,6 +680,37 @@
                     </article>
                 </div>
             </div>
+        </div>
+
+        <div class="business-home__capital-grid" aria-label="Капитал через финансовую отчетность">
+            <article class="business-home__capital-card business-home__reveal">
+                <div class="business-home__capital-letter">К</div>
+                <div class="business-home__capital-label">Финансовый план</div>
+            </article>
+            <article class="business-home__capital-card business-home__reveal">
+                <div class="business-home__capital-letter">А</div>
+                <div class="business-home__capital-label">P&amp;L и Cash Flow</div>
+            </article>
+            <article class="business-home__capital-card business-home__reveal">
+                <div class="business-home__capital-letter">П</div>
+                <div class="business-home__capital-label">Баланс</div>
+            </article>
+            <article class="business-home__capital-card business-home__reveal">
+                <div class="business-home__capital-letter">И</div>
+                <div class="business-home__capital-label">ROI, ROE Показатели эффективности</div>
+            </article>
+            <article class="business-home__capital-card business-home__reveal">
+                <div class="business-home__capital-letter">Т</div>
+                <div class="business-home__capital-label">EBITDA</div>
+            </article>
+            <article class="business-home__capital-card business-home__reveal">
+                <div class="business-home__capital-letter">А</div>
+                <div class="business-home__capital-label">Доверие</div>
+            </article>
+            <article class="business-home__capital-card business-home__reveal">
+                <div class="business-home__capital-letter">Л</div>
+                <div class="business-home__capital-label">Зрелость бизнеса</div>
+            </article>
         </div>
     </section>
 
