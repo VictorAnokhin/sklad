@@ -54,6 +54,60 @@
         transition-delay: 0.18s;
     }
 
+    .business-home__feature-list {
+        display: grid;
+        gap: 32px;
+    }
+
+    .business-home__feature-row {
+        display: grid;
+        grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
+        gap: 30px;
+        align-items: stretch;
+    }
+
+    .business-home__feature-visual,
+    .business-home__feature-row .business-home__card {
+        transition: opacity 0.72s ease, transform 0.72s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .business-home__feature-visual {
+        display: grid;
+        place-items: center;
+        min-height: 220px;
+        padding: 28px;
+        border: 1px solid rgba(251, 191, 36, 0.18);
+        border-radius: 8px;
+        background:
+            radial-gradient(circle at 32% 22%, rgba(251, 191, 36, 0.18), transparent 34%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.028));
+        opacity: 0;
+        transform: translateX(-58px);
+    }
+
+    .business-home__feature-visual img {
+        width: min(128px, 56%);
+        height: auto;
+        object-fit: contain;
+        filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.34));
+    }
+
+    .business-home__feature-row .business-home__card {
+        min-height: 220px;
+        opacity: 0;
+        transform: translateX(34px);
+    }
+
+    .business-home__feature-row.is-visible .business-home__feature-visual,
+    .business-home__feature-row.is-visible .business-home__card {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    .business-home__feature-row.is-visible .business-home__card {
+        transition-delay: 0.12s;
+    }
+
     .business-home__eyebrow {
         display: inline-flex;
         align-items: center;
@@ -298,7 +352,7 @@
 
     .business-home__pilot {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(240px, 0.78fr) minmax(0, 1fr) auto;
         gap: 36px;
         align-items: center;
         padding: 42px;
@@ -307,6 +361,16 @@
         background:
             linear-gradient(135deg, rgba(251, 191, 36, 0.11), rgba(56, 189, 248, 0.07)),
             var(--business-panel-strong);
+    }
+
+    .business-home__pilot-image {
+        min-height: 300px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        background:
+            linear-gradient(180deg, rgba(7, 11, 16, 0.12), rgba(7, 11, 16, 0.42)),
+            url("{{ asset('images/business_partnership_handshake_7256363.jpeg') }}") center/cover no-repeat;
+        box-shadow: 0 22px 48px rgba(0, 0, 0, 0.28);
     }
 
     .business-home__pilot h3 {
@@ -340,6 +404,7 @@
         .business-home__hero,
         .business-home__section-header,
         .business-home__split,
+        .business-home__feature-row,
         .business-home__pilot {
             grid-template-columns: 1fr;
         }
@@ -355,12 +420,26 @@
             grid-template-columns: 1fr;
         }
 
+        .business-home__feature-visual,
+        .business-home__feature-row .business-home__card {
+            transform: translateY(24px);
+        }
+
+        .business-home__feature-row.is-visible .business-home__feature-visual,
+        .business-home__feature-row.is-visible .business-home__card {
+            transform: translateY(0);
+        }
+
         .business-home__pilot-action {
             justify-items: start;
         }
 
         .business-home__pilot-note {
             text-align: left;
+        }
+
+        .business-home__pilot-image {
+            min-height: 260px;
         }
     }
 
@@ -387,7 +466,9 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .business-home__reveal {
+        .business-home__reveal,
+        .business-home__feature-visual,
+        .business-home__feature-row .business-home__card {
             opacity: 1;
             transform: none;
             transition: none;
@@ -463,28 +544,45 @@
 
     <section class="business-home__section business-home__reveal">
         <div class="business-home__section-header">
-            <h3>Что дает платформа av8capital.space</h3>
+            <h3>Что дает платформа</h3>
             <p>
                 AV8 Capital — облачная система управленческого учета и финансового моделирования, созданная практиками для реального бизнеса: автоэкосистем, e-commerce, услуг и партнерских проектов.
             </p>
         </div>
 
-        <div class="business-home__grid">
-            <article class="business-home__card business-home__reveal">
-                <div class="business-home__card-marker">A</div>
-                <h4>Управленческий баланс за пару кликов</h4>
-                <p>Доходы, расходы, активы и обязательства остаются под контролем в реальном времени.</p>
-            </article>
-            <article class="business-home__card business-home__reveal">
-                <div class="business-home__card-marker">V</div>
-                <h4>Контроль маржи и юнит-экономики</h4>
-                <p>Вы видите, какие направления приносят прибыль, а какие сжигают деньги и требуют пересмотра.</p>
-            </article>
-            <article class="business-home__card business-home__reveal">
-                <div class="business-home__card-marker">8</div>
-                <h4>Инвесторские отчеты автоматически</h4>
-                <p>Операционные результаты упаковываются в стандартизированные метрики, понятные фондам и крупным игрокам.</p>
-            </article>
+        <div class="business-home__feature-list">
+            <div class="business-home__feature-row business-home__reveal">
+                <div class="business-home__feature-visual" aria-hidden="true">
+                    <img src="{{ asset('img/money.png') }}" alt="">
+                </div>
+                <article class="business-home__card">
+                    <div class="business-home__card-marker">A</div>
+                    <h4>Управленческий баланс за пару кликов</h4>
+                    <p>Доходы, расходы, активы и обязательства остаются под контролем в реальном времени.</p>
+                </article>
+            </div>
+
+            <div class="business-home__feature-row business-home__reveal">
+                <div class="business-home__feature-visual" aria-hidden="true">
+                    <img src="{{ asset('img/plan.png') }}" alt="">
+                </div>
+                <article class="business-home__card">
+                    <div class="business-home__card-marker">V</div>
+                    <h4>Контроль маржи и юнит-экономики</h4>
+                    <p>Вы видите, какие направления приносят прибыль, а какие сжигают деньги и требуют пересмотра.</p>
+                </article>
+            </div>
+
+            <div class="business-home__feature-row business-home__reveal">
+                <div class="business-home__feature-visual" aria-hidden="true">
+                    <img src="{{ asset('img/icon-coins.png') }}" alt="">
+                </div>
+                <article class="business-home__card">
+                    <div class="business-home__card-marker">8</div>
+                    <h4>Инвесторские отчеты автоматически</h4>
+                    <p>Операционные результаты упаковываются в стандартизированные метрики, понятные фондам и крупным игрокам.</p>
+                </article>
+            </div>
         </div>
     </section>
 
@@ -516,6 +614,7 @@
     </section>
 
     <section class="business-home__section business-home__pilot business-home__reveal" aria-label="Пилотное внедрение">
+        <div class="business-home__pilot-image" role="img" aria-label="Бизнес-партнеры пожимают друг другу руки"></div>
         <div>
             <div class="business-home__eyebrow">Специальное предложение</div>
             <h3>Первая группа партнерских бизнесов</h3>
