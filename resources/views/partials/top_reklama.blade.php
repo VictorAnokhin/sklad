@@ -1169,6 +1169,38 @@
     let authTouchLastY = null;
     let authTouchMoved = false;
 
+    function normalizeMenuUrl(url) {
+      try {
+        const parsedUrl = new URL(url, window.location.origin);
+        const pathname = parsedUrl.pathname.replace(/\/+$/, '') || '/';
+        parsedUrl.searchParams.delete('lang');
+        return pathname + parsedUrl.search;
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function isCurrentMenuLink(link) {
+      if (!link) {
+        return false;
+      }
+
+      const href = link.getAttribute('href');
+
+      if (!href || href === '#') {
+        return false;
+      }
+
+      const currentUrl = normalizeMenuUrl(window.location.href);
+      const linkUrl = normalizeMenuUrl(link.href);
+
+      if (!linkUrl) {
+        return false;
+      }
+
+      return linkUrl === currentUrl;
+    }
+
     function closeHeaderMenu() {
       if (!burger || !menu) {
         return;
@@ -1214,6 +1246,12 @@
             link.classList.add(`is-next-${offset}`);
           }
         });
+      }
+
+      const currentPublicIndex = publicLinks.findIndex((link) => isCurrentMenuLink(link));
+
+      if (currentPublicIndex >= 0) {
+        activePublicIndex = currentPublicIndex;
       }
 
       syncPublicPicker();
@@ -1286,6 +1324,17 @@
 
         if (!availableSections.length) {
           return;
+        }
+
+        const matchedSectionIndex = availableSections.findIndex((section) => section.links.some((link) => isCurrentMenuLink(link)));
+        const matchedItemIndex = matchedSectionIndex >= 0
+          ? availableSections[matchedSectionIndex].links.findIndex((link) => isCurrentMenuLink(link))
+          : -1;
+
+        if (matchedSectionIndex >= 0 && matchedItemIndex >= 0) {
+          activeAuthSectionIndex = matchedSectionIndex;
+          activeAuthIndex = matchedItemIndex;
+          activeAuthView = 'items';
         }
 
         const picker = document.createElement('div');
