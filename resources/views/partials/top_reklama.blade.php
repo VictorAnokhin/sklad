@@ -1419,6 +1419,26 @@
       return true;
     }
 
+    function shouldShowSpinnerForButton(button) {
+      if (!button) {
+        return false;
+      }
+
+      if (button.disabled || button.getAttribute('aria-disabled') === 'true') {
+        return false;
+      }
+
+      if (button.id === 'header-burger') {
+        return false;
+      }
+
+      if (button.closest('.auth-picker-menu__top') || button.closest('.desktop-auth-menu__sections')) {
+        return false;
+      }
+
+      return true;
+    }
+
     if (burger && menu) {
       function syncPublicPicker() {
         if (!publicLinks.length) {
@@ -1921,6 +1941,25 @@
         }
 
         closeHeaderMenu();
+      });
+
+      document.addEventListener('click', function (event) {
+        const button = event.target.closest('button, input[type="button"], input[type="submit"], input[type="reset"], [role="button"], .btn');
+
+        if (!button || !shouldShowSpinnerForButton(button)) {
+          return;
+        }
+
+        showNavigationSpinner();
+      }, true);
+
+      window.addEventListener('pageshow', function () {
+        if (!navigationSpinner) {
+          return;
+        }
+
+        navigationSpinner.classList.remove('is-visible');
+        navigationSpinner.setAttribute('aria-hidden', 'true');
       });
     }
   })();
