@@ -288,6 +288,10 @@
   </nav>
 </div>
 
+<div class="site-navigation-spinner" id="site-navigation-spinner" aria-hidden="true">
+  <div class="site-navigation-spinner__ring"></div>
+</div>
+
 <style>
   /* Desktop: project selector is compact and on the right */
   #header-project-select {
@@ -327,6 +331,36 @@
     line-height: 1.35rem;
     text-align: center;
     box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.08);
+  }
+
+  .site-navigation-spinner {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: none;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.56);
+    backdrop-filter: blur(8px);
+  }
+
+  .site-navigation-spinner.is-visible {
+    display: grid;
+  }
+
+  .site-navigation-spinner__ring {
+    width: 68px;
+    height: 68px;
+    border: 4px solid rgba(255, 255, 255, 0.16);
+    border-top-color: #fbbf24;
+    border-radius: 50%;
+    animation: siteSpinnerRotate 0.78s linear infinite;
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.2);
+  }
+
+  @keyframes siteSpinnerRotate {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   @media (min-width: 901px) {
@@ -1156,6 +1190,7 @@
   (function () {
     const burger = document.getElementById('header-burger');
     const menu = document.getElementById('header-nav-menu');
+    const navigationSpinner = document.getElementById('site-navigation-spinner');
     const publicPicker = document.getElementById('mobile-public-links');
     const publicLinks = publicPicker ? Array.from(publicPicker.querySelectorAll('a')) : [];
     let activePublicIndex = 0;
@@ -1209,6 +1244,30 @@
       burger.setAttribute('aria-expanded', 'false');
       menu.classList.remove('is-open');
       document.body.classList.remove('header-menu-open');
+    }
+
+    function showNavigationSpinner() {
+      if (!navigationSpinner) {
+        return;
+      }
+
+      navigationSpinner.classList.add('is-visible');
+      navigationSpinner.setAttribute('aria-hidden', 'false');
+    }
+
+    function shouldShowSpinnerForLink(link) {
+      if (!link) {
+        return false;
+      }
+
+      const href = link.getAttribute('href');
+      const target = link.getAttribute('target');
+
+      if (!href || href === '#' || target === '_blank') {
+        return false;
+      }
+
+      return true;
     }
 
     if (burger && menu) {
@@ -1424,6 +1483,10 @@
           const originalLink = currentItems()[activeAuthIndex]?.target;
 
           if (originalLink) {
+            if (shouldShowSpinnerForLink(originalLink)) {
+              showNavigationSpinner();
+            }
+
             originalLink.click();
           }
         });
@@ -1576,6 +1639,10 @@
 
       menu.querySelectorAll('a').forEach((link) => {
         link.addEventListener('click', function () {
+          if (shouldShowSpinnerForLink(link)) {
+            showNavigationSpinner();
+          }
+
           burger.setAttribute('aria-expanded', 'false');
           menu.classList.remove('is-open');
           document.body.classList.remove('header-menu-open');
