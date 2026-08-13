@@ -164,8 +164,7 @@
   @if(!$isAuthenticated)
   <div class="header-public-links" id="desktop-public-links">
     
-    <a href="{{ route('micro-business') }}" class="header-public-link">Для микро-бизнеса</a>
-    <a href="{{ route('individuals') }}" class="header-public-link">Для физических лиц</a>
+    <a href="{{ route('micro-business') }}" class="header-public-link">Управление бизнесом</a>
     <a href="{{ route('education.public') }}" class="header-public-link">Обучение</a>
     <a href="{{ route('price') }}" class="header-public-link">Цены</a>
     <a href="{{ route('about') }}" class="header-public-link">О проекте</a>
@@ -278,8 +277,7 @@
     </div>
     @else
     <div id="mobile-public-links">
-      <a class="header-nav-menu__link mobile-only-link" href="{{ route('micro-business') }}">Для микро-бизнеса</a>
-      <a class="header-nav-menu__link mobile-only-link" href="{{ route('individuals') }}">Для физических лиц</a>
+      <a class="header-nav-menu__link mobile-only-link" href="{{ route('micro-business') }}">Управление бизнесом</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('education.public') }}">Обучение</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('price') }}">Цены</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('team') }}">Команда</a>
