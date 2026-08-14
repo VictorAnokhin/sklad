@@ -3,6 +3,7 @@
 @section('title', 'Подписки')
 
 @section('content')
+@php($activeTab = request('tab', 'plans'))
 <div class="container mt-4 subscriptions-page" data-bs-theme="dark">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
@@ -17,13 +18,13 @@
     @if($errors->any())<div class="alert alert-danger">{{ $errors->first() }}</div>@endif
 
     <ul class="nav nav-tabs mb-4" role="tablist">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#plans-pane" type="button">Тарифы</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#subscriptions-pane" type="button">Подписки клиентов</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#invoices-pane" type="button">Начисления</button></li>
+        <li class="nav-item"><button class="nav-link {{ $activeTab === 'plans' ? 'active' : '' }}" data-bs-toggle="tab" data-bs-target="#plans-pane" type="button">Тарифы</button></li>
+        <li class="nav-item"><button class="nav-link {{ $activeTab === 'customers' ? 'active' : '' }}" data-bs-toggle="tab" data-bs-target="#subscriptions-pane" type="button">Подписки клиентов</button></li>
+        <li class="nav-item"><button class="nav-link {{ $activeTab === 'invoices' ? 'active' : '' }}" data-bs-toggle="tab" data-bs-target="#invoices-pane" type="button">Начисления</button></li>
     </ul>
 
     <div class="tab-content">
-        <section class="tab-pane fade show active" id="plans-pane">
+        <section class="tab-pane fade {{ $activeTab === 'plans' ? 'show active' : '' }}" id="plans-pane">
             <div class="glass-card" id="subscription-plans-list-area">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
                     <div>
@@ -124,7 +125,7 @@
             </div>
         </section>
 
-        <section class="tab-pane fade" id="subscriptions-pane">
+        <section class="tab-pane fade {{ $activeTab === 'customers' ? 'show active' : '' }}" id="subscriptions-pane">
             <div class="glass-card" id="customer-subscriptions-list-area">
                 <div class="table-responsive">
                     <table class="table table-dark table-hover table-sm align-middle mb-0 customer-subscriptions-table">
@@ -186,18 +187,19 @@
             </div>
         </section>
 
-        <section class="tab-pane fade" id="invoices-pane">
+        <section class="tab-pane fade {{ $activeTab === 'invoices' ? 'show active' : '' }}" id="invoices-pane">
             <div class="glass-card">
                 <div class="table-responsive">
-                    <table class="table table-dark table-hover align-middle">
+                    <table class="table table-dark table-hover align-middle subscription-invoices-table">
                         <thead>
                             <tr>
-                                <th>Клиент</th><th>Тариф</th><th>Период</th><th>Срок оплаты</th><th>Сумма</th><th>Статус</th><th></th>
+                                <th>№</th><th>Клиент</th><th>Тариф</th><th>Период</th><th>Срок оплаты</th><th>Сумма</th><th>Статус</th><th></th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($invoices as $invoice)
                                 <tr>
+                                    <td>{{ $loop->iteration }}</td>
                                     <td>{{ $invoice->client_name }}</td>
                                     <td>{{ $invoice->plan_name }}</td>
                                     <td>{{ $invoice->period_from }} - {{ $invoice->period_to }}</td>
@@ -223,7 +225,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="7" class="text-center text-muted">Начислений пока нет.</td></tr>
+                                <tr><td colspan="8" class="text-center text-muted">Начислений пока нет.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -436,6 +438,9 @@ document.addEventListener('DOMContentLoaded', () => {
     .customer-subscription-row { cursor: pointer; }
     .customer-subscription-row:focus { outline: 2px solid rgba(250,204,21,.8); outline-offset: -2px; }
     .customer-subscription-form-panel.d-none { display: none !important; }
+    .subscription-invoices-table th, .subscription-invoices-table td { white-space: nowrap; }
+    .subscription-invoices-table th:first-child, .subscription-invoices-table td:first-child { width: 4.5rem; text-align: center; }
+    .subscription-invoices-table th:nth-child(2), .subscription-invoices-table td:nth-child(2) { white-space: normal; min-width: 18rem; width: 34%; }
     .subscription-client-search { position: relative; }
     .subscription-client-results { position: absolute; z-index: 30; top: 2.45rem; left: 0; right: 0; max-height: 260px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0,0,0,.35); }
     .subscription-stack { display: grid; gap: 1rem; }

@@ -432,6 +432,7 @@ Route::middleware(['auth'])->group(function () {
             Route::delete('/items/{item}', [SubscriptionController::class, 'destroyPlanItem'])->name('planItems.destroy');
             Route::post('/', [SubscriptionController::class, 'storeSubscription'])->name('store');
             Route::put('/{subscription}', [SubscriptionController::class, 'updateSubscription'])->name('update');
+            Route::delete('/{subscription}', [SubscriptionController::class, 'destroySubscription'])->name('destroy');
             Route::post('/{subscription}/bill', [SubscriptionController::class, 'bill'])->name('bill');
             Route::post('/invoices/{invoice}/paid', [SubscriptionController::class, 'markInvoicePaid'])->name('invoices.paid');
         });

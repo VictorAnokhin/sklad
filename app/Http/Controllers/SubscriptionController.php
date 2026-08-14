@@ -141,7 +141,7 @@ class SubscriptionController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect()->route('subscriptions.index')->with('success', 'Подписка клиента создана');
+        return redirect()->route('subscriptions.index', ['tab' => 'customers'])->with('success', 'Подписка клиента создана');
     }
 
     public function updateSubscription(Request $request, int $subscription)
@@ -164,7 +164,20 @@ class SubscriptionController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect()->route('subscriptions.index')->with('success', 'Подписка обновлена');
+        return redirect()->route('subscriptions.index', ['tab' => 'customers'])->with('success', 'Подписка обновлена');
+    }
+
+    public function destroySubscription(int $subscription)
+    {
+        $fid = $this->activeFid();
+        abort_unless($this->subscriptionExists($fid, $subscription), 404);
+
+        DB::transaction(function () use ($subscription): void {
+            DB::table('subscription_invoices')->where('subscription_id', $subscription)->delete();
+            DB::table('customer_subscriptions')->where('id', $subscription)->delete();
+        });
+
+        return redirect()->route('subscriptions.index', ['tab' => 'customers'])->with('success', 'Подписка удалена');
     }
 
     public function bill(int $subscription, SubscriptionBillingService $billing)
@@ -174,7 +187,7 @@ class SubscriptionController extends Controller
         $created = $billing->billSubscription($subscription);
         $billing->enforceBlocks((int) $fid);
 
-        return redirect()->route('subscriptions.index')->with($created ? 'success' : 'error', $created ? 'Начисление создано' : 'Начисление уже существует или подписка неактивна');
+        return redirect()->route('subscriptions.index', ['tab' => 'customers'])->with($created ? 'success' : 'error', $created ? 'Начисление создано' : 'Начисление уже существует или подписка неактивна');
     }
 
     public function markInvoicePaid(int $invoice, SubscriptionBillingService $billing)
@@ -184,7 +197,7 @@ class SubscriptionController extends Controller
         $billing->markInvoicePaid($invoice);
         $billing->enforceBlocks((int) $fid);
 
-        return redirect()->route('subscriptions.index')->with('success', 'Начисление отмечено оплаченным');
+        return redirect()->route('subscriptions.index', ['tab' => 'invoices'])->with('success', 'Начисление отмечено оплаченным');
     }
 
     private function validatePlan(Request $request): array

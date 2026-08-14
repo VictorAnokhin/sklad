@@ -51,5 +51,21 @@
         <label class="form-check"><span><input type="checkbox" name="auto_create_invoice" value="1" {{ old('auto_create_invoice', $subscription->auto_create_invoice ?? true) ? 'checked' : '' }}> Автона начисление</span></label>
         <label class="span-2">Заметки<textarea name="notes" class="form-control" rows="2">{{ old('notes', $subscription->notes ?? '') }}</textarea></label>
     </div>
-    <button class="btn btn-success mt-3">{{ $isEdit ? 'Сохранить подписку' : 'Создать подписку' }}</button>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+        <button class="btn btn-success">{{ $isEdit ? 'Сохранить подписку' : 'Создать подписку' }}</button>
+        @if($isEdit)
+            <button
+                class="btn btn-outline-danger"
+                type="submit"
+                form="subscription-delete-form-{{ $subscription->id }}"
+                onclick="return confirm('Удалить подписку и связанные начисления?');"
+            >Удалить</button>
+        @endif
+    </div>
 </form>
+@if($isEdit)
+    <form method="POST" action="{{ route('subscriptions.destroy', ['subscription' => $subscription->id]) }}" id="subscription-delete-form-{{ $subscription->id }}" class="d-none">
+        @csrf
+        @method('DELETE')
+    </form>
+@endif
