@@ -190,10 +190,10 @@
         <section class="tab-pane fade {{ $activeTab === 'invoices' ? 'show active' : '' }}" id="invoices-pane">
             <div class="glass-card">
                 <div class="table-responsive">
-                    <table class="table table-dark table-hover align-middle subscription-invoices-table">
+                    <table class="table table-dark table-hover table-sm align-middle subscription-invoices-table">
                         <thead>
                             <tr>
-                                <th>№</th><th>Клиент</th><th>Тариф</th><th>Период</th><th>Срок оплаты</th><th>Сумма</th><th>Статус</th><th></th>
+                                <th>№</th><th>Клиент</th><th>Тариф</th><th>Период</th><th>Оплата</th><th>Сумма</th><th>Статус</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -215,17 +215,9 @@
                                             <span class="badge bg-success">{{ $invoice->status }}</span>
                                         @endif
                                     </td>
-                                    <td class="text-end">
-                                        @if($invoice->status !== 'paid')
-                                            <form method="POST" action="{{ route('subscriptions.invoices.paid', ['invoice' => $invoice->id]) }}">
-                                                @csrf
-                                                <button class="btn btn-sm btn-success">Оплачено</button>
-                                            </form>
-                                        @endif
-                                    </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="8" class="text-center text-muted">Начислений пока нет.</td></tr>
+                                <tr><td colspan="7" class="text-center text-muted">Начислений пока нет.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -438,9 +430,17 @@ document.addEventListener('DOMContentLoaded', () => {
     .customer-subscription-row { cursor: pointer; }
     .customer-subscription-row:focus { outline: 2px solid rgba(250,204,21,.8); outline-offset: -2px; }
     .customer-subscription-form-panel.d-none { display: none !important; }
+    .subscription-invoices-table { table-layout: fixed; font-size: .86rem; }
+    .subscription-invoices-table th, .subscription-invoices-table td { padding: .42rem .5rem; vertical-align: middle; }
     .subscription-invoices-table th, .subscription-invoices-table td { white-space: nowrap; }
-    .subscription-invoices-table th:first-child, .subscription-invoices-table td:first-child { width: 4.5rem; text-align: center; }
-    .subscription-invoices-table th:nth-child(2), .subscription-invoices-table td:nth-child(2) { white-space: normal; min-width: 18rem; width: 34%; }
+    .subscription-invoices-table th:first-child, .subscription-invoices-table td:first-child { width: 3.2rem; text-align: center; }
+    .subscription-invoices-table th:nth-child(2), .subscription-invoices-table td:nth-child(2) { white-space: normal; width: 28%; }
+    .subscription-invoices-table th:nth-child(3), .subscription-invoices-table td:nth-child(3) { width: 16%; overflow: hidden; text-overflow: ellipsis; }
+    .subscription-invoices-table th:nth-child(4), .subscription-invoices-table td:nth-child(4) { width: 18%; }
+    .subscription-invoices-table th:nth-child(5), .subscription-invoices-table td:nth-child(5) { width: 10%; }
+    .subscription-invoices-table th:nth-child(6), .subscription-invoices-table td:nth-child(6) { width: 11%; text-align: right; }
+    .subscription-invoices-table th:nth-child(7), .subscription-invoices-table td:nth-child(7) { width: 14%; text-align: center; }
+    .subscription-invoices-table .badge { font-size: .74rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
     .subscription-client-search { position: relative; }
     .subscription-client-results { position: absolute; z-index: 30; top: 2.45rem; left: 0; right: 0; max-height: 260px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0,0,0,.35); }
     .subscription-stack { display: grid; gap: 1rem; }
