@@ -234,6 +234,7 @@
     <div class="header-nav-menu__section-label">{{ __('nav.management') }}</div>
     <div class="header-nav-menu__grid">
       <a class="header-nav-menu__link" href="{{ route('team') }}">{{ __('nav.team') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('settings.employeeRoles.index') }}">{{ __('nav.employee_roles') }}</a>
       <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
       <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
     </div>
@@ -1628,6 +1629,8 @@
     const publicLinks = publicPicker ? Array.from(publicPicker.querySelectorAll('a')) : [];
     const authPickerBackLabel = @json(__('nav.back'));
     const authPickerChooseSectionLabel = @json(__('nav.choose_section'));
+    const isSettingsPage = window.location.pathname.replace(/\/+$/, '') === '/settings'
+      || window.location.pathname.startsWith('/settings/');
     let activePublicIndex = 0;
     let publicTouchStartY = null;
     let publicTouchLastY = null;
@@ -1707,6 +1710,10 @@
 
     function shouldShowSpinnerForButton(button) {
       if (!button) {
+        return false;
+      }
+
+      if (isSettingsPage) {
         return false;
       }
 

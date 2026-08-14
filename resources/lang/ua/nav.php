@@ -34,6 +34,7 @@ return [
     'private' => 'Приватний',
     'management' => 'Менеджмент',
     'team' => 'Команда',
+    'employee_roles' => 'Ролі співробітників',
     'bank' => 'Банк',
     'cash_accounts' => 'Каси/Рахунки',
     'credits' => 'Кредити',

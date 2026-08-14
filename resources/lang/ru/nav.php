@@ -34,6 +34,7 @@ return [
     'private' => 'Частный',
     'management' => 'Менеджмент',
     'team' => 'Команда',
+    'employee_roles' => 'Роли сотрудников',
     'bank' => 'Банк',
     'cash_accounts' => 'Кассы/Счета',
     'credits' => 'Кредиты',

@@ -1,16 +1,9 @@
 @php
     $inModal = $inModal ?? false;
     $selectedProjects = collect(old('project_ids', $selectedCompanyIds ?? []))->map(fn ($id) => (string) $id)->all();
+    $selectedProjectRoles = collect(old('project_roles', $selectedProjectRoles ?? []))->mapWithKeys(fn ($roleId, $projectId) => [(string) $projectId => (string) $roleId])->all();
     $photoPreview = \App\Support\MediaUrl::image(old('foto1', $member->foto1 ?? ''));
-    $selectedDepartmentRaw = old('status', $member->status ?? '');
-    $selectedDepartment = is_numeric($selectedDepartmentRaw) ? (string) (int) $selectedDepartmentRaw : '';
-    $departments = [
-        '1' => 'Администрация',
-        '2' => 'Финансы',
-        '3' => 'Продажи',
-        '4' => 'Разработка',
-        '5' => 'Маркетинг',
-    ];
+    $roleOptions = collect($roleOptions ?? []);
 @endphp
 
 <form method="POST" action="{{ route('team.save') }}" enctype="multipart/form-data" id="team-member-form">
@@ -36,31 +29,38 @@
     </div>
 
     <div class="row mb-3">
-        <div class="col-md-6">
+        <div class="col-md-12">
             <label class="form-label">Должность</label>
             <input type="text" name="name2" class="form-control team-safe-text-input" value="{{ old('name2', $member->name2 ?? '') }}" placeholder="CEO, Analyst, Partner" maxlength="30">
-        </div>
-        <div class="col-md-6">
-            <label class="form-label">Подразделение</label>
-            <select name="status" id="teamDepartmentSelect" class="form-control">
-                <option value="">— Выберите подразделение —</option>
-                @foreach($departments as $value => $label)
-                    <option value="{{ $value }}" {{ $selectedDepartment === $value ? 'selected' : '' }}>{{ $label }}</option>
-                @endforeach
-            </select>
         </div>
     </div>
 
     <div class="mb-3">
-        <label class="form-label d-block">Компании, в которых пользователь будет сотрудником</label>
-        <div class="d-flex flex-wrap gap-3 rounded border p-3">
+        <label class="form-label d-block">Компании холдинга и роли сотрудника</label>
+        <div class="team-company-role-list rounded border p-3">
             @foreach($companyOptions as $company)
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="project_ids[]" value="{{ $company->id }}" id="team-project-{{ $company->id }}" {{ in_array((string) $company->id, $selectedProjects, true) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="team-project-{{ $company->id }}">{{ $company->name }}</label>
+                @php
+                    $companyId = (string) $company->id;
+                    $companySelected = in_array($companyId, $selectedProjects, true);
+                    $companyRole = $selectedProjectRoles[$companyId] ?? '';
+                @endphp
+                <div class="team-company-role-row">
+                    <div class="form-check team-company-role-row__company">
+                        <input class="form-check-input" type="checkbox" name="project_ids[]" value="{{ $company->id }}" id="team-project-{{ $company->id }}" {{ $companySelected ? 'checked' : '' }}>
+                        <label class="form-check-label" for="team-project-{{ $company->id }}">{{ $company->name }}</label>
+                    </div>
+                    <select name="project_roles[{{ $company->id }}]" class="form-control team-company-role-row__role">
+                        <option value="">— Роль —</option>
+                        @foreach($roleOptions as $role)
+                            <option value="{{ $role->id }}" {{ $companyRole === (string) $role->id ? 'selected' : '' }}>{{ $role->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
             @endforeach
         </div>
+        @if($roleOptions->isEmpty())
+            <div class="form-text text-warning">Сначала создайте роли сотрудников в меню Менеджмент.</div>
+        @endif
     </div>
 
     <div class="row mb-3">

@@ -24,6 +24,8 @@ class TeamController extends Controller
             'teamMembers' => $this->teamMembersQuery()->get()->map(fn ($user) => $this->mapTeamMember($user))->values(),
             'companyOptions' => $this->companyOptions($fid),
             'selectedCompanyIds' => [(string) $fid],
+            'selectedProjectRoles' => [],
+            'roleOptions' => $this->roleOptions($fid),
         ]);
     }
 
@@ -44,6 +46,10 @@ class TeamController extends Controller
             'selectedCompanyIds' => $member
                 ? $this->membershipProjectIds((int) $member->id, HoldingScope::projectIdsFor($fid))
                 : [(string) $fid],
+            'selectedProjectRoles' => $member
+                ? $this->membershipRoleIds((int) $member->id, HoldingScope::projectIdsFor($fid))
+                : [],
+            'roleOptions' => $this->roleOptions($fid),
         ]);
     }
 
@@ -195,7 +201,8 @@ class TeamController extends Controller
             'description' => ['nullable', 'string', 'max:250'],
             'foto1' => ['nullable', 'string', 'max:255'],
             'foto1_file' => ['nullable', 'file', 'image', 'max:10240'],
-            'status' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            'project_roles' => ['nullable', 'array'],
+            'project_roles.*' => ['nullable', 'integer', Rule::in($this->roleOptions($fid)->pluck('id')->map(fn ($id): int => (int) $id)->all())],
             'orgname' => ['nullable', 'string', 'max:255'],
             'pass' => ['nullable', 'string', 'max:255'],
             'userid' => ['nullable', 'integer', 'min:0'],
@@ -203,7 +210,9 @@ class TeamController extends Controller
             'project_ids.*' => ['integer', Rule::in($firmaScope)],
         ]);
 
-        $departmentValue = $request->filled('status') ? (int) $request->input('status') : 0;
+        $projectRoles = collect($request->input('project_roles', []))
+            ->mapWithKeys(fn ($roleId, $projectId): array => [(string) $projectId => $roleId !== null && $roleId !== '' ? (int) $roleId : null])
+            ->all();
         $currentPhoto = $stringValue($validated['foto1'] ?? ($id !== '0'
             ? DB::table('users')->where('id', $id)->value('foto1')
             : ''));
@@ -229,7 +238,6 @@ class TeamController extends Controller
             'region' => $this->safeTeamText($request->input('region'), 'Регион', 30),
             'description' => $this->safeTeamText($request->input('description'), 'Описание', 250),
             'foto1' => $currentPhoto,
-            'status' => $departmentValue,
             'firmuser' => '1',
             'firma' => $id === '0' ? $fid : $validationFirma,
         ];
@@ -246,18 +254,12 @@ class TeamController extends Controller
             $data['password'] = $hash;
         }
 
-        $memberId = DB::transaction(function () use ($id, $data, $validated, $firmaScope): int {
+        $memberId = DB::transaction(function () use ($id, $data, $validated, $firmaScope, $projectRoles): int {
             $memberId = (int) User::edit($id, $data);
-            $this->syncMemberships($memberId, $validated['project_ids'], $firmaScope);
+            $this->syncMemberships($memberId, $validated['project_ids'], $firmaScope, $projectRoles);
 
             return $memberId;
         });
-
-        if (Schema::hasColumn('users', 'status')) {
-            DB::table('users')
-                ->where('id', $memberId)
-                ->update(['status' => $departmentValue]);
-        }
 
         $stillInCurrentTeam = in_array((string) $fid, array_map('strval', $validated['project_ids']), true);
         $redirectRoute = $request->boolean('return_to_team') || ! $stillInCurrentTeam
@@ -296,10 +298,18 @@ class TeamController extends Controller
 
         $fid = $this->activeFid();
 
-        return DB::table('users as u')
+        $query = DB::table('users as u')
             ->join('team_memberships as tm', 'tm.user_id', '=', 'u.id')
-            ->where('tm.project_id', $fid)
-            ->select('u.*')
+            ->where('tm.project_id', $fid);
+
+        if (Schema::hasTable('employee_roles') && Schema::hasColumn('team_memberships', 'role_id')) {
+            $query->leftJoin('employee_roles as er', 'er.id', '=', 'tm.role_id')
+                ->select('u.*', 'tm.role_id as team_role_id', 'er.name as team_role_name');
+        } else {
+            $query->select('u.*');
+        }
+
+        return $query
             ->orderByDesc('u.top')
             ->orderBy('u.id');
     }
@@ -327,6 +337,7 @@ class TeamController extends Controller
             'id' => $user->id,
             'full_name' => $fullName !== '' ? $fullName : ($fallbackName !== '' ? $fallbackName : ('User #' . $user->id)),
             'position' => trim((string) ($user->name2 ?? '')),
+            'role_name' => trim((string) ($user->team_role_name ?? '')),
             'photo' => MediaUrl::image((string) ($user->foto1 ?? '')),
             'description' => trim((string) ($user->description ?? '')),
             'location' => trim(implode(', ', array_filter([
@@ -371,15 +382,34 @@ class TeamController extends Controller
             ->all();
     }
 
-    private function addMemberships(int $userId, array $projectIds): void
+    private function membershipRoleIds(int $userId, array $projectScope): array
+    {
+        if (! Schema::hasTable('team_memberships') || ! Schema::hasColumn('team_memberships', 'role_id')) {
+            return [];
+        }
+
+        return DB::table('team_memberships')
+            ->where('user_id', $userId)
+            ->whereIn('project_id', $projectScope)
+            ->pluck('role_id', 'project_id')
+            ->mapWithKeys(fn ($roleId, $projectId): array => [(string) $projectId => $roleId ? (string) $roleId : ''])
+            ->all();
+    }
+
+    private function addMemberships(int $userId, array $projectIds, array $projectRoles = []): void
     {
         $now = now();
-        $rows = collect($projectIds)->map(fn ($projectId): array => [
-            'user_id' => $userId,
-            'project_id' => (int) $projectId,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ])->all();
+        $rows = collect($projectIds)->map(function ($projectId) use ($userId, $projectRoles, $now): array {
+            $projectIdString = (string) $projectId;
+
+            return [
+                'user_id' => $userId,
+                'project_id' => (int) $projectId,
+                ...$this->membershipRolePayload($projectRoles[$projectIdString] ?? null),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        })->all();
 
         DB::table('team_memberships')->insertOrIgnore($rows);
         if (Schema::hasColumn('users', 'firmuser')) {
@@ -387,15 +417,57 @@ class TeamController extends Controller
         }
     }
 
-    private function syncMemberships(int $userId, array $projectIds, array $projectScope): void
+    private function syncMemberships(int $userId, array $projectIds, array $projectScope, array $projectRoles = []): void
     {
-        DB::transaction(function () use ($userId, $projectIds, $projectScope): void {
+        DB::transaction(function () use ($userId, $projectIds, $projectScope, $projectRoles): void {
             DB::table('team_memberships')
                 ->where('user_id', $userId)
                 ->whereIn('project_id', $projectScope)
                 ->delete();
-            $this->addMemberships($userId, $projectIds);
+            $this->addMemberships($userId, $projectIds, $projectRoles);
         });
+    }
+
+    private function membershipRolePayload(?int $roleId): array
+    {
+        if (! Schema::hasColumn('team_memberships', 'role_id')) {
+            return [];
+        }
+
+        return ['role_id' => $roleId];
+    }
+
+    private function roleOptions(string $fid)
+    {
+        if (! Schema::hasTable('employee_roles')) {
+            return collect();
+        }
+
+        $this->ensureDefaultRoles($fid);
+
+        return DB::table('employee_roles')
+            ->whereIn('project_id', collect(HoldingScope::projectIdsFor($fid))->map(fn ($id): int => (int) $id)->all())
+            ->orderBy('sort')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get(['id', 'name']);
+    }
+
+    private function ensureDefaultRoles(string $fid): void
+    {
+        $projectScope = collect(HoldingScope::projectIdsFor($fid))->map(fn ($id): int => (int) $id)->all();
+
+        if (DB::table('employee_roles')->whereIn('project_id', $projectScope)->exists()) {
+            return;
+        }
+
+        $now = now();
+        DB::table('employee_roles')->insert([
+            ['project_id' => (int) $fid, 'name' => 'Владелец', 'description' => 'Полный доступ к проекту.', 'sort' => 10, 'created_at' => $now, 'updated_at' => $now],
+            ['project_id' => (int) $fid, 'name' => 'Администратор', 'description' => 'Управление операционными разделами и настройками.', 'sort' => 20, 'created_at' => $now, 'updated_at' => $now],
+            ['project_id' => (int) $fid, 'name' => 'Менеджер', 'description' => 'Работа с документами, клиентами и товарами.', 'sort' => 30, 'created_at' => $now, 'updated_at' => $now],
+            ['project_id' => (int) $fid, 'name' => 'Наблюдатель', 'description' => 'Просмотр отчетов и основных данных.', 'sort' => 40, 'created_at' => $now, 'updated_at' => $now],
+        ]);
     }
 
     private function userDisplayName(object $user): string

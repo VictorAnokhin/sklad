@@ -34,6 +34,7 @@ return [
     'private' => 'Private',
     'management' => 'Management',
     'team' => 'Team',
+    'employee_roles' => 'Employee roles',
     'bank' => 'Bank',
     'cash_accounts' => 'Cash/Accounts',
     'credits' => 'Credits',

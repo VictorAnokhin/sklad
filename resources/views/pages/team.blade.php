@@ -126,6 +126,9 @@
     .team-user-row__meta { color: rgba(255,255,255,.62); font-size: .86rem; }
     .team-photo-preview { width: 100%; max-width: 220px; min-height: 140px; border: 1px solid rgba(255,255,255,.12); border-radius: 16px; background: rgba(255,255,255,.03); display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--muted-foreground); text-align: center; }
     .team-photo-preview img { width: 100%; height: 140px; object-fit: cover; }
+    .team-company-role-list { display: grid; gap: .75rem; }
+    .team-company-role-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 280px); gap: .75rem; align-items: center; }
+    .team-company-role-row__company { margin-bottom: 0; }
 
     @media (max-width: 991.98px) {
         .team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -133,6 +136,7 @@
 
     @media (max-width: 575.98px) {
         .team-grid { grid-template-columns: 1fr; }
+        .team-company-role-row { grid-template-columns: 1fr; }
     }
 </style>
 
@@ -163,6 +167,9 @@
                     <div class="team-card__body">
                         <div class="team-card__name">{{ $member->full_name }}</div>
                         <div class="team-card__role">{{ $member->position ?: 'Участник команды' }}</div>
+                        @if($member->role_name)
+                            <div class="team-card__role">{{ $member->role_name }}</div>
+                        @endif
 
                         @if($member->description)
                             <div class="team-card__description">

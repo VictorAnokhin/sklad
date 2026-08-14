@@ -86,6 +86,15 @@
             </div>
 
             <div class="col-md-4">
+                <a href="{{ route('settings.employeeRoles.index') }}" class="glass-card h-100 setting-card text-decoration-none d-block">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">🧩 {{ __('nav.employee_roles') }}</h5>
+                        <p class="card-text text-muted">Роли сотрудников и разрешения по разделам проекта</p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="col-md-4">
                 <div class="glass-card h-100 setting-card" data-bs-toggle="modal" data-bs-target="#modalCrud" data-type="reestr" data-title="💳 {{ __('settings.cards.payment_types.modal_title') }}">
                     <div class="card-body text-center">
                         <h5 class="card-title">💳 {{ __('settings.cards.payment_types.title') }}</h5>
