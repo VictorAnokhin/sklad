@@ -7,6 +7,7 @@ return [
     'purchases' => 'Закупки',
     'clients' => 'Клієнти',
     'goods' => 'Товари',
+    'subscriptions' => 'Підписки',
     'reports' => 'Звіти',
     'news' => 'Новини',
     'money' => 'Гроші',

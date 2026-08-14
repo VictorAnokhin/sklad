@@ -4,6 +4,7 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 class Kernel extends ConsoleKernel {
     protected function schedule(Schedule $schedule) {
         $schedule->command('fund:pools:sync-events')->everyFiveMinutes()->withoutOverlapping();
+        $schedule->command('subscriptions:bill')->dailyAt('02:10')->withoutOverlapping();
     }
     protected function commands() { $this->load(__DIR__.'/Commands'); }
 }

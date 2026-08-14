@@ -7,6 +7,7 @@ return [
     'purchases' => 'Purchases',
     'clients' => 'Clients',
     'goods' => 'Goods',
+    'subscriptions' => 'Subscriptions',
     'reports' => 'Reports',
     'news' => 'News',
     'money' => 'Money',

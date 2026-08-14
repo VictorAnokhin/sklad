@@ -1,0 +1,31 @@
+@php($isEdit = !empty($plan))
+<form method="POST" action="{{ $isEdit ? route('subscriptions.plans.update', ['plan' => $plan->id]) : route('subscriptions.plans.store') }}">
+    @csrf
+    @if($isEdit) @method('PUT') @endif
+    <div class="subscription-grid">
+        <label class="span-2">Название<input name="name" class="form-control" value="{{ old('name', $plan->name ?? '') }}" required maxlength="160"></label>
+        <label>Цена<input name="price" class="form-control" type="number" step="0.01" value="{{ old('price', $plan->price ?? 0) }}" min="0"></label>
+        <label>Валюта<input name="currency" class="form-control" value="{{ old('currency', $plan->currency ?? 'UAH') }}" maxlength="10"></label>
+        <label>Период
+            <select name="billing_period" class="form-select">
+                @foreach(['week' => 'Неделя', 'month' => 'Месяц', 'quarter' => 'Квартал', 'year' => 'Год'] as $value => $label)
+                    <option value="{{ $value }}" {{ old('billing_period', $plan->billing_period ?? 'month') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                @endforeach
+            </select>
+        </label>
+        <label>Интервал<input name="interval_count" class="form-control" type="number" value="{{ old('interval_count', $plan->interval_count ?? 1) }}" min="1" max="60"></label>
+        <label>Дней на оплату<input name="payment_due_days" class="form-control" type="number" value="{{ old('payment_due_days', $plan->payment_due_days ?? 5) }}" min="0"></label>
+        <label>Grace дней<input name="grace_days" class="form-control" type="number" value="{{ old('grace_days', $plan->grace_days ?? 3) }}" min="0"></label>
+        <label class="span-2">Описание<textarea name="description" class="form-control" rows="3">{{ old('description', $plan->description ?? '') }}</textarea></label>
+        <label class="form-check"><span><input type="checkbox" name="active" value="1" {{ old('active', $plan->active ?? true) ? 'checked' : '' }}> Активен</span></label>
+        <label class="form-check"><span><input type="checkbox" name="block_on_overdue" value="1" {{ old('block_on_overdue', $plan->block_on_overdue ?? true) ? 'checked' : '' }}> Блокировать при неоплате</span></label>
+    </div>
+    <button class="btn btn-success mt-3">{{ $isEdit ? 'Сохранить тариф' : 'Создать тариф' }}</button>
+</form>
+@if($isEdit)
+    <form method="POST" action="{{ route('subscriptions.plans.destroy', ['plan' => $plan->id]) }}" class="mt-2">
+        @csrf
+        @method('DELETE')
+        <button class="btn btn-outline-danger" onclick="return confirm('Удалить тариф?');">Удалить тариф</button>
+    </form>
+@endif

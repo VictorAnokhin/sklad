@@ -22,6 +22,7 @@ use App\Http\Controllers\PriceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\WalletController;
 
@@ -421,6 +422,19 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/toggle-sklad', [GoodsController::class , 'toggleSklad'])->name('toggleSklad');
         }
         );
+
+        Route::prefix('subscriptions')->name('subscriptions.')->group(function () {
+            Route::get('/', [SubscriptionController::class, 'index'])->name('index');
+            Route::post('/plans', [SubscriptionController::class, 'storePlan'])->name('plans.store');
+            Route::put('/plans/{plan}', [SubscriptionController::class, 'updatePlan'])->name('plans.update');
+            Route::delete('/plans/{plan}', [SubscriptionController::class, 'destroyPlan'])->name('plans.destroy');
+            Route::post('/plans/{plan}/items', [SubscriptionController::class, 'storePlanItem'])->name('planItems.store');
+            Route::delete('/items/{item}', [SubscriptionController::class, 'destroyPlanItem'])->name('planItems.destroy');
+            Route::post('/', [SubscriptionController::class, 'storeSubscription'])->name('store');
+            Route::put('/{subscription}', [SubscriptionController::class, 'updateSubscription'])->name('update');
+            Route::post('/{subscription}/bill', [SubscriptionController::class, 'bill'])->name('bill');
+            Route::post('/invoices/{invoice}/paid', [SubscriptionController::class, 'markInvoicePaid'])->name('invoices.paid');
+        });
 
         // ── Money ─────────────────────────────────────────────────────────────────
         Route::prefix('money')->name('money.')->group(function () {
