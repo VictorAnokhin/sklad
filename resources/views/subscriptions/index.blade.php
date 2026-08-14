@@ -203,7 +203,16 @@
                                     <td>{{ $invoice->period_from }} - {{ $invoice->period_to }}</td>
                                     <td>{{ $invoice->due_at }}</td>
                                     <td>{{ number_format((float) $invoice->amount, 2, '.', ' ') }}</td>
-                                    <td><span class="badge {{ $invoice->status === 'paid' ? 'bg-success' : ($invoice->status === 'overdue' ? 'bg-danger' : 'bg-warning text-dark') }}">{{ $invoice->status }}</span></td>
+                                    <td>
+                                        @if($invoice->status !== 'paid')
+                                            <form method="POST" action="{{ route('subscriptions.invoices.paid', ['invoice' => $invoice->id]) }}" class="d-inline">
+                                                @csrf
+                                                <button class="badge border-0 {{ $invoice->status === 'overdue' ? 'bg-danger' : 'bg-warning text-dark' }}" onclick="return confirm('Отметить начисление как оплаченное?');">{{ $invoice->status }}</button>
+                                            </form>
+                                        @else
+                                            <span class="badge bg-success">{{ $invoice->status }}</span>
+                                        @endif
+                                    </td>
                                     <td class="text-end">
                                         @if($invoice->status !== 'paid')
                                             <form method="POST" action="{{ route('subscriptions.invoices.paid', ['invoice' => $invoice->id]) }}">

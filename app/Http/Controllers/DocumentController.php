@@ -14,6 +14,7 @@ use App\Models\Conf as ConfModel;
 use App\Services\FilterService;
 use App\Services\DocumentService;
 use App\Services\SmsClubService;
+use App\Services\SubscriptionBillingService;
 use App\Support\HoldingScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -35,7 +36,8 @@ class DocumentController extends Controller
     public function __construct(
         private FilterService $filter,
         private DocumentService $docService,
-        private SmsClubService $smsClub
+        private SmsClubService $smsClub,
+        private SubscriptionBillingService $subscriptionBilling
         )
     {
     }
@@ -370,6 +372,10 @@ class DocumentController extends Controller
 
     private function syncLinkedDocumentPostingState(string $docType, string $docId, string $companyId, bool $isPosted): void
     {
+        if ($docType === 'RO') {
+            $this->subscriptionBilling->syncPaymentFromPostedDocument($docType, $docId, $companyId);
+        }
+
         if (! in_array($docType, ['PN', 'RN'], true)) {
             return;
         }
@@ -2641,6 +2647,9 @@ class DocumentController extends Controller
             if ($doc !== 'ZV') {
                 $docIdToFind = in_array($doc, ['ZIN', 'ZOUT', 'CRDT', 'RN', 'CPLAN', 'PN'], true) ? $docId : ($document->docid ?? $docId);
                 ZBody::where('docid', $docIdToFind)->delete();
+            }
+            if ($doc === 'ZOUT') {
+                $this->subscriptionBilling->cleanupDeletedOrder($document, (string) $fid);
             }
         }
 

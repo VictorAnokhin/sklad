@@ -86,6 +86,7 @@ class SubscriptionBillingService
 
             DB::table('customer_subscriptions')->where('id', $subscription->id)->update([
                 'payment_status' => 'pending',
+                'payment_method' => (string) $documentNumber,
                 'next_billing_at' => $periodTo->addDay()->toDateString(),
                 'grace_until' => $dueAt->addDays((int) ($plan->grace_days ?? 3))->toDateString(),
                 'updated_at' => $now,
@@ -152,6 +153,107 @@ class SubscriptionBillingService
         return $changed;
     }
 
+    public function syncPaymentFromPostedDocument(string $docType, int|string $docId, string $fid): void
+    {
+        if ($docType !== 'RO' || ! Schema::hasTable('subscription_invoices')) {
+            return;
+        }
+
+        $payment = DB::table('z_document')
+            ->where('id', $docId)
+            ->where('firma', $fid)
+            ->where('type', 'RO')
+            ->first();
+
+        if (! $payment) {
+            return;
+        }
+
+        $order = $this->linkedOrderForPayment($payment, $fid);
+        if (! $order) {
+            return;
+        }
+
+        $invoice = DB::table('subscription_invoices')
+            ->where('document_id', $order->id)
+            ->first();
+        if (! $invoice) {
+            return;
+        }
+
+        $paid = $this->postedRoAmountForOrder($order, $fid);
+        if ($paid >= (float) $invoice->amount || ((float) $invoice->amount <= 0 && $paid > 0)) {
+            $this->markInvoicePaid((int) $invoice->id);
+            return;
+        }
+
+        DB::table('subscription_invoices')->where('id', $invoice->id)->update([
+            'status' => $invoice->due_at && CarbonImmutable::parse($invoice->due_at)->lt(CarbonImmutable::today()) ? 'overdue' : 'pending',
+            'paid_at' => null,
+            'updated_at' => now(),
+        ]);
+
+        DB::table('customer_subscriptions')->where('id', $invoice->subscription_id)->update([
+            'payment_status' => $invoice->due_at && CarbonImmutable::parse($invoice->due_at)->lt(CarbonImmutable::today()) ? 'overdue' : 'pending',
+            'last_paid_until' => null,
+            'updated_at' => now(),
+        ]);
+
+        $subscription = DB::table('customer_subscriptions')->where('id', $invoice->subscription_id)->first();
+        if ($subscription) {
+            $this->enforceBlocks((int) $subscription->project_id);
+        }
+    }
+
+    public function cleanupDeletedOrder(object $document, string $fid): void
+    {
+        if ((string) ($document->type ?? '') !== 'ZOUT' || ! Schema::hasTable('subscription_invoices')) {
+            return;
+        }
+
+        $invoices = DB::table('subscription_invoices')
+            ->where('document_id', $document->id)
+            ->get();
+        if ($invoices->isEmpty()) {
+            return;
+        }
+
+        DB::transaction(function () use ($invoices, $document): void {
+            foreach ($invoices as $invoice) {
+                DB::table('subscription_invoices')->where('id', $invoice->id)->delete();
+
+                $hasDebt = DB::table('subscription_invoices')
+                    ->where('subscription_id', $invoice->subscription_id)
+                    ->whereIn('status', ['pending', 'overdue'])
+                    ->exists();
+
+                DB::table('customer_subscriptions')
+                    ->where('id', $invoice->subscription_id)
+                    ->update([
+                        'payment_method' => '',
+                        'payment_status' => $hasDebt ? 'overdue' : 'paid',
+                        'status' => 'active',
+                        'blocked_at' => $hasDebt ? DB::raw('blocked_at') : null,
+                        'block_reason' => $hasDebt ? DB::raw('block_reason') : '',
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            DB::table('z_document')
+                ->where('firma', (string) $document->firma)
+                ->where('type', 'RO')
+                ->where(function ($query) use ($document): void {
+                    $query->where('docid', $document->id)
+                        ->orWhere(function ($nested) use ($document): void {
+                            $nested
+                                ->where('typez', 'ZOUT')
+                                ->where('numz', (string) $document->num);
+                        });
+                })
+                ->update(['numz' => '0', 'typez' => '0', 'docid' => 0]);
+        });
+    }
+
     public function markInvoicePaid(int $invoiceId): void
     {
         $invoice = DB::table('subscription_invoices')->where('id', $invoiceId)->first();
@@ -180,6 +282,49 @@ class SubscriptionBillingService
                 'updated_at' => now(),
             ]);
         });
+    }
+
+    private function linkedOrderForPayment(object $payment, string $fid): ?object
+    {
+        $parentDocId = (int) ($payment->docid ?? 0);
+        if ($parentDocId > 0) {
+            $order = DB::table('document')
+                ->where('id', $parentDocId)
+                ->where('firma', $fid)
+                ->where('type', 'ZOUT')
+                ->first();
+            if ($order) {
+                return $order;
+            }
+        }
+
+        $numz = trim((string) ($payment->numz ?? ''));
+        if ($numz === '' || $numz === '0' || (string) ($payment->typez ?? '') !== 'ZOUT') {
+            return null;
+        }
+
+        return DB::table('document')
+            ->where('num', $numz)
+            ->where('firma', $fid)
+            ->where('type', 'ZOUT')
+            ->first();
+    }
+
+    private function postedRoAmountForOrder(object $order, string $fid): float
+    {
+        return (float) DB::table('z_document')
+            ->where('firma', $fid)
+            ->where('type', 'RO')
+            ->where('provodka', 1)
+            ->where(function ($query) use ($order): void {
+                $query->where('docid', $order->id)
+                    ->orWhere(function ($nested) use ($order): void {
+                        $nested
+                            ->where('typez', 'ZOUT')
+                            ->where('numz', (string) $order->num);
+                    });
+            })
+            ->sum('summa');
     }
 
     private function createDocument(object $subscription, object $plan, int|string $documentNumber, float $amount, CarbonImmutable $periodFrom, CarbonImmutable $periodTo): int
