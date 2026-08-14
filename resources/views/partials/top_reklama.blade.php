@@ -129,7 +129,7 @@
           @csrf
           <select id="header-project-select" name="fid" class="header-bar__title" onchange="this.form.submit()">
             @if($creatorHeaderProjects->isNotEmpty())
-              <optgroup label="Создатель">
+              <optgroup label="{{ __('nav.creator') }}">
                 @foreach($creatorHeaderProjects as $project)
                   @php $projectNewOrdersCount = (int) ($newOrdersByProject->get((int) $project->id, 0)); @endphp
                   <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
@@ -139,7 +139,7 @@
               </optgroup>
             @endif
             @if($employeeHeaderProjects->isNotEmpty())
-              <optgroup label="Сотрудник">
+              <optgroup label="{{ __('nav.employee') }}">
                 @foreach($employeeHeaderProjects as $project)
                   @php $projectNewOrdersCount = (int) ($newOrdersByProject->get((int) $project->id, 0)); @endphp
                   <option value="{{ $project->id }}" {{ $activeFid === (int) $project->id ? 'selected' : '' }}>
@@ -164,11 +164,11 @@
   @if(!$isAuthenticated)
   <div class="header-public-links" id="desktop-public-links">
     
-    <a href="{{ route('micro-business') }}" class="header-public-link">Управление бизнесом</a>
-    <a href="{{ route('education.public') }}" class="header-public-link">Обучение</a>
-    <a href="{{ route('price') }}" class="header-public-link">Цены</a>
-    <a href="{{ route('about') }}" class="header-public-link">О проекте</a>
-    <a href="{{ route('login') }}" class="header-public-link header-btn-login">Войти</a>
+    <a href="{{ route('micro-business') }}" class="header-public-link">{{ __('nav.business_management') }}</a>
+    <a href="{{ route('education.public') }}" class="header-public-link">{{ __('nav.education') }}</a>
+    <a href="{{ route('price') }}" class="header-public-link">{{ __('nav.prices') }}</a>
+    <a href="{{ route('about') }}" class="header-public-link">{{ __('nav.about') }}</a>
+    <a href="{{ route('login') }}" class="header-public-link header-btn-login">{{ __('nav.login') }}</a>
   </div>
   @endif
 
@@ -186,7 +186,7 @@
       @endforeach
     </select>
   </div>
-  <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="Відкрити меню">
+  <button type="button" class="header-burger" id="header-burger" aria-expanded="false" aria-controls="header-nav-menu" aria-label="{{ __('nav.open_menu') }}">
     <span></span>
     <span></span>
     <span></span>
@@ -198,80 +198,80 @@
   <nav class="header-nav-menu{{ $isAuthenticated ? ' header-nav-menu--auth' : ' header-nav-menu--public' }}" id="header-nav-menu">
     @if($isAuthenticated)
     @if(!$isBankProject)
-      <div class="header-nav-menu__section-label">Бизнес</div>
+      <div class="header-nav-menu__section-label">{{ __('nav.business') }}</div>
       <div class="header-nav-menu__grid">
         <a class="header-nav-menu__link header-nav-menu__link--with-badge" href="{{ route('document.index', ['doc' => 'ZOUT']) }}">
           {{ __('nav.orders') }}
           @if($newOrdersCount > 0)
-            <span class="header-new-orders-badge" title="Новые заказы без выбранного статуса во всех проектах этого email">{{ $newOrdersCount }}</span>
+            <span class="header-new-orders-badge" title="{{ __('nav.new_orders_badge') }}">{{ $newOrdersCount }}</span>
           @endif
         </a>
         <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'ZIN']) }}">{{ __('nav.purchases') }}</a>
-        <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">Трансферы</a>
+        <a class="header-nav-menu__link" href="{{ route('money.transfers') }}">{{ __('nav.transfers') }}</a>
         <a class="header-nav-menu__link" href="{{ route('goods.index') }}">{{ __('nav.goods') }}</a>
         <a class="header-nav-menu__link" href="{{ route('dashboard') }}">{{ __('nav.dashboard') }}</a>
       </div>
 
-      <div class="header-nav-menu__section-label">Производство</div>
+      <div class="header-nav-menu__section-label">{{ __('nav.production') }}</div>
       <div class="header-nav-menu__grid">
-        <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'WO1']) }}">Наряды WO1</a>
-        <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'SP']) }}">Спецификации SP</a>
+        <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'WO1']) }}">{{ __('nav.work_orders') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('document.index', ['doc' => 'SP']) }}">{{ __('nav.specifications') }}</a>
       </div>
 
-      <div class="header-nav-menu__section-label">Инвестирование</div>
+      <div class="header-nav-menu__section-label">{{ __('nav.investing') }}</div>
       <div class="header-nav-menu__grid">
-        <a class="header-nav-menu__link" href="{{ route('document.assets.index') }}">Активы</a>
-        <a class="header-nav-menu__link" href="{{ route('document.financing.index') }}">Финансирование</a>
+        <a class="header-nav-menu__link" href="{{ route('document.assets.index') }}">{{ __('nav.assets') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('document.financing.index') }}">{{ __('nav.financing') }}</a>
       </div>
     @endif
 
-    <div class="header-nav-menu__section-label">Частный</div>
+    <div class="header-nav-menu__section-label">{{ __('nav.private') }}</div>
     <div class="header-nav-menu__grid">
       <a class="header-nav-menu__link" href="{{ route('money.index') }}">{{ __('nav.money') }}</a>
       <a class="header-nav-menu__link" href="{{ route('deposit.index') }}">{{ __('nav.deposits') }}</a>
     </div>
 
-    <div class="header-nav-menu__section-label">Менеджмент</div>
+    <div class="header-nav-menu__section-label">{{ __('nav.management') }}</div>
     <div class="header-nav-menu__grid">
-      <a class="header-nav-menu__link" href="{{ route('team') }}">Команда</a>
+      <a class="header-nav-menu__link" href="{{ route('team') }}">{{ __('nav.team') }}</a>
       <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
       <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
       <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
     </div>
 
     @if($isBankProject)
-      <div class="header-nav-menu__section-label">Банк</div>
+      <div class="header-nav-menu__section-label">{{ __('nav.bank') }}</div>
       <div class="header-nav-menu__grid">
-        <a class="header-nav-menu__link" href="{{ route('bank.cash-accounts') }}">Кассы/Счета</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.deposit') }}">Депозиты</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.loanDocs.index') }}">Кредиты</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.pools') }}">Пулы</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.pool-movements') }}">Движение средств</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.invest') }}">Инвестиции</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.assets') }}">Активы</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.stock-analysis') }}">Акции</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.exchange') }}">Обмен фиат/крипта</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.clearing') }}">Клиринг проектов</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.payments') }}">Платежи</a>
-        <a class="header-nav-menu__link" href="{{ route('bank.reconciliation') }}">Сверка</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.cash-accounts') }}">{{ __('nav.cash_accounts') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.deposit') }}">{{ __('nav.deposits') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.loanDocs.index') }}">{{ __('nav.credits') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.pools') }}">{{ __('nav.pools') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.pool-movements') }}">{{ __('nav.fund_movements') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.invest') }}">{{ __('nav.investments') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.assets') }}">{{ __('nav.assets') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.stock-analysis') }}">{{ __('nav.stocks') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.exchange') }}">{{ __('nav.fiat_crypto_exchange') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.clearing') }}">{{ __('nav.project_clearing') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.payments') }}">{{ __('nav.payments') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('bank.reconciliation') }}">{{ __('nav.reconciliation') }}</a>
         <a class="header-nav-menu__link" href="{{ route('blockchain-monitor.index') }}">Blockchain Monitor</a>
       </div>
     @endif
 
     @if($isEducationProject)
-      <div class="header-nav-menu__section-label">Образование</div>
+      <div class="header-nav-menu__section-label">{{ __('nav.education') }}</div>
       <div class="header-nav-menu__grid">
-        <a class="header-nav-menu__link" href="{{ route('education.course') }}">Курс обучения</a>
-        <a class="header-nav-menu__link" href="{{ route('education.material-files.index') }}">Материалы</a>
-        <a class="header-nav-menu__link" href="{{ route('education.utilities') }}">Утилиты</a>
-        <a class="header-nav-menu__link" href="{{ route('education.tests') }}">Тесты</a>
-        <a class="header-nav-menu__link" href="{{ route('education.know-yourself') }}">Узнай себя</a>
+        <a class="header-nav-menu__link" href="{{ route('education.course') }}">{{ __('nav.course') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('education.material-files.index') }}">{{ __('nav.materials') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('education.utilities') }}">{{ __('nav.utilities') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('education.tests') }}">{{ __('nav.tests') }}</a>
+        <a class="header-nav-menu__link" href="{{ route('education.know-yourself') }}">{{ __('nav.know_yourself') }}</a>
       </div>
     @endif
 
-    <div class="header-nav-menu__section-label">Прочее</div>
+    <div class="header-nav-menu__section-label">{{ __('nav.other') }}</div>
     <div class="header-nav-menu__grid">
-      <a class="header-nav-menu__link" href="{{ route('price') }}">Оплатить</a>
+      <a class="header-nav-menu__link" href="{{ route('price') }}">{{ __('nav.pay') }}</a>
       <a class="header-nav-menu__link" href="{{ route('settings.index') }}">{{ __('nav.settings') }}</a>
       <form method="POST" action="{{ route('logout') }}" id="logout-form" style="display: contents;">
         @csrf
@@ -281,12 +281,12 @@
     </div>
     @else
     <div id="mobile-public-links" class="public-picker-menu">
-      <a class="header-nav-menu__link mobile-only-link is-active" href="{{ route('micro-business') }}">Управление бизнесом</a>
-      <a class="header-nav-menu__link mobile-only-link is-next-1" href="{{ route('education.public') }}">Обучение</a>
-      <a class="header-nav-menu__link mobile-only-link is-next-2" href="{{ route('price') }}">Цены</a>
-      <a class="header-nav-menu__link mobile-only-link is-next-3" href="{{ route('team') }}">Команда</a>
-      <a class="header-nav-menu__link mobile-only-link" href="{{ route('about') }}">О проекте</a>
-      <a class="header-nav-menu__link" href="{{ route('login') }}">Войти</a>
+      <a class="header-nav-menu__link mobile-only-link is-active" href="{{ route('micro-business') }}">{{ __('nav.business_management') }}</a>
+      <a class="header-nav-menu__link mobile-only-link is-next-1" href="{{ route('education.public') }}">{{ __('nav.education') }}</a>
+      <a class="header-nav-menu__link mobile-only-link is-next-2" href="{{ route('price') }}">{{ __('nav.prices') }}</a>
+      <a class="header-nav-menu__link mobile-only-link is-next-3" href="{{ route('team') }}">{{ __('nav.team') }}</a>
+      <a class="header-nav-menu__link mobile-only-link" href="{{ route('about') }}">{{ __('nav.about') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('login') }}">{{ __('nav.login') }}</a>
     </div>
     @endif
   </nav>
@@ -1626,6 +1626,8 @@
     const navigationSpinner = document.getElementById('site-navigation-spinner');
     const publicPicker = document.getElementById('mobile-public-links');
     const publicLinks = publicPicker ? Array.from(publicPicker.querySelectorAll('a')) : [];
+    const authPickerBackLabel = @json(__('nav.back'));
+    const authPickerChooseSectionLabel = @json(__('nav.choose_section'));
     let activePublicIndex = 0;
     let publicTouchStartY = null;
     let publicTouchLastY = null;
@@ -1997,7 +1999,7 @@
         picker.dataset.view = 'sections';
         picker.innerHTML = [
           '<div class="auth-picker-menu__top">',
-          '<button type="button" class="auth-picker-menu__back" aria-label="Назад">‹</button>',
+          '<button type="button" class="auth-picker-menu__back" aria-label="' + authPickerBackLabel + '">‹</button>',
           '<div class="auth-picker-menu__title"></div>',
           '<span></span>',
           '</div>',
@@ -2022,7 +2024,7 @@
           activeAuthIndex = Math.max(0, Math.min(activeAuthIndex, items.length - 1));
           picker.dataset.view = activeAuthView;
           title.textContent = activeAuthView === 'sections'
-            ? 'Выберите раздел'
+            ? authPickerChooseSectionLabel
             : availableSections[activeAuthSectionIndex].label;
           stage.replaceChildren(...items.map((item, index) => createPickerOption(item.label, index)));
           applyPickerPositionClasses(Array.from(stage.children), activeAuthIndex);
