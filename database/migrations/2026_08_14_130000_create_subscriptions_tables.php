@@ -13,6 +13,7 @@ return new class extends Migration
                 $table->id();
                 $table->unsignedBigInteger('project_id')->index();
                 $table->string('name', 160);
+                $table->string('subtitle', 255)->nullable();
                 $table->text('description')->nullable();
                 $table->string('billing_period', 20)->default('month');
                 $table->unsignedInteger('interval_count')->default(1);

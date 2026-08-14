@@ -36,6 +36,7 @@
                     <table class="table table-dark table-hover table-sm align-middle mb-0 subscription-plans-table">
                         <thead>
                             <tr>
+                                <th>№ позиции</th>
                                 <th>Название</th>
                                 <th>Цена</th>
                                 <th>Период</th>
@@ -47,8 +48,12 @@
                         <tbody>
                             @forelse($plans as $plan)
                                 <tr class="subscription-plan-row" data-plan-target="subscription-plan-form-{{ $plan->id }}" data-plan-title="{{ $plan->name }}" tabindex="0" role="button">
+                                    <td>{{ $loop->iteration }}</td>
                                     <td>
                                         <strong>{{ $plan->name }}</strong>
+                                        @if($plan->subtitle ?? '')
+                                            <div class="text-warning small">{{ $plan->subtitle }}</div>
+                                        @endif
                                         @if($plan->description)
                                             <div class="text-muted small">{{ \Illuminate\Support\Str::limit($plan->description, 90) }}</div>
                                         @endif
@@ -66,7 +71,7 @@
                                     <td><span class="badge {{ $plan->active ? 'bg-success' : 'bg-secondary' }}">{{ $plan->active ? 'Активен' : 'Выключен' }}</span></td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="text-center text-muted py-4">Создайте первый тариф подписки.</td></tr>
+                                <tr><td colspan="7" class="text-center text-muted py-4">Создайте первый тариф подписки.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -245,7 +250,8 @@ document.addEventListener('DOMContentLoaded', () => {
     .subscriptions-page .nav-link { color: rgba(255,255,255,.68); }
     .subscriptions-page .nav-link.active { color: #111827; background: #facc15; border-color: #facc15; }
     .subscription-plans-table th, .subscription-plans-table td { white-space: nowrap; }
-    .subscription-plans-table td:first-child { white-space: normal; min-width: 16rem; }
+    .subscription-plans-table th:first-child, .subscription-plans-table td:first-child { width: 6.5rem; text-align: center; }
+    .subscription-plans-table th:nth-child(2), .subscription-plans-table td:nth-child(2) { white-space: normal; min-width: 22rem; width: 42%; }
     .subscription-plan-row { cursor: pointer; }
     .subscription-plan-row:focus { outline: 2px solid rgba(250,204,21,.8); outline-offset: -2px; }
     .subscription-plan-form-panel.d-none { display: none !important; }

@@ -191,6 +191,7 @@ class SubscriptionController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:160'],
+            'subtitle' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
             'billing_period' => ['required', Rule::in(['week', 'month', 'quarter', 'year'])],
             'interval_count' => ['required', 'integer', 'min:1', 'max:60'],

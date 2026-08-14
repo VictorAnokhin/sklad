@@ -4,6 +4,7 @@
     @if($isEdit) @method('PUT') @endif
     <div class="subscription-grid">
         <label class="span-2">Название<input name="name" class="form-control" value="{{ old('name', $plan->name ?? '') }}" required maxlength="160"></label>
+        <label class="span-2">Подпись<input name="subtitle" class="form-control" value="{{ old('subtitle', $plan->subtitle ?? '') }}" maxlength="255"></label>
         <label>Цена<input name="price" class="form-control" type="number" step="0.01" value="{{ old('price', $plan->price ?? 0) }}" min="0"></label>
         <label>Валюта<input name="currency" class="form-control" value="{{ old('currency', $plan->currency ?? 'UAH') }}" maxlength="10"></label>
         <label>Период
