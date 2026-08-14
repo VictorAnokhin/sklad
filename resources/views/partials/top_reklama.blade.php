@@ -589,6 +589,18 @@
       box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.1);
     }
 
+    .desktop-auth-menu__section--logout {
+      margin-top: 0.65rem;
+      border-color: rgba(248, 113, 113, 0.24);
+      color: #fecaca;
+    }
+
+    .desktop-auth-menu__section--logout:hover {
+      border-color: rgba(248, 113, 113, 0.46);
+      background: rgba(248, 113, 113, 0.12);
+      color: #fff;
+    }
+
     .desktop-auth-menu__items-wrap {
       display: grid;
       grid-template-rows: auto 1fr;
@@ -1830,7 +1842,21 @@
           return;
         }
 
-        let activeDesktopSectionIndex = sections.findIndex((section) => section.links.some((link) => isCurrentMenuLink(link)));
+        const desktopLogoutLink = sections
+          .flatMap((section) => section.links)
+          .find((link) => link.id === 'main-logout-btn');
+        const desktopSections = sections
+          .map((section) => ({
+            label: section.label,
+            links: section.links.filter((link) => link.id !== 'main-logout-btn'),
+          }))
+          .filter((section) => section.links.length > 0);
+
+        if (!desktopSections.length) {
+          return;
+        }
+
+        let activeDesktopSectionIndex = desktopSections.findIndex((section) => section.links.some((link) => isCurrentMenuLink(link)));
 
         if (activeDesktopSectionIndex < 0) {
           activeDesktopSectionIndex = 0;
@@ -1858,7 +1884,7 @@
         desktopMenu.append(sectionsColumn, itemsWrap);
 
         function renderDesktopMenu(animateItems = false) {
-          sectionsColumn.replaceChildren(...sections.map((section, index) => {
+          const sectionButtons = desktopSections.map((section, index) => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'desktop-auth-menu__section';
@@ -1881,9 +1907,26 @@
             });
 
             return button;
-          }));
+          });
 
-          const activeSection = sections[activeDesktopSectionIndex];
+          if (desktopLogoutLink) {
+            const logoutButton = document.createElement('button');
+            logoutButton.type = 'button';
+            logoutButton.className = 'desktop-auth-menu__section desktop-auth-menu__section--logout';
+            logoutButton.textContent = desktopLogoutLink.textContent.trim().replace(/\s+/g, ' ');
+            logoutButton.addEventListener('click', function (event) {
+              event.preventDefault();
+              event.stopPropagation();
+              showNavigationSpinner();
+              closeHeaderMenu();
+              desktopLogoutLink.click();
+            });
+            sectionButtons.push(logoutButton);
+          }
+
+          sectionsColumn.replaceChildren(...sectionButtons);
+
+          const activeSection = desktopSections[activeDesktopSectionIndex];
           title.textContent = activeSection.label;
           itemsGrid.classList.remove('is-switching');
           itemsGrid.replaceChildren(...activeSection.links.map((link) => {
