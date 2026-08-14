@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\User;
+use App\Services\SubscriptionBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +32,8 @@ class PriceController extends Controller
     {
         $user = Auth::user();
         $rules = [
-            'plan' => ['required', 'string', 'max:100'],
+            'plan_id' => ['required', 'integer', 'min:1'],
+            'plan' => ['nullable', 'string', 'max:100'],
             'customer_name' => [$user ? 'nullable' : 'required', 'string', 'max:120'],
             'customer_email' => [$user ? 'nullable' : 'required', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
@@ -39,13 +41,20 @@ class PriceController extends Controller
         ];
         $validated = $request->validate($rules);
 
-        $plans = self::plans()->values();
-        $selectedIndex = $plans->search(fn ($plan) => $plan['name'] === trim((string) $validated['plan']));
-        if ($selectedIndex === false) {
+        if (! Schema::hasTable('subscription_plans') || ! Schema::hasTable('customer_subscriptions') || ! Schema::hasTable('subscription_invoices')) {
+            throw ValidationException::withMessages(['plan' => 'Подписки еще не настроены. Выполните миграции.']);
+        }
+
+        $plan = DB::table('subscription_plans')
+            ->where('id', (int) $validated['plan_id'])
+            ->where('project_id', (int) self::ORDER_FID)
+            ->where('active', true)
+            ->first();
+        if (! $plan) {
             throw ValidationException::withMessages(['plan' => 'Пакет не найден.']);
         }
 
-        $plan = $plans[(int) $selectedIndex];
+        $planArray = self::rowToPlan($plan);
         $contact = [
             'name' => self::cleanText($validated['customer_name'] ?? $this->userDisplayName($user), 120),
             'email' => mb_substr(trim((string) ($validated['customer_email'] ?? ($user->email ?? ''))), 0, 255),
@@ -53,60 +62,62 @@ class PriceController extends Controller
             'comment' => self::cleanPlanHtml($validated['customer_comment'] ?? '', 1000),
         ];
 
-        $order = DB::transaction(function () use ($user, $plan, $contact) {
-            $client = $this->ensurePriceClient($user, $plan, $contact);
-            $now = now();
-            $year = $now->format('Y');
-            $orderNum = Document::nextNum('ZOUT', self::ORDER_FID, $year);
-            $content = implode('; ', array_filter([
-                'Price: заявка на пакет',
-                'package: ' . $plan['name'],
-                'price: ' . $plan['price'],
-                'client_name: ' . $contact['name'],
-                'client_email: ' . $contact['email'],
-                'client_phone: ' . $contact['phone'],
-                'client_id: ' . (string) ($client->id ?? ''),
-                'comment: ' . $contact['comment'],
-            ]));
+        $subscriptionId = DB::transaction(function () use ($user, $plan, $planArray, $contact) {
+            $client = $this->ensurePriceClient($user, $planArray, $contact);
+            $paidInvoiceExists = $this->clientHasPaidPlan((int) $client->id, (int) $plan->id);
+            if ($paidInvoiceExists) {
+                throw ValidationException::withMessages(['plan' => 'Этот тариф уже используется.']);
+            }
 
-            $payload = [
-                'num' => (string) $orderNum,
-                'type' => 'ZOUT',
-                'firma' => self::ORDER_FID,
-                'client1' => (string) $client->id,
-                'client2' => '0',
-                'summa' => 0,
-                'data' => $now->format('d-m-Y'),
-                'data2' => $now->format('d-m-Y'),
-                'time' => $now->format('H:i:s'),
-                'dt' => $now->timestamp,
-                'manager' => 'price_page',
-                'user' => 'price_page',
-                'content' => $content,
-                'numz' => (string) $orderNum,
-                'typez' => 'ZOUT',
-                'docum' => 'price',
-                'provodka' => 0,
-                'dostup' => 1,
-                'money' => '',
-                'numdoc' => 'price',
-                'close' => 0,
-                'typeproduct' => 'price',
-            ];
-            $payload = array_intersect_key($payload, array_flip(Schema::getColumnListing('document')));
-            $orderId = DB::table('document')->insertGetId($payload);
+            $existing = DB::table('customer_subscriptions')
+                ->where('project_id', (int) self::ORDER_FID)
+                ->where('client_id', (int) $client->id)
+                ->where('plan_id', (int) $plan->id)
+                ->whereIn('status', ['active', 'blocked'])
+                ->orderByDesc('id')
+                ->first();
 
-            return DB::table('document')->where('id', $orderId)->first();
+            if ($existing) {
+                return (int) $existing->id;
+            }
+
+            $today = now()->toDateString();
+
+            return (int) DB::table('customer_subscriptions')->insertGetId([
+                'project_id' => (int) self::ORDER_FID,
+                'client_id' => (int) $client->id,
+                'plan_id' => (int) $plan->id,
+                'status' => 'active',
+                'payment_status' => 'paid',
+                'starts_at' => $today,
+                'next_billing_at' => $today,
+                'payment_method' => '',
+                'auto_create_invoice' => true,
+                'auto_close_if_paid' => false,
+                'notes' => $contact['comment'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
         });
+
+        app(SubscriptionBillingService::class)->billSubscription($subscriptionId);
 
         return redirect()
             ->route('price')
-            ->with('success', 'Заявка на пакет ' . $plan['name'] . ' отправлена. Номер заявки: ' . ($order->num ?? $order->id));
+            ->with('success', 'Подписка на тариф ' . $planArray['name'] . ' создана. Начисление сформировано.');
     }
 
     public static function plans(): \Illuminate\Support\Collection
     {
-        self::seedDefaultPlansIfEmpty();
+        if (Schema::hasTable('subscription_plans')) {
+            return DB::table('subscription_plans')
+                ->where('project_id', (int) self::ORDER_FID)
+                ->where('active', true)
+                ->orderBy('id')
+                ->get()
+                ->map(fn ($row) => self::rowToPlan($row))
+                ->values();
+        }
 
         return DB::table('conf')
             ->where('type', self::PLAN_TYPE)
@@ -183,6 +194,20 @@ class PriceController extends Controller
 
     private static function rowToPlan(object $row): array
     {
+        if (property_exists($row, 'billing_period')) {
+            $periodLabels = ['week' => 'в неделю', 'month' => 'в месяц', 'quarter' => 'в квартал', 'year' => 'в год'];
+
+            return [
+                'id' => (int) $row->id,
+                'name' => (string) ($row->name ?? ''),
+                'subtitle' => (string) ($row->subtitle ?? ''),
+                'price' => number_format((float) ($row->price ?? 0), 2, '.', ' ') . ' ' . (string) ($row->currency ?? 'UAH'),
+                'period' => $periodLabels[(string) ($row->billing_period ?? 'month')] ?? 'за период',
+                'description' => self::cleanPlanHtml($row->description ?? '', 2000),
+                'featured' => false,
+            ];
+        }
+
         return [
             'id' => (int) $row->id,
             'name' => (string) ($row->name ?? ''),
@@ -243,7 +268,7 @@ class PriceController extends Controller
 
     private function purchasedPlanNames(?User $user, \Illuminate\Support\Collection $plans): array
     {
-        if (! $user || ! Schema::hasTable('document')) {
+        if (! $user || ! Schema::hasTable('subscription_invoices')) {
             return [];
         }
 
@@ -252,24 +277,45 @@ class PriceController extends Controller
             return [];
         }
 
-        $planNames = $plans->pluck('name')->map(fn ($name): string => (string) $name)->filter()->values();
-        if ($planNames->isEmpty()) {
+        $planIds = $plans->pluck('id')->map(fn ($id): int => (int) $id)->filter()->values();
+        if ($planIds->isEmpty()) {
             return [];
         }
 
-        $orders = DB::table('document')
+        $clientIds = DB::table('users')
+            ->where('email', $email)
             ->where('firma', self::ORDER_FID)
-            ->where('docum', 'price')
-            ->where(function ($query): void {
-                $query->where('close', 1)->orWhere('provodka', 1);
-            })
-            ->where('content', 'like', '%client_email: ' . addcslashes($email, '%_\\') . '%')
-            ->pluck('content');
-
-        return $planNames
-            ->filter(fn (string $planName): bool => $orders->contains(fn ($content): bool => str_contains((string) $content, 'package: ' . $planName)))
+            ->pluck('id')
             ->values()
             ->all();
+
+        if ($clientIds === []) {
+            return [];
+        }
+
+        return DB::table('subscription_invoices as si')
+            ->join('customer_subscriptions as cs', 'cs.id', '=', 'si.subscription_id')
+            ->where('cs.project_id', (int) self::ORDER_FID)
+            ->whereIn('cs.client_id', $clientIds)
+            ->whereIn('cs.plan_id', $planIds)
+            ->where('si.status', 'paid')
+            ->pluck('cs.plan_id')
+            ->map(fn ($id): string => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function clientHasPaidPlan(int $clientId, int $planId): bool
+    {
+        return Schema::hasTable('subscription_invoices')
+            && DB::table('subscription_invoices as si')
+                ->join('customer_subscriptions as cs', 'cs.id', '=', 'si.subscription_id')
+                ->where('cs.project_id', (int) self::ORDER_FID)
+                ->where('cs.client_id', $clientId)
+                ->where('cs.plan_id', $planId)
+                ->where('si.status', 'paid')
+                ->exists();
     }
 
     private function ensurePriceClient(?User $user, array $plan, array $contact): object

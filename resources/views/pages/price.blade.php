@@ -28,7 +28,7 @@
                     <p class="pricing-card__description">{{ $plan['subtitle'] ?? '' }}</p>
                     <div class="pricing-card__price">
                         <strong>{{ $plan['price'] ?? '' }}</strong>
-                        <span>в месяц</span>
+                        <span>{{ $plan['period'] ?? 'в месяц' }}</span>
                     </div>
                 </div>
 
@@ -36,13 +36,14 @@
                     {!! $plan['description'] ?? '' !!}
                 </div>
 
-                @if(auth()->check() && in_array((string) ($plan['name'] ?? ''), $purchasedPlans, true))
-                    <button type="button" class="pricing-card__button pricing-card__button--muted" disabled>Приобретен</button>
+                @if(auth()->check() && in_array((string) ($plan['id'] ?? ''), $purchasedPlans, true))
+                    <button type="button" class="pricing-card__button pricing-card__button--muted" disabled>Используется</button>
                 @else
                     <button
                         type="button"
                         class="pricing-card__button"
                         data-price-order-open
+                        data-plan-id="{{ $plan['id'] ?? '' }}"
                         data-plan-name="{{ $plan['name'] ?? '' }}"
                         data-plan-price="{{ $plan['price'] ?? '' }}"
                     >Заказать</button>
@@ -63,6 +64,7 @@
 
             <form action="{{ route('price.order') }}" method="POST" class="pricing-order-form">
                 @csrf
+                <input type="hidden" name="plan_id" id="pricing-order-plan-id-input" value="{{ old('plan_id') }}">
                 <input type="hidden" name="plan" id="pricing-order-plan-input" value="{{ old('plan') }}">
 
                 <div class="pricing-order-form__grid">
@@ -389,14 +391,16 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const modal = document.getElementById('pricing-order-modal');
+        const planIdInput = document.getElementById('pricing-order-plan-id-input');
         const planInput = document.getElementById('pricing-order-plan-input');
         const planLabel = document.getElementById('pricing-order-plan-label');
 
-        if (!modal || !planInput || !planLabel) {
+        if (!modal || !planIdInput || !planInput || !planLabel) {
             return;
         }
 
-        function openModal(planName, planPrice) {
+        function openModal(planId, planName, planPrice) {
+            planIdInput.value = planId || '';
             planInput.value = planName || '';
             planLabel.textContent = [planName, planPrice].filter(Boolean).join(' · ');
             modal.classList.add('is-open');
@@ -412,7 +416,7 @@
 
         document.querySelectorAll('[data-price-order-open]').forEach((button) => {
             button.addEventListener('click', function () {
-                openModal(button.dataset.planName || '', button.dataset.planPrice || '');
+                openModal(button.dataset.planId || '', button.dataset.planName || '', button.dataset.planPrice || '');
             });
         });
 
@@ -426,8 +430,8 @@
             }
         });
 
-        @if($errors->any() && old('plan'))
-            openModal(@json(old('plan')), '');
+        @if($errors->any() && old('plan_id'))
+            openModal(@json(old('plan_id')), @json(old('plan')), '');
         @endif
     });
 </script>
