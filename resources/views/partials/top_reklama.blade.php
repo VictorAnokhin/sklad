@@ -1226,10 +1226,13 @@
     }
 
     .header-nav-menu--auth.auth-picker-ready {
-      top: 68px;
+      top: 5dvh !important;
       right: 8px;
-      bottom: 10px;
+      bottom: auto !important;
       left: 8px;
+      height: 90dvh !important;
+      min-height: 90dvh !important;
+      max-height: 90dvh !important;
       padding: 0.75rem;
     }
 
@@ -1239,8 +1242,8 @@
     }
 
     .auth-picker-menu {
-      height: min(100%, 560px);
-      min-height: 400px;
+      height: 100%;
+      min-height: 0;
     }
 
     .auth-picker-menu__top {
