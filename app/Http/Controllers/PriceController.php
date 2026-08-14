@@ -19,34 +19,42 @@ class PriceController extends Controller
 
     public function index()
     {
+        $plans = self::plans();
+
         return view('pages.price', [
-            'plans' => self::plans(),
+            'plans' => $plans,
+            'purchasedPlans' => $this->purchasedPlanNames(Auth::user(), $plans),
         ]);
     }
 
     public function order(Request $request)
     {
-        $validated = $request->validate([
+        $user = Auth::user();
+        $rules = [
             'plan' => ['required', 'string', 'max:100'],
-        ]);
+            'customer_name' => [$user ? 'nullable' : 'required', 'string', 'max:120'],
+            'customer_email' => [$user ? 'nullable' : 'required', 'email', 'max:255'],
+            'customer_phone' => ['nullable', 'string', 'max:50'],
+            'customer_comment' => ['nullable', 'string', 'max:1000'],
+        ];
+        $validated = $request->validate($rules);
 
         $plans = self::plans()->values();
         $selectedIndex = $plans->search(fn ($plan) => $plan['name'] === trim((string) $validated['plan']));
         if ($selectedIndex === false) {
             throw ValidationException::withMessages(['plan' => 'Пакет не найден.']);
         }
-        if ((int) $selectedIndex === 0) {
-            throw ValidationException::withMessages(['plan' => 'Этот пакет уже в работе.']);
-        }
-
-        $user = Auth::user();
-        if (! $user) {
-            return redirect()->route('login');
-        }
 
         $plan = $plans[(int) $selectedIndex];
-        $order = DB::transaction(function () use ($user, $plan) {
-            $client = $this->ensurePriceClient($user, $plan);
+        $contact = [
+            'name' => self::cleanText($validated['customer_name'] ?? $this->userDisplayName($user), 120),
+            'email' => mb_substr(trim((string) ($validated['customer_email'] ?? ($user->email ?? ''))), 0, 255),
+            'phone' => self::cleanText($validated['customer_phone'] ?? ($user->phone ?? ''), 50),
+            'comment' => self::cleanPlanHtml($validated['customer_comment'] ?? '', 1000),
+        ];
+
+        $order = DB::transaction(function () use ($user, $plan, $contact) {
+            $client = $this->ensurePriceClient($user, $plan, $contact);
             $now = now();
             $year = $now->format('Y');
             $orderNum = Document::nextNum('ZOUT', self::ORDER_FID, $year);
@@ -54,8 +62,11 @@ class PriceController extends Controller
                 'Price: заявка на пакет',
                 'package: ' . $plan['name'],
                 'price: ' . $plan['price'],
-                'client_email: ' . (string) ($user->email ?? ''),
+                'client_name: ' . $contact['name'],
+                'client_email: ' . $contact['email'],
+                'client_phone: ' . $contact['phone'],
                 'client_id: ' . (string) ($client->id ?? ''),
+                'comment: ' . $contact['comment'],
             ]));
 
             $payload = [
@@ -230,11 +241,42 @@ class PriceController extends Controller
         return mb_substr($value, 0, $maxLength);
     }
 
-    private function ensurePriceClient(User $user, array $plan): object
+    private function purchasedPlanNames(?User $user, \Illuminate\Support\Collection $plans): array
     {
+        if (! $user || ! Schema::hasTable('document')) {
+            return [];
+        }
+
         $email = trim((string) ($user->email ?? ''));
         if ($email === '') {
-            throw ValidationException::withMessages(['email' => 'У пользователя не указан email.']);
+            return [];
+        }
+
+        $planNames = $plans->pluck('name')->map(fn ($name): string => (string) $name)->filter()->values();
+        if ($planNames->isEmpty()) {
+            return [];
+        }
+
+        $orders = DB::table('document')
+            ->where('firma', self::ORDER_FID)
+            ->where('docum', 'price')
+            ->where(function ($query): void {
+                $query->where('close', 1)->orWhere('provodka', 1);
+            })
+            ->where('content', 'like', '%client_email: ' . addcslashes($email, '%_\\') . '%')
+            ->pluck('content');
+
+        return $planNames
+            ->filter(fn (string $planName): bool => $orders->contains(fn ($content): bool => str_contains((string) $content, 'package: ' . $planName)))
+            ->values()
+            ->all();
+    }
+
+    private function ensurePriceClient(?User $user, array $plan, array $contact): object
+    {
+        $email = trim((string) ($contact['email'] ?? $user->email ?? ''));
+        if ($email === '') {
+            throw ValidationException::withMessages(['customer_email' => 'Укажите email для заявки.']);
         }
 
         $client = DB::table('users')
@@ -245,6 +287,8 @@ class PriceController extends Controller
         $description = $this->priceClientDescription((string) ($client->description ?? $user->description ?? ''), $plan);
         if ($client) {
             DB::table('users')->where('id', $client->id)->update([
+                'name' => self::cleanText($contact['name'] ?: ($client->name ?? ''), 120),
+                'phone' => self::cleanText($contact['phone'] ?: ($client->phone ?? ''), 50),
                 'description' => $description,
                 'updated_at' => now(),
             ]);
@@ -253,23 +297,23 @@ class PriceController extends Controller
         }
 
         $payload = [
-            'name' => $user->name,
-            'secondname' => $user->secondname,
-            'fathername' => $user->fathername,
-            'orgname' => $user->orgname,
+            'name' => $contact['name'] ?: ($user->name ?? ''),
+            'secondname' => $user->secondname ?? '',
+            'fathername' => $user->fathername ?? '',
+            'orgname' => $user->orgname ?? '',
             'email' => $email,
-            'phone' => $user->phone,
-            'phone1' => $user->phone1,
-            'city' => $user->city,
-            'region' => $user->region,
-            'country' => $user->country,
-            'idstatus' => $user->idstatus ?: 1,
-            'ustype' => $user->ustype ?: $user->idstatus,
+            'phone' => $contact['phone'] ?: ($user->phone ?? ''),
+            'phone1' => $user->phone1 ?? '',
+            'city' => $user->city ?? '',
+            'region' => $user->region ?? '',
+            'country' => $user->country ?? '',
+            'idstatus' => ($user->idstatus ?? 0) ?: 1,
+            'ustype' => ($user->ustype ?? 0) ?: ($user->idstatus ?? 1),
             'fid' => self::ORDER_FID,
             'firma' => self::ORDER_FID,
             'project_id' => $this->projectIdForOrderFirma(),
             'status' => $user->status ?? 1,
-            'password' => $user->password ?: Hash::make(Str::random(32)),
+            'password' => $user && $user->password ? $user->password : Hash::make(Str::random(32)),
             'description' => $description,
             'created_at' => now(),
             'updated_at' => now(),
@@ -296,5 +340,18 @@ class PriceController extends Controller
         $description = trim($description, " \t\n\r\0\x0B;");
 
         return mb_substr($description !== '' ? $description . '; ' . $line : $line, 0, 2000);
+    }
+
+    private function userDisplayName(?User $user): string
+    {
+        if (! $user) {
+            return '';
+        }
+
+        return trim(implode(' ', array_filter([
+            $user->secondname ?? '',
+            $user->name ?? '',
+            $user->fathername ?? '',
+        ]))) ?: trim((string) ($user->orgname ?? ''));
     }
 }

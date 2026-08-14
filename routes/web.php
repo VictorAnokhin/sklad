@@ -97,11 +97,11 @@ Route::get('/about', function () {
 })->name('about');
 Route::get('/team', [TeamController::class, 'index'])->name('team');
 Route::get('/wallet/swap-window', [WalletController::class, 'swapWindow'])->name('wallet.swap-window');
+Route::post('/price/order', [PriceController::class, 'order'])->name('price.order');
 
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
-    Route::post('/price/order', [PriceController::class, 'order'])->name('price.order');
     Route::name('education.')->group(function () {
         Route::get('/course', [EducationController::class, 'course'])->name('course');
         Route::get('/course/{topic}', [EducationController::class, 'courseShow'])->name('course.show');

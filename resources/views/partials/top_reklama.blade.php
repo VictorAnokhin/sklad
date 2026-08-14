@@ -1725,6 +1725,10 @@
         return false;
       }
 
+      if (button.matches('[data-price-order-open], [data-price-order-close]')) {
+        return false;
+      }
+
       if (button.closest('.auth-picker-menu') || button.closest('.desktop-auth-menu__sections')) {
         return false;
       }
