@@ -236,7 +236,6 @@
       <a class="header-nav-menu__link" href="{{ route('team') }}">{{ __('nav.team') }}</a>
       <a class="header-nav-menu__link" href="{{ route('client.index') }}">{{ __('nav.clients') }}</a>
       <a class="header-nav-menu__link" href="{{ route('reports.index') }}">{{ __('nav.reports') }}</a>
-      <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
     </div>
 
     @if($isBankProject)
@@ -272,6 +271,7 @@
     <div class="header-nav-menu__section-label">{{ __('nav.other') }}</div>
     <div class="header-nav-menu__grid">
       <a class="header-nav-menu__link" href="{{ route('price') }}">{{ __('nav.pay') }}</a>
+      <a class="header-nav-menu__link" href="{{ route('news.index') }}">{{ __('nav.news') }}</a>
       <a class="header-nav-menu__link" href="{{ route('settings.index') }}">{{ __('nav.settings') }}</a>
       <form method="POST" action="{{ route('logout') }}" id="logout-form" style="display: contents;">
         @csrf
