@@ -262,6 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     .subscription-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; }
     .subscription-grid label, .subscription-items label { display: grid; gap: .35rem; color: rgba(255,255,255,.72); font-weight: 600; }
     .subscription-grid .span-2 { grid-column: span 2; }
+    .subscription-grid .span-4 { grid-column: 1 / -1; }
     .subscription-items h4 { color: #fff; font-size: 1rem; margin: 0 0 .75rem; }
     .subscription-item-row, .subscription-inline-form { display: grid; grid-template-columns: minmax(0, 1.4fr) .8fr auto; gap: .7rem; align-items: center; margin-top: .55rem; }
     .subscription-inline-form { grid-template-columns: minmax(0, 1.4fr) .7fr .45fr .55fr auto; }
