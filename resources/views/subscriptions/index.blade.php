@@ -125,23 +125,54 @@
         </section>
 
         <section class="tab-pane fade" id="subscriptions-pane">
-            <div class="glass-card mb-4">
-                <h2 class="h5 text-light mb-3">Новая подписка клиента</h2>
-                @include('subscriptions.partials.subscription_form', ['subscription' => null])
+            <div class="glass-card" id="customer-subscriptions-list-area">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover table-sm align-middle mb-0 customer-subscriptions-table">
+                        <thead>
+                            <tr>
+                                <th>Клиент</th>
+                                <th>Тариф</th>
+                                <th>Статус</th>
+                                <th>Окончание</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4">
+                                    <button type="button" class="btn btn-outline-warning" id="btn-customer-subscription-add">Новая подписка</button>
+                                </td>
+                            </tr>
+                            @forelse($subscriptions as $subscription)
+                                <tr class="customer-subscription-row" data-subscription-target="customer-subscription-form-{{ $subscription->id }}" data-subscription-title="{{ $subscription->client_name }}" tabindex="0" role="button">
+                                    <td>{{ $subscription->client_name }}</td>
+                                    <td>{{ $subscription->plan_name }}</td>
+                                    <td>
+                                        <span class="badge {{ $subscription->status === 'blocked' ? 'bg-danger' : ($subscription->payment_status === 'overdue' ? 'bg-warning text-dark' : 'bg-success') }}">
+                                            {{ $subscription->status }} / {{ $subscription->payment_status }}
+                                        </span>
+                                    </td>
+                                    <td>{{ $subscription->ends_at ?: 'не задано' }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" class="text-center text-muted py-4">Подписок клиентов пока нет.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <div class="subscription-stack">
+            <div class="glass-card d-none" id="customer-subscription-form-area">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+                    <h2 class="h5 text-light mb-0" id="customer-subscription-form-title">Новая подписка</h2>
+                    <button type="button" class="btn btn-secondary" id="btn-customer-subscription-back">Назад</button>
+                </div>
+
+                <div class="customer-subscription-form-panel" id="customer-subscription-form-new">
+                    @include('subscriptions.partials.subscription_form', ['subscription' => null])
+                </div>
+
                 @foreach($subscriptions as $subscription)
-                    <article class="glass-card subscription-card">
-                        <div class="subscription-card__head">
-                            <div>
-                                <h3>{{ $subscription->client_name }}</h3>
-                                <p>{{ $subscription->plan_name }} · следующее начисление {{ $subscription->next_billing_at ?: 'не задано' }}</p>
-                            </div>
-                            <span class="badge {{ $subscription->status === 'blocked' ? 'bg-danger' : ($subscription->payment_status === 'overdue' ? 'bg-warning text-dark' : 'bg-success') }}">
-                                {{ $subscription->status }} / {{ $subscription->payment_status }}
-                            </span>
-                        </div>
+                    <div class="customer-subscription-form-panel d-none" id="customer-subscription-form-{{ $subscription->id }}">
                         @if($subscription->status === 'blocked')
                             <div class="alert alert-danger">Подписка заблокирована: {{ $subscription->block_reason ?: 'неоплата' }}. Grace до {{ $subscription->grace_until ?: 'не задано' }}.</div>
                         @endif
@@ -150,7 +181,7 @@
                             @csrf
                             <button class="btn btn-outline-warning">Создать начисление сейчас</button>
                         </form>
-                    </article>
+                    </div>
                 @endforeach
             </div>
         </section>
@@ -239,6 +270,145 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    const customerListArea = document.getElementById('customer-subscriptions-list-area');
+    const customerFormArea = document.getElementById('customer-subscription-form-area');
+    const customerFormTitle = document.getElementById('customer-subscription-form-title');
+    const customerAddButton = document.getElementById('btn-customer-subscription-add');
+    const customerBackButton = document.getElementById('btn-customer-subscription-back');
+    const customerPanels = Array.from(document.querySelectorAll('.customer-subscription-form-panel'));
+
+    const showCustomerList = () => {
+        customerListArea?.classList.remove('d-none');
+        customerFormArea?.classList.add('d-none');
+        customerPanels.forEach((panel) => panel.classList.add('d-none'));
+    };
+
+    const showCustomerForm = (targetId, title) => {
+        const targetPanel = document.getElementById(targetId);
+        if (!targetPanel) {
+            return;
+        }
+
+        customerPanels.forEach((panel) => panel.classList.add('d-none'));
+        targetPanel.classList.remove('d-none');
+        customerListArea?.classList.add('d-none');
+        customerFormArea?.classList.remove('d-none');
+        if (customerFormTitle) {
+            customerFormTitle.textContent = title;
+        }
+
+        const firstInput = targetPanel.querySelector('input, select, textarea');
+        firstInput?.focus({ preventScroll: true });
+    };
+
+    customerAddButton?.addEventListener('click', () => showCustomerForm('customer-subscription-form-new', 'Новая подписка'));
+    customerBackButton?.addEventListener('click', showCustomerList);
+
+    document.querySelectorAll('.customer-subscription-row').forEach((row) => {
+        const openRow = () => showCustomerForm(row.dataset.subscriptionTarget, row.dataset.subscriptionTitle || 'Редактирование подписки');
+        row.addEventListener('click', openRow);
+        row.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openRow();
+            }
+        });
+    });
+
+    const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+    }[char]));
+    const formatClientName = (user) => [user.secondname || '', user.name || ''].filter(Boolean).join(' ').trim();
+    const formatClientDetailsHtml = (user) => {
+        const regionPart = user.region ? `${user.region} | ` : '';
+        const poshtaPart = user.poshta ? ` | ${user.poshta}` : '';
+        const orgnamePart = user.orgname ? `<strong>${escapeHtml(user.orgname)}</strong> | ` : '';
+        return `${orgnamePart}${escapeHtml(formatClientName(user))}<br><small>${escapeHtml(user.phone || '')} | ${escapeHtml(regionPart)}${escapeHtml(user.city || '')}${escapeHtml(poshtaPart)}</small>`;
+    };
+
+    document.querySelectorAll('[data-subscription-client-search]').forEach((searchBox) => {
+        const input = searchBox.querySelector('[data-client-search-input]');
+        const results = searchBox.querySelector('[data-client-search-results]');
+        const hidden = searchBox.querySelector('[data-client-id]');
+        const details = searchBox.querySelector('[data-client-details]');
+        let searchTimeout = null;
+
+        const hideResults = () => results?.classList.add('d-none');
+        const renderResults = (users) => {
+            if (!results) {
+                return;
+            }
+            results.innerHTML = '';
+            if (!users.length) {
+                const empty = document.createElement('div');
+                empty.className = 'list-group-item text-dark bg-white';
+                empty.textContent = 'Ничего не найдено';
+                results.appendChild(empty);
+            } else {
+                users.forEach((user) => {
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'list-group-item list-group-item-action bg-white text-dark';
+                    item.innerHTML = formatClientDetailsHtml(user);
+                    item.addEventListener('click', () => {
+                        const selectedLabel = [user.orgname || '', formatClientName(user)].filter(Boolean).join(' ').trim();
+                        if (hidden) {
+                            hidden.value = user.id;
+                        }
+                        if (input) {
+                            input.value = selectedLabel;
+                        }
+                        if (details) {
+                            details.className = 'alert alert-secondary py-1 mt-1 mb-0 selected-client-details';
+                            details.innerHTML = formatClientDetailsHtml(user);
+                        }
+                        hideResults();
+                    });
+                    results.appendChild(item);
+                });
+            }
+            results.classList.remove('d-none');
+        };
+        const performSearch = () => {
+            const q = String(input?.value || '').trim();
+            if (q.length < 2) {
+                hideResults();
+                return;
+            }
+            fetch("{{ route('client.search') }}?" + new URLSearchParams({ q }).toString())
+                .then((response) => response.json())
+                .then((data) => renderResults(Array.isArray(data) ? data : []))
+                .catch(() => hideResults());
+        };
+
+        input?.addEventListener('input', () => {
+            if (hidden) {
+                hidden.value = '';
+            }
+            if (details) {
+                details.className = 'alert alert-warning py-1 mt-1 mb-0 selected-client-details';
+                details.textContent = 'Клиент не выбран';
+            }
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(performSearch, 400);
+        });
+        input?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performSearch();
+            }
+        });
+        document.addEventListener('click', (event) => {
+            if (!searchBox.contains(event.target)) {
+                hideResults();
+            }
+        });
+    });
 });
 </script>
 
@@ -252,6 +422,13 @@ document.addEventListener('DOMContentLoaded', () => {
     .subscription-plan-row { cursor: pointer; }
     .subscription-plan-row:focus { outline: 2px solid rgba(250,204,21,.8); outline-offset: -2px; }
     .subscription-plan-form-panel.d-none { display: none !important; }
+    .customer-subscriptions-table th, .customer-subscriptions-table td { white-space: nowrap; }
+    .customer-subscriptions-table th:first-child, .customer-subscriptions-table td:first-child { white-space: normal; min-width: 18rem; width: 40%; }
+    .customer-subscription-row { cursor: pointer; }
+    .customer-subscription-row:focus { outline: 2px solid rgba(250,204,21,.8); outline-offset: -2px; }
+    .customer-subscription-form-panel.d-none { display: none !important; }
+    .subscription-client-search { position: relative; }
+    .subscription-client-results { position: absolute; z-index: 30; top: 2.45rem; left: 0; right: 0; max-height: 260px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0,0,0,.35); }
     .subscription-stack { display: grid; gap: 1rem; }
     .subscription-card__head { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
     .subscription-card__head h3 { color: #fff; font-size: 1.1rem; margin: 0 0 .3rem; }
@@ -264,7 +441,8 @@ document.addEventListener('DOMContentLoaded', () => {
     .subscription-item-row, .subscription-inline-form { display: grid; grid-template-columns: minmax(0, 1.4fr) .8fr auto; gap: .7rem; align-items: center; margin-top: .55rem; }
     .subscription-inline-form { grid-template-columns: minmax(0, 1.4fr) .7fr .45fr .55fr auto; }
     @media (max-width: 900px) {
-        .subscription-grid, .subscription-grid .span-2, .subscription-item-row, .subscription-inline-form { grid-template-columns: 1fr; }
+        .subscription-grid, .subscription-grid .span-2, .subscription-grid .span-4, .subscription-item-row, .subscription-inline-form { grid-template-columns: 1fr; }
+        .subscription-grid .span-2, .subscription-grid .span-4 { grid-column: auto; }
         .subscription-card__head { display: grid; }
     }
 </style>

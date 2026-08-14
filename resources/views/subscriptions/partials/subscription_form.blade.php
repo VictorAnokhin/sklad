@@ -1,16 +1,31 @@
 @php($isEdit = !empty($subscription))
+@php($clientName = trim((string) ($subscription->client_name ?? '')))
+@php($clientDetails = trim(implode(' | ', array_filter([
+    $subscription->client_phone ?? '',
+    $subscription->client_region ?? '',
+    $subscription->client_city ?? '',
+    $subscription->client_poshta ?? '',
+])))
 <form method="POST" action="{{ $isEdit ? route('subscriptions.update', ['subscription' => $subscription->id]) : route('subscriptions.store') }}">
     @csrf
     @if($isEdit) @method('PUT') @endif
     <div class="subscription-grid">
-        <label>Клиент
-            <select name="client_id" class="form-select" required>
-                <option value="">Выберите клиента</option>
-                @foreach($clients as $client)
-                    @php($clientName = trim($client->orgname ?: trim(($client->secondname ?? '') . ' ' . ($client->name ?? ''))) ?: ($client->email ?: 'Клиент #' . $client->id))
-                    <option value="{{ $client->id }}" {{ (string) old('client_id', $subscription->client_id ?? '') === (string) $client->id ? 'selected' : '' }}>{{ $clientName }}</option>
-                @endforeach
-            </select>
+        <label class="span-2">Клиент
+            <div class="subscription-client-search" data-subscription-client-search>
+                <input type="text" class="form-control" value="{{ old('client_search', $clientName) }}" placeholder="Поиск клиента..." autocomplete="off" data-client-search-input>
+                <div class="list-group subscription-client-results d-none" data-client-search-results></div>
+                <input type="hidden" name="client_id" value="{{ old('client_id', $subscription->client_id ?? '') }}" required data-client-id>
+                <div class="alert {{ ($subscription->client_id ?? null) ? 'alert-secondary' : 'alert-warning' }} py-1 mt-1 mb-0 selected-client-details" data-client-details>
+                    @if($subscription->client_id ?? null)
+                        <strong>{{ $clientName }}</strong>
+                        @if($clientDetails !== '')
+                            <br><small>{{ $clientDetails }}</small>
+                        @endif
+                    @else
+                        Клиент не выбран
+                    @endif
+                </div>
+            </div>
         </label>
         <label>Тариф
             <select name="plan_id" class="form-select" required>

@@ -242,7 +242,19 @@ class SubscriptionController extends Controller
             ->join('subscription_plans as sp', 'sp.id', '=', 'cs.plan_id')
             ->join('users as u', 'u.id', '=', 'cs.client_id')
             ->where('cs.project_id', (int) $fid)
-            ->select('cs.*', 'sp.name as plan_name', DB::raw("COALESCE(NULLIF(u.orgname, ''), CONCAT_WS(' ', u.secondname, u.name), u.email, CONCAT('Клиент #', u.id)) as client_name"))
+            ->select(
+                'cs.*',
+                'sp.name as plan_name',
+                'u.orgname as client_orgname',
+                'u.secondname as client_secondname',
+                'u.name as client_firstname',
+                'u.email as client_email',
+                'u.phone as client_phone',
+                'u.region as client_region',
+                'u.city as client_city',
+                'u.poshta as client_poshta',
+                DB::raw("COALESCE(NULLIF(u.orgname, ''), CONCAT_WS(' ', u.secondname, u.name), u.email, CONCAT('Клиент #', u.id)) as client_name")
+            )
             ->orderByDesc('cs.updated_at')
             ->orderByDesc('cs.id')
             ->get();
