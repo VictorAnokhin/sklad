@@ -485,6 +485,47 @@
       order: 4;
     }
 
+    .header-nav-menu--public {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      left: auto;
+      bottom: auto;
+      width: min(940px, calc(100vw - 2rem));
+      height: auto !important;
+      min-height: 420px !important;
+      max-height: calc(100vh - 112px) !important;
+      padding: 1.15rem;
+      overflow: hidden;
+      border: 1px solid rgba(251, 191, 36, 0.25);
+      border-radius: 16px;
+      background:
+        linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.16), transparent) center/100% 92px no-repeat,
+        linear-gradient(180deg, rgba(19, 24, 33, 0.98), rgba(8, 11, 16, 0.99));
+      box-shadow: 0 28px 70px -22px rgba(0, 0, 0, 0.78);
+      transform: none;
+    }
+
+    .header-nav-menu--public.is-open {
+      display: grid;
+      place-items: center;
+      animation: menuFadeIn 0.2s ease-out;
+    }
+
+    .header-nav-menu--public .mobile-only-link {
+      display: flex !important;
+    }
+
+    .header-nav-menu--public .public-picker-menu {
+      position: relative;
+      width: 100%;
+      height: 420px;
+      min-height: 420px;
+      perspective: 720px;
+      touch-action: none;
+      user-select: none;
+    }
+
     .header-nav-menu--auth.desktop-auth-ready {
       position: absolute;
       top: 100%;
@@ -1509,6 +1550,48 @@
 
     .header-nav-menu--public .header-nav-menu__link.is-next-3 {
       --picker-offset: 238px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .header-nav-menu--public,
+    .header-nav-menu--auth.auth-picker-ready {
+      top: 5dvh !important;
+      right: 8px !important;
+      bottom: auto !important;
+      left: 8px !important;
+      width: auto !important;
+      height: 90dvh !important;
+      min-height: 90dvh !important;
+      max-height: 90dvh !important;
+      padding: 0.75rem !important;
+    }
+
+    .header-nav-menu--public .public-picker-menu,
+    .auth-picker-menu {
+      height: 100% !important;
+      min-height: 0 !important;
+    }
+  }
+
+  @media (min-width: 901px) {
+    .header-nav-menu--public {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      bottom: auto;
+      left: auto;
+      width: min(940px, calc(100vw - 2rem));
+      height: auto !important;
+      min-height: 420px !important;
+      max-height: calc(100vh - 112px) !important;
+      padding: 1.15rem;
+      transform: none;
+    }
+
+    .header-nav-menu--public .public-picker-menu {
+      height: 420px !important;
+      min-height: 420px !important;
     }
   }
 
