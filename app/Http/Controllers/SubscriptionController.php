@@ -238,6 +238,11 @@ class SubscriptionController extends Controller
 
     private function subscriptions(string $fid)
     {
+        $userColumns = Schema::hasTable('users') ? Schema::getColumnListing('users') : [];
+        $userColumn = static fn (string $column, string $alias) => in_array($column, $userColumns, true)
+            ? "u.{$column} as {$alias}"
+            : DB::raw("'' as {$alias}");
+
         return DB::table('customer_subscriptions as cs')
             ->join('subscription_plans as sp', 'sp.id', '=', 'cs.plan_id')
             ->join('users as u', 'u.id', '=', 'cs.client_id')
@@ -245,14 +250,14 @@ class SubscriptionController extends Controller
             ->select(
                 'cs.*',
                 'sp.name as plan_name',
-                'u.orgname as client_orgname',
-                'u.secondname as client_secondname',
-                'u.name as client_firstname',
-                'u.email as client_email',
-                'u.phone as client_phone',
-                'u.region as client_region',
-                'u.city as client_city',
-                'u.poshta as client_poshta',
+                $userColumn('orgname', 'client_orgname'),
+                $userColumn('secondname', 'client_secondname'),
+                $userColumn('name', 'client_firstname'),
+                $userColumn('email', 'client_email'),
+                $userColumn('phone', 'client_phone'),
+                $userColumn('region', 'client_region'),
+                $userColumn('city', 'client_city'),
+                $userColumn('poshta', 'client_poshta'),
                 DB::raw("COALESCE(NULLIF(u.orgname, ''), CONCAT_WS(' ', u.secondname, u.name), u.email, CONCAT('Клиент #', u.id)) as client_name")
             )
             ->orderByDesc('cs.updated_at')

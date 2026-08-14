@@ -1,11 +1,13 @@
-@php($isEdit = !empty($subscription))
-@php($clientName = trim((string) ($subscription->client_name ?? '')))
-@php($clientDetails = trim(implode(' | ', array_filter([
-    $subscription->client_phone ?? '',
-    $subscription->client_region ?? '',
-    $subscription->client_city ?? '',
-    $subscription->client_poshta ?? '',
-])))
+@php
+    $isEdit = !empty($subscription);
+    $clientName = trim((string) ($subscription->client_name ?? ''));
+    $clientDetails = trim(implode(' | ', array_filter([
+        $subscription->client_phone ?? '',
+        $subscription->client_region ?? '',
+        $subscription->client_city ?? '',
+        $subscription->client_poshta ?? '',
+    ])));
+@endphp
 <form method="POST" action="{{ $isEdit ? route('subscriptions.update', ['subscription' => $subscription->id]) : route('subscriptions.store') }}">
     @csrf
     @if($isEdit) @method('PUT') @endif
