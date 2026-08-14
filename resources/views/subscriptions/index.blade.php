@@ -334,12 +334,29 @@ document.addEventListener('DOMContentLoaded', () => {
         '"': '&quot;',
         "'": '&#039;',
     }[char]));
-    const formatClientName = (user) => [user.secondname || '', user.name || ''].filter(Boolean).join(' ').trim();
+    const uniqueClientParts = (parts) => {
+        const seen = new Set();
+        return parts
+            .map((part) => String(part || '').replace(/\s+/g, ' ').trim())
+            .filter((part) => {
+                if (!part) {
+                    return false;
+                }
+                const key = part.toLocaleLowerCase();
+                if (seen.has(key)) {
+                    return false;
+                }
+                seen.add(key);
+                return true;
+            });
+    };
+    const formatClientName = (user) => uniqueClientParts([user.secondname, user.name]).join(' ');
     const formatClientDetailsHtml = (user) => {
         const regionPart = user.region ? `${user.region} | ` : '';
         const poshtaPart = user.poshta ? ` | ${user.poshta}` : '';
-        const orgnamePart = user.orgname ? `<strong>${escapeHtml(user.orgname)}</strong> | ` : '';
-        return `${orgnamePart}${escapeHtml(formatClientName(user))}<br><small>${escapeHtml(user.phone || '')} | ${escapeHtml(regionPart)}${escapeHtml(user.city || '')}${escapeHtml(poshtaPart)}</small>`;
+        const nameParts = uniqueClientParts([user.orgname, formatClientName(user)]);
+        const mainName = nameParts.length ? nameParts.map(escapeHtml).join(' | ') : `Клиент #${escapeHtml(user.id || '')}`;
+        return `<strong>${mainName}</strong><br><small>${escapeHtml(user.phone || '')} | ${escapeHtml(regionPart)}${escapeHtml(user.city || '')}${escapeHtml(poshtaPart)}</small>`;
     };
 
     document.querySelectorAll('[data-subscription-client-search]').forEach((searchBox) => {
@@ -367,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     item.className = 'list-group-item list-group-item-action bg-white text-dark';
                     item.innerHTML = formatClientDetailsHtml(user);
                     item.addEventListener('click', () => {
-                        const selectedLabel = [user.orgname || '', formatClientName(user)].filter(Boolean).join(' ').trim();
+                        const selectedLabel = uniqueClientParts([user.orgname, formatClientName(user)]).join(' ');
                         if (hidden) {
                             hidden.value = user.id;
                         }

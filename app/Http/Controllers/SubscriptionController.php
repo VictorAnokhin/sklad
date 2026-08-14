@@ -275,22 +275,63 @@ class SubscriptionController extends Controller
             )
             ->orderByDesc('cs.updated_at')
             ->orderByDesc('cs.id')
-            ->get();
+            ->get()
+            ->map(function (object $subscription): object {
+                $subscription->client_name = $this->formatClientName($subscription);
+                return $subscription;
+            });
     }
 
     private function invoices(string $fid)
     {
+        $userColumns = Schema::hasTable('users') ? Schema::getColumnListing('users') : [];
+        $userColumn = static fn (string $column, string $alias) => in_array($column, $userColumns, true)
+            ? "u.{$column} as {$alias}"
+            : DB::raw("'' as {$alias}");
+
         return DB::table('subscription_invoices as si')
             ->join('customer_subscriptions as cs', 'cs.id', '=', 'si.subscription_id')
             ->join('subscription_plans as sp', 'sp.id', '=', 'cs.plan_id')
             ->join('users as u', 'u.id', '=', 'cs.client_id')
             ->leftJoin('document as d', 'd.id', '=', 'si.document_id')
             ->where('cs.project_id', (int) $fid)
-            ->select('si.*', 'sp.name as plan_name', 'd.num as document_num', DB::raw("COALESCE(NULLIF(u.orgname, ''), CONCAT_WS(' ', u.secondname, u.name), u.email, CONCAT('Клиент #', u.id)) as client_name"))
+            ->select(
+                'si.*',
+                'cs.client_id',
+                'sp.name as plan_name',
+                'd.num as document_num',
+                $userColumn('orgname', 'client_orgname'),
+                $userColumn('secondname', 'client_secondname'),
+                $userColumn('name', 'client_firstname'),
+                $userColumn('email', 'client_email'),
+                DB::raw("COALESCE(NULLIF(u.orgname, ''), CONCAT_WS(' ', u.secondname, u.name), u.email, CONCAT('Клиент #', u.id)) as client_name")
+            )
             ->orderByDesc('si.created_at')
             ->orderByDesc('si.id')
             ->limit(200)
-            ->get();
+            ->get()
+            ->map(function (object $invoice): object {
+                $invoice->client_name = $this->formatClientName($invoice);
+                return $invoice;
+            });
+    }
+
+    private function formatClientName(object $row): string
+    {
+        $parts = [];
+        foreach ([$row->client_orgname ?? '', $row->client_secondname ?? '', $row->client_firstname ?? '', $row->client_email ?? ''] as $part) {
+            $part = trim(preg_replace('/\s+/u', ' ', (string) $part));
+            if ($part === '') {
+                continue;
+            }
+            $key = mb_strtolower($part);
+            if (isset($parts[$key])) {
+                continue;
+            }
+            $parts[$key] = $part;
+        }
+
+        return implode(' ', array_values($parts)) ?: 'Клиент #' . (string) ($row->client_id ?? '');
     }
 
     private function clients(string $fid)
