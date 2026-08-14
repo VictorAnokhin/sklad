@@ -1329,12 +1329,14 @@
 
   .header-nav-menu--public {
     position: fixed;
-    top: 74px;
+    top: 5dvh !important;
     right: 12px;
-    bottom: 14px;
+    bottom: auto !important;
     left: 12px;
     width: auto;
-    min-height: 0;
+    height: 90dvh !important;
+    min-height: 90dvh !important;
+    max-height: 90dvh !important;
     padding: 1.35rem;
     border-radius: 24px;
     background:
@@ -1357,8 +1359,8 @@
   .header-nav-menu--public .public-picker-menu {
     position: relative;
     width: 100%;
-    height: min(100%, 620px);
-    min-height: 440px;
+    height: 100%;
+    min-height: 0;
     perspective: 720px;
     touch-action: none;
     user-select: none;
@@ -1456,16 +1458,19 @@
 
   @media (max-width: 520px) {
     .header-nav-menu--public {
-      top: 68px;
+      top: 5dvh !important;
       right: 8px;
-      bottom: 10px;
+      bottom: auto !important;
       left: 8px;
+      height: 90dvh !important;
+      min-height: 90dvh !important;
+      max-height: 90dvh !important;
       padding: 0.75rem;
     }
 
     .header-nav-menu--public .public-picker-menu {
-      height: min(100%, 560px);
-      min-height: 400px;
+      height: 100%;
+      min-height: 0;
     }
 
     .header-nav-menu--public .header-nav-menu__link {
