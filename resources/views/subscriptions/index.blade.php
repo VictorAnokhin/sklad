@@ -54,9 +54,6 @@
                                         @if($plan->subtitle ?? '')
                                             <div class="text-warning small">{{ $plan->subtitle }}</div>
                                         @endif
-                                        @if($plan->description)
-                                            <div class="text-muted small">{{ \Illuminate\Support\Str::limit($plan->description, 90) }}</div>
-                                        @endif
                                     </td>
                                     <td>{{ number_format((float) $plan->price, 2, '.', ' ') }} {{ $plan->currency }}</td>
                                     <td>
