@@ -1729,6 +1729,10 @@
         return false;
       }
 
+      if (button.matches('[data-no-spinner], .btn-qty-decrease, .btn-qty-increase')) {
+        return false;
+      }
+
       if (button.matches('[data-price-order-open], [data-price-order-close]')) {
         return false;
       }
