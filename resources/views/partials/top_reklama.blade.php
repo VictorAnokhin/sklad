@@ -277,10 +277,10 @@
     </div>
     @else
     <div id="mobile-public-links" class="public-picker-menu">
-      <a class="header-nav-menu__link mobile-only-link" href="{{ route('micro-business') }}">Управление бизнесом</a>
-      <a class="header-nav-menu__link mobile-only-link" href="{{ route('education.public') }}">Обучение</a>
-      <a class="header-nav-menu__link mobile-only-link" href="{{ route('price') }}">Цены</a>
-      <a class="header-nav-menu__link mobile-only-link" href="{{ route('team') }}">Команда</a>
+      <a class="header-nav-menu__link mobile-only-link is-active" href="{{ route('micro-business') }}">Управление бизнесом</a>
+      <a class="header-nav-menu__link mobile-only-link is-next-1" href="{{ route('education.public') }}">Обучение</a>
+      <a class="header-nav-menu__link mobile-only-link is-next-2" href="{{ route('price') }}">Цены</a>
+      <a class="header-nav-menu__link mobile-only-link is-next-3" href="{{ route('team') }}">Команда</a>
       <a class="header-nav-menu__link mobile-only-link" href="{{ route('about') }}">О проекте</a>
       <a class="header-nav-menu__link" href="{{ route('login') }}">Войти</a>
     </div>
@@ -2094,6 +2094,10 @@
         burger.setAttribute('aria-expanded', expanded ? 'false' : 'true');
         menu.classList.toggle('is-open', !expanded);
         document.body.classList.toggle('header-menu-open', !expanded);
+
+        if (!expanded) {
+          syncPublicPicker();
+        }
       });
 
       menu.querySelectorAll('a').forEach((link) => {
