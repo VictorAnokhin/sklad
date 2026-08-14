@@ -1630,8 +1630,11 @@
     const publicLinks = publicPicker ? Array.from(publicPicker.querySelectorAll('a')) : [];
     const authPickerBackLabel = @json(__('nav.back'));
     const authPickerChooseSectionLabel = @json(__('nav.choose_section'));
-    const isSettingsPage = window.location.pathname.replace(/\/+$/, '') === '/settings'
-      || window.location.pathname.startsWith('/settings/');
+    const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
+    const isSpinnerDisabledPage = currentPath === '/settings'
+      || window.location.pathname.startsWith('/settings/')
+      || currentPath === '/subscriptions'
+      || window.location.pathname.startsWith('/subscriptions/');
     let activePublicIndex = 0;
     let publicTouchStartY = null;
     let publicTouchLastY = null;
@@ -1714,7 +1717,7 @@
         return false;
       }
 
-      if (isSettingsPage) {
+      if (isSpinnerDisabledPage) {
         return false;
       }
 
