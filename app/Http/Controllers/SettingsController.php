@@ -184,9 +184,13 @@ class SettingsController extends Controller
         $smsClubTokenConfigured = $smsClubApiKey !== ''
             || trim((string) config('services.smsclub.token', '')) !== '';
         $smsClubApiKeyHint = $this->maskSmsClubApiKey($smsClubApiKey);
+        $emailProviderApiKey = $this->emailProviderSettingForFirma((string) $fid, 'api_key');
+        $emailProviderConfigured = ($emailProviderApiKey !== '' || trim((string) config('services.email_provider.api_key', '')) !== '')
+            && ($this->emailProviderSettingForFirma((string) $fid, 'from_email') !== '' || trim((string) config('services.email_provider.from_email', '')) !== '');
+        $emailProviderApiKeyHint = $this->maskSmsClubApiKey($emailProviderApiKey);
         $pricePlansCount = PriceController::plans()->count();
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'profileCompletionRequired', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount', 'smsClubTokenConfigured', 'smsClubApiKeyHint', 'pricePlansCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'profileCompletionRequired', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount', 'smsClubTokenConfigured', 'smsClubApiKeyHint', 'emailProviderConfigured', 'emailProviderApiKeyHint', 'pricePlansCount')));
     }
 
     public function show(Request $request)
@@ -513,6 +517,61 @@ class SettingsController extends Controller
             'success' => true,
             'balance' => $this->extractSmsClubBalance($balancePayload),
             'payload' => $balancePayload,
+        ]);
+    }
+
+    public function emailProviderSettings(Request $request)
+    {
+        $fid = (string) session('fid', '');
+        $apiKey = $this->emailProviderSettingForFirma($fid, 'api_key');
+        $fromEmail = $this->emailProviderSettingForFirma($fid, 'from_email');
+        $fromName = $this->emailProviderSettingForFirma($fid, 'from_name');
+        $provider = $this->emailProviderSettingForFirma($fid, 'provider') ?: (string) config('services.email_provider.provider', 'resend');
+
+        return response()->json([
+            'success' => true,
+            'configured' => ($apiKey !== '' || trim((string) config('services.email_provider.api_key', '')) !== '')
+                && ($fromEmail !== '' || trim((string) config('services.email_provider.from_email', '')) !== ''),
+            'provider' => in_array($provider, ['resend', 'brevo'], true) ? $provider : 'resend',
+            'api_key_hint' => $this->maskSmsClubApiKey($apiKey),
+            'from_email' => $fromEmail ?: (string) config('services.email_provider.from_email', ''),
+            'from_name' => $fromName ?: (string) config('services.email_provider.from_name', config('app.name', 'AV8Capital')),
+        ]);
+    }
+
+    public function updateEmailProviderSettings(Request $request)
+    {
+        $validated = $request->validate([
+            'provider' => ['required', Rule::in(['resend', 'brevo'])],
+            'api_key' => ['nullable', 'string', 'max:500'],
+            'from_email' => ['required', 'email', 'max:255'],
+            'from_name' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $fid = (string) session('fid', '');
+        $apiKey = trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $validated['api_key'] ?? ''));
+        $existingApiKey = $this->emailProviderSettingForFirma($fid, 'api_key');
+        if ($apiKey === '' && $existingApiKey === '' && trim((string) config('services.email_provider.api_key', '')) === '') {
+            return response()->json(['success' => false, 'message' => 'Введите API key провайдера.'], 422);
+        }
+
+        $fromName = $this->sanitizeSettingsText($validated['from_name'] ?? '', 120);
+
+        $this->saveEmailProviderSetting($fid, 'provider', $validated['provider'], 'Email provider');
+        if ($apiKey !== '') {
+            $this->saveEmailProviderSetting($fid, 'api_key', $apiKey, 'Email provider API key');
+        }
+        $this->saveEmailProviderSetting($fid, 'from_email', trim((string) $validated['from_email']), 'Email sender address');
+        $this->saveEmailProviderSetting($fid, 'from_name', $fromName, 'Email sender name');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Настройки email провайдера сохранены.',
+            'configured' => true,
+            'provider' => $validated['provider'],
+            'api_key_hint' => $this->maskSmsClubApiKey($apiKey !== '' ? $apiKey : $existingApiKey),
+            'from_email' => trim((string) $validated['from_email']),
+            'from_name' => $fromName,
         ]);
     }
 
@@ -3457,11 +3516,62 @@ class SettingsController extends Controller
         );
     }
 
+    private function emailProviderSettingForFirma(string $fid, string $name): string
+    {
+        if (!Schema::hasTable('conf') || !Schema::hasColumn('conf', 'constanta')) {
+            return '';
+        }
+
+        $row = DB::table('conf')
+            ->where('type', 'email_provider')
+            ->where('name', $name)
+            ->where('firma', $fid !== '' ? $fid : '0')
+            ->first();
+
+        if (!$row) {
+            $row = DB::table('conf')
+                ->where('type', 'email_provider')
+                ->where('name', $name)
+                ->where('firma', 0)
+                ->first();
+        }
+
+        return trim((string) ($row->constanta ?? ''));
+    }
+
+    private function saveEmailProviderSetting(string $fid, string $name, string $value, string $description): void
+    {
+        abort_unless(Schema::hasTable('conf') && Schema::hasColumn('conf', 'constanta'), 500, 'Таблица настроек conf недоступна.');
+
+        DB::table('conf')->updateOrInsert(
+            [
+                'firma' => $fid !== '' ? $fid : '0',
+                'type' => 'email_provider',
+                'name' => $name,
+            ],
+            [
+                'color' => '',
+                'status' => '1',
+                'vision' => '1',
+                'constanta' => $value,
+                'descript' => $description,
+            ]
+        );
+    }
+
     private function sanitizeSmsClubSender(mixed $value): string
     {
         $sender = preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($value ?? '')) ?? '';
 
         return mb_substr(trim($sender), 0, 30);
+    }
+
+    private function sanitizeSettingsText(mixed $value, int $maxLength = 120): string
+    {
+        $text = preg_replace('/[\x00-\x1F\x7F<>[\]{}\\\\\/=;:*|~^$#@!?%&+]/u', '', (string) ($value ?? '')) ?? '';
+        $text = preg_replace('/\s{2,}/u', ' ', $text) ?? '';
+
+        return mb_substr(trim($text), 0, $maxLength);
     }
 
     private function maskSmsClubApiKey(string $apiKey): string

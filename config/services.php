@@ -72,6 +72,13 @@ return [
         'balance_endpoint' => env('SMSCLUB_BALANCE_ENDPOINT', 'https://im.smsclub.mobi/sms/balance'),
     ],
 
+    'email_provider' => [
+        'provider' => env('EMAIL_PROVIDER', 'resend'),
+        'api_key' => env('EMAIL_PROVIDER_API_KEY', ''),
+        'from_email' => env('EMAIL_PROVIDER_FROM_EMAIL', ''),
+        'from_name' => env('EMAIL_PROVIDER_FROM_NAME', env('APP_NAME', 'AV8Capital')),
+    ],
+
     'telegram_orders' => [
         'bot_token' => env('TELEGRAM_ORDER_BOT_TOKEN') ?: env('TELEGRAM_BOT_TOKEN', ''),
         'chat_id' => env('TELEGRAM_ORDER_CHAT_ID')

@@ -10,6 +10,7 @@ use App\Http\Controllers\DashboardAgentChatController;
 use App\Http\Controllers\DepositController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EducationController;
+use App\Http\Controllers\EmailCampaignController;
 use App\Http\Controllers\EmployeeRoleController;
 use App\Http\Controllers\FilterController;
 use App\Http\Controllers\FinancingController;
@@ -148,6 +149,8 @@ Route::middleware(['auth'])->group(function () {
     });
     Route::get('/dashboard/agent-chat', [DashboardAgentChatController::class, 'index'])->name('dashboard.agent-chat.index');
     Route::post('/dashboard/agent-chat', [DashboardAgentChatController::class, 'store'])->name('dashboard.agent-chat.store');
+    Route::get('/email-campaigns', [EmailCampaignController::class, 'index'])->name('email-campaigns.index');
+    Route::post('/email-campaigns/send', [EmailCampaignController::class, 'send'])->name('email-campaigns.send');
     Route::get('/blockchain-monitor', [BlockchainMonitorController::class, 'page'])->name('blockchain-monitor.index');
     Route::get('/blockchain-monitor/api/summary', [BlockchainMonitorController::class, 'summary'])->name('blockchain-monitor.summary');
     Route::get('/blockchain-monitor/api/events', [BlockchainMonitorController::class, 'events'])->name('blockchain-monitor.events');
@@ -508,6 +511,8 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/sms-club', [SettingsController::class , 'smsClubSettings'])->name('smsClub.show');
             Route::post('/sms-club', [SettingsController::class , 'updateSmsClubSettings'])->name('smsClub.update');
             Route::get('/sms-club/balance', [SettingsController::class , 'smsClubBalance'])->name('smsClub.balance');
+            Route::get('/email-provider', [SettingsController::class, 'emailProviderSettings'])->name('emailProvider.show');
+            Route::post('/email-provider', [SettingsController::class, 'updateEmailProviderSettings'])->name('emailProvider.update');
             Route::get('/price-plans', [SettingsController::class, 'pricePlansIndex'])->name('pricePlans.index');
             Route::put('/price-plans', [SettingsController::class, 'pricePlansUpdate'])->name('pricePlans.update');
             Route::get('/holdings', [SettingsController::class , 'holdingsIndex'])->name('holdings.index');

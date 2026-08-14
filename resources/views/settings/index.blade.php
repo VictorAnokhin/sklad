@@ -245,6 +245,20 @@
             </div>
 
             <div class="col-md-4">
+                <div class="glass-card h-100 border-warning setting-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">📧 Email рассылка</h5>
+                        <p class="card-text text-muted">Провайдер, API key и отправитель</p>
+                        <span class="badge {{ ($emailProviderConfigured ?? false) ? 'bg-success' : 'bg-secondary' }}" id="badge-email-provider">{{ ($emailProviderConfigured ?? false) ? 'Активно' : 'Не настроено' }}</span>
+                        <div class="d-flex justify-content-center gap-2 mt-3">
+                            <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalEmailProvider">Настроить</button>
+                            <a href="{{ route('email-campaigns.index') }}" class="btn btn-sm btn-warning">Рассылка</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
                 <div class="glass-card h-100 border-info setting-card" data-bs-toggle="modal" data-bs-target="#modalPricePlans">
                     <div class="card-body text-center">
                         <h5 class="card-title">💳 Цены</h5>
@@ -255,6 +269,49 @@
             </div>
         </div>
     </section>
+</div>
+
+<div class="modal fade" id="modalEmailProvider" tabindex="-1" aria-labelledby="modalEmailProviderLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card border-0">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEmailProviderLabel">📧 Email рассылка</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('settings.common.close') }}"></button>
+            </div>
+            <form id="email-provider-form">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white" for="email-provider-name">Провайдер <span class="text-danger">*</span></label>
+                        <select class="form-select" id="email-provider-name" name="provider" required>
+                            <option value="resend">Resend</option>
+                            <option value="brevo">Brevo</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white" for="email-provider-api-key">API key <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="email-provider-api-key" name="api_key" maxlength="500" autocomplete="off" placeholder="{{ $emailProviderApiKeyHint ? 'Сохранен: ' . $emailProviderApiKeyHint : 'Введите API key' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white" for="email-provider-from-email">Email отправителя <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="email-provider-from-email" name="from_email" maxlength="255" autocomplete="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white" for="email-provider-from-name">Имя отправителя</label>
+                        <input type="text" class="form-control" id="email-provider-from-name" name="from_name" maxlength="120" autocomplete="off" placeholder="AV8Capital">
+                    </div>
+                    <div class="small text-muted mb-3">Поддерживаются Resend и Brevo. Письма отправляются через API провайдера без локального mail-сервера.</div>
+                    <div class="alert d-none mb-0" id="email-provider-feedback" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-warning" id="email-provider-save-btn">
+                        <span class="spinner-border spinner-border-sm me-2 d-none" id="email-provider-spinner" aria-hidden="true"></span>
+                        Сохранить
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('settings.common.close') }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <div class="modal fade" id="modalSmsClub" tabindex="-1" aria-labelledby="modalSmsClubLabel" aria-hidden="true">
@@ -2692,6 +2749,128 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .join('')
         .slice(0, maxLength);
+
+    const emailProviderModal = document.getElementById('modalEmailProvider');
+    const emailProviderForm = document.getElementById('email-provider-form');
+    const emailProviderNameInput = document.getElementById('email-provider-name');
+    const emailProviderApiKeyInput = document.getElementById('email-provider-api-key');
+    const emailProviderFromEmailInput = document.getElementById('email-provider-from-email');
+    const emailProviderFromNameInput = document.getElementById('email-provider-from-name');
+    const emailProviderFeedback = document.getElementById('email-provider-feedback');
+    const emailProviderBadge = document.getElementById('badge-email-provider');
+    const emailProviderSaveButton = document.getElementById('email-provider-save-btn');
+    const emailProviderSpinner = document.getElementById('email-provider-spinner');
+
+    const setEmailProviderLoading = (isLoading) => {
+        if (emailProviderSaveButton) {
+            emailProviderSaveButton.disabled = isLoading;
+        }
+        emailProviderSpinner?.classList.toggle('d-none', !isLoading);
+    };
+
+    const showEmailProviderFeedback = (type, message) => {
+        if (!emailProviderFeedback) {
+            return;
+        }
+        emailProviderFeedback.className = `alert alert-${type} mb-0`;
+        emailProviderFeedback.textContent = message;
+    };
+
+    const setEmailProviderConfiguredBadge = (isConfigured) => {
+        if (!emailProviderBadge) {
+            return;
+        }
+        emailProviderBadge.classList.toggle('bg-success', isConfigured);
+        emailProviderBadge.classList.toggle('bg-secondary', !isConfigured);
+        emailProviderBadge.textContent = isConfigured ? 'Активно' : 'Не настроено';
+    };
+
+    emailProviderModal?.addEventListener('show.bs.modal', async () => {
+        if (emailProviderFeedback) {
+            emailProviderFeedback.className = 'alert d-none mb-0';
+            emailProviderFeedback.textContent = '';
+        }
+        if (emailProviderApiKeyInput) {
+            emailProviderApiKeyInput.value = '';
+        }
+
+        try {
+            const response = await fetch('/settings/email-provider', {
+                headers: { Accept: 'application/json' },
+            });
+            const data = await response.json();
+            setEmailProviderConfiguredBadge(Boolean(data.configured));
+            if (emailProviderNameInput) {
+                emailProviderNameInput.value = data.provider || 'resend';
+            }
+            if (emailProviderApiKeyInput && data.api_key_hint) {
+                emailProviderApiKeyInput.placeholder = `Сохранен: ${data.api_key_hint}`;
+            }
+            if (emailProviderFromEmailInput) {
+                emailProviderFromEmailInput.value = data.from_email || '';
+            }
+            if (emailProviderFromNameInput) {
+                emailProviderFromNameInput.value = data.from_name || '';
+            }
+        } catch (error) {
+            showEmailProviderFeedback('danger', 'Не удалось загрузить настройки email.');
+        }
+    });
+
+    emailProviderForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const provider = emailProviderNameInput?.value || 'resend';
+        const apiKey = String(emailProviderApiKeyInput?.value || '').replace(/[\u0000-\u001F\u007F]/g, '').trim();
+        const fromEmail = String(emailProviderFromEmailInput?.value || '').replace(/[^a-zA-Z0-9@._+-]/g, '').trim().slice(0, 255);
+        const fromName = sanitizeSettingsSafeText(emailProviderFromNameInput?.value || '', 120);
+
+        if (emailProviderFromEmailInput) {
+            emailProviderFromEmailInput.value = fromEmail;
+        }
+        if (emailProviderFromNameInput) {
+            emailProviderFromNameInput.value = fromName;
+        }
+
+        if (!apiKey && !emailProviderApiKeyInput?.placeholder?.startsWith('Сохранен:')) {
+            showEmailProviderFeedback('danger', 'Введите API key.');
+            return;
+        }
+        if (!fromEmail) {
+            showEmailProviderFeedback('danger', 'Введите email отправителя.');
+            return;
+        }
+
+        setEmailProviderLoading(true);
+        showEmailProviderFeedback('info', 'Сохраняем настройки...');
+
+        try {
+            const response = await fetch('/settings/email-provider', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify({ provider, api_key: apiKey, from_email: fromEmail, from_name: fromName }),
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Не удалось сохранить настройки email.');
+            }
+
+            if (emailProviderApiKeyInput) {
+                emailProviderApiKeyInput.value = '';
+                emailProviderApiKeyInput.placeholder = data.api_key_hint ? `Сохранен: ${data.api_key_hint}` : 'API key сохранен';
+            }
+            setEmailProviderConfiguredBadge(true);
+            showEmailProviderFeedback('success', data.message || 'Настройки email провайдера сохранены.');
+        } catch (error) {
+            showEmailProviderFeedback('danger', error.message || 'Ошибка сохранения email настроек.');
+        } finally {
+            setEmailProviderLoading(false);
+        }
+    });
 
     const smsClubModal = document.getElementById('modalSmsClub');
     const smsClubForm = document.getElementById('sms-club-form');
