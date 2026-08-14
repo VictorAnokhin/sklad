@@ -5,7 +5,10 @@
 @section('content')
 @php
     $activeRole = $roles->firstWhere('id', $activeRoleId) ?? $roles->first();
-    $showPermissionsTab = ($activeTab ?? 'roles') === 'permissions';
+    $isCreating = request()->query('mode') === 'create' || ! $activeRole;
+    $roleFormAction = $isCreating
+        ? route('settings.employeeRoles.store')
+        : route('settings.employeeRoles.update', ['role' => $activeRole->id]);
 @endphp
 
 <div class="container mt-4 employee-roles-page" data-bs-theme="dark">
@@ -31,106 +34,89 @@
         </div>
     @endif
 
-    <ul class="nav nav-tabs employee-roles-tabs mb-4" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link {{ $showPermissionsTab ? '' : 'active' }}" id="roles-tab" data-bs-toggle="tab" data-bs-target="#roles-pane" type="button" role="tab">Роли</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link {{ $showPermissionsTab ? 'active' : '' }}" id="permissions-tab" data-bs-toggle="tab" data-bs-target="#permissions-pane" type="button" role="tab">Разрешения</button>
-        </li>
-    </ul>
+    <div class="employee-roles-layout">
+        <aside class="glass-card employee-roles-sidebar">
+            <a href="{{ route('settings.employeeRoles.index', ['mode' => 'create']) }}" class="btn btn-warning w-100 mb-3">Новая роль</a>
 
-    <div class="tab-content">
-        <div class="tab-pane fade {{ $showPermissionsTab ? '' : 'show active' }}" id="roles-pane" role="tabpanel" aria-labelledby="roles-tab">
-            <div class="row g-4">
-                <div class="col-lg-4">
-                    <div class="glass-card employee-role-panel">
-                        <h2 class="h5 text-light mb-3">Новая роль</h2>
-                        <form method="POST" action="{{ route('settings.employeeRoles.store') }}">
-                            @csrf
-                            <div class="mb-3">
-                                <label class="form-label">Название</label>
-                                <input type="text" name="name" class="form-control" maxlength="120" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Описание</label>
-                                <textarea name="description" class="form-control" rows="4" maxlength="1000"></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Сортировка</label>
-                                <input type="number" name="sort" class="form-control" value="100" min="0" max="999999">
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">Добавить роль</button>
-                        </form>
-                    </div>
-                </div>
-
-                <div class="col-lg-8">
-                    <div class="employee-role-list">
-                        @forelse($roles as $role)
-                            <div class="glass-card employee-role-card">
-                                <form method="POST" action="{{ route('settings.employeeRoles.update', ['role' => $role->id]) }}">
-                                    @csrf
-                                    @method('PUT')
-                                    <div class="row g-3 align-items-end">
-                                        <div class="col-md-5">
-                                            <label class="form-label">Название</label>
-                                            <input type="text" name="name" class="form-control" value="{{ $role->name }}" maxlength="120" required>
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label">Сортировка</label>
-                                            <input type="number" name="sort" class="form-control" value="{{ (int) $role->sort }}" min="0" max="999999">
-                                        </div>
-                                        <div class="col-md-5">
-                                            <div class="employee-role-card__meta">
-                                                Назначено сотрудникам: <strong>{{ (int) $role->members_count }}</strong>
-                                            </div>
-                                        </div>
-                                        <div class="col-12">
-                                            <label class="form-label">Описание</label>
-                                            <textarea name="description" class="form-control" rows="2" maxlength="1000">{{ $role->description }}</textarea>
-                                        </div>
-                                    </div>
-                                    <div class="d-flex flex-wrap gap-2 mt-3">
-                                        <button type="submit" class="btn btn-primary">Сохранить</button>
-                                        <a href="{{ route('settings.employeeRoles.index', ['role_id' => $role->id, 'tab' => 'permissions']) }}" class="btn btn-outline-warning">Разрешения</a>
-                                    </div>
-                                </form>
-
-                                <form method="POST" action="{{ route('settings.employeeRoles.destroy', ['role' => $role->id]) }}" class="employee-role-card__delete">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button
-                                        type="submit"
-                                        class="btn btn-outline-danger"
-                                        {{ ((int) $role->members_count) > 0 ? 'disabled' : '' }}
-                                        onclick="return confirm('Удалить роль?');"
-                                    >Удалить</button>
-                                </form>
-                            </div>
-                        @empty
-                            <div class="alert alert-secondary">Роли еще не созданы.</div>
-                        @endforelse
-                    </div>
-                </div>
+            <div class="employee-roles-list" aria-label="Список ролей">
+                @forelse($roles as $role)
+                    <a
+                        href="{{ route('settings.employeeRoles.index', ['role_id' => $role->id]) }}"
+                        class="employee-roles-list__item {{ ! $isCreating && (int) $activeRole->id === (int) $role->id ? 'is-active' : '' }}"
+                    >
+                        <span class="employee-roles-list__name">{{ $role->name }}</span>
+                        <span class="employee-roles-list__meta">{{ (int) $role->members_count }} сотрудников</span>
+                    </a>
+                @empty
+                    <div class="employee-roles-empty">Роли еще не созданы.</div>
+                @endforelse
             </div>
-        </div>
+        </aside>
 
-        <div class="tab-pane fade {{ $showPermissionsTab ? 'show active' : '' }}" id="permissions-pane" role="tabpanel" aria-labelledby="permissions-tab">
-            <div class="glass-card employee-role-panel">
-                @if($activeRole)
-                    <form method="GET" action="{{ route('settings.employeeRoles.index') }}" class="row g-3 align-items-end mb-4">
-                        <input type="hidden" name="tab" value="permissions">
-                        <div class="col-md-6">
-                            <label class="form-label">Роль</label>
-                            <select name="role_id" class="form-select" onchange="this.form.submit()">
-                                @foreach($roles as $role)
-                                    <option value="{{ $role->id }}" {{ (int) $activeRole->id === (int) $role->id ? 'selected' : '' }}>{{ $role->name }}</option>
-                                @endforeach
-                            </select>
+        <main class="employee-roles-workspace">
+            <section class="glass-card employee-role-editor">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                    <div>
+                        <h2 class="h5 text-light mb-1">{{ $isCreating ? 'Новая роль' : 'Редактирование роли' }}</h2>
+                        @if(! $isCreating)
+                            <div class="text-muted small">Назначено сотрудникам: <strong>{{ (int) $activeRole->members_count }}</strong></div>
+                        @endif
+                    </div>
+
+                    @if(! $isCreating)
+                        <form method="POST" action="{{ route('settings.employeeRoles.destroy', ['role' => $activeRole->id]) }}">
+                            @csrf
+                            @method('DELETE')
+                            <button
+                                type="submit"
+                                class="btn btn-outline-danger"
+                                {{ ((int) $activeRole->members_count) > 0 ? 'disabled' : '' }}
+                                onclick="return confirm('Удалить роль?');"
+                            >Удалить</button>
+                        </form>
+                    @endif
+                </div>
+
+                <form method="POST" action="{{ $roleFormAction }}">
+                    @csrf
+                    @if(! $isCreating)
+                        @method('PUT')
+                    @endif
+
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Название</label>
+                            <input type="text" name="name" class="form-control" value="{{ old('name', $isCreating ? '' : $activeRole->name) }}" maxlength="120" required>
                         </div>
-                    </form>
+                        <div class="col-md-4">
+                            <label class="form-label">Сортировка</label>
+                            <input type="number" name="sort" class="form-control" value="{{ old('sort', $isCreating ? 100 : (int) $activeRole->sort) }}" min="0" max="999999">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Описание</label>
+                            <textarea name="description" class="form-control" rows="4" maxlength="1000">{{ old('description', $isCreating ? '' : $activeRole->description) }}</textarea>
+                        </div>
+                    </div>
 
+                    <button type="submit" class="btn btn-success mt-3">{{ $isCreating ? 'Создать роль' : 'Сохранить роль' }}</button>
+                </form>
+            </section>
+
+            <section class="glass-card employee-role-permissions">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                    <div>
+                        <h2 class="h5 text-light mb-1">Разрешения</h2>
+                        <div class="text-muted small">
+                            @if($isCreating)
+                                Сначала создайте роль, затем настройте разрешения.
+                            @else
+                                {{ $activeRole->name }}
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                @if(! $isCreating && $activeRole)
                     <form method="POST" action="{{ route('settings.employeeRoles.permissions.update', ['role' => $activeRole->id]) }}">
                         @csrf
                         @method('PUT')
@@ -155,10 +141,10 @@
                         <button type="submit" class="btn btn-success mt-4">Сохранить разрешения</button>
                     </form>
                 @else
-                    <div class="alert alert-secondary mb-0">Создайте роль, чтобы настроить разрешения.</div>
+                    <div class="alert alert-secondary mb-0">Форма разрешений появится после создания роли.</div>
                 @endif
-            </div>
-        </div>
+            </section>
+        </main>
     </div>
 </div>
 
@@ -171,35 +157,56 @@
         padding: 1.25rem;
     }
 
-    .employee-roles-tabs .nav-link {
-        color: rgba(255, 255, 255, .68);
+    .employee-roles-layout {
+        display: grid;
+        grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+        gap: 1rem;
+        align-items: start;
     }
 
-    .employee-roles-tabs .nav-link.active {
-        color: #111827;
-        background: #facc15;
-        border-color: #facc15;
+    .employee-roles-sidebar {
+        position: sticky;
+        top: 1rem;
+        max-height: calc(100vh - 7rem);
+        overflow: auto;
     }
 
-    .employee-role-list {
+    .employee-roles-list {
+        display: grid;
+        gap: .6rem;
+    }
+
+    .employee-roles-list__item {
+        display: grid;
+        gap: .2rem;
+        padding: .8rem .9rem;
+        border: 1px solid rgba(255, 255, 255, .1);
+        border-radius: 12px;
+        color: rgba(255, 255, 255, .82);
+        text-decoration: none;
+        background: rgba(255, 255, 255, .03);
+    }
+
+    .employee-roles-list__item:hover,
+    .employee-roles-list__item.is-active {
+        border-color: rgba(250, 204, 21, .72);
+        color: #fff;
+        background: rgba(250, 204, 21, .12);
+    }
+
+    .employee-roles-list__name {
+        font-weight: 700;
+    }
+
+    .employee-roles-list__meta,
+    .employee-roles-empty {
+        color: rgba(255, 255, 255, .58);
+        font-size: .86rem;
+    }
+
+    .employee-roles-workspace {
         display: grid;
         gap: 1rem;
-    }
-
-    .employee-role-card {
-        position: relative;
-        padding-right: 8.5rem !important;
-    }
-
-    .employee-role-card__meta {
-        color: rgba(255, 255, 255, .62);
-        font-size: .92rem;
-    }
-
-    .employee-role-card__delete {
-        position: absolute;
-        right: 1.25rem;
-        bottom: 1.25rem;
     }
 
     .employee-permissions-grid {
@@ -233,32 +240,21 @@
         margin-bottom: 0;
     }
 
-    @media (max-width: 768px) {
-        .employee-role-card {
-            padding-right: 1.25rem !important;
+    @media (max-width: 900px) {
+        .employee-roles-layout {
+            grid-template-columns: 1fr;
         }
 
-        .employee-role-card__delete {
+        .employee-roles-sidebar {
             position: static;
-            margin-top: .75rem;
+            max-height: none;
         }
+    }
 
+    @media (max-width: 768px) {
         .employee-permissions-grid {
             grid-template-columns: 1fr;
         }
     }
 </style>
-
-@push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        if (window.location.hash === '#permissions-pane') {
-            const trigger = document.getElementById('permissions-tab');
-            if (trigger && window.bootstrap) {
-                window.bootstrap.Tab.getOrCreateInstance(trigger).show();
-            }
-        }
-    });
-</script>
-@endpush
 @endsection

@@ -38,7 +38,7 @@ class EmployeeRoleController extends Controller
 
         $validated = $this->validateRole($request, $fid);
 
-        DB::table('employee_roles')->insert([
+        $roleId = DB::table('employee_roles')->insertGetId([
             'project_id' => (int) $fid,
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
@@ -47,7 +47,9 @@ class EmployeeRoleController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect()->route('settings.employeeRoles.index')->with('success', 'Роль добавлена');
+        return redirect()
+            ->route('settings.employeeRoles.index', ['role_id' => $roleId])
+            ->with('success', 'Роль добавлена');
     }
 
     public function update(Request $request, int $role)
@@ -127,7 +129,7 @@ class EmployeeRoleController extends Controller
         });
 
         return redirect()
-            ->route('settings.employeeRoles.index', ['role_id' => $role, 'tab' => 'permissions'])
+            ->route('settings.employeeRoles.index', ['role_id' => $role])
             ->with('success', 'Разрешения сохранены');
     }
 
