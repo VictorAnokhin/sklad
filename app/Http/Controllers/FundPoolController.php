@@ -473,6 +473,72 @@ class FundPoolController extends Controller
         ]);
     }
 
+    public function storeEvents(Request $request): JsonResponse
+    {
+        if (! Schema::hasTable('fund_pool_events')) {
+            return response()->json(['message' => 'fund_pool_events table is missing.'], 422);
+        }
+
+        $validated = $request->validate([
+            'events' => ['required', 'array', 'max:100'],
+            'events.*.network' => ['nullable', 'string', 'max:40'],
+            'events.*.package_id' => ['nullable', 'string', 'max:80'],
+            'events.*.event_type' => ['required', 'string', 'max:80'],
+            'events.*.move_event_type' => ['nullable', 'string', 'max:500'],
+            'events.*.tx_digest' => ['required', 'string', 'max:120'],
+            'events.*.event_seq' => ['required', 'integer', 'min:0'],
+            'events.*.checkpoint' => ['nullable', 'integer', 'min:0'],
+            'events.*.pool_object_id' => ['required', 'string', 'max:80'],
+            'events.*.owner_address' => ['nullable', 'string', 'max:80'],
+            'events.*.amount_usdc' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
+            'events.*.pool_shares' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
+            'events.*.burned_pool_shares' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
+            'events.*.balance_usdc' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
+            'events.*.active' => ['nullable', 'boolean'],
+            'events.*.target_apy_bps' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'events.*.realized_apy_bps' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'events.*.min_deposit_usdc' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
+            'events.*.max_weight_bps' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'events.*.event_at' => ['nullable', 'date'],
+            'events.*.raw_event' => ['nullable', 'array'],
+        ]);
+
+        $saved = 0;
+        foreach ($validated['events'] as $event) {
+            DB::table('fund_pool_events')->updateOrInsert(
+                [
+                    'tx_digest' => (string) $event['tx_digest'],
+                    'event_seq' => (int) $event['event_seq'],
+                ],
+                [
+                    'network' => (string) ($event['network'] ?? 'testnet'),
+                    'package_id' => $this->normalizeSuiAddress((string) ($event['package_id'] ?? '')),
+                    'event_type' => (string) $event['event_type'],
+                    'move_event_type' => (string) ($event['move_event_type'] ?? ''),
+                    'checkpoint' => array_key_exists('checkpoint', $event) ? $event['checkpoint'] : null,
+                    'pool_object_id' => $this->normalizeSuiAddress((string) $event['pool_object_id']),
+                    'owner_address' => $this->normalizeSuiAddress((string) ($event['owner_address'] ?? '')),
+                    'amount_usdc' => (string) ($event['amount_usdc'] ?? '0'),
+                    'pool_shares' => (string) ($event['pool_shares'] ?? '0'),
+                    'burned_pool_shares' => (string) ($event['burned_pool_shares'] ?? '0'),
+                    'balance_usdc' => (string) ($event['balance_usdc'] ?? '0'),
+                    'active' => array_key_exists('active', $event) ? (bool) $event['active'] : null,
+                    'target_apy_bps' => $event['target_apy_bps'] ?? null,
+                    'realized_apy_bps' => $event['realized_apy_bps'] ?? null,
+                    'min_deposit_usdc' => $event['min_deposit_usdc'] ?? null,
+                    'max_weight_bps' => $event['max_weight_bps'] ?? null,
+                    'raw_event' => json_encode($event['raw_event'] ?? $event, JSON_UNESCAPED_SLASHES),
+                    'event_at' => $event['event_at'] ?? null,
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+            $saved++;
+        }
+
+        return response()->json(['saved' => $saved]);
+    }
+
     private function validatePayload(Request $request, ?string $id = null): array
     {
         $network = trim((string) $request->input('network', 'testnet')) ?: 'testnet';

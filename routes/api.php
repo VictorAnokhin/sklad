@@ -262,6 +262,7 @@ Route::put('/fund/tokens/{id}', [FundTokenController::class, 'update']);
 Route::delete('/fund/tokens/{id}', [FundTokenController::class, 'destroy']);
 Route::get('/fund/pools', [FundPoolController::class, 'index']);
 Route::post('/fund/pools', [FundPoolController::class, 'store']);
+Route::post('/fund/pools/events', [FundPoolController::class, 'storeEvents']);
 Route::get('/fund/pools/credit-requests', [FundPoolController::class, 'creditRequests']);
 Route::post('/fund/pools/credit-request', [FundPoolController::class, 'storeCreditRequest']);
 Route::put('/fund/pools/{id}/credit-request', [FundPoolController::class, 'updateCreditRequestTerms']);

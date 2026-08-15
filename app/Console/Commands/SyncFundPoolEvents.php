@@ -23,6 +23,8 @@ class SyncFundPoolEvents extends Command
         'deposit' => 'PoolDepositEvent',
         'withdraw' => 'PoolWithdrawEvent',
         'update' => 'PoolUpdatedEvent',
+        'av8_stake' => 'PoolAv8StakedEvent',
+        'av8_unstake' => 'PoolAv8UnstakedEvent',
     ];
 
     public function handle(): int
@@ -109,7 +111,7 @@ class SyncFundPoolEvents extends Command
                 ['MoveEventType' => $moveEventType],
                 $cursor,
                 $limit,
-                false,
+                true,
             ]);
 
             $events = is_array($result['data'] ?? null) ? $result['data'] : [];
@@ -176,6 +178,11 @@ class SyncFundPoolEvents extends Command
         $eventSeq = (int) ($id['eventSeq'] ?? 0);
         $poolObjectId = $this->normalizeObjectId((string) ($parsed['pool_id'] ?? ''));
         $timestampMs = (string) ($event['timestampMs'] ?? '');
+        $amountUsdc = match ($eventType) {
+            'withdraw' => (string) ($parsed['amount_usdc'] ?? $parsed['payout_usdc'] ?? $parsed['value_usdc'] ?? '0'),
+            'av8_stake' => (string) ($parsed['value_usdc'] ?? $parsed['amount_usdc'] ?? '0'),
+            default => (string) ($parsed['amount_usdc'] ?? $parsed['value_usdc'] ?? '0'),
+        };
 
         DB::table('fund_pool_events')->updateOrInsert(
             [
@@ -190,9 +197,9 @@ class SyncFundPoolEvents extends Command
                 'checkpoint' => isset($event['checkpoint']) ? (int) $event['checkpoint'] : null,
                 'pool_object_id' => $poolObjectId,
                 'owner_address' => $this->normalizeObjectId((string) ($parsed['owner'] ?? '')),
-                'amount_usdc' => (string) ($parsed['amount_usdc'] ?? '0'),
-                'pool_shares' => (string) ($parsed['pool_shares'] ?? '0'),
-                'burned_pool_shares' => (string) ($parsed['burned_pool_shares'] ?? '0'),
+                'amount_usdc' => $amountUsdc,
+                'pool_shares' => (string) ($parsed['pool_shares'] ?? $parsed['amount_av8'] ?? '0'),
+                'burned_pool_shares' => (string) ($parsed['burned_pool_shares'] ?? $parsed['amount_av8'] ?? '0'),
                 'balance_usdc' => (string) ($parsed['balance_usdc'] ?? '0'),
                 'active' => array_key_exists('active', $parsed) ? (bool) $parsed['active'] : null,
                 'target_apy_bps' => isset($parsed['target_apy_bps']) ? (int) $parsed['target_apy_bps'] : null,
