@@ -113,6 +113,8 @@ class SettingsController extends Controller
                 'web3auth' => 0,
             ]]);
         }
+        $profileZkSuiWallet = $this->profileZkSuiWalletForUser($user);
+        $settingsGoogleClientId = (string) config('services.google.client_id', '');
         $profileBalances = $user
             ? $this->profileBalancesFromCache($user, $fid)
             : [];
@@ -190,7 +192,7 @@ class SettingsController extends Controller
         $emailProviderApiKeyHint = $this->maskSmsClubApiKey($emailProviderApiKey);
         $pricePlansCount = PriceController::plans()->count();
 
-        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileBalances', 'profileCompletionRequired', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount', 'smsClubTokenConfigured', 'smsClubApiKeyHint', 'emailProviderConfigured', 'emailProviderApiKeyHint', 'pricePlansCount')));
+        return view('settings.index', array_merge($data, compact('fid', 'projectsCount', 'statuses', 'reestrs', 'assetTypes', 'tgroups', 'tclients', 'oplatas', 'currencies', 'accountCurrencies', 'currentProjectType', 'currencyExchangeSettings', 'canManagePaymentTypes', 'faqs', 'sklads', 'deposits', 'settingsDepositsUsePools', 'user', 'myCompanies', 'fieldCatalogTopCount', 'fieldCityCount', 'currentCounterpartyType', 'userWallets', 'profileZkSuiWallet', 'settingsGoogleClientId', 'profileBalances', 'profileCompletionRequired', 'bannerCarouselCount', 'knowledgeBaseCount', 'accountsCount', 'catalogNewsOptions', 'catalogFiltersGroupCount', 'smsClubTokenConfigured', 'smsClubApiKeyHint', 'emailProviderConfigured', 'emailProviderApiKeyHint', 'pricePlansCount')));
     }
 
     public function show(Request $request)
@@ -4850,5 +4852,43 @@ class SettingsController extends Controller
         }
 
         return false;
+    }
+
+    private function profileZkSuiWalletForUser(?object $user): ?string
+    {
+        if (!$user) {
+            return null;
+        }
+
+        if (Schema::hasTable('zklogin_identities')) {
+            $address = DB::table('zklogin_identities')
+                ->where('user_id', $user->id)
+                ->where('provider', 'google')
+                ->whereNotNull('wallet_address')
+                ->orderByDesc('updated_at')
+                ->value('wallet_address');
+
+            if (is_string($address) && trim($address) !== '') {
+                return trim($address);
+            }
+        }
+
+        if (Schema::hasTable('user_wallets')) {
+            $query = DB::table('user_wallets')
+                ->where('user_id', $user->id)
+                ->where('network', 'sui')
+                ->orderByDesc('updated_at');
+
+            if (Schema::hasColumn('user_wallets', 'web3auth')) {
+                $query->where('web3auth', 1);
+            }
+
+            $address = $query->value('address');
+            if (is_string($address) && trim($address) !== '') {
+                return trim($address);
+            }
+        }
+
+        return null;
     }
 }

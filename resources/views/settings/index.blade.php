@@ -1872,47 +1872,38 @@
                     </div>
 
                     <div class="tab-pane fade" id="profileWeb3Tab">
-                        <div class="wallet-link-card mb-4">
+                        <div class="wallet-link-card mb-4 {{ $profileZkSuiWallet ? 'is-linked' : '' }}" id="zk-wallet-card">
                             <div class="wallet-link-header">
                                 <div>
                                     <div class="wallet-link-eyebrow">WEB3</div>
-                                    <h6 class="wallet-link-title mb-1">Прив'язка адреси гаманця</h6>
-                                    <p class="wallet-link-text mb-0">Після прив'язки EVM або Solana гаманець зможе входити через Web3 і буде асоційований з вашим контрагентом.</p>
+                                    <h6 class="wallet-link-title mb-1">Sui zk-гаманець</h6>
+                                    <p class="wallet-link-text mb-0">Згенерований Google zkLogin гаманець для мережі Sui.</p>
                                 </div>
                             </div>
                             <div class="wallet-link-state">
                                 <div class="wallet-link-meta">
                                     <span class="wallet-link-label">Поточний статус</span>
-                                    <strong id="wallet-status-badge" class="wallet-status-badge {{ ($userWallets->count() ?? 0) > 0 ? 'is-linked' : 'is-empty' }}">
-                                        {{ ($userWallets->count() ?? 0) > 0 ? 'Гаманці прив’язані' : 'Гаманці не прив’язані' }}
+                                    <strong id="zk-wallet-status-badge" class="wallet-status-badge {{ $profileZkSuiWallet ? 'is-linked' : 'is-empty' }}">
+                                        {{ $profileZkSuiWallet ? 'Створено' : 'Не створено' }}
                                     </strong>
                                 </div>
                                 <div class="wallet-link-meta">
-                                    <span class="wallet-link-label">Кількість</span>
-                                    <span id="wallet-count">{{ $userWallets->count() }}</span>
-                                </div>
-                                <div class="wallet-link-meta">
-                                    <span class="wallet-link-label">Остання мережа</span>
-                                    <span id="wallet-linked-network">{{ optional($userWallets->first())->network ?? ($user->wallet_network ?? '—') }}</span>
+                                    <span class="wallet-link-label">Мережа</span>
+                                    <span>Sui</span>
                                 </div>
                             </div>
-                            <div id="wallet-list" class="wallet-list">
-                                @forelse($userWallets as $wallet)
-                                <div class="wallet-list-item" data-wallet-address="{{ $wallet->address }}">
+                            <div class="wallet-list">
+                                <div class="wallet-list-item">
                                     <div class="wallet-list-main">
-                                        <code title="{{ $wallet->address }}">{{ $wallet->address }}</code>
-                                        <span class="wallet-list-network">{{ $wallet->network ?: 'Мережа не вказана' }}</span>
+                                        <code id="zk-wallet-address" title="{{ $profileZkSuiWallet ?: '' }}">{{ $profileZkSuiWallet ?: 'Sui zk-гаманець ще не створено' }}</code>
+                                        <span class="wallet-list-network">Google zkLogin · Sui</span>
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-outline-danger wallet-remove-btn" data-address="{{ $wallet->address }}">Відв’язати</button>
                                 </div>
-                                @empty
-                                <p id="wallet-list-empty" class="wallet-list-empty mb-0">Ще не прив’язано жодного гаманця.</p>
-                                @endforelse
                             </div>
                             <div class="wallet-link-actions">
-                                <button type="button" class="btn btn-warning" id="wallet-connect-btn">Додати гаманець</button>
+                                <button type="button" class="btn btn-warning {{ $profileZkSuiWallet ? 'd-none' : '' }}" id="zk-wallet-create-btn">Створити zk-гаманець</button>
                             </div>
-                            <p id="wallet-link-feedback" class="wallet-link-feedback" style="display:none;"></p>
+                            <p id="zk-wallet-feedback" class="wallet-link-feedback" style="display:none;"></p>
                         </div>
                     </div>
 
@@ -2692,6 +2683,7 @@
     }
 </style>
 
+<script type="module" src="{{ asset('js/settings-zk-wallet.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
@@ -3490,7 +3482,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initFirmsCrud(csrf);
     initBannerCrud(csrf);
     initAccountsCrud(csrf);
-    initWalletLink(csrf);
+    window.initSettingsZkWallet?.({
+        googleClientId: @json($settingsGoogleClientId ?? ''),
+    });
     initProfileBalances();
 
     function initProfileBalances() {
