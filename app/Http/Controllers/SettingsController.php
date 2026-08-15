@@ -4860,61 +4860,11 @@ class SettingsController extends Controller
             return null;
         }
 
-        $userIds = $this->profileRelatedUserIds($user);
-
-        if (Schema::hasTable('zklogin_identities')) {
-            $address = DB::table('zklogin_identities')
-                ->whereIn('user_id', $userIds)
-                ->whereRaw('LOWER(provider) = ?', ['google'])
-                ->whereNotNull('wallet_address')
-                ->orderByDesc('updated_at')
-                ->value('wallet_address');
-
-            if (is_string($address) && trim($address) !== '') {
-                return trim($address);
-            }
-        }
-
-        if (Schema::hasTable('user_wallets')) {
-            $query = DB::table('user_wallets')
-                ->whereIn('user_id', $userIds)
-                ->whereRaw('LOWER(network) = ?', ['sui'])
-                ->orderByDesc('updated_at');
-
-            if (Schema::hasColumn('user_wallets', 'web3auth')) {
-                $query->where('web3auth', 1);
-            }
-
-            $address = $query->value('address');
-            if (is_string($address) && trim($address) !== '') {
-                return trim($address);
-            }
-        }
-
-        $legacyWallet = trim((string) ($user->wallet_address ?? ''));
-        $legacyNetwork = strtolower(trim((string) ($user->wallet_network ?? '')));
-        if ($legacyWallet !== '' && ($legacyNetwork === 'sui' || str_starts_with($legacyWallet, '0x'))) {
-            return $legacyWallet;
+        $address = trim((string) ($user->wallet_address ?? ''));
+        if ($address !== '') {
+            return $address;
         }
 
         return null;
-    }
-
-    private function profileRelatedUserIds(object $user): array
-    {
-        $ids = [(int) $user->id];
-        $email = strtolower(trim((string) ($user->email ?? '')));
-
-        if ($email !== '' && Schema::hasColumn('users', 'email')) {
-            $relatedIds = User::query()
-                ->whereRaw('LOWER(email) = ?', [$email])
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->all();
-
-            $ids = array_merge($ids, $relatedIds);
-        }
-
-        return array_values(array_unique(array_filter($ids)));
     }
 }
