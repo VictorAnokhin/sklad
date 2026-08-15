@@ -4860,10 +4860,12 @@ class SettingsController extends Controller
             return null;
         }
 
+        $userIds = $this->profileRelatedUserIds($user);
+
         if (Schema::hasTable('zklogin_identities')) {
             $address = DB::table('zklogin_identities')
-                ->where('user_id', $user->id)
-                ->where('provider', 'google')
+                ->whereIn('user_id', $userIds)
+                ->whereRaw('LOWER(provider) = ?', ['google'])
                 ->whereNotNull('wallet_address')
                 ->orderByDesc('updated_at')
                 ->value('wallet_address');
@@ -4875,8 +4877,8 @@ class SettingsController extends Controller
 
         if (Schema::hasTable('user_wallets')) {
             $query = DB::table('user_wallets')
-                ->where('user_id', $user->id)
-                ->where('network', 'sui')
+                ->whereIn('user_id', $userIds)
+                ->whereRaw('LOWER(network) = ?', ['sui'])
                 ->orderByDesc('updated_at');
 
             if (Schema::hasColumn('user_wallets', 'web3auth')) {
@@ -4889,6 +4891,30 @@ class SettingsController extends Controller
             }
         }
 
+        $legacyWallet = trim((string) ($user->wallet_address ?? ''));
+        $legacyNetwork = strtolower(trim((string) ($user->wallet_network ?? '')));
+        if ($legacyWallet !== '' && ($legacyNetwork === 'sui' || str_starts_with($legacyWallet, '0x'))) {
+            return $legacyWallet;
+        }
+
         return null;
+    }
+
+    private function profileRelatedUserIds(object $user): array
+    {
+        $ids = [(int) $user->id];
+        $email = strtolower(trim((string) ($user->email ?? '')));
+
+        if ($email !== '' && Schema::hasColumn('users', 'email')) {
+            $relatedIds = User::query()
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $ids = array_merge($ids, $relatedIds);
+        }
+
+        return array_values(array_unique(array_filter($ids)));
     }
 }
