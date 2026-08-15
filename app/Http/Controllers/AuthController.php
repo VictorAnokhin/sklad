@@ -365,7 +365,7 @@ class AuthController extends Controller
         $fid = $this->resolveAuthFid($request);
 
         /** @var User|null $user */
-        $user = $this->userByEmail($email, $fid)->first();
+        $user = $this->userByEmailAnyFid($email)->first();
 
         if (!$user) {
             $givenName = trim((string) ($payload['given_name'] ?? ''));
@@ -400,11 +400,9 @@ class AuthController extends Controller
             }
 
             $user = User::create(User::filterUsersColumns($userData));
-            $user = $this->ensureAuthUserProject($user);
         }
 
         $this->syncUserRoleStatus($user);
-        $user = $this->ensureAuthUserProject($user);
 
         Auth::login($user);
         $request->session()->regenerate();
@@ -689,6 +687,19 @@ class AuthController extends Controller
         return $this->scopeUserQueryToFid($query, $fid);
     }
 
+    private function userByEmailAnyFid(string $email)
+    {
+        $normalizedEmail = mb_strtolower(trim($email));
+
+        if (!Schema::hasColumn('users', 'email')) {
+            return User::query()->whereRaw('1 = 0');
+        }
+
+        return User::query()
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$normalizedEmail])
+            ->orderBy('id');
+    }
+
     private function userByPhone(string $phone, ?string $fid)
     {
         $digits = preg_replace('/\D+/', '', $phone) ?? '';
@@ -901,18 +912,12 @@ class AuthController extends Controller
         }
 
         /** @var User|null $user */
-        $user = $this->userByEmail($email, $fid)->first();
-
-        if (!$user && Schema::hasColumn('users', 'email')) {
-            $query = User::query()->whereRaw('LOWER(email) = ?', [strtolower($email)]);
-            $user = $this->scopeUserQueryToFid($query, $fid)->first();
-        }
+        $user = $this->userByEmailAnyFid($email)->first();
 
         if ($user) {
             if (Schema::hasColumn('users', 'email_verified_at') && !$user->email_verified_at) {
                 $user->forceFill(['email_verified_at' => now()])->save();
             }
-            $user = $this->ensureAuthUserProject($user);
 
             return $user;
         }
@@ -948,10 +953,7 @@ class AuthController extends Controller
             $userData['status'] = 1;
         }
 
-        $user = User::create(User::filterUsersColumns($userData));
-        $user = $this->ensureAuthUserProject($user);
-
-        return $user;
+        return User::create(User::filterUsersColumns($userData));
     }
 
     private function resolveExistingGoogleUser(array $payload, ?string $fid = null): ?User
@@ -964,18 +966,10 @@ class AuthController extends Controller
         }
 
         /** @var User|null $user */
-        $user = $this->userByEmail($email, $fid)->first();
-
-        if (!$user && Schema::hasColumn('users', 'email')) {
-            $query = User::query()->whereRaw('LOWER(email) = ?', [strtolower($email)]);
-            $user = $this->scopeUserQueryToFid($query, $fid)->first();
-        }
+        $user = $this->userByEmailAnyFid($email)->first();
 
         if ($user && Schema::hasColumn('users', 'email_verified_at') && !$user->email_verified_at) {
             $user->forceFill(['email_verified_at' => now()])->save();
-        }
-        if ($user) {
-            $user = $this->ensureAuthUserProject($user);
         }
 
         return $user;
