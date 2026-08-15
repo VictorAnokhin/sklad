@@ -455,7 +455,7 @@ class FundPoolController extends Controller
             return response()->json(['message' => 'Pool not found'], 404);
         }
 
-        $limit = max(1, min(500, (int) $request->query('limit', 200)));
+        $limit = max(1, min(5000, (int) $request->query('limit', 200)));
         $events = Schema::hasTable('fund_pool_events')
             ? DB::table('fund_pool_events')
                 ->whereRaw('LOWER(pool_object_id) = ?', [strtolower((string) $pool->pool_object_id)])
@@ -491,6 +491,7 @@ class FundPoolController extends Controller
             'events.*.pool_object_id' => ['required', 'string', 'max:80'],
             'events.*.owner_address' => ['nullable', 'string', 'max:80'],
             'events.*.amount_usdc' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
+            'events.*.amount_av8' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
             'events.*.pool_shares' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
             'events.*.burned_pool_shares' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
             'events.*.balance_usdc' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
@@ -503,35 +504,41 @@ class FundPoolController extends Controller
             'events.*.raw_event' => ['nullable', 'array'],
         ]);
 
+        $hasAmountAv8 = Schema::hasColumn('fund_pool_events', 'amount_av8');
         $saved = 0;
         foreach ($validated['events'] as $event) {
+            $values = [
+                'network' => (string) ($event['network'] ?? 'testnet'),
+                'package_id' => $this->normalizeSuiAddress((string) ($event['package_id'] ?? '')),
+                'event_type' => (string) $event['event_type'],
+                'move_event_type' => (string) ($event['move_event_type'] ?? ''),
+                'checkpoint' => array_key_exists('checkpoint', $event) ? $event['checkpoint'] : null,
+                'pool_object_id' => $this->normalizeSuiAddress((string) $event['pool_object_id']),
+                'owner_address' => $this->normalizeSuiAddress((string) ($event['owner_address'] ?? '')),
+                'amount_usdc' => (string) ($event['amount_usdc'] ?? '0'),
+                'pool_shares' => (string) ($event['pool_shares'] ?? '0'),
+                'burned_pool_shares' => (string) ($event['burned_pool_shares'] ?? '0'),
+                'balance_usdc' => (string) ($event['balance_usdc'] ?? '0'),
+                'active' => array_key_exists('active', $event) ? (bool) $event['active'] : null,
+                'target_apy_bps' => $event['target_apy_bps'] ?? null,
+                'realized_apy_bps' => $event['realized_apy_bps'] ?? null,
+                'min_deposit_usdc' => $event['min_deposit_usdc'] ?? null,
+                'max_weight_bps' => $event['max_weight_bps'] ?? null,
+                'raw_event' => json_encode($event['raw_event'] ?? $event, JSON_UNESCAPED_SLASHES),
+                'event_at' => $event['event_at'] ?? null,
+                'updated_at' => now(),
+                'created_at' => now(),
+            ];
+            if ($hasAmountAv8) {
+                $values['amount_av8'] = (string) ($event['amount_av8'] ?? '0');
+            }
+
             DB::table('fund_pool_events')->updateOrInsert(
                 [
                     'tx_digest' => (string) $event['tx_digest'],
                     'event_seq' => (int) $event['event_seq'],
                 ],
-                [
-                    'network' => (string) ($event['network'] ?? 'testnet'),
-                    'package_id' => $this->normalizeSuiAddress((string) ($event['package_id'] ?? '')),
-                    'event_type' => (string) $event['event_type'],
-                    'move_event_type' => (string) ($event['move_event_type'] ?? ''),
-                    'checkpoint' => array_key_exists('checkpoint', $event) ? $event['checkpoint'] : null,
-                    'pool_object_id' => $this->normalizeSuiAddress((string) $event['pool_object_id']),
-                    'owner_address' => $this->normalizeSuiAddress((string) ($event['owner_address'] ?? '')),
-                    'amount_usdc' => (string) ($event['amount_usdc'] ?? '0'),
-                    'pool_shares' => (string) ($event['pool_shares'] ?? '0'),
-                    'burned_pool_shares' => (string) ($event['burned_pool_shares'] ?? '0'),
-                    'balance_usdc' => (string) ($event['balance_usdc'] ?? '0'),
-                    'active' => array_key_exists('active', $event) ? (bool) $event['active'] : null,
-                    'target_apy_bps' => $event['target_apy_bps'] ?? null,
-                    'realized_apy_bps' => $event['realized_apy_bps'] ?? null,
-                    'min_deposit_usdc' => $event['min_deposit_usdc'] ?? null,
-                    'max_weight_bps' => $event['max_weight_bps'] ?? null,
-                    'raw_event' => json_encode($event['raw_event'] ?? $event, JSON_UNESCAPED_SLASHES),
-                    'event_at' => $event['event_at'] ?? null,
-                    'updated_at' => now(),
-                    'created_at' => now(),
-                ]
+                $values
             );
             $saved++;
         }
@@ -839,6 +846,7 @@ class FundPoolController extends Controller
             'pool_object_id' => (string) $row->pool_object_id,
             'owner_address' => (string) $row->owner_address,
             'amount_usdc' => (string) $row->amount_usdc,
+            'amount_av8' => Schema::hasColumn('fund_pool_events', 'amount_av8') ? (string) ($row->amount_av8 ?? '0') : '0',
             'pool_shares' => (string) $row->pool_shares,
             'burned_pool_shares' => (string) $row->burned_pool_shares,
             'balance_usdc' => (string) $row->balance_usdc,

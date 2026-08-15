@@ -183,34 +183,41 @@ class SyncFundPoolEvents extends Command
             'av8_stake' => (string) ($parsed['value_usdc'] ?? $parsed['amount_usdc'] ?? '0'),
             default => (string) ($parsed['amount_usdc'] ?? $parsed['value_usdc'] ?? '0'),
         };
+        $amountAv8 = in_array($eventType, ['av8_stake', 'av8_unstake'], true)
+            ? (string) ($parsed['amount_av8'] ?? $parsed['amount'] ?? $parsed['pool_shares'] ?? $parsed['burned_pool_shares'] ?? '0')
+            : (string) ($parsed['amount_av8'] ?? '0');
+        $values = [
+            'network' => $network,
+            'package_id' => $packageId,
+            'event_type' => $eventType,
+            'move_event_type' => $moveEventType,
+            'checkpoint' => isset($event['checkpoint']) ? (int) $event['checkpoint'] : null,
+            'pool_object_id' => $poolObjectId,
+            'owner_address' => $this->normalizeObjectId((string) ($parsed['owner'] ?? '')),
+            'amount_usdc' => $amountUsdc,
+            'pool_shares' => (string) ($parsed['pool_shares'] ?? $parsed['amount_av8'] ?? '0'),
+            'burned_pool_shares' => (string) ($parsed['burned_pool_shares'] ?? $parsed['amount_av8'] ?? '0'),
+            'balance_usdc' => (string) ($parsed['balance_usdc'] ?? '0'),
+            'active' => array_key_exists('active', $parsed) ? (bool) $parsed['active'] : null,
+            'target_apy_bps' => isset($parsed['target_apy_bps']) ? (int) $parsed['target_apy_bps'] : null,
+            'realized_apy_bps' => isset($parsed['realized_apy_bps']) ? (int) $parsed['realized_apy_bps'] : null,
+            'min_deposit_usdc' => isset($parsed['min_deposit_usdc']) ? (string) $parsed['min_deposit_usdc'] : null,
+            'max_weight_bps' => isset($parsed['max_weight_bps']) ? (int) $parsed['max_weight_bps'] : null,
+            'raw_event' => json_encode($event, JSON_UNESCAPED_SLASHES),
+            'event_at' => ctype_digit($timestampMs) ? Carbon::createFromTimestampMs((int) $timestampMs) : null,
+            'updated_at' => now(),
+            'created_at' => now(),
+        ];
+        if (Schema::hasColumn('fund_pool_events', 'amount_av8')) {
+            $values['amount_av8'] = $amountAv8;
+        }
 
         DB::table('fund_pool_events')->updateOrInsert(
             [
                 'tx_digest' => $txDigest,
                 'event_seq' => $eventSeq,
             ],
-            [
-                'network' => $network,
-                'package_id' => $packageId,
-                'event_type' => $eventType,
-                'move_event_type' => $moveEventType,
-                'checkpoint' => isset($event['checkpoint']) ? (int) $event['checkpoint'] : null,
-                'pool_object_id' => $poolObjectId,
-                'owner_address' => $this->normalizeObjectId((string) ($parsed['owner'] ?? '')),
-                'amount_usdc' => $amountUsdc,
-                'pool_shares' => (string) ($parsed['pool_shares'] ?? $parsed['amount_av8'] ?? '0'),
-                'burned_pool_shares' => (string) ($parsed['burned_pool_shares'] ?? $parsed['amount_av8'] ?? '0'),
-                'balance_usdc' => (string) ($parsed['balance_usdc'] ?? '0'),
-                'active' => array_key_exists('active', $parsed) ? (bool) $parsed['active'] : null,
-                'target_apy_bps' => isset($parsed['target_apy_bps']) ? (int) $parsed['target_apy_bps'] : null,
-                'realized_apy_bps' => isset($parsed['realized_apy_bps']) ? (int) $parsed['realized_apy_bps'] : null,
-                'min_deposit_usdc' => isset($parsed['min_deposit_usdc']) ? (string) $parsed['min_deposit_usdc'] : null,
-                'max_weight_bps' => isset($parsed['max_weight_bps']) ? (int) $parsed['max_weight_bps'] : null,
-                'raw_event' => json_encode($event, JSON_UNESCAPED_SLASHES),
-                'event_at' => ctype_digit($timestampMs) ? Carbon::createFromTimestampMs((int) $timestampMs) : null,
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
+            $values
         );
     }
 

@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('pool_object_id', 80)->default('');
             $table->string('owner_address', 80)->default('');
             $table->string('amount_usdc', 80)->default('0');
+            $table->string('amount_av8', 80)->default('0');
             $table->string('pool_shares', 80)->default('0');
             $table->string('burned_pool_shares', 80)->default('0');
             $table->string('balance_usdc', 80)->default('0');
