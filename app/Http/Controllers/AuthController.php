@@ -2541,6 +2541,7 @@ class AuthController extends Controller
             'email' => $user->email,
             'fid' => $user->firma ?: $user->fid,
             'idstatus' => $user->idstatus ?: $user->ustype,
+            'stored_wallet_address' => $user->wallet_address,
             'wallet_address' => $primaryWallet['address'] ?? $user->wallet_address,
             'wallet_network' => $primaryWallet['network'] ?? $user->wallet_network,
             'wallet_connected_at' => $primaryWallet['connected_at'] ?? optional($user->wallet_connected_at)->toIso8601String(),
