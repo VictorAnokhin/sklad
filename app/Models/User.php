@@ -223,8 +223,8 @@ class User extends Authenticatable
         $filterEmail = $filters['email'] ?? '';
         $hasEmailCol = self::hasUsersColumn('email');
 
-        $query = DB::table('users')
-            ->whereIn('firma', $firmas);
+        $query = DB::table('users');
+        self::scopeClientsToProjects($query, $firmas);
 
         if ($search !== '') {
             $like = '%' . mb_strtolower($search) . '%';
@@ -278,7 +278,7 @@ class User extends Authenticatable
         $firmas = self::normalizeFirmaScope($fid);
         $currentFirma = $firmas[0] ?? '';
         $client = $id !== '0'
-            ? DB::table('users')->where('id', $id)->whereIn('firma', $firmas)->first()
+            ? tap(DB::table('users')->where('id', $id), fn ($query) => self::scopeClientsToProjects($query, $firmas))->first()
             : null;
 
         // Selects needed for form
@@ -346,8 +346,71 @@ class User extends Authenticatable
             return false;
         }
 
-        DB::table('users')->where('id', $id)->whereIn('firma', self::normalizeFirmaScope($fid))->delete();
+        $firmas = self::normalizeFirmaScope($fid);
+        if (Schema::hasTable('client_project_memberships')) {
+            DB::table('client_project_memberships')
+                ->where('user_id', $id)
+                ->whereIn('project_id', array_map('intval', $firmas))
+                ->delete();
+
+            if (DB::table('client_project_memberships')->where('user_id', $id)->exists()) {
+                return true;
+            }
+        }
+
+        DB::table('users')->where('id', $id)->whereIn('firma', $firmas)->delete();
         return true;
+    }
+
+    public static function attachClientToProjects(int|string $userId, array $projectIds): void
+    {
+        if (! Schema::hasTable('client_project_memberships')) {
+            return;
+        }
+
+        $now = now();
+        $rows = collect($projectIds)
+            ->map(fn ($projectId): array => [
+                'user_id' => (int) $userId,
+                'project_id' => (int) $projectId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])
+            ->filter(fn (array $row): bool => $row['user_id'] > 0 && $row['project_id'] > 0)
+            ->values()
+            ->all();
+
+        if ($rows !== []) {
+            DB::table('client_project_memberships')->insertOrIgnore($rows);
+        }
+    }
+
+    public static function scopeClientsToProjects($query, array $projectIds): void
+    {
+        $projectIds = collect($projectIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($projectIds === []) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        if (Schema::hasTable('client_project_memberships')) {
+            $query->whereExists(function ($subQuery) use ($projectIds): void {
+                $subQuery->selectRaw('1')
+                    ->from('client_project_memberships as cpm')
+                    ->whereColumn('cpm.user_id', 'users.id')
+                    ->whereIn('cpm.project_id', $projectIds);
+            });
+
+            return;
+        }
+
+        $query->whereIn('firma', array_map('strval', $projectIds));
     }
 
     private static function normalizeFirmaScope($fid): array
