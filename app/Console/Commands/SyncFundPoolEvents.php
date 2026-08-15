@@ -184,7 +184,18 @@ class SyncFundPoolEvents extends Command
             default => (string) ($parsed['amount_usdc'] ?? $parsed['value_usdc'] ?? '0'),
         };
         $amountAv8 = in_array($eventType, ['av8_stake', 'av8_unstake'], true)
-            ? (string) ($parsed['amount_av8'] ?? $parsed['amount'] ?? $parsed['pool_shares'] ?? $parsed['burned_pool_shares'] ?? '0')
+            ? (string) (
+                $parsed['amount_av8']
+                ?? $parsed['staked_av8']
+                ?? $parsed['unstaked_av8']
+                ?? $parsed['total_staked_av8']
+                ?? $parsed['remaining_staked_av8']
+                ?? $parsed['amount']
+                ?? $parsed['pool_shares']
+                ?? $parsed['burned_pool_shares']
+                ?? $parsed['balance']
+                ?? '0'
+            )
             : (string) ($parsed['amount_av8'] ?? '0');
         $values = [
             'network' => $network,
@@ -193,7 +204,7 @@ class SyncFundPoolEvents extends Command
             'move_event_type' => $moveEventType,
             'checkpoint' => isset($event['checkpoint']) ? (int) $event['checkpoint'] : null,
             'pool_object_id' => $poolObjectId,
-            'owner_address' => $this->normalizeObjectId((string) ($parsed['owner'] ?? '')),
+            'owner_address' => $this->normalizeObjectId((string) ($parsed['owner'] ?? $parsed['sender'] ?? $parsed['staker'] ?? $parsed['user'] ?? $parsed['account'] ?? '')),
             'amount_usdc' => $amountUsdc,
             'pool_shares' => (string) ($parsed['pool_shares'] ?? $parsed['amount_av8'] ?? '0'),
             'burned_pool_shares' => (string) ($parsed['burned_pool_shares'] ?? $parsed['amount_av8'] ?? '0'),
