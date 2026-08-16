@@ -1,6 +1,6 @@
 {
   "network": "testnet",
-  "expected_package_id": "0x799f69b5be95ddc5d1107912a74f6835bef6a80a6ede155cb843753940a92934",
+  "expected_package_id": "0x254d11439c351f25f8bb7c896c7e1a5355de7231fc9bb963b358d6453018f514",
   "pools": [
     {
       "id": 4,
@@ -11,7 +11,7 @@
       "pool_accounting_id": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "pool_registry_id": "0x28b0f15ebbc0f88895f3d81b1b32fa25682450bdc7696d0e9fe3ee98a513cdb3",
       "pool_admin_cap_id": "0x865e20ba131f176d41bec14a8454bdd8b270baf342f4db6cf8e47daccbfac2cb",
-      "notes_append": "Recreated Reserved Pool on package 0x799f… for /invest AV8 buy/sell."
+      "notes_append": "Recreated Reserved Pool on package 0x254d… for /invest AV8 buy/sell."
     },
     {
       "id": 2,
