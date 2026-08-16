@@ -116,6 +116,8 @@ return [
     'av8_capital' => [
         /** Deployed av8_capital package id used by /invest and fund:pools:* commands. */
         'package_id' => env('AV8_CAPITAL_PACKAGE_ID', '0x254d11439c351f25f8bb7c896c7e1a5355de7231fc9bb963b358d6453018f514'),
+        /** Original package id that owns the AV8 FUND_SHARE coin type. */
+        'coin_package_id' => env('AV8_CAPITAL_COIN_PACKAGE_ID', '0x799f69b5be95ddc5d1107912a74f6835bef6a80a6ede155cb843753940a92934'),
         'payment_receiver_address' => env('AV8_PAYMENT_RECEIVER_ADDRESS', '0xb1a698b321dd94ba0ad955888d4f9a94262f9ddeb07964d228fcd788f08c5062'),
         'pool_registry_id' => env('AV8_CAPITAL_POOL_REGISTRY_ID', ''),
         'pool_admin_cap_id' => env('AV8_CAPITAL_POOL_ADMIN_CAP_ID', ''),

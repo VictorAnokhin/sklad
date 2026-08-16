@@ -65,7 +65,7 @@ class AcademyCoursePaymentService
         $configuredReceiver = trim((string) config('services.av8_capital.payment_receiver_address'))
             ?: '0xb1a698b321dd94ba0ad955888d4f9a94262f9ddeb07964d228fcd788f08c5062';
         $receiverAddress = $this->normalizeSuiAddress($configuredReceiver);
-        $packageId = trim((string) config('services.av8_capital.package_id'))
+        $packageId = trim((string) config('services.av8_capital.coin_package_id'))
             ?: '0x799f69b5be95ddc5d1107912a74f6835bef6a80a6ede155cb843753940a92934';
         $coinType = strtolower(sprintf(
             '%s::fund_share::FUND_SHARE',
