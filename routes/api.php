@@ -272,6 +272,7 @@ Route::post('/fund/pools/{id}/credit-request/claim', [FundPoolController::class,
 Route::post('/fund/pools/{id}/credit-request/payment', [FundPoolController::class, 'payCreditRequestInstallment']);
 Route::get('/fund/pools/{id}/events', [FundPoolController::class, 'events']);
 Route::get('/fund/pools/{id}/positions', [FundPoolController::class, 'positions']);
+Route::post('/fund/pools/{id}/recalculate-positions', [FundPoolController::class, 'recalculatePositionsEndpoint']);
 Route::put('/fund/pools/{id}', [FundPoolController::class, 'update']);
 Route::delete('/fund/pools/{id}', [FundPoolController::class, 'destroy']);
 Route::get('/fund/share-settings', [FundShareSettingsController::class, 'show']);

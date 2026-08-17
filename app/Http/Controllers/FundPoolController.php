@@ -689,11 +689,12 @@ class FundPoolController extends Controller
 
         // Recalculate positions in DB for all affected pools
         $affectedPools = collect($validated['events'])->pluck('pool_object_id')->unique()->filter();
+        $affectedNetwork = (string) ($validated['events'][0]['network'] ?? 'testnet');
         foreach ($affectedPools as $pId) {
-            $this->recalculateWalletPositions((string) $pId, (string) ($validated['events'][0]['network'] ?? 'testnet'));
+            $this->recalculateWalletPositions((string) $pId, $affectedNetwork);
         }
 
-        return response()->json(['saved' => $saved]);
+        return response()->json(['saved' => $saved, 'pools_recalculated' => $affectedPools->values()->all()]);
     }
 
     private function validatePayload(Request $request, ?string $id = null): array
@@ -1108,6 +1109,35 @@ class FundPoolController extends Controller
         return $rows;
     }
 
+    public function recalculatePositionsEndpoint(Request $request, string $id): JsonResponse
+    {
+        if (! Schema::hasTable('fund_pools')) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+
+        $pool = DB::table('fund_pools')->where('id', $id)->first();
+        if (! $pool) {
+            $poolObjectId = $this->normalizeSuiAddress($id);
+            $pool = DB::table('fund_pools')
+                ->whereRaw('LOWER(pool_object_id) = ?', [$poolObjectId])
+                ->first();
+        }
+        if (! $pool) {
+            return response()->json(['message' => 'Pool not found'], 404);
+        }
+
+        $network = (string) $request->query('network', $pool->network ?? 'testnet');
+        $this->recalculateWalletPositions((string) $pool->pool_object_id, $network);
+        $positions = $this->getPositionsForPool((string) $pool->pool_object_id, $network);
+
+        return response()->json([
+            'pool_object_id' => $this->normalizeSuiAddress((string) $pool->pool_object_id),
+            'recalculated' => true,
+            'positions_count' => count($positions),
+            'data' => $positions,
+        ]);
+    }
+
     public function recalculateWalletPositions(string $poolObjectId, string $network = 'testnet'): void
     {
         if (! Schema::hasTable('fund_pool_events')) {
@@ -1145,20 +1175,22 @@ class FundPoolController extends Controller
 
             foreach ($ownerEvents as $event) {
                 $type = (string) $event->event_type;
+                // For av8_stake/unstake: prefer amount_av8, fall back to pool_shares/burned_pool_shares.
+                // Do NOT count amount_usdc for av8 events — AV8 pools track only AV8 balances.
                 $amountAv8 = (float) ($event->amount_av8 ?? 0);
                 $amountUsdc = (float) ($event->amount_usdc ?? 0);
                 $shares = (float) ($event->pool_shares ?? 0);
                 $burnedShares = (float) ($event->burned_pool_shares ?? 0);
 
                 if ($type === 'av8_stake') {
-                    $val = $amountAv8 > 0 ? $amountAv8 : $shares;
+                    $val = $amountAv8 > 0 ? $amountAv8 : ($shares > 0 ? $shares : 0);
                     $depositedAv8 += $val;
-                    $depositedUsdc += $amountUsdc;
+                    // av8 pools: do NOT accumulate usdc from stake events
                     $stakeOps++;
                 } elseif ($type === 'av8_unstake') {
-                    $val = $amountAv8 > 0 ? $amountAv8 : $burnedShares;
+                    $val = $amountAv8 > 0 ? $amountAv8 : ($burnedShares > 0 ? $burnedShares : 0);
                     $withdrawnAv8 += $val;
-                    $withdrawnUsdc += $amountUsdc;
+                    // av8 pools: do NOT accumulate usdc from unstake events
                     $unstakeOps++;
                 } elseif ($type === 'deposit') {
                     $depositedUsdc += $amountUsdc;
@@ -1216,14 +1248,8 @@ class FundPoolController extends Controller
         $normalizedPoolId = $this->normalizeSuiAddress($poolObjectId);
 
         if (Schema::hasTable('fund_pool_wallet_positions')) {
-            $hasAny = DB::table('fund_pool_wallet_positions')
-                ->whereRaw('LOWER(pool_object_id) = ?', [$normalizedPoolId])
-                ->where('network', $network)
-                ->exists();
-
-            if (! $hasAny) {
-                $this->recalculateWalletPositions($normalizedPoolId, $network);
-            }
+            // Always recalculate from events to ensure accuracy after new stakes
+            $this->recalculateWalletPositions($normalizedPoolId, $network);
 
             $rows = DB::table('fund_pool_wallet_positions')
                 ->whereRaw('LOWER(pool_object_id) = ?', [$normalizedPoolId])
