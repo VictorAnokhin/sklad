@@ -56,6 +56,16 @@ class SyncFundPoolEvents extends Command
         }
 
         $this->info("Pool events sync complete. {$total} rows saved/updated.");
+
+        if ($total > 0 && Schema::hasTable('fund_pools')) {
+            $poolIds = DB::table('fund_pools')->pluck('pool_object_id')->filter();
+            $controller = app(\App\Http\Controllers\FundPoolController::class);
+            foreach ($poolIds as $pId) {
+                $controller->recalculateWalletPositions((string) $pId, $network);
+            }
+            $this->info("Wallet positions recalculated for all active pools.");
+        }
+
         return self::SUCCESS;
     }
 
