@@ -132,21 +132,42 @@ class News extends Model
             $payload['url'] = self::uniqueUrl($rawUrl, $sourceTitle, (int) $fid, $id);
         }
 
-        if ($id > 0) {
-            DB::table('news')
-                ->where('id', $id)
-                ->where('firma', (int) $fid)
-                ->update($payload);
+        try {
+            if ($id > 0) {
+                DB::table('news')
+                    ->where('id', $id)
+                    ->where('firma', (int) $fid)
+                    ->update($payload);
 
-            return $id;
+                return $id;
+            }
+
+            // Retry insert to handle race condition on manual ID generation
+            $attempts = 3;
+            for ($i = 0; $i < $attempts; $i++) {
+                try {
+                    $maxId = (int) DB::table('news')->max('id');
+                    $payload['id'] = $maxId + 1;
+                    DB::table('news')->insert($payload);
+
+                    return (int) $payload['id'];
+                } catch (\Illuminate\Database\QueryException $e) {
+                    if ($i === $attempts - 1 || !str_contains($e->getMessage(), 'Duplicate')) {
+                        throw $e;
+                    }
+                }
+            }
+
+            throw new \RuntimeException('Failed to insert news after ' . $attempts . ' attempts.');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('News::saveNews failed', [
+                'id' => $id,
+                'fid' => $fid,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
         }
-
-        $maxId = (int) DB::table('news')->max('id');
-        $payload['id'] = $maxId + 1;
-
-        DB::table('news')->insert($payload);
-
-        return (int) $payload['id'];
     }
 
     public static function deleteNews(int $id, string $fid): void

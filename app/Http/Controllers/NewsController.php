@@ -65,12 +65,12 @@ class NewsController extends Controller
             'title_ua' => $this->safeNewsLine($validated['title_ua'] ?? '', 100),
             'title_en' => $this->safeNewsLine($validated['title_en'] ?? '', 100),
             'url' => $this->safeNewsLine($validated['url'] ?? '', 100),
-            'kratko' => $this->safeNewsText($validated['kratko'] ?? '', 2000),
-            'kratko_ua' => $this->safeNewsText($validated['kratko_ua'] ?? '', 2000),
-            'kratko_en' => $this->safeNewsText($validated['kratko_en'] ?? '', 2000),
-            'txt' => $this->safeNewsText($validated['txt'] ?? '', 2000),
-            'txt_ua' => $this->safeNewsText($validated['txt_ua'] ?? '', 2000),
-            'txt_en' => $this->safeNewsText($validated['txt_en'] ?? '', 2000),
+            'kratko' => $this->safeNewsText($validated['kratko'] ?? '', 65000),
+            'kratko_ua' => $this->safeNewsText($validated['kratko_ua'] ?? '', 65000),
+            'kratko_en' => $this->safeNewsText($validated['kratko_en'] ?? '', 65000),
+            'txt' => $this->safeNewsText($validated['txt'] ?? '', 65000),
+            'txt_ua' => $this->safeNewsText($validated['txt_ua'] ?? '', 65000),
+            'txt_en' => $this->safeNewsText($validated['txt_en'] ?? '', 65000),
             'foto' => $foto,
             'dt' => (string) ($validated['dt'] ?? date('d-m-Y')),
             'time' => (string) ($validated['time'] ?? date('H:i:s')),
@@ -81,7 +81,7 @@ class NewsController extends Controller
             'article' => (bool) ($validated['article'] ?? false) ? 1 : 0,
             'tags' => $this->safeNewsKeywords($validated['tags'] ?? '', 30),
             'htmlkeys' => $this->safeNewsKeywords($validated['htmlkeys'] ?? '', 30),
-            'codesocnet' => $this->safeNewsText($validated['codesocnet'] ?? '', 2000),
+            'codesocnet' => $this->safeNewsText($validated['codesocnet'] ?? '', 65000),
             'author' => (int) ($user->id ?? 0),
             'top' => (string) ($validated['top'] ?? ''),
         ]);
@@ -122,12 +122,12 @@ class NewsController extends Controller
             'title_ua' => $this->safeNewsLine($validated['title_ua'] ?? '', 100),
             'title_en' => $this->safeNewsLine($validated['title_en'] ?? '', 100),
             'url' => $this->safeNewsLine($validated['url'] ?? '', 100),
-            'kratko' => $this->safeNewsText($validated['kratko'] ?? '', 2000),
-            'kratko_ua' => $this->safeNewsText($validated['kratko_ua'] ?? '', 2000),
-            'kratko_en' => $this->safeNewsText($validated['kratko_en'] ?? '', 2000),
-            'txt' => $this->safeNewsText($validated['txt'] ?? '', 2000),
-            'txt_ua' => $this->safeNewsText($validated['txt_ua'] ?? '', 2000),
-            'txt_en' => $this->safeNewsText($validated['txt_en'] ?? '', 2000),
+            'kratko' => $this->safeNewsText($validated['kratko'] ?? '', 65000),
+            'kratko_ua' => $this->safeNewsText($validated['kratko_ua'] ?? '', 65000),
+            'kratko_en' => $this->safeNewsText($validated['kratko_en'] ?? '', 65000),
+            'txt' => $this->safeNewsText($validated['txt'] ?? '', 65000),
+            'txt_ua' => $this->safeNewsText($validated['txt_ua'] ?? '', 65000),
+            'txt_en' => $this->safeNewsText($validated['txt_en'] ?? '', 65000),
             'foto' => $foto,
             'dt' => (string) ($validated['dt'] ?? date('d-m-Y')),
             'time' => (string) ($validated['time'] ?? date('H:i:s')),
@@ -138,7 +138,7 @@ class NewsController extends Controller
             'article' => (bool) ($validated['article'] ?? false) ? 1 : 0,
             'tags' => $this->safeNewsKeywords($validated['tags'] ?? '', 30),
             'htmlkeys' => $this->safeNewsKeywords($validated['htmlkeys'] ?? '', 30),
-            'codesocnet' => $this->safeNewsText($validated['codesocnet'] ?? '', 2000),
+            'codesocnet' => $this->safeNewsText($validated['codesocnet'] ?? '', 65000),
             'author' => 0,
             'top' => (string) ($validated['top'] ?? ''),
         ]);
@@ -230,12 +230,12 @@ class NewsController extends Controller
             'title_ua' => ['nullable', 'string', 'max:100'],
             'title_en' => ['nullable', 'string', 'max:100'],
             'url' => ['nullable', 'string', 'max:100'],
-            'kratko' => ['nullable', 'string', 'max:2000'],
-            'kratko_ua' => ['nullable', 'string', 'max:2000'],
-            'kratko_en' => ['nullable', 'string', 'max:2000'],
-            'txt' => ['nullable', 'string', 'max:2000'],
-            'txt_ua' => ['nullable', 'string', 'max:2000'],
-            'txt_en' => ['nullable', 'string', 'max:2000'],
+            'kratko' => ['nullable', 'string', 'max:65000'],
+            'kratko_ua' => ['nullable', 'string', 'max:65000'],
+            'kratko_en' => ['nullable', 'string', 'max:65000'],
+            'txt' => ['nullable', 'string', 'max:65000'],
+            'txt_ua' => ['nullable', 'string', 'max:65000'],
+            'txt_en' => ['nullable', 'string', 'max:65000'],
             'tags' => ['nullable', 'string', 'max:30'],
             'htmlkeys' => ['nullable', 'string', 'max:30'],
             'foto_upload' => ['nullable', 'image', 'max:5120'],
@@ -268,12 +268,12 @@ class NewsController extends Controller
             'title_ua' => $titleUa,
             'title_en' => $titleEn,
             'url' => $this->safeNewsLine($validated['url'] ?? '', 100),
-            'kratko' => $this->safeNewsText($validated['kratko'] ?? '', 2000),
-            'kratko_ua' => $this->safeNewsText($validated['kratko_ua'] ?? '', 2000),
-            'kratko_en' => $this->safeNewsText($validated['kratko_en'] ?? '', 2000),
-            'txt' => $this->safeNewsText($validated['txt'] ?? '', 2000),
-            'txt_ua' => $this->safeNewsText($validated['txt_ua'] ?? '', 2000),
-            'txt_en' => $this->safeNewsText($validated['txt_en'] ?? '', 2000),
+            'kratko' => $this->safeNewsText($validated['kratko'] ?? '', 65000),
+            'kratko_ua' => $this->safeNewsText($validated['kratko_ua'] ?? '', 65000),
+            'kratko_en' => $this->safeNewsText($validated['kratko_en'] ?? '', 65000),
+            'txt' => $this->safeNewsText($validated['txt'] ?? '', 65000),
+            'txt_ua' => $this->safeNewsText($validated['txt_ua'] ?? '', 65000),
+            'txt_en' => $this->safeNewsText($validated['txt_en'] ?? '', 65000),
             'foto' => $foto,
             'dt' => (string) $request->input('dt', date('d-m-Y')),
             'time' => $request->input('time') ?: date('H:i:s'),
@@ -313,12 +313,12 @@ class NewsController extends Controller
             'title_ua' => ['nullable', 'string', 'max:100'],
             'title_en' => ['nullable', 'string', 'max:100'],
             'url' => ['nullable', 'string', 'max:100'],
-            'kratko' => ['nullable', 'string', 'max:2000'],
-            'kratko_ua' => ['nullable', 'string', 'max:2000'],
-            'kratko_en' => ['nullable', 'string', 'max:2000'],
-            'txt' => ['nullable', 'string', 'max:2000'],
-            'txt_ua' => ['nullable', 'string', 'max:2000'],
-            'txt_en' => ['nullable', 'string', 'max:2000'],
+            'kratko' => ['nullable', 'string', 'max:65000'],
+            'kratko_ua' => ['nullable', 'string', 'max:65000'],
+            'kratko_en' => ['nullable', 'string', 'max:65000'],
+            'txt' => ['nullable', 'string', 'max:65000'],
+            'txt_ua' => ['nullable', 'string', 'max:65000'],
+            'txt_en' => ['nullable', 'string', 'max:65000'],
             'foto' => ['nullable', 'string', 'max:250'],
             'foto_upload' => ['nullable', 'image', 'max:5120'],
             'dt' => ['nullable', 'string', 'max:12'],
@@ -330,15 +330,14 @@ class NewsController extends Controller
             'article' => ['nullable', 'boolean'],
             'tags' => ['nullable', 'string', 'max:30'],
             'htmlkeys' => ['nullable', 'string', 'max:30'],
-            'codesocnet' => ['nullable', 'string', 'max:2000'],
+            'codesocnet' => ['nullable', 'string', 'max:65000'],
             'top' => ['nullable', 'string', 'max:5'],
         ]);
     }
 
     private function safeNewsLine(mixed $value, int $maxLength): string
     {
-        $text = preg_replace('/[\x00-\x1F\x7F<>{}\[\]\\\\=;:*|~^$#@!?%&+]/u', '', (string) ($value ?? ''));
-        $text = preg_replace("/[^\p{L}\p{M}\p{N}\s.,'\"’`()_-]/u", '', (string) $text);
+        $text = preg_replace('/[\x00-\x1F\x7F]/u', '', (string) ($value ?? ''));
         $text = preg_replace('/\s+/u', ' ', trim(strip_tags((string) $text)));
 
         return mb_substr((string) $text, 0, $maxLength);
@@ -356,11 +355,11 @@ class NewsController extends Controller
     private function safeNewsText(mixed $value, int $maxLength): string
     {
         $text = (string) ($value ?? '');
-        $text = preg_replace('/<\s*(script|style|iframe|object|embed|link|meta|form|input|button)\b[^>]*>.*?<\s*\/\s*\1\s*>/isu', '', $text);
-        $text = preg_replace('/<\s*(script|style|iframe|object|embed|link|meta|form|input|button)\b[^>]*\/?>/isu', '', (string) $text);
+        $text = preg_replace('/<\s*(script|style|iframe|object|embed)\b[^>]*>.*?<\s*\/\s*\1\s*>/isu', '', $text);
+        $text = preg_replace('/<\s*(script|style|iframe|object|embed)\b[^>]*\/?>/isu', '', (string) $text);
         $text = preg_replace('/\s+on\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/iu', '', (string) $text);
         $text = preg_replace('/\s+(href|src)\s*=\s*("[\s]*javascript:[^"]*"|\'[\s]*javascript:[^\']*\'|javascript:[^\s>]+)/iu', '', (string) $text);
-        $text = strip_tags((string) $text, '<p><br><strong><b><em><i><u><ul><ol><li><blockquote><a><img><h2><h3><h4>');
+        // All HTML tags preserved — only dangerous elements (script/style/iframe/object/embed) are stripped
 
         return mb_substr(trim((string) $text), 0, $maxLength);
     }
