@@ -125,11 +125,11 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Короткий текст RU (`kratko`)</label>
-                    <textarea name="kratko" class="form-control news-safe-text" rows="4" maxlength="2000">{{ old('kratko', $item->kratko ?? '') }}</textarea>
+                    <textarea name="kratko" class="form-control news-safe-text" rows="4" maxlength="65000">{{ old('kratko', $item->kratko ?? '') }}</textarea>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Повний текст RU (`txt`)</label>
-                    <textarea name="txt" class="form-control news-safe-text" rows="12" maxlength="2000">{{ old('txt', $item->txt ?? '') }}</textarea>
+                    <textarea name="txt" class="form-control news-safe-text" rows="12" maxlength="65000">{{ old('txt', $item->txt ?? '') }}</textarea>
                 </div>
             </div>
 
@@ -140,11 +140,11 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Короткий текст UA (`kratko_ua`)</label>
-                    <textarea name="kratko_ua" class="form-control news-safe-text" rows="4" maxlength="2000">{{ old('kratko_ua', $item->kratko_ua ?? '') }}</textarea>
+                    <textarea name="kratko_ua" class="form-control news-safe-text" rows="4" maxlength="65000">{{ old('kratko_ua', $item->kratko_ua ?? '') }}</textarea>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Повний текст UA (`txt_ua`)</label>
-                    <textarea name="txt_ua" class="form-control news-safe-text" rows="12" maxlength="2000">{{ old('txt_ua', $item->txt_ua ?? '') }}</textarea>
+                    <textarea name="txt_ua" class="form-control news-safe-text" rows="12" maxlength="65000">{{ old('txt_ua', $item->txt_ua ?? '') }}</textarea>
                 </div>
             </div>
 
@@ -155,11 +155,11 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Короткий текст EN (`kratko_en`)</label>
-                    <textarea name="kratko_en" class="form-control news-safe-text" rows="4" maxlength="2000">{{ old('kratko_en', $item->kratko_en ?? '') }}</textarea>
+                    <textarea name="kratko_en" class="form-control news-safe-text" rows="4" maxlength="65000">{{ old('kratko_en', $item->kratko_en ?? '') }}</textarea>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Повний текст EN (`txt_en`)</label>
-                    <textarea name="txt_en" class="form-control news-safe-text" rows="12" maxlength="2000">{{ old('txt_en', $item->txt_en ?? '') }}</textarea>
+                    <textarea name="txt_en" class="form-control news-safe-text" rows="12" maxlength="65000">{{ old('txt_en', $item->txt_en ?? '') }}</textarea>
                 </div>
             </div>
         </div>
@@ -244,8 +244,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!form) return;
 
     const safeLine = value => String(value || '')
-        .replace(/[\x00-\x1F\x7F<>{}\[\]\\=;:*|~^$#@!?%&+]/g, '')
-        .replace(/[^\p{L}\p{M}\p{N}\s.,'"’`()_-]/gu, '')
+        .replace(/[\x00-\x1F\x7F]/g, '')
         .replace(/\s+/g, ' ')
         .slice(0, 100);
     const safeKeywords = value => String(value || '')
@@ -257,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/\son\w+\s*=\s*(['"]).*?\1/gi, '')
         .replace(/\s(href|src)\s*=\s*(['"])\s*javascript:.*?\2/gi, '')
-        .slice(0, 2000);
+        .slice(0, 65000);
     const ensureCounter = input => {
         const maxLength = Number(input.getAttribute('maxlength') || 0);
         if (!maxLength) return null;
