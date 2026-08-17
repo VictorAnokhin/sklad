@@ -265,6 +265,7 @@ Route::post('/fund/pools', [FundPoolController::class, 'store']);
 Route::post('/fund/pools/events', [FundPoolController::class, 'storeEvents']);
 Route::get('/fund/pools/positions', [FundPoolController::class, 'allPositions']);
 Route::post('/fund/pools/positions', [FundPoolController::class, 'storePositions']);
+Route::post('/fund/pools/record-operation', [FundPoolController::class, 'recordOperation']);
 Route::get('/fund/pools/credit-requests', [FundPoolController::class, 'creditRequests']);
 Route::post('/fund/pools/credit-request', [FundPoolController::class, 'storeCreditRequest']);
 Route::put('/fund/pools/{id}/credit-request', [FundPoolController::class, 'updateCreditRequestTerms']);

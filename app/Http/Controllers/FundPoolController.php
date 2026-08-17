@@ -605,6 +605,143 @@ class FundPoolController extends Controller
         return response()->json(['saved' => $saved]);
     }
 
+    public function recordOperation(Request $request): JsonResponse
+    {
+        if (! Schema::hasTable('fund_pool_wallet_positions')) {
+            return response()->json(['message' => 'fund_pool_wallet_positions table is missing.'], 422);
+        }
+
+        $validated = $request->validate([
+            'network' => ['nullable', 'string', 'max:40'],
+            'pool_object_id' => ['required', 'string', 'max:80'],
+            'wallet_address' => ['required', 'string', 'max:80'],
+            'operation_type' => ['required', 'string', Rule::in(['av8_stake', 'av8_unstake', 'deposit', 'withdraw'])],
+            'amount_av8' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
+            'amount_usdc' => ['nullable', 'string', 'max:80', 'regex:/^\d+$/'],
+            'tx_digest' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $network = (string) ($validated['network'] ?? 'testnet');
+        $poolObjectId = $this->normalizeSuiAddress((string) $validated['pool_object_id']);
+        $walletAddress = $this->normalizeSuiAddress((string) $validated['wallet_address']);
+        $type = (string) $validated['operation_type'];
+        $amountAv8 = (string) ($validated['amount_av8'] ?? '0');
+        $amountUsdc = (string) ($validated['amount_usdc'] ?? '0');
+        $txDigest = $validated['tx_digest'] ?? null;
+        $now = now();
+
+        $poolRecord = Schema::hasTable('fund_pools')
+            ? DB::table('fund_pools')->whereRaw('LOWER(pool_object_id) = ?', [$poolObjectId])->first()
+            : null;
+
+        $existing = DB::table('fund_pool_wallet_positions')
+            ->where('network', $network)
+            ->whereRaw('LOWER(pool_object_id) = ?', [$poolObjectId])
+            ->whereRaw('LOWER(wallet_address) = ?', [$walletAddress])
+            ->first();
+
+        $curBalanceAv8 = (float) ($existing->balance_av8 ?? 0);
+        $curDepositedAv8 = (float) ($existing->deposited_av8 ?? 0);
+        $curWithdrawnAv8 = (float) ($existing->withdrawn_av8 ?? 0);
+        $curBalanceUsdc = (float) ($existing->balance_usdc ?? 0);
+        $curDepositedUsdc = (float) ($existing->deposited_usdc ?? 0);
+        $curWithdrawnUsdc = (float) ($existing->withdrawn_usdc ?? 0);
+        $curStakeOps = (int) ($existing->stake_operations_count ?? 0);
+        $curUnstakeOps = (int) ($existing->unstake_operations_count ?? 0);
+
+        $deltaAv8 = (float) $amountAv8;
+        $deltaUsdc = (float) $amountUsdc;
+
+        if ($type === 'av8_stake') {
+            $curBalanceAv8 += $deltaAv8;
+            $curDepositedAv8 += $deltaAv8;
+            $curStakeOps++;
+        } elseif ($type === 'av8_unstake') {
+            $curBalanceAv8 = max(0.0, $curBalanceAv8 - $deltaAv8);
+            $curWithdrawnAv8 += $deltaAv8;
+            $curUnstakeOps++;
+        } elseif ($type === 'deposit') {
+            $curBalanceUsdc += $deltaUsdc;
+            $curDepositedUsdc += $deltaUsdc;
+            $curStakeOps++;
+        } elseif ($type === 'withdraw') {
+            $curBalanceUsdc = max(0.0, $curBalanceUsdc - $deltaUsdc);
+            $curWithdrawnUsdc += $deltaUsdc;
+            $curUnstakeOps++;
+        }
+
+        $positionData = [
+            'network' => $network,
+            'pool_object_id' => $poolObjectId,
+            'pool_id' => $poolRecord ? $poolRecord->id : null,
+            'wallet_address' => $walletAddress,
+            'balance_av8' => sprintf('%.0f', $curBalanceAv8),
+            'balance_usdc' => sprintf('%.0f', $curBalanceUsdc),
+            'deposited_av8' => sprintf('%.0f', $curDepositedAv8),
+            'withdrawn_av8' => sprintf('%.0f', $curWithdrawnAv8),
+            'deposited_usdc' => sprintf('%.0f', $curDepositedUsdc),
+            'withdrawn_usdc' => sprintf('%.0f', $curWithdrawnUsdc),
+            'stake_operations_count' => $curStakeOps,
+            'unstake_operations_count' => $curUnstakeOps,
+            'last_tx_digest' => $txDigest ?: ($existing->last_tx_digest ?? null),
+            'last_event_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        DB::table('fund_pool_wallet_positions')->updateOrInsert(
+            [
+                'network' => $network,
+                'pool_object_id' => $poolObjectId,
+                'wallet_address' => $walletAddress,
+            ],
+            $positionData
+        );
+
+        // Also record in fund_pool_events so history and charts stay in sync
+        if (Schema::hasTable('fund_pool_events')) {
+            $packageId = $poolRecord ? (string) ($poolRecord->package_id ?? '') : '';
+            $eventValues = [
+                'network' => $network,
+                'package_id' => $this->normalizeSuiAddress($packageId),
+                'event_type' => $type,
+                'move_event_type' => $packageId ? "{$packageId}::pool_manager::" . ($type === 'av8_stake' ? 'PoolAv8StakedEvent' : ($type === 'av8_unstake' ? 'PoolAv8UnstakedEvent' : ($type === 'deposit' ? 'PoolDepositEvent' : 'PoolWithdrawEvent'))) : '',
+                'checkpoint' => null,
+                'pool_object_id' => $poolObjectId,
+                'owner_address' => $walletAddress,
+                'amount_usdc' => $amountUsdc,
+                'pool_shares' => $type === 'av8_stake' ? $amountAv8 : ($type === 'deposit' ? $amountUsdc : '0'),
+                'burned_pool_shares' => $type === 'av8_unstake' ? $amountAv8 : ($type === 'withdraw' ? $amountUsdc : '0'),
+                'balance_usdc' => '0',
+                'active' => true,
+                'target_apy_bps' => null,
+                'realized_apy_bps' => null,
+                'min_deposit_usdc' => null,
+                'max_weight_bps' => null,
+                'raw_event' => json_encode(['direct_recorded' => true, 'type' => $type, 'amount_av8' => $amountAv8, 'amount_usdc' => $amountUsdc]),
+                'event_at' => $now,
+                'updated_at' => $now,
+                'created_at' => $now,
+            ];
+            if (Schema::hasColumn('fund_pool_events', 'amount_av8')) {
+                $eventValues['amount_av8'] = $amountAv8;
+            }
+
+            $uniqueTx = $txDigest ?: ('direct_' . bin2hex(random_bytes(8)));
+            DB::table('fund_pool_events')->updateOrInsert(
+                [
+                    'tx_digest' => $uniqueTx,
+                    'event_seq' => 0,
+                ],
+                $eventValues
+            );
+        }
+
+        return response()->json([
+            'recorded' => true,
+            'position' => $positionData,
+        ]);
+    }
+
     public function storeEvents(Request $request): JsonResponse
     {
         if (! Schema::hasTable('fund_pool_events')) {
@@ -1248,8 +1385,14 @@ class FundPoolController extends Controller
         $normalizedPoolId = $this->normalizeSuiAddress($poolObjectId);
 
         if (Schema::hasTable('fund_pool_wallet_positions')) {
-            // Always recalculate from events to ensure accuracy after new stakes
-            $this->recalculateWalletPositions($normalizedPoolId, $network);
+            $hasAny = DB::table('fund_pool_wallet_positions')
+                ->whereRaw('LOWER(pool_object_id) = ?', [$normalizedPoolId])
+                ->where('network', $network)
+                ->exists();
+
+            if (! $hasAny) {
+                $this->recalculateWalletPositions($normalizedPoolId, $network);
+            }
 
             $rows = DB::table('fund_pool_wallet_positions')
                 ->whereRaw('LOWER(pool_object_id) = ?', [$normalizedPoolId])
