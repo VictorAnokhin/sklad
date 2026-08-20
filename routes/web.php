@@ -19,6 +19,7 @@ use App\Http\Controllers\KursController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\MoneyController;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\PayController;
 use App\Http\Controllers\PriceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
@@ -104,6 +105,8 @@ Route::post('/price/order', [PriceController::class, 'order'])->name('price.orde
 // ── Protected area ────────────────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [AuthController::class , 'dashboard'])->name('dashboard');
+    Route::get('/pay', [PayController::class, 'index'])->name('pay');
+    Route::post('/pay', [PayController::class, 'store'])->name('pay.store');
     Route::name('education.')->group(function () {
         Route::get('/course', [EducationController::class, 'course'])->name('course');
         Route::get('/course/{topic}', [EducationController::class, 'courseShow'])->name('course.show');
