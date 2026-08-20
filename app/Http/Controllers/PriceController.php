@@ -38,6 +38,7 @@ class PriceController extends Controller
             'customer_email' => [$user ? 'nullable' : 'required', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
             'customer_comment' => ['nullable', 'string', 'max:1000'],
+            'payment_method' => ['nullable', 'string', 'max:60'],
         ];
         $validated = $request->validate($rules);
 
@@ -60,6 +61,7 @@ class PriceController extends Controller
             'email' => mb_substr(trim((string) ($validated['customer_email'] ?? ($user->email ?? ''))), 0, 255),
             'phone' => self::cleanText($validated['customer_phone'] ?? ($user->phone ?? ''), 50),
             'comment' => self::cleanPlanHtml($validated['customer_comment'] ?? '', 1000),
+            'payment_method' => self::cleanText($validated['payment_method'] ?? 'invoice', 60),
         ];
 
         $subscriptionId = DB::transaction(function () use ($user, $plan, $planArray, $contact) {
@@ -91,7 +93,7 @@ class PriceController extends Controller
                 'payment_status' => 'paid',
                 'starts_at' => $today,
                 'next_billing_at' => $today,
-                'payment_method' => '',
+                'payment_method' => $contact['payment_method'],
                 'auto_create_invoice' => true,
                 'auto_close_if_paid' => false,
                 'notes' => $contact['comment'],

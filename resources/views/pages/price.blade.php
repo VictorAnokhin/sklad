@@ -11,6 +11,9 @@
         @if(session('success'))
         <div class="pricing-alert pricing-alert--success">{{ session('success') }}</div>
         @endif
+        @if(session('warning'))
+        <div class="pricing-alert pricing-alert--warning">{{ session('warning') }}</div>
+        @endif
         @if($errors->any())
         <div class="pricing-alert pricing-alert--danger">{{ $errors->first() }}</div>
         @endif
@@ -37,7 +40,7 @@
                 </div>
 
                 @if(auth()->check() && in_array((string) ($plan['id'] ?? ''), $purchasedPlans, true))
-                    <button type="button" class="pricing-card__button pricing-card__button--muted" disabled>Используется</button>
+                    <button type="button" class="pricing-card__button pricing-card__button--muted" disabled>Подключено</button>
                 @else
                     <button
                         type="button"
@@ -46,7 +49,7 @@
                         data-plan-id="{{ $plan['id'] ?? '' }}"
                         data-plan-name="{{ $plan['name'] ?? '' }}"
                         data-plan-price="{{ $plan['price'] ?? '' }}"
-                    >Заказать</button>
+                    >Подключить</button>
                 @endif
             </article>
             @endforeach
@@ -57,7 +60,7 @@
         <div class="pricing-order-modal__backdrop" data-price-order-close></div>
         <div class="pricing-order-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="pricing-order-title">
             <button type="button" class="pricing-order-modal__close" aria-label="Закрыть" data-price-order-close>×</button>
-            <h2 id="pricing-order-title">Заказать тариф</h2>
+            <h2 id="pricing-order-title">Подключение тарифа</h2>
             <p class="pricing-order-modal__subtitle">
                 Выбранный тариф: <strong id="pricing-order-plan-label"></strong>
             </p>
@@ -67,27 +70,46 @@
                 <input type="hidden" name="plan_id" id="pricing-order-plan-id-input" value="{{ old('plan_id') }}">
                 <input type="hidden" name="plan" id="pricing-order-plan-input" value="{{ old('plan') }}">
 
-                <div class="pricing-order-form__grid">
-                    <label>
-                        <span>Имя</span>
-                        <input type="text" name="customer_name" value="{{ old('customer_name', auth()->check() ? trim(implode(' ', array_filter([auth()->user()->secondname ?? '', auth()->user()->name ?? '', auth()->user()->fathername ?? '']))) : '') }}" maxlength="120" {{ auth()->check() ? '' : 'required' }}>
-                    </label>
-                    <label>
-                        <span>Email</span>
-                        <input type="email" name="customer_email" value="{{ old('customer_email', auth()->user()->email ?? '') }}" maxlength="255" {{ auth()->check() ? '' : 'required' }}>
-                    </label>
-                    <label>
-                        <span>Телефон</span>
-                        <input type="text" name="customer_phone" value="{{ old('customer_phone', auth()->user()->phone ?? '') }}" maxlength="50">
-                    </label>
+                <div class="pricing-order-tabs" role="tablist" aria-label="Подключение тарифа">
+                    <button type="button" class="pricing-order-tab is-active" role="tab" aria-selected="true">Подключено</button>
                 </div>
 
-                <label>
-                    <span>Комментарий</span>
-                    <textarea name="customer_comment" rows="4" maxlength="1000">{{ old('customer_comment') }}</textarea>
-                </label>
+                <section class="pricing-payment-panel" role="tabpanel">
+                    <div class="pricing-payment-summary">
+                        <span>К оплате</span>
+                        <strong id="pricing-order-plan-price-label"></strong>
+                    </div>
 
-                <button type="submit" class="pricing-card__button">Отправить заявку</button>
+                    <div class="pricing-order-form__grid">
+                        <label>
+                            <span>Плательщик</span>
+                            <input type="text" name="customer_name" value="{{ old('customer_name', auth()->check() ? trim(implode(' ', array_filter([auth()->user()->secondname ?? '', auth()->user()->name ?? '', auth()->user()->fathername ?? '']))) : '') }}" maxlength="120" {{ auth()->check() ? '' : 'required' }}>
+                        </label>
+                        <label>
+                            <span>Email для счета</span>
+                            <input type="email" name="customer_email" value="{{ old('customer_email', auth()->user()->email ?? '') }}" maxlength="255" {{ auth()->check() ? '' : 'required' }}>
+                        </label>
+                        <label>
+                            <span>Телефон</span>
+                            <input type="text" name="customer_phone" value="{{ old('customer_phone', auth()->user()->phone ?? '') }}" maxlength="50">
+                        </label>
+                        <label>
+                            <span>Способ оплаты</span>
+                            <select name="payment_method">
+                                <option value="invoice" {{ old('payment_method', 'invoice') === 'invoice' ? 'selected' : '' }}>Счет на оплату</option>
+                                <option value="card" {{ old('payment_method') === 'card' ? 'selected' : '' }}>Банковская карта</option>
+                                <option value="crypto" {{ old('payment_method') === 'crypto' ? 'selected' : '' }}>Крипто</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <label>
+                        <span>Комментарий к оплате</span>
+                        <textarea name="customer_comment" rows="4" maxlength="1000">{{ old('customer_comment') }}</textarea>
+                    </label>
+                </section>
+
+                <button type="submit" class="pricing-card__button">Оплатить и подключить</button>
             </form>
         </div>
     </div>
@@ -147,6 +169,12 @@
         border: 1px solid rgba(34, 197, 94, 0.36);
         background: rgba(34, 197, 94, 0.14);
         color: #bbf7d0;
+    }
+
+    .pricing-alert--warning {
+        border: 1px solid rgba(251, 191, 36, 0.42);
+        background: rgba(251, 191, 36, 0.16);
+        color: #fde68a;
     }
 
     .pricing-alert--danger {
@@ -346,6 +374,56 @@
         gap: 16px;
     }
 
+    .pricing-order-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .pricing-order-tab {
+        min-height: 38px;
+        padding: 0 1rem;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.68);
+        font-weight: 800;
+    }
+
+    .pricing-order-tab.is-active {
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        color: #111827;
+    }
+
+    .pricing-payment-panel {
+        display: grid;
+        gap: 16px;
+    }
+
+    .pricing-payment-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 14px 16px;
+        border: 1px solid rgba(56, 189, 248, 0.24);
+        border-radius: 8px;
+        background: rgba(56, 189, 248, 0.08);
+    }
+
+    .pricing-payment-summary span {
+        color: var(--pricing-muted);
+        font-weight: 700;
+    }
+
+    .pricing-payment-summary strong {
+        color: #fff;
+        font-size: 1.25rem;
+    }
+
     .pricing-order-form__grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -360,6 +438,7 @@
     }
 
     .pricing-order-form input,
+    .pricing-order-form select,
     .pricing-order-form textarea {
         width: 100%;
         border: 1px solid rgba(255, 255, 255, 0.14);
@@ -367,6 +446,10 @@
         background: rgba(255, 255, 255, 0.06);
         color: #fff;
         padding: 0.72rem 0.82rem;
+    }
+
+    .pricing-order-form select {
+        appearance: none;
     }
 
     .pricing-order-form textarea {
@@ -394,8 +477,9 @@
         const planIdInput = document.getElementById('pricing-order-plan-id-input');
         const planInput = document.getElementById('pricing-order-plan-input');
         const planLabel = document.getElementById('pricing-order-plan-label');
+        const planPriceLabel = document.getElementById('pricing-order-plan-price-label');
 
-        if (!modal || !planIdInput || !planInput || !planLabel) {
+        if (!modal || !planIdInput || !planInput || !planLabel || !planPriceLabel) {
             return;
         }
 
@@ -403,6 +487,7 @@
             planIdInput.value = planId || '';
             planInput.value = planName || '';
             planLabel.textContent = [planName, planPrice].filter(Boolean).join(' · ');
+            planPriceLabel.textContent = planPrice || 'по счету';
             modal.classList.add('is-open');
             modal.setAttribute('aria-hidden', 'false');
             document.body.style.overflow = 'hidden';
