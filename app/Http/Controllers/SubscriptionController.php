@@ -34,6 +34,9 @@ class SubscriptionController extends Controller
         $fid = $this->activeFid();
         $validated = $this->validatePlan($request);
         $payload = $this->planPayload($validated);
+        if ($this->planAccessesColumnExists()) {
+            $payload['accesses'] = json_encode($this->validatedAccesses($request), JSON_UNESCAPED_UNICODE);
+        }
 
         DB::table('subscription_plans')->insert(array_merge($payload, [
             'project_id' => (int) $fid,
@@ -53,6 +56,9 @@ class SubscriptionController extends Controller
         abort_unless($this->planExists($fid, $plan), 404);
         $validated = $this->validatePlan($request);
         $payload = $this->planPayload($validated);
+        if ($this->planAccessesColumnExists()) {
+            $payload['accesses'] = json_encode($this->validatedAccesses($request), JSON_UNESCAPED_UNICODE);
+        }
 
         DB::table('subscription_plans')->where('id', $plan)->update(array_merge($payload, [
             'blocked_features' => json_encode($request->input('blocked_features', []), JSON_UNESCAPED_UNICODE),
@@ -143,10 +149,6 @@ class SubscriptionController extends Controller
             'updated_at' => now(),
         ];
 
-        if ($this->subscriptionAccessesColumnExists()) {
-            $payload['accesses'] = json_encode($this->validatedAccesses($request), JSON_UNESCAPED_UNICODE);
-        }
-
         DB::table('customer_subscriptions')->insert($payload);
 
         return redirect()->route('subscriptions.index', ['tab' => 'customers'])->with('success', 'Подписка клиента создана');
@@ -171,10 +173,6 @@ class SubscriptionController extends Controller
             'notes' => $validated['notes'] ?? null,
             'updated_at' => now(),
         ];
-
-        if ($this->subscriptionAccessesColumnExists()) {
-            $payload['accesses'] = json_encode($this->validatedAccesses($request), JSON_UNESCAPED_UNICODE);
-        }
 
         DB::table('customer_subscriptions')->where('id', $subscription)->update($payload);
 
@@ -279,6 +277,7 @@ class SubscriptionController extends Controller
 
         return $plans->map(function (object $plan) use ($items): object {
             $plan->items = $items->get($plan->id, collect());
+            $plan->accesses_map = $this->decodeAccesses($plan->accesses ?? null);
             return $plan;
         });
     }
@@ -309,12 +308,7 @@ class SubscriptionController extends Controller
             )
             ->orderByDesc('cs.updated_at')
             ->orderByDesc('cs.id')
-            ->get()
-            ->map(function (object $subscription): object {
-                $subscription->accesses_map = $this->decodeAccesses($subscription->accesses ?? null);
-
-                return $subscription;
-            });
+            ->get();
     }
 
     private function invoices(string $fid)
@@ -382,9 +376,9 @@ class SubscriptionController extends Controller
         return Schema::hasTable('subscription_plans') && Schema::hasColumn('subscription_plans', 'sort_order');
     }
 
-    private function subscriptionAccessesColumnExists(): bool
+    private function planAccessesColumnExists(): bool
     {
-        return Schema::hasTable('customer_subscriptions') && Schema::hasColumn('customer_subscriptions', 'accesses');
+        return Schema::hasTable('subscription_plans') && Schema::hasColumn('subscription_plans', 'accesses');
     }
 
     private function validatedAccesses(Request $request): array

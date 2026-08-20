@@ -105,10 +105,6 @@ class SyncLegacySessionFromAuth
             'updated_at' => now(),
         ];
 
-        if (Schema::hasColumn('customer_subscriptions', 'accesses')) {
-            $payload['accesses'] = null;
-        }
-
         DB::table('customer_subscriptions')->insert($payload);
     }
 }

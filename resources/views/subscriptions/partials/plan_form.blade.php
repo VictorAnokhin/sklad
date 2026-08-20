@@ -1,4 +1,7 @@
-@php($isEdit = !empty($plan))
+@php
+    $isEdit = !empty($plan);
+    $accessesMap = $plan->accesses_map ?? [];
+@endphp
 <form method="POST" action="{{ $isEdit ? route('subscriptions.plans.update', ['plan' => $plan->id]) : route('subscriptions.plans.store') }}">
     @csrf
     @if($isEdit) @method('PUT') @endif
@@ -22,6 +25,55 @@
         <label class="form-check"><span><input type="checkbox" name="active" value="1" {{ old('active', $plan->active ?? true) ? 'checked' : '' }}> Активен</span></label>
         <label class="form-check"><span><input type="checkbox" name="block_on_overdue" value="1" {{ old('block_on_overdue', $plan->block_on_overdue ?? true) ? 'checked' : '' }}> Блокировать при неоплате</span></label>
     </div>
+
+    <section class="subscription-accesses mt-4">
+        <div class="subscription-card__head">
+            <div>
+                <h3>Доступы тарифа</h3>
+                <p>Включайте доступ к разделам и задавайте лимит. Значение 0 означает без ограничения.</p>
+            </div>
+        </div>
+
+        <div class="subscription-accesses-grid">
+            @foreach(($accessGroups ?? []) as $group)
+                <section class="subscription-access-group">
+                    <h4>{{ $group['label'] }}</h4>
+                    @foreach($group['items'] as $accessKey => $label)
+                        @php
+                            $oldEnabled = old('accesses', null);
+                            $enabled = is_array($oldEnabled)
+                                ? in_array($accessKey, $oldEnabled, true)
+                                : (bool) ($accessesMap[$accessKey]['enabled'] ?? false);
+                            $limit = old("access_limits.{$accessKey}", $accessesMap[$accessKey]['limit'] ?? 0);
+                        @endphp
+                        <div class="subscription-access-row">
+                            <label class="subscription-access-check">
+                                <input
+                                    type="checkbox"
+                                    name="accesses[]"
+                                    value="{{ $accessKey }}"
+                                    {{ $enabled ? 'checked' : '' }}
+                                >
+                                <span>{{ $label }}</span>
+                            </label>
+                            <label class="subscription-access-limit">
+                                <span>Лимит</span>
+                                <input
+                                    type="number"
+                                    name="access_limits[{{ $accessKey }}]"
+                                    class="form-control"
+                                    value="{{ (int) $limit }}"
+                                    min="0"
+                                    max="999999999"
+                                >
+                            </label>
+                        </div>
+                    @endforeach
+                </section>
+            @endforeach
+        </div>
+    </section>
+
     <button class="btn btn-success mt-3">{{ $isEdit ? 'Сохранить тариф' : 'Создать тариф' }}</button>
 </form>
 @if($isEdit)
