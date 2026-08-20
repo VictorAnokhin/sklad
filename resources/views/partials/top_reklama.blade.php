@@ -1741,7 +1741,34 @@
         return false;
       }
 
-      return true;
+      const tagName = button.tagName ? button.tagName.toLowerCase() : '';
+      const buttonType = (button.getAttribute('type') || (tagName === 'button' ? 'submit' : '')).toLowerCase();
+      const isSubmitControl = buttonType === 'submit' || tagName === 'input' && buttonType === 'image';
+
+      if (!isSubmitControl) {
+        return false;
+      }
+
+      const form = button.form || (button.getAttribute('form') ? document.getElementById(button.getAttribute('form')) : null) || button.closest('form');
+      if (!form) {
+        return false;
+      }
+
+      const method = (form.getAttribute('method') || 'get').toLowerCase();
+      return method !== 'get';
+    }
+
+    function shouldShowSpinnerForForm(form) {
+      if (!form || isSpinnerDisabledPage) {
+        return false;
+      }
+
+      if (form.matches('[data-no-spinner]')) {
+        return false;
+      }
+
+      const method = (form.getAttribute('method') || 'get').toLowerCase();
+      return method !== 'get';
     }
 
     if (burger && menu) {
@@ -2283,15 +2310,24 @@
         closeHeaderMenu();
       });
 
-      document.addEventListener('click', function (event) {
-        const button = event.target.closest('button, input[type="button"], input[type="submit"], input[type="reset"], [role="button"], .btn');
+      document.addEventListener('submit', function (event) {
+        const submitter = event.submitter || null;
 
-        if (!button || !shouldShowSpinnerForButton(button)) {
+        if (event.defaultPrevented) {
           return;
         }
 
-        showNavigationSpinner();
-      }, true);
+        if (submitter) {
+          if (shouldShowSpinnerForButton(submitter)) {
+            showNavigationSpinner();
+          }
+          return;
+        }
+
+        if (shouldShowSpinnerForForm(event.target)) {
+          showNavigationSpinner();
+        }
+      });
 
       window.addEventListener('pageshow', function () {
         if (!navigationSpinner) {
