@@ -82,7 +82,7 @@ class FundPoolController extends Controller
                 'created_by' => Auth::id(),
                 'updated_at' => $now,
                 'created_at' => $now,
-            ] + $this->optionalCreditPoolColumns($validated)
+            ] + $this->optionalLocalizedPoolColumns($validated) + $this->optionalCreditPoolColumns($validated)
         );
         $this->clearOtherDefaultDepositPools($network, $poolObjectId, (bool) ($validated['is_default_deposit'] ?? false));
 
@@ -260,7 +260,7 @@ class FundPoolController extends Controller
                 'logo_url' => trim((string) ($validated['logo_url'] ?? '')),
                 'notes' => trim((string) ($validated['notes'] ?? '')) ?: null,
                 'updated_at' => now(),
-            ] + $this->optionalCreditPoolColumns($validated));
+            ] + $this->optionalLocalizedPoolColumns($validated) + $this->optionalCreditPoolColumns($validated));
 
         if ($updated === 0 && ! DB::table('fund_pools')->where('id', $id)->exists()) {
             return response()->json(['message' => 'Not found'], 404);
@@ -861,7 +861,15 @@ class FundPoolController extends Controller
             ],
             'symbol' => ['nullable', 'string', 'max:32'],
             'name' => ['required', 'string', 'max:120'],
+            'name_ua' => ['nullable', 'string', 'max:120'],
+            'name_en' => ['nullable', 'string', 'max:120'],
+            'name_es' => ['nullable', 'string', 'max:120'],
+            'name_fr' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:5000'],
+            'description_ua' => ['nullable', 'string', 'max:5000'],
+            'description_en' => ['nullable', 'string', 'max:5000'],
+            'description_es' => ['nullable', 'string', 'max:5000'],
+            'description_fr' => ['nullable', 'string', 'max:5000'],
             'risk_level' => ['nullable', 'integer', 'min:1', 'max:5'],
             'target_apy_bps' => ['nullable', 'integer', 'min:0', 'max:10000'],
             'realized_apy_bps' => ['nullable', 'integer', 'min:0', 'max:10000'],
@@ -897,6 +905,24 @@ class FundPoolController extends Controller
         );
 
         return $validated;
+    }
+
+    private function optionalLocalizedPoolColumns(array $validated): array
+    {
+        $data = [];
+
+        foreach (['ua', 'en', 'es', 'fr'] as $locale) {
+            foreach (["name_{$locale}", "description_{$locale}"] as $column) {
+                if (! Schema::hasColumn('fund_pools', $column) || ! array_key_exists($column, $validated)) {
+                    continue;
+                }
+
+                $value = trim((string) ($validated[$column] ?? ''));
+                $data[$column] = str_starts_with($column, 'description_') && $value === '' ? null : $value;
+            }
+        }
+
+        return $data;
     }
 
     private function assertRequestedLoanWithinCollateralLimit(string $requestedLoanUsdc, string $collateralValuation): void
@@ -1084,7 +1110,15 @@ class FundPoolController extends Controller
             'coin_type' => (string) $row->coin_type,
             'symbol' => $this->symbolFromCoinType((string) $row->coin_type),
             'name' => (string) $row->name,
+            'name_ua' => Schema::hasColumn('fund_pools', 'name_ua') ? (string) ($row->name_ua ?? '') : '',
+            'name_en' => Schema::hasColumn('fund_pools', 'name_en') ? (string) ($row->name_en ?? '') : '',
+            'name_es' => Schema::hasColumn('fund_pools', 'name_es') ? (string) ($row->name_es ?? '') : '',
+            'name_fr' => Schema::hasColumn('fund_pools', 'name_fr') ? (string) ($row->name_fr ?? '') : '',
             'description' => (string) ($row->description ?? ''),
+            'description_ua' => Schema::hasColumn('fund_pools', 'description_ua') ? (string) ($row->description_ua ?? '') : '',
+            'description_en' => Schema::hasColumn('fund_pools', 'description_en') ? (string) ($row->description_en ?? '') : '',
+            'description_es' => Schema::hasColumn('fund_pools', 'description_es') ? (string) ($row->description_es ?? '') : '',
+            'description_fr' => Schema::hasColumn('fund_pools', 'description_fr') ? (string) ($row->description_fr ?? '') : '',
             'risk_level' => (int) $row->risk_level,
             'target_apy_bps' => (int) $row->target_apy_bps,
             'realized_apy_bps' => (int) $row->realized_apy_bps,
