@@ -110,9 +110,15 @@ class PriceController extends Controller
     public static function plans(): \Illuminate\Support\Collection
     {
         if (Schema::hasTable('subscription_plans')) {
-            return DB::table('subscription_plans')
+            $query = DB::table('subscription_plans')
                 ->where('project_id', (int) self::ORDER_FID)
-                ->where('active', true)
+                ->where('active', true);
+
+            if (Schema::hasColumn('subscription_plans', 'sort_order')) {
+                $query->orderBy('sort_order');
+            }
+
+            return $query
                 ->orderBy('id')
                 ->get()
                 ->map(fn ($row) => self::rowToPlan($row))

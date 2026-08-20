@@ -37,7 +37,7 @@
                     <table class="table table-dark table-hover table-sm align-middle mb-0 subscription-plans-table">
                         <thead>
                             <tr>
-                                <th>№ позиции</th>
+                                <th>Порядок</th>
                                 <th>Название</th>
                                 <th>Цена</th>
                                 <th>Период</th>
@@ -49,7 +49,7 @@
                         <tbody>
                             @forelse($plans as $plan)
                                 <tr class="subscription-plan-row" data-plan-target="subscription-plan-form-{{ $plan->id }}" data-plan-title="{{ $plan->name }}" tabindex="0" role="button">
-                                    <td>{{ $loop->iteration }}</td>
+                                    <td>{{ (int) ($plan->sort_order ?? ($loop->iteration * 100)) }}</td>
                                     <td>
                                         <strong>{{ $plan->name }}</strong>
                                         @if($plan->subtitle ?? '')
@@ -451,11 +451,19 @@ document.addEventListener('DOMContentLoaded', () => {
     .subscription-grid label, .subscription-items label { display: grid; gap: .35rem; color: rgba(255,255,255,.72); font-weight: 600; }
     .subscription-grid .span-2 { grid-column: span 2; }
     .subscription-grid .span-4 { grid-column: 1 / -1; }
+    .subscription-accesses { border-top: 1px solid rgba(255,255,255,.1); padding-top: 1rem; }
+    .subscription-accesses-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .subscription-access-group { border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 1rem; background: rgba(255,255,255,.03); }
+    .subscription-access-group h4 { color: #fff; font-size: 1rem; margin: 0 0 .85rem; }
+    .subscription-access-row { display: grid; grid-template-columns: minmax(0, 1fr) 9rem; gap: .85rem; align-items: center; margin-bottom: .7rem; }
+    .subscription-access-row:last-child { margin-bottom: 0; }
+    .subscription-access-check { display: flex !important; align-items: center; gap: .65rem !important; color: rgba(255,255,255,.78); font-weight: 600; }
+    .subscription-access-limit { display: grid; gap: .3rem; color: rgba(255,255,255,.62); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
     .subscription-items h4 { color: #fff; font-size: 1rem; margin: 0 0 .75rem; }
     .subscription-item-row, .subscription-inline-form { display: grid; grid-template-columns: minmax(0, 1.4fr) .8fr auto; gap: .7rem; align-items: center; margin-top: .55rem; }
     .subscription-inline-form { grid-template-columns: minmax(0, 1.4fr) .7fr .45fr .55fr auto; }
     @media (max-width: 900px) {
-        .subscription-grid, .subscription-grid .span-2, .subscription-grid .span-4, .subscription-item-row, .subscription-inline-form { grid-template-columns: 1fr; }
+        .subscription-grid, .subscription-grid .span-2, .subscription-grid .span-4, .subscription-item-row, .subscription-inline-form, .subscription-accesses-grid, .subscription-access-row { grid-template-columns: 1fr; }
         .subscription-grid .span-2, .subscription-grid .span-4 { grid-column: auto; }
         .subscription-card__head { display: grid; }
     }

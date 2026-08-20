@@ -24,6 +24,7 @@ class SubscriptionController extends Controller
             'invoices' => $this->invoices($fid),
             'clients' => $this->clients($fid),
             'products' => $this->products($fid),
+            'accessGroups' => $this->accessGroups(),
             'fid' => $fid,
         ]);
     }
@@ -32,8 +33,9 @@ class SubscriptionController extends Controller
     {
         $fid = $this->activeFid();
         $validated = $this->validatePlan($request);
+        $payload = $this->planPayload($validated);
 
-        DB::table('subscription_plans')->insert(array_merge($validated, [
+        DB::table('subscription_plans')->insert(array_merge($payload, [
             'project_id' => (int) $fid,
             'blocked_features' => json_encode($request->input('blocked_features', []), JSON_UNESCAPED_UNICODE),
             'block_on_overdue' => $request->boolean('block_on_overdue'),
@@ -50,8 +52,9 @@ class SubscriptionController extends Controller
         $fid = $this->activeFid();
         abort_unless($this->planExists($fid, $plan), 404);
         $validated = $this->validatePlan($request);
+        $payload = $this->planPayload($validated);
 
-        DB::table('subscription_plans')->where('id', $plan)->update(array_merge($validated, [
+        DB::table('subscription_plans')->where('id', $plan)->update(array_merge($payload, [
             'blocked_features' => json_encode($request->input('blocked_features', []), JSON_UNESCAPED_UNICODE),
             'block_on_overdue' => $request->boolean('block_on_overdue'),
             'active' => $request->boolean('active'),
@@ -123,8 +126,7 @@ class SubscriptionController extends Controller
         $fid = $this->activeFid();
         $validated = $this->validateSubscription($request, $fid);
         $startsAt = $validated['starts_at'] ?: now()->toDateString();
-
-        DB::table('customer_subscriptions')->insert([
+        $payload = [
             'project_id' => (int) $fid,
             'client_id' => (int) $validated['client_id'],
             'plan_id' => (int) $validated['plan_id'],
@@ -139,7 +141,13 @@ class SubscriptionController extends Controller
             'notes' => $validated['notes'] ?? null,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ];
+
+        if ($this->subscriptionAccessesColumnExists()) {
+            $payload['accesses'] = json_encode($this->validatedAccesses($request), JSON_UNESCAPED_UNICODE);
+        }
+
+        DB::table('customer_subscriptions')->insert($payload);
 
         return redirect()->route('subscriptions.index', ['tab' => 'customers'])->with('success', 'Подписка клиента создана');
     }
@@ -150,7 +158,7 @@ class SubscriptionController extends Controller
         abort_unless($this->subscriptionExists($fid, $subscription), 404);
         $validated = $this->validateSubscription($request, $fid);
 
-        DB::table('customer_subscriptions')->where('id', $subscription)->update([
+        $payload = [
             'client_id' => (int) $validated['client_id'],
             'plan_id' => (int) $validated['plan_id'],
             'status' => $validated['status'],
@@ -162,7 +170,13 @@ class SubscriptionController extends Controller
             'auto_close_if_paid' => $request->boolean('auto_close_if_paid'),
             'notes' => $validated['notes'] ?? null,
             'updated_at' => now(),
-        ]);
+        ];
+
+        if ($this->subscriptionAccessesColumnExists()) {
+            $payload['accesses'] = json_encode($this->validatedAccesses($request), JSON_UNESCAPED_UNICODE);
+        }
+
+        DB::table('customer_subscriptions')->where('id', $subscription)->update($payload);
 
         return redirect()->route('subscriptions.index', ['tab' => 'customers'])->with('success', 'Подписка обновлена');
     }
@@ -206,6 +220,7 @@ class SubscriptionController extends Controller
             'name' => ['required', 'string', 'max:160'],
             'subtitle' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:999999'],
             'billing_period' => ['required', Rule::in(['week', 'month', 'quarter', 'year'])],
             'interval_count' => ['required', 'integer', 'min:1', 'max:60'],
             'price' => ['required', 'numeric', 'min:0', 'max:999999999'],
@@ -215,6 +230,17 @@ class SubscriptionController extends Controller
             'blocked_features' => ['nullable', 'array'],
             'blocked_features.*' => ['string', 'max:80'],
         ]);
+    }
+
+    private function planPayload(array $validated): array
+    {
+        if (! $this->planSortColumnExists()) {
+            unset($validated['sort_order']);
+        } else {
+            $validated['sort_order'] = (int) ($validated['sort_order'] ?? 100);
+        }
+
+        return $validated;
     }
 
     private function validateSubscription(Request $request, string $fid): array
@@ -233,7 +259,15 @@ class SubscriptionController extends Controller
 
     private function plans(string $fid)
     {
-        $plans = DB::table('subscription_plans')->where('project_id', (int) $fid)->orderByDesc('active')->orderBy('name')->get();
+        $plansQuery = DB::table('subscription_plans')
+            ->where('project_id', (int) $fid)
+            ->orderByDesc('active');
+
+        if ($this->planSortColumnExists()) {
+            $plansQuery->orderBy('sort_order');
+        }
+
+        $plans = $plansQuery->orderBy('name')->orderBy('id')->get();
         $items = DB::table('subscription_plan_items as spi')
             ->leftJoin('comp as c', 'c.id', '=', 'spi.product_id')
             ->whereIn('spi.plan_id', $plans->pluck('id'))
@@ -275,7 +309,12 @@ class SubscriptionController extends Controller
             )
             ->orderByDesc('cs.updated_at')
             ->orderByDesc('cs.id')
-            ->get();
+            ->get()
+            ->map(function (object $subscription): object {
+                $subscription->accesses_map = $this->decodeAccesses($subscription->accesses ?? null);
+
+                return $subscription;
+            });
     }
 
     private function invoices(string $fid)
@@ -336,5 +375,77 @@ class SubscriptionController extends Controller
     private function ensureTables(): void
     {
         abort_unless(Schema::hasTable('subscription_plans'), 503, 'Сначала выполните миграции подписок.');
+    }
+
+    private function planSortColumnExists(): bool
+    {
+        return Schema::hasTable('subscription_plans') && Schema::hasColumn('subscription_plans', 'sort_order');
+    }
+
+    private function subscriptionAccessesColumnExists(): bool
+    {
+        return Schema::hasTable('customer_subscriptions') && Schema::hasColumn('customer_subscriptions', 'accesses');
+    }
+
+    private function validatedAccesses(Request $request): array
+    {
+        $keys = collect($this->accessGroups())
+            ->flatMap(fn (array $group): array => array_keys($group['items']))
+            ->values()
+            ->all();
+
+        $enabled = collect((array) $request->input('accesses', []))->map(fn ($value): string => (string) $value)->all();
+        $limits = (array) $request->input('access_limits', []);
+
+        return collect($keys)->mapWithKeys(function (string $key) use ($enabled, $limits): array {
+            return [$key => [
+                'enabled' => in_array($key, $enabled, true),
+                'limit' => max(0, (int) ($limits[$key] ?? 0)),
+            ]];
+        })->all();
+    }
+
+    private function decodeAccesses(mixed $value): array
+    {
+        $decoded = is_string($value) && $value !== '' ? json_decode($value, true) : [];
+        $decoded = is_array($decoded) ? $decoded : [];
+
+        return collect($this->accessGroups())
+            ->flatMap(fn (array $group): array => array_keys($group['items']))
+            ->mapWithKeys(function (string $key) use ($decoded): array {
+                $access = is_array($decoded[$key] ?? null) ? $decoded[$key] : [];
+
+                return [$key => [
+                    'enabled' => (bool) ($access['enabled'] ?? false),
+                    'limit' => max(0, (int) ($access['limit'] ?? 0)),
+                ]];
+            })
+            ->all();
+    }
+
+    private function accessGroups(): array
+    {
+        return [
+            'operations' => [
+                'label' => 'Операции',
+                'items' => [
+                    'orders' => 'Заказы',
+                    'sales_orders' => 'Ордера',
+                    'goods' => 'Товары',
+                    'clients' => 'Клиенты',
+                    'offices' => 'Офисы',
+                    'warehouses' => 'Склады',
+                ],
+            ],
+            'reports' => [
+                'label' => 'Группы отчетов',
+                'items' => [
+                    'reports_operational' => 'Операционные отчеты',
+                    'reports_management' => 'Управленческие отчеты',
+                    'reports_financial' => 'Финансовые отчеты',
+                    'reports_strategic' => 'Стратегические отчеты',
+                ],
+            ],
+        ];
     }
 }
