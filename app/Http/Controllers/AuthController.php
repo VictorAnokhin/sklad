@@ -3859,6 +3859,17 @@ class AuthController extends Controller
 
     private function redirectAfterAuth(User $user)
     {
+        $activeUser = Auth::user();
+        if ($activeUser instanceof User) {
+            $user = $activeUser;
+        }
+
+        if ($this->subscriptionSelectionRequired($user)) {
+            return redirect()
+                ->route('price')
+                ->with('warning', 'Выберите тарифный план для проекта.');
+        }
+
         if ($this->profileCompletionRequired($user)) {
             return redirect()
                 ->route('settings.index')
@@ -3866,6 +3877,48 @@ class AuthController extends Controller
         }
 
         return redirect()->route('dashboard');
+    }
+
+    private function subscriptionSelectionRequired(User $user): bool
+    {
+        if (
+            ! Schema::hasTable('project')
+            || ! Schema::hasColumn('project', 'userid')
+            || ! Schema::hasTable('subscription_plans')
+            || ! Schema::hasTable('customer_subscriptions')
+        ) {
+            return false;
+        }
+
+        $projectId = (int) (session('fid') ?: ($user->firma ?? $user->fid ?? 0));
+        if ($projectId <= 0) {
+            return false;
+        }
+
+        $project = Project::query()->find($projectId);
+        if (! $project) {
+            return false;
+        }
+
+        $identityUserIds = $this->authIdentityUserIds($user);
+        if (! $identityUserIds->contains((int) ($project->userid ?? 0))) {
+            return false;
+        }
+
+        $hasActivePlan = DB::table('subscription_plans')
+            ->where('project_id', $projectId)
+            ->where('active', true)
+            ->exists();
+
+        if (! $hasActivePlan) {
+            return false;
+        }
+
+        return ! DB::table('customer_subscriptions')
+            ->where('project_id', $projectId)
+            ->whereIn('client_id', $identityUserIds->all())
+            ->whereIn('status', ['active', 'paused', 'blocked'])
+            ->exists();
     }
 
     private function profileCompletionRequired(User $user): bool
