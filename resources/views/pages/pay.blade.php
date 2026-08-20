@@ -7,7 +7,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
             <h1 class="h3 text-light mb-1">Оплатить</h1>
-            <p class="text-muted mb-0">Сформируйте начисление по подключенному тарифу подписки.</p>
+            <p class="text-muted mb-0">Выберите тариф, подключите его и сформируйте начисление к оплате.</p>
         </div>
         <a href="{{ route('price') }}" class="btn btn-outline-secondary">Тарифы</a>
     </div>
@@ -18,36 +18,56 @@
 
     <section class="glass-card pay-form-card mb-4">
         <h2 class="h5 text-light mb-3">Форма оплаты</h2>
-        @if($subscriptions->isEmpty())
+        @if($plans->isEmpty())
             <div class="alert alert-warning mb-0">
-                У вас нет подключенных тарифов подписки. Откройте страницу тарифов и подключите нужный план.
+                Тарифы подписки не настроены.
             </div>
         @else
-            <form method="POST" action="{{ route('pay.store') }}" class="pay-form">
+            <form method="POST" action="{{ route('pay.store') }}" class="pay-form" id="pay-form">
                 @csrf
-                <label>
-                    <span>Тариф подписки</span>
-                    <select name="subscription_id" class="form-select" required>
-                        @foreach($subscriptions as $subscription)
-                            <option value="{{ $subscription->id }}" {{ (string) old('subscription_id') === (string) $subscription->id ? 'selected' : '' }}>
-                                {{ $subscription->plan_name }}
-                                · {{ number_format((float) $subscription->plan_price, 2, '.', ' ') }} {{ $subscription->plan_currency }}
-                                · {{ $subscription->status }}
-                            </option>
-                        @endforeach
-                    </select>
-                </label>
+                <div class="pay-connect-row">
+                    <label>
+                        <span>Тариф подписки</span>
+                        <select name="plan_id" class="form-select" required id="pay-plan-select">
+                            @foreach($plans as $plan)
+                                <option
+                                    value="{{ $plan->id }}"
+                                    data-name="{{ $plan->name }}"
+                                    data-amount="{{ number_format((float) $plan->price, 2, '.', ' ') }} {{ $plan->currency }}"
+                                    {{ (string) old('plan_id') === (string) $plan->id ? 'selected' : '' }}
+                                >
+                                    {{ $plan->name }} · {{ number_format((float) $plan->price, 2, '.', ' ') }} {{ $plan->currency }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </label>
 
-                <label>
-                    <span>Способ оплаты</span>
-                    <select name="payment_method" class="form-select" required>
-                        @foreach($paymentMethods as $value => $label)
-                            <option value="{{ $value }}" {{ old('payment_method', 'av8') === $value ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </label>
+                    <button type="button" class="btn btn-outline-warning" id="pay-connect-button">Подключить</button>
+                </div>
 
-                <button class="btn btn-warning">Сформировать</button>
+                <div class="pay-selected-plan d-none" id="pay-selected-plan">
+                    <span>Подключен тариф</span>
+                    <strong id="pay-selected-plan-name"></strong>
+                </div>
+
+                <div class="pay-amount d-none" id="pay-amount">
+                    <span>Сумма к оплате</span>
+                    <strong id="pay-amount-value"></strong>
+                </div>
+
+                <div class="pay-methods">
+                    <h3>Способы оплаты</h3>
+                    <label>
+                        <span>Способ оплаты</span>
+                        <select name="payment_method" class="form-select" required>
+                            @foreach($paymentMethods as $value => $label)
+                                <option value="{{ $value }}" {{ old('payment_method', 'av8') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <button class="btn btn-warning" id="pay-submit-button" disabled>Сформировать</button>
+                </div>
             </form>
 
             <div class="pay-requisites mt-4">
@@ -120,7 +140,13 @@
 
     .pay-form {
         display: grid;
-        grid-template-columns: minmax(0, 1.4fr) minmax(0, .9fr) auto;
+        gap: 1rem;
+    }
+
+    .pay-connect-row,
+    .pay-methods {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 1rem;
         align-items: end;
     }
@@ -130,6 +156,42 @@
         gap: .35rem;
         color: rgba(255,255,255,.72);
         font-weight: 700;
+    }
+
+    .pay-methods {
+        border-top: 1px solid rgba(255,255,255,.1);
+        padding-top: 1rem;
+    }
+
+    .pay-methods h3 {
+        grid-column: 1 / -1;
+        color: #fff;
+        font-size: 1rem;
+        margin: 0;
+    }
+
+    .pay-selected-plan,
+    .pay-amount {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: .85rem 1rem;
+        border: 1px solid rgba(250,204,21,.3);
+        border-radius: 10px;
+        background: rgba(250,204,21,.1);
+        color: rgba(255,255,255,.72);
+    }
+
+    .pay-amount {
+        border-color: rgba(56,189,248,.28);
+        background: rgba(56,189,248,.08);
+    }
+
+    .pay-selected-plan strong,
+    .pay-amount strong {
+        color: #fff;
+        font-size: 1.1rem;
     }
 
     .pay-requisites {
@@ -174,10 +236,55 @@
     }
 
     @media (max-width: 900px) {
-        .pay-form,
+        .pay-connect-row,
+        .pay-methods,
         .pay-requisites__item {
             grid-template-columns: 1fr;
         }
     }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const select = document.getElementById('pay-plan-select');
+    const connectButton = document.getElementById('pay-connect-button');
+    const submitButton = document.getElementById('pay-submit-button');
+    const selectedPlan = document.getElementById('pay-selected-plan');
+    const selectedPlanName = document.getElementById('pay-selected-plan-name');
+    const amount = document.getElementById('pay-amount');
+    const amountValue = document.getElementById('pay-amount-value');
+
+    const connect = () => {
+        const option = select?.selectedOptions?.[0];
+        if (!option) {
+            return;
+        }
+
+        if (selectedPlanName) {
+            selectedPlanName.textContent = option.dataset.name || option.textContent.trim();
+        }
+        if (amountValue) {
+            amountValue.textContent = option.dataset.amount || '';
+        }
+        selectedPlan?.classList.remove('d-none');
+        amount?.classList.remove('d-none');
+        if (submitButton) {
+            submitButton.disabled = false;
+        }
+    };
+
+    connectButton?.addEventListener('click', connect);
+    select?.addEventListener('change', () => {
+        selectedPlan?.classList.add('d-none');
+        amount?.classList.add('d-none');
+        if (submitButton) {
+            submitButton.disabled = true;
+        }
+    });
+
+    @if(old('plan_id'))
+        connect();
+    @endif
+});
+</script>
 @endsection
