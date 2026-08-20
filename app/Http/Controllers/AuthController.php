@@ -3884,22 +3884,7 @@ class AuthController extends Controller
 
     private function subscriptionSelectionRequired(User $user): bool
     {
-        if (! Schema::hasTable('project') || ! Schema::hasColumn('project', 'userid')) {
-            return false;
-        }
-
-        $projectId = (int) (session('fid') ?: ($user->firma ?? $user->fid ?? 0));
-        if ($projectId <= 0) {
-            return false;
-        }
-
-        $project = Project::query()->find($projectId);
-        if (! $project) {
-            return false;
-        }
-
-        $identityUserIds = $this->authIdentityUserIds($user);
-        if (! $identityUserIds->contains((int) ($project->userid ?? 0))) {
+        if ($this->isPriceProjectEmployee($user)) {
             return false;
         }
 
@@ -3943,6 +3928,37 @@ class AuthController extends Controller
             ->where('project_id', (int) self::PRICE_ORDER_FID)
             ->whereIn('client_id', $clientIds)
             ->whereIn('status', ['active', 'paused', 'blocked'])
+            ->exists();
+    }
+
+    private function isPriceProjectEmployee(User $user): bool
+    {
+        if (! Schema::hasTable('users') || ! Schema::hasColumn('users', 'firma')) {
+            return false;
+        }
+
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+        $identityUserIds = $this->authIdentityUserIds($user);
+
+        if (Schema::hasTable('team_memberships') && $identityUserIds->isNotEmpty()) {
+            $isMember = DB::table('team_memberships')
+                ->where('project_id', (int) self::PRICE_ORDER_FID)
+                ->whereIn('user_id', $identityUserIds->all())
+                ->exists();
+
+            if ($isMember) {
+                return true;
+            }
+        }
+
+        if ($email === '' || ! Schema::hasColumn('users', 'email') || ! Schema::hasColumn('users', 'firmuser')) {
+            return false;
+        }
+
+        return DB::table('users')
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->where('firma', self::PRICE_ORDER_FID)
+            ->where('firmuser', '1')
             ->exists();
     }
 
