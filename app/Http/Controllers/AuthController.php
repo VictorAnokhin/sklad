@@ -3932,31 +3932,59 @@ class AuthController extends Controller
             return false;
         }
 
+        $projectIds = $this->authLinkedProjectIds($user);
+        if ($projectIds->isEmpty()) {
+            return true;
+        }
+
         $projectId = (int) (session('fid') ?: ($user->firma ?? $user->fid ?? 0));
-        if ($projectId === (int) self::PRICE_ORDER_FID && ! $this->isPriceProjectEmployee($user)) {
-            $project = $this->defaultProjectForUser($user);
-            $projectId = (int) ($project?->id ?? 0);
-        }
+        $candidateProjectIds = $projectIds;
 
-        if ($projectId <= 0) {
-            return true;
-        }
-
-        $identityUserIds = $this->authIdentityUserIds($user);
-        $ownsProject = Project::query()
-            ->whereKey($projectId)
-            ->whereIn('userid', $identityUserIds->all())
-            ->exists();
-
-        if (! $ownsProject) {
-            return true;
+        if ($projectId > 0 && $projectId !== (int) self::PRICE_ORDER_FID && $projectIds->contains($projectId)) {
+            $candidateProjectIds = collect([$projectId]);
         }
 
         return ! DB::table('customer_subscriptions')
-            ->where('project_id', $projectId)
-            ->whereIn('client_id', $identityUserIds->all())
+            ->whereIn('project_id', $candidateProjectIds->all())
             ->where('status', 'active')
             ->exists();
+    }
+
+    private function authLinkedProjectIds(User $user): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('project')) {
+            return collect();
+        }
+
+        $identityUserIds = $this->authIdentityUserIds($user);
+        $projectIds = collect();
+
+        $query = $this->authAccessibleProjectsQuery($user);
+        if ($query !== null) {
+            $projectIds = $projectIds->merge($query->pluck('id'));
+        }
+
+        if (Schema::hasTable('team_memberships') && $identityUserIds->isNotEmpty()) {
+            $projectIds = $projectIds->merge(
+                DB::table('team_memberships')
+                    ->whereIn('user_id', $identityUserIds->all())
+                    ->pluck('project_id')
+            );
+        }
+
+        if (Schema::hasTable('client_project_memberships') && $identityUserIds->isNotEmpty()) {
+            $projectIds = $projectIds->merge(
+                DB::table('client_project_memberships')
+                    ->whereIn('user_id', $identityUserIds->all())
+                    ->pluck('project_id')
+            );
+        }
+
+        return $projectIds
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0 && $id !== (int) self::PRICE_ORDER_FID)
+            ->unique()
+            ->values();
     }
 
     private function isPriceProjectEmployee(User $user): bool
