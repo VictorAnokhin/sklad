@@ -3869,8 +3869,8 @@ class AuthController extends Controller
 
         if ($this->subscriptionSelectionRequired($user)) {
             return redirect()
-                ->route('price')
-                ->with('warning', 'Выберите тарифный план для проекта.');
+                ->route('pay')
+                ->with('warning', 'Подключите проект к тарифному плану.');
         }
 
         if ($this->profileCompletionRequired($user)) {
@@ -3888,7 +3888,12 @@ class AuthController extends Controller
             return false;
         }
 
-        if (! Schema::hasTable('subscription_plans') || ! Schema::hasTable('customer_subscriptions')) {
+        if (
+            ! Schema::hasTable('project')
+            || ! Schema::hasColumn('project', 'userid')
+            || ! Schema::hasTable('subscription_plans')
+            || ! Schema::hasTable('customer_subscriptions')
+        ) {
             return false;
         }
 
@@ -3901,33 +3906,25 @@ class AuthController extends Controller
             return false;
         }
 
-        $email = mb_strtolower(trim((string) ($user->email ?? '')));
-        if (
-            $email === ''
-            || ! Schema::hasTable('users')
-            || ! Schema::hasColumn('users', 'email')
-            || ! Schema::hasColumn('users', 'firma')
-        ) {
+        $projectId = (int) (session('fid') ?: ($user->firma ?? $user->fid ?? 0));
+        if ($projectId <= 0) {
             return true;
         }
 
-        $clientIds = DB::table('users')
-            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
-            ->where('firma', self::PRICE_ORDER_FID)
-            ->pluck('id')
-            ->map(fn ($id): int => (int) $id)
-            ->filter()
-            ->values()
-            ->all();
+        $identityUserIds = $this->authIdentityUserIds($user);
+        $ownsProject = Project::query()
+            ->whereKey($projectId)
+            ->whereIn('userid', $identityUserIds->all())
+            ->exists();
 
-        if ($clientIds === []) {
+        if (! $ownsProject) {
             return true;
         }
 
         return ! DB::table('customer_subscriptions')
-            ->where('project_id', (int) self::PRICE_ORDER_FID)
-            ->whereIn('client_id', $clientIds)
-            ->whereIn('status', ['active', 'paused', 'blocked'])
+            ->where('project_id', $projectId)
+            ->whereIn('client_id', $identityUserIds->all())
+            ->where('status', 'active')
             ->exists();
     }
 

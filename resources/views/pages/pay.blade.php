@@ -18,7 +18,11 @@
 
     <section class="glass-card pay-form-card mb-4">
         <h2 class="h5 text-light mb-3">Форма оплаты</h2>
-        @if($plans->isEmpty())
+        @if($projects->isEmpty())
+            <div class="alert alert-warning mb-0">
+                У вас нет созданных проектов для подключения тарифа.
+            </div>
+        @elseif($plans->isEmpty())
             <div class="alert alert-warning mb-0">
                 Тарифы подписки не настроены.
             </div>
@@ -26,6 +30,21 @@
             <form method="POST" action="{{ route('pay.store') }}" class="pay-form" id="pay-form">
                 @csrf
                 <div class="pay-connect-row">
+                    <label>
+                        <span>Проект</span>
+                        <select name="project_id" class="form-select" required id="pay-project-select">
+                            @foreach($projects as $project)
+                                <option
+                                    value="{{ $project->id }}"
+                                    data-name="{{ ($project->name ?: 'Проект #' . $project->id) . ' · #' . $project->id }}"
+                                    {{ (string) old('project_id') === (string) $project->id ? 'selected' : '' }}
+                                >
+                                    {{ $project->name ?: 'Проект #' . $project->id }} · #{{ $project->id }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </label>
+
                     <label>
                         <span>Тариф подписки</span>
                         <select name="plan_id" class="form-select" required id="pay-plan-select">
@@ -43,6 +62,11 @@
                     </label>
 
                     <button type="button" class="btn btn-outline-warning" id="pay-connect-button">Подключить</button>
+                </div>
+
+                <div class="pay-selected-plan d-none" id="pay-selected-project">
+                    <span>Подключен проект</span>
+                    <strong id="pay-selected-project-name"></strong>
                 </div>
 
                 <div class="pay-selected-plan d-none" id="pay-selected-plan">
@@ -98,6 +122,7 @@
                 <thead>
                     <tr>
                         <th>№</th>
+                        <th>Проект</th>
                         <th>Тариф</th>
                         <th>Период</th>
                         <th>Оплата</th>
@@ -110,6 +135,7 @@
                     @forelse($invoices as $invoice)
                         <tr>
                             <td>{{ $loop->iteration }}</td>
+                            <td>{{ $invoice->project_name ?: 'Проект #' . $invoice->subscription_project_id }}</td>
                             <td>{{ $invoice->plan_name }}</td>
                             <td>{{ $invoice->period_from }} - {{ $invoice->period_to }}</td>
                             <td>{{ $invoice->due_at }}</td>
@@ -122,7 +148,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted py-4">Начислений пока нет.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted py-4">Начислений пока нет.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -143,7 +169,13 @@
         gap: 1rem;
     }
 
-    .pay-connect-row,
+    .pay-connect-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        gap: 1rem;
+        align-items: end;
+    }
+
     .pay-methods {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -231,6 +263,12 @@
 
     .pay-invoices-table th:nth-child(2),
     .pay-invoices-table td:nth-child(2) {
+        min-width: 12rem;
+        white-space: normal;
+    }
+
+    .pay-invoices-table th:nth-child(3),
+    .pay-invoices-table td:nth-child(3) {
         min-width: 16rem;
         white-space: normal;
     }
@@ -246,9 +284,12 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    const projectSelect = document.getElementById('pay-project-select');
     const select = document.getElementById('pay-plan-select');
     const connectButton = document.getElementById('pay-connect-button');
     const submitButton = document.getElementById('pay-submit-button');
+    const selectedProject = document.getElementById('pay-selected-project');
+    const selectedProjectName = document.getElementById('pay-selected-project-name');
     const selectedPlan = document.getElementById('pay-selected-plan');
     const selectedPlanName = document.getElementById('pay-selected-plan-name');
     const amount = document.getElementById('pay-amount');
@@ -256,16 +297,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const connect = () => {
         const option = select?.selectedOptions?.[0];
-        if (!option) {
+        const projectOption = projectSelect?.selectedOptions?.[0];
+        if (!option || !projectOption) {
             return;
         }
 
+        if (selectedProjectName) {
+            selectedProjectName.textContent = projectOption.dataset.name || projectOption.textContent.trim();
+        }
         if (selectedPlanName) {
             selectedPlanName.textContent = option.dataset.name || option.textContent.trim();
         }
         if (amountValue) {
             amountValue.textContent = option.dataset.amount || '';
         }
+        selectedProject?.classList.remove('d-none');
         selectedPlan?.classList.remove('d-none');
         amount?.classList.remove('d-none');
         if (submitButton) {
@@ -274,15 +320,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     connectButton?.addEventListener('click', connect);
-    select?.addEventListener('change', () => {
+    const resetConnection = () => {
+        selectedProject?.classList.add('d-none');
         selectedPlan?.classList.add('d-none');
         amount?.classList.add('d-none');
         if (submitButton) {
             submitButton.disabled = true;
         }
-    });
+    };
 
-    @if(old('plan_id'))
+    projectSelect?.addEventListener('change', resetConnection);
+    select?.addEventListener('change', resetConnection);
+
+    @if(old('plan_id') && old('project_id'))
         connect();
     @endif
 });

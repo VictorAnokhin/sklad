@@ -3,14 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Firma;
+use App\Models\Project;
 use App\Models\User;
 use App\Services\SubscriptionBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class PayController extends Controller
@@ -22,11 +21,12 @@ class PayController extends Controller
         $user = Auth::user();
         abort_unless($user instanceof User, 403);
 
-        $clientIds = $this->priceClientIds($user);
+        $projects = $this->createdProjects($user);
 
         return view('pages.pay', [
+            'projects' => $projects,
             'plans' => $this->plans(),
-            'invoices' => $this->userInvoices($clientIds),
+            'invoices' => $this->userInvoices($projects->pluck('id')->map(fn ($id): int => (int) $id)->all()),
             'paymentMethods' => $this->paymentMethods(),
             'companies' => $this->userCompanies($user),
         ]);
@@ -38,16 +38,20 @@ class PayController extends Controller
         abort_unless($user instanceof User, 403);
 
         $planIds = $this->plans()->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $projectIds = $this->createdProjects($user)->pluck('id')->map(fn ($id): int => (int) $id)->all();
 
         $validated = $request->validate([
+            'project_id' => ['required', 'integer', Rule::in($projectIds)],
             'plan_id' => ['required', 'integer', Rule::in($planIds)],
             'payment_method' => ['required', Rule::in(array_keys($this->paymentMethods()))],
         ]);
 
         $plan = $this->plans()->firstWhere('id', (int) $validated['plan_id']);
         abort_unless($plan, 404);
+        $project = $this->createdProjects($user)->firstWhere('id', (int) $validated['project_id']);
+        abort_unless($project, 404);
 
-        $subscriptionId = $this->ensureSubscription($user, $plan);
+        $subscriptionId = $this->ensureSubscription($user, $project, $plan);
         $paymentMethod = (string) $validated['payment_method'];
 
         DB::table('customer_subscriptions')->where('id', $subscriptionId)->update([
@@ -56,7 +60,7 @@ class PayController extends Controller
         ]);
 
         $created = $billing->billSubscription($subscriptionId);
-        $billing->enforceBlocks((int) self::ORDER_FID);
+        $billing->enforceBlocks((int) $project->id);
 
         if ($created) {
             DB::table('customer_subscriptions')->where('id', $subscriptionId)->update([
@@ -70,25 +74,36 @@ class PayController extends Controller
             ->with($created ? 'success' : 'error', $created ? 'Начисление сформировано.' : 'Начисление уже существует или подписка неактивна.');
     }
 
-    private function priceClientIds(User $user): array
+    private function identityUserIds(User $user): \Illuminate\Support\Collection
     {
-        if (! Schema::hasTable('users') || ! Schema::hasColumn('users', 'email') || ! Schema::hasColumn('users', 'firma')) {
-            return [];
-        }
+        $ids = collect([(int) $user->id]);
 
         $email = mb_strtolower(trim((string) ($user->email ?? '')));
-        if ($email === '') {
-            return [];
+        if ($email !== '' && Schema::hasTable('users') && Schema::hasColumn('users', 'email')) {
+            $ids = $ids->merge(
+                DB::table('users')
+                    ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+                    ->pluck('id')
+                    ->map(fn ($id): int => (int) $id)
+            );
         }
 
-        return DB::table('users')
-            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
-            ->where('firma', self::ORDER_FID)
-            ->pluck('id')
-            ->map(fn ($id): int => (int) $id)
+        return $ids
             ->filter()
             ->values()
-            ->all();
+            ->unique();
+    }
+
+    private function createdProjects(User $user)
+    {
+        if (! Schema::hasTable('project') || ! Schema::hasColumn('project', 'userid')) {
+            return collect();
+        }
+
+        return Project::query()
+            ->whereIn('userid', $this->identityUserIds($user)->all())
+            ->orderBy('id')
+            ->get(['id', 'name', 'project_type', 'userid']);
     }
 
     private function plans()
@@ -108,13 +123,13 @@ class PayController extends Controller
         return $query->orderBy('name')->orderBy('id')->get();
     }
 
-    private function ensureSubscription(User $user, object $plan): int
+    private function ensureSubscription(User $user, object $project, object $plan): int
     {
-        $client = $this->ensurePriceClient($user);
+        $clientId = (int) ($project->userid ?: $user->id);
 
         $existing = DB::table('customer_subscriptions')
-            ->where('project_id', (int) self::ORDER_FID)
-            ->where('client_id', (int) $client->id)
+            ->where('project_id', (int) $project->id)
+            ->where('client_id', $clientId)
             ->where('plan_id', (int) $plan->id)
             ->whereIn('status', ['active', 'paused', 'blocked'])
             ->orderByDesc('id')
@@ -127,8 +142,8 @@ class PayController extends Controller
         $today = now()->toDateString();
 
         return (int) DB::table('customer_subscriptions')->insertGetId([
-            'project_id' => (int) self::ORDER_FID,
-            'client_id' => (int) $client->id,
+            'project_id' => (int) $project->id,
+            'client_id' => $clientId,
             'plan_id' => (int) $plan->id,
             'status' => 'active',
             'payment_status' => 'paid',
@@ -143,92 +158,23 @@ class PayController extends Controller
         ]);
     }
 
-    private function ensurePriceClient(User $user): object
+    private function userInvoices(array $projectIds)
     {
-        $email = trim((string) ($user->email ?? ''));
-        abort_if($email === '', 422, 'У пользователя не указан email.');
-
-        $client = DB::table('users')
-            ->where('email', $email)
-            ->where('firma', self::ORDER_FID)
-            ->first();
-
-        if ($client) {
-            return $client;
-        }
-
-        $payload = [
-            'name' => $user->name ?? '',
-            'secondname' => $user->secondname ?? '',
-            'fathername' => $user->fathername ?? '',
-            'orgname' => $user->orgname ?? '',
-            'email' => $email,
-            'login' => $user->login ?? $email,
-            'phone' => $user->phone ?? '',
-            'phone1' => $user->phone1 ?? '',
-            'city' => $user->city ?? '',
-            'region' => $user->region ?? '',
-            'country' => $user->country ?? '',
-            'idstatus' => ($user->idstatus ?? 0) ?: 1,
-            'ustype' => ($user->ustype ?? 0) ?: ($user->idstatus ?? 1),
-            'fid' => self::ORDER_FID,
-            'firma' => self::ORDER_FID,
-            'project_id' => (int) self::ORDER_FID,
-            'status' => $user->status ?? 1,
-            'password' => ($user->password ?? '') ?: Hash::make(Str::random(32)),
-            'pass' => ($user->pass ?? '') ?: Hash::make(Str::random(32)),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ];
-        $payload = array_intersect_key($payload, array_flip(Schema::getColumnListing('users')));
-
-        $clientId = DB::table('users')->insertGetId($payload);
-
-        return DB::table('users')->where('id', $clientId)->first();
-    }
-
-    private function userSubscriptions(array $clientIds)
-    {
-        if ($clientIds === [] || ! Schema::hasTable('customer_subscriptions') || ! Schema::hasTable('subscription_plans')) {
-            return collect();
-        }
-
-        $query = DB::table('customer_subscriptions as cs')
-            ->join('subscription_plans as sp', 'sp.id', '=', 'cs.plan_id')
-            ->where('cs.project_id', (int) self::ORDER_FID)
-            ->whereIn('cs.client_id', $clientIds)
-            ->whereIn('cs.status', ['active', 'paused', 'blocked'])
-            ->select(
-                'cs.*',
-                'sp.name as plan_name',
-                'sp.price as plan_price',
-                'sp.currency as plan_currency',
-                'sp.billing_period as plan_billing_period',
-                'sp.interval_count as plan_interval_count'
-            );
-
-        if (Schema::hasColumn('subscription_plans', 'sort_order')) {
-            $query->orderBy('sp.sort_order');
-        }
-
-        return $query->orderBy('sp.name')->orderByDesc('cs.id')->get();
-    }
-
-    private function userInvoices(array $clientIds)
-    {
-        if ($clientIds === [] || ! Schema::hasTable('subscription_invoices')) {
+        if ($projectIds === [] || ! Schema::hasTable('subscription_invoices')) {
             return collect();
         }
 
         return DB::table('subscription_invoices as si')
             ->join('customer_subscriptions as cs', 'cs.id', '=', 'si.subscription_id')
             ->join('subscription_plans as sp', 'sp.id', '=', 'cs.plan_id')
+            ->leftJoin('project as p', 'p.id', '=', 'cs.project_id')
             ->leftJoin('document as d', 'd.id', '=', 'si.document_id')
-            ->where('cs.project_id', (int) self::ORDER_FID)
-            ->whereIn('cs.client_id', $clientIds)
+            ->whereIn('cs.project_id', $projectIds)
             ->select(
                 'si.*',
                 'sp.name as plan_name',
+                'cs.project_id as subscription_project_id',
+                'p.name as project_name',
                 'cs.payment_method',
                 'd.num as document_num'
             )
