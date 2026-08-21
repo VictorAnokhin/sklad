@@ -131,6 +131,7 @@
                     <table class="table table-dark table-hover table-sm align-middle mb-0 customer-subscriptions-table">
                         <thead>
                             <tr>
+                                <th>Проект</th>
                                 <th>Клиент</th>
                                 <th>Тариф</th>
                                 <th>Статус</th>
@@ -139,12 +140,13 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td colspan="4">
+                                <td colspan="5">
                                     <button type="button" class="btn btn-outline-warning" id="btn-customer-subscription-add">Новая подписка</button>
                                 </td>
                             </tr>
                             @forelse($subscriptions as $subscription)
                                 <tr class="customer-subscription-row" data-subscription-target="customer-subscription-form-{{ $subscription->id }}" data-subscription-title="{{ $subscription->client_name }}" tabindex="0" role="button">
+                                    <td>{{ $subscription->project_name ?: 'Проект #' . $subscription->project_id }}</td>
                                     <td>{{ $subscription->client_name }}</td>
                                     <td>{{ $subscription->plan_name }}</td>
                                     <td>
@@ -155,7 +157,7 @@
                                     <td>{{ $subscription->ends_at ?: 'не задано' }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="4" class="text-center text-muted py-4">Подписок клиентов пока нет.</td></tr>
+                                <tr><td colspan="5" class="text-center text-muted py-4">Подписок клиентов пока нет.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -193,13 +195,14 @@
                     <table class="table table-dark table-hover table-sm align-middle subscription-invoices-table">
                         <thead>
                             <tr>
-                                <th>№</th><th>Клиент</th><th>Тариф</th><th>Период</th><th>Оплата</th><th>Сумма</th><th>Статус</th>
+                                <th>№</th><th>Проект</th><th>Клиент</th><th>Тариф</th><th>Период</th><th>Оплата</th><th>Сумма</th><th>Статус</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($invoices as $invoice)
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
+                                    <td>{{ $invoice->project_name ?: 'Проект #' . $invoice->subscription_project_id }}</td>
                                     <td>{{ $invoice->client_name }}</td>
                                     <td>{{ $invoice->plan_name }}</td>
                                     <td>{{ $invoice->period_from }} - {{ $invoice->period_to }}</td>
@@ -217,7 +220,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="7" class="text-center text-muted">Начислений пока нет.</td></tr>
+                                <tr><td colspan="8" class="text-center text-muted">Начислений пока нет.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -339,6 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const results = searchBox.querySelector('[data-client-search-results]');
         const hidden = searchBox.querySelector('[data-client-id]');
         const details = searchBox.querySelector('[data-client-details]');
+        const projectSelect = searchBox.closest('form')?.querySelector('[data-subscription-project-select]');
         let searchTimeout = null;
 
         const hideResults = () => results?.classList.add('d-none');
@@ -383,7 +387,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 hideResults();
                 return;
             }
-            fetch("{{ route('client.search') }}?" + new URLSearchParams({ q }).toString())
+            const params = new URLSearchParams({ q });
+            if (projectSelect?.value) {
+                params.set('project_id', projectSelect.value);
+            }
+            fetch("{{ route('client.search') }}?" + params.toString())
                 .then((response) => response.json())
                 .then((data) => renderResults(Array.isArray(data) ? data : []))
                 .catch(() => hideResults());
@@ -406,6 +414,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 performSearch();
             }
         });
+        projectSelect?.addEventListener('change', () => {
+            hideResults();
+            if (hidden) {
+                hidden.value = '';
+            }
+            if (input) {
+                input.value = '';
+            }
+            if (details) {
+                details.className = 'alert alert-warning py-1 mt-1 mb-0 selected-client-details';
+                details.textContent = 'Клиент не выбран';
+            }
+        });
         document.addEventListener('click', (event) => {
             if (!searchBox.contains(event.target)) {
                 hideResults();
@@ -426,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
     .subscription-plan-row:focus { outline: 2px solid rgba(250,204,21,.8); outline-offset: -2px; }
     .subscription-plan-form-panel.d-none { display: none !important; }
     .customer-subscriptions-table th, .customer-subscriptions-table td { white-space: nowrap; }
-    .customer-subscriptions-table th:first-child, .customer-subscriptions-table td:first-child { white-space: normal; min-width: 18rem; width: 40%; }
+    .customer-subscriptions-table th:nth-child(2), .customer-subscriptions-table td:nth-child(2) { white-space: normal; min-width: 18rem; width: 34%; }
     .customer-subscription-row { cursor: pointer; }
     .customer-subscription-row:focus { outline: 2px solid rgba(250,204,21,.8); outline-offset: -2px; }
     .customer-subscription-form-panel.d-none { display: none !important; }
@@ -434,12 +455,13 @@ document.addEventListener('DOMContentLoaded', () => {
     .subscription-invoices-table th, .subscription-invoices-table td { padding: .42rem .5rem; vertical-align: middle; }
     .subscription-invoices-table th, .subscription-invoices-table td { white-space: nowrap; }
     .subscription-invoices-table th:first-child, .subscription-invoices-table td:first-child { width: 3.2rem; text-align: center; }
-    .subscription-invoices-table th:nth-child(2), .subscription-invoices-table td:nth-child(2) { white-space: normal; width: 28%; }
-    .subscription-invoices-table th:nth-child(3), .subscription-invoices-table td:nth-child(3) { width: 16%; overflow: hidden; text-overflow: ellipsis; }
-    .subscription-invoices-table th:nth-child(4), .subscription-invoices-table td:nth-child(4) { width: 18%; }
-    .subscription-invoices-table th:nth-child(5), .subscription-invoices-table td:nth-child(5) { width: 10%; }
-    .subscription-invoices-table th:nth-child(6), .subscription-invoices-table td:nth-child(6) { width: 11%; text-align: right; }
-    .subscription-invoices-table th:nth-child(7), .subscription-invoices-table td:nth-child(7) { width: 14%; text-align: center; }
+    .subscription-invoices-table th:nth-child(2), .subscription-invoices-table td:nth-child(2) { white-space: normal; width: 16%; }
+    .subscription-invoices-table th:nth-child(3), .subscription-invoices-table td:nth-child(3) { white-space: normal; width: 22%; }
+    .subscription-invoices-table th:nth-child(4), .subscription-invoices-table td:nth-child(4) { width: 14%; overflow: hidden; text-overflow: ellipsis; }
+    .subscription-invoices-table th:nth-child(5), .subscription-invoices-table td:nth-child(5) { width: 17%; }
+    .subscription-invoices-table th:nth-child(6), .subscription-invoices-table td:nth-child(6) { width: 10%; }
+    .subscription-invoices-table th:nth-child(7), .subscription-invoices-table td:nth-child(7) { width: 10%; text-align: right; }
+    .subscription-invoices-table th:nth-child(8), .subscription-invoices-table td:nth-child(8) { width: 11%; text-align: center; }
     .subscription-invoices-table .badge { font-size: .74rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
     .subscription-client-search { position: relative; }
     .subscription-client-results { position: absolute; z-index: 30; top: 2.45rem; left: 0; right: 0; max-height: 260px; overflow-y: auto; box-shadow: 0 16px 32px rgba(0,0,0,.35); }

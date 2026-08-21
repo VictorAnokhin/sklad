@@ -20,11 +20,15 @@
         <h2 class="h5 text-light mb-3">Форма оплаты</h2>
         @if($projects->isEmpty())
             <div class="alert alert-warning mb-0">
-                У вас нет созданных проектов для подключения тарифа.
+                У вас нет связанных проектов для подключения тарифа.
             </div>
         @elseif($plans->isEmpty())
             <div class="alert alert-warning mb-0">
                 Тарифы подписки не настроены.
+            </div>
+        @elseif(empty($paymentMethods))
+            <div class="alert alert-warning mb-0">
+                В settings / Касса для fid=2 не настроены способы оплаты.
             </div>
         @else
             <form method="POST" action="{{ route('pay.store') }}" class="pay-form" id="pay-form">
@@ -81,11 +85,12 @@
 
                 <div class="pay-methods">
                     <h3>Способы оплаты</h3>
+                    @php($defaultPaymentMethod = old('payment_method', array_key_first($paymentMethods) ?? ''))
                     <label>
-                        <span>Способ оплаты</span>
+                        <span>Касса fid=2</span>
                         <select name="payment_method" class="form-select" required>
                             @foreach($paymentMethods as $value => $label)
-                                <option value="{{ $value }}" {{ old('payment_method', 'av8') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                <option value="{{ $value }}" {{ (string) $defaultPaymentMethod === (string) $value ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
                     </label>
@@ -93,21 +98,6 @@
                     <button class="btn btn-warning" id="pay-submit-button" disabled>Сформировать</button>
                 </div>
             </form>
-
-            <div class="pay-requisites mt-4">
-                <h3>Реквизиты из settings / Мои компании</h3>
-                @forelse($companies as $company)
-                    <div class="pay-requisites__item">
-                        <strong>{{ $company->name ?: 'Компания #' . $company->id }}</strong>
-                        <span>Счет: {{ $company->schet ?: 'не указан' }}</span>
-                        <span>Банк: {{ $company->bank ?: 'не указан' }}</span>
-                        <span>МФО: {{ $company->mfo ?: 'не указан' }}</span>
-                        <span>ЄДРПОУ/Рег. №: {{ $company->regnum ?: 'не указан' }}</span>
-                    </div>
-                @empty
-                    <div class="text-muted">Реквизиты не заполнены. Добавьте компанию в settings / Мои компании.</div>
-                @endforelse
-            </div>
         @endif
     </section>
 
@@ -226,36 +216,6 @@
         font-size: 1.1rem;
     }
 
-    .pay-requisites {
-        border-top: 1px solid rgba(255,255,255,.1);
-        padding-top: 1rem;
-    }
-
-    .pay-requisites h3 {
-        color: #fff;
-        font-size: 1rem;
-        margin: 0 0 .75rem;
-    }
-
-    .pay-requisites__item {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: .7rem;
-        padding: .85rem;
-        border: 1px solid rgba(255,255,255,.1);
-        border-radius: 10px;
-        background: rgba(255,255,255,.03);
-        color: rgba(255,255,255,.72);
-    }
-
-    .pay-requisites__item + .pay-requisites__item {
-        margin-top: .6rem;
-    }
-
-    .pay-requisites__item strong {
-        color: #fff;
-    }
-
     .pay-invoices-table th,
     .pay-invoices-table td {
         white-space: nowrap;
@@ -275,8 +235,7 @@
 
     @media (max-width: 900px) {
         .pay-connect-row,
-        .pay-methods,
-        .pay-requisites__item {
+        .pay-methods {
             grid-template-columns: 1fr;
         }
     }

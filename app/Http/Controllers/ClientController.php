@@ -81,7 +81,20 @@ class ClientController extends Controller
         if (!$q || mb_strlen($q) < 2)
             return response()->json([]);
 
-        $fid = session('fid', '');
+        $sessionFid = trim((string) session('fid', ''));
+        $requestedProjectId = trim((string) $request->input('project_id', ''));
+        $fid = $sessionFid;
+
+        if ($requestedProjectId !== '') {
+            $allowedProjectIds = (int) $sessionFid === 2
+                ? [(int) $requestedProjectId]
+                : collect(HoldingScope::projectIdsFor($sessionFid))->map(fn ($id): int => (int) $id)->all();
+
+            if (in_array((int) $requestedProjectId, $allowedProjectIds, true)) {
+                $fid = $requestedProjectId;
+            }
+        }
+
         $qBase = $q;
         $teamOnly = $request->boolean('team_only');
         $clientFirmaScope = $this->clientFirmaScope($fid);

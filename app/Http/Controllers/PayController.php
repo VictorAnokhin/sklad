@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Firma;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\SubscriptionBillingService;
@@ -21,14 +20,14 @@ class PayController extends Controller
         $user = Auth::user();
         abort_unless($user instanceof User, 403);
 
-        $projects = $this->createdProjects($user);
+        $projects = $this->linkedProjects($user);
+        $paymentMethods = $this->paymentMethods();
 
         return view('pages.pay', [
             'projects' => $projects,
             'plans' => $this->plans(),
             'invoices' => $this->userInvoices($projects->pluck('id')->map(fn ($id): int => (int) $id)->all()),
-            'paymentMethods' => $this->paymentMethods(),
-            'companies' => $this->userCompanies($user),
+            'paymentMethods' => $paymentMethods,
         ]);
     }
 
@@ -38,17 +37,18 @@ class PayController extends Controller
         abort_unless($user instanceof User, 403);
 
         $planIds = $this->plans()->pluck('id')->map(fn ($id): int => (int) $id)->all();
-        $projectIds = $this->createdProjects($user)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $projectIds = $this->linkedProjects($user)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $paymentMethods = $this->paymentMethods();
 
         $validated = $request->validate([
             'project_id' => ['required', 'integer', Rule::in($projectIds)],
             'plan_id' => ['required', 'integer', Rule::in($planIds)],
-            'payment_method' => ['required', Rule::in(array_keys($this->paymentMethods()))],
+            'payment_method' => ['required', Rule::in(array_keys($paymentMethods))],
         ]);
 
         $plan = $this->plans()->firstWhere('id', (int) $validated['plan_id']);
         abort_unless($plan, 404);
-        $project = $this->createdProjects($user)->firstWhere('id', (int) $validated['project_id']);
+        $project = $this->linkedProjects($user)->firstWhere('id', (int) $validated['project_id']);
         abort_unless($project, 404);
 
         $subscriptionId = $this->ensureSubscription($user, $project, $plan);
@@ -94,17 +94,77 @@ class PayController extends Controller
             ->unique();
     }
 
-    private function createdProjects(User $user)
+    private function linkedProjects(User $user)
     {
-        if (! Schema::hasTable('project') || ! Schema::hasColumn('project', 'userid')) {
+        if (! Schema::hasTable('project')) {
             return collect();
         }
 
-        return Project::query()
-            ->whereIn('userid', $this->identityUserIds($user)->all())
-            ->whereKeyNot((int) self::ORDER_FID)
-            ->orderBy('id')
-            ->get(['id', 'name', 'project_type', 'userid']);
+        $identityUserIds = $this->identityUserIds($user);
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+        $projectIds = collect();
+
+        if (Schema::hasColumn('project', 'userid') && $identityUserIds->isNotEmpty()) {
+            $projectIds = $projectIds->merge(
+                Project::query()
+                    ->whereIn('userid', $identityUserIds->all())
+                    ->pluck('id')
+            );
+        }
+
+        if (Schema::hasColumn('project', 'email') && $email !== '') {
+            $projectIds = $projectIds->merge(
+                Project::query()
+                    ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+                    ->pluck('id')
+            );
+        }
+
+        if (Schema::hasTable('users') && Schema::hasColumn('users', 'firma') && $identityUserIds->isNotEmpty()) {
+            $projectIds = $projectIds->merge(
+                DB::table('users')
+                    ->whereIn('id', $identityUserIds->all())
+                    ->pluck('firma')
+            );
+        }
+
+        if (Schema::hasTable('team_memberships') && $identityUserIds->isNotEmpty()) {
+            $projectIds = $projectIds->merge(
+                DB::table('team_memberships')
+                    ->whereIn('user_id', $identityUserIds->all())
+                    ->pluck('project_id')
+            );
+        }
+
+        if (Schema::hasTable('client_project_memberships') && $identityUserIds->isNotEmpty()) {
+            $projectIds = $projectIds->merge(
+                DB::table('client_project_memberships')
+                    ->whereIn('user_id', $identityUserIds->all())
+                    ->pluck('project_id')
+            );
+        }
+
+        $projectIds = $projectIds
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0 && $id !== (int) self::ORDER_FID)
+            ->unique()
+            ->values();
+
+        if ($projectIds->isEmpty()) {
+            return collect();
+        }
+
+        $projectColumns = Schema::getColumnListing('project');
+        $select = ['id'];
+        $select[] = in_array('name', $projectColumns, true) ? 'name' : DB::raw("'' as name");
+        $select[] = in_array('project_type', $projectColumns, true) ? 'project_type' : DB::raw("'' as project_type");
+        $select[] = in_array('userid', $projectColumns, true) ? 'userid' : DB::raw('0 as userid');
+
+        $query = Project::query()
+            ->whereIn('id', $projectIds->all())
+            ->orderBy('id');
+
+        return $query->get($select);
     }
 
     private function plans()
@@ -185,29 +245,38 @@ class PayController extends Controller
             ->get();
     }
 
-    private function userCompanies(User $user)
-    {
-        if (! Schema::hasTable('firma')) {
-            return collect();
-        }
-
-        return Firma::query()
-            ->where(function ($query) use ($user): void {
-                $query->where('userid', (int) $user->id);
-
-                if (! empty($user->firma ?? null)) {
-                    $query->orWhere('firma', $user->firma);
-                }
-            })
-            ->orderBy('id')
-            ->get();
-    }
-
     private function paymentMethods(): array
     {
-        return [
-            'av8' => 'Оплата AV8',
-            'bank_requisites' => 'Оплата на счет по реквизитам',
-        ];
+        if (! Schema::hasTable('conf')) {
+            return [];
+        }
+
+        $columns = Schema::getColumnListing('conf');
+        $query = DB::table('conf')
+            ->where('type', 'oplata')
+            ->where('firma', (int) self::ORDER_FID);
+
+        if (in_array('vision', $columns, true)) {
+            $query->where('vision', '1');
+        }
+
+        $select = ['id'];
+        $select[] = in_array('name', $columns, true) ? 'name' : DB::raw("'' as name");
+        $select[] = in_array('currency', $columns, true) ? 'currency' : DB::raw("'' as currency");
+
+        if (in_array('name', $columns, true)) {
+            $query->orderBy('name');
+        }
+
+        return $query
+            ->orderBy('id')
+            ->get($select)
+            ->mapWithKeys(function (object $cashbox): array {
+                $name = trim((string) ($cashbox->name ?? '')) ?: 'Касса #' . (string) $cashbox->id;
+                $currency = trim((string) ($cashbox->currency ?? ''));
+
+                return [(string) $cashbox->id => $currency !== '' ? "{$name} ({$currency})" : $name];
+            })
+            ->all();
     }
 }

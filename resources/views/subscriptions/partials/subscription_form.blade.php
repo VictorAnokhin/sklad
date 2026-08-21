@@ -12,6 +12,16 @@
     @csrf
     @if($isEdit) @method('PUT') @endif
     <div class="subscription-grid">
+        <label>Проект
+            <select name="project_id" class="form-select" required data-subscription-project-select>
+                <option value="">Выберите проект</option>
+                @foreach($subscriptionProjects as $project)
+                    <option value="{{ $project->id }}" {{ (string) old('project_id', $subscription->project_id ?? $fid) === (string) $project->id ? 'selected' : '' }}>
+                        {{ $project->name ?: 'Проект #' . $project->id }}
+                    </option>
+                @endforeach
+            </select>
+        </label>
         <label class="span-2">Клиент
             <div class="subscription-client-search" data-subscription-client-search>
                 <input type="text" class="form-control" value="{{ old('client_search', $clientName) }}" placeholder="Поиск клиента..." autocomplete="off" data-client-search-input>

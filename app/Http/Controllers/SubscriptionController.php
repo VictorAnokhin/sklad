@@ -23,6 +23,7 @@ class SubscriptionController extends Controller
             'subscriptions' => $this->subscriptions($fid),
             'invoices' => $this->invoices($fid),
             'clients' => $this->clients($fid),
+            'subscriptionProjects' => $this->subscriptionProjects($fid),
             'products' => $this->products($fid),
             'accessGroups' => $this->accessGroups(),
             'fid' => $fid,
@@ -133,7 +134,7 @@ class SubscriptionController extends Controller
         $validated = $this->validateSubscription($request, $fid);
         $startsAt = $validated['starts_at'] ?: now()->toDateString();
         $payload = [
-            'project_id' => (int) $fid,
+            'project_id' => (int) $validated['project_id'],
             'client_id' => (int) $validated['client_id'],
             'plan_id' => (int) $validated['plan_id'],
             'status' => $validated['status'],
@@ -161,6 +162,7 @@ class SubscriptionController extends Controller
         $validated = $this->validateSubscription($request, $fid);
 
         $payload = [
+            'project_id' => (int) $validated['project_id'],
             'client_id' => (int) $validated['client_id'],
             'plan_id' => (int) $validated['plan_id'],
             'status' => $validated['status'],
@@ -196,8 +198,9 @@ class SubscriptionController extends Controller
     {
         $fid = $this->activeFid();
         abort_unless($this->subscriptionExists($fid, $subscription), 404);
+        $subscriptionRow = DB::table('customer_subscriptions')->where('id', $subscription)->first(['project_id']);
         $created = $billing->billSubscription($subscription);
-        $billing->enforceBlocks((int) $fid);
+        $billing->enforceBlocks((int) ($subscriptionRow->project_id ?? $fid));
 
         return redirect()->route('subscriptions.index', ['tab' => 'customers'])->with($created ? 'success' : 'error', $created ? 'Начисление создано' : 'Начисление уже существует или подписка неактивна');
     }
@@ -243,9 +246,13 @@ class SubscriptionController extends Controller
 
     private function validateSubscription(Request $request, string $fid): array
     {
-        return $request->validate([
-            'client_id' => ['required', 'integer', Rule::exists('users', 'id')->whereIn('firma', HoldingScope::projectIdsFor($fid))],
-            'plan_id' => ['required', 'integer', Rule::exists('subscription_plans', 'id')->where('project_id', (int) $fid)],
+        $projectIds = $this->subscriptionProjectIds($fid);
+        $planProjectIds = $this->planProjectIdsForSubscriptions($fid);
+
+        $validated = $request->validate([
+            'project_id' => ['required', 'integer', Rule::in($projectIds)],
+            'client_id' => ['required', 'integer'],
+            'plan_id' => ['required', 'integer', Rule::exists('subscription_plans', 'id')->whereIn('project_id', $planProjectIds)],
             'status' => ['required', Rule::in(['active', 'paused', 'cancelled', 'expired', 'blocked'])],
             'starts_at' => ['nullable', 'date'],
             'next_billing_at' => ['nullable', 'date'],
@@ -253,6 +260,15 @@ class SubscriptionController extends Controller
             'payment_method' => ['nullable', 'string', 'max:60'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        $clientProjectScope = HoldingScope::projectIdsFor($validated['project_id']);
+        $clientExists = DB::table('users')
+            ->where('id', (int) $validated['client_id'])
+            ->whereIn('firma', $clientProjectScope)
+            ->exists();
+        abort_unless($clientExists, 422, 'Клиент не относится к выбранному проекту.');
+
+        return $validated;
     }
 
     private function plans(string $fid)
@@ -292,10 +308,12 @@ class SubscriptionController extends Controller
         return DB::table('customer_subscriptions as cs')
             ->join('subscription_plans as sp', 'sp.id', '=', 'cs.plan_id')
             ->join('users as u', 'u.id', '=', 'cs.client_id')
-            ->where('cs.project_id', (int) $fid)
+            ->leftJoin('project as p', 'p.id', '=', 'cs.project_id')
+            ->whereIn('cs.project_id', $this->subscriptionProjectIds($fid))
             ->select(
                 'cs.*',
                 'sp.name as plan_name',
+                'p.name as project_name',
                 $userColumn('orgname', 'client_orgname'),
                 $userColumn('secondname', 'client_secondname'),
                 $userColumn('name', 'client_firstname'),
@@ -317,9 +335,10 @@ class SubscriptionController extends Controller
             ->join('customer_subscriptions as cs', 'cs.id', '=', 'si.subscription_id')
             ->join('subscription_plans as sp', 'sp.id', '=', 'cs.plan_id')
             ->join('users as u', 'u.id', '=', 'cs.client_id')
+            ->leftJoin('project as p', 'p.id', '=', 'cs.project_id')
             ->leftJoin('document as d', 'd.id', '=', 'si.document_id')
-            ->where('cs.project_id', (int) $fid)
-            ->select('si.*', 'sp.name as plan_name', 'd.num as document_num', DB::raw("COALESCE(NULLIF(u.orgname, ''), CONCAT_WS(' ', u.secondname, u.name), u.email, CONCAT('Клиент #', u.id)) as client_name"))
+            ->whereIn('cs.project_id', $this->subscriptionProjectIds($fid))
+            ->select('si.*', 'sp.name as plan_name', 'p.name as project_name', 'cs.project_id as subscription_project_id', 'd.num as document_num', DB::raw("COALESCE(NULLIF(u.orgname, ''), CONCAT_WS(' ', u.secondname, u.name), u.email, CONCAT('Клиент #', u.id)) as client_name"))
             ->orderByDesc('si.created_at')
             ->orderByDesc('si.id')
             ->limit(200)
@@ -329,8 +348,49 @@ class SubscriptionController extends Controller
     private function clients(string $fid)
     {
         return Schema::hasTable('users')
-            ? DB::table('users')->whereIn('firma', HoldingScope::projectIdsFor($fid))->orderBy('orgname')->orderBy('secondname')->limit(500)->get(['id', 'orgname', 'secondname', 'name', 'email'])
+            ? DB::table('users')->whereIn('firma', $this->subscriptionProjectIds($fid))->orderBy('orgname')->orderBy('secondname')->limit(500)->get(['id', 'firma', 'orgname', 'secondname', 'name', 'email'])
             : collect();
+    }
+
+    private function subscriptionProjects(string $fid)
+    {
+        if (! Schema::hasTable('project')) {
+            return collect();
+        }
+
+        return DB::table('project')
+            ->whereIn('id', $this->subscriptionProjectIds($fid))
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get(['id', 'name', 'email']);
+    }
+
+    private function subscriptionProjectIds(string $fid): array
+    {
+        if (! Schema::hasTable('project')) {
+            return [(int) $fid];
+        }
+
+        if ((int) $fid === 2) {
+            return DB::table('project')
+                ->where('id', '<>', 2)
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->filter()
+                ->values()
+                ->all();
+        }
+
+        return collect(HoldingScope::projectIdsFor($fid))
+            ->map(fn ($id): int => (int) $id)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function planProjectIdsForSubscriptions(string $fid): array
+    {
+        return [(int) $fid];
     }
 
     private function products(string $fid)
@@ -349,7 +409,7 @@ class SubscriptionController extends Controller
 
     private function subscriptionExists(string $fid, int $subscription): bool
     {
-        return DB::table('customer_subscriptions')->where('id', $subscription)->where('project_id', (int) $fid)->exists();
+        return DB::table('customer_subscriptions')->where('id', $subscription)->whereIn('project_id', $this->subscriptionProjectIds($fid))->exists();
     }
 
     private function invoiceExists(string $fid, int $invoice): bool
@@ -357,7 +417,7 @@ class SubscriptionController extends Controller
         return DB::table('subscription_invoices as si')
             ->join('customer_subscriptions as cs', 'cs.id', '=', 'si.subscription_id')
             ->where('si.id', $invoice)
-            ->where('cs.project_id', (int) $fid)
+            ->whereIn('cs.project_id', $this->subscriptionProjectIds($fid))
             ->exists();
     }
 
