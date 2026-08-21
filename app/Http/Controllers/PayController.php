@@ -59,7 +59,7 @@ class PayController extends Controller
             'updated_at' => now(),
         ]);
 
-        $created = $billing->billSubscription($subscriptionId);
+        $created = $billing->billSubscription($subscriptionId, (int) self::ORDER_FID);
         $billing->enforceBlocks((int) $project->id);
 
         if ($created) {

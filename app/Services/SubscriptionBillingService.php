@@ -31,7 +31,7 @@ class SubscriptionBillingService
         return $created;
     }
 
-    public function billSubscription(int $subscriptionId): bool
+    public function billSubscription(int $subscriptionId, ?int $billingProjectId = null): bool
     {
         $subscription = DB::table('customer_subscriptions')->where('id', $subscriptionId)->first();
         if (! $subscription || (string) $subscription->status !== 'active') {
@@ -62,15 +62,16 @@ class SubscriptionBillingService
             return false;
         }
 
-        DB::transaction(function () use ($subscription, $plan, $items, $periodFrom, $periodTo, $dueAt): void {
+        DB::transaction(function () use ($subscription, $plan, $items, $periodFrom, $periodTo, $dueAt, $billingProjectId): void {
             $now = now();
             $year = $now->format('Y');
-            $documentNumber = Document::nextNum('ZOUT', (string) $subscription->project_id, $year);
+            $documentProjectId = (int) ($billingProjectId ?: $subscription->project_id);
+            $documentNumber = Document::nextNum('ZOUT', (string) $documentProjectId, $year);
             $linesTotal = (float) $items->sum(fn ($item): float => (float) $item->quantity * (float) $item->price);
             $amount = $linesTotal > 0 ? $linesTotal : (float) $plan->price;
 
-            $documentId = $this->createDocument($subscription, $plan, $documentNumber, $amount, $periodFrom, $periodTo);
-            $this->createLines($documentId, $documentNumber, $subscription, $plan, $items, $amount);
+            $documentId = $this->createDocument($subscription, $plan, $documentNumber, $amount, $periodFrom, $periodTo, $documentProjectId);
+            $this->createLines($documentId, $documentNumber, $subscription, $plan, $items, $amount, $documentProjectId);
 
             DB::table('subscription_invoices')->insert([
                 'subscription_id' => $subscription->id,
@@ -86,7 +87,6 @@ class SubscriptionBillingService
 
             DB::table('customer_subscriptions')->where('id', $subscription->id)->update([
                 'payment_status' => 'pending',
-                'payment_method' => (string) $documentNumber,
                 'next_billing_at' => $periodTo->addDay()->toDateString(),
                 'grace_until' => $dueAt->addDays((int) ($plan->grace_days ?? 3))->toDateString(),
                 'updated_at' => $now,
@@ -327,14 +327,16 @@ class SubscriptionBillingService
             ->sum('summa');
     }
 
-    private function createDocument(object $subscription, object $plan, int|string $documentNumber, float $amount, CarbonImmutable $periodFrom, CarbonImmutable $periodTo): int
+    private function createDocument(object $subscription, object $plan, int|string $documentNumber, float $amount, CarbonImmutable $periodFrom, CarbonImmutable $periodTo, int $documentProjectId): int
     {
         $payload = [
             'num' => (string) $documentNumber,
             'type' => 'ZOUT',
-            'firma' => (string) $subscription->project_id,
+            'firma' => (string) $documentProjectId,
             'client1' => (string) $subscription->client_id,
             'client2' => '0',
+            'oplata' => (string) ($subscription->payment_method ?? ''),
+            'money' => (string) ($subscription->payment_method ?? ''),
             'summa' => $amount,
             'data' => now()->format('d-m-Y'),
             'data2' => now()->format('d-m-Y'),
@@ -358,13 +360,13 @@ class SubscriptionBillingService
         return (int) DB::table('document')->insertGetId($payload);
     }
 
-    private function createLines(int $documentId, int|string $documentNumber, object $subscription, object $plan, iterable $items, float $amount): void
+    private function createLines(int $documentId, int|string $documentNumber, object $subscription, object $plan, iterable $items, float $amount, int $documentProjectId): void
     {
         if (! Schema::hasTable('z_body')) {
             return;
         }
 
-        $rows = collect($items)->map(function (object $item) use ($documentId, $documentNumber, $subscription): array {
+        $rows = collect($items)->map(function (object $item) use ($documentId, $documentNumber, $documentProjectId): array {
             $quantity = (float) $item->quantity;
             $price = (float) $item->price;
 
@@ -376,7 +378,7 @@ class SubscriptionBillingService
                 'pprice' => $price,
                 'psumma' => $quantity * $price,
                 'type' => 'ZOUT',
-                'firma' => (string) $subscription->project_id,
+                'firma' => (string) $documentProjectId,
                 'docid' => (string) $documentId,
             ];
         });
@@ -390,7 +392,7 @@ class SubscriptionBillingService
                 'pprice' => $amount,
                 'psumma' => $amount,
                 'type' => 'ZOUT',
-                'firma' => (string) $subscription->project_id,
+                'firma' => (string) $documentProjectId,
                 'docid' => (string) $documentId,
             ]);
         }
