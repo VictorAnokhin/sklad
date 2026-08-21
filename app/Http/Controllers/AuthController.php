@@ -504,6 +504,9 @@ class AuthController extends Controller
 
         if ($fid === '' && $request->hasSession()) {
             $fid = trim((string) session('fid', ''));
+            if ($fid === self::PRICE_ORDER_FID && ! Auth::check()) {
+                $fid = '';
+            }
         }
 
         return $fid !== '' ? $fid : null;
@@ -530,12 +533,21 @@ class AuthController extends Controller
             return $user;
         }
 
-        $project = Project::query()
+        $projectQuery = Project::query()
             ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
-            ->first();
+            ->orderBy('id');
+
+        if (! $this->isPriceProjectEmployee($user)) {
+            $projectQuery->whereKeyNot((int) self::PRICE_ORDER_FID);
+        }
+
+        $project = $projectQuery->first();
 
         if (!$project) {
             $firma = trim((string) ($user->firma ?? $user->fid ?? ''));
+            if ($firma === self::PRICE_ORDER_FID && ! $this->isPriceProjectEmployee($user)) {
+                $firma = '';
+            }
             $projectId = ($firma !== '' && $firma !== '0' && ctype_digit($firma) && !Project::query()->whereKey((int) $firma)->exists())
                 ? (int) $firma
                 : $this->nextFirma();
@@ -745,6 +757,10 @@ class AuthController extends Controller
         $requestedFid = trim((string) $request->input('fid', ''));
         $activeUser = $user;
 
+        if ($requestedFid === self::PRICE_ORDER_FID && ! $this->isPriceProjectEmployee($user)) {
+            $requestedFid = '';
+        }
+
         if ($requestedFid === '') {
             $defaultProject = $this->defaultProjectForUser($user);
             if ($defaultProject instanceof Project) {
@@ -773,6 +789,10 @@ class AuthController extends Controller
             return null;
         }
 
+        if (! $this->isPriceProjectEmployee($user)) {
+            $query->whereKeyNot((int) self::PRICE_ORDER_FID);
+        }
+
         if (Schema::hasColumn('project', 'hit')) {
             $query->orderByDesc('hit');
         }
@@ -798,7 +818,7 @@ class AuthController extends Controller
             return null;
         }
 
-        return Project::query()
+        $query = Project::query()
             ->where(function ($query) use ($hasUserId, $hasEmail, $hasFirmaProjects, $identityUserIds, $email, $firmaProjectIds): void {
                 if ($hasUserId) {
                     $query->whereIn('userid', $identityUserIds->all());
@@ -812,6 +832,12 @@ class AuthController extends Controller
                     $query->{$method}('id', $firmaProjectIds->all());
                 }
             });
+
+        if (! $this->isPriceProjectEmployee($user)) {
+            $query->whereKeyNot((int) self::PRICE_ORDER_FID);
+        }
+
+        return $query;
     }
 
     private function authIdentityUserIds(User $user): \Illuminate\Support\Collection
@@ -3907,6 +3933,11 @@ class AuthController extends Controller
         }
 
         $projectId = (int) (session('fid') ?: ($user->firma ?? $user->fid ?? 0));
+        if ($projectId === (int) self::PRICE_ORDER_FID && ! $this->isPriceProjectEmployee($user)) {
+            $project = $this->defaultProjectForUser($user);
+            $projectId = (int) ($project?->id ?? 0);
+        }
+
         if ($projectId <= 0) {
             return true;
         }

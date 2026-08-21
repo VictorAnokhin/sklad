@@ -102,6 +102,7 @@ class PayController extends Controller
 
         return Project::query()
             ->whereIn('userid', $this->identityUserIds($user)->all())
+            ->whereKeyNot((int) self::ORDER_FID)
             ->orderBy('id')
             ->get(['id', 'name', 'project_type', 'userid']);
     }
